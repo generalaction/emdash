@@ -1,3 +1,13 @@
+<!-- Top banner: icon + macOS download button -->
+<p align="left">
+  <img src="./src/assets/images/emdash/emdash_logo.svg#gh-light-mode-only" alt="Emdash" height="40" style="vertical-align:middle;margin-right:12px;">
+  <img src="./src/assets/images/emdash/emdash_logo_white.svg#gh-dark-mode-only" alt="Emdash" height="40" style="vertical-align:middle;margin-right:12px;">
+  <a href="https://github.com/generalaction/stagehand/releases/latest">
+    <img src="./docs/media/download-macos.png" alt="Download app for macOS" height="40" style="vertical-align:middle;">
+  </a>
+  
+</p>
+
 <p align="center">
     <img src="./src/assets/images/emdash/emdash_logo.svg#gh-light-mode-only"
   alt="Emdash" width="900">
