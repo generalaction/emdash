@@ -7,6 +7,11 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? './' : '/',
   plugins: [react()],
   root: './src/renderer',
+  test: {
+    dir: '.',
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+  },
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,
