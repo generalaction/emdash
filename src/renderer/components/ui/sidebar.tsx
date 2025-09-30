@@ -90,7 +90,7 @@ const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(
 
     const baseClasses =
       variant === "default"
-        ? "group/sidebar relative z-50 flex h-full flex-col border-r border-border bg-muted/10 text-sm text-foreground transition-all duration-200 ease-linear overflow-x-hidden"
+        ? "group/sidebar relative z-50 flex h-full flex-col bg-muted/10 text-sm text-foreground transition-all duration-200 ease-linear overflow-x-hidden"
         : "";
     const responsiveClasses =
       variant === "default"

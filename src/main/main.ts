@@ -7,7 +7,7 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const fixPath = require('fix-path');
   if (typeof fixPath === 'function') fixPath();
-} catch {
+} catch (error) {
   // no-op if fix-path isn't available at runtime
 }
 
@@ -29,7 +29,7 @@ if (process.platform === 'darwin') {
       const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
       process.env.PATH = Array.from(merged).join(':');
     }
-  } catch {}
+  } catch (error) {}
 }
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'

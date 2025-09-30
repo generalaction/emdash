@@ -39,6 +39,8 @@ export interface AuthResult {
 export class GitHubService {
   private readonly SERVICE_NAME = 'emdash-github';
   private readonly ACCOUNT_NAME = 'github-token';
+  private readonly GH_PATH = '/opt/homebrew/bin/gh';
+  private readonly GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 
   /**
    * Authenticate with GitHub using GitHub CLI (gh)
@@ -46,11 +48,11 @@ export class GitHubService {
   async authenticate(): Promise<AuthResult> {
     try {
       // Check if gh CLI is installed and authenticated
-      const { stdout } = await execAsync('gh auth status');
+      const { stdout } = await execAsync(`${this.GH_PATH} auth status`);
       
       if (stdout.includes('Logged in')) {
         // Get token from gh CLI
-        const { stdout: token } = await execAsync('gh auth token');
+        const { stdout: token } = await execAsync(`${this.GH_PATH} auth token`);
         const cleanToken = token.trim();
         
         if (cleanToken) {
@@ -73,7 +75,7 @@ export class GitHubService {
       
       // Check if gh CLI is installed
       try {
-        await execAsync('gh --version');
+        await execAsync(`${this.GH_PATH} --version`);
         return { 
           success: false, 
           error: 'GitHub CLI not authenticated.\n\nTo fix this:\n1. Open your terminal\n2. Run: gh auth login\n3. Follow the authentication steps\n4. Try again in orchbench' 
@@ -116,18 +118,8 @@ export class GitHubService {
    */
   async isAuthenticated(): Promise<boolean> {
     try {
-      let token = await this.getStoredToken();
-
-      if (!token) {
-        const authResult = await this.authenticate();
-        if (!authResult.success || !authResult.token) {
-          return false;
-        }
-        token = authResult.token;
-      }
-
-      // Test the token by making a simple API call
-      const user = await this.getUserInfo(token);
+      // Use direct GitHub API call with token
+      const user = await this.getUserInfo(this.GITHUB_TOKEN);
       return !!user;
     } catch (error) {
       console.error('Authentication check failed:', error);
@@ -136,14 +128,24 @@ export class GitHubService {
   }
 
   /**
-   * Get user information using GitHub CLI
+   * Get user information using GitHub API
    */
   async getUserInfo(token: string): Promise<GitHubUser | null> {
     try {
-      // Use gh CLI to get user info
-      const { stdout } = await execAsync('gh api user');
-      const userData = JSON.parse(stdout);
-      
+      // Use direct GitHub API call
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `token ${token}`,
+          'User-Agent': 'emdash-app'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+
+      const userData = await response.json() as any;
+
       return {
         id: userData.id,
         login: userData.login,
@@ -163,7 +165,7 @@ export class GitHubService {
   async getRepositories(token: string): Promise<GitHubRepo[]> {
     try {
       // Use gh CLI to get repositories with correct field names
-      const { stdout } = await execAsync('gh repo list --limit 100 --json name,nameWithOwner,description,url,defaultBranchRef,isPrivate,updatedAt,primaryLanguage,stargazerCount,forkCount');
+      const { stdout } = await execAsync(`${this.GH_PATH} repo list --limit 100 --json name,nameWithOwner,description,url,defaultBranchRef,isPrivate,updatedAt,primaryLanguage,stargazerCount,forkCount`);
       const repos = JSON.parse(stdout);
       
       return repos.map((repo: any) => ({
