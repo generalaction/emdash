@@ -4,10 +4,10 @@ import { Button } from "./ui/button";
 import { ArrowRight } from "lucide-react";
 import openaiLogo from "../../assets/images/openai.png";
 import claudeLogo from "../../assets/images/claude.png";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectItemText } from "./ui/select";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
+import geminiLogo from "../../assets/images/gemini.png";
 import { useFileIndex } from "../hooks/useFileIndex";
 import FileTypeIcon from "./ui/file-type-icon";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface ChatInputProps {
   value: string;
@@ -20,12 +20,17 @@ interface ChatInputProps {
   agentCreated: boolean;
   disabled?: boolean;
   workspacePath?: string;
-  provider?: 'codex' | 'claude';
-  onProviderChange?: (p: 'codex' | 'claude') => void;
-  selectDisabled?: boolean;
 }
 
 const MAX_LOADING_SECONDS = 60 * 60; // 60 minutes
+
+// Available models configuration
+const MODELS = [
+  { id: "codex", name: "Codex", logo: openaiLogo, available: true },
+  { id: "claude-code", name: "Claude Code", logo: claudeLogo, available: false },
+  { id: "gemini", name: "Gemini", logo: geminiLogo, available: false },
+  { id: "qwen", name: "Qwen", logo: openaiLogo, available: false }, // Using openai logo as placeholder
+] as const;
 
 const formatLoadingTime = (seconds: number): string => {
   if (seconds <= 0) return "0s";
@@ -61,13 +66,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   agentCreated,
   disabled = false,
   workspacePath,
-  provider = 'codex',
-  onProviderChange,
-  selectDisabled = false,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
-  // Provider is controlled by parent (codex | claude)
+  const [selectedModel, setSelectedModel] = useState<string>("codex");
   const shouldReduceMotion = useReducedMotion();
+
+  const currentModel = MODELS.find(m => m.id === selectedModel) || MODELS[0];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // File index for @ mention
@@ -79,7 +83,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const mentionResults = mentionOpen ? search(mentionQuery, 12) : [];
 
-  // Provider dropdown
+  // No provider dropdown needed when only Codex is supported
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
   // Send on Enter (unless Shift) when mention is closed
@@ -167,18 +171,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }
 
   const getPlaceholder = () => {
-    if (provider === 'codex' && !isCodexInstalled) {
+    if (!isCodexInstalled) {
       return "Codex CLI not installed...";
     }
     if (!agentCreated) {
       return "Initializing...";
     }
-    if (provider === 'claude') return "Tell Claude Code what to do...";
-    return "Tell Codex what to do...";
+    return "Tell agent what to do...";
   };
 
   const trimmedValue = value.trim();
-  const baseDisabled = disabled || (provider === 'codex' ? (!isCodexInstalled || !agentCreated) : !agentCreated);
+  const baseDisabled = disabled || !isCodexInstalled || !agentCreated;
   const textareaDisabled = baseDisabled || isLoading;
   const sendDisabled = isLoading ? baseDisabled : baseDisabled || !trimmedValue;
 
@@ -186,7 +189,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className="px-6 pt-4 pb-6">
       <div className="max-w-4xl mx-auto">
         <div
-          className={`relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md transition-shadow duration-200 ${
+          className={`relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl transition-shadow duration-200 ${
             isFocused ? "shadow-2xl" : "shadow-lg"
           }`}
         >
@@ -205,9 +208,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               placeholder={getPlaceholder()}
-              rows={2}
+              rows={1}
               disabled={textareaDisabled}
-              style={{ minHeight: "56px" }}
+              style={{ minHeight: "36px" }}
             />
             {/* Mention dropdown */}
             {mentionOpen && mentionResults.length > 0 && (
@@ -239,50 +242,36 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             )}
           </div>
 
-          <div className="flex items-center justify-between px-4 py-3 rounded-b-xl">
-            <div className="relative inline-block w-[12rem]">
-              <Select
-                value={provider}
-                onValueChange={(v) => { if (!selectDisabled) onProviderChange && onProviderChange(v as 'codex' | 'claude') }}
-                disabled={selectDisabled}
-              >
-                {selectDisabled ? (
-                  <TooltipProvider delayDuration={250}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <SelectTrigger aria-disabled className={`h-9 bg-gray-100 dark:bg-gray-700 border-none ${selectDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                          <div className="flex items-center gap-2">
-                            <img src={provider === 'claude' ? claudeLogo : openaiLogo} alt="Provider" className="w-4 h-4 shrink-0" />
-                            <SelectValue placeholder="Select provider" />
-                          </div>
-                        </SelectTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Provider is locked for this conversation.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  <SelectTrigger className="h-9 bg-gray-100 dark:bg-gray-700 border-none">
-                    <div className="flex items-center gap-2">
-                      <img src={provider === 'claude' ? claudeLogo : openaiLogo} alt="Provider" className="w-4 h-4 shrink-0" />
-                      <SelectValue placeholder="Select provider" />
-                    </div>
-                  </SelectTrigger>
-                )}
-                <SelectContent>
-                  <SelectItem value="codex">
-                    <div className="flex items-center gap-2">
-                      <img src={openaiLogo} alt="Codex" className="w-4 h-4" />
-                      <SelectItemText>Codex</SelectItemText>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="claude">
-                    <div className="flex items-center gap-2">
-                      <img src={claudeLogo} alt="Claude Code" className="w-4 h-4" />
-                      <SelectItemText>Claude Code</SelectItemText>
-                    </div>
-                  </SelectItem>
+          <div className="flex items-center justify-between px-4 py-3 rounded-b-2xl">
+            <div className="relative inline-block w-[9.5rem]">
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger className="h-9 px-3 rounded-lg bg-gray-100 dark:bg-gray-700 border-0 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                  <div className="flex items-center gap-2 w-full">
+                    <img src={currentModel.logo} alt={currentModel.name} className="w-4 h-4 shrink-0" />
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300 truncate text-left">
+                      {currentModel.name}
+                    </span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="w-[9.5rem]">
+                  {MODELS.map((model) => (
+                    <SelectItem
+                      key={model.id}
+                      value={model.id}
+                      disabled={!model.available}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <img src={model.logo} alt={model.name} className="w-4 h-4 shrink-0" />
+                        <span className={`text-xs font-medium truncate ${!model.available ? 'opacity-50' : ''}`}>
+                          {model.name}
+                        </span>
+                        {!model.available && (
+                          <span className="text-[10px] text-gray-400 ml-auto">Soon</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -297,7 +286,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 type="button"
                 onClick={isLoading ? onCancel : onSend}
                 disabled={sendDisabled}
-                className={`group relative h-9 w-9 p-0 rounded-md text-gray-600 dark:text-gray-300 transition-colors disabled:opacity-50 disabled:pointer-events-none ${
+                className={`group relative h-9 w-9 p-0 rounded-xl text-gray-600 dark:text-gray-300 transition-colors disabled:opacity-50 disabled:pointer-events-none ${
                   isLoading
                     ? "bg-gray-200 dark:bg-gray-700 hover:bg-red-300 hover:text-white dark:hover:text-white"
                     : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"

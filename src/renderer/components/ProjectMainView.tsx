@@ -216,9 +216,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   isCreatingWorkspace = false,
 }) => {
   return (
-    <div className="flex-1 min-h-0 bg-background flex flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="container mx-auto max-w-6xl p-6 space-y-8">
+    <div className="flex-1 bg-background">
+      <div className="container mx-auto max-w-6xl p-8 space-y-8">
         <div className="mb-8 space-y-2">
           <header className="flex items-start justify-between">
             <div className="space-y-2">
@@ -294,7 +293,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               </AlertDescription>
             </Alert>
           )}
-        </div>
         </div>
       </div>
     </div>

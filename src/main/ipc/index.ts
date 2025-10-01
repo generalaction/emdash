@@ -9,7 +9,6 @@ import { registerGithubIpc } from './githubIpc'
 import { registerDatabaseIpc } from './dbIpc'
 import { registerDebugIpc } from './debugIpc'
 import { registerGitIpc } from './gitIpc'
-import { registerAgentIpc } from './agentIpc'
 
 export function registerAllIpc() {
   // Core app/utility IPC
@@ -27,7 +26,6 @@ export function registerAllIpc() {
   registerWorktreeIpc()
   registerFsIpc()
   setupCodexIpc()
-  registerAgentIpc()
 
   console.log('✅ All IPC handlers registered')
 }

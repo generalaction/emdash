@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "./components/ui/button";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { FolderOpen } from "lucide-react";
 import LeftSidebar from "./components/LeftSidebar";
@@ -452,124 +453,152 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen flex bg-background text-foreground">
-      <LeftSidebar
-        projects={projects}
-        selectedProject={selectedProject}
-        onSelectProject={handleSelectProject}
-        onGoHome={handleGoHome}
-        onSelectWorkspace={handleSelectWorkspace}
-        activeWorkspace={activeWorkspace || undefined}
-        onReorderProjects={handleReorderProjects}
-        onReorderProjectsFull={handleReorderProjectsFull}
-        githubInstalled={ghInstalled}
-        githubAuthenticated={isAuthenticated}
-        githubUser={user}
-      />
+    <div className="h-screen bg-background text-foreground">
+      <PanelGroup direction="horizontal" className="h-full">
+        <Panel defaultSize={20} minSize={15} maxSize={30}>
+          <LeftSidebar
+            projects={projects}
+            selectedProject={selectedProject}
+            onSelectProject={handleSelectProject}
+            onGoHome={handleGoHome}
+            onSelectWorkspace={handleSelectWorkspace}
+            activeWorkspace={activeWorkspace || undefined}
+            onReorderProjects={handleReorderProjects}
+            onReorderProjectsFull={handleReorderProjectsFull}
+            githubInstalled={ghInstalled}
+            githubAuthenticated={isAuthenticated}
+            githubUser={user}
+          />
+        </Panel>
 
-      {showHomeView ? (
-        <div className="flex-1 bg-background text-foreground overflow-y-auto">
-          <div className="container mx-auto px-4 py-8 flex flex-col justify-center min-h-screen">
-            <div className="text-center mb-12">
-              <div className="flex items-center justify-center mb-4">
-                <div className="logo-shimmer-container">
-                  <img
-                    src={emdashLogo}
-                    alt="emdash"
-                    className="logo-shimmer-image"
-                  />
-                  <span
-                    className="logo-shimmer-overlay"
-                    aria-hidden="true"
-                    style={{
-                      WebkitMaskImage: `url(${emdashLogo})`,
-                      maskImage: `url(${emdashLogo})`,
-                      WebkitMaskRepeat: "no-repeat",
-                      maskRepeat: "no-repeat",
-                      WebkitMaskSize: "contain",
-                      maskSize: "contain",
-                      WebkitMaskPosition: "center",
-                      maskPosition: "center",
-                    }}
-                  />
-                </div>
-              </div>
-              <p className="text-sm sm:text-base text-gray-700 text-muted-foreground mb-6">
-                Run multiple Codex Agents in parallel
-              </p>
-              <div className="text-sm text-gray-500 max-w-2xl mx-auto space-y-4">
-                {showGithubRequirement && (
-                  <div>
-                    <p className="mb-2">
-                      <strong>Requirements:</strong> GitHub CLI
-                    </p>
-                    {needsGhInstall ? (
-                      <p className="text-xs">
-                        Install:{" "}
-                        <code className="bg-gray-100 px-1 rounded">
-                          brew install gh
-                        </code>
-                      </p>
-                    ) : (
-                      needsGhAuth && (
-                        <p className="text-xs">
-                          Authenticate:{" "}
-                          <code className="bg-gray-100 px-1 rounded">
-                            gh auth login
-                          </code>
-                        </p>
-                      )
-                    )}
-                  </div>
-                )}
+        <PanelResizeHandle className="w-0.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" />
 
-                {showCodexRequirement && (
-                  <div>
-                    <p className="mb-2">
-                      <strong>Requirements:</strong> Codex CLI
-                    </p>
-                    <div className="text-xs space-y-1">
-                      <p>
-                        Install:{" "}
-                        <code className="bg-gray-100 px-1 rounded">
-                          npm install -g @openai/codex
-                        </code>
-                      </p>
-                      <p>
-                        Authenticate:{" "}
-                        <code className="bg-gray-100 px-1 rounded">
-                          codex auth login
-                        </code>
-                      </p>
+        <Panel defaultSize={80}>
+          {showHomeView ? (
+            <div className="flex-1 bg-background text-foreground overflow-y-auto">
+              <div className="container mx-auto px-4 py-8 flex flex-col justify-center min-h-screen">
+                <div className="text-center mb-12">
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="logo-shimmer-container">
+                      <img
+                        src={emdashLogo}
+                        alt="emdash"
+                        className="logo-shimmer-image"
+                      />
+                      <span
+                        className="logo-shimmer-overlay"
+                        aria-hidden="true"
+                        style={{
+                          WebkitMaskImage: `url(${emdashLogo})`,
+                          maskImage: `url(${emdashLogo})`,
+                          WebkitMaskRepeat: "no-repeat",
+                          maskRepeat: "no-repeat",
+                          WebkitMaskSize: "contain",
+                          maskSize: "contain",
+                          WebkitMaskPosition: "center",
+                          maskPosition: "center",
+                        }}
+                      />
                     </div>
                   </div>
-                )}
+                  <p className="text-sm sm:text-base text-gray-700 text-muted-foreground mb-6">
+                    Run multiple Codex Agents in parallel
+                  </p>
+                  <div className="text-sm text-gray-500 max-w-2xl mx-auto space-y-4">
+                    {showGithubRequirement && (
+                      <div>
+                        <p className="mb-2">
+                          <strong>Requirements:</strong> GitHub CLI
+                        </p>
+                        {needsGhInstall ? (
+                          <p className="text-xs">
+                            Install:{" "}
+                            <code className="bg-gray-100 px-1 rounded">
+                              brew install gh
+                            </code>
+                          </p>
+                        ) : (
+                          needsGhAuth && (
+                            <p className="text-xs">
+                              Authenticate:{" "}
+                              <code className="bg-gray-100 px-1 rounded">
+                                gh auth login
+                              </code>
+                            </p>
+                          )
+                        )}
+                      </div>
+                    )}
+
+                    {showCodexRequirement && (
+                      <div>
+                        <p className="mb-2">
+                          <strong>Requirements:</strong> Codex CLI
+                        </p>
+                        <div className="text-xs space-y-1">
+                          <p>
+                            Install:{" "}
+                            <code className="bg-gray-100 px-1 rounded">
+                              npm install -g @openai/codex
+                            </code>
+                          </p>
+                          <p>
+                            Authenticate:{" "}
+                            <code className="bg-gray-100 px-1 rounded">
+                              codex auth login
+                            </code>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+                  <Button
+                    onClick={handleOpenProject}
+                    size="lg"
+                    className="min-w-[200px] bg-black text-white hover:bg-gray-800 hover:text-white border-black rounded-xl"
+                  >
+                    <FolderOpen className="mr-2 h-5 w-5" />
+                    Open Project
+                  </Button>
+                </div>
               </div>
             </div>
+          ) : selectedProject ? (
+            activeWorkspace ? (
+              <PanelGroup direction="horizontal" className="h-full">
+                <Panel defaultSize={70} minSize={50}>
+                  <ChatInterface
+                    workspace={activeWorkspace}
+                    projectName={selectedProject.name}
+                    className="h-full"
+                  />
+                </Panel>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-              <Button
-                onClick={handleOpenProject}
-                size="lg"
-                className="min-w-[200px] bg-black text-white hover:bg-gray-800 hover:text-white border-black"
-              >
-                <FolderOpen className="mr-2 h-5 w-5" />
-                Open Project
-              </Button>
-            </div>
+                <PanelResizeHandle className="w-0.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" />
 
-            {null}
-          </div>
-        </div>
-      ) : selectedProject ? (
-        <div className="flex-1 flex bg-background text-foreground overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            {activeWorkspace ? (
-              <ChatInterface
-                workspace={activeWorkspace}
-                projectName={selectedProject.name}
-                className="h-full"
-              />
+                <Panel defaultSize={30} minSize={20} maxSize={50}>
+                  <PanelGroup direction="vertical" className="h-full">
+                    <Panel defaultSize={50} minSize={30}>
+                      <FileChangesPanel
+                        workspaceId={activeWorkspace.path}
+                        className="h-full rounded-tr-xl"
+                      />
+                    </Panel>
+
+                    <PanelResizeHandle className="h-0.5 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors" />
+
+                    <Panel defaultSize={50} minSize={30}>
+                      <WorkspaceTerminalPanel
+                        workspace={activeWorkspace}
+                        className="h-full rounded-br-xl"
+                      />
+                    </Panel>
+                  </PanelGroup>
+                </Panel>
+              </PanelGroup>
             ) : (
               <ProjectMainView
                 project={selectedProject}
@@ -579,102 +608,10 @@ const App: React.FC = () => {
                 onDeleteWorkspace={handleDeleteWorkspace}
                 isCreatingWorkspace={isCreatingWorkspace}
               />
-            )}
-          </div>
-
-          {activeWorkspace && (
-            <div className="w-80 border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col h-screen max-h-screen">
-              <FileChangesPanel
-                workspaceId={activeWorkspace.path}
-                className="flex-1 min-h-0"
-              />
-              <WorkspaceTerminalPanel
-                workspace={activeWorkspace}
-                className="flex-1 min-h-0"
-              />
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="flex-1 bg-background text-foreground overflow-y-auto">
-          <div className="container mx-auto px-4 py-8 flex flex-col justify-center min-h-screen">
-            <div className="text-center mb-12">
-              <div className="flex items-center justify-center mb-4">
-                <img
-                  src={emdashLogo}
-                  alt="emdash"
-                  className="h-16"
-                />
-              </div>
-              <p className="text-sm sm:text-base text-gray-700 text-muted-foreground mb-6">
-                Run multiple Codex Agents in parallel
-              </p>
-              <div className="text-sm text-gray-500 max-w-2xl mx-auto space-y-4">
-                {showGithubRequirement && (
-                  <div>
-                    <p className="mb-2">
-                      <strong>Requirements:</strong> GitHub CLI
-                    </p>
-                    {needsGhInstall ? (
-                      <p className="text-xs">
-                        Install:{" "}
-                        <code className="bg-gray-100 px-1 rounded">
-                          brew install gh
-                        </code>
-                      </p>
-                    ) : (
-                      needsGhAuth && (
-                        <p className="text-xs">
-                          Authenticate:{" "}
-                          <code className="bg-gray-100 px-1 rounded">
-                            gh auth login
-                          </code>
-                        </p>
-                      )
-                    )}
-                  </div>
-                )}
-
-                {showCodexRequirement && (
-                  <div>
-                    <p className="mb-2">
-                      <strong>Requirements:</strong> Codex CLI
-                    </p>
-                    <div className="text-xs space-y-1">
-                      <p>
-                        Install:{" "}
-                        <code className="bg-gray-100 px-1 rounded">
-                          npm install -g @openai/codex
-                        </code>
-                      </p>
-                      <p>
-                        Authenticate:{" "}
-                        <code className="bg-gray-100 px-1 rounded">
-                          codex auth login
-                        </code>
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-              <Button
-                onClick={handleOpenProject}
-                size="lg"
-                className="min-w-[200px] bg-black text-white hover:bg-gray-800 hover:text-white border-black"
-              >
-                <FolderOpen className="mr-2 h-5 w-5" />
-                Open Project
-              </Button>
-            </div>
-
-            {null}
-          </div>
-        </div>
-      )}
+            )
+          ) : null}
+        </Panel>
+      </PanelGroup>
 
       <WorkspaceModal
         isOpen={showWorkspaceModal}

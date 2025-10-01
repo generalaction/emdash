@@ -6,7 +6,7 @@ type Props = React.HTMLAttributes<HTMLSpanElement> & {
 }
 
 export const Badge: React.FC<Props> = ({ className, variant = 'secondary', ...props }) => {
-  const base = 'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs'
+  const base = 'inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs'
   const styles =
     variant === 'outline'
       ? 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'

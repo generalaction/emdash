@@ -21,6 +21,8 @@ import {
 import { Home, ChevronDown } from "lucide-react";
 import GithubStatus from "./GithubStatus";
 import { WorkspaceItem } from "./WorkspaceItem";
+import { ThemeToggle } from "./ThemeToggle";
+import { formatCompactTime } from "../lib/timeUtils";
 
 interface Project {
   id: string;
@@ -36,6 +38,8 @@ interface Project {
     connected: boolean;
   };
   workspaces?: Workspace[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface Workspace {
@@ -81,30 +85,27 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarContent>
-          <SidebarGroup className="mb-2">
+        <SidebarContent className="px-4 py-6">
+          <SidebarGroup>
             <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Button
-                      variant="ghost"
-                      onClick={onGoHome}
-                      aria-label="Home"
-                      className="justify-start mt-5"
-                    >
-                      <Home className="w-5 h-5 sm:w-4 sm:h-4 text-gray-600 dark:text-gray-400" />
-                      <span className="hidden sm:inline text-sm font-medium">Home</span>
-                    </Button>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
+              <div className="flex items-center justify-between px-1 py-2 mb-4">
+                <Button
+                  variant="ghost"
+                  onClick={onGoHome}
+                  aria-label="Home"
+                  className="flex items-center gap-3 h-9 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Home className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Home</span>
+                </Button>
+                <ThemeToggle />
+              </div>
             </SidebarGroupContent>
           </SidebarGroup>
 
-          <SidebarGroup>
-            <SidebarGroupLabel className="sr-only">Projects</SidebarGroupLabel>
-            <SidebarGroupContent>
+          <SidebarGroup className="mt-6">
+            <SidebarGroupLabel className="px-2 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Projects</SidebarGroupLabel>
+            <SidebarGroupContent className="mt-3">
               <SidebarMenu>
                 <ReorderList
                   as="div"
@@ -128,8 +129,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       }
                     }
                   }}
-                  className="space-y-1 list-none p-0 m-0 min-w-0"
-                  itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
+                  className="space-y-2 list-none p-0 m-0 min-w-0"
+                  itemClassName="relative group cursor-pointer rounded-lg list-none min-w-0"
                   getKey={(p) => (p as Project).id}
                 >
                   {(project) => {
@@ -137,7 +138,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     return (
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
-                          <div className="flex w-full items-center rounded-md px-2 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground min-w-0">
+                          <div className="flex w-full items-center rounded-lg px-3 py-3 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors min-w-0 border border-transparent hover:border-gray-200 dark:hover:border-gray-700">
                             <button
                               type="button"
                               className="flex flex-1 min-w-0 flex-col text-left bg-transparent outline-none focus-visible:outline-none"
@@ -146,7 +147,14 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 onSelectProject(typedProject);
                               }}
                             >
-                              <span className="truncate block">{typedProject.name}</span>
+                              <div className="flex items-center justify-between w-full">
+                                <span className="truncate block">{typedProject.name}</span>
+                                {typedProject.updatedAt && (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500 ml-2 shrink-0">
+                                    {formatCompactTime(typedProject.updatedAt)}
+                                  </span>
+                                )}
+                              </div>
                               <span className="hidden sm:block truncate text-xs text-muted-foreground">
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
@@ -156,7 +164,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 type="button"
                                 aria-label={`Toggle workspaces for ${typedProject.name}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="ml-2 -mr-1 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                className="ml-2 -mr-1 rounded-lg p-1.5 text-gray-400 dark:text-gray-500 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300 focus-visible:outline-none"
                               >
                                 <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                               </button>
@@ -166,7 +174,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           <CollapsibleContent asChild>
                             <div>
                               {typedProject.workspaces?.length ? (
-                                <div className="hidden sm:block mt-2 ml-7 space-y-1 min-w-0">
+                                <div className="hidden sm:block mt-3 ml-6 space-y-2 min-w-0">
                                   {typedProject.workspaces.map((workspace) => {
                                     const isActive = activeWorkspace?.id === workspace.id;
                                     return (
@@ -183,8 +191,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                           onSelectWorkspace &&
                                             onSelectWorkspace(workspace);
                                         }}
-                                        className={` px-2 py-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 min-w-0 ${
-                                          isActive ? "bg-black/5 dark:bg-white/5" : ""
+                                        className={`px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/40 border-b border-gray-100 dark:border-gray-700 last:border-b-0 cursor-pointer transition-colors min-w-0 ${
+                                          isActive ? "bg-gray-100 dark:bg-gray-700" : ""
                                         }`}
                                         title={workspace.name}
                                       >
@@ -205,7 +213,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter className="border-t border-gray-200 dark:border-gray-800 px-2 py-2 sm:px-4 sm:py-4">
+        <SidebarFooter className="border-t border-gray-200 dark:border-gray-700 px-4 py-4 mt-auto">
           <SidebarMenu className="w-full">
             <SidebarMenuItem>
               <SidebarMenuButton

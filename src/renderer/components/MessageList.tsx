@@ -30,7 +30,6 @@ interface MessageListProps {
   streamingOutput: string | null;
   isStreaming?: boolean;
   awaitingThinking?: boolean;
-  providerId?: 'codex' | 'claude';
 }
 
 const MessageList: React.FC<MessageListProps> = ({
@@ -38,7 +37,6 @@ const MessageList: React.FC<MessageListProps> = ({
   streamingOutput,
   isStreaming = false,
   awaitingThinking = false,
-  providerId = 'codex',
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -201,33 +199,28 @@ const MessageList: React.FC<MessageListProps> = ({
         {streamingOutput !== null && (
           <div className="flex justify-start">
             <div className="max-w-[80%] px-4 py-3 text-sm leading-relaxed font-sans text-gray-900 dark:text-gray-100">
-              {providerId === 'codex' ? (
-                (() => {
-                  const parsed = parseCodexStream(streamingOutput || "")
-                  if (awaitingThinking) return (<ThinkingDots />)
+              {(() => {
+                const parsed = parseCodexStream(streamingOutput || "")
+                if (awaitingThinking) {
                   return (
-                    <div className="space-y-3">
-                      {parsed.reasoning ? (
-                        <Reasoning className="w-full" isStreaming={!!isStreaming} defaultOpen={false}>
-                          <ReasoningTrigger />
-                          <ReasoningContent>{parsed.reasoning || ''}</ReasoningContent>
-                        </Reasoning>
-                      ) : null}
-                      {parsed.hasCodex && parsed.response ? <Response>{parsed.response}</Response> : null}
-                      {parsed && parsed.actions && parsed.actions.length > 0 ? (
-                        <StreamingAction text={parsed.actions[parsed.actions.length - 1]} />
-                      ) : null}
-                    </div>
+                    <ThinkingDots />
                   )
-                })()
-              ) : (
-                <div className="space-y-3">
-                  {streamingOutput && streamingOutput.trim().length > 0 ? (
-                    <Response>{streamingOutput}</Response>
-                  ) : null}
-                  {isStreaming ? (<ThinkingDots />) : null}
-                </div>
-              )}
+                }
+                return (
+                  <div className="space-y-3">
+                    {parsed.reasoning ? (
+                      <Reasoning className="w-full" isStreaming={!!isStreaming} defaultOpen={false}>
+                        <ReasoningTrigger />
+                        <ReasoningContent>{parsed.reasoning || ''}</ReasoningContent>
+                      </Reasoning>
+                    ) : null}
+                    {parsed.hasCodex && parsed.response ? <Response>{parsed.response}</Response> : null}
+                    {parsed && parsed.actions && parsed.actions.length > 0 ? (
+                      <StreamingAction text={parsed.actions[parsed.actions.length - 1]} />
+                    ) : null}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         )}

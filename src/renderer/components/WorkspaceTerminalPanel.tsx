@@ -37,9 +37,9 @@ export const WorkspaceTerminalPanel: React.FC<Props> = ({
 
   return (
     <div
-      className={`flex flex-col h-full bg-white dark:bg-gray-800 ${className}`}
+      className={`flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-lg ${className}`}
     >
-      <div className="flex items-center px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center space-x-2 min-w-0">
           <h3
             className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[220px]"
@@ -50,7 +50,7 @@ export const WorkspaceTerminalPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="flex-1 bg-black overflow-hidden">
+      <div className="flex-1 bg-black overflow-hidden p-2.5">
         <TerminalPane
           id={`workspace-${workspace.id}`}
           cwd={workspace.path}

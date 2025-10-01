@@ -4,8 +4,6 @@ import { useToast } from "../hooks/use-toast";
 import ChatInput from "./ChatInput";
 import MessageList from "./MessageList";
 import useCodexStream from "../hooks/useCodexStream";
-import useClaudeStream from "../hooks/useClaudeStream";
-import { useProviderPreference } from "../hooks/useProviderPreference";
 import { buildAttachmentsSection } from "../lib/attachments";
 import { Workspace, Message } from "../types/chat";
 
@@ -36,10 +34,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
   const { toast } = useToast();
   const [inputValue, setInputValue] = useState("");
   const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
-  const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
-  const [claudeInstructions, setClaudeInstructions] = useState<string | null>(null);
   const [agentCreated, setAgentCreated] = useState(false);
-  // Provider is managed via useProviderPreference
   const initializedConversationRef = useRef<string | null>(null);
 
   const codexStream = useCodexStream({
@@ -47,52 +42,9 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
     workspacePath: workspace.path,
   });
 
-  // Provider preference (restores on reload)
-  const { provider, setProvider } = useProviderPreference(workspace.id, codexStream.conversationId, 'codex')
-
-  const claudeStream = useClaudeStream(provider === 'claude' ? { workspaceId: workspace.id, workspacePath: workspace.path } : null)
-
-  // Provider persistence is handled by useProviderPreference
-
   useEffect(() => {
     initializedConversationRef.current = null;
   }, [workspace.id]);
-
-  // Check Claude Code installation when selected
-  useEffect(() => {
-    let cancelled = false
-    if (provider !== 'claude') { setIsClaudeInstalled(null); setClaudeInstructions(null); return }
-    (async () => {
-      try {
-        const res = await (window as any).electronAPI.agentCheckInstallation?.('claude')
-        if (cancelled) return
-        if (res?.success) {
-          setIsClaudeInstalled(!!res.isInstalled)
-          if (!res.isInstalled) {
-            const inst = await (window as any).electronAPI.agentGetInstallationInstructions?.('claude')
-            setClaudeInstructions(inst?.instructions || 'Install: npm install -g @anthropic-ai/claude-code\nThen run: claude and use /login')
-          } else {
-            setClaudeInstructions(null)
-          }
-        } else {
-          setIsClaudeInstalled(false)
-        }
-      } catch {
-        setIsClaudeInstalled(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [provider, workspace.id])
-
-  // When switching providers, ensure other streams are stopped
-  useEffect(() => {
-    (async () => {
-      try {
-        if (provider !== 'codex') await (window as any).electronAPI.codexStopStream?.(workspace.id)
-        if (provider !== 'claude') await (window as any).electronAPI.agentStopStream?.({ providerId: 'claude', workspaceId: workspace.id })
-      } catch {}
-    })()
-  }, [provider, workspace.id])
 
   useEffect(() => {
     if (!codexStream.isReady) return;
@@ -172,18 +124,9 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
     initializeCodex();
   }, [workspace.id, workspace.path, workspace.name, toast]);
 
-  // Basic Claude installer check (optional UX). We'll rely on user to install as needed.
-  // We still gate sending by agentCreated (workspace+conversation ready).
-
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
-    if (provider === 'claude' && isClaudeInstalled === false) {
-      toast({ title: 'Claude Code not installed', description: 'Install Claude Code CLI and login first. See instructions below.', variant: 'destructive' })
-      return
-    }
-    
-    const activeConversationId = provider === 'codex' ? codexStream.conversationId : claudeStream.conversationId
-    if (!activeConversationId) return;
+    if (!codexStream.conversationId) return;
 
     const attachmentsSection = await buildAttachmentsSection(
       workspace.path,
@@ -194,9 +137,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
       }
     );
 
-    const result = provider === 'codex'
-      ? await codexStream.send(inputValue, attachmentsSection)
-      : await claudeStream.send(inputValue, attachmentsSection)
+    const result = await codexStream.send(inputValue, attachmentsSection);
     if (!result.success) {
       if (result.error && result.error !== "stream-in-progress") {
         toast({
@@ -212,8 +153,9 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
   };
 
   const handleCancelStream = async () => {
-    if (!codexStream.isStreaming && !claudeStream.isStreaming) return;
-    const result = provider === 'codex' ? await codexStream.cancel() : await claudeStream.cancel();
+    if (!codexStream.isStreaming) return;
+
+    const result = await codexStream.cancel();
     if (!result.success) {
       toast({
         title: "Cancel Failed",
@@ -223,13 +165,13 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
     }
   };
 
-  const activeStream = provider === 'codex' ? codexStream : claudeStream
-  const streamingOutputForList = activeStream.isStreaming || activeStream.streamingOutput ? activeStream.streamingOutput : null
-  const conversationHasUser = (codexStream.messages && codexStream.messages.some((m) => m.sender === 'user'))
-  const providerLocked = activeStream.isStreaming || conversationHasUser
+  const streamingOutputForList =
+    codexStream.isStreaming || codexStream.streamingOutput
+      ? codexStream.streamingOutput
+      : null;
 
   return (
-    <div className={`flex flex-col h-full bg-white dark:bg-gray-800 ${className}`}>
+    <div className={`flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-lg ${className}`}>
       <div className="flex items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center space-x-3">
           <Folder className="w-5 h-5 text-gray-600" />
@@ -260,24 +202,12 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
           </div>
         </div>
       ) : (
-        <>
-        {provider === 'claude' && isClaudeInstalled === false ? (
-          <div className="px-6 pt-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-3 text-sm whitespace-pre-wrap">
-                {claudeInstructions || 'Install Claude Code: npm install -g @anthropic-ai/claude-code\nThen run: claude and use /login'}
-              </div>
-            </div>
-          </div>
-        ) : null}
         <MessageList
-          messages={activeStream.messages}
+          messages={codexStream.messages}
           streamingOutput={streamingOutputForList}
-          isStreaming={activeStream.isStreaming}
-          awaitingThinking={provider === 'codex' ? codexStream.awaitingThinking : claudeStream.awaitingThinking}
-          providerId={provider}
+          isStreaming={codexStream.isStreaming}
+          awaitingThinking={codexStream.awaitingThinking}
         />
-        </>
       )}
 
       <ChatInput
@@ -285,15 +215,11 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
         onChange={setInputValue}
         onSend={handleSendMessage}
         onCancel={handleCancelStream}
-        isLoading={activeStream.isStreaming}
-        loadingSeconds={activeStream.seconds}
+        isLoading={codexStream.isStreaming}
+        loadingSeconds={codexStream.seconds}
         isCodexInstalled={isCodexInstalled}
         agentCreated={agentCreated}
         workspacePath={workspace.path}
-        provider={provider}
-        onProviderChange={(p) => setProvider(p)}
-        selectDisabled={providerLocked}
-        disabled={provider === 'claude' && isClaudeInstalled === false}
       />
     </div>
   );

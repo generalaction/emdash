@@ -247,4 +247,5 @@ export function registerGitIpc() {
       }
     }
   )
+
 }
