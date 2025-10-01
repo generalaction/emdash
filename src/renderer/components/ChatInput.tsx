@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import openaiLogo from "../../assets/images/openai.png";
 import claudeLogo from "../../assets/images/claude.png";
 import factoryLogo from "../../assets/images/factorydroid.png";
+import geminiLogo from "../../assets/images/gemini.png";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectItemText } from "./ui/select";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
 import { useFileIndex } from "../hooks/useFileIndex";
@@ -21,8 +22,8 @@ interface ChatInputProps {
   agentCreated: boolean;
   disabled?: boolean;
   workspacePath?: string;
-  provider?: 'codex' | 'claude' | 'droid';
-  onProviderChange?: (p: 'codex' | 'claude' | 'droid') => void;
+  provider?: 'codex' | 'claude' | 'droid' | 'gemini';
+  onProviderChange?: (p: 'codex' | 'claude' | 'droid' | 'gemini') => void;
   selectDisabled?: boolean;
 }
 
@@ -176,6 +177,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
     if (provider === 'claude') return "Tell Claude Code what to do...";
     if (provider === 'droid') return "Factory Droid uses the terminal above.";
+    if (provider === 'gemini') return "Gemini CLI uses the terminal above.";
     return "Tell Codex what to do...";
   };
 
@@ -185,7 +187,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       ? (!isCodexInstalled || !agentCreated)
       : provider === 'claude'
         ? !agentCreated
-        : true // droid: input disabled, terminal-only
+        : provider === 'gemini'
+          ? true
+          : true // droid: input disabled, terminal-only
   );
   const textareaDisabled = baseDisabled || isLoading;
   const sendDisabled = provider === 'droid' ? true : (isLoading ? baseDisabled : baseDisabled || !trimmedValue);
@@ -251,7 +255,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <div className="relative inline-block w-[12rem]">
               <Select
                 value={provider}
-                onValueChange={(v) => { if (!selectDisabled) onProviderChange && onProviderChange(v as 'codex' | 'claude' | 'droid') }}
+                onValueChange={(v) => { if (!selectDisabled) onProviderChange && onProviderChange(v as 'codex' | 'claude' | 'droid' | 'gemini') }}
                 disabled={selectDisabled}
               >
                 {selectDisabled ? (
@@ -264,8 +268,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                               <img src={claudeLogo} alt="Claude Code" className="w-4 h-4 shrink-0" />
                             ) : provider === 'codex' ? (
                               <img src={openaiLogo} alt="Codex" className="w-4 h-4 shrink-0" />
-                            ) : (
+                            ) : provider === 'droid' ? (
                               <img src={factoryLogo} alt="Factory Droid" className="w-4 h-4 shrink-0" />
+                            ) : (
+                              <img src={geminiLogo} alt="Gemini CLI" className="w-4 h-4 shrink-0" />
                             )}
                             <SelectValue placeholder="Select provider" />
                           </div>
@@ -283,8 +289,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         <img src={claudeLogo} alt="Claude Code" className="w-4 h-4 shrink-0" />
                       ) : provider === 'codex' ? (
                         <img src={openaiLogo} alt="Codex" className="w-4 h-4 shrink-0" />
-                      ) : (
+                      ) : provider === 'droid' ? (
                         <img src={factoryLogo} alt="Factory Droid" className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <img src={geminiLogo} alt="Gemini CLI" className="w-4 h-4 shrink-0" />
                       )}
                       <SelectValue placeholder="Select provider" />
                     </div>
@@ -309,6 +317,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       <SelectItemText>Droid</SelectItemText>
                     </div>
                   </SelectItem>
+                  <SelectItem value="gemini">
+                    <div className="flex items-center gap-2">
+                      <img src={geminiLogo} alt="Gemini CLI" className="w-4 h-4" />
+                      <SelectItemText>Gemini</SelectItemText>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -328,9 +342,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     ? "bg-gray-200 dark:bg-gray-700 hover:bg-red-300 hover:text-white dark:hover:text-white"
                     : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
-                aria-label={provider === 'droid' ? 'Droid uses terminal' : (isLoading ? "Stop Codex" : "Send")}
+                aria-label={(provider === 'droid' || provider === 'gemini') ? 'Uses terminal' : (isLoading ? "Stop Codex" : "Send")}
               >
-                {provider === 'droid' ? (
+                {(provider === 'droid' || provider === 'gemini') ? (
                   <div className="flex items-center justify-center w-full h-full">
                     <div className="w-3.5 h-3.5 rounded-[3px] bg-gray-500 dark:bg-gray-300" />
                   </div>

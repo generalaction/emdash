@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
   shell?: string;
   className?: string;
   variant?: 'dark' | 'light';
+  workspaceId?: string;
+  provider?: 'codex' | 'claude' | 'droid' | 'gemini';
 };
 
 const TerminalPaneComponent: React.FC<Props> = ({
@@ -19,6 +21,8 @@ const TerminalPaneComponent: React.FC<Props> = ({
   shell,
   className,
   variant = 'dark',
+  workspaceId,
+  provider,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -122,12 +126,20 @@ const TerminalPaneComponent: React.FC<Props> = ({
           cwd,
           cols,
           rows,
-          shell,
+          shell: provider === 'gemini' ? undefined : shell,
         });
         if (!res?.ok) {
           term.writeln(
             "\x1b[31mFailed to start PTY:\x1b[0m " + (res as any)?.error
           );
+        } else {
+          if ((provider === 'droid' || provider === 'gemini') && workspaceId) {
+            term.writeln("\x1b[90m[terminal session started]\x1b[0m");
+          }
+          // For Gemini, prefer launching within the user's shell to ensure login flows work
+          if (provider === 'gemini') {
+            try { window.electronAPI.ptyInput({ id, data: 'gemini\r' }) } catch {}
+          }
         }
       } catch (e: any) {
         term.writeln(
@@ -138,6 +150,9 @@ const TerminalPaneComponent: React.FC<Props> = ({
 
     const offData = window.electronAPI.onPtyData(id, (data) => {
       term.write(data);
+    });
+    const offExit = window.electronAPI.onPtyExit?.(id, async (_info: { exitCode: number; signal?: number }) => {
+      term.writeln("\x1b[90m[process exited]\x1b[0m");
     });
     const handleResize = () => {
       if (termRef.current && el) {
@@ -157,16 +172,18 @@ const TerminalPaneComponent: React.FC<Props> = ({
 
     disposeFns.current.push(() => keyDisp.dispose());
     disposeFns.current.push(offData);
+    if (offExit) disposeFns.current.push(offExit);
     disposeFns.current.push(() => keyDisp2.dispose());
     disposeFns.current.push(() => resizeObserver.disconnect());
 
     return () => {
       window.electronAPI.ptyKill(id);
+      // no-op: status integration disabled
       disposeFns.current.forEach((fn) => fn());
       term.dispose();
       termRef.current = null;
     };
-  }, [id, cwd, cols, rows, variant]);
+  }, [id, cwd, cols, rows, variant, workspaceId, provider]);
 
   return (
     <div

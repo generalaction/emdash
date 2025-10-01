@@ -50,7 +50,7 @@ const ChatInterface: React.FC<Props> = ({
     null
   );
   const [agentCreated, setAgentCreated] = useState(false);
-  const [provider, setProvider] = useState<"codex" | "claude" | "droid">(
+  const [provider, setProvider] = useState<"codex" | "claude" | "droid" | "gemini">(
     "codex"
   );
   const initializedConversationRef = useRef<string | null>(null);
@@ -79,6 +79,7 @@ const ChatInterface: React.FC<Props> = ({
         | "codex"
         | "claude"
         | "droid"
+        | "gemini"
         | null;
       if (saved === "claude" || saved === "codex") {
         setProvider(saved);
@@ -307,7 +308,7 @@ const ChatInterface: React.FC<Props> = ({
       : null;
   // Allow switching providers freely while in Droid mode
   const providerLocked =
-    provider !== "droid" &&
+    provider !== "droid" && provider !== "gemini" &&
     (activeStream.isStreaming ||
       (activeStream.messages &&
         activeStream.messages.some((m) => m.sender === "user")));
@@ -327,28 +328,31 @@ const ChatInterface: React.FC<Props> = ({
         </div>
       </div>
 
-      {provider === "droid" ? (
+      {provider === "droid" || provider === "gemini" ? (
         <div className="flex-1 flex flex-col min-h-0">
           <div className="px-6 pt-4">
             <div className="max-w-4xl mx-auto">
               <div className="rounded-md border border-gray-200 bg-gray-50 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 p-3 text-sm">
                 <div className="whitespace-pre-wrap">
-                  Interact with Droid in the terminal below. To install and
-                  get started, see the Factory CLI Quickstart:
+                  {provider === 'droid'
+                    ? 'Interact with Droid in the terminal below. To install and get started, see the Factory CLI Quickstart:'
+                    : 'Interact with Gemini in the terminal below. To install and get started, see the Gemini CLI:'}
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    window.electronAPI.openExternal(
-                      "https://docs.factory.ai/cli/getting-started/quickstart"
-                    )
-                  }
+                  onClick={() => window.electronAPI.openExternal(
+                    provider === 'droid'
+                      ? 'https://docs.factory.ai/cli/getting-started/quickstart'
+                      : 'https://github.com/google-gemini/gemini-cli'
+                  )}
                   className="mt-1 underline text-gray-800 hover:text-gray-600 dark:text-gray-200 dark:hover:text-gray-100"
                 >
-                  https://docs.factory.ai/cli/getting-started/quickstart
+                  {provider === 'droid'
+                    ? 'https://docs.factory.ai/cli/getting-started/quickstart'
+                    : 'https://github.com/google-gemini/gemini-cli'}
                 </button>
                 <div className="mt-2 text-xs opacity-90">
-                  Note: Chat state for Factory CLI sessions isn’t persisted;
+                  Note: Chat state for terminal-based sessions isn’t persisted;
                   switching chats closes the terminal and its state is not
                   restored.
                 </div>
@@ -358,10 +362,12 @@ const ChatInterface: React.FC<Props> = ({
           <div className="flex-1 min-h-0 px-6 mt-4">
             <div className="max-w-4xl mx-auto h-full rounded-md overflow-hidden">
               <TerminalPane
-                id={`droid-main-${workspace.id}`}
+                id={`${provider}-main-${workspace.id}`}
                 cwd={workspace.path}
-                shell="droid"
+                shell={provider === 'droid' ? 'droid' : 'gemini'}
                 variant="light"
+                workspaceId={workspace.id}
+                provider={provider as any}
                 className="h-full w-full"
               />
             </div>
@@ -416,8 +422,8 @@ const ChatInterface: React.FC<Props> = ({
         onChange={setInputValue}
         onSend={handleSendMessage}
         onCancel={handleCancelStream}
-        isLoading={provider === "droid" ? false : activeStream.isStreaming}
-        loadingSeconds={provider === "droid" ? 0 : activeStream.seconds}
+        isLoading={(provider === "droid" || provider === "gemini") ? false : activeStream.isStreaming}
+        loadingSeconds={(provider === "droid" || provider === "gemini") ? 0 : activeStream.seconds}
         isCodexInstalled={isCodexInstalled}
         agentCreated={agentCreated}
         workspacePath={workspace.path}
@@ -425,7 +431,7 @@ const ChatInterface: React.FC<Props> = ({
         onProviderChange={(p) => setProvider(p)}
         selectDisabled={providerLocked}
         disabled={
-          provider === "droid" ||
+          provider === "droid" || provider === "gemini" ||
           (provider === "claude" && isClaudeInstalled === false)
         }
       />

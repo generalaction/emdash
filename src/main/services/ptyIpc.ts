@@ -1,5 +1,5 @@
 import { ipcMain, WebContents } from 'electron'
-import { startPty, writePty, resizePty, killPty } from './ptyManager'
+import { startPty, writePty, resizePty, killPty, hasPty } from './ptyManager'
 
 const owners = new Map<string, WebContents>()
 
@@ -45,6 +45,7 @@ export function registerPtyIpc(): void {
 
   ipcMain.on('pty:resize', (_event, args: { id: string, cols: number, rows: number }) => {
     try {
+      if (!hasPty(args.id)) return
       resizePty(args.id, args.cols, args.rows)
     } catch (e) {
       console.error('pty:resize error', e)

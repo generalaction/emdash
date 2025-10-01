@@ -59,6 +59,16 @@ const RequirementsNotice: React.FC<Props> = ({
               </div>
             </div>
             <div>
+              <span className="font-medium">Gemini CLI</span>
+              <div>
+                Install: <code className="bg-gray-100 px-1 rounded">npm install -g @google/gemini-cli</code>
+              </div>
+              <div>
+                Docs:{' '}
+                <a className="underline" href="https://github.com/google-gemini/gemini-cli" target="_blank" rel="noreferrer">github.com/google-gemini/gemini-cli</a>
+              </div>
+            </div>
+            <div>
               <span className="font-medium">Factory CLI (Droid)</span>
               <div>
                 Quickstart:{' '}
@@ -82,4 +92,3 @@ const RequirementsNotice: React.FC<Props> = ({
 }
 
 export default RequirementsNotice
-
