@@ -53,3 +53,7 @@ jspm_packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# AI assistant instructions
+CLAUDE.md
+AGENTS.md

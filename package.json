@@ -11,8 +11,8 @@
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "package": "npm run build && electron-builder",
-    "postinstall": "electron-rebuild -v 28.3.3 -w \"sqlite3,node-pty,keytar\"",
-    "lint": "eslint . --ext .ts,.tsx",
+    "postinstall": "npx --yes electron-rebuild -v 28.3.3 -w \"sqlite3,node-pty,keytar\"",
+    "lint": "./node_modules/.bin/eslint . --ext .ts,.tsx",
     "type-check": "tsc --noEmit"
   },
   "keywords": [
