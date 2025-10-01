@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "./ui/button";
 import { Spinner } from "./ui/spinner";
 import { useToast } from "../hooks/use-toast";
@@ -60,7 +60,24 @@ export const FileChangesPanel: React.FC<FileChangesPanelProps> = ({
     );
   };
 
-  const totalChanges = fileChanges.reduce(
+  const sortedFileChanges = useMemo(() => {
+    const collator = new Intl.Collator();
+    return [...fileChanges].sort((a, b) => {
+      const lastSlashA = a.path.lastIndexOf("/");
+      const lastSlashB = b.path.lastIndexOf("/");
+      const dirA = lastSlashA >= 0 ? a.path.slice(0, lastSlashA + 1) : "";
+      const dirB = lastSlashB >= 0 ? b.path.slice(0, lastSlashB + 1) : "";
+
+      const dirCompare = collator.compare(dirA, dirB);
+      if (dirCompare !== 0) return dirCompare;
+
+      const fileA = lastSlashA >= 0 ? a.path.slice(lastSlashA + 1) : a.path;
+      const fileB = lastSlashB >= 0 ? b.path.slice(lastSlashB + 1) : b.path;
+      return collator.compare(fileA, fileB);
+    });
+  }, [fileChanges]);
+
+  const totalChanges = sortedFileChanges.reduce(
     (acc, change) => ({
       additions: acc.additions + change.additions,
       deletions: acc.deletions + change.deletions,
@@ -78,7 +95,7 @@ export const FileChangesPanel: React.FC<FileChangesPanelProps> = ({
             <div className="flex items-center space-x-2">
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium p-2 text-gray-900 dark:text-gray-100">
-                  {fileChanges.length} files changed
+                  {sortedFileChanges.length} files changed
                 </span>
                 <div className="flex items-center space-x-1 text-xs">
                   <span className="text-green-600 dark:text-green-400 font-medium">
@@ -147,7 +164,7 @@ export const FileChangesPanel: React.FC<FileChangesPanelProps> = ({
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {fileChanges.map((change, index) => (
+        {sortedFileChanges.map((change, index) => (
           <div
             key={index}
             className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-900/40 border-b border-gray-100 dark:border-gray-700 last:border-b-0 cursor-pointer"
