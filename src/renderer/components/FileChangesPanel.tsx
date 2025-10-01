@@ -8,6 +8,12 @@ import { useFileChanges, type FileChange } from "../hooks/useFileChanges";
 import { usePrStatus } from "../hooks/usePrStatus";
 import PrStatusSkeleton from "./ui/pr-status-skeleton";
 import FileTypeIcon from "./ui/file-type-icon";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "./ui/tooltip";
 
 interface FileChangesPanelProps {
   workspaceId: string;
@@ -34,12 +40,23 @@ export const FileChangesPanel: React.FC<FileChangesPanelProps> = ({
     const dir = last >= 0 ? p.slice(0, last + 1) : "";
     const base = last >= 0 ? p.slice(last + 1) : p;
     return (
-      <span className="truncate">
-        {dir && <span className="text-gray-500 dark:text-gray-400">{dir}</span>}
-        <span className="text-gray-900 dark:text-gray-100 font-medium">
-          {base}
-        </span>
-      </span>
+      <TooltipProvider delayDuration={250}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="truncate inline-block">
+              {dir && (
+                <span className="text-gray-500 dark:text-gray-400">{dir}</span>
+              )}
+              <span className="text-gray-900 dark:text-gray-100 font-medium">
+                {base}
+              </span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <span className="font-mono text-xs">{p}</span>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   };
 
