@@ -89,6 +89,13 @@ const App: React.FC = () => {
   // We only actively detect Codex and Claude Code; Factory (Droid) docs are shown as an alternative.
   const showAgentRequirement = (isCodexInstalled === false) && (isClaudeInstalled === false);
 
+  // Right panel resize state
+  const [rightPanelWidth, setRightPanelWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('rightPanelWidth');
+    return saved ? parseInt(saved, 10) : 320; // Default 320px (w-80)
+  });
+  const [isResizing, setIsResizing] = useState<boolean>(false);
+
   // Persist and apply custom project order (by id)
   const ORDER_KEY = "sidebarProjectOrder";
   const applyProjectOrder = (list: Project[]) => {
@@ -479,6 +486,41 @@ const App: React.FC = () => {
     });
   };
 
+  // Right panel resize handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+
+      const newWidth = window.innerWidth - e.clientX;
+      const minWidth = 240; // Minimum width
+      const maxWidth = 800; // Maximum width
+
+      if (newWidth >= minWidth && newWidth <= maxWidth) {
+        setRightPanelWidth(newWidth);
+        localStorage.setItem('rightPanelWidth', newWidth.toString());
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isResizing]);
+
   const renderMainContent = () => {
     if (showHomeView) {
       return (
@@ -559,7 +601,18 @@ const App: React.FC = () => {
           </div>
 
           {activeWorkspace && (
-            <div className="w-80 border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col h-full max-h-full">
+            <div
+              className="border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col h-full max-h-full relative"
+              style={{ width: `${rightPanelWidth}px` }}
+            >
+              {/* Resize handle */}
+              <div
+                className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors z-10"
+                onMouseDown={handleMouseDown}
+                style={{
+                  backgroundColor: isResizing ? '#3b82f6' : 'transparent',
+                }}
+              />
               <FileChangesPanel
                 workspaceId={activeWorkspace.path}
                 className="flex-1 min-h-0"
@@ -617,7 +670,10 @@ const App: React.FC = () => {
     <SidebarProvider>
       <SidebarHotkeys />
       <Titlebar />
-      <div className="mt-9 flex h-[calc(100vh-36px)] w-full bg-background text-foreground overflow-hidden">
+      <div
+        className="mt-9 flex h-[calc(100vh-36px)] w-full bg-background text-foreground overflow-hidden"
+        style={{ userSelect: isResizing ? 'none' : 'auto' }}
+      >
         <LeftSidebar
           projects={projects}
           selectedProject={selectedProject}
