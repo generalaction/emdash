@@ -15,7 +15,7 @@ import { X, GitBranch } from "lucide-react";
 interface WorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateWorkspace: (name: string) => void;
+  onCreateWorkspace: (name: string, initialPrompt?: string) => void;
   projectName: string;
   defaultBranch: string;
   existingNames?: string[];
@@ -30,6 +30,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   existingNames = [],
 }) => {
   const [workspaceName, setWorkspaceName] = useState("");
+  const [initialPrompt, setInitialPrompt] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
@@ -66,8 +67,12 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
     setIsCreating(true);
     try {
-      await onCreateWorkspace(workspaceName.trim());
+      await onCreateWorkspace(
+        workspaceName.trim(),
+        initialPrompt.trim() || undefined
+      );
       setWorkspaceName("");
+      setInitialPrompt("");
       setError(null);
       onClose();
     } catch (error) {
@@ -162,6 +167,23 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         {error}
                       </p>
                     )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="initial-prompt"
+                      className="block text-sm font-medium mb-2"
+                    >
+                      Initial prompt (optional)
+                    </label>
+                    <textarea
+                      id="initial-prompt"
+                      value={initialPrompt}
+                      onChange={(e) => setInitialPrompt(e.target.value)}
+                      placeholder="Add an initial prompt, outlining your goal and how you want to achieve it (this will be sent to codex)."
+                      className="w-full min-h-[80px] px-3 py-2 text-sm border border-input bg-background rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      rows={3}
+                    />
                   </div>
 
                   <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">

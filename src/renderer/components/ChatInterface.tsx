@@ -53,8 +53,10 @@ const ChatInterface: React.FC<Props> = ({
   const [provider, setProvider] = useState<"codex" | "claude" | "droid">(
     "codex"
   );
-  const [lockedProvider, setLockedProvider] = useState<"codex" | "claude" | "droid" | null>(null)
-  const [hasDroidActivity, setHasDroidActivity] = useState(false)
+  const [lockedProvider, setLockedProvider] = useState<
+    "codex" | "claude" | "droid" | null
+  >(null);
+  const [hasDroidActivity, setHasDroidActivity] = useState(false);
   const initializedConversationRef = useRef<string | null>(null);
 
   const codexStream = useCodexStream({
@@ -77,57 +79,60 @@ const ChatInterface: React.FC<Props> = ({
   // If a locked provider exists (including Droid), prefer locked.
   useEffect(() => {
     try {
-      const lastKey = `provider:last:${workspace.id}`
-      const lockedKey = `provider:locked:${workspace.id}`
+      const lastKey = `provider:last:${workspace.id}`;
+      const lockedKey = `provider:locked:${workspace.id}`;
       const last = window.localStorage.getItem(lastKey) as
         | "codex"
         | "claude"
         | "droid"
-        | null
+        | null;
       const locked = window.localStorage.getItem(lockedKey) as
         | "codex"
         | "claude"
         | "droid"
-        | null
+        | null;
 
-      setLockedProvider(locked)
-      setHasDroidActivity(locked === 'droid')
+      setLockedProvider(locked);
+      setHasDroidActivity(locked === "droid");
 
-      if (locked === 'droid') {
-        setProvider('droid')
-      } else if (last === 'droid') {
-        setProvider('droid')
-      } else if (locked === 'codex' || locked === 'claude') {
-        setProvider(locked)
-      } else if (last === 'codex' || last === 'claude') {
-        setProvider(last)
+      if (locked === "droid") {
+        setProvider("droid");
+      } else if (last === "droid") {
+        setProvider("droid");
+      } else if (locked === "codex" || locked === "claude") {
+        setProvider(locked);
+      } else if (last === "codex" || last === "claude") {
+        setProvider(last);
       } else {
-        setProvider('codex')
+        setProvider("codex");
       }
     } catch {
-      setProvider('codex')
+      setProvider("codex");
     }
-  }, [workspace.id])
+  }, [workspace.id]);
 
   // Persist last-selected provider per workspace (including Droid)
   useEffect(() => {
     try {
-      window.localStorage.setItem(`provider:last:${workspace.id}`, provider)
+      window.localStorage.setItem(`provider:last:${workspace.id}`, provider);
     } catch {}
-  }, [provider, workspace.id])
+  }, [provider, workspace.id]);
 
   // When a chat becomes locked (first user message sent or Droid activity), persist the provider
   useEffect(() => {
     try {
       const userLocked =
-        provider !== 'droid' &&
+        provider !== "droid" &&
         activeStream.messages &&
-        activeStream.messages.some((m) => m.sender === 'user')
-      const droidLocked = provider === 'droid' && hasDroidActivity
+        activeStream.messages.some((m) => m.sender === "user");
+      const droidLocked = provider === "droid" && hasDroidActivity;
 
       if (userLocked || droidLocked) {
-        window.localStorage.setItem(`provider:locked:${workspace.id}`, provider)
-        setLockedProvider(provider)
+        window.localStorage.setItem(
+          `provider:locked:${workspace.id}`,
+          provider
+        );
+        setLockedProvider(provider);
       }
     } catch {}
   }, [provider, workspace.id, activeStream.messages, hasDroidActivity]);
@@ -195,29 +200,52 @@ const ChatInterface: React.FC<Props> = ({
 
     initializedConversationRef.current = convoId;
 
-    if (codexStream.messages.length === 0) {
-      const welcomeMessage: Message = {
-        id: `welcome-${Date.now()}`,
-        content: `Hello! You're working in workspace **${workspace.name}**. What can the agent do for you?`,
-        sender: "agent",
-        timestamp: new Date(),
-      };
+    // Check if we need to add a welcome message
+    // This runs when messages are loaded but could be empty or contain initial prompt
+    const checkForWelcomeMessage = async () => {
+      if (codexStream.messages.length === 0) {
+        // Check database directly for any existing messages to see if there's an initial prompt
+        try {
+          const messagesResult = await window.electronAPI.getMessages(convoId);
+          if (messagesResult.success && messagesResult.messages) {
+            const hasInitialPrompt = messagesResult.messages.some(
+              (msg: any) => {
+                try {
+                  const metadata = JSON.parse(msg.metadata || "{}");
+                  return metadata.isInitialPrompt;
+                } catch {
+                  return false;
+                }
+              }
+            );
 
-      window.electronAPI
-        .saveMessage({
-          id: welcomeMessage.id,
-          conversationId: convoId,
-          content: welcomeMessage.content,
-          sender: welcomeMessage.sender,
-          metadata: JSON.stringify({ isWelcome: true }),
-        })
-        .catch((error: unknown) => {
-          console.error("Failed to save welcome message:", error);
-        })
-        .finally(() => {
-          codexStream.appendMessage(welcomeMessage);
-        });
-    }
+            // Only add welcome message if there's no initial prompt and no messages at all
+            if (!hasInitialPrompt && messagesResult.messages.length === 0) {
+              const welcomeMessage: Message = {
+                id: `welcome-${Date.now()}`,
+                content: `Hello! You're working in workspace **${workspace.name}**. What can the agent do for you?`,
+                sender: "agent",
+                timestamp: new Date(),
+              };
+
+              await window.electronAPI.saveMessage({
+                id: welcomeMessage.id,
+                conversationId: convoId,
+                content: welcomeMessage.content,
+                sender: welcomeMessage.sender,
+                metadata: JSON.stringify({ isWelcome: true }),
+              });
+
+              codexStream.appendMessage(welcomeMessage);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to check for welcome message:", error);
+        }
+      }
+    };
+
+    checkForWelcomeMessage();
   }, [
     codexStream.isReady,
     codexStream.conversationId,
@@ -332,21 +360,20 @@ const ChatInterface: React.FC<Props> = ({
       ? activeStream.streamingOutput
       : null;
   // Allow switching providers freely while in Droid mode
-  const providerLocked = lockedProvider !== null
+  const providerLocked = lockedProvider !== null;
 
   return (
     <div
       className={`flex flex-col h-full bg-white dark:bg-gray-800 ${className}`}
     >
-
       {provider === "droid" ? (
         <div className="flex-1 flex flex-col min-h-0">
           <div className="px-6 pt-4">
             <div className="max-w-4xl mx-auto">
               <div className="rounded-md border border-gray-200 bg-gray-50 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 p-3 text-sm">
                 <div className="whitespace-pre-wrap">
-                  Interact with Droid in the terminal below. To install and
-                  get started, see the Factory CLI Quickstart:
+                  Interact with Droid in the terminal below. To install and get
+                  started, see the Factory CLI Quickstart:
                 </div>
                 <button
                   type="button"
@@ -360,9 +387,9 @@ const ChatInterface: React.FC<Props> = ({
                   https://docs.factory.ai/cli/getting-started/quickstart
                 </button>
                 <div className="mt-2 text-xs opacity-90">
-                  Note: The Droid terminal session now persists while the app is open;
-                  leaving and returning to this chat will restore its output. Closing the app
-                  will terminate the session.
+                  Note: The Droid terminal session now persists while the app is
+                  open; leaving and returning to this chat will restore its
+                  output. Closing the app will terminate the session.
                 </div>
               </div>
             </div>
@@ -376,9 +403,12 @@ const ChatInterface: React.FC<Props> = ({
                 keepAlive={true}
                 onActivity={() => {
                   try {
-                    setHasDroidActivity(true)
-                    window.localStorage.setItem(`provider:locked:${workspace.id}`, 'droid')
-                    setLockedProvider('droid')
+                    setHasDroidActivity(true);
+                    window.localStorage.setItem(
+                      `provider:locked:${workspace.id}`,
+                      "droid"
+                    );
+                    setLockedProvider("droid");
                   } catch {}
                 }}
                 variant="light"
