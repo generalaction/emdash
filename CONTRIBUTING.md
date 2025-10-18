@@ -6,21 +6,27 @@ Thanks for your interest in contributing! We favor small, focused PRs and clear 
 
 Prerequisites
 
-- Node.js 18+ and Git
+- **Node.js 20.0.0+ (recommended: 22.20.0)** and Git
 - Optional (recommended for end‑to‑end):
   - Codex CLI (`npm install -g @openai/codex` or `brew install codex`; then run `codex` to authenticate)
   - GitHub CLI (`brew install gh`; then `gh auth login`)
 
 Setup
 
-```
+```bash
 # Fork this repo, then clone your fork
- git clone https://github.com/<you>/emdash.git
- cd emdash
- npm install
+git clone https://github.com/<you>/emdash.git
+cd emdash
 
-# Start development (Electron main + Vite renderer)
- npm run dev
+# Use the correct Node.js version (if using nvm)
+nvm use
+
+# Quick start: install dependencies and run dev server
+npm run d
+
+# Or run separately:
+npm install
+npm run dev
 
 # Type checking, lint, build
  npm run type-check

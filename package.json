@@ -4,7 +4,7 @@
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main.js",
   "scripts": {
-    "d": "npm i && npm run dev",
+    "d": "npm install && npm run dev",
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
     "dev:main": "tsc -p tsconfig.main.json && electron dist/main/main.js --dev",
     "dev:renderer": "vite",
@@ -16,6 +16,9 @@
     "package:linux": "npm run build && electron-builder --linux --publish never",
     "package:win": "npm run build && electron-builder --win --publish never",
     "postinstall": "electron-builder install-app-deps",
+    "rebuild": "npx electron-rebuild",
+    "clean": "rm -rf node_modules dist",
+    "reset": "npm run clean && npm install",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -31,6 +34,10 @@
   "author": {
     "name": "Emdash Contributors",
     "email": "support@emdash.sh"
+  },
+  "engines": {
+    "node": ">=20.0.0 <23.0.0",
+    "npm": ">=9.0.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",

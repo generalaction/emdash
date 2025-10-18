@@ -132,12 +132,70 @@ gh auth login
 
 ## Getting Started
 
-1. Ensure Node.js 18+ and Git are installed
+### Prerequisites
+
+1. **Node.js 20.0.0+ (recommended: 22.20.0)** and Git
 2. Install and authenticate at least one provider (Codex or Claude Code)
 3. (Optional) Install and authenticate [GitHub CLI](https://docs.github.com/en/github-cli/github-cli/quickstart)
-4. Clone this repository
-5. Install dependencies: `npm install`
-6. Run the app: `npm run dev`
+
+### Development Setup
+
+1. **Clone this repository**
+   ```bash
+   git clone https://github.com/generalaction/emdash.git
+   cd emdash
+   ```
+
+2. **Use the correct Node.js version**
+   
+   This project uses Node.js 22.20.0. Choose one:
+
+   **Option A: Using nvm (recommended)**
+   ```bash
+   nvm use
+   # or if you don't have v22.20.0 installed:
+   nvm install
+   ```
+
+   **Option B: Manual installation**
+   - Download and install Node.js 22.20.0 from [nodejs.org](https://nodejs.org/)
+
+3. **Install and run**
+   ```bash
+   npm run d
+   ```
+   
+   This single command installs dependencies, rebuilds native modules, and starts the dev server.
+   
+   Alternatively, you can run these steps separately:
+   ```bash
+   npm install  # Install dependencies
+   npm run dev  # Start development server
+   ```
+
+### Troubleshooting
+
+#### SIGSEGV / Segmentation Fault on Startup
+
+If you encounter a segmentation fault (SIGSEGV) when running the app, it's caused by native modules (sqlite3, node-pty, keytar) compiled for the wrong Node.js/Electron version. This happens when:
+- Switching between Node.js versions
+- Updating Electron
+- Using a different machine/architecture
+- Installing packages after changing versions
+
+**Quick fix:**
+```bash
+npm run rebuild
+```
+
+**If that doesn't work, nuclear option:**
+```bash
+npm run reset
+```
+
+This removes `node_modules` and reinstalls everything from scratch.
+
+### Usage
 
 In the chat input, use the provider selector to switch between Codex and Claude Code. Once a chat has started with Codex or Claude, the provider is locked for that chat.
 

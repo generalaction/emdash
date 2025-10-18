@@ -38,10 +38,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
 
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
@@ -112,10 +113,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
 
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
@@ -205,10 +207,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
 
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
