@@ -1,7 +1,7 @@
 {
-  "name": "emdash",
+  "name": "emdash-x",
   "version": "0.3.9",
-  "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
+  "description": "An experimental fork of Emdash - orchestrating multiple coding agents in parallel using Jujutsu Worktrees",
   "main": "dist/main/main.js",
   "scripts": {
     "d": "npm install && npm run dev",
@@ -27,13 +27,16 @@
   "keywords": [
     "electron",
     "coding-agents",
-    "git",
+    "jujutsu",
     "claude",
-    "openai"
+    "openai",
+    "beads",
+    "cc-sdd",
+    "parallel-execution"
   ],
   "author": {
-    "name": "Emdash Contributors",
-    "email": "support@emdash.sh"
+    "name": "@gunta and Emdash X Contributors",
+    "email": "support@emdash-x.sh"
   },
   "engines": {
     "node": ">=20.0.0 <23.0.0",
@@ -93,17 +96,17 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "build": {
-    "appId": "com.emdash",
-    "productName": "emdash",
+    "appId": "com.emdash-x",
+    "productName": "Emdash X",
     "directories": {
       "output": "release"
     },
-    "artifactName": "emdash-${arch}.${ext}",
+    "artifactName": "emdash-x-${arch}.${ext}",
     "publish": [
       {
         "provider": "github",
-        "owner": "generalaction",
-        "repo": "emdash"
+        "owner": "gunta",
+        "repo": "emdash-x"
       }
     ],
     "files": [

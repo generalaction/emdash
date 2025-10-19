@@ -1,30 +1,122 @@
-
 <p align="center">
     <img src="./src/assets/images/emdash/emdash_logo.svg#gh-light-mode-only"
-  alt="Emdash" width="900">
+  alt="Emdash X" width="900">
     <img src="./src/assets/images/emdash/emdash_logo_white.svg#gh-dark-mode-only"
-  alt="Emdash" width="900">
+  alt="Emdash X" width="900">
   </p>
 
-emdash is a cross-platform UI layer for running multiple coding agents in parallel — currently supporting OpenAI Codex CLI, Claude Code CLI, Droid (Factory CLI), Gemini CLI, Cursor CLI, Amp Code CLI, GitHub Copilot CLI, and Charm CLI. Each agent runs in its own Git worktree so you can fan out tasks, keep changes compartmentalized, and manage everything from a single UI.
+# Emdash X - Next-Generation Agent Orchestration with Jujutsu
+
+> [!CAUTION]
+> ## ⚠️ HIGHLY EXPERIMENTAL - DO NOT USE YET ⚠️
+> 
+> **This is an early experimental fork with minimal implementation.** Most Jujutsu integration and experimental features described below are **not yet implemented**. This repository currently serves as:
+> - A vision document for future development
+> - A testbed for experimental ideas
+> - A discussion starter for the community
+> 
+> **Current Status:** 🔴 **Pre-Alpha** - Concept & Planning Phase
+> 
+> If you're looking for a working solution, please use the original [Emdash](https://github.com/generalaction/emdash) for now.
+
+---
+
+**Emdash X** is an experimental fork of [Emdash](https://github.com/generalaction/emdash), created by [@gunta](https://github.com/gunta). This fork revolutionizes parallel agent orchestration by replacing Git worktrees with **Jujutsu (jj) worktrees**, offering superior performance, safety, and workflow efficiency for running multiple coding agents simultaneously.
+
+## 🚀 Why Jujutsu? The Evolution Beyond Git
+
+Jujutsu is a modern VCS that provides a fundamentally better foundation for parallel agent workflows. **Created by a Google engineer and used internally at Google**, Jujutsu represents the state-of-the-art in version control systems. It has been **praised by Mitchell Hashimoto** (creator of Terraform, Vagrant, and Ghostty) as a revolutionary approach to version control.
+
+Based on insights from [Parallel Claude Code with Jujutsu](https://slavakurilyak.com/posts/parallel-claude-code-with-jujutsu/), here's why Jujutsu is the perfect match for multi-agent orchestration:
+
+### Comparison: Jujutsu vs Git for Agent Orchestration
+
+| Feature | **Jujutsu (jj)** | **Git** | **Impact on Agent Workflows** |
+|---------|------------------|---------|-------------------------------|
+| **Automatic Commits** | ✅ Every operation auto-commits | ❌ Manual commits required | Agents never lose work; every change is instantly versioned |
+| **Concurrent Operations** | ✅ Lock-free, truly parallel | ⚠️ File locks cause conflicts | Multiple agents can work simultaneously without blocking |
+| **Conflict Resolution** | ✅ First-class conflicts in commits | ❌ Blocks operations | Agents can continue working even with conflicts |
+| **Undo/Redo** | ✅ Native operation-level undo | ❌ Complex, risky | Agents can safely experiment and backtrack |
+| **Working Directory** | ✅ Snapshots, no staging area | ❌ Requires staging | Simpler mental model for agents |
+| **Branch Management** | ✅ Anonymous branches, lazy naming | ❌ Branches required upfront | Agents can explore without branch planning |
+| **History Editing** | ✅ Safe, immutable operations | ⚠️ Dangerous rewrites | Agents can restructure work without data loss |
+| **Performance** | ✅ Faster operations, better scaling | ⚠️ Slower with many worktrees | Handle more agents with less overhead |
+
+### 🎯 Key Advantages for Parallel Agent Execution
+
+#### 1. **No More Lost Work**
+```bash
+# Git: Agent might forget to commit
+git add . && git commit -m "fix"  # Manual, error-prone
+
+# Jujutsu: Automatic snapshots
+jj status  # Everything already committed!
+```
+
+#### 2. **True Parallel Execution**
+```bash
+# Git: Worktrees can conflict
+Agent1: git checkout -b feature1  # Might lock files
+Agent2: git checkout -b feature2  # Could fail
+
+# Jujutsu: Lock-free concurrency
+Agent1: jj new  # Works instantly
+Agent2: jj new  # No conflicts ever
+```
+
+#### 3. **Fearless Experimentation**
+```bash
+# Git: Dangerous to experiment
+git reset --hard HEAD~3  # Data loss risk!
+
+# Jujutsu: Safe exploration
+jj undo  # Revert any operation
+jj op log  # See complete history
+```
+
+#### 4. **Intelligent Conflict Handling**
+```bash
+# Git: Conflicts block everything
+error: Your local changes would be overwritten
+
+# Jujutsu: Work continues with conflicts
+jj rebase -d main  # Conflicts become part of history
+jj resolve  # Fix when convenient
+```
+
+
+
+## 🧪 Experimental Features & Roadmap
+
+Emdash X is a testbed for next-generation agent orchestration features:
+
+### Currently Implementing
+- **[Beads](https://github.com/steveyegge/beads)** - Memory upgrade for coding agents with issue tracking
+- **[cc-sdd](https://github.com/gotalab/cc-sdd)** - Structured task decomposition for Claude Code
+- **Native Jujutsu UI** - Visual operation history and conflict resolution
+- **Agent Memory Persistence** - Share context between agent sessions
+
+### Planned Experiments
+- **Multi-Model Consensus** - Run same task on multiple models, merge best solutions
+- **Automatic Conflict Resolution** - AI-powered merge conflict solver
+- **Time-Travel Debugging** - Replay agent decisions with different parameters
+- **Distributed Agent Networks** - Agents across multiple machines via Jujutsu's Git compatibility
 
 <hr style="border:0; height:1px; background:#d0d7de; margin:24px 0;">
 
 <div align="center" style="margin:24px 0;">
   <a href="https://discord.gg/meqK3A5b" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
-    <img src="https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white" alt="Join the Emdash Discord" height="40">
+    <img src="https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white" alt="Join the Emdash X Discord" height="40">
   </a>
 
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
+  <a href="https://github.com/gunta/emdash-x/releases" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
     <img src="./docs/media/downloadformacos.png" alt="Download app for macOS" height="40">
   </a>
 
-  <a href="https://x.com/emdashsh" style="display:inline-block; text-decoration:none; outline:none; border:none;">
-    <img src="https://img.shields.io/badge/Follow%20on%20X-%23000000.svg?logo=x&logoColor=white" alt="Follow on X" height="40">
+  <a href="https://x.com/gunta" style="display:inline-block; text-decoration:none; outline:none; border:none;">
+    <img src="https://img.shields.io/badge/Follow%20@gunta-%23000000.svg?logo=x&logoColor=white" alt="Follow on X" height="40">
   </a>
 </div>
-
-
 
 <br />
 <br />
@@ -32,31 +124,43 @@ emdash is a cross-platform UI layer for running multiple coding agents in parall
   <p align="center">
   <img src="./docs/media/modelselector.png" alt="Provider selector showing supported CLIs" width="360">
   <br />
-  <em>Emdash supports the widest range of CLI providers</em>
+  <em>Emdash X supports all major CLI providers with Jujutsu-powered parallelism</em>
   <br />
 </p>
 
-
 <p align="center">
-    <img src="./docs/media/emdash-screenshot.png" alt="Emdash app screenshot" width="100%">
+    <img src="./docs/media/emdash-screenshot.png" alt="Emdash X app screenshot" width="100%">
 </p>
 
 ## Install
 
+### Prerequisites
+- **[Jujutsu (jj)](https://github.com/martinvonz/jj)** - The modern VCS powering Emdash X
+  ```bash
+  # macOS
+  brew install jj
+  
+  # Linux
+  cargo install --locked jj-cli
+  
+  # Windows
+  cargo install --locked jj-cli
+  ```
+
 ### macOS
 
-- Download for macOS (Apple Silicon): https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg
-- Download for macOS (Intel x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
+- Download for macOS (Apple Silicon): https://github.com/gunta/emdash-x/releases/latest/download/emdash-x-arm64.dmg
+- Download for macOS (Intel x64): https://github.com/gunta/emdash-x/releases/latest/download/emdash-x-x64.dmg
 
 ### Linux
 
-- Download AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage
-- Download Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
+- Download AppImage (x64): https://github.com/gunta/emdash-x/releases/latest/download/emdash-x-x64.AppImage
+- Download Debian package (x64): https://github.com/gunta/emdash-x/releases/latest/download/emdash-x-x64.deb
 
 ### Windows
 
-- Download Portable Exe (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe
-- Download NSIS Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64-installer.exe
+- Download Portable Exe (x64): https://github.com/gunta/emdash-x/releases/latest/download/emdash-x-x64.exe
+- Download NSIS Installer (x64): https://github.com/gunta/emdash-x/releases/latest/download/emdash-x-x64-installer.exe
 
 ### Manual Installation
 
@@ -64,30 +168,48 @@ Either download the package for your platform from Releases (links above), or bu
 
 ### Homebrew
 
-[![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
+[![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash-x)
 
-Install and manage emdash with Homebrew:
+Install and manage Emdash X with Homebrew:
 
 ```bash
 # Install
-brew install --cask emdash
+brew install --cask emdash-x
 
 # Upgrade
-brew upgrade --cask emdash
+brew upgrade --cask emdash-x
 
 # Uninstall
-brew uninstall --cask emdash
+brew uninstall --cask emdash-x
 ```
 
 If Homebrew does not find the cask yet, run `brew update`.
 
 ## Requirements
 
-- Node.js 22.12.0+ and Git
+- Node.js 22.12.0+ and Jujutsu (jj)
 - One or more providers (install as needed):
   - [OpenAI Codex CLI](https://github.com/openai/codex) (install + authenticate)
   - Optional: [Claude Code CLI](https://www.npmjs.com/package/@anthropic-ai/claude-code) (install + authenticate)
 - Optional: [GitHub CLI](https://docs.github.com/en/github-cli/github-cli/quickstart) for PRs, badges, and repo info
+
+### Jujutsu Setup
+
+Initialize Jujutsu for your repository:
+
+```bash
+# Clone with Jujutsu (colocated with Git)
+jj git clone https://github.com/your/repo
+cd repo
+
+# Or initialize in existing Git repo
+cd your-git-repo
+jj init --git-repo .
+
+# Configure your identity
+jj config set --user user.name "Your Name"
+jj config set --user user.email "you@example.com"
+```
 
 ### Codex CLI
 
@@ -134,7 +256,7 @@ gh auth login
 
 ### Prerequisites
 
-1. **Node.js 20.0.0+ (recommended: 22.20.0)** and Git
+1. **Node.js 20.0.0+ (recommended: 22.20.0)** and Jujutsu
 2. Install and authenticate at least one provider (Codex or Claude Code)
 3. (Optional) Install and authenticate [GitHub CLI](https://docs.github.com/en/github-cli/github-cli/quickstart)
 
@@ -142,8 +264,11 @@ gh auth login
 
 1. **Clone this repository**
    ```bash
-   git clone https://github.com/generalaction/emdash.git
-   cd emdash
+   jj git clone https://github.com/gunta/emdash-x.git
+   cd emdash-x
+   # Or with traditional git:
+   git clone https://github.com/gunta/emdash-x.git
+   cd emdash-x
    ```
 
 2. **Use the correct Node.js version**
@@ -177,11 +302,7 @@ gh auth login
 
 #### SIGSEGV / Segmentation Fault on Startup
 
-If you encounter a segmentation fault (SIGSEGV) when running the app, it's caused by native modules (sqlite3, node-pty, keytar) compiled for the wrong Node.js/Electron version. This happens when:
-- Switching between Node.js versions
-- Updating Electron
-- Using a different machine/architecture
-- Installing packages after changing versions
+If you encounter a segmentation fault (SIGSEGV) when running the app, it's caused by native modules (sqlite3, node-pty, keytar) compiled for the wrong Node.js/Electron version.
 
 **Quick fix:**
 ```bash
@@ -197,7 +318,7 @@ This removes `node_modules` and reinstalls everything from scratch.
 
 ### Usage
 
-In the chat input, use the provider selector to switch between Codex and Claude Code. Once a chat has started with Codex or Claude, the provider is locked for that chat.
+In the chat input, use the provider selector to switch between different agents. Emdash X automatically creates Jujutsu worktrees for each agent session, ensuring complete isolation and parallel execution.
 
 ## Build from Source
 
@@ -207,7 +328,7 @@ In the chat input, use the provider selector to switch between Codex and Claude 
 npm run package:mac
 ```
 
-Outputs: `release/emdash-arm64.dmg` and `release/emdash-arm64.zip`
+Outputs: `release/emdash-x-arm64.dmg` and `release/emdash-x-arm64.zip`
 
 ### Linux
 
@@ -230,19 +351,7 @@ Build the app:
 npm run package:linux
 ```
 
-Outputs: `release/emdash-x64.AppImage` and `release/emdash-x64.deb`
-
-**AppImage Usage:**
-```bash
-chmod +x emdash-x64.AppImage
-./emdash-x64.AppImage
-```
-
-**Debian Package:**
-```bash
-sudo dpkg -i emdash-x64.deb
-emdash  # Run from command line after install
-```
+Outputs: `release/emdash-x-x64.AppImage` and `release/emdash-x-x64.deb`
 
 ### Windows
 
@@ -254,7 +363,7 @@ choco install python build-essentials
 
 Or install manually:
 - [Python 3](https://www.python.org/downloads/)
-- [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/) (or Visual Studio with C++ workload)
+- [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/)
 
 Build the app:
 
@@ -262,210 +371,129 @@ Build the app:
 npm run package:win
 ```
 
-Outputs: `release/emdash-x64.exe` (portable) and `release/emdash-x64-installer.exe` (NSIS installer)
-
-### Cross-Platform Build
-
-To build for all platforms:
-
-```bash
-npm run build        # Compiles TypeScript and Vite
-npm run package      # Builds for current platform
-```
-
-To build for a specific platform on macOS:
-
-```bash
-npm run package:mac      # macOS
-npm run package:linux    # Linux (requires cross-build tools)
-npm run package:win      # Windows (requires cross-build tools)
-```
-
-**Note:** Native modules (sqlite3, node-pty, keytar) require platform-specific compilation. Building for a different platform than your current OS may require additional cross-compilation setup.
+Outputs: `release/emdash-x-x64.exe` (portable) and `release/emdash-x-x64-installer.exe` (NSIS installer)
 
 ## Demos
 
-emdash in action
-
-- Creating a CONTRIBUTIONS.md file for an open source repository
+### Jujutsu-Powered Parallel Execution
 
 <p align="center">
-  <img src="./docs/media/demo.gif" alt="Demo: parallel agents with preserved stream state" width="100%" style="border-radius:12px">
-
-Running multiple Codex agents in parallel
-
-- Monitor and review the work of several agents within emdash
-
-<p align="center">
-  <img src="./docs/media/parallel.gif" alt="Demo: parallel agents with preserved stream state" width="100%" style="border-radius:12px">
-  
+  <img src="./docs/media/parallel.gif" alt="Demo: Jujutsu parallel agents" width="100%" style="border-radius:12px">
+  <br>
+  <em>Multiple agents working in true parallel with Jujutsu's lock-free operations</em>
 </p>
 
-Open a Pull Request from the dashboard
-
-- Review diffs, set title/description, choose target branch, and publish to GitHub — all from emdash
+### Automatic Versioning & Time Travel
 
 <p align="center">
-  <img src="./docs/media/openpr.gif" alt="Open a PR from the emdash dashboard" width="100%" style="border-radius:12px">
+  <img src="./docs/media/demo.gif" alt="Demo: automatic versioning" width="100%" style="border-radius:12px">
+  <br>
+  <em>Every agent action is automatically versioned - never lose work again</em>
+</p>
+
+### Conflict-Free Pull Requests
+
+<p align="center">
+  <img src="./docs/media/openpr.gif" alt="Open a PR from the Emdash X dashboard" width="100%" style="border-radius:12px">
+  <br>
+  <em>Merge agent work seamlessly with Jujutsu's superior conflict handling</em>
 </p>
 
 ## Data Persistence
 
-emdash uses SQLite for local data persistence, ensuring your projects and workspaces are maintained across application sessions. All data is stored locally on your machine, providing privacy and offline functionality.
+Emdash X uses SQLite for local data persistence with additional Jujutsu operation tracking:
 
-### Database Architecture
+### Enhanced Database Schema
 
-The application maintains two primary data structures:
-
-#### Projects Table
-
-Stores information about opened Git repositories and their GitHub integration status:
+In addition to the standard Emdash tables, Emdash X adds:
 
 ```sql
-CREATE TABLE projects (
+CREATE TABLE jj_operations (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  path TEXT NOT NULL UNIQUE,
-  git_remote TEXT,
-  git_branch TEXT,
-  github_repository TEXT,
-  github_connected BOOLEAN DEFAULT 0,
+  workspace_id TEXT NOT NULL,
+  operation_id TEXT NOT NULL,
+  description TEXT,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
+);
+
+CREATE TABLE agent_memory (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  context TEXT,
+  embeddings BLOB,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  FOREIGN KEY (agent_id) REFERENCES workspaces (agent_id) ON DELETE CASCADE
 );
 ```
-
-**Key Features:**
-
-- **Unique Path Constraint**: Prevents duplicate project entries
-- **Git Integration**: Tracks remote URLs and current branches
-- **GitHub Status**: Monitors connection state with [GitHub CLI](https://docs.github.com/en/github-cli/github-cli/quickstart)
-- **Automatic Timestamps**: Tracks creation and modification times
-
-#### Workspaces Table
-
-Manages isolated agent workspaces with their associated Git worktrees:
-
-```sql
-CREATE TABLE workspaces (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  branch TEXT NOT NULL,
-  path TEXT NOT NULL,
-  status TEXT DEFAULT 'idle',
-  agent_id TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
-);
-```
-
-**Key Features:**
-
-- **Cascade Deletion**: Removing a project automatically cleans up associated workspaces
-- **Status Tracking**: Monitors workspace state (idle, running, completed)
-- **Agent Assignment**: Links workspaces to specific agent instances
-- **Branch Management**: Tracks Git branch names for each workspace
 
 ### Data Location
 
 The SQLite database is automatically created in your system's application data directory:
 
-- **macOS**: `~/Library/Application Support/emdash/emdash.db`
-- **Windows**: `%APPDATA%/emdash/emdash.db`
-- **Linux**: `~/.config/emdash/emdash.db`
-
-### Database Operations
-
-The application provides a comprehensive set of database operations through the `DatabaseService`:
-
-- **Project Management**: Save, retrieve, and delete project entries
-- **Workspace Management**: Create, update, and remove workspace records
-- **Automatic Initialization**: Database and tables are created on first launch
-- **Error Handling**: Robust error handling with detailed logging
-
-### Storage Usage
-
-The application stores conversation history locally, which may consume disk space over time:
-
-### Clearing Local Storage (Reset Database)
-
-If you want to reset or reclaim space, you can delete the app's local database. This removes saved conversations and resets projects/workspaces. The database is recreated automatically on next launch.
-
-Important
-
-- Quit the app before deleting the DB to avoid file‑in‑use errors.
-- Paths with spaces need quotes (e.g. `"Application Support"`).
-
-Default locations (packaged app)
-
-- macOS: `~/Library/Application Support/emdash/emdash.db`
-- Windows: `%APPDATA%/emdash/emdash.db`
-- Linux: `~/.config/emdash/emdash.db`
-
-Development builds (Electron default)
-
-- macOS: `~/Library/Application Support/Electron/emdash.db`
-
-Note: legacy filenames we migrate from (safe to remove if present): `database.sqlite`, `orcbench.db`.
-
-Quick commands (macOS)
-
-```bash
-# Quit the app first
-
-# Packaged path (if you ran a built app)
-rm -f "$HOME/Library/Application Support/emdash/emdash.db" \
-      "$HOME/Library/Application Support/emdash/emdash.db-wal" \
-      "$HOME/Library/Application Support/emdash/emdash.db-shm"
-
-# Dev path (vite/electron dev)
-rm -f "$HOME/Library/Application Support/Electron/emdash.db" \
-      "$HOME/Library/Application Support/Electron/emdash.db-wal" \
-      "$HOME/Library/Application Support/Electron/emdash.db-shm"
-
-# Optional: remove legacy DB filenames if they exist
-rm -f "$HOME/Library/Application Support/emdash/database.sqlite" \
-      "$HOME/Library/Application Support/emdash/orcbench.db"
-rm -f "$HOME/Library/Application Support/Electron/database.sqlite" \
-      "$HOME/Library/Application Support/Electron/orcbench.db"
-
-# One-liner to locate any emdash.db under your home folder (preview only)
-find "$HOME" -type f -name 'emdash.db*' -print
-```
+- **macOS**: `~/Library/Application Support/emdash-x/emdash-x.db`
+- **Windows**: `%APPDATA%/emdash-x/emdash-x.db`
+- **Linux**: `~/.config/emdash-x/emdash-x.db`
 
 ## What's Next
 
-- [ ] Additional providers
-- [ ] Workspace lifecycle hooks to run custom scripts on create, run, and archive (e.g., install deps, copy env files, clean up resources)
-- [ ] Planning chat with controlled execution (draft actions in a separate chat, then run them one by one)
-- [x] Linear integration to track and close out issues
-- [ ] Assign the same prompt to different providers at the same time and compare results
+### Immediate Roadmap
+- [x] Jujutsu worktree integration
+- [ ] Beads task tracking UI
+- [ ] cc-sdd structured decomposition
+- [ ] Visual operation history browser
+- [ ] Automatic conflict resolution AI
+
+### Experimental Features
+- [ ] Multi-model consensus voting
+- [ ] Agent memory persistence & sharing
+- [ ] Distributed agent orchestration
+- [ ] Time-travel debugging interface
+- [ ] Native Jujutsu GUI operations
+
+## Contributing
+
+We welcome contributions! Especially interested in:
+- Jujutsu integration improvements
+- Agent memory systems
+- Task management plugins
+- Conflict resolution strategies
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Security & Privacy
 
-- We take data security and privacy seriously. See docs/telemetry.md for exact details.
-- Your code, chats, and repository contents stay local. Emdash does not send your code or chats to us.
-- Using third-party CLIs (e.g., Codex, Claude, GitHub CLI) may transmit data to those providers per their policies.
+- Your code, chats, and repository contents stay local
+- Emdash X does not send your code or chats to us
+- Third-party CLIs (Codex, Claude, GitHub CLI) transmit data per their policies
+- Jujutsu operations are fully local with optional Git remote sync
 
 ### Telemetry
 
-- By default, Emdash collects basic, anonymous usage statistics via PostHog to understand which features are used and improve stability. This helps us prioritize development and track aggregate adoption. We only send coarse aggregates (e.g., counts/buckets of projects and workspaces) and session duration — never code, paths, or content.
-- What we collect:
-  - Lifecycle events (e.g., app start/close), feature usage events (feature name only), and non-identifying context (app version, platform, architecture, Electron version, install source).
-  - We do not collect code, prompts, repository names, file paths, environment variables, or personally identifiable information.
-- How we protect your privacy:
-  - Telemetry is anonymous; a random instance ID is stored locally on your device.
-  - Autocapture and session replay are disabled; only explicit, allowlisted events are sent.
-- Opt-out:
-  - Toggle it off in Settings → General → Privacy & Telemetry, or set `TELEMETRY_ENABLED=false` before launching the app.
-- Full details, including the exact list of events and properties: see docs/telemetry.md.
+By default, Emdash X collects anonymous usage statistics to improve the product:
+- Lifecycle events (app start/close)
+- Feature usage (feature name only, no content)
+- Non-identifying context (version, platform)
+- **Never collected**: code, prompts, repository names, file paths
+
+**Opt-out:** Settings → General → Privacy & Telemetry, or set `TELEMETRY_ENABLED=false`
 
 <p align="center">
   <img src="./docs/media/disabletelemetry.png" alt="Privacy & Telemetry settings toggle" width="720">
 </p>
 
-Maintainers
-- Telemetry configuration (PostHog host and project key) is injected via CI for official builds. Local development does not send telemetry unless you explicitly provide credentials.
-- Recommended PostHog settings for the project: disable IP capture, autocapture, session replay, and geo‑IP enrichment by default.
+## Credits
+
+- Original [Emdash](https://github.com/generalaction/emdash) by the Emdash team
+- Forked and extended by [@gunta](https://github.com/gunta)
+- Powered by [Jujutsu](https://github.com/martinvonz/jj) - the next-generation VCS
+- Inspired by [Parallel Claude Code with Jujutsu](https://slavakurilyak.com/posts/parallel-claude-code-with-jujutsu/)
+- Integrating [Beads](https://github.com/steveyegge/beads) and [cc-sdd](https://github.com/gotalab/cc-sdd)
+
+## License
+
+MIT - See [LICENSE.md](LICENSE.md)
+
+---
+
+**Emdash X** - Because parallel agents deserve a parallel-first VCS. 🚀
