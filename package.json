@@ -111,6 +111,11 @@
       "dist/**/*",
       "node_modules/**/*"
     ],
+    "asarUnpack": [
+      "node_modules/sqlite3/**",
+      "node_modules/node-pty/**",
+      "node_modules/keytar/**"
+    ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
