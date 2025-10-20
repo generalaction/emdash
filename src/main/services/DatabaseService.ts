@@ -1,4 +1,4 @@
-import sqlite3 from 'sqlite3';
+import type sqlite3Type from 'sqlite3';
 import { promisify } from 'util';
 import { join } from 'path';
 import { app } from 'electron';
@@ -52,10 +52,15 @@ export interface Message {
 }
 
 export class DatabaseService {
-  private db: sqlite3.Database | null = null;
+  private db: sqlite3Type.Database | null = null;
+  private sqlite3: typeof sqlite3Type | null = null;
   private dbPath: string;
+  private disabled: boolean = false;
 
   constructor() {
+    if (process.env.EMDASH_DISABLE_NATIVE_DB === '1') {
+      this.disabled = true;
+    }
     const userDataPath = app.getPath('userData');
 
     // Preferred/current DB filename
@@ -91,8 +96,19 @@ export class DatabaseService {
   }
 
   async initialize(): Promise<void> {
+    if (this.disabled) return Promise.resolve();
+    if (!this.sqlite3) {
+      try {
+        // Dynamic import to avoid loading native module at startup
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        this.sqlite3 = (await import('sqlite3')) as unknown as typeof sqlite3Type;
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    }
     return new Promise((resolve, reject) => {
-      this.db = new sqlite3.Database(this.dbPath, (err) => {
+      this.db = new this.sqlite3!.Database(this.dbPath, (err) => {
         if (err) {
           reject(err);
           return;
@@ -106,6 +122,7 @@ export class DatabaseService {
   }
 
   private async createTables(): Promise<void> {
+    if (this.disabled) return;
     if (!this.db) throw new Error('Database not initialized');
 
     const runAsync = promisify(this.db.run.bind(this.db));
@@ -190,6 +207,7 @@ export class DatabaseService {
   }
 
   async saveProject(project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> {
+    if (this.disabled) return;
     if (!this.db) throw new Error('Database not initialized');
 
     // Important: avoid INSERT OR REPLACE on projects. REPLACE deletes the existing
@@ -234,6 +252,7 @@ export class DatabaseService {
   }
 
   async getProjects(): Promise<Project[]> {
+    if (this.disabled) return [];
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -275,6 +294,7 @@ export class DatabaseService {
   }
 
   async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
+    if (this.disabled) return;
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -310,6 +330,7 @@ export class DatabaseService {
   }
 
   async getWorkspaces(projectId?: string): Promise<Workspace[]> {
+    if (this.disabled) return [];
     if (!this.db) throw new Error('Database not initialized');
 
     let query = `
@@ -363,6 +384,7 @@ export class DatabaseService {
   }
 
   async deleteProject(projectId: string): Promise<void> {
+    if (this.disabled) return;
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -377,6 +399,7 @@ export class DatabaseService {
   }
 
   async deleteWorkspace(workspaceId: string): Promise<void> {
+    if (this.disabled) return;
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -416,6 +439,7 @@ export class DatabaseService {
   }
 
   async getConversations(workspaceId: string): Promise<Conversation[]> {
+    if (this.disabled) return [];
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -445,6 +469,15 @@ export class DatabaseService {
   }
 
   async getOrCreateDefaultConversation(workspaceId: string): Promise<Conversation> {
+    if (this.disabled) {
+      return {
+        id: `conv-${workspaceId}-default`,
+        workspaceId,
+        title: 'Default Conversation',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -505,6 +538,7 @@ export class DatabaseService {
 
   // Message management methods
   async saveMessage(message: Omit<Message, 'timestamp'>): Promise<void> {
+    if (this.disabled) return;
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -544,6 +578,7 @@ export class DatabaseService {
   }
 
   async getMessages(conversationId: string): Promise<Message[]> {
+    if (this.disabled) return [];
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -574,6 +609,7 @@ export class DatabaseService {
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
+    if (this.disabled) return;
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
@@ -588,7 +624,7 @@ export class DatabaseService {
   }
 
   async close(): Promise<void> {
-    if (!this.db) return;
+    if (this.disabled || !this.db) return;
 
     return new Promise((resolve, reject) => {
       this.db!.close((err) => {
