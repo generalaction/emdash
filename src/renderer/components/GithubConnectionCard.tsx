@@ -37,6 +37,7 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
   }, [status]);
 
   const displayName = user?.name || user?.login || null;
+  const avatarUrl = (user as any)?.avatar_url as string | undefined;
 
   const handleConnect = useCallback(async () => {
     setMessage(null);
@@ -108,6 +109,14 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
           <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="GitHub avatar"
+                  className="h-6 w-6 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : null}
               <span className="text-sm font-medium text-foreground">
                 Connected{displayName ? ` as ${displayName}` : ''}
               </span>

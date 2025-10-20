@@ -175,6 +175,7 @@ const IntegrationsCard: React.FC = () => {
     if (!user) return null;
     return user?.name || user?.login || null;
   }, [user]);
+  const githubAvatarUrl = (user as any)?.avatar_url as string | undefined;
 
   const handleGithubConnect = useCallback(async () => {
     setGithubError(null);
@@ -262,12 +263,21 @@ const IntegrationsCard: React.FC = () => {
       return renderStatusIndicator('Sign in with GitHub CLI.', 'inactive');
     }
 
-    if (!githubDetail) {
-      return renderStatusIndicator('Connected via GitHub CLI.', 'connected');
-    }
-
-    return renderStatusIndicator(githubDetail, 'connected');
-  }, [authenticated, githubDetail, installed, renderStatusIndicator]);
+    const label = githubDetail ?? 'Connected via GitHub CLI.';
+    return (
+      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+        {githubAvatarUrl ? (
+          <img
+            src={githubAvatarUrl}
+            alt="GitHub avatar"
+            className="h-8 w-8 rounded-full border border-border object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : null}
+        <span className="truncate">{label}</span>
+      </span>
+    );
+  }, [authenticated, githubDetail, githubAvatarUrl, installed, renderStatusIndicator]);
 
   return (
     <div className="space-y-3" aria-live="polite">

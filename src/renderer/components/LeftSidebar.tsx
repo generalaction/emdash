@@ -68,7 +68,7 @@ interface LeftSidebarProps {
   onReorderProjectsFull?: (newOrder: Project[]) => void;
   githubInstalled?: boolean;
   githubAuthenticated?: boolean;
-  githubUser?: { login?: string; name?: string } | null;
+  githubUser?: { login?: string; name?: string; avatar_url?: string } | null;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;

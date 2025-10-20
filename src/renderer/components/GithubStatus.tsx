@@ -3,7 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
-type GithubUser = { login?: string; name?: string } | null;
+type GithubUser = { login?: string; name?: string; avatar_url?: string } | null;
 
 export function GithubStatus({
   installed,

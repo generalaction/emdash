@@ -1,5 +1,6 @@
 import React from 'react';
-import { ChevronDown, Code2 } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import cursorLogo from '../../../assets/images/cursorlogo.png';
 import finderLogo from '../../../assets/images/finder.png';
@@ -16,6 +17,7 @@ const menuItemBase =
 const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const shouldReduceMotion = useReducedMotion();
 
   React.useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -45,30 +47,45 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         aria-haspopup
       >
         <span>Open in</span>
-        <ChevronDown className="h-4 w-4" />
+        <ChevronDown
+          className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
       </Button>
-      {open && (
-        <div
-          className={[
-            'absolute z-50 mt-1 min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md',
-            align === 'right' ? 'right-0' : 'left-0',
-          ].join(' ')}
-          role="menu"
-        >
-          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('finder')}>
-            <img src={finderLogo} alt="Finder" className="h-4 w-4 rounded" />
-            <span>Finder</span>
-          </button>
-          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('cursor')}>
-            <img src={cursorLogo} alt="Cursor" className="h-4 w-4" />
-            <span>Cursor</span>
-          </button>
-          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('terminal')}>
-            <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
-            <span>Terminal</span>
-          </button>
-        </div>
-      )}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="menu"
+            className={[
+              'absolute z-50 mt-1 min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md',
+              align === 'right' ? 'right-0' : 'left-0',
+            ].join(' ')}
+            style={{ transformOrigin: align === 'right' ? 'top right' : 'top left' }}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={
+              shouldReduceMotion
+                ? { opacity: 1, y: 0, scale: 1 }
+                : { opacity: 0, y: 4, scale: 0.98 }
+            }
+            transition={
+              shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
+            }
+          >
+            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('finder')}>
+              <img src={finderLogo} alt="Finder" className="h-4 w-4 rounded" />
+              <span>Finder</span>
+            </button>
+            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('cursor')}>
+              <img src={cursorLogo} alt="Cursor" className="h-4 w-4" />
+              <span>Cursor</span>
+            </button>
+            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('terminal')}>
+              <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
+              <span>Terminal</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
