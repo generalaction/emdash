@@ -59,6 +59,12 @@ jobs:
           npm_config_python: ${{ env.python }}
         run: npm ci || npm install
 
+      - name: Rebuild native modules for Electron
+        run: |
+          echo "Rebuilding native modules (node-pty, sqlite3, keytar) for Electron..."
+          npx electron-rebuild -f -w node-pty -w sqlite3 -w keytar
+          echo "Native module rebuild complete"
+
       - name: Build app (ts + vite)
         run: npm run build
 
@@ -138,6 +144,12 @@ jobs:
         env:
           npm_config_python: ${{ env.python }}
         run: npm ci || npm install
+
+      - name: Rebuild native modules for Electron
+        run: |
+          echo "Rebuilding native modules (node-pty, sqlite3, keytar) for Electron..."
+          npx electron-rebuild -f -w node-pty -w sqlite3 -w keytar
+          echo "Native module rebuild complete"
 
       - name: Build app (ts + vite)
         run: npm run build
@@ -233,6 +245,12 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.CERTIFICATE_P12 }}
           p12-password: ${{ secrets.CERTIFICATE_PASSWORD }}
+
+      - name: Rebuild native modules for Electron
+        run: |
+          echo "Rebuilding native modules (node-pty, sqlite3, keytar) for Electron..."
+          npx electron-rebuild -f -w node-pty -w sqlite3 -w keytar
+          echo "Native module rebuild complete"
 
       - name: Build app (ts + vite)
         run: npm run build

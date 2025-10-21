@@ -204,10 +204,16 @@ In the chat input, use the provider selector to switch between Codex and Claude 
 ### macOS
 
 ```bash
+# Rebuild native modules for Electron (prevents SIGSEGV)
+npm run rebuild
+
+# Build the DMG
 npm run package:mac
 ```
 
 Outputs: `release/emdash-arm64.dmg` and `release/emdash-arm64.zip`
+
+**Note:** Always run `npm run rebuild` before packaging to ensure native modules (node-pty, sqlite3, keytar) are compiled for Electron's Node.js version.
 
 ### Linux
 
