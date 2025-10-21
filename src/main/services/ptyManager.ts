@@ -1,5 +1,7 @@
 import os from 'os';
-import * as pty from 'node-pty';
+// Important: only import node-pty types, not the runtime module, at load time.
+// Lazy-require the native module inside startPty to avoid app-start crashes
+// when the native binary is missing or incompatible on some systems.
 import type { IPty } from 'node-pty';
 
 type PtyRecord = {
@@ -30,6 +32,10 @@ export function startPty(options: {
   const useShell = shell || getDefaultShell();
   const useCwd = cwd || process.cwd() || os.homedir();
   const useEnv = { TERM: 'xterm-256color', ...process.env, ...(env || {}) };
+
+  // Lazy load native module at call time to prevent startup crashes
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const pty: typeof import('node-pty') = require('node-pty');
 
   const proc = pty.spawn(useShell, [], {
     name: 'xterm-256color',
