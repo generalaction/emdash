@@ -341,6 +341,15 @@ const AppContent: React.FC = () => {
     []
   );
 
+  const activateProjectView = useCallback(
+    (project: Project) => {
+      setSelectedProject(project);
+      setShowHomeView(false);
+      setActiveWorkspace(null);
+    },
+    []
+  );
+
   const handleRightSidebarCollapsedChange = useCallback((collapsed: boolean) => {
     setRightSidebarCollapsed(collapsed);
   }, []);
@@ -505,7 +514,7 @@ const AppContent: React.FC = () => {
                 const saveResult = await window.electronAPI.saveProject(newProject);
                 if (saveResult.success) {
                   setProjects((prev) => [...prev, newProject]);
-                  setSelectedProject(newProject);
+                  activateProjectView(newProject);
                 } else {
                   const { log } = await import('./lib/logger');
                   log.error('Failed to save project:', saveResult.error);
@@ -547,7 +556,7 @@ const AppContent: React.FC = () => {
               const saveResult = await window.electronAPI.saveProject(newProject);
               if (saveResult.success) {
                 setProjects((prev) => [...prev, newProject]);
-                setSelectedProject(newProject);
+                activateProjectView(newProject);
               } else {
                 const { log } = await import('./lib/logger');
                 log.error('Failed to save project:', saveResult.error);
@@ -812,9 +821,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleSelectProject = (project: Project) => {
-    setSelectedProject(project);
-    setShowHomeView(false);
-    setActiveWorkspace(null);
+    activateProjectView(project);
   };
 
   const handleSelectWorkspace = (workspace: Workspace) => {
@@ -825,12 +832,10 @@ const AppContent: React.FC = () => {
   const handleStartCreateWorkspaceFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
-      setSelectedProject(targetProject);
-      setShowHomeView(false);
-      setActiveWorkspace(null);
+      activateProjectView(targetProject);
       setShowWorkspaceModal(true);
     },
-    [projects]
+    [activateProjectView, projects]
   );
 
   const handleDeleteWorkspace = async (targetProject: Project, workspace: Workspace) => {
