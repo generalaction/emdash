@@ -31,31 +31,61 @@ export function registerProjectIpc() {
 
   ipcMain.handle('git:getInfo', async (_, projectPath: string) => {
     try {
-      const gitPath = join(projectPath, '.git');
+      const resolveRealPath = async (target: string) => {
+        try {
+          return await fs.promises.realpath(target);
+        } catch {
+          return target;
+        }
+      };
+
+      const resolvedProjectPath = await resolveRealPath(projectPath);
+      const gitPath = join(resolvedProjectPath, '.git');
       const isGitRepo = fs.existsSync(gitPath);
 
       if (!isGitRepo) {
-        return { isGitRepo: false };
+        return { isGitRepo: false, path: resolvedProjectPath };
       }
 
       // Get remote URL
       let remote: string | null = null;
       try {
-        const { stdout } = await execAsync('git remote get-url origin', { cwd: projectPath });
+        const { stdout } = await execAsync('git remote get-url origin', {
+          cwd: resolvedProjectPath,
+        });
         remote = stdout.trim();
       } catch {}
 
       // Get current branch
       let branch: string | null = null;
       try {
-        const { stdout } = await execAsync('git branch --show-current', { cwd: projectPath });
+        const { stdout } = await execAsync('git branch --show-current', {
+          cwd: resolvedProjectPath,
+        });
         branch = stdout.trim();
       } catch {}
 
-      return { isGitRepo: true, remote, branch, path: projectPath };
+      let rootPath: string | null = null;
+      try {
+        const { stdout } = await execAsync('git rev-parse --show-toplevel', {
+          cwd: resolvedProjectPath,
+        });
+        const trimmed = stdout.trim();
+        if (trimmed) {
+          rootPath = await resolveRealPath(trimmed);
+        }
+      } catch {}
+
+      return {
+        isGitRepo: true,
+        remote,
+        branch,
+        path: resolvedProjectPath,
+        rootPath: rootPath || resolvedProjectPath,
+      };
     } catch (error) {
       console.error('Failed to get Git info:', error);
-      return { isGitRepo: false, error: 'Failed to read Git information' };
+      return { isGitRepo: false, error: 'Failed to read Git information', path: projectPath };
     }
   });
 }

@@ -22,6 +22,7 @@ interface Project {
   id: string;
   name: string;
   path: string;
+  repoKey?: string;
   gitInfo: {
     isGitRepo: boolean;
     remote?: string;

@@ -75,6 +75,7 @@ declare global {
         remote?: string;
         branch?: string;
         path?: string;
+        rootPath?: string;
         error?: string;
       }>;
       getGitStatus: (workspacePath: string) => Promise<{

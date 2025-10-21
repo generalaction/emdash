@@ -144,6 +144,7 @@ interface Project {
   id: string;
   name: string;
   path: string;
+  repoKey?: string;
   gitInfo: {
     isGitRepo: boolean;
     remote?: string;
@@ -225,6 +226,45 @@ const AppContent: React.FC = () => {
   // Show agent requirements block if none of the supported CLIs are detected locally.
   // We only actively detect Codex and Claude Code; Factory (Droid) docs are shown as an alternative.
   const showAgentRequirement = isCodexInstalled === false && isClaudeInstalled === false;
+
+  const normalizePathForComparison = useCallback(
+    (input: string | null | undefined) => {
+      if (!input) return '';
+
+      let normalized = input.replace(/\\/g, '/');
+      normalized = normalized.replace(/\/+/g, '/');
+
+      if (normalized.length > 1 && normalized.endsWith('/')) {
+        normalized = normalized.replace(/\/+$/, '');
+      }
+
+      const platformKey =
+        platform && platform.length > 0
+          ? platform
+          : typeof process !== 'undefined'
+            ? process.platform
+            : '';
+      return platformKey.toLowerCase().startsWith('win') ? normalized.toLowerCase() : normalized;
+    },
+    [platform]
+  );
+
+  const getProjectRepoKey = useCallback(
+    (project: Pick<Project, 'path' | 'repoKey'>) =>
+      project.repoKey ?? normalizePathForComparison(project.path),
+    [normalizePathForComparison]
+  );
+
+  const withRepoKey = useCallback(
+    (project: Project): Project => {
+      const repoKey = getProjectRepoKey(project);
+      if (project.repoKey === repoKey) {
+        return project;
+      }
+      return { ...project, repoKey };
+    },
+    [getProjectRepoKey]
+  );
 
   // Show toast on update availability and kick off a background check
   useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => setShowSettings(true) });
@@ -341,6 +381,12 @@ const AppContent: React.FC = () => {
     []
   );
 
+  const activateProjectView = useCallback((project: Project) => {
+    setSelectedProject(project);
+    setShowHomeView(false);
+    setActiveWorkspace(null);
+  }, []);
+
   const handleRightSidebarCollapsedChange = useCallback((collapsed: boolean) => {
     setRightSidebarCollapsed(collapsed);
   }, []);
@@ -431,15 +477,16 @@ const AppContent: React.FC = () => {
 
         setVersion(appVersion);
         setPlatform(appPlatform);
-        setProjects(applyProjectOrder(projects));
+        const initialProjects = applyProjectOrder(projects.map(withRepoKey));
+        setProjects(initialProjects);
 
         // Non-blocking: refresh GH status via hook
         checkStatus();
 
         const projectsWithWorkspaces = await Promise.all(
-          projects.map(async (project) => {
+          initialProjects.map(async (project) => {
             const workspaces = await window.electronAPI.getWorkspaces(project.id);
-            return { ...project, workspaces };
+            return withRepoKey({ ...project, workspaces });
           })
         );
         const ordered = applyProjectOrder(projectsWithWorkspaces);
@@ -467,6 +514,7 @@ const AppContent: React.FC = () => {
     };
 
     loadAppData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // handleGitHubAuth, handleLogout come from hook; toasts handled by callers as needed
@@ -477,100 +525,106 @@ const AppContent: React.FC = () => {
       if (result.success && result.path) {
         try {
           const gitInfo = await window.electronAPI.getGitInfo(result.path);
-          if (gitInfo.isGitRepo) {
-            const remoteUrl = gitInfo.remote || '';
-            const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+          const canonicalPath = gitInfo.rootPath || gitInfo.path || result.path;
+          const repoKey = normalizePathForComparison(canonicalPath);
+          const existingProject = projects.find(
+            (project) => getProjectRepoKey(project) === repoKey
+          );
 
-            if (isAuthenticated && isGithubRemote) {
-              const githubInfo = await window.electronAPI.connectToGitHub(result.path);
-              if (githubInfo.success) {
-                const projectName = result.path.split('/').pop() || 'Unknown Project';
-                const newProject: Project = {
-                  id: Date.now().toString(),
-                  name: projectName,
-                  path: result.path,
-                  gitInfo: {
-                    isGitRepo: true,
-                    remote: gitInfo.remote || undefined,
-                    branch: gitInfo.branch || undefined,
-                  },
-                  githubInfo: {
-                    repository: githubInfo.repository || '',
-                    connected: true,
-                  },
-                  workspaces: [],
-                };
+          if (existingProject) {
+            activateProjectView(existingProject);
+            toast({
+              title: 'Project already open',
+              description: `"${existingProject.name}" is already in the sidebar.`,
+            });
+            return;
+          }
 
-                // Save to database
-                const saveResult = await window.electronAPI.saveProject(newProject);
-                if (saveResult.success) {
-                  setProjects((prev) => [...prev, newProject]);
-                  setSelectedProject(newProject);
-                } else {
-                  const { log } = await import('./lib/logger');
-                  log.error('Failed to save project:', saveResult.error);
-                }
-                // alert(`✅ Project connected to GitHub!\n\nRepository: ${githubInfo.repository}\nBranch: ${githubInfo.branch}\nPath: ${result.path}`);
-              } else {
-                const updateHint =
-                  platform === 'darwin'
-                    ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart emdash.'
-                    : platform === 'win32'
-                      ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart emdash.'
-                      : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart emdash.';
-                toast({
-                  title: 'GitHub Connection Failed',
-                  description: `Git repository detected but couldn't connect to GitHub: ${githubInfo.error}\n\n${updateHint}`,
-                  variant: 'destructive',
-                });
-              }
-            } else {
-              // User not authenticated - still save the project
-              const projectName = result.path.split('/').pop() || 'Unknown Project';
-              const newProject: Project = {
-                id: Date.now().toString(),
-                name: projectName,
-                path: result.path,
-                gitInfo: {
-                  isGitRepo: true,
-                  remote: gitInfo.remote || undefined,
-                  branch: gitInfo.branch || undefined,
-                },
-                githubInfo: {
-                  repository: isGithubRemote ? '' : '',
-                  connected: false,
-                },
-                workspaces: [],
-              };
-
-              // Save to database
-              const saveResult = await window.electronAPI.saveProject(newProject);
-              if (saveResult.success) {
-                setProjects((prev) => [...prev, newProject]);
-                setSelectedProject(newProject);
-              } else {
-                const { log } = await import('./lib/logger');
-                log.error('Failed to save project:', saveResult.error);
-              }
-
-              // If the remote is not a GitHub URL, do not show a failure toast.
-              // Only warn when the repo is GitHub-hosted but connection fails.
-              if (isAuthenticated && !isGithubRemote && remoteUrl) {
-                // Optional: non-destructive info toast to clarify no GitHub features
-                // toast({
-                //   title: 'Non‑GitHub repository',
-                //   description: 'Connected project without GitHub features (remote is not github.com).',
-                //   variant: 'default',
-                // });
-              }
-            }
-          } else {
-            // Not a Git repository
+          if (!gitInfo.isGitRepo) {
             toast({
               title: 'Project Opened',
               description: `This directory is not a Git repository. Path: ${result.path}`,
               variant: 'destructive',
             });
+            return;
+          }
+
+          const remoteUrl = gitInfo.remote || '';
+          const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+          const projectName =
+            canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+
+          const baseProject: Project = {
+            id: Date.now().toString(),
+            name: projectName,
+            path: canonicalPath,
+            repoKey,
+            gitInfo: {
+              isGitRepo: true,
+              remote: gitInfo.remote || undefined,
+              branch: gitInfo.branch || undefined,
+            },
+            workspaces: [],
+          };
+
+          if (isAuthenticated && isGithubRemote) {
+            const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+            if (githubInfo.success) {
+              const projectWithGithub = withRepoKey({
+                ...baseProject,
+                githubInfo: {
+                  repository: githubInfo.repository || '',
+                  connected: true,
+                },
+              });
+
+              const saveResult = await window.electronAPI.saveProject(projectWithGithub);
+              if (saveResult.success) {
+                setProjects((prev) => [...prev, projectWithGithub]);
+                activateProjectView(projectWithGithub);
+              } else {
+                const { log } = await import('./lib/logger');
+                log.error('Failed to save project:', saveResult.error);
+              }
+            } else {
+              const updateHint =
+                platform === 'darwin'
+                  ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart emdash.'
+                  : platform === 'win32'
+                    ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart emdash.'
+                    : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart emdash.';
+              toast({
+                title: 'GitHub Connection Failed',
+                description: `Git repository detected but couldn't connect to GitHub: ${githubInfo.error}\n\n${updateHint}`,
+                variant: 'destructive',
+              });
+            }
+          } else {
+            const projectWithoutGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: isGithubRemote ? '' : '',
+                connected: false,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+            if (saveResult.success) {
+              setProjects((prev) => [...prev, projectWithoutGithub]);
+              activateProjectView(projectWithoutGithub);
+            } else {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to save project:', saveResult.error);
+            }
+
+            if (isAuthenticated && !isGithubRemote && remoteUrl) {
+              // Optional: non-destructive info toast to clarify no GitHub features
+              // toast({
+              //   title: 'Non‑GitHub repository',
+              //   description: 'Connected project without GitHub features (remote is not github.com).',
+              //   variant: 'default',
+              // });
+            }
           }
         } catch (error) {
           const { log } = await import('./lib/logger');
@@ -812,9 +866,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleSelectProject = (project: Project) => {
-    setSelectedProject(project);
-    setShowHomeView(false);
-    setActiveWorkspace(null);
+    activateProjectView(project);
   };
 
   const handleSelectWorkspace = (workspace: Workspace) => {
@@ -825,12 +877,10 @@ const AppContent: React.FC = () => {
   const handleStartCreateWorkspaceFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
-      setSelectedProject(targetProject);
-      setShowHomeView(false);
-      setActiveWorkspace(null);
+      activateProjectView(targetProject);
       setShowWorkspaceModal(true);
     },
-    [projects]
+    [activateProjectView, projects]
   );
 
   const handleDeleteWorkspace = async (targetProject: Project, workspace: Workspace) => {
