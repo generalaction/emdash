@@ -381,14 +381,11 @@ const AppContent: React.FC = () => {
     []
   );
 
-  const activateProjectView = useCallback(
-    (project: Project) => {
-      setSelectedProject(project);
-      setShowHomeView(false);
-      setActiveWorkspace(null);
-    },
-    []
-  );
+  const activateProjectView = useCallback((project: Project) => {
+    setSelectedProject(project);
+    setShowHomeView(false);
+    setActiveWorkspace(null);
+  }, []);
 
   const handleRightSidebarCollapsedChange = useCallback((collapsed: boolean) => {
     setRightSidebarCollapsed(collapsed);

@@ -50,14 +50,18 @@ export function registerProjectIpc() {
       // Get remote URL
       let remote: string | null = null;
       try {
-        const { stdout } = await execAsync('git remote get-url origin', { cwd: resolvedProjectPath });
+        const { stdout } = await execAsync('git remote get-url origin', {
+          cwd: resolvedProjectPath,
+        });
         remote = stdout.trim();
       } catch {}
 
       // Get current branch
       let branch: string | null = null;
       try {
-        const { stdout } = await execAsync('git branch --show-current', { cwd: resolvedProjectPath });
+        const { stdout } = await execAsync('git branch --show-current', {
+          cwd: resolvedProjectPath,
+        });
         branch = stdout.trim();
       } catch {}
 
