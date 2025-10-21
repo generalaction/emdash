@@ -56,6 +56,7 @@ export class DatabaseService {
   private sqlite3: typeof sqlite3Type | null = null;
   private dbPath: string;
   private disabled: boolean = false;
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
     if (process.env.EMDASH_DISABLE_NATIVE_DB === '1') {
@@ -97,28 +98,37 @@ export class DatabaseService {
 
   async initialize(): Promise<void> {
     if (this.disabled) return Promise.resolve();
-    if (!this.sqlite3) {
-      try {
-        // Dynamic import to avoid loading native module at startup
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.sqlite3 = (await import('sqlite3')) as unknown as typeof sqlite3Type;
-      } catch (e) {
-        return Promise.reject(e);
-      }
-    }
-    return new Promise((resolve, reject) => {
-      this.db = new this.sqlite3!.Database(this.dbPath, (err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
+    if (this.db) return Promise.resolve();
+    if (this.initPromise) return this.initPromise;
 
-        this.createTables()
-          .then(() => resolve())
-          .catch(reject);
+    this.initPromise = (async () => {
+      if (!this.sqlite3) {
+        try {
+          // Dynamic import to avoid loading native module at startup
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          this.sqlite3 = (await import('sqlite3')) as unknown as typeof sqlite3Type;
+        } catch (e) {
+          this.initPromise = null;
+          throw e;
+        }
+      }
+      await new Promise<void>((resolve, reject) => {
+        this.db = new this.sqlite3!.Database(this.dbPath, (err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          this.createTables()
+            .then(() => resolve())
+            .catch(reject);
+        });
       });
-    });
+      this.initPromise = null;
+    })();
+
+    return this.initPromise;
   }
 
   private async createTables(): Promise<void> {
