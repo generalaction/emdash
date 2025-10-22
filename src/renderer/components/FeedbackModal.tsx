@@ -1,8 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { CornerDownLeft, X } from 'lucide-react';
 import { Button } from './ui/button';
+import { Spinner } from './ui/spinner';
+
+const DISCORD_WEBHOOK_URL =
+  'https://discord.com/api/webhooks/1430482776045391912/7r3aZtu7y0safAJfFF0mywzw2uoY_2UhadMf7uv1oJSitIC2eUirWzGHdjiEm7zgdPDt';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -12,6 +16,11 @@ interface FeedbackModalProps {
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   const shouldReduceMotion = useReducedMotion();
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [feedbackDetails, setFeedbackDetails] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (!isOpen) {
@@ -31,10 +40,75 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
     };
   }, [isOpen, onClose]);
 
-  const handleMetaEnter = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+  useEffect(() => {
+    if (!isOpen) {
+      setFeedbackDetails('');
+      setContactEmail('');
+      setSubmitting(false);
+      setErrorMessage(null);
+    }
+  }, [isOpen]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!feedbackDetails.trim() || submitting) {
+      if (!feedbackDetails.trim()) {
+        setErrorMessage('Please enter some feedback before sending.');
+      }
+      return;
+    }
+
+    if (!DISCORD_WEBHOOK_URL) {
+      setErrorMessage('Feedback webhook is not configured.');
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMessage(null);
+
+    const payload = {
+      content: `${feedbackDetails.trim()}${
+        contactEmail.trim() ? `\n\nContact: ${contactEmail.trim()}` : ''
+      }`,
+    };
+
+    try {
+      const response = await fetch(DISCORD_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Discord webhook returned ${response.status}`);
+      }
+
+      setFeedbackDetails('');
+      setContactEmail('');
+      onClose();
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+      setErrorMessage('Unable to send feedback. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [contactEmail, feedbackDetails, onClose, submitting]);
+
+  const handleFormSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      await handleSubmit();
+    },
+    [handleSubmit]
+  );
+
+  const handleMetaEnter = (
+    event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>
+  ) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'enter') {
       event.preventDefault();
-      submitButtonRef.current?.click();
+      void handleSubmit();
     }
   };
 
@@ -91,9 +165,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
 
             <form
               className="space-y-4 px-6 pb-6"
-              onSubmit={(event) => {
-                event.preventDefault();
-              }}
+              onSubmit={handleFormSubmit}
             >
               <div className="space-y-1.5">
                 <label htmlFor="feedback-details" className="sr-only">
@@ -104,6 +176,13 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
                   rows={5}
                   placeholder="Share your thoughts…"
                   className="w-full resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-700"
+                  value={feedbackDetails}
+                  onChange={(event) => {
+                    setFeedbackDetails(event.target.value);
+                    if (errorMessage) {
+                      setErrorMessage(null);
+                    }
+                  }}
                   onKeyDown={handleMetaEnter}
                 />
               </div>
@@ -114,20 +193,48 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
                 </label>
                 <input
                   id="feedback-contact"
-                  type="email"
+                  type="text"
                   placeholder="productive@example.com (optional)"
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-700"
+                  value={contactEmail}
+                  onChange={(event) => {
+                    setContactEmail(event.target.value);
+                    if (errorMessage) {
+                      setErrorMessage(null);
+                    }
+                  }}
                   onKeyDown={handleMetaEnter}
                 />
               </div>
 
+              {errorMessage ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {errorMessage}
+                </p>
+              ) : null}
+
               <div className="flex justify-end pt-2">
-                <Button type="submit" ref={submitButtonRef} className="gap-2 px-4">
-                  <span>Send Feedback</span>
-                  <span className="flex items-center gap-1 rounded border border-white/40 bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground dark:border-white/20 dark:bg-white/5">
-                    <span>⌘</span>
-                    <CornerDownLeft className="h-3 w-3" aria-hidden="true" />
-                  </span>
+                <Button
+                  type="submit"
+                  ref={submitButtonRef}
+                  className="gap-2 px-4"
+                  disabled={submitting || !feedbackDetails.trim()}
+                  aria-busy={submitting}
+                >
+                  {submitting ? (
+                    <>
+                      <Spinner size="sm" />
+                      <span>Sending…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send Feedback</span>
+                      <span className="flex items-center gap-1 rounded border border-white/40 bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground dark:border-white/20 dark:bg-white/5">
+                        <span>⌘</span>
+                        <CornerDownLeft className="h-3 w-3" aria-hidden="true" />
+                      </span>
+                    </>
+                  )}
                 </Button>
               </div>
             </form>
