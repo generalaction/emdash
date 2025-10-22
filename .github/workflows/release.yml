@@ -62,6 +62,17 @@ jobs:
       - name: Build app (ts + vite)
         run: npm run build
 
+      - name: Rebuild native modules (per-arch)
+        run: |
+          set -euo pipefail
+          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
+          ARCH_INPUT="${{ github.event.inputs.arch }}"
+          if [ -z "$ARCH_INPUT" ] || [ "$ARCH_INPUT" = "both" ]; then ARGS=(x64 arm64); else ARGS=("$ARCH_INPUT"); fi
+          echo "Rebuilding sqlite3,node-pty,keytar for Electron $ELECTRON_VERSION: ${ARGS[*]}"
+          for A in "${ARGS[@]}"; do
+            npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
+          done
+
       - name: Inject PostHog config (dev build job)
         env:
           PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
@@ -99,6 +110,19 @@ jobs:
           fi
           echo "Building for: $FLAGS"
           npx electron-builder --mac dmg $FLAGS --publish never
+
+      - name: Smoke test sqlite3 in packaged app (arm64)
+        if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
+        run: |
+          set -euo pipefail
+          APP="release/mac-arm64/emdash.app"
+          if [ -d "$APP" ]; then
+            echo "Requiring sqlite3 using packaged Electron (arm64)…"
+            NODE_PATH="$APP/Contents/Resources/app.asar.unpacked/node_modules" \
+            ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/emdash" -e "require('sqlite3'); console.log('sqlite3 OK')"
+          else
+            echo "Arm64 app not found at $APP" && exit 1
+          fi
 
       # Optional: upload build artifacts for debugging even if publish fails
       # Deliberately skip uploading debug DMGs to avoid confusion
@@ -308,6 +332,19 @@ jobs:
           # Build signed + notarized artifacts locally but DO NOT publish yet.
           # We will staple and validate before uploading to the GitHub Release.
           npx electron-builder --mac dmg $FLAGS --publish never
+
+      - name: Smoke test sqlite3 in packaged app (arm64, signed)
+        if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
+        run: |
+          set -euo pipefail
+          APP="release/mac-arm64/emdash.app"
+          if [ -d "$APP" ]; then
+            echo "Requiring sqlite3 using packaged Electron (arm64, signed)…"
+            NODE_PATH="$APP/Contents/Resources/app.asar.unpacked/node_modules" \
+            ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/emdash" -e "require('sqlite3'); console.log('sqlite3 OK')"
+          else
+            echo "Arm64 app not found at $APP" && exit 1
+          fi
 
       - name: Verify Developer ID signing
         env:
