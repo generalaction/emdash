@@ -11,9 +11,15 @@ const DISCORD_WEBHOOK_URL =
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
+  githubUser?: {
+    login?: string;
+    name?: string;
+    html_url?: string;
+    email?: string;
+  } | null;
 }
 
-const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
+const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUser }) => {
   const shouldReduceMotion = useReducedMotion();
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
   const [feedbackDetails, setFeedbackDetails] = useState('');
@@ -65,10 +71,37 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
     setSubmitting(true);
     setErrorMessage(null);
 
+    const trimmedFeedback = feedbackDetails.trim();
+    const trimmedContact = contactEmail.trim();
+
+    const metadataLines: string[] = [];
+    if (trimmedContact) {
+      metadataLines.push(`Contact: ${trimmedContact}`);
+    }
+
+    const githubLogin = githubUser?.login?.trim();
+    const githubName = githubUser?.name?.trim();
+    const githubProfileUrlRaw = githubUser?.html_url?.trim();
+    const githubProfileUrl =
+      githubProfileUrlRaw || (githubLogin ? `https://github.com/${githubLogin}` : null);
+
+    if (githubLogin || githubName || githubProfileUrl) {
+      const summaryParts: string[] = [];
+      if (githubName && githubLogin) {
+        summaryParts.push(`${githubName} (@${githubLogin})`);
+      } else if (githubName) {
+        summaryParts.push(githubName);
+      } else if (githubLogin) {
+        summaryParts.push(`@${githubLogin}`);
+      }
+      if (githubProfileUrl) {
+        summaryParts.push(githubProfileUrl);
+      }
+      metadataLines.push(`GitHub: ${summaryParts.join(' ')}`);
+    }
+
     const payload = {
-      content: `${feedbackDetails.trim()}${
-        contactEmail.trim() ? `\n\nContact: ${contactEmail.trim()}` : ''
-      }`,
+      content: [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n'),
     };
 
     try {
@@ -93,7 +126,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
     } finally {
       setSubmitting(false);
     }
-  }, [contactEmail, feedbackDetails, onClose, submitting]);
+  }, [contactEmail, feedbackDetails, githubUser, onClose, submitting]);
 
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {

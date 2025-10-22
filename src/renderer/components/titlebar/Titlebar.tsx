@@ -7,16 +7,25 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
 
+interface GithubUser {
+  login?: string;
+  name?: string;
+  html_url?: string;
+  email?: string;
+}
+
 interface TitlebarProps {
   onToggleSettings: () => void;
   isSettingsOpen?: boolean;
   currentPath?: string | null;
+  githubUser?: GithubUser | null;
 }
 
 const Titlebar: React.FC<TitlebarProps> = ({
   onToggleSettings,
   isSettingsOpen = false,
   currentPath,
+  githubUser,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -118,7 +127,11 @@ const Titlebar: React.FC<TitlebarProps> = ({
           </TooltipProvider>
         </div>
       </header>
-      <FeedbackModal isOpen={isFeedbackOpen} onClose={handleCloseFeedback} />
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={handleCloseFeedback}
+        githubUser={githubUser}
+      />
     </>
   );
 };
