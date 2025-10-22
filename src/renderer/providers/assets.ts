@@ -14,15 +14,15 @@ import type { UiProvider } from './meta';
 export type ProviderAsset = { logo: string; alt: string; invertInDark?: boolean; name: string };
 
 export const providerAssets: Record<UiProvider, ProviderAsset> = {
-  codex: { name: 'Codex', logo: openaiLogo, alt: 'Codex', invertInDark: true },
+  codex: { name: 'OpenAI', logo: openaiLogo, alt: 'Codex', invertInDark: true },
   qwen: { name: 'Qwen Code', logo: qwenLogo, alt: 'Qwen Code CLI' },
-  claude: { name: 'Claude Code', logo: claudeLogo, alt: 'Claude Code' },
-  droid: { name: 'Droid', logo: factoryLogo, alt: 'Factory Droid', invertInDark: true },
-  gemini: { name: 'Gemini', logo: geminiLogo, alt: 'Gemini CLI' },
+  claude: { name: 'Anthropic', logo: claudeLogo, alt: 'Claude Code' },
+  droid: { name: 'Factory AI', logo: factoryLogo, alt: 'Factory Droid', invertInDark: true },
+  gemini: { name: 'Google', logo: geminiLogo, alt: 'Gemini CLI' },
   cursor: { name: 'Cursor', logo: cursorLogo, alt: 'Cursor CLI', invertInDark: true },
-  copilot: { name: 'Copilot', logo: copilotLogo, alt: 'GitHub Copilot CLI', invertInDark: true },
-  amp: { name: 'Amp', logo: ampLogo, alt: 'Amp CLI' },
+  copilot: { name: 'GitHub', logo: copilotLogo, alt: 'GitHub Copilot CLI', invertInDark: true },
+  amp: { name: 'Sourcegraph', logo: ampLogo, alt: 'Amp CLI' },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode CLI', invertInDark: true },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm CLI' },
-  auggie: { name: 'Auggie', logo: augmentLogo, alt: 'Auggie CLI' },
+  auggie: { name: 'Augment Code', logo: augmentLogo, alt: 'Auggie CLI' },
 };

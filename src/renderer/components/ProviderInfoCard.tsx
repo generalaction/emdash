@@ -1,72 +1,60 @@
 import React from 'react';
-import { type UiProvider } from '@/providers/meta';
+import { type UiProvider, providerMeta } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
+import { ArrowUpRight } from 'lucide-react';
 
 export type ProviderInfo = {
   title: string;
   description?: string;
-  capabilities?: string[];
   knowledgeCutoff?: string;
   hostingNote?: string;
-  image?: string; // optional override
+  image?: string;
 };
 
-// Centralized, growable provider info. Content can be curated later.
 export const providerInfo: Record<UiProvider, ProviderInfo> = {
   codex: {
     title: 'Codex',
     description: 'OpenAI Codex CLI for code and terminal workflows.',
-    capabilities: ['Code', 'Terminal', 'Refactor'],
   },
   claude: {
     title: 'Claude Code',
     description: 'Claude’s coding assistant CLI for structured coding tasks.',
-    capabilities: ['Code', 'Explain', 'Reasoning'],
   },
   qwen: {
     title: 'Qwen Code',
     description: 'Qwen command‑line coding assistant.',
-    capabilities: ['Code'],
   },
   droid: {
     title: 'Droid',
     description: 'Factory AI agent CLI.',
-    capabilities: ['Code', 'Terminal'],
   },
   gemini: {
     title: 'Gemini',
     description: 'Google Gemini CLI for coding and terminal tasks.',
-    capabilities: ['Code', 'Reasoning'],
   },
   cursor: {
     title: 'Cursor',
     description: 'Cursor Agent CLI integration.',
-    capabilities: ['Code', 'IDE Agent'],
   },
   copilot: {
     title: 'GitHub Copilot',
     description: 'Copilot CLI for coding from the terminal.',
-    capabilities: ['Code', 'Explain'],
   },
   amp: {
     title: 'Amp',
     description: 'Amp Code CLI.',
-    capabilities: ['Code'],
   },
   opencode: {
     title: 'OpenCode',
     description: 'OpenCode CLI.',
-    capabilities: ['Code'],
   },
   charm: {
     title: 'Charm',
     description: 'Charm Crush agent.',
-    capabilities: ['Code'],
   },
   auggie: {
     title: 'Auggie',
     description: 'Augment Code CLI.',
-    capabilities: ['Code'],
   },
 };
 
@@ -80,10 +68,14 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
   const logo = asset.logo;
   const brand = asset.name;
   return (
-    <div className="w-80 max-w-[20rem] rounded-lg  bg-background p-3 text-foreground shadow-sm">
+    <div className="w-80 max-w-[20rem] rounded-lg bg-background p-3 text-foreground shadow-sm">
       <div className="mb-2 flex items-center gap-2">
         {logo ? (
-          <img src={logo} alt={brand} className={`h-5 w-5 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`} />
+          <img
+            src={logo}
+            alt={brand}
+            className={`h-5 w-5 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`}
+          />
         ) : null}
         <div className="flex items-baseline gap-1 text-sm leading-none">
           <span className="text-muted-foreground">{brand}</span>
@@ -94,22 +86,25 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
       {info.description ? (
         <p className="mb-2 text-xs text-muted-foreground">{info.description}</p>
       ) : null}
-      {info.capabilities && info.capabilities.length > 0 ? (
+      {providerMeta[id]?.helpUrl ? (
         <div className="mb-2">
-          <div className="mb-1 text-xs font-medium text-foreground/90">Capabilities</div>
-          <div className="grid grid-cols-2 gap-1">
-            {info.capabilities.map((cap) => (
-              <div key={cap} className="rounded-md border px-2 py-1 text-[11px] text-foreground/90">
-                {cap}
-              </div>
-            ))}
-          </div>
+          <a
+            href={providerMeta[id].helpUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-foreground hover:underline"
+          >
+            <span>Docs</span>
+            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
         </div>
       ) : null}
       {info.knowledgeCutoff || info.hostingNote ? (
         <div className="mt-2 space-y-1">
           {info.knowledgeCutoff ? (
-            <div className="text-[11px] text-muted-foreground">Knowledge cutoff: {info.knowledgeCutoff}</div>
+            <div className="text-[11px] text-muted-foreground">
+              Knowledge cutoff: {info.knowledgeCutoff}
+            </div>
           ) : null}
           {info.hostingNote ? (
             <div className="text-[11px] text-muted-foreground">{info.hostingNote}</div>

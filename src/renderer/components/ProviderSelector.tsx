@@ -76,19 +76,19 @@ const providerConfig = {
   amp: {
     name: 'Amp',
     logo: ampLogo,
-    alt: 'Amp CLI',
+    alt: 'Amp Code',
     invertInDark: false,
   },
   opencode: {
     name: 'OpenCode',
     logo: opencodeLogo,
-    alt: 'OpenCode CLI',
+    alt: 'OpenCode',
     invertInDark: true,
   },
   charm: {
     name: 'Charm',
     logo: charmLogo,
-    alt: 'Charm CLI',
+    alt: 'Charm',
     invertInDark: false,
   },
   auggie: {
@@ -178,7 +178,10 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
   );
 };
 
-const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = ({ id, children }) => {
+const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = ({
+  id,
+  children,
+}) => {
   const [open, setOpen] = useState(false);
   return (
     <Tooltip open={open}>
@@ -193,7 +196,11 @@ const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = (
       <TooltipContent
         side="right"
         align="start"
-        className="p-0 bg-background text-foreground border-foreground/20"
+        className="border-foreground/20 bg-background p-0 text-foreground"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onPointerEnter={() => setOpen(true)}
+        onPointerLeave={() => setOpen(false)}
       >
         <ProviderInfoCard id={id} />
       </TooltipContent>
