@@ -25,6 +25,7 @@ import opencodeLogo from '../../assets/images/opencode.png';
 import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
+import gooseLogo from '../../assets/images/goose.png';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -98,6 +99,12 @@ const providerConfig = {
     name: 'Auggie',
     logo: augmentLogo,
     alt: 'Auggie CLI',
+    invertInDark: false,
+  },
+  goose: {
+    name: 'Goose',
+    logo: gooseLogo,
+    alt: 'Goose CLI',
     invertInDark: false,
   },
 } as const;

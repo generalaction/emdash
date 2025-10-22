@@ -51,6 +51,23 @@ const RequirementsNotice: React.FC<Props> = ({
               </div>
             </div>
             <div>
+              <span className="font-medium">Goose CLI</span>
+              <div>
+                Quickstart:{' '}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() =>
+                    (window as any).electronAPI.openExternal?.(
+                      'https://block.github.io/goose/docs/quickstart/'
+                    )
+                  }
+                >
+                  block.github.io/goose/docs/quickstart/
+                </button>
+              </div>
+            </div>
+            <div>
               <span className="font-medium">Claude Code CLI</span>
               <div>
                 Install:{' '}

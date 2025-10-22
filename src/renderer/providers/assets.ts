@@ -9,6 +9,7 @@ import opencodeLogo from '../../assets/images/opencode.png';
 import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
+import gooseLogo from '../../assets/images/goose.png';
 import type { UiProvider } from './meta';
 
 export type ProviderAsset = { logo: string; alt: string; invertInDark?: boolean; name: string };
@@ -25,4 +26,5 @@ export const providerAssets: Record<UiProvider, ProviderAsset> = {
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode CLI', invertInDark: true },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm CLI' },
   auggie: { name: 'Augment Code', logo: augmentLogo, alt: 'Auggie CLI' },
+  goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
 };
