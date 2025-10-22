@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Select,
   SelectTrigger,
@@ -8,6 +8,8 @@ import {
   SelectItemText,
 } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { ProviderInfoCard } from './ProviderInfoCard';
+import type { UiProvider } from '@/providers/meta';
 import { type Provider } from '../types';
 import openaiLogo from '../../assets/images/openai.png';
 import claudeLogo from '../../assets/images/claude.png';
@@ -154,21 +156,48 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
           </SelectTrigger>
         )}
         <SelectContent side="top">
-          {Object.entries(providerConfig).map(([key, config]) => (
-            <SelectItem key={key} value={key}>
-              <div className="flex items-center gap-2">
-                <img
-                  src={config.logo}
-                  alt={config.alt}
-                  className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
-                />
-                <SelectItemText>{config.name}</SelectItemText>
-              </div>
-            </SelectItem>
-          ))}
+          <TooltipProvider delayDuration={150}>
+            {Object.entries(providerConfig).map(([key, config]) => (
+              <TooltipRow key={key} id={key as UiProvider}>
+                <SelectItem value={key}>
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={config.logo}
+                      alt={config.alt}
+                      className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
+                    />
+                    <SelectItemText>{config.name}</SelectItemText>
+                  </div>
+                </SelectItem>
+              </TooltipRow>
+            ))}
+          </TooltipProvider>
         </SelectContent>
       </Select>
     </div>
+  );
+};
+
+const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = ({ id, children }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip open={open}>
+      <TooltipTrigger asChild>
+        {React.cloneElement(children, {
+          onMouseEnter: () => setOpen(true),
+          onMouseLeave: () => setOpen(false),
+          onPointerEnter: () => setOpen(true),
+          onPointerLeave: () => setOpen(false),
+        })}
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="start"
+        className="p-0 bg-background text-foreground border-foreground/20"
+      >
+        <ProviderInfoCard id={id} />
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
