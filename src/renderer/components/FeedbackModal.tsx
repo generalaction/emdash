@@ -231,7 +231,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                 <textarea
                   id="feedback-details"
                   rows={5}
-                  placeholder="Share your thoughts…"
+                  placeholder="What do you like? How can we improve?"
                   className="w-full resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-700"
                   value={feedbackDetails}
                   onChange={(event) => {
