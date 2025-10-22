@@ -130,12 +130,10 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
       setContactEmail('');
       setAttachments([]);
       onClose();
-      // Toast: success
       toast({ title: 'Feedback sent', description: 'Thanks for your feedback!' });
     } catch (error) {
       console.error('Failed to submit feedback:', error);
       setErrorMessage('Unable to send feedback. Please try again.');
-      // Toast: error
       toast({
         title: 'Failed to send feedback',
         description: 'Please try again.',
