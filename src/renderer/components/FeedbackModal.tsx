@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { X } from 'lucide-react';
+import { CornerDownLeft, X } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface FeedbackModalProps {
@@ -11,6 +11,8 @@ interface FeedbackModalProps {
 
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   const shouldReduceMotion = useReducedMotion();
+  const submitButtonRef = useRef<HTMLButtonElement | null>(null);
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -28,6 +30,13 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
+
+  const handleMetaEnter = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'enter') {
+      event.preventDefault();
+      submitButtonRef.current?.click();
+    }
+  };
 
   if (typeof document === 'undefined') {
     return null;
@@ -61,13 +70,11 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
             }
             className="w-full max-w-lg transform-gpu rounded-xl border border-gray-200 bg-white shadow-2xl outline-none will-change-transform dark:border-gray-700 dark:bg-gray-900"
           >
-            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+            <div className="flex items-start justify-between px-6 pt-6 pb-2">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Share Feedback
-                </h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                  Tell us what’s working well or what could be better.
+                  Tell us what’s working well or what could be better. Thank you!
                 </p>
               </div>
               <Button
@@ -83,95 +90,45 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
             </div>
 
             <form
-              className="space-y-5 px-6 py-6"
+              className="space-y-4 px-6 pb-6"
               onSubmit={(event) => {
                 event.preventDefault();
               }}
             >
-              <div className="space-y-2">
-                <label
-                  htmlFor="feedback-topic"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Topic
-                </label>
-                <select
-                  id="feedback-topic"
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-700"
-                  defaultValue="general"
-                >
-                  <option value="general">General feedback</option>
-                  <option value="bug">Report a bug</option>
-                  <option value="feature">Request a feature</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label
-                  htmlFor="feedback-summary"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Summary
-                </label>
-                <input
-                  id="feedback-summary"
-                  type="text"
-                  placeholder="Give a quick headline"
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-700"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label
-                  htmlFor="feedback-details"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Details
+              <div className="space-y-1.5">
+                <label htmlFor="feedback-details" className="sr-only">
+                  Feedback details
                 </label>
                 <textarea
                   id="feedback-details"
                   rows={5}
-                  placeholder="Let us know the details. Include steps to reproduce if reporting a bug."
+                  placeholder="Share your thoughts…"
                   className="w-full resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-700"
+                  onKeyDown={handleMetaEnter}
                 />
               </div>
 
-              <div className="space-y-2">
-                <label
-                  htmlFor="feedback-contact"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Contact (optional)
+              <div className="space-y-1.5">
+                <label htmlFor="feedback-contact" className="sr-only">
+                  Contact email
                 </label>
                 <input
                   id="feedback-contact"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="productive@example.com (optional)"
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-700"
+                  onKeyDown={handleMetaEnter}
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Leave an email if you’d like us to follow up with you.
-                </p>
               </div>
 
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-800">
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  We read every piece of feedback. Thank you!
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={onClose}
-                    className="text-sm"
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="button" disabled>
-                    Send Feedback
-                  </Button>
-                </div>
+              <div className="flex justify-end pt-2">
+                <Button type="submit" ref={submitButtonRef} className="gap-2 px-4">
+                  <span>Send Feedback</span>
+                  <span className="flex items-center gap-1 rounded border border-white/40 bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground dark:border-white/20 dark:bg-white/5">
+                    <span>⌘</span>
+                    <CornerDownLeft className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </Button>
               </div>
             </form>
           </motion.div>
