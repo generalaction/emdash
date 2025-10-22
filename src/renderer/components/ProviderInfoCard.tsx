@@ -108,6 +108,17 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
           </a>
         </div>
       ) : null}
+      <div className="mb-2">
+        <a
+          href="https://artificialanalysis.ai/insights/coding-agents-comparison"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-foreground hover:underline"
+        >
+          <span>Compare Coding Agents</span>
+          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      </div>
       {info.knowledgeCutoff || info.hostingNote ? (
         <div className="mt-2 space-y-1">
           {info.knowledgeCutoff ? (
