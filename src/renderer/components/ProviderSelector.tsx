@@ -9,6 +9,9 @@ import {
 } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { ProviderInfoCard } from './ProviderInfoCard';
+import RoutingInfoCard from './RoutingInfoCard';
+import { Workflow } from 'lucide-react';
+import { Badge } from './ui/badge';
 import type { UiProvider } from '@/providers/meta';
 import { type Provider } from '../types';
 import openaiLogo from '../../assets/images/openai.png';
@@ -171,6 +174,30 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                 </SelectItem>
               </TooltipRow>
             ))}
+            {false && (
+              <RoutingTooltipRow>
+                <SelectItem
+                  value="__routing__"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  <div
+                    className="flex cursor-not-allowed items-center gap-2 opacity-70"
+                    aria-disabled
+                  >
+                    <Workflow className="h-4 w-4 text-foreground/70" aria-hidden="true" />
+                    <SelectItemText>
+                      <span className="mr-2">Routing</span>
+                    </SelectItemText>
+                    <Badge className="ml-1" style={{ fontSize: '10px' }}>
+                      Soon
+                    </Badge>
+                  </div>
+                </SelectItem>
+              </RoutingTooltipRow>
+            )}
           </TooltipProvider>
         </SelectContent>
       </Select>
@@ -209,3 +236,31 @@ const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = (
 };
 
 export default ProviderSelector;
+
+// Routing row with custom tooltip content
+export const RoutingTooltipRow: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip open={open}>
+      <TooltipTrigger asChild>
+        {React.cloneElement(children, {
+          onMouseEnter: () => setOpen(true),
+          onMouseLeave: () => setOpen(false),
+          onPointerEnter: () => setOpen(true),
+          onPointerLeave: () => setOpen(false),
+        })}
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="start"
+        className="border-foreground/20 bg-background p-0 text-foreground"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onPointerEnter={() => setOpen(true)}
+        onPointerLeave={() => setOpen(false)}
+      >
+        <RoutingInfoCard />
+      </TooltipContent>
+    </Tooltip>
+  );
+};
