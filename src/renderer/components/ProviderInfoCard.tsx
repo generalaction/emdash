@@ -78,13 +78,18 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
   const info = providerInfo[id];
   const asset = providerAssets[id];
   const logo = asset.logo;
+  const brand = asset.name;
   return (
     <div className="w-80 max-w-[20rem] rounded-lg  bg-background p-3 text-foreground shadow-sm">
       <div className="mb-2 flex items-center gap-2">
         {logo ? (
-          <img src={logo} alt={info.title} className={`h-5 w-5 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`} />
+          <img src={logo} alt={brand} className={`h-5 w-5 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`} />
         ) : null}
-        <div className="text-sm font-semibold leading-none">{info.title}</div>
+        <div className="flex items-baseline gap-1 text-sm leading-none">
+          <span className="text-muted-foreground">{brand}</span>
+          <span className="text-muted-foreground">/</span>
+          <strong className="font-semibold text-foreground">{info.title}</strong>
+        </div>
       </div>
       {info.description ? (
         <p className="mb-2 text-xs text-muted-foreground">{info.description}</p>
