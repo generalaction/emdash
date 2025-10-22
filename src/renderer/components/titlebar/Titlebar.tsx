@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Command, MessageSquare, Settings as SettingsIcon } from 'lucide-react';
 import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
@@ -19,6 +19,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   currentPath,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const handleOpenFeedback = useCallback(() => {
     setIsFeedbackOpen(true);
@@ -26,6 +27,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
 
   const handleCloseFeedback = useCallback(() => {
     setIsFeedbackOpen(false);
+    feedbackButtonRef.current?.blur();
   }, []);
 
   useEffect(() => {
@@ -74,6 +76,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
                   size="icon"
                   aria-label="Open feedback"
                   onClick={handleOpenFeedback}
+                  ref={feedbackButtonRef}
                   className="h-8 w-8 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-background/80"
                 >
                   <MessageSquare className="h-4 w-4" />

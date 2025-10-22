@@ -11,7 +11,6 @@ interface FeedbackModalProps {
 
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   const shouldReduceMotion = useReducedMotion();
-
   useEffect(() => {
     if (!isOpen) {
       return;
