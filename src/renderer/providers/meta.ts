@@ -9,7 +9,8 @@ export type UiProvider =
   | 'amp'
   | 'opencode'
   | 'charm'
-  | 'auggie';
+  | 'auggie'
+  | 'goose';
 
 export type ProviderMeta = {
   label: string;
@@ -147,5 +148,14 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
       /Yes, and approve/i,
     ],
     busyPatterns: [/Thinking|Working|Generating/i],
+  },
+  goose: {
+    label: 'Goose',
+    icon: '../../assets/images/goose.png',
+    terminalOnly: true,
+    cli: 'goose',
+    helpUrl: 'https://block.github.io/goose/docs/quickstart/',
+    idlePatterns: [/Ready|Awaiting|Press Enter|Next command/i],
+    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning/i],
   },
 };

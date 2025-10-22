@@ -65,6 +65,10 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     description:
       'Augment Code CLI to run an agent against your repository for code changes and reviews.',
   },
+  goose: {
+    title: 'Goose',
+    description: 'Goose CLI that routes tasks to tools and models for coding workflows.',
+  },
 };
 
 type Props = {
