@@ -84,11 +84,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
 
     const githubLogin = githubUser?.login?.trim();
     const githubName = githubUser?.name?.trim();
-    const githubProfileUrlRaw = githubUser?.html_url?.trim();
-    const githubProfileUrl =
-      githubProfileUrlRaw || (githubLogin ? `https://github.com/${githubLogin}` : null);
-
-    if (githubLogin || githubName || githubProfileUrl) {
+    if (githubLogin || githubName) {
       const summaryParts: string[] = [];
       if (githubName && githubLogin) {
         summaryParts.push(`${githubName} (@${githubLogin})`);
@@ -96,9 +92,6 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
         summaryParts.push(githubName);
       } else if (githubLogin) {
         summaryParts.push(`@${githubLogin}`);
-      }
-      if (githubProfileUrl) {
-        summaryParts.push(githubProfileUrl);
       }
       metadataLines.push(`GitHub: ${summaryParts.join(' ')}`);
     }
