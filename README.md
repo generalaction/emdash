@@ -209,6 +209,8 @@ npm run package:mac
 
 Outputs: `release/emdash-arm64.dmg` and `release/emdash-arm64.zip`
 
+**Note:** Native modules (node-pty, sqlite3, keytar) are automatically rebuilt for Electron during `npm install` via the postinstall hook.
+
 ### Linux
 
 Install build dependencies:
