@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { CornerDownLeft, X } from 'lucide-react';
+import { CornerDownLeft, Paperclip, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 
@@ -22,10 +22,12 @@ interface FeedbackModalProps {
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUser }) => {
   const shouldReduceMotion = useReducedMotion();
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [feedbackDetails, setFeedbackDetails] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
 
 
   useEffect(() => {
@@ -52,6 +54,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
       setContactEmail('');
       setSubmitting(false);
       setErrorMessage(null);
+      setAttachments([]);
     }
   }, [isOpen]);
 
@@ -100,18 +103,30 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
       metadataLines.push(`GitHub: ${summaryParts.join(' ')}`);
     }
 
-    const payload = {
-      content: [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n'),
-    };
+    const content = [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n');
 
     try {
-      const response = await fetch(DISCORD_WEBHOOK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      let response: Response;
+
+      if (attachments.length > 0) {
+        const formData = new FormData();
+        formData.append('content', content);
+        attachments.forEach((file, index) => {
+          formData.append(`file${index}`, file);
+        });
+        response = await fetch(DISCORD_WEBHOOK_URL, {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        response = await fetch(DISCORD_WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ content }),
+        });
+      }
 
       if (!response.ok) {
         throw new Error(`Discord webhook returned ${response.status}`);
@@ -119,6 +134,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
 
       setFeedbackDetails('');
       setContactEmail('');
+       setAttachments([]);
       onClose();
     } catch (error) {
       console.error('Failed to submit feedback:', error);
@@ -126,7 +142,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
     } finally {
       setSubmitting(false);
     }
-  }, [contactEmail, feedbackDetails, githubUser, onClose, submitting]);
+  }, [attachments, contactEmail, feedbackDetails, githubUser, onClose, submitting]);
 
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -143,6 +159,26 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
       event.preventDefault();
       void handleSubmit();
     }
+  };
+
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length) {
+      setAttachments((prev) => [...prev, ...files]);
+      if (errorMessage) {
+        setErrorMessage(null);
+      }
+    }
+    // Reset input so the same file can be selected again if needed
+    event.target.value = '';
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   if (typeof document === 'undefined') {
@@ -178,12 +214,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
             className="w-full max-w-lg transform-gpu rounded-xl border border-gray-200 bg-white shadow-2xl outline-none will-change-transform dark:border-gray-700 dark:bg-gray-900"
           >
             <div className="flex items-start justify-between px-6 pt-6 pb-2">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                  Tell us what’s working well or what could be better. Thank you!
-                </p>
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
               <Button
                 type="button"
                 variant="ghost"
@@ -240,13 +271,57 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                 />
               </div>
 
+              <div className="space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  multiple
+                  onChange={handleAttachmentChange}
+                  disabled={submitting}
+                />
+                {attachments.length > 0 ? (
+                  <ul className="space-y-1 text-sm">
+                    {attachments.map((file, index) => (
+                      <li
+                        key={`${file.name}-${index}`}
+                        className="flex items-center justify-between rounded-md border border-dashed border-gray-300 px-3 py-2 text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                      >
+                        <span className="truncate">{file.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveAttachment(index)}
+                          disabled={submitting}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Remove
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+
               {errorMessage ? (
                 <p className="text-sm text-destructive" role="alert">
                   {errorMessage}
                 </p>
               ) : null}
 
-              <div className="flex justify-end pt-2">
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAttachmentClick}
+                  className="gap-2"
+                  disabled={submitting}
+                >
+                  <Paperclip className="h-4 w-4" aria-hidden="true" />
+                  <span>Attach image</span>
+                </Button>
                 <Button
                   type="submit"
                   ref={submitButtonRef}
