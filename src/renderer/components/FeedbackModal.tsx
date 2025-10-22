@@ -29,7 +29,6 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
 
-
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -127,7 +126,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
 
       setFeedbackDetails('');
       setContactEmail('');
-       setAttachments([]);
+      setAttachments([]);
       onClose();
     } catch (error) {
       console.error('Failed to submit feedback:', error);
@@ -145,9 +144,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
     [handleSubmit]
   );
 
-  const handleMetaEnter = (
-    event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>
-  ) => {
+  const handleMetaEnter = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'enter') {
       event.preventDefault();
       void handleSubmit();
@@ -206,7 +203,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
             }
             className="w-full max-w-lg transform-gpu rounded-xl border border-gray-200 bg-white shadow-2xl outline-none will-change-transform dark:border-gray-700 dark:bg-gray-900"
           >
-            <div className="flex items-start justify-between px-6 pt-6 pb-2">
+            <div className="flex items-start justify-between px-6 pb-2 pt-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
               <Button
                 type="button"
@@ -220,10 +217,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
               </Button>
             </div>
 
-            <form
-              className="space-y-4 px-6 pb-6"
-              onSubmit={handleFormSubmit}
-            >
+            <form className="space-y-4 px-6 pb-6" onSubmit={handleFormSubmit}>
               <div className="space-y-1.5">
                 <label htmlFor="feedback-details" className="sr-only">
                   Feedback details
