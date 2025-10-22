@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { CornerDownLeft, Paperclip, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
+import { useToast } from '../hooks/use-toast';
 
 const DISCORD_WEBHOOK_URL =
   'https://discord.com/api/webhooks/1430482776045391912/7r3aZtu7y0safAJfFF0mywzw2uoY_2UhadMf7uv1oJSitIC2eUirWzGHdjiEm7zgdPDt';
@@ -28,6 +29,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isOpen) {
@@ -128,9 +130,15 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
       setContactEmail('');
       setAttachments([]);
       onClose();
+      toast({ title: 'Feedback sent', description: 'Thanks for your feedback!' });
     } catch (error) {
       console.error('Failed to submit feedback:', error);
       setErrorMessage('Unable to send feedback. Please try again.');
+      toast({
+        title: 'Failed to send feedback',
+        description: 'Please try again.',
+        variant: 'destructive' as any,
+      });
     } finally {
       setSubmitting(false);
     }
