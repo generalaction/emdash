@@ -14,47 +14,56 @@ export type ProviderInfo = {
 export const providerInfo: Record<UiProvider, ProviderInfo> = {
   codex: {
     title: 'Codex',
-    description: 'OpenAI Codex CLI for code and terminal workflows.',
+    description:
+      'CLI that connects to OpenAI models for project‑aware code assistance and terminal workflows.',
   },
   claude: {
     title: 'Claude Code',
-    description: 'Claude’s coding assistant CLI for structured coding tasks.',
+    description:
+      'CLI that uses Anthropic Claude for code edits, explanations, and structured refactors in the terminal.',
   },
   qwen: {
     title: 'Qwen Code',
-    description: 'Qwen command‑line coding assistant.',
+    description:
+      'Command‑line interface to Alibaba’s Qwen Code models for coding assistance and code completion.',
   },
   droid: {
     title: 'Droid',
-    description: 'Factory AI agent CLI.',
+    description: 'Factory AI’s agent CLI for running multi‑step coding tasks from the terminal.',
   },
   gemini: {
     title: 'Gemini',
-    description: 'Google Gemini CLI for coding and terminal tasks.',
+    description:
+      'CLI that uses Google Gemini models to assist with coding, reasoning, and command‑line tasks.',
   },
   cursor: {
     title: 'Cursor',
-    description: 'Cursor Agent CLI integration.',
+    description:
+      'Cursor’s agent CLI; provides editor‑style, project‑aware assistance from the shell.',
   },
   copilot: {
     title: 'GitHub Copilot',
-    description: 'Copilot CLI for coding from the terminal.',
+    description:
+      'GitHub Copilot CLI brings Copilot prompts to the terminal for code, shell, and search help.',
   },
   amp: {
     title: 'Amp',
-    description: 'Amp Code CLI.',
+    description:
+      'Amp Code CLI for agentic coding sessions against your repository from the terminal.',
   },
   opencode: {
     title: 'OpenCode',
-    description: 'OpenCode CLI.',
+    description:
+      'OpenCode CLI that interfaces with models for code generation and edits from the shell.',
   },
   charm: {
     title: 'Charm',
-    description: 'Charm Crush agent.',
+    description: 'Charm Crush agent CLI providing terminal‑first AI assistance for coding tasks.',
   },
   auggie: {
     title: 'Auggie',
-    description: 'Augment Code CLI.',
+    description:
+      'Augment Code CLI to run an agent against your repository for code changes and reviews.',
   },
 };
 
