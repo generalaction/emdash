@@ -18,9 +18,14 @@ import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import PlanModeToggle from './PlanModeToggle';
 
-type Props = { provider: Provider; linearIssue?: LinearIssueSummary | null };
+type Props = {
+  provider: Provider;
+  linearIssue?: LinearIssueSummary | null;
+  planModeEnabled?: boolean;
+  onPlanModeChange?: (next: boolean) => void;
+};
 
-export const ProviderBar: React.FC<Props> = ({ provider, linearIssue }) => {
+export const ProviderBar: React.FC<Props> = ({ provider, linearIssue, planModeEnabled, onPlanModeChange }) => {
   const map: Record<Provider, { name: string; logo: string }> = {
     qwen: { name: 'Qwen Code', logo: qwenLogo },
     codex: { name: 'Codex', logo: openaiLogo },
@@ -160,7 +165,7 @@ export const ProviderBar: React.FC<Props> = ({ provider, linearIssue }) => {
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              <PlanModeToggle />
+              <PlanModeToggle value={!!planModeEnabled} onChange={onPlanModeChange} />
             </div>
           </div>
         </div>

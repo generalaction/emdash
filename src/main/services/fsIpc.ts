@@ -195,4 +195,54 @@ export function registerFsIpc(): void {
       }
     }
   );
+
+  // Write a file relative to a root (creates parent directories)
+  ipcMain.handle(
+    'fs:write',
+    async (
+      _event,
+      args: { root: string; relPath: string; content: string; mkdirs?: boolean }
+    ) => {
+      try {
+        const { root, relPath, content, mkdirs = true } = args;
+        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+        if (!relPath) return { success: false, error: 'Invalid relPath' };
+
+        const abs = path.resolve(root, relPath);
+        const normRoot = path.resolve(root) + path.sep;
+        if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+
+        const dir = path.dirname(abs);
+        if (mkdirs) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(abs, content, 'utf8');
+        return { success: true };
+      } catch (error) {
+        console.error('fs:write failed:', error);
+        return { success: false, error: 'Failed to write file' };
+      }
+    }
+  );
+
+  // Remove a file relative to a root
+  ipcMain.handle(
+    'fs:remove',
+    async (_event, args: { root: string; relPath: string }) => {
+      try {
+        const { root, relPath } = args;
+        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+        if (!relPath) return { success: false, error: 'Invalid relPath' };
+        const abs = path.resolve(root, relPath);
+        const normRoot = path.resolve(root) + path.sep;
+        if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+        if (!fs.existsSync(abs)) return { success: true };
+        const st = safeStat(abs);
+        if (st && st.isDirectory()) return { success: false, error: 'Is a directory' };
+        fs.unlinkSync(abs);
+        return { success: true };
+      } catch (error) {
+        console.error('fs:remove failed:', error);
+        return { success: false, error: 'Failed to remove file' };
+      }
+    }
+  );
 }

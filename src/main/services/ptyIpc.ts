@@ -40,7 +40,18 @@ export function registerPtyIpc(): void {
         // Reuse existing PTY if present; otherwise create new
         const existing = getPty(id);
         const proc = existing ?? startPty({ id, cwd, shell, env, cols, rows });
-        log.debug('pty:start OK', { id, cwd, shell, cols, rows, reused: !!existing });
+        const envKeys = env ? Object.keys(env) : [];
+        const planEnv = env && (env.EMDASH_PLAN_MODE || env.EMDASH_PLAN_FILE) ? true : false;
+        log.debug('pty:start OK', {
+          id,
+          cwd,
+          shell,
+          cols,
+          rows,
+          reused: !!existing,
+          envKeys,
+          planEnv,
+        });
         const wc = event.sender;
         owners.set(id, wc);
 

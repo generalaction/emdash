@@ -44,7 +44,7 @@ export function useFileChanges(workspacePath: string) {
               isStaged: change.isStaged || false,
               diff: change.diff,
             })
-          );
+          ).filter((c) => !c.path.startsWith('.emdash/'));
           setFileChanges(changes);
         } else {
           setFileChanges([]);
@@ -92,7 +92,7 @@ export function useFileChanges(workspacePath: string) {
             isStaged: change.isStaged || false,
             diff: change.diff,
           })
-        );
+        ).filter((c) => !c.path.startsWith('.emdash/'));
         setFileChanges(changes);
       } else {
         setFileChanges([]);

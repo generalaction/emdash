@@ -20,6 +20,7 @@ export type ProviderMeta = {
   helpUrl?: string;
   idlePatterns?: RegExp[];
   busyPatterns?: RegExp[];
+  planActivate?: string; // optional provider-specific activation for plan mode
 };
 
 export const providerMeta: Record<UiProvider, ProviderMeta> = {
@@ -92,6 +93,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     terminalOnly: true,
     cli: 'claude',
     helpUrl: 'https://docs.claude.com/en/docs/claude-code/quickstart',
+    planActivate: '/plan',
     idlePatterns: [/Ready|Awaiting|Next command|Use \/login/i],
     busyPatterns: [
       /esc\s*to\s*interrupt/i,

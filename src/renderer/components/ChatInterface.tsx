@@ -10,6 +10,10 @@ import ProviderBar from './ProviderBar';
 import useCodexStream from '../hooks/useCodexStream';
 import useClaudeStream from '../hooks/useClaudeStream';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
+import { usePlanMode } from '@/hooks/usePlanMode';
+import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
+import { log } from '@/lib/logger';
+import { PLAN_CHAT_PREAMBLE } from '@/lib/planRules';
 import { type Provider } from '../types';
 import { buildAttachmentsSection, buildImageAttachmentsSection } from '../lib/attachments';
 import { Workspace, Message } from '../types/chat';
@@ -70,6 +74,25 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       : null
   );
   const activeStream = provider === 'codex' ? codexStream : claudeStream;
+
+  // Unified Plan Mode (per workspace)
+  const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(
+    workspace.id,
+    workspace.path
+  );
+
+  // Log transitions for visibility
+  useEffect(() => {
+    log.info('[plan] state changed', { workspaceId: workspace.id, enabled: planEnabled });
+  }, [planEnabled, workspace.id]);
+
+  // For terminal providers with native plan activation commands
+  usePlanActivationTerminal({
+    enabled: planEnabled,
+    providerId: provider,
+    workspaceId: workspace.id,
+    workspacePath: workspace.path,
+  });
 
   useEffect(() => {
     initializedConversationRef.current = null;
@@ -322,7 +345,19 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       provider === 'codex' ? codexStream.conversationId : claudeStream.conversationId;
     if (!activeConversationId) return;
 
+    // Prepare optional wire-only preamble (not shown in UI)
+    let wirePrefix = '';
     const messageWithContext = inputValue;
+    if (planEnabled) {
+      try {
+        const key = `planPreambleSent:${workspace.id}:${activeConversationId}`;
+        const sent = localStorage.getItem(key) === '1';
+        if (!sent) {
+          wirePrefix = `${PLAN_CHAT_PREAMBLE}\n\n`;
+          localStorage.setItem(key, '1');
+        }
+      } catch {}
+    }
 
     const attachmentsSection = await buildAttachmentsSection(workspace.path, inputValue, {
       maxFiles: 6,
@@ -332,8 +367,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
 
     const result =
       provider === 'codex'
-        ? await codexStream.send(messageWithContext, attachmentsSection + imageSection)
-        : await claudeStream.send(messageWithContext, attachmentsSection + imageSection);
+        ? await codexStream.send(messageWithContext, attachmentsSection + imageSection, wirePrefix)
+        : await claudeStream.send(messageWithContext, attachmentsSection + imageSection, wirePrefix);
     if (!result.success) {
       if (result.error && result.error !== 'stream-in-progress') {
         toast({
@@ -462,6 +497,14 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                 id={`${provider}-main-${workspace.id}`}
                 cwd={workspace.path}
                 shell={providerMeta[provider].cli}
+                env={
+                  planEnabled
+                    ? {
+                        EMDASH_PLAN_MODE: '1',
+                        EMDASH_PLAN_FILE: `${workspace.path}/.emdash/planning.md`,
+                      }
+                    : undefined
+                }
                 keepAlive={true}
                 onActivity={() => {
                   try {
@@ -531,7 +574,12 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       )}
 
       {isTerminal ? (
-        <ProviderBar provider={provider} linearIssue={workspace.metadata?.linearIssue || null} />
+        <ProviderBar
+          provider={provider}
+          linearIssue={workspace.metadata?.linearIssue || null}
+          planModeEnabled={planEnabled}
+          onPlanModeChange={setPlanEnabled}
+        />
       ) : null}
     </div>
   );
