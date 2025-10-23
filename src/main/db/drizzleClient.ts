@@ -38,9 +38,7 @@ const DEFAULT_BUSY_TIMEOUT_MS = 5000;
 
 async function loadSqliteModule(): Promise<typeof sqlite3Type> {
   if (!sqliteModulePromise) {
-    sqliteModulePromise = import('sqlite3').then(
-      (mod) => mod as unknown as typeof sqlite3Type,
-    );
+    sqliteModulePromise = import('sqlite3').then((mod) => mod as unknown as typeof sqlite3Type);
   }
   return sqliteModulePromise;
 }
@@ -52,7 +50,7 @@ function normalizeParams(params: unknown[] | undefined): unknown[] {
 function createCallbacks(db: sqlite3Type.Database) {
   const runStatement = (
     sql: string,
-    params: unknown[],
+    params: unknown[]
   ): Promise<{ rows: unknown[]; lastID: number; changes: number }> =>
     new Promise((resolve, reject) => {
       db.run(sql, params, function (err) {
@@ -125,7 +123,7 @@ function createCallbacks(db: sqlite3Type.Database) {
       case 'values': {
         const rows = await allStatement(sql, normalized);
         const values = rows.map((row) =>
-          Array.isArray(row) ? row : Object.values(row as Record<string, unknown>),
+          Array.isArray(row) ? row : Object.values(row as Record<string, unknown>)
         );
         return { rows: values } as any;
       }
@@ -148,7 +146,7 @@ function createCallbacks(db: sqlite3Type.Database) {
 
 async function openDatabase(
   filePath: string,
-  busyTimeoutMs: number,
+  busyTimeoutMs: number
 ): Promise<sqlite3Type.Database> {
   const sqliteModule = await loadSqliteModule();
   const db = await new Promise<sqlite3Type.Database>((resolve, reject) => {
@@ -169,7 +167,7 @@ async function openDatabase(
 }
 
 export async function createDrizzleClient(
-  options: CreateDrizzleClientOptions = {},
+  options: CreateDrizzleClientOptions = {}
 ): Promise<DrizzleClient> {
   if (process.env.EMDASH_DISABLE_NATIVE_DB === '1') {
     throw new Error('Native SQLite database is disabled via EMDASH_DISABLE_NATIVE_DB=1');
@@ -198,8 +196,7 @@ export async function createDrizzleClient(
       }),
   };
 
-  const shouldCache =
-    options.cacheResult ?? (!options.database && options.filePath === undefined);
+  const shouldCache = options.cacheResult ?? (!options.database && options.filePath === undefined);
 
   if (shouldCache) {
     cachedInternal = {

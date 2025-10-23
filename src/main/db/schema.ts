@@ -20,7 +20,7 @@ export const projects = sqliteTable(
   },
   (table) => ({
     pathIdx: uniqueIndex('idx_projects_path').on(table.path),
-  }),
+  })
 );
 
 export const workspaces = sqliteTable(
@@ -45,7 +45,7 @@ export const workspaces = sqliteTable(
   },
   (table) => ({
     projectIdIdx: index('idx_workspaces_project_id').on(table.projectId),
-  }),
+  })
 );
 
 export const conversations = sqliteTable(
@@ -65,7 +65,7 @@ export const conversations = sqliteTable(
   },
   (table) => ({
     workspaceIdIdx: index('idx_conversations_workspace_id').on(table.workspaceId),
-  }),
+  })
 );
 
 export const messages = sqliteTable(
@@ -85,7 +85,7 @@ export const messages = sqliteTable(
   (table) => ({
     conversationIdIdx: index('idx_messages_conversation_id').on(table.conversationId),
     timestampIdx: index('idx_messages_timestamp').on(table.timestamp),
-  }),
+  })
 );
 
 export const projectsRelations = relations(projects, ({ many }) => ({

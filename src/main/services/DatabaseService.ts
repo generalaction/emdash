@@ -137,10 +137,7 @@ export class DatabaseService {
   async getProjects(): Promise<Project[]> {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
-    const rows = await db
-      .select()
-      .from(projectsTable)
-      .orderBy(desc(projectsTable.updatedAt));
+    const rows = await db.select().from(projectsTable).orderBy(desc(projectsTable.updatedAt));
     return rows.map((row) => this.mapDrizzleProjectRow(row));
   }
 
@@ -150,8 +147,8 @@ export class DatabaseService {
       typeof workspace.metadata === 'string'
         ? workspace.metadata
         : workspace.metadata
-            ? JSON.stringify(workspace.metadata)
-            : null;
+          ? JSON.stringify(workspace.metadata)
+          : null;
     const { db } = await getDrizzleClient();
     await db
       .insert(workspacesTable)
@@ -296,8 +293,8 @@ export class DatabaseService {
       typeof message.metadata === 'string'
         ? message.metadata
         : message.metadata
-            ? JSON.stringify(message.metadata)
-            : null;
+          ? JSON.stringify(message.metadata)
+          : null;
     const { db } = await getDrizzleClient();
     await db.transaction(async (tx) => {
       await tx
@@ -441,7 +438,7 @@ export class DatabaseService {
       },
       {
         migrationsFolder: migrationsPath,
-      },
+      }
     );
 
     DatabaseService.migrationsApplied = true;
