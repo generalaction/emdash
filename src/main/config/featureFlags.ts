@@ -10,7 +10,6 @@ const withDefault = <T>(value: T | undefined, fallback: T): T =>
   value === undefined ? fallback : value;
 
 export const featureFlags = {
-  useDrizzleWrites: () => toBool(process.env.EMDASH_USE_DRIZZLE_WRITES, false),
   drizzleDiffAssertions: () =>
     toBool(process.env.EMDASH_DRIZZLE_ASSERT_RESULTS, false),
   drizzleLogNamespace: () => withDefault(process.env.EMDASH_DRIZZLE_LOG_NS, ''),
