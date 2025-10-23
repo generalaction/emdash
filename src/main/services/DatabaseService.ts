@@ -1,14 +1,18 @@
 import type sqlite3Type from 'sqlite3';
 import { isDeepStrictEqual, promisify } from 'util';
-import { desc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { resolveDatabasePath } from '../db/path';
 import { featureFlags } from '../config/featureFlags';
 import { getDrizzleClient } from '../db/drizzleClient';
 import {
   projects as projectsTable,
   workspaces as workspacesTable,
+  conversations as conversationsTable,
+  messages as messagesTable,
   type ProjectRow,
   type WorkspaceRow,
+  type ConversationRow,
+  type MessageRow,
 } from '../db/schema';
 
 export interface Project {
@@ -429,7 +433,7 @@ export class DatabaseService {
     if (this.disabled) return [];
     if (!this.db) throw new Error('Database not initialized');
 
-    return new Promise((resolve, reject) => {
+    const conversations = await new Promise<Conversation[]>((resolve, reject) => {
       this.db!.all(
         `
         SELECT * FROM conversations 
@@ -453,6 +457,14 @@ export class DatabaseService {
         }
       );
     });
+
+    if (featureFlags.useDrizzleReads()) {
+      this.compareConversationsWithDrizzle(conversations, workspaceId).catch((err) => {
+        this.logDrizzle('getConversations', 'drizzle comparison failed', err);
+      });
+    }
+
+    return conversations;
   }
 
   async getOrCreateDefaultConversation(workspaceId: string): Promise<Conversation> {
@@ -467,7 +479,9 @@ export class DatabaseService {
     }
     if (!this.db) throw new Error('Database not initialized');
 
-    return new Promise((resolve, reject) => {
+    let createdDefault = false;
+    let existing: Conversation | null = null;
+    const readResult = await new Promise<Conversation | null>((resolve, reject) => {
       // First, try to get existing conversations
       this.db!.all(
         `
@@ -507,6 +521,7 @@ export class DatabaseService {
                 if (err) {
                   reject(err);
                 } else {
+                  createdDefault = true;
                   resolve({
                     id: conversationId,
                     workspaceId,
@@ -521,6 +536,26 @@ export class DatabaseService {
         }
       );
     });
+
+    existing = readResult;
+
+    if (!existing) {
+      return {
+        id: `conv-${workspaceId}-${Date.now()}`,
+        workspaceId,
+        title: 'Default Conversation',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    if (!createdDefault && featureFlags.useDrizzleReads()) {
+      this.compareDefaultConversationWithDrizzle(existing, workspaceId).catch((err) => {
+        this.logDrizzle('getOrCreateDefaultConversation', 'drizzle comparison failed', err);
+      });
+    }
+
+    return existing;
   }
 
   // Message management methods
@@ -568,7 +603,7 @@ export class DatabaseService {
     if (this.disabled) return [];
     if (!this.db) throw new Error('Database not initialized');
 
-    return new Promise((resolve, reject) => {
+    const messages = await new Promise<Message[]>((resolve, reject) => {
       this.db!.all(
         `
         SELECT * FROM messages 
@@ -593,6 +628,14 @@ export class DatabaseService {
         }
       );
     });
+
+    if (featureFlags.useDrizzleReads()) {
+      this.compareMessagesWithDrizzle(messages, conversationId).catch((err) => {
+        this.logDrizzle('getMessages', 'drizzle comparison failed', err);
+      });
+    }
+
+    return messages;
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
@@ -696,6 +739,27 @@ export class DatabaseService {
     };
   }
 
+  private mapDrizzleConversationRow(row: ConversationRow): Conversation {
+    return {
+      id: row.id,
+      workspaceId: row.workspaceId,
+      title: row.title,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private mapDrizzleMessageRow(row: MessageRow): Message {
+    return {
+      id: row.id,
+      conversationId: row.conversationId,
+      content: row.content,
+      sender: row.sender as Message['sender'],
+      timestamp: row.timestamp,
+      metadata: row.metadata ?? undefined,
+    };
+  }
+
   private parseWorkspaceMetadata(serialized: string, workspaceId: string): any {
     try {
       return JSON.parse(serialized);
@@ -731,6 +795,116 @@ export class DatabaseService {
       }
     } catch (err) {
       this.logDrizzle('getWorkspaces', 'drizzle query failed', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+    }
+  }
+
+  private async compareConversationsWithDrizzle(
+    legacyConversations: Conversation[],
+    workspaceId: string,
+  ): Promise<void> {
+    try {
+      const { db } = await getDrizzleClient();
+      const drizzleRows = await db
+        .select()
+        .from(conversationsTable)
+        .where(eq(conversationsTable.workspaceId, workspaceId))
+        .orderBy(desc(conversationsTable.updatedAt));
+
+      const drizzleConversations = drizzleRows.map((row) => this.mapDrizzleConversationRow(row));
+
+      if (!isDeepStrictEqual(legacyConversations, drizzleConversations)) {
+        this.logDrizzle('getConversations', 'result mismatch', {
+          legacy: legacyConversations,
+          drizzle: drizzleConversations,
+        });
+
+        if (featureFlags.drizzleDiffAssertions()) {
+          throw new Error('Drizzle getConversations diff detected');
+        }
+      }
+    } catch (err) {
+      this.logDrizzle('getConversations', 'drizzle query failed', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+    }
+  }
+
+  private async compareDefaultConversationWithDrizzle(
+    legacyConversation: Conversation,
+    workspaceId: string,
+  ): Promise<void> {
+    try {
+      const { db } = await getDrizzleClient();
+      const drizzleRows = await db
+        .select()
+        .from(conversationsTable)
+        .where(eq(conversationsTable.workspaceId, workspaceId))
+        .orderBy(asc(conversationsTable.createdAt))
+        .limit(1);
+
+      const drizzleConversation = drizzleRows[0]
+        ? this.mapDrizzleConversationRow(drizzleRows[0])
+        : null;
+
+      if (!drizzleConversation) {
+        this.logDrizzle('getOrCreateDefaultConversation', 'drizzle missing conversation', {
+          workspaceId,
+        });
+
+        if (featureFlags.drizzleDiffAssertions()) {
+          throw new Error('Drizzle default conversation missing');
+        }
+        return;
+      }
+
+      if (!isDeepStrictEqual(legacyConversation, drizzleConversation)) {
+        this.logDrizzle('getOrCreateDefaultConversation', 'result mismatch', {
+          legacy: legacyConversation,
+          drizzle: drizzleConversation,
+        });
+
+        if (featureFlags.drizzleDiffAssertions()) {
+          throw new Error('Drizzle default conversation diff detected');
+        }
+      }
+    } catch (err) {
+      this.logDrizzle('getOrCreateDefaultConversation', 'drizzle query failed', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+    }
+  }
+
+  private async compareMessagesWithDrizzle(
+    legacyMessages: Message[],
+    conversationId: string,
+  ): Promise<void> {
+    try {
+      const { db } = await getDrizzleClient();
+      const drizzleRows = await db
+        .select()
+        .from(messagesTable)
+        .where(eq(messagesTable.conversationId, conversationId))
+        .orderBy(asc(messagesTable.timestamp));
+
+      const drizzleMessages = drizzleRows.map((row) => this.mapDrizzleMessageRow(row));
+
+      if (!isDeepStrictEqual(legacyMessages, drizzleMessages)) {
+        this.logDrizzle('getMessages', 'result mismatch', {
+          legacy: legacyMessages,
+          drizzle: drizzleMessages,
+        });
+
+        if (featureFlags.drizzleDiffAssertions()) {
+          throw new Error('Drizzle getMessages diff detected');
+        }
+      }
+    } catch (err) {
+      this.logDrizzle('getMessages', 'drizzle query failed', err);
       if (featureFlags.drizzleDiffAssertions()) {
         throw err;
       }
