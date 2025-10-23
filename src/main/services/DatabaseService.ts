@@ -546,25 +546,57 @@ export class DatabaseService {
   async saveConversation(
     conversation: Omit<Conversation, 'createdAt' | 'updatedAt'>
   ): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        `
-        INSERT OR REPLACE INTO conversations 
-        (id, workspace_id, title, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      `,
-        [conversation.id, conversation.workspaceId, conversation.title],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
-      );
-    });
+    const legacySave = () =>
+      new Promise<void>((resolve, reject) => {
+        sqliteDb.run(
+          `
+          INSERT OR REPLACE INTO conversations 
+          (id, workspace_id, title, updated_at)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        `,
+          [conversation.id, conversation.workspaceId, conversation.title],
+          (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          },
+        );
+      });
+
+    const useDrizzle = featureFlags.useDrizzleWrites();
+    if (!useDrizzle) {
+      return legacySave();
+    }
+
+    try {
+      const { db } = await getDrizzleClient();
+      await db
+        .insert(conversationsTable)
+        .values({
+          id: conversation.id,
+          workspaceId: conversation.workspaceId,
+          title: conversation.title,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .onConflictDoUpdate({
+          target: conversationsTable.id,
+          set: {
+            title: conversation.title,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          },
+        });
+    } catch (err) {
+      this.logDrizzle('saveConversation', 'drizzle write failed, falling back to legacy', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+      await legacySave();
+    }
   }
 
   async getConversations(workspaceId: string): Promise<Conversation[]> {
@@ -648,11 +680,12 @@ export class DatabaseService {
     }
     if (!this.db) throw new Error('Database not initialized');
 
+    const sqliteDb = this.db;
     let createdDefault = false;
     let existing: Conversation | null = null;
     const readResult = await new Promise<Conversation | null>((resolve, reject) => {
       // First, try to get existing conversations
-      this.db!.all(
+      sqliteDb.all(
         `
         SELECT * FROM conversations 
         WHERE workspace_id = ? 
@@ -679,7 +712,7 @@ export class DatabaseService {
           } else {
             // Create new default conversation
             const conversationId = `conv-${workspaceId}-${Date.now()}`;
-            this.db!.run(
+            sqliteDb.run(
               `
             INSERT INTO conversations 
             (id, workspace_id, title, created_at, updated_at)
@@ -759,42 +792,90 @@ export class DatabaseService {
   // Message management methods
   async saveMessage(message: Omit<Message, 'timestamp'>): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        `
-        INSERT INTO messages 
-        (id, conversation_id, content, sender, metadata, timestamp)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `,
-        [
-          message.id,
-          message.conversationId,
-          message.content,
-          message.sender,
-          message.metadata || null,
-        ],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            // Update conversation's updated_at timestamp
-            this.db!.run(
+    const metadataValue =
+      typeof message.metadata === 'string'
+        ? message.metadata
+        : message.metadata
+            ? JSON.stringify(message.metadata)
+            : null;
+
+    const legacySave = () =>
+      new Promise<void>((resolve, reject) => {
+        sqliteDb.run(
+          `
+          INSERT INTO messages 
+          (id, conversation_id, content, sender, metadata, timestamp)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `,
+          [
+            message.id,
+            message.conversationId,
+            message.content,
+            message.sender,
+            metadataValue,
+          ],
+          (err) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+
+            sqliteDb.run(
               `
-            UPDATE conversations 
-            SET updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-          `,
+              UPDATE conversations 
+              SET updated_at = CURRENT_TIMESTAMP 
+              WHERE id = ?
+            `,
               [message.conversationId],
-              () => {
-                resolve();
-              }
+              (updateErr) => {
+                if (updateErr) {
+                  reject(updateErr);
+                } else {
+                  resolve();
+                }
+              },
             );
-          }
-        }
-      );
-    });
+          },
+        );
+      });
+
+    const useDrizzle = featureFlags.useDrizzleWrites();
+    if (!useDrizzle) {
+      return legacySave();
+    }
+
+    try {
+      const { db } = await getDrizzleClient();
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(messagesTable)
+          .values({
+            id: message.id,
+            conversationId: message.conversationId,
+            content: message.content,
+            sender: message.sender,
+            metadata: metadataValue,
+            timestamp: sql`CURRENT_TIMESTAMP`,
+          })
+          .onConflictDoNothing()
+          .run();
+
+        await tx
+          .update(conversationsTable)
+          .set({ updatedAt: sql`CURRENT_TIMESTAMP` })
+          .where(eq(conversationsTable.id, message.conversationId))
+          .run();
+      });
+    } catch (err) {
+      this.logDrizzle('saveMessage', 'drizzle write failed, falling back to legacy', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+      await legacySave();
+    }
   }
 
   async getMessages(conversationId: string): Promise<Message[]> {
@@ -869,17 +950,35 @@ export class DatabaseService {
 
   async deleteConversation(conversationId: string): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    return new Promise((resolve, reject) => {
-      this.db!.run('DELETE FROM conversations WHERE id = ?', [conversationId], (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
+    const legacyDelete = () =>
+      new Promise<void>((resolve, reject) => {
+        sqliteDb.run('DELETE FROM conversations WHERE id = ?', [conversationId], (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
       });
-    });
+
+    const useDrizzle = featureFlags.useDrizzleWrites();
+    if (!useDrizzle) {
+      return legacyDelete();
+    }
+
+    try {
+      const { db } = await getDrizzleClient();
+      await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
+    } catch (err) {
+      this.logDrizzle('deleteConversation', 'drizzle delete failed, falling back to legacy', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+      await legacyDelete();
+    }
   }
 
   async close(): Promise<void> {
