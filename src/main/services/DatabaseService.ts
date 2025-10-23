@@ -1,6 +1,6 @@
 import type sqlite3Type from 'sqlite3';
 import { isDeepStrictEqual, promisify } from 'util';
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import { resolveDatabasePath } from '../db/path';
 import { featureFlags } from '../config/featureFlags';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -188,47 +188,83 @@ export class DatabaseService {
 
   async saveProject(project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    // Important: avoid INSERT OR REPLACE on projects. REPLACE deletes the existing
-    // row to satisfy UNIQUE(path) which can cascade-delete related workspaces
-    // (workspaces.project_id ON DELETE CASCADE). Use an UPSERT on the unique
-    // path constraint that updates fields in-place and preserves the existing id.
-    //
-    // Semantics:
-    // - If no row exists for this path: insert with the provided id.
-    // - If a row exists for this path: update fields; do NOT change id or path.
-    // - created_at remains intact on updates; updated_at is bumped.
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        `INSERT INTO projects (id, name, path, git_remote, git_branch, github_repository, github_connected, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(path) DO UPDATE SET
-           name = excluded.name,
-           git_remote = excluded.git_remote,
-           git_branch = excluded.git_branch,
-           github_repository = excluded.github_repository,
-           github_connected = excluded.github_connected,
-           updated_at = CURRENT_TIMESTAMP
-        `,
-        [
-          project.id,
-          project.name,
-          project.path,
-          project.gitInfo.remote || null,
-          project.gitInfo.branch || null,
-          project.githubInfo?.repository || null,
-          project.githubInfo?.connected ? 1 : 0,
-        ],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
-      );
-    });
+    const legacySave = () =>
+      new Promise<void>((resolve, reject) => {
+        sqliteDb.run(
+          `INSERT INTO projects (id, name, path, git_remote, git_branch, github_repository, github_connected, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT(path) DO UPDATE SET
+             name = excluded.name,
+             git_remote = excluded.git_remote,
+             git_branch = excluded.git_branch,
+             github_repository = excluded.github_repository,
+             github_connected = excluded.github_connected,
+             updated_at = CURRENT_TIMESTAMP
+          `,
+          [
+            project.id,
+            project.name,
+            project.path,
+            project.gitInfo.remote || null,
+            project.gitInfo.branch || null,
+            project.githubInfo?.repository || null,
+            project.githubInfo?.connected ? 1 : 0,
+          ],
+          (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          },
+        );
+      });
+
+    const useDrizzle = featureFlags.useDrizzleWrites();
+    if (!useDrizzle) {
+      return legacySave();
+    }
+
+    try {
+      const { db } = await getDrizzleClient();
+      const gitRemote = project.gitInfo.remote ?? null;
+      const gitBranch = project.gitInfo.branch ?? null;
+      const githubRepository = project.githubInfo?.repository ?? null;
+      const githubConnected = project.githubInfo?.connected ? 1 : 0;
+
+      await db
+        .insert(projectsTable)
+        .values({
+          id: project.id,
+          name: project.name,
+          path: project.path,
+          gitRemote,
+          gitBranch,
+          githubRepository,
+          githubConnected,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .onConflictDoUpdate({
+          target: projectsTable.path,
+          set: {
+            name: project.name,
+            gitRemote,
+            gitBranch,
+            githubRepository,
+            githubConnected,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          },
+        });
+    } catch (err) {
+      this.logDrizzle('saveProject', 'drizzle write failed, falling back to legacy', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+      await legacySave();
+    }
   }
 
   async getProjects(): Promise<Project[]> {
@@ -309,38 +345,84 @@ export class DatabaseService {
 
   async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        `
-        INSERT OR REPLACE INTO workspaces 
-        (id, project_id, name, branch, path, status, agent_id, metadata, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `,
-        [
-          workspace.id,
-          workspace.projectId,
-          workspace.name,
-          workspace.branch,
-          workspace.path,
-          workspace.status,
-          workspace.agentId || null,
-          typeof workspace.metadata === 'string'
-            ? workspace.metadata
-            : workspace.metadata
-              ? JSON.stringify(workspace.metadata)
-              : null,
-        ],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
-      );
-    });
+    const metadataValue =
+      typeof workspace.metadata === 'string'
+        ? workspace.metadata
+        : workspace.metadata
+            ? JSON.stringify(workspace.metadata)
+            : null;
+
+    const legacySave = () =>
+      new Promise<void>((resolve, reject) => {
+        sqliteDb.run(
+          `
+          INSERT OR REPLACE INTO workspaces 
+          (id, project_id, name, branch, path, status, agent_id, metadata, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `,
+          [
+            workspace.id,
+            workspace.projectId,
+            workspace.name,
+            workspace.branch,
+            workspace.path,
+            workspace.status,
+            workspace.agentId || null,
+            metadataValue,
+          ],
+          (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          },
+        );
+      });
+
+    const useDrizzle = featureFlags.useDrizzleWrites();
+    if (!useDrizzle) {
+      return legacySave();
+    }
+
+    try {
+      const { db } = await getDrizzleClient();
+      await db
+        .insert(workspacesTable)
+        .values({
+          id: workspace.id,
+          projectId: workspace.projectId,
+          name: workspace.name,
+          branch: workspace.branch,
+          path: workspace.path,
+          status: workspace.status,
+          agentId: workspace.agentId ?? null,
+          metadata: metadataValue,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .onConflictDoUpdate({
+          target: workspacesTable.id,
+          set: {
+            projectId: workspace.projectId,
+            name: workspace.name,
+            branch: workspace.branch,
+            path: workspace.path,
+            status: workspace.status,
+            agentId: workspace.agentId ?? null,
+            metadata: metadataValue,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          },
+        });
+    } catch (err) {
+      this.logDrizzle('saveWorkspace', 'drizzle write failed, falling back to legacy', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+      await legacySave();
+    }
   }
 
   async getWorkspaces(projectId?: string): Promise<Workspace[]> {
