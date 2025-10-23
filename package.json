@@ -111,7 +111,8 @@
     ],
     "files": [
       "dist/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "drizzle/**/*"
     ],
     "asarUnpack": [
       "node_modules/sqlite3/**",

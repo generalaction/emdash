@@ -36,3 +36,22 @@ export const databaseFilenames = {
   current: CURRENT_DB_FILENAME,
   legacy: [...LEGACY_DB_FILENAMES],
 };
+
+export function resolveMigrationsPath(): string | null {
+  const appPath = app.getAppPath();
+  const resourcesPath = process.resourcesPath ?? appPath;
+  const candidates = [
+    join(appPath, 'drizzle'),
+    join(appPath, '..', 'drizzle'),
+    join(resourcesPath, 'drizzle'),
+    join(process.cwd(), 'drizzle'),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
