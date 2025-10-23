@@ -1,8 +1,6 @@
 import type sqlite3Type from 'sqlite3';
 import { promisify } from 'util';
-import { join } from 'path';
-import { app } from 'electron';
-import { existsSync, renameSync } from 'fs';
+import { resolveDatabasePath } from '../db/path';
 
 export interface Project {
   id: string;
@@ -61,38 +59,7 @@ export class DatabaseService {
     if (process.env.EMDASH_DISABLE_NATIVE_DB === '1') {
       this.disabled = true;
     }
-    const userDataPath = app.getPath('userData');
-
-    // Preferred/current DB filename
-    const currentName = 'emdash.db';
-    const currentPath = join(userDataPath, currentName);
-
-    // Known legacy filenames we may encounter from earlier builds/docs
-    const legacyNames = ['database.sqlite', 'orcbench.db'];
-
-    // If current DB exists, use it
-    if (existsSync(currentPath)) {
-      this.dbPath = currentPath;
-      return;
-    }
-
-    // Otherwise, migrate the first legacy DB we find to the current name
-    for (const legacyName of legacyNames) {
-      const legacyPath = join(userDataPath, legacyName);
-      if (existsSync(legacyPath)) {
-        try {
-          renameSync(legacyPath, currentPath);
-          this.dbPath = currentPath;
-        } catch {
-          // If rename fails for any reason, fall back to using the legacy file in place
-          this.dbPath = legacyPath;
-        }
-        return;
-      }
-    }
-
-    // No existing DB found; initialize a new one at the current path
-    this.dbPath = currentPath;
+    this.dbPath = resolveDatabasePath();
   }
 
   async initialize(): Promise<void> {
