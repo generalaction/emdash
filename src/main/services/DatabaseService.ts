@@ -1,10 +1,15 @@
 import type sqlite3Type from 'sqlite3';
 import { isDeepStrictEqual, promisify } from 'util';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { resolveDatabasePath } from '../db/path';
 import { featureFlags } from '../config/featureFlags';
 import { getDrizzleClient } from '../db/drizzleClient';
-import { projects as projectsTable, type ProjectRow } from '../db/schema';
+import {
+  projects as projectsTable,
+  workspaces as workspacesTable,
+  type ProjectRow,
+  type WorkspaceRow,
+} from '../db/schema';
 
 export interface Project {
   id: string;
@@ -30,7 +35,7 @@ export interface Workspace {
   branch: string;
   path: string;
   status: 'active' | 'idle' | 'running';
-  agentId?: string;
+  agentId?: string | null;
   metadata?: any;
   createdAt: string;
   updatedAt: string;
@@ -327,21 +332,16 @@ export class DatabaseService {
 
     query += ' ORDER BY updated_at DESC';
 
-    return new Promise((resolve, reject) => {
+    const workspaces = await new Promise<Workspace[]>((resolve, reject) => {
       this.db!.all(query, params, (err, rows: any[]) => {
         if (err) {
           reject(err);
         } else {
           const workspaces = rows.map((row) => {
-            let metadata: any = null;
-            if (row.metadata) {
-              try {
-                metadata = JSON.parse(row.metadata);
-              } catch (parseError) {
-                console.warn('Failed to parse workspace metadata for', row.id, parseError);
-                metadata = null;
-              }
-            }
+            const metadata =
+              typeof row.metadata === 'string' && row.metadata.length > 0
+                ? this.parseWorkspaceMetadata(row.metadata, row.id)
+                : null;
 
             return {
               id: row.id,
@@ -360,6 +360,14 @@ export class DatabaseService {
         }
       });
     });
+
+    if (featureFlags.useDrizzleReads()) {
+      this.compareWorkspacesWithDrizzle(workspaces, projectId).catch((err) => {
+        this.logDrizzle('getWorkspaces', 'drizzle comparison failed', err);
+      });
+    }
+
+    return workspaces;
   }
 
   async deleteProject(projectId: string): Promise<void> {
@@ -668,6 +676,65 @@ export class DatabaseService {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
+  }
+
+  private mapDrizzleWorkspaceRow(row: WorkspaceRow): Workspace {
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      name: row.name,
+      branch: row.branch,
+      path: row.path,
+      status: (row.status ?? 'idle') as Workspace['status'],
+      agentId: row.agentId ?? null,
+      metadata:
+        typeof row.metadata === 'string' && row.metadata.length > 0
+          ? this.parseWorkspaceMetadata(row.metadata, row.id)
+          : null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private parseWorkspaceMetadata(serialized: string, workspaceId: string): any {
+    try {
+      return JSON.parse(serialized);
+    } catch (error) {
+      console.warn(`Failed to parse workspace metadata for ${workspaceId}`, error);
+      return null;
+    }
+  }
+
+  private async compareWorkspacesWithDrizzle(
+    legacyWorkspaces: Workspace[],
+    projectId?: string,
+  ): Promise<void> {
+    try {
+      const { db } = await getDrizzleClient();
+      const query = db.select().from(workspacesTable).orderBy(desc(workspacesTable.updatedAt));
+
+      const drizzleRows = projectId
+        ? await query.where(eq(workspacesTable.projectId, projectId))
+        : await query;
+
+      const drizzleWorkspaces = drizzleRows.map((row) => this.mapDrizzleWorkspaceRow(row));
+
+      if (!isDeepStrictEqual(legacyWorkspaces, drizzleWorkspaces)) {
+        this.logDrizzle('getWorkspaces', 'result mismatch', {
+          legacy: legacyWorkspaces,
+          drizzle: drizzleWorkspaces,
+        });
+
+        if (featureFlags.drizzleDiffAssertions()) {
+          throw new Error('Drizzle getWorkspaces diff detected');
+        }
+      }
+    } catch (err) {
+      this.logDrizzle('getWorkspaces', 'drizzle query failed', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+    }
   }
 
   private logDrizzle(context: string, message: string, payload: unknown): void {
