@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from './ui/alert-dialog';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
 type Props = {
   projectName: string;
@@ -30,21 +31,34 @@ export const ProjectDeleteButton: React.FC<Props> = ({
 }) => {
   return (
     <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <button
-          type="button"
-          className={
-            className ||
-            'inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0'
-          }
-          title="Delete project"
-          aria-label={ariaLabel}
-          aria-busy={isDeleting}
-          disabled={isDeleting}
-        >
-          {isDeleting ? <Spinner className="h-4 w-4" size="sm" /> : <Trash className="h-4 w-4" />}
-        </button>
-      </AlertDialogTrigger>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                className={
+                  className ||
+                  'inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0'
+                }
+                title="Delete project"
+                aria-label={ariaLabel}
+                aria-busy={isDeleting}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <Spinner className="h-4 w-4" size="sm" />
+                ) : (
+                  <Trash className="h-4 w-4" />
+                )}
+              </button>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            Delete project
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <AlertDialogContent className="space-y-4">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete project?</AlertDialogTitle>

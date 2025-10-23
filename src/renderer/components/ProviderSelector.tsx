@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Select,
   SelectTrigger,
@@ -8,6 +8,11 @@ import {
   SelectItemText,
 } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { ProviderInfoCard } from './ProviderInfoCard';
+import RoutingInfoCard from './RoutingInfoCard';
+import { Workflow } from 'lucide-react';
+import { Badge } from './ui/badge';
+import type { UiProvider } from '@/providers/meta';
 import { type Provider } from '../types';
 import openaiLogo from '../../assets/images/openai.png';
 import claudeLogo from '../../assets/images/claude.png';
@@ -20,6 +25,7 @@ import opencodeLogo from '../../assets/images/opencode.png';
 import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
+import gooseLogo from '../../assets/images/goose.png';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -74,25 +80,31 @@ const providerConfig = {
   amp: {
     name: 'Amp',
     logo: ampLogo,
-    alt: 'Amp CLI',
+    alt: 'Amp Code',
     invertInDark: false,
   },
   opencode: {
     name: 'OpenCode',
     logo: opencodeLogo,
-    alt: 'OpenCode CLI',
+    alt: 'OpenCode',
     invertInDark: true,
   },
   charm: {
     name: 'Charm',
     logo: charmLogo,
-    alt: 'Charm CLI',
+    alt: 'Charm',
     invertInDark: false,
   },
   auggie: {
     name: 'Auggie',
     logo: augmentLogo,
     alt: 'Auggie CLI',
+    invertInDark: false,
+  },
+  goose: {
+    name: 'Goose',
+    logo: gooseLogo,
+    alt: 'Goose CLI',
     invertInDark: false,
   },
 } as const;
@@ -154,22 +166,108 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
           </SelectTrigger>
         )}
         <SelectContent side="top">
-          {Object.entries(providerConfig).map(([key, config]) => (
-            <SelectItem key={key} value={key}>
-              <div className="flex items-center gap-2">
-                <img
-                  src={config.logo}
-                  alt={config.alt}
-                  className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
-                />
-                <SelectItemText>{config.name}</SelectItemText>
-              </div>
-            </SelectItem>
-          ))}
+          <TooltipProvider delayDuration={150}>
+            {Object.entries(providerConfig).map(([key, config]) => (
+              <TooltipRow key={key} id={key as UiProvider}>
+                <SelectItem value={key}>
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={config.logo}
+                      alt={config.alt}
+                      className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
+                    />
+                    <SelectItemText>{config.name}</SelectItemText>
+                  </div>
+                </SelectItem>
+              </TooltipRow>
+            ))}
+            {false && (
+              <RoutingTooltipRow>
+                <SelectItem
+                  value="__routing__"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  <div
+                    className="flex cursor-not-allowed items-center gap-2 opacity-70"
+                    aria-disabled
+                  >
+                    <Workflow className="h-4 w-4 text-foreground/70" aria-hidden="true" />
+                    <SelectItemText>
+                      <span className="mr-2">Routing</span>
+                    </SelectItemText>
+                    <Badge className="ml-1" style={{ fontSize: '10px' }}>
+                      Soon
+                    </Badge>
+                  </div>
+                </SelectItem>
+              </RoutingTooltipRow>
+            )}
+          </TooltipProvider>
         </SelectContent>
       </Select>
     </div>
   );
 };
 
+const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = ({
+  id,
+  children,
+}) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip open={open}>
+      <TooltipTrigger asChild>
+        {React.cloneElement(children, {
+          onMouseEnter: () => setOpen(true),
+          onMouseLeave: () => setOpen(false),
+          onPointerEnter: () => setOpen(true),
+          onPointerLeave: () => setOpen(false),
+        })}
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="start"
+        className="border-foreground/20 bg-background p-0 text-foreground"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onPointerEnter={() => setOpen(true)}
+        onPointerLeave={() => setOpen(false)}
+      >
+        <ProviderInfoCard id={id} />
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
 export default ProviderSelector;
+
+// Routing row with custom tooltip content
+export const RoutingTooltipRow: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip open={open}>
+      <TooltipTrigger asChild>
+        {React.cloneElement(children, {
+          onMouseEnter: () => setOpen(true),
+          onMouseLeave: () => setOpen(false),
+          onPointerEnter: () => setOpen(true),
+          onPointerLeave: () => setOpen(false),
+        })}
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="start"
+        className="border-foreground/20 bg-background p-0 text-foreground"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onPointerEnter={() => setOpen(true)}
+        onPointerLeave={() => setOpen(false)}
+      >
+        <RoutingInfoCard />
+      </TooltipContent>
+    </Tooltip>
+  );
+};

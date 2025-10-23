@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from './ui/alert-dialog';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
 type Props = {
   workspaceName: string;
@@ -30,26 +31,35 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
 }) => {
   return (
     <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <button
-          type="button"
-          className={
-            className ||
-            'inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-800'
-          }
-          title="Delete workspace"
-          aria-label={ariaLabel}
-          aria-busy={isDeleting}
-          disabled={isDeleting}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {isDeleting ? (
-            <Spinner className="h-3.5 w-3.5" size="sm" />
-          ) : (
-            <Trash className="h-3.5 w-3.5" />
-          )}
-        </button>
-      </AlertDialogTrigger>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                className={
+                  className ||
+                  'inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-800'
+                }
+                title="Delete workspace"
+                aria-label={ariaLabel}
+                aria-busy={isDeleting}
+                disabled={isDeleting}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {isDeleting ? (
+                  <Spinner className="h-3.5 w-3.5" size="sm" />
+                ) : (
+                  <Trash className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            Delete workspace
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <AlertDialogContent onClick={(e) => e.stopPropagation()} className="space-y-4">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete workspace?</AlertDialogTitle>

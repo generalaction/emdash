@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useToast } from './use-toast';
 import githubLogo from '../../assets/images/github.png';
+import { generatePrTitleWithClaude } from '../lib/prTitle';
 
 type CreatePROptions = {
   workspacePath: string;
@@ -35,6 +36,19 @@ export function useCreatePR() {
 
     setIsCreating(true);
     try {
+      // Generate a PR title with Claude if none provided
+      let finalPrOptions = prOptions || {};
+      if (!finalPrOptions.title) {
+        try {
+          const generated = await generatePrTitleWithClaude(workspacePath);
+          if (generated) {
+            finalPrOptions = { ...finalPrOptions, title: generated };
+          }
+        } catch {
+          // ignore and fallback to default flow
+        }
+      }
+
       const commitRes = await window.electronAPI.gitCommitAndPush({
         workspacePath,
         commitMessage,
@@ -54,7 +68,7 @@ export function useCreatePR() {
       const res = await window.electronAPI.createPullRequest({
         workspacePath,
         fill: true,
-        ...(prOptions || {}),
+        ...finalPrOptions,
       });
 
       if (res?.success) {
@@ -65,7 +79,18 @@ export function useCreatePR() {
               Pull Request Created
             </span>
           ),
-          description: res.url || 'PR created successfully.',
+          description: res.url ? (
+            <a
+              href={res.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cursor-pointer hover:underline"
+            >
+              {res.url}
+            </a>
+          ) : (
+            'PR created successfully.'
+          ),
         });
         try {
           await onSuccess?.();

@@ -11,7 +11,7 @@ emdash is a cross-platform UI layer for running multiple coding agents in parall
 <hr style="border:0; height:1px; background:#d0d7de; margin:24px 0;">
 
 <div align="center" style="margin:24px 0;">
-  <a href="https://discord.gg/meqK3A5b" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
+  <a href="https://discord.gg/fUhgQcNg" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
     <img src="https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white" alt="Join the Emdash Discord" height="40">
   </a>
 

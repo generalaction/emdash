@@ -15,6 +15,7 @@ import opencodeLogo from '../../assets/images/opencode.png';
 import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
+import gooseLogo from '../../assets/images/goose.png';
 
 type Props = { provider: Provider; linearIssue?: LinearIssueSummary | null };
 
@@ -31,6 +32,7 @@ export const ProviderBar: React.FC<Props> = ({ provider, linearIssue }) => {
     opencode: { name: 'OpenCode', logo: opencodeLogo },
     charm: { name: 'Charm', logo: charmLogo },
     auggie: { name: 'Auggie', logo: augmentLogo },
+    goose: { name: 'Goose', logo: gooseLogo },
   } as const;
   const cfg = map[provider] ?? { name: provider, logo: '' };
   return (
