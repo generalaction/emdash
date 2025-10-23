@@ -219,11 +219,24 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     type="single"
                     collapsible
                     value={showAdvanced ? 'advanced' : undefined}
-                    onValueChange={(val) => setShowAdvanced(val === 'advanced')}
                     className="space-y-2"
                   >
                     <AccordionItem value="advanced" className="border-none">
-                      <AccordionTrigger className="px-0 py-1 text-sm font-medium text-muted-foreground hover:no-underline">
+                      <AccordionTrigger
+                        className="px-0 py-1 text-sm font-medium text-muted-foreground hover:no-underline"
+                        onPointerDown={(e) => {
+                          // Toggle immediately on pointer down to avoid a required second click
+                          // when another element inside had focus.
+                          e.preventDefault();
+                          setShowAdvanced((prev) => !prev);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setShowAdvanced((prev) => !prev);
+                          }
+                        }}
+                      >
                         Advanced options
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
