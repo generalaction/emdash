@@ -73,9 +73,9 @@ function createCallbacks(db: sqlite3Type.Database) {
       db.all(sql, params, (err, rows) => {
         if (err) {
           reject(err);
-        } else {
-          resolve(rows);
+          return;
         }
+        resolve(rows);
       });
     });
 
@@ -90,27 +90,44 @@ function createCallbacks(db: sqlite3Type.Database) {
       });
     });
 
+  const mapRowToValues = (row: unknown): unknown[] => {
+    if (Array.isArray(row)) {
+      return row;
+    }
+    if (row && typeof row === 'object') {
+      return Object.values(row as Record<string, unknown>);
+    }
+    return [];
+  };
+
   const remote: RemoteCallback = async (sql, params, method) => {
     const normalized = normalizeParams(params);
 
     switch (method) {
       case 'run': {
-        return await runStatement(sql, normalized);
+        const result = await runStatement(sql, normalized);
+        return {
+          rows: result.rows,
+          lastID: result.lastID,
+          changes: result.changes,
+        } as any;
       }
       case 'all': {
         const rows = await allStatement(sql, normalized);
-        return { rows };
+        return { rows: rows.map(mapRowToValues) } as any;
       }
       case 'get': {
         const row = await getStatement(sql, normalized);
-        return { rows: row };
+        return {
+          rows: row === undefined ? null : mapRowToValues(row),
+        } as any;
       }
       case 'values': {
         const rows = await allStatement(sql, normalized);
         const values = rows.map((row) =>
           Array.isArray(row) ? row : Object.values(row as Record<string, unknown>),
         );
-        return { rows: values };
+        return { rows: values } as any;
       }
       default: {
         throw new Error(`Unsupported sqlite method "${method}"`);
