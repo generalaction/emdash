@@ -173,6 +173,11 @@ gh auth login
    npm run dev  # Start development server
    ```
 
+#### Database & migrations
+
+Emdash stores app data in a local SQLite file and manages the schema with [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm).
+Migrations live in `/drizzle` and run automatically on app start (dev and packaged).
+
 ### Troubleshooting
 
 #### SIGSEGV / Segmentation Fault on Startup

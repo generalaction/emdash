@@ -1,8 +1,18 @@
 import type sqlite3Type from 'sqlite3';
-import { promisify } from 'util';
-import { join } from 'path';
-import { app } from 'electron';
-import { existsSync, renameSync } from 'fs';
+import { asc, desc, eq, sql } from 'drizzle-orm';
+import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
+import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
+import { getDrizzleClient } from '../db/drizzleClient';
+import {
+  projects as projectsTable,
+  workspaces as workspacesTable,
+  conversations as conversationsTable,
+  messages as messagesTable,
+  type ProjectRow,
+  type WorkspaceRow,
+  type ConversationRow,
+  type MessageRow,
+} from '../db/schema';
 
 export interface Project {
   id: string;
@@ -28,7 +38,7 @@ export interface Workspace {
   branch: string;
   path: string;
   status: 'active' | 'idle' | 'running';
-  agentId?: string;
+  agentId?: string | null;
   metadata?: any;
   createdAt: string;
   updatedAt: string;
@@ -52,6 +62,7 @@ export interface Message {
 }
 
 export class DatabaseService {
+  private static migrationsApplied = false;
   private db: sqlite3Type.Database | null = null;
   private sqlite3: typeof sqlite3Type | null = null;
   private dbPath: string;
@@ -61,38 +72,7 @@ export class DatabaseService {
     if (process.env.EMDASH_DISABLE_NATIVE_DB === '1') {
       this.disabled = true;
     }
-    const userDataPath = app.getPath('userData');
-
-    // Preferred/current DB filename
-    const currentName = 'emdash.db';
-    const currentPath = join(userDataPath, currentName);
-
-    // Known legacy filenames we may encounter from earlier builds/docs
-    const legacyNames = ['database.sqlite', 'orcbench.db'];
-
-    // If current DB exists, use it
-    if (existsSync(currentPath)) {
-      this.dbPath = currentPath;
-      return;
-    }
-
-    // Otherwise, migrate the first legacy DB we find to the current name
-    for (const legacyName of legacyNames) {
-      const legacyPath = join(userDataPath, legacyName);
-      if (existsSync(legacyPath)) {
-        try {
-          renameSync(legacyPath, currentPath);
-          this.dbPath = currentPath;
-        } catch {
-          // If rename fails for any reason, fall back to using the legacy file in place
-          this.dbPath = legacyPath;
-        }
-        return;
-      }
-    }
-
-    // No existing DB found; initialize a new one at the current path
-    this.dbPath = currentPath;
+    this.dbPath = resolveDatabasePath();
   }
 
   async initialize(): Promise<void> {
@@ -114,358 +94,147 @@ export class DatabaseService {
           return;
         }
 
-        this.createTables()
+        this.ensureMigrations()
           .then(() => resolve())
           .catch(reject);
       });
     });
   }
 
-  private async createTables(): Promise<void> {
-    if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
-
-    const runAsync = promisify(this.db.run.bind(this.db));
-
-    // Create projects table
-    await runAsync(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        path TEXT NOT NULL UNIQUE,
-        git_remote TEXT,
-        git_branch TEXT,
-        github_repository TEXT,
-        github_connected BOOLEAN DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create workspaces table
-    await runAsync(`
-      CREATE TABLE IF NOT EXISTS workspaces (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        branch TEXT NOT NULL,
-        path TEXT NOT NULL,
-        status TEXT DEFAULT 'idle',
-        agent_id TEXT,
-        metadata TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
-      )
-    `);
-
-    try {
-      await runAsync(`ALTER TABLE workspaces ADD COLUMN metadata TEXT`);
-    } catch (error) {
-      if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) {
-        throw error;
-      }
-    }
-
-    // Create conversations table
-    await runAsync(`
-      CREATE TABLE IF NOT EXISTS conversations (
-        id TEXT PRIMARY KEY,
-        workspace_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create messages table
-    await runAsync(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        content TEXT NOT NULL,
-        sender TEXT NOT NULL CHECK (sender IN ('user', 'agent')),
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        metadata TEXT,
-        FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create indexes
-    await runAsync(`CREATE INDEX IF NOT EXISTS idx_projects_path ON projects (path)`);
-    await runAsync(
-      `CREATE INDEX IF NOT EXISTS idx_workspaces_project_id ON workspaces (project_id)`
-    );
-    await runAsync(
-      `CREATE INDEX IF NOT EXISTS idx_conversations_workspace_id ON conversations (workspace_id)`
-    );
-    await runAsync(
-      `CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id)`
-    );
-    await runAsync(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages (timestamp)`);
-  }
-
   async saveProject(project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
+    const { db } = await getDrizzleClient();
+    const gitRemote = project.gitInfo.remote ?? null;
+    const gitBranch = project.gitInfo.branch ?? null;
+    const githubRepository = project.githubInfo?.repository ?? null;
+    const githubConnected = project.githubInfo?.connected ? 1 : 0;
 
-    // Important: avoid INSERT OR REPLACE on projects. REPLACE deletes the existing
-    // row to satisfy UNIQUE(path) which can cascade-delete related workspaces
-    // (workspaces.project_id ON DELETE CASCADE). Use an UPSERT on the unique
-    // path constraint that updates fields in-place and preserves the existing id.
-    //
-    // Semantics:
-    // - If no row exists for this path: insert with the provided id.
-    // - If a row exists for this path: update fields; do NOT change id or path.
-    // - created_at remains intact on updates; updated_at is bumped.
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        `INSERT INTO projects (id, name, path, git_remote, git_branch, github_repository, github_connected, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(path) DO UPDATE SET
-           name = excluded.name,
-           git_remote = excluded.git_remote,
-           git_branch = excluded.git_branch,
-           github_repository = excluded.github_repository,
-           github_connected = excluded.github_connected,
-           updated_at = CURRENT_TIMESTAMP
-        `,
-        [
-          project.id,
-          project.name,
-          project.path,
-          project.gitInfo.remote || null,
-          project.gitInfo.branch || null,
-          project.githubInfo?.repository || null,
-          project.githubInfo?.connected ? 1 : 0,
-        ],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
-      );
-    });
+    await db
+      .insert(projectsTable)
+      .values({
+        id: project.id,
+        name: project.name,
+        path: project.path,
+        gitRemote,
+        gitBranch,
+        githubRepository,
+        githubConnected,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .onConflictDoUpdate({
+        target: projectsTable.path,
+        set: {
+          name: project.name,
+          gitRemote,
+          gitBranch,
+          githubRepository,
+          githubConnected,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        },
+      });
   }
 
   async getProjects(): Promise<Project[]> {
     if (this.disabled) return [];
-    if (!this.db) throw new Error('Database not initialized');
-
-    return new Promise((resolve, reject) => {
-      this.db!.all(
-        `
-        SELECT 
-          id, name, path, git_remote, git_branch, github_repository, github_connected,
-          created_at, updated_at
-        FROM projects 
-        ORDER BY updated_at DESC
-      `,
-        (err, rows: any[]) => {
-          if (err) {
-            reject(err);
-          } else {
-            const projects = rows.map((row) => ({
-              id: row.id,
-              name: row.name,
-              path: row.path,
-              gitInfo: {
-                isGitRepo: !!(row.git_remote || row.git_branch),
-                remote: row.git_remote,
-                branch: row.git_branch,
-              },
-              githubInfo: row.github_repository
-                ? {
-                    repository: row.github_repository,
-                    connected: !!row.github_connected,
-                  }
-                : undefined,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            }));
-            resolve(projects);
-          }
-        }
-      );
-    });
+    const { db } = await getDrizzleClient();
+    const rows = await db.select().from(projectsTable).orderBy(desc(projectsTable.updatedAt));
+    return rows.map((row) => this.mapDrizzleProjectRow(row));
   }
 
   async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
-
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        `
-        INSERT OR REPLACE INTO workspaces 
-        (id, project_id, name, branch, path, status, agent_id, metadata, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `,
-        [
-          workspace.id,
-          workspace.projectId,
-          workspace.name,
-          workspace.branch,
-          workspace.path,
-          workspace.status,
-          workspace.agentId || null,
-          typeof workspace.metadata === 'string'
-            ? workspace.metadata
-            : workspace.metadata
-              ? JSON.stringify(workspace.metadata)
-              : null,
-        ],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
-      );
-    });
+    const metadataValue =
+      typeof workspace.metadata === 'string'
+        ? workspace.metadata
+        : workspace.metadata
+          ? JSON.stringify(workspace.metadata)
+          : null;
+    const { db } = await getDrizzleClient();
+    await db
+      .insert(workspacesTable)
+      .values({
+        id: workspace.id,
+        projectId: workspace.projectId,
+        name: workspace.name,
+        branch: workspace.branch,
+        path: workspace.path,
+        status: workspace.status,
+        agentId: workspace.agentId ?? null,
+        metadata: metadataValue,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .onConflictDoUpdate({
+        target: workspacesTable.id,
+        set: {
+          projectId: workspace.projectId,
+          name: workspace.name,
+          branch: workspace.branch,
+          path: workspace.path,
+          status: workspace.status,
+          agentId: workspace.agentId ?? null,
+          metadata: metadataValue,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        },
+      });
   }
 
   async getWorkspaces(projectId?: string): Promise<Workspace[]> {
     if (this.disabled) return [];
-    if (!this.db) throw new Error('Database not initialized');
+    const { db } = await getDrizzleClient();
 
-    let query = `
-      SELECT 
-        id, project_id, name, branch, path, status, agent_id, metadata,
-        created_at, updated_at
-      FROM workspaces
-    `;
-    const params: any[] = [];
-
-    if (projectId) {
-      query += ' WHERE project_id = ?';
-      params.push(projectId);
-    }
-
-    query += ' ORDER BY updated_at DESC';
-
-    return new Promise((resolve, reject) => {
-      this.db!.all(query, params, (err, rows: any[]) => {
-        if (err) {
-          reject(err);
-        } else {
-          const workspaces = rows.map((row) => {
-            let metadata: any = null;
-            if (row.metadata) {
-              try {
-                metadata = JSON.parse(row.metadata);
-              } catch (parseError) {
-                console.warn('Failed to parse workspace metadata for', row.id, parseError);
-                metadata = null;
-              }
-            }
-
-            return {
-              id: row.id,
-              projectId: row.project_id,
-              name: row.name,
-              branch: row.branch,
-              path: row.path,
-              status: row.status,
-              agentId: row.agent_id,
-              metadata,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            };
-          });
-          resolve(workspaces);
-        }
-      });
-    });
+    const rows: WorkspaceRow[] = projectId
+      ? await db
+          .select()
+          .from(workspacesTable)
+          .where(eq(workspacesTable.projectId, projectId))
+          .orderBy(desc(workspacesTable.updatedAt))
+      : await db.select().from(workspacesTable).orderBy(desc(workspacesTable.updatedAt));
+    return rows.map((row) => this.mapDrizzleWorkspaceRow(row));
   }
 
   async deleteProject(projectId: string): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
-
-    return new Promise((resolve, reject) => {
-      this.db!.run('DELETE FROM projects WHERE id = ?', [projectId], (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
+    const { db } = await getDrizzleClient();
+    await db.delete(projectsTable).where(eq(projectsTable.id, projectId));
   }
 
   async deleteWorkspace(workspaceId: string): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
-
-    return new Promise((resolve, reject) => {
-      this.db!.run('DELETE FROM workspaces WHERE id = ?', [workspaceId], (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
+    const { db } = await getDrizzleClient();
+    await db.delete(workspacesTable).where(eq(workspacesTable.id, workspaceId));
   }
 
   // Conversation management methods
   async saveConversation(
     conversation: Omit<Conversation, 'createdAt' | 'updatedAt'>
   ): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        `
-        INSERT OR REPLACE INTO conversations 
-        (id, workspace_id, title, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      `,
-        [conversation.id, conversation.workspaceId, conversation.title],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
-      );
-    });
+    const { db } = await getDrizzleClient();
+    await db
+      .insert(conversationsTable)
+      .values({
+        id: conversation.id,
+        workspaceId: conversation.workspaceId,
+        title: conversation.title,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .onConflictDoUpdate({
+        target: conversationsTable.id,
+        set: {
+          title: conversation.title,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        },
+      });
   }
 
   async getConversations(workspaceId: string): Promise<Conversation[]> {
     if (this.disabled) return [];
-    if (!this.db) throw new Error('Database not initialized');
-
-    return new Promise((resolve, reject) => {
-      this.db!.all(
-        `
-        SELECT * FROM conversations 
-        WHERE workspace_id = ? 
-        ORDER BY updated_at DESC
-      `,
-        [workspaceId],
-        (err, rows: any[]) => {
-          if (err) {
-            reject(err);
-          } else {
-            const conversations = rows.map((row) => ({
-              id: row.id,
-              workspaceId: row.workspace_id,
-              title: row.title,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            }));
-            resolve(conversations);
-          }
-        }
-      );
-    });
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.workspaceId, workspaceId))
+      .orderBy(desc(conversationsTable.updatedAt));
+    return rows.map((row) => this.mapDrizzleConversationRow(row));
   }
 
   async getOrCreateDefaultConversation(workspaceId: string): Promise<Conversation> {
@@ -478,142 +247,168 @@ export class DatabaseService {
         updatedAt: new Date().toISOString(),
       };
     }
-    if (!this.db) throw new Error('Database not initialized');
+    const { db } = await getDrizzleClient();
 
-    return new Promise((resolve, reject) => {
-      // First, try to get existing conversations
-      this.db!.all(
-        `
-        SELECT * FROM conversations 
-        WHERE workspace_id = ? 
-        ORDER BY created_at ASC
-        LIMIT 1
-      `,
-        [workspaceId],
-        (err, rows: any[]) => {
-          if (err) {
-            reject(err);
-            return;
-          }
+    const existingRows = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.workspaceId, workspaceId))
+      .orderBy(asc(conversationsTable.createdAt))
+      .limit(1);
 
-          if (rows.length > 0) {
-            // Return existing conversation
-            const row = rows[0];
-            resolve({
-              id: row.id,
-              workspaceId: row.workspace_id,
-              title: row.title,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            });
-          } else {
-            // Create new default conversation
-            const conversationId = `conv-${workspaceId}-${Date.now()}`;
-            this.db!.run(
-              `
-            INSERT INTO conversations 
-            (id, workspace_id, title, created_at, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `,
-              [conversationId, workspaceId, 'Default Conversation'],
-              (err) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  resolve({
-                    id: conversationId,
-                    workspaceId,
-                    title: 'Default Conversation',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                  });
-                }
-              }
-            );
-          }
-        }
-      );
+    if (existingRows.length > 0) {
+      return this.mapDrizzleConversationRow(existingRows[0]);
+    }
+
+    const conversationId = `conv-${workspaceId}-${Date.now()}`;
+    await this.saveConversation({
+      id: conversationId,
+      workspaceId,
+      title: 'Default Conversation',
     });
+
+    const [createdRow] = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, conversationId))
+      .limit(1);
+
+    if (createdRow) {
+      return this.mapDrizzleConversationRow(createdRow);
+    }
+
+    return {
+      id: conversationId,
+      workspaceId,
+      title: 'Default Conversation',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   // Message management methods
   async saveMessage(message: Omit<Message, 'timestamp'>): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
+    const metadataValue =
+      typeof message.metadata === 'string'
+        ? message.metadata
+        : message.metadata
+          ? JSON.stringify(message.metadata)
+          : null;
+    const { db } = await getDrizzleClient();
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(messagesTable)
+        .values({
+          id: message.id,
+          conversationId: message.conversationId,
+          content: message.content,
+          sender: message.sender,
+          metadata: metadataValue,
+          timestamp: sql`CURRENT_TIMESTAMP`,
+        })
+        .onConflictDoNothing()
+        .run();
 
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        `
-        INSERT INTO messages 
-        (id, conversation_id, content, sender, metadata, timestamp)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `,
-        [
-          message.id,
-          message.conversationId,
-          message.content,
-          message.sender,
-          message.metadata || null,
-        ],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            // Update conversation's updated_at timestamp
-            this.db!.run(
-              `
-            UPDATE conversations 
-            SET updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-          `,
-              [message.conversationId],
-              () => {
-                resolve();
-              }
-            );
-          }
-        }
-      );
+      await tx
+        .update(conversationsTable)
+        .set({ updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(conversationsTable.id, message.conversationId))
+        .run();
     });
   }
 
   async getMessages(conversationId: string): Promise<Message[]> {
     if (this.disabled) return [];
-    if (!this.db) throw new Error('Database not initialized');
-
-    return new Promise((resolve, reject) => {
-      this.db!.all(
-        `
-        SELECT * FROM messages 
-        WHERE conversation_id = ? 
-        ORDER BY timestamp ASC
-      `,
-        [conversationId],
-        (err, rows: any[]) => {
-          if (err) {
-            reject(err);
-          } else {
-            const messages = rows.map((row) => ({
-              id: row.id,
-              conversationId: row.conversation_id,
-              content: row.content,
-              sender: row.sender as 'user' | 'agent',
-              timestamp: row.timestamp,
-              metadata: row.metadata,
-            }));
-            resolve(messages);
-          }
-        }
-      );
-    });
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(messagesTable)
+      .where(eq(messagesTable.conversationId, conversationId))
+      .orderBy(asc(messagesTable.timestamp));
+    return rows.map((row) => this.mapDrizzleMessageRow(row));
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
     if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
+    const { db } = await getDrizzleClient();
+    await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  }
+
+  private mapDrizzleProjectRow(row: ProjectRow): Project {
+    return {
+      id: row.id,
+      name: row.name,
+      path: row.path,
+      gitInfo: {
+        isGitRepo: !!(row.gitRemote || row.gitBranch),
+        remote: row.gitRemote ?? undefined,
+        branch: row.gitBranch ?? undefined,
+      },
+      githubInfo: row.githubRepository
+        ? {
+            repository: row.githubRepository,
+            connected: !!row.githubConnected,
+          }
+        : undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private mapDrizzleWorkspaceRow(row: WorkspaceRow): Workspace {
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      name: row.name,
+      branch: row.branch,
+      path: row.path,
+      status: (row.status as Workspace['status']) ?? 'idle',
+      agentId: row.agentId ?? null,
+      metadata:
+        typeof row.metadata === 'string' && row.metadata.length > 0
+          ? this.parseWorkspaceMetadata(row.metadata, row.id)
+          : null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private mapDrizzleConversationRow(row: ConversationRow): Conversation {
+    return {
+      id: row.id,
+      workspaceId: row.workspaceId,
+      title: row.title,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private mapDrizzleMessageRow(row: MessageRow): Message {
+    return {
+      id: row.id,
+      conversationId: row.conversationId,
+      content: row.content,
+      sender: row.sender as Message['sender'],
+      timestamp: row.timestamp,
+      metadata: row.metadata ?? undefined,
+    };
+  }
+
+  private parseWorkspaceMetadata(serialized: string, workspaceId: string): any {
+    try {
+      return JSON.parse(serialized);
+    } catch (error) {
+      console.warn(`Failed to parse workspace metadata for ${workspaceId}`, error);
+      return null;
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.disabled || !this.db) return;
 
     return new Promise((resolve, reject) => {
-      this.db!.run('DELETE FROM conversations WHERE id = ?', [conversationId], (err) => {
+      this.db!.close((err) => {
         if (err) {
           reject(err);
         } else {
@@ -623,11 +418,39 @@ export class DatabaseService {
     });
   }
 
-  async close(): Promise<void> {
-    if (this.disabled || !this.db) return;
+  private async ensureMigrations(): Promise<void> {
+    if (this.disabled) return;
+    if (!this.db) throw new Error('Database not initialized');
+    if (DatabaseService.migrationsApplied) return;
 
-    return new Promise((resolve, reject) => {
-      this.db!.close((err) => {
+    const migrationsPath = resolveMigrationsPath();
+    if (!migrationsPath) {
+      throw new Error('Drizzle migrations folder not found');
+    }
+
+    const { db } = await getDrizzleClient();
+    await migrate(
+      db,
+      async (queries) => {
+        for (const statement of queries) {
+          await this.execSql(statement);
+        }
+      },
+      {
+        migrationsFolder: migrationsPath,
+      }
+    );
+
+    DatabaseService.migrationsApplied = true;
+  }
+
+  private async execSql(statement: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const trimmed = statement.trim();
+    if (!trimmed) return;
+
+    await new Promise<void>((resolve, reject) => {
+      this.db!.exec(trimmed, (err) => {
         if (err) {
           reject(err);
         } else {
