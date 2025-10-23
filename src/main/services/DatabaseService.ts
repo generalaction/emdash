@@ -233,52 +233,78 @@ export class DatabaseService {
 
   async getProjects(): Promise<Project[]> {
     if (this.disabled) return [];
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    const projects = await new Promise<Project[]>((resolve, reject) => {
-      this.db!.all(
-        `
-        SELECT 
-          id, name, path, git_remote, git_branch, github_repository, github_connected,
-          created_at, updated_at
-        FROM projects 
-        ORDER BY updated_at DESC
-      `,
-        (err, rows: any[]) => {
-          if (err) {
-            reject(err);
-          } else {
-            const projects = rows.map((row) => ({
-              id: row.id,
-              name: row.name,
-              path: row.path,
-              gitInfo: {
-                isGitRepo: !!(row.git_remote || row.git_branch),
-                remote: row.git_remote,
-                branch: row.git_branch,
-              },
-              githubInfo: row.github_repository
-                ? {
-                    repository: row.github_repository,
-                    connected: !!row.github_connected,
-                  }
-                : undefined,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            }));
-            resolve(projects);
-          }
-        }
-      );
-    });
-
-    if (featureFlags.useDrizzleReads()) {
-      this.compareProjectsWithDrizzle(projects).catch((err) => {
-        this.logDrizzle('getProjects', 'drizzle comparison failed', err);
+    const fetchLegacy = () =>
+      new Promise<Project[]>((resolve, reject) => {
+        sqliteDb.all(
+          `
+          SELECT 
+            id, name, path, git_remote, git_branch, github_repository, github_connected,
+            created_at, updated_at
+          FROM projects 
+          ORDER BY updated_at DESC
+        `,
+          (err, rows: any[]) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(
+                rows.map((row) => ({
+                  id: row.id,
+                  name: row.name,
+                  path: row.path,
+                  gitInfo: {
+                    isGitRepo: !!(row.git_remote || row.git_branch),
+                    remote: row.git_remote,
+                    branch: row.git_branch,
+                  },
+                  githubInfo: row.github_repository
+                    ? {
+                        repository: row.github_repository,
+                        connected: !!row.github_connected,
+                      }
+                    : undefined,
+                  createdAt: row.created_at,
+                  updatedAt: row.updated_at,
+                })),
+              );
+            }
+          },
+        );
       });
+
+    const fetchDrizzle = async () => {
+      const { db } = await getDrizzleClient();
+      const drizzleRows = await db
+        .select()
+        .from(projectsTable)
+        .orderBy(desc(projectsTable.updatedAt));
+      return drizzleRows.map((row) => this.mapDrizzleProjectRow(row));
+    };
+
+    const useDrizzle = featureFlags.useDrizzleReads();
+
+    if (!useDrizzle) {
+      return fetchLegacy();
     }
 
-    return projects;
+    let drizzleProjects: Project[];
+    try {
+      drizzleProjects = await fetchDrizzle();
+    } catch (err) {
+      this.logDrizzle('getProjects', 'drizzle primary failed, falling back to legacy', err);
+      return fetchLegacy();
+    }
+
+    const legacyProjects = await fetchLegacy();
+    const matches = await this.compareProjectsWithDrizzle(legacyProjects, drizzleProjects);
+    if (!matches) {
+      return legacyProjects;
+    }
+
+    return drizzleProjects;
   }
 
   async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
@@ -319,59 +345,89 @@ export class DatabaseService {
 
   async getWorkspaces(projectId?: string): Promise<Workspace[]> {
     if (this.disabled) return [];
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    let query = `
-      SELECT 
-        id, project_id, name, branch, path, status, agent_id, metadata,
-        created_at, updated_at
-      FROM workspaces
-    `;
-    const params: any[] = [];
+    const fetchLegacy = () =>
+      new Promise<Workspace[]>((resolve, reject) => {
+        let query = `
+          SELECT 
+            id, project_id, name, branch, path, status, agent_id, metadata,
+            created_at, updated_at
+          FROM workspaces
+        `;
+        const params: any[] = [];
 
-    if (projectId) {
-      query += ' WHERE project_id = ?';
-      params.push(projectId);
-    }
-
-    query += ' ORDER BY updated_at DESC';
-
-    const workspaces = await new Promise<Workspace[]>((resolve, reject) => {
-      this.db!.all(query, params, (err, rows: any[]) => {
-        if (err) {
-          reject(err);
-        } else {
-          const workspaces = rows.map((row) => {
-            const metadata =
-              typeof row.metadata === 'string' && row.metadata.length > 0
-                ? this.parseWorkspaceMetadata(row.metadata, row.id)
-                : null;
-
-            return {
-              id: row.id,
-              projectId: row.project_id,
-              name: row.name,
-              branch: row.branch,
-              path: row.path,
-              status: row.status,
-              agentId: row.agent_id,
-              metadata,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            };
-          });
-          resolve(workspaces);
+        if (projectId) {
+          query += ' WHERE project_id = ?';
+          params.push(projectId);
         }
-      });
-    });
 
-    if (featureFlags.useDrizzleReads()) {
-      this.compareWorkspacesWithDrizzle(workspaces, projectId).catch((err) => {
-        this.logDrizzle('getWorkspaces', 'drizzle comparison failed', err);
+        query += ' ORDER BY updated_at DESC';
+
+        sqliteDb.all(query, params, (err, rows: any[]) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(
+              rows.map((row) => {
+                const metadata =
+                  typeof row.metadata === 'string' && row.metadata.length > 0
+                    ? this.parseWorkspaceMetadata(row.metadata, row.id)
+                    : null;
+
+                return {
+                  id: row.id,
+                  projectId: row.project_id,
+                  name: row.name,
+                  branch: row.branch,
+                  path: row.path,
+                  status: row.status,
+                  agentId: row.agent_id,
+                  metadata,
+                  createdAt: row.created_at,
+                  updatedAt: row.updated_at,
+                };
+              }),
+            );
+          }
+        });
       });
+
+    const fetchDrizzle = async () => {
+      const { db } = await getDrizzleClient();
+      const query = db.select().from(workspacesTable).orderBy(desc(workspacesTable.updatedAt));
+      const drizzleRows = projectId
+        ? await query.where(eq(workspacesTable.projectId, projectId))
+        : await query;
+      return drizzleRows.map((row) => this.mapDrizzleWorkspaceRow(row));
+    };
+
+    const useDrizzle = featureFlags.useDrizzleReads();
+
+    if (!useDrizzle) {
+      return fetchLegacy();
     }
 
-    return workspaces;
+    let drizzleWorkspaces: Workspace[];
+    try {
+      drizzleWorkspaces = await fetchDrizzle();
+    } catch (err) {
+      this.logDrizzle('getWorkspaces', 'drizzle primary failed, falling back to legacy', err);
+      return fetchLegacy();
+    }
+
+    const legacyWorkspaces = await fetchLegacy();
+    const matches = await this.compareWorkspacesWithDrizzle(
+      legacyWorkspaces,
+      projectId,
+      drizzleWorkspaces,
+    );
+    if (!matches) {
+      return legacyWorkspaces;
+    }
+
+    return drizzleWorkspaces;
   }
 
   async deleteProject(projectId: string): Promise<void> {
@@ -431,40 +487,71 @@ export class DatabaseService {
 
   async getConversations(workspaceId: string): Promise<Conversation[]> {
     if (this.disabled) return [];
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    const conversations = await new Promise<Conversation[]>((resolve, reject) => {
-      this.db!.all(
-        `
-        SELECT * FROM conversations 
-        WHERE workspace_id = ? 
-        ORDER BY updated_at DESC
-      `,
-        [workspaceId],
-        (err, rows: any[]) => {
-          if (err) {
-            reject(err);
-          } else {
-            const conversations = rows.map((row) => ({
-              id: row.id,
-              workspaceId: row.workspace_id,
-              title: row.title,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            }));
-            resolve(conversations);
-          }
-        }
-      );
-    });
-
-    if (featureFlags.useDrizzleReads()) {
-      this.compareConversationsWithDrizzle(conversations, workspaceId).catch((err) => {
-        this.logDrizzle('getConversations', 'drizzle comparison failed', err);
+    const fetchLegacy = () =>
+      new Promise<Conversation[]>((resolve, reject) => {
+        sqliteDb.all(
+          `
+          SELECT * FROM conversations 
+          WHERE workspace_id = ? 
+          ORDER BY updated_at DESC
+        `,
+          [workspaceId],
+          (err, rows: any[]) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(
+                rows.map((row) => ({
+                  id: row.id,
+                  workspaceId: row.workspace_id,
+                  title: row.title,
+                  createdAt: row.created_at,
+                  updatedAt: row.updated_at,
+                })),
+              );
+            }
+          },
+        );
       });
+
+    const fetchDrizzle = async () => {
+      const { db } = await getDrizzleClient();
+      const drizzleRows = await db
+        .select()
+        .from(conversationsTable)
+        .where(eq(conversationsTable.workspaceId, workspaceId))
+        .orderBy(desc(conversationsTable.updatedAt));
+      return drizzleRows.map((row) => this.mapDrizzleConversationRow(row));
+    };
+
+    const useDrizzle = featureFlags.useDrizzleReads();
+
+    if (!useDrizzle) {
+      return fetchLegacy();
     }
 
-    return conversations;
+    let drizzleConversations: Conversation[];
+    try {
+      drizzleConversations = await fetchDrizzle();
+    } catch (err) {
+      this.logDrizzle('getConversations', 'drizzle primary failed, falling back to legacy', err);
+      return fetchLegacy();
+    }
+
+    const legacyConversations = await fetchLegacy();
+    const matches = await this.compareConversationsWithDrizzle(
+      legacyConversations,
+      workspaceId,
+      drizzleConversations,
+    );
+    if (!matches) {
+      return legacyConversations;
+    }
+
+    return drizzleConversations;
   }
 
   async getOrCreateDefaultConversation(workspaceId: string): Promise<Conversation> {
@@ -549,13 +636,42 @@ export class DatabaseService {
       };
     }
 
-    if (!createdDefault && featureFlags.useDrizzleReads()) {
-      this.compareDefaultConversationWithDrizzle(existing, workspaceId).catch((err) => {
-        this.logDrizzle('getOrCreateDefaultConversation', 'drizzle comparison failed', err);
-      });
+    const useDrizzle = featureFlags.useDrizzleReads();
+    if (createdDefault || !useDrizzle) {
+      return existing;
     }
 
-    return existing;
+    let drizzleConversation: Conversation | null = null;
+    try {
+      const { db } = await getDrizzleClient();
+      const drizzleRows = await db
+        .select()
+        .from(conversationsTable)
+        .where(eq(conversationsTable.workspaceId, workspaceId))
+        .orderBy(asc(conversationsTable.createdAt))
+        .limit(1);
+      drizzleConversation = drizzleRows[0]
+        ? this.mapDrizzleConversationRow(drizzleRows[0])
+        : null;
+    } catch (err) {
+      this.logDrizzle('getOrCreateDefaultConversation', 'drizzle primary failed, returning legacy', err);
+      return existing;
+    }
+
+    if (!drizzleConversation) {
+      return existing;
+    }
+
+    const matches = await this.compareDefaultConversationWithDrizzle(
+      existing,
+      workspaceId,
+      drizzleConversation,
+    );
+    if (!matches) {
+      return existing;
+    }
+
+    return drizzleConversation;
   }
 
   // Message management methods
@@ -601,41 +717,72 @@ export class DatabaseService {
 
   async getMessages(conversationId: string): Promise<Message[]> {
     if (this.disabled) return [];
-    if (!this.db) throw new Error('Database not initialized');
+    const sqliteDb = this.db;
+    if (!sqliteDb) throw new Error('Database not initialized');
 
-    const messages = await new Promise<Message[]>((resolve, reject) => {
-      this.db!.all(
-        `
-        SELECT * FROM messages 
-        WHERE conversation_id = ? 
-        ORDER BY timestamp ASC
-      `,
-        [conversationId],
-        (err, rows: any[]) => {
-          if (err) {
-            reject(err);
-          } else {
-            const messages = rows.map((row) => ({
-              id: row.id,
-              conversationId: row.conversation_id,
-              content: row.content,
-              sender: row.sender as 'user' | 'agent',
-              timestamp: row.timestamp,
-              metadata: row.metadata,
-            }));
-            resolve(messages);
-          }
-        }
-      );
-    });
-
-    if (featureFlags.useDrizzleReads()) {
-      this.compareMessagesWithDrizzle(messages, conversationId).catch((err) => {
-        this.logDrizzle('getMessages', 'drizzle comparison failed', err);
+    const fetchLegacy = () =>
+      new Promise<Message[]>((resolve, reject) => {
+        sqliteDb.all(
+          `
+          SELECT * FROM messages 
+          WHERE conversation_id = ? 
+          ORDER BY timestamp ASC
+        `,
+          [conversationId],
+          (err, rows: any[]) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(
+                rows.map((row) => ({
+                  id: row.id,
+                  conversationId: row.conversation_id,
+                  content: row.content,
+                  sender: row.sender as 'user' | 'agent',
+                  timestamp: row.timestamp,
+                  metadata: row.metadata ?? undefined,
+                })),
+              );
+            }
+          },
+        );
       });
+
+    const fetchDrizzle = async () => {
+      const { db } = await getDrizzleClient();
+      const drizzleRows = await db
+        .select()
+        .from(messagesTable)
+        .where(eq(messagesTable.conversationId, conversationId))
+        .orderBy(asc(messagesTable.timestamp));
+      return drizzleRows.map((row) => this.mapDrizzleMessageRow(row));
+    };
+
+    const useDrizzle = featureFlags.useDrizzleReads();
+
+    if (!useDrizzle) {
+      return fetchLegacy();
     }
 
-    return messages;
+    let drizzleMessages: Message[];
+    try {
+      drizzleMessages = await fetchDrizzle();
+    } catch (err) {
+      this.logDrizzle('getMessages', 'drizzle primary failed, falling back to legacy', err);
+      return fetchLegacy();
+    }
+
+    const legacyMessages = await fetchLegacy();
+    const matches = await this.compareMessagesWithDrizzle(
+      legacyMessages,
+      conversationId,
+      drizzleMessages,
+    );
+    if (!matches) {
+      return legacyMessages;
+    }
+
+    return drizzleMessages;
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
@@ -672,31 +819,40 @@ export class DatabaseService {
     return ns ? `[${ns}]` : '[drizzle]';
   }
 
-  private async compareProjectsWithDrizzle(legacyProjects: Project[]): Promise<void> {
+  private async compareProjectsWithDrizzle(
+    legacyProjects: Project[],
+    drizzleProjects?: Project[],
+  ): Promise<boolean> {
     try {
-      const { db } = await getDrizzleClient();
-      const drizzleRows = await db
-        .select()
-        .from(projectsTable)
-        .orderBy(desc(projectsTable.updatedAt));
+      let drizzle = drizzleProjects;
+      if (!drizzle) {
+        const { db } = await getDrizzleClient();
+        const drizzleRows = await db
+          .select()
+          .from(projectsTable)
+          .orderBy(desc(projectsTable.updatedAt));
+        drizzle = drizzleRows.map((row) => this.mapDrizzleProjectRow(row));
+      }
 
-      const drizzleProjects = drizzleRows.map((row) => this.mapDrizzleProjectRow(row));
-
-      if (!isDeepStrictEqual(legacyProjects, drizzleProjects)) {
+      if (!isDeepStrictEqual(legacyProjects, drizzle)) {
         this.logDrizzle('getProjects', 'result mismatch', {
           legacy: legacyProjects,
-          drizzle: drizzleProjects,
+          drizzle,
         });
 
         if (featureFlags.drizzleDiffAssertions()) {
           throw new Error('Drizzle getProjects diff detected');
         }
+        return false;
       }
+
+      return true;
     } catch (err) {
       this.logDrizzle('getProjects', 'drizzle query failed', err);
       if (featureFlags.drizzleDiffAssertions()) {
         throw err;
       }
+      return false;
     }
   }
 
@@ -772,85 +928,99 @@ export class DatabaseService {
   private async compareWorkspacesWithDrizzle(
     legacyWorkspaces: Workspace[],
     projectId?: string,
-  ): Promise<void> {
+    drizzleWorkspaces?: Workspace[],
+  ): Promise<boolean> {
     try {
-      const { db } = await getDrizzleClient();
-      const query = db.select().from(workspacesTable).orderBy(desc(workspacesTable.updatedAt));
+      let drizzle = drizzleWorkspaces;
+      if (!drizzle) {
+        const { db } = await getDrizzleClient();
+        const query = db.select().from(workspacesTable).orderBy(desc(workspacesTable.updatedAt));
+        const drizzleRows = projectId
+          ? await query.where(eq(workspacesTable.projectId, projectId))
+          : await query;
+        drizzle = drizzleRows.map((row) => this.mapDrizzleWorkspaceRow(row));
+      }
 
-      const drizzleRows = projectId
-        ? await query.where(eq(workspacesTable.projectId, projectId))
-        : await query;
-
-      const drizzleWorkspaces = drizzleRows.map((row) => this.mapDrizzleWorkspaceRow(row));
-
-      if (!isDeepStrictEqual(legacyWorkspaces, drizzleWorkspaces)) {
+      if (!isDeepStrictEqual(legacyWorkspaces, drizzle)) {
         this.logDrizzle('getWorkspaces', 'result mismatch', {
           legacy: legacyWorkspaces,
-          drizzle: drizzleWorkspaces,
+          drizzle,
         });
 
         if (featureFlags.drizzleDiffAssertions()) {
           throw new Error('Drizzle getWorkspaces diff detected');
         }
+        return false;
       }
+
+      return true;
     } catch (err) {
       this.logDrizzle('getWorkspaces', 'drizzle query failed', err);
       if (featureFlags.drizzleDiffAssertions()) {
         throw err;
       }
+      return false;
     }
   }
 
   private async compareConversationsWithDrizzle(
     legacyConversations: Conversation[],
     workspaceId: string,
-  ): Promise<void> {
+    drizzleConversations?: Conversation[],
+  ): Promise<boolean> {
     try {
-      const { db } = await getDrizzleClient();
-      const drizzleRows = await db
-        .select()
-        .from(conversationsTable)
-        .where(eq(conversationsTable.workspaceId, workspaceId))
-        .orderBy(desc(conversationsTable.updatedAt));
+      let drizzle = drizzleConversations;
+      if (!drizzle) {
+        const { db } = await getDrizzleClient();
+        const drizzleRows = await db
+          .select()
+          .from(conversationsTable)
+          .where(eq(conversationsTable.workspaceId, workspaceId))
+          .orderBy(desc(conversationsTable.updatedAt));
+        drizzle = drizzleRows.map((row) => this.mapDrizzleConversationRow(row));
+      }
 
-      const drizzleConversations = drizzleRows.map((row) => this.mapDrizzleConversationRow(row));
-
-      if (!isDeepStrictEqual(legacyConversations, drizzleConversations)) {
+      if (!isDeepStrictEqual(legacyConversations, drizzle)) {
         this.logDrizzle('getConversations', 'result mismatch', {
           legacy: legacyConversations,
-          drizzle: drizzleConversations,
+          drizzle,
         });
 
         if (featureFlags.drizzleDiffAssertions()) {
           throw new Error('Drizzle getConversations diff detected');
         }
+        return false;
       }
+
+      return true;
     } catch (err) {
       this.logDrizzle('getConversations', 'drizzle query failed', err);
       if (featureFlags.drizzleDiffAssertions()) {
         throw err;
       }
+      return false;
     }
   }
 
   private async compareDefaultConversationWithDrizzle(
     legacyConversation: Conversation,
     workspaceId: string,
-  ): Promise<void> {
+    drizzleConversation?: Conversation | null,
+  ): Promise<boolean> {
     try {
-      const { db } = await getDrizzleClient();
-      const drizzleRows = await db
-        .select()
-        .from(conversationsTable)
-        .where(eq(conversationsTable.workspaceId, workspaceId))
-        .orderBy(asc(conversationsTable.createdAt))
-        .limit(1);
+      let drizzle = drizzleConversation;
+      if (drizzle === undefined) {
+        const { db } = await getDrizzleClient();
+        const drizzleRows = await db
+          .select()
+          .from(conversationsTable)
+          .where(eq(conversationsTable.workspaceId, workspaceId))
+          .orderBy(asc(conversationsTable.createdAt))
+          .limit(1);
+        drizzle = drizzleRows[0] ? this.mapDrizzleConversationRow(drizzleRows[0]) : null;
+      }
 
-      const drizzleConversation = drizzleRows[0]
-        ? this.mapDrizzleConversationRow(drizzleRows[0])
-        : null;
-
-      if (!drizzleConversation) {
+      if (!drizzle) {
         this.logDrizzle('getOrCreateDefaultConversation', 'drizzle missing conversation', {
           workspaceId,
         });
@@ -858,56 +1028,67 @@ export class DatabaseService {
         if (featureFlags.drizzleDiffAssertions()) {
           throw new Error('Drizzle default conversation missing');
         }
-        return;
+        return false;
       }
 
-      if (!isDeepStrictEqual(legacyConversation, drizzleConversation)) {
+      if (!isDeepStrictEqual(legacyConversation, drizzle)) {
         this.logDrizzle('getOrCreateDefaultConversation', 'result mismatch', {
           legacy: legacyConversation,
-          drizzle: drizzleConversation,
+          drizzle,
         });
 
         if (featureFlags.drizzleDiffAssertions()) {
           throw new Error('Drizzle default conversation diff detected');
         }
+        return false;
       }
+
+      return true;
     } catch (err) {
       this.logDrizzle('getOrCreateDefaultConversation', 'drizzle query failed', err);
       if (featureFlags.drizzleDiffAssertions()) {
         throw err;
       }
+      return false;
     }
   }
 
   private async compareMessagesWithDrizzle(
     legacyMessages: Message[],
     conversationId: string,
-  ): Promise<void> {
+    drizzleMessages?: Message[],
+  ): Promise<boolean> {
     try {
-      const { db } = await getDrizzleClient();
-      const drizzleRows = await db
-        .select()
-        .from(messagesTable)
-        .where(eq(messagesTable.conversationId, conversationId))
-        .orderBy(asc(messagesTable.timestamp));
+      let drizzle = drizzleMessages;
+      if (!drizzle) {
+        const { db } = await getDrizzleClient();
+        const drizzleRows = await db
+          .select()
+          .from(messagesTable)
+          .where(eq(messagesTable.conversationId, conversationId))
+          .orderBy(asc(messagesTable.timestamp));
+        drizzle = drizzleRows.map((row) => this.mapDrizzleMessageRow(row));
+      }
 
-      const drizzleMessages = drizzleRows.map((row) => this.mapDrizzleMessageRow(row));
-
-      if (!isDeepStrictEqual(legacyMessages, drizzleMessages)) {
+      if (!isDeepStrictEqual(legacyMessages, drizzle)) {
         this.logDrizzle('getMessages', 'result mismatch', {
           legacy: legacyMessages,
-          drizzle: drizzleMessages,
+          drizzle,
         });
 
         if (featureFlags.drizzleDiffAssertions()) {
           throw new Error('Drizzle getMessages diff detected');
         }
+        return false;
       }
+
+      return true;
     } catch (err) {
       this.logDrizzle('getMessages', 'drizzle query failed', err);
       if (featureFlags.drizzleDiffAssertions()) {
         throw err;
       }
+      return false;
     }
   }
 
