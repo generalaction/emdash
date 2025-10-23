@@ -1,11 +1,7 @@
 import type sqlite3Type from 'sqlite3';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { createHash } from 'crypto';
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
-import { featureFlags } from '../config/featureFlags';
 import { getDrizzleClient } from '../db/drizzleClient';
 import {
   projects as projectsTable,
@@ -423,16 +419,6 @@ export class DatabaseService {
         }
       });
     });
-  }
-
-  private getDrizzleLogPrefix(): string {
-    const ns = featureFlags.drizzleLogNamespace();
-    return ns ? `[${ns}]` : '[drizzle]';
-  }
-
-  private logDrizzle(context: string, message: string, payload: unknown): void {
-    const prefix = this.getDrizzleLogPrefix();
-    console.warn(`${prefix} ${context}: ${message}`, payload);
   }
 
   private async ensureMigrations(): Promise<void> {
