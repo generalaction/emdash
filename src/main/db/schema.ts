@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const projects = sqliteTable(
   'projects',
@@ -19,7 +19,7 @@ export const projects = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
-    pathIdx: index('idx_projects_path').on(table.path),
+    pathIdx: uniqueIndex('idx_projects_path').on(table.path),
   }),
 );
 
