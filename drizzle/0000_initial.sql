@@ -32,7 +32,7 @@ CREATE TABLE `projects` (
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `idx_projects_path` ON `projects` (`path`);--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_projects_path` ON `projects` (`path`);--> statement-breakpoint
 CREATE TABLE `workspaces` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
