@@ -1,5 +1,4 @@
 import type sqlite3Type from 'sqlite3';
-import { promisify } from 'util';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createHash } from 'crypto';
@@ -99,103 +98,11 @@ export class DatabaseService {
           return;
         }
 
-        const finalize = async () => {
-          const migrationsApplied = await this.ensureMigrations();
-          if (!migrationsApplied) {
-            await this.createTables();
-          }
-        };
-
-        finalize()
+        this.ensureMigrations()
           .then(() => resolve())
           .catch(reject);
       });
     });
-  }
-
-  private async createTables(): Promise<void> {
-    if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
-
-    const runAsync = promisify(this.db.run.bind(this.db));
-
-    // Create projects table
-    await runAsync(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        path TEXT NOT NULL UNIQUE,
-        git_remote TEXT,
-        git_branch TEXT,
-        github_repository TEXT,
-        github_connected BOOLEAN DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create workspaces table
-    await runAsync(`
-      CREATE TABLE IF NOT EXISTS workspaces (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        branch TEXT NOT NULL,
-        path TEXT NOT NULL,
-        status TEXT DEFAULT 'idle',
-        agent_id TEXT,
-        metadata TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
-      )
-    `);
-
-    try {
-      await runAsync(`ALTER TABLE workspaces ADD COLUMN metadata TEXT`);
-    } catch (error) {
-      if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) {
-        throw error;
-      }
-    }
-
-    // Create conversations table
-    await runAsync(`
-      CREATE TABLE IF NOT EXISTS conversations (
-        id TEXT PRIMARY KEY,
-        workspace_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create messages table
-    await runAsync(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        content TEXT NOT NULL,
-        sender TEXT NOT NULL CHECK (sender IN ('user', 'agent')),
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        metadata TEXT,
-        FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create indexes
-    await runAsync(`CREATE INDEX IF NOT EXISTS idx_projects_path ON projects (path)`);
-    await runAsync(
-      `CREATE INDEX IF NOT EXISTS idx_workspaces_project_id ON workspaces (project_id)`
-    );
-    await runAsync(
-      `CREATE INDEX IF NOT EXISTS idx_conversations_workspace_id ON conversations (workspace_id)`
-    );
-    await runAsync(
-      `CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id)`
-    );
-    await runAsync(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages (timestamp)`);
   }
 
   async saveProject(project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> {
@@ -528,15 +435,14 @@ export class DatabaseService {
     console.warn(`${prefix} ${context}: ${message}`, payload);
   }
 
-  private async ensureMigrations(): Promise<boolean> {
-    if (this.disabled) return false;
+  private async ensureMigrations(): Promise<void> {
+    if (this.disabled) return;
     if (!this.db) throw new Error('Database not initialized');
-    if (DatabaseService.migrationsApplied) return true;
+    if (DatabaseService.migrationsApplied) return;
 
     const migrationsPath = resolveMigrationsPath();
     if (!migrationsPath) {
-      this.logDrizzle('migrate', 'migrations folder not found, skipping migrate', undefined);
-      return false;
+      throw new Error('Drizzle migrations folder not found');
     }
 
     try {
@@ -555,10 +461,9 @@ export class DatabaseService {
       );
 
       DatabaseService.migrationsApplied = true;
-      return true;
     } catch (error) {
       this.logDrizzle('migrate', 'failed to apply migrations', error);
-      return false;
+      throw error;
     }
   }
 
