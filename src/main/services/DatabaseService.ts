@@ -445,81 +445,20 @@ export class DatabaseService {
       throw new Error('Drizzle migrations folder not found');
     }
 
-    try {
-      const { db } = await getDrizzleClient();
-      await this.seedMigrationsMetadata(migrationsPath);
-      await migrate(
-        db,
-        async (queries) => {
-          for (const statement of queries) {
-            await this.execSql(statement);
-          }
-        },
-        {
-          migrationsFolder: migrationsPath,
-        },
-      );
+    const { db } = await getDrizzleClient();
+    await migrate(
+      db,
+      async (queries) => {
+        for (const statement of queries) {
+          await this.execSql(statement);
+        }
+      },
+      {
+        migrationsFolder: migrationsPath,
+      },
+    );
 
-      DatabaseService.migrationsApplied = true;
-    } catch (error) {
-      this.logDrizzle('migrate', 'failed to apply migrations', error);
-      throw error;
-    }
-  }
-
-  private async seedMigrationsMetadata(migrationsPath: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    const hasTable = await this.tableExists('__drizzle_migrations');
-    if (hasTable) return;
-
-    const baselineTables = ['projects', 'workspaces', 'conversations', 'messages'];
-    const present = await Promise.all(baselineTables.map((table) => this.tableExists(table)));
-    if (present.some((exists) => !exists)) {
-      return;
-    }
-
-    await this.execSql(`
-      CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        hash text NOT NULL,
-        created_at numeric
-      )
-    `);
-
-    try {
-      const journalPath = join(migrationsPath, 'meta', '_journal.json');
-      const journal = JSON.parse(readFileSync(journalPath, 'utf8'));
-      for (const entry of journal.entries ?? []) {
-        const sqlPath = join(migrationsPath, `${entry.tag}.sql`);
-        const sqlContent = readFileSync(sqlPath, 'utf8');
-        const hash = createHash('sha256').update(sqlContent).digest('hex');
-        await this.runSql(
-          'INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES (?, ?)',
-          [hash, entry.when],
-        );
-      }
-    } catch (error) {
-      this.logDrizzle('migrate', 'failed to seed migration metadata', error);
-    }
-  }
-
-  private async tableExists(table: string): Promise<boolean> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    return new Promise<boolean>((resolve, reject) => {
-      this.db!.get(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name = ? LIMIT 1",
-        [table],
-        (err, row) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(!!row);
-          }
-        },
-      );
-    });
+    DatabaseService.migrationsApplied = true;
   }
 
   private async execSql(statement: string): Promise<void> {
@@ -529,20 +468,6 @@ export class DatabaseService {
 
     await new Promise<void>((resolve, reject) => {
       this.db!.exec(trimmed, (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
-  }
-
-  private async runSql(statement: string, params: unknown[] = []): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    await new Promise<void>((resolve, reject) => {
-      this.db!.run(statement, params, (err) => {
         if (err) {
           reject(err);
         } else {
