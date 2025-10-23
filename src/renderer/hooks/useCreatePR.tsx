@@ -79,7 +79,18 @@ export function useCreatePR() {
               Pull Request Created
             </span>
           ),
-          description: res.url || 'PR created successfully.',
+          description: res.url ? (
+            <a
+              href={res.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cursor-pointer hover:underline"
+            >
+              {res.url}
+            </a>
+          ) : (
+            'PR created successfully.'
+          ),
         });
         try {
           await onSuccess?.();
