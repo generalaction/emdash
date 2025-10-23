@@ -270,7 +270,7 @@ const IntegrationsCard: React.FC = () => {
           <img
             src={githubAvatarUrl}
             alt="GitHub avatar"
-            className="h-8 w-8 rounded-full border border-border object-cover"
+            className="h-6 w-6 rounded-full border border-border object-cover"
             referrerPolicy="no-referrer"
           />
         ) : null}
