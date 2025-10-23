@@ -1,6 +1,10 @@
 import type sqlite3Type from 'sqlite3';
-import { promisify } from 'util';
+import { isDeepStrictEqual, promisify } from 'util';
+import { desc } from 'drizzle-orm';
 import { resolveDatabasePath } from '../db/path';
+import { featureFlags } from '../config/featureFlags';
+import { getDrizzleClient } from '../db/drizzleClient';
+import { projects as projectsTable, type ProjectRow } from '../db/schema';
 
 export interface Project {
   id: string;
@@ -222,7 +226,7 @@ export class DatabaseService {
     if (this.disabled) return [];
     if (!this.db) throw new Error('Database not initialized');
 
-    return new Promise((resolve, reject) => {
+    const projects = await new Promise<Project[]>((resolve, reject) => {
       this.db!.all(
         `
         SELECT 
@@ -258,6 +262,14 @@ export class DatabaseService {
         }
       );
     });
+
+    if (featureFlags.useDrizzleReads()) {
+      this.compareProjectsWithDrizzle(projects).catch((err) => {
+        this.logDrizzle('getProjects', 'drizzle comparison failed', err);
+      });
+    }
+
+    return projects;
   }
 
   async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
@@ -602,6 +614,65 @@ export class DatabaseService {
         }
       });
     });
+  }
+
+  private getDrizzleLogPrefix(): string {
+    const ns = featureFlags.drizzleLogNamespace();
+    return ns ? `[${ns}]` : '[drizzle]';
+  }
+
+  private async compareProjectsWithDrizzle(legacyProjects: Project[]): Promise<void> {
+    try {
+      const { db } = await getDrizzleClient();
+      const drizzleRows = await db
+        .select()
+        .from(projectsTable)
+        .orderBy(desc(projectsTable.updatedAt));
+
+      const drizzleProjects = drizzleRows.map((row) => this.mapDrizzleProjectRow(row));
+
+      if (!isDeepStrictEqual(legacyProjects, drizzleProjects)) {
+        this.logDrizzle('getProjects', 'result mismatch', {
+          legacy: legacyProjects,
+          drizzle: drizzleProjects,
+        });
+
+        if (featureFlags.drizzleDiffAssertions()) {
+          throw new Error('Drizzle getProjects diff detected');
+        }
+      }
+    } catch (err) {
+      this.logDrizzle('getProjects', 'drizzle query failed', err);
+      if (featureFlags.drizzleDiffAssertions()) {
+        throw err;
+      }
+    }
+  }
+
+  private mapDrizzleProjectRow(row: ProjectRow): Project {
+    return {
+      id: row.id,
+      name: row.name,
+      path: row.path,
+      gitInfo: {
+        isGitRepo: !!(row.gitRemote || row.gitBranch),
+        remote: row.gitRemote ?? undefined,
+        branch: row.gitBranch ?? undefined,
+      },
+      githubInfo: row.githubRepository
+        ? {
+            repository: row.githubRepository,
+            connected: !!row.githubConnected,
+          }
+        : undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private logDrizzle(context: string, message: string, payload: unknown): void {
+    const prefix = this.getDrizzleLogPrefix();
+    console.warn(`${prefix} ${context}: ${message}`, payload);
   }
 }
 
