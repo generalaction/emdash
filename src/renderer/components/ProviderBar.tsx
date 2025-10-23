@@ -16,11 +16,12 @@ import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
+import PlanModeToggle from './PlanModeToggle';
 
 type Props = { provider: Provider; linearIssue?: LinearIssueSummary | null };
 
 export const ProviderBar: React.FC<Props> = ({ provider, linearIssue }) => {
-  const map = {
+  const map: Record<Provider, { name: string; logo: string }> = {
     qwen: { name: 'Qwen Code', logo: qwenLogo },
     codex: { name: 'Codex', logo: openaiLogo },
     claude: { name: 'Claude Code', logo: claudeLogo },
@@ -33,7 +34,7 @@ export const ProviderBar: React.FC<Props> = ({ provider, linearIssue }) => {
     charm: { name: 'Charm', logo: charmLogo },
     auggie: { name: 'Auggie', logo: augmentLogo },
     goose: { name: 'Goose', logo: gooseLogo },
-  } as const;
+  };
   const cfg = map[provider] ?? { name: provider, logo: '' };
   return (
     <div className="px-6 pb-6 pt-4">
@@ -159,6 +160,7 @@ export const ProviderBar: React.FC<Props> = ({ provider, linearIssue }) => {
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
+              <PlanModeToggle />
             </div>
           </div>
         </div>
