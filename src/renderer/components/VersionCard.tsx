@@ -107,7 +107,12 @@ const VersionCard: React.FC = () => {
           ? (() => {
               const msg = update.message || '';
               const urlMatch = msg.match(/https?:\/\/\S+/);
-              const manualUrl = urlMatch ? urlMatch[0].replace(/[\]\)\}\,\.]+$/, '') : '';
+              let manualUrl = urlMatch ? urlMatch[0] : '';
+              // Sanitize common trailing tokens from logs (quotes, encoded quotes, brackets, commas, periods)
+              manualUrl = manualUrl
+                .replace(/(?:%22|%27|%60)+$/i, '') // strip encoded quotes/backticks at end
+                .replace(/["'`]+$/g, '') // strip raw quotes/backticks at end
+                .replace(/[\]\)\}\,\.]+$/, ''); // strip trailing ] ) } , .
               return (
                 <div className="flex items-start gap-3">
                   <div className="inline-flex max-w-[520px] items-start gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 shadow-sm">
@@ -125,16 +130,6 @@ const VersionCard: React.FC = () => {
                           Open exact download link
                         </button>
                       ) : null}
-                      {update.message && (
-                        <details className="mt-1">
-                          <summary className="cursor-pointer text-xs text-muted-foreground">
-                            Details
-                          </summary>
-                          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 p-2 text-[11px] text-muted-foreground">
-                            {update.message}
-                          </pre>
-                        </details>
-                      )}
                     </div>
                   </div>
                   <Button size="sm" variant="outline" onClick={openLatest} className="self-start">
