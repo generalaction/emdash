@@ -29,9 +29,55 @@ export function startPty(options: {
 }): IPty {
   const { id, cwd, shell, env, cols = 80, rows = 24 } = options;
 
-  const useShell = shell || getDefaultShell();
+  let useShell = shell || getDefaultShell();
   const useCwd = cwd || process.cwd() || os.homedir();
   const useEnv = { TERM: 'xterm-256color', ...process.env, ...(env || {}) };
+
+  // On Windows, resolve shell command to full path for node-pty
+  if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { execSync } = require('child_process');
+
+      // Try .cmd first (npm globals are typically .cmd files)
+      let resolved = '';
+      try {
+        resolved = execSync(`where ${shell}.cmd`, { encoding: 'utf8' })
+          .trim()
+          .split('\n')[0]
+          .replace(/\r/g, '')
+          .trim();
+      } catch {
+        // If .cmd doesn't exist, try without extension
+        resolved = execSync(`where ${shell}`, { encoding: 'utf8' })
+          .trim()
+          .split('\n')[0]
+          .replace(/\r/g, '')
+          .trim();
+      }
+
+      // Ensure we have an executable extension
+      if (resolved && !resolved.match(/\.(exe|cmd|bat)$/i)) {
+        // If no executable extension, try appending .cmd
+        const cmdPath = resolved + '.cmd';
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const fs = require('fs');
+          if (fs.existsSync(cmdPath)) {
+            resolved = cmdPath;
+          }
+        } catch {
+          // Ignore fs errors
+        }
+      }
+
+      if (resolved) {
+        useShell = resolved;
+      }
+    } catch {
+      // Fall back to original shell name
+    }
+  }
 
   // Lazy load native module at call time to prevent startup crashes
   // eslint-disable-next-line @typescript-eslint/no-var-requires
