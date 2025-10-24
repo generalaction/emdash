@@ -15,6 +15,24 @@ declare global {
       openLatestDownload: () => Promise<{ success: boolean; error?: string }>;
       onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
 
+      // App settings
+      getSettings: () => Promise<{
+        success: boolean;
+        settings?: {
+          repository: { branchTemplate: string; pushOnCreate: boolean };
+        };
+        error?: string;
+      }>;
+      updateSettings: (settings: Partial<{
+        repository: { branchTemplate?: string; pushOnCreate?: boolean };
+      }>) => Promise<{
+        success: boolean;
+        settings?: {
+          repository: { branchTemplate: string; pushOnCreate: boolean };
+        };
+        error?: string;
+      }>;
+
       // PTY
       ptyStart: (opts: {
         id: string;
