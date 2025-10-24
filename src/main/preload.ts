@@ -215,7 +215,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   planApplyLock: (workspacePath: string) => ipcRenderer.invoke('plan:lock', workspacePath),
   planReleaseLock: (workspacePath: string) => ipcRenderer.invoke('plan:unlock', workspacePath),
   onPlanEvent: (
-    listener: (data: { type: 'write_blocked' | 'remove_blocked'; root: string; relPath: string; code?: string; message?: string }) => void
+    listener: (data: {
+      type: 'write_blocked' | 'remove_blocked';
+      root: string;
+      relPath: string;
+      code?: string;
+      message?: string;
+    }) => void
   ) => {
     const channel = 'plan:event';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);

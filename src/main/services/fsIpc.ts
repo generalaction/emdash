@@ -256,38 +256,38 @@ export function registerFsIpc(): void {
       if (!fs.existsSync(abs)) return { success: true };
       const st = safeStat(abs);
       if (st && st.isDirectory()) return { success: false, error: 'Is a directory' };
+      try {
+        fs.unlinkSync(abs);
+      } catch (e: any) {
+        // Try to relax permissions and retry (useful after a plan lock)
+        try {
+          const dir = path.dirname(abs);
+          const dst = safeStat(dir);
+          if (dst) fs.chmodSync(dir, (dst.mode & 0o7777) | 0o222);
+        } catch {}
+        try {
+          const fst = safeStat(abs);
+          if (fst) fs.chmodSync(abs, (fst.mode & 0o7777) | 0o222);
+        } catch {}
         try {
           fs.unlinkSync(abs);
-        } catch (e: any) {
-          // Try to relax permissions and retry (useful after a plan lock)
-          try {
-            const dir = path.dirname(abs);
-            const dst = safeStat(dir);
-            if (dst) fs.chmodSync(dir, (dst.mode & 0o7777) | 0o222);
-          } catch {}
-          try {
-            const fst = safeStat(abs);
-            if (fst) fs.chmodSync(abs, (fst.mode & 0o7777) | 0o222);
-          } catch {}
-          try {
-            fs.unlinkSync(abs);
-          } catch (e2: any) {
-            if ((e2?.code || '').toUpperCase() === 'EACCES') {
-              emitPlanEvent({
-                type: 'remove_blocked',
-                root,
-                relPath,
-                code: e2?.code,
-                message: e2?.message || String(e2),
-              });
-            }
-            throw e2;
+        } catch (e2: any) {
+          if ((e2?.code || '').toUpperCase() === 'EACCES') {
+            emitPlanEvent({
+              type: 'remove_blocked',
+              root,
+              relPath,
+              code: e2?.code,
+              message: e2?.message || String(e2),
+            });
           }
+          throw e2;
         }
-        return { success: true };
-      } catch (error) {
-        console.error('fs:remove failed:', error);
-        return { success: false, error: 'Failed to remove file' };
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('fs:remove failed:', error);
+      return { success: false, error: 'Failed to remove file' };
     }
   });
 }
