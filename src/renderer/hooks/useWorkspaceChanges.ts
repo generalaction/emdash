@@ -35,12 +35,15 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
       const result = await window.electronAPI.getGitStatus(workspacePath);
 
       if (result.success && result.changes) {
-        const totalAdditions = result.changes.reduce((sum, change) => sum + change.additions, 0);
-        const totalDeletions = result.changes.reduce((sum, change) => sum + change.deletions, 0);
+        const filtered = result.changes.filter(
+          (c: { path: string }) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md'
+        );
+        const totalAdditions = filtered.reduce((sum, change) => sum + (change.additions || 0), 0);
+        const totalDeletions = filtered.reduce((sum, change) => sum + (change.deletions || 0), 0);
 
         setChanges({
           workspaceId,
-          changes: result.changes,
+          changes: filtered,
           totalAdditions,
           totalDeletions,
           isLoading: false,

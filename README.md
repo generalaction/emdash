@@ -199,6 +199,15 @@ This removes `node_modules` and reinstalls everything from scratch.
 
 In the chat input, use the provider selector to switch between Codex and Claude Code. Once a chat has started with Codex or Claude, the provider is locked for that chat.
 
+### Plan Mode (read‑only)
+
+Enable a per‑workspace read‑only mode for all terminal providers.
+
+- Writes a policy at `.emdash/planning.md` and a helper `PLANNING.md` at repo root; sets `EMDASH_PLAN_MODE=1`/`EMDASH_PLAN_FILE` for the terminal (no text is printed).
+- Optionally triggers native plan mode where supported (e.g., Claude Code `/plan`).
+- Toggle via the Provider Bar. Verify with `echo $EMDASH_PLAN_MODE`, `echo $EMDASH_PLAN_FILE`, or by opening `.emdash/planning.md`.
+- Notes: `.emdash/` is hidden from Changes; worktrees skip editing `.git/info/exclude`. Behavior is advisory by default.
+
 ## Build from Source
 
 ### macOS

@@ -211,6 +211,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   codexRemoveAgent: (workspaceId: string) => ipcRenderer.invoke('codex:remove-agent', workspaceId),
   codexGetInstallationInstructions: () => ipcRenderer.invoke('codex:get-installation-instructions'),
 
+  // PlanMode strict lock
+  planApplyLock: (workspacePath: string) => ipcRenderer.invoke('plan:lock', workspacePath),
+  planReleaseLock: (workspacePath: string) => ipcRenderer.invoke('plan:unlock', workspacePath),
+  onPlanEvent: (
+    listener: (data: { type: 'write_blocked' | 'remove_blocked'; root: string; relPath: string; code?: string; message?: string }) => void
+  ) => {
+    const channel = 'plan:event';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   // Streaming event listeners
   onCodexStreamOutput: (
     listener: (data: {

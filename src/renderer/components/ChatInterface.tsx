@@ -13,6 +13,7 @@ import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { usePlanMode } from '@/hooks/usePlanMode';
 import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
 import { log } from '@/lib/logger';
+import { logPlanEvent } from '@/lib/planLogs';
 import { PLAN_CHAT_PREAMBLE } from '@/lib/planRules';
 import { type Provider } from '../types';
 import { buildAttachmentsSection, buildImageAttachmentsSection } from '../lib/attachments';
@@ -368,7 +369,11 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const result =
       provider === 'codex'
         ? await codexStream.send(messageWithContext, attachmentsSection + imageSection, wirePrefix)
-        : await claudeStream.send(messageWithContext, attachmentsSection + imageSection, wirePrefix);
+        : await claudeStream.send(
+            messageWithContext,
+            attachmentsSection + imageSection,
+            wirePrefix
+          );
     if (!result.success) {
       if (result.error && result.error !== 'stream-in-progress') {
         toast({
@@ -579,6 +584,12 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
           linearIssue={workspace.metadata?.linearIssue || null}
           planModeEnabled={planEnabled}
           onPlanModeChange={setPlanEnabled}
+          onApprovePlan={async () => {
+            try {
+              await logPlanEvent(workspace.path, 'Plan approved via UI; exiting Plan Mode');
+            } catch {}
+            setPlanEnabled(false);
+          }}
         />
       ) : null}
     </div>

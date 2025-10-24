@@ -6,4 +6,3 @@ export async function logPlanEvent(workspacePath: string, message: string) {
     await (window as any).electronAPI.debugAppendLog(fp, line, { reset: false });
   } catch {}
 }
-

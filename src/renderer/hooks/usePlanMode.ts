@@ -23,18 +23,33 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
 
   const ensurePlanFile = useCallback(async () => {
     try {
-      const rel = '.emdash/planning.md';
-      log.info('[plan] writing planning.md', { workspacePath, rel });
-      const res = await (window as any).electronAPI.fsWriteFile(
+      // Hidden policy file in .emdash/
+      const hiddenRel = '.emdash/planning.md';
+      log.info('[plan] writing policy (hidden)', { workspacePath, hiddenRel });
+      const resHidden = await (window as any).electronAPI.fsWriteFile(
         workspacePath,
-        rel,
+        hiddenRel,
         PLANNING_MD,
         true
       );
-      if (!res?.success) {
-        log.warn('[plan] failed to write planning.md', res?.error);
+      if (!resHidden?.success) {
+        log.warn('[plan] failed to write hidden planning.md', resHidden?.error);
       }
-      await logPlanEvent(workspacePath, 'planning.md written');
+      // Root-level helper for agents that don’t read hidden dirs
+      const rootRel = 'PLANNING.md';
+      log.info('[plan] writing policy (root helper)', { workspacePath, rootRel });
+      const rootHeader = '# Plan Mode (Read‑only)\n\n';
+      const rootBody = `${rootHeader}${PLANNING_MD}`;
+      const resRoot = await (window as any).electronAPI.fsWriteFile(
+        workspacePath,
+        rootRel,
+        rootBody,
+        true
+      );
+      if (!resRoot?.success) {
+        log.warn('[plan] failed to write root PLANNING.md', resRoot?.error);
+      }
+      await logPlanEvent(workspacePath, 'planning.md written (hidden + root helper)');
     } catch (e) {
       log.warn('[plan] failed to write planning.md', e);
     }
@@ -60,8 +75,11 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
         const read = await window.electronAPI.fsRead(workspacePath, rel, 32 * 1024);
         if (read?.success && typeof read.content === 'string') current = read.content;
       } catch {}
-      if (current.includes('.emdash/')) return;
-      const next = `${current.trimEnd()}\n# emdash plan mode\n.emdash/\n`;
+      const lines: string[] = [];
+      if (!current.includes('.emdash/')) lines.push('.emdash/');
+      if (!current.includes('PLANNING.md')) lines.push('PLANNING.md');
+      if (lines.length === 0) return;
+      const next = `${current.trimEnd()}\n# emdash plan mode\n${lines.join('\n')}\n`;
       log.info('[plan] appending .emdash/ to git exclude');
       await (window as any).electronAPI.fsWriteFile(workspacePath, rel, next, true);
       await logPlanEvent(workspacePath, 'updated .git/info/exclude with .emdash/');
@@ -72,8 +90,10 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
 
   const removePlanFile = useCallback(async () => {
     try {
-      const rel = '.emdash/planning.md';
-      await (window as any).electronAPI.fsRemove(workspacePath, rel);
+      const hiddenRel = '.emdash/planning.md';
+      await (window as any).electronAPI.fsRemove(workspacePath, hiddenRel);
+      const rootRel = 'PLANNING.md';
+      await (window as any).electronAPI.fsRemove(workspacePath, rootRel);
     } catch (e) {
       // ignore
     }
@@ -86,10 +106,32 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
         log.info('[plan] enabled', { workspaceId, workspacePath });
         await logPlanEvent(workspacePath, 'Plan Mode enabled');
         ensureGitExclude();
-        ensurePlanFile();
+        await ensurePlanFile();
+        try {
+          const lock = await (window as any).electronAPI.planApplyLock(workspacePath);
+          if (!lock?.success) log.warn('[plan] failed to apply lock', lock?.error);
+          else
+            await logPlanEvent(
+              workspacePath,
+              `Applied read-only lock (changed=${lock.changed ?? 0})`
+            );
+        } catch (e) {
+          log.warn('[plan] planApplyLock error', e);
+        }
       } else {
         log.info('[plan] disabled', { workspaceId, workspacePath });
         await logPlanEvent(workspacePath, 'Plan Mode disabled');
+        try {
+          const unlock = await (window as any).electronAPI.planReleaseLock(workspacePath);
+          if (!unlock?.success) log.warn('[plan] failed to release lock', unlock?.error);
+          else
+            await logPlanEvent(
+              workspacePath,
+              `Released read-only lock (restored=${unlock.restored ?? 0})`
+            );
+        } catch (e) {
+          log.warn('[plan] planReleaseLock error', e);
+        }
         removePlanFile();
       }
     })();

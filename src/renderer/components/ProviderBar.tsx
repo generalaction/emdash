@@ -5,6 +5,7 @@ import { type LinearIssueSummary } from '../types/linear';
 import openaiLogo from '../../assets/images/openai.png';
 import linearLogo from '../../assets/images/linear.png';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Check } from 'lucide-react';
 import claudeLogo from '../../assets/images/claude.png';
 import factoryLogo from '../../assets/images/factorydroid.png';
 import geminiLogo from '../../assets/images/gemini.png';
@@ -23,9 +24,16 @@ type Props = {
   linearIssue?: LinearIssueSummary | null;
   planModeEnabled?: boolean;
   onPlanModeChange?: (next: boolean) => void;
+  onApprovePlan?: () => void;
 };
 
-export const ProviderBar: React.FC<Props> = ({ provider, linearIssue, planModeEnabled, onPlanModeChange }) => {
+export const ProviderBar: React.FC<Props> = ({
+  provider,
+  linearIssue,
+  planModeEnabled,
+  onPlanModeChange,
+  onApprovePlan,
+}) => {
   const map: Record<Provider, { name: string; logo: string }> = {
     qwen: { name: 'Qwen Code', logo: qwenLogo },
     codex: { name: 'Codex', logo: openaiLogo },
@@ -166,6 +174,29 @@ export const ProviderBar: React.FC<Props> = ({ provider, linearIssue, planModeEn
                 </TooltipProvider>
               ) : null}
               <PlanModeToggle value={!!planModeEnabled} onChange={onPlanModeChange} />
+              {planModeEnabled ? (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onApprovePlan) onApprovePlan();
+                          else onPlanModeChange?.(false);
+                        }}
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 text-xs text-foreground hover:bg-accent/15 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
+                        title="Approve Plan & Exit"
+                      >
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span className="font-medium">Exit Plan Mode</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs">
+                      Approve the plan and exit Plan Mode
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
             </div>
           </div>
         </div>

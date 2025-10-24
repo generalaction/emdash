@@ -27,6 +27,7 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
 import CommandPalette from './components/CommandPalette';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { usePlanToasts } from './hooks/usePlanToasts';
 
 interface AppKeyboardShortcutsProps {
   showCommandPalette: boolean;
@@ -199,6 +200,7 @@ const clampRightSidebarSize = (value: number) =>
 const MAIN_PANEL_MIN_SIZE = 30;
 
 const AppContent: React.FC = () => {
+  usePlanToasts();
   // Initialize theme on app startup
   const { effectiveTheme } = useTheme();
 
@@ -831,10 +833,10 @@ const AppContent: React.FC = () => {
         setActiveWorkspace(newWorkspace);
         setActiveWorkspaceProvider(selectedProvider || 'codex');
 
-        toast({
-          title: 'Workspace Created',
-          description: `"${workspaceName}" workspace created successfully!`,
-        });
+        // toast({
+        //   title: 'Workspace Created',
+        //   description: `"${workspaceName}" workspace created successfully!`,
+        // });
       } else {
         const { log } = await import('./lib/logger');
         log.error('Failed to save workspace:', saveResult.error);

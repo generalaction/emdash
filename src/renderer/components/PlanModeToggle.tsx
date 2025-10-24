@@ -51,8 +51,18 @@ const PlanModeToggle: React.FC<Props> = ({
             <span className="font-medium">{label}</span>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="bottom" className="text-xs">
-          {active ? 'Plan Mode Enabled' : 'Plan Mode Disabled'}
+        <TooltipContent side="bottom" className="max-w-xs whitespace-pre-line text-xs leading-snug">
+          {active ? (
+            <span className="font-medium">Plan Mode Enabled</span>
+          ) : (
+            <div>
+              <span className="block font-medium">Plan Mode Disabled</span>
+              <span className="block">
+                Plan Mode disables all editing and execution capabilities and supports you in
+                mapping out a plan for implementing the changes.
+              </span>
+            </div>
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
