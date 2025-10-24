@@ -17,9 +17,11 @@
     "baseUrl": ".",
     "types": ["react", "react-dom", "node"],
     "paths": {
-      "@/*": ["./src/renderer/*"]
+      "@/*": ["./src/renderer/*"],
+      "#types/*": ["./src/types/*"],
+      "#types": ["./src/types/index.ts"]
     }
   },
-  "include": ["src/renderer/**/*", "src/types/**/*", "src/renderer/types/**/*"],
+  "include": ["src/renderer/**/*", "src/types/**/*"],
   "exclude": ["node_modules", "dist"]
 }

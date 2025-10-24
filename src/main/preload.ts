@@ -95,6 +95,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
   fsRead: (root: string, relPath: string, maxBytes?: number) =>
     ipcRenderer.invoke('fs:read', { root, relPath, maxBytes }),
+  fsWriteFile: (root: string, relPath: string, content: string, mkdirs?: boolean) =>
+    ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs }),
+  fsRemove: (root: string, relPath: string) => ipcRenderer.invoke('fs:remove', { root, relPath }),
   // Attachments
   saveAttachment: (args: { workspacePath: string; srcPath: string; subdir?: string }) =>
     ipcRenderer.invoke('fs:save-attachment', args),
@@ -207,6 +210,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   codexGetAllAgents: () => ipcRenderer.invoke('codex:get-all-agents'),
   codexRemoveAgent: (workspaceId: string) => ipcRenderer.invoke('codex:remove-agent', workspaceId),
   codexGetInstallationInstructions: () => ipcRenderer.invoke('codex:get-installation-instructions'),
+
+  // PlanMode strict lock
+  planApplyLock: (workspacePath: string) => ipcRenderer.invoke('plan:lock', workspacePath),
+  planReleaseLock: (workspacePath: string) => ipcRenderer.invoke('plan:unlock', workspacePath),
+  onPlanEvent: (
+    listener: (data: {
+      type: 'write_blocked' | 'remove_blocked';
+      root: string;
+      relPath: string;
+      code?: string;
+      message?: string;
+    }) => void
+  ) => {
+    const channel = 'plan:event';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 
   // Streaming event listeners
   onCodexStreamOutput: (

@@ -19,7 +19,11 @@ interface Result {
   isStreaming: boolean;
   awaitingThinking: boolean;
   seconds: number;
-  send: (text: string, attachments?: string) => Promise<{ success: boolean; error?: string }>;
+  send: (
+    text: string,
+    attachments?: string,
+    wirePrefix?: string
+  ) => Promise<{ success: boolean; error?: string }>;
   cancel: () => Promise<{ success: boolean; error?: string }>;
   appendMessage: (m: Message) => void;
 }
@@ -68,7 +72,7 @@ const useClaudeStream = (options?: Options | null): Result => {
   const appendMessage = useCallback((m: Message) => setMessages((prev) => [...prev, m]), []);
 
   const send = useCallback(
-    async (text: string, attachments: string = '') => {
+    async (text: string, attachments: string = '', wirePrefix: string = '') => {
       if (!normalized) return { success: false, error: 'workspace-unavailable' };
       if (isStreamingRef.current) return { success: false, error: 'stream-in-progress' };
       const convoId = conversationIdRef.current;
@@ -101,7 +105,7 @@ const useClaudeStream = (options?: Options | null): Result => {
           providerId: 'claude',
           workspaceId: normalized.workspaceId,
           worktreePath: normalized.workspacePath,
-          message: `${text}${attachments ?? ''}`,
+          message: `${wirePrefix || ''}${text}${attachments ?? ''}`,
           conversationId: convoId,
         });
         return { success: true };

@@ -89,6 +89,16 @@ function listFiles(root: string, includeDirs: boolean, maxEntries: number): Item
 }
 
 export function registerFsIpc(): void {
+  function emitPlanEvent(payload: any) {
+    try {
+      const { BrowserWindow } = require('electron');
+      for (const win of BrowserWindow.getAllWindows()) {
+        try {
+          win.webContents.send('plan:event', payload);
+        } catch {}
+      }
+    } catch {}
+  }
   ipcMain.handle('fs:list', async (_event, args: ListArgs) => {
     try {
       const root = args.root;
@@ -195,4 +205,89 @@ export function registerFsIpc(): void {
       }
     }
   );
+
+  // Write a file relative to a root (creates parent directories)
+  ipcMain.handle(
+    'fs:write',
+    async (_event, args: { root: string; relPath: string; content: string; mkdirs?: boolean }) => {
+      try {
+        const { root, relPath, content, mkdirs = true } = args;
+        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+        if (!relPath) return { success: false, error: 'Invalid relPath' };
+
+        const abs = path.resolve(root, relPath);
+        const normRoot = path.resolve(root) + path.sep;
+        if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+
+        const dir = path.dirname(abs);
+        if (mkdirs) fs.mkdirSync(dir, { recursive: true });
+        try {
+          fs.writeFileSync(abs, content, 'utf8');
+        } catch (e: any) {
+          // Surface permission issues to renderer (Plan Mode lock likely)
+          if ((e?.code || '').toUpperCase() === 'EACCES') {
+            emitPlanEvent({
+              type: 'write_blocked',
+              root,
+              relPath,
+              code: e?.code,
+              message: e?.message || String(e),
+            });
+          }
+          throw e;
+        }
+        return { success: true };
+      } catch (error) {
+        console.error('fs:write failed:', error);
+        return { success: false, error: 'Failed to write file' };
+      }
+    }
+  );
+
+  // Remove a file relative to a root
+  ipcMain.handle('fs:remove', async (_event, args: { root: string; relPath: string }) => {
+    try {
+      const { root, relPath } = args;
+      if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+      if (!relPath) return { success: false, error: 'Invalid relPath' };
+      const abs = path.resolve(root, relPath);
+      const normRoot = path.resolve(root) + path.sep;
+      if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+      if (!fs.existsSync(abs)) return { success: true };
+      const st = safeStat(abs);
+      if (st && st.isDirectory()) return { success: false, error: 'Is a directory' };
+      try {
+        fs.unlinkSync(abs);
+      } catch (e: any) {
+        // Try to relax permissions and retry (useful after a plan lock)
+        try {
+          const dir = path.dirname(abs);
+          const dst = safeStat(dir);
+          if (dst) fs.chmodSync(dir, (dst.mode & 0o7777) | 0o222);
+        } catch {}
+        try {
+          const fst = safeStat(abs);
+          if (fst) fs.chmodSync(abs, (fst.mode & 0o7777) | 0o222);
+        } catch {}
+        try {
+          fs.unlinkSync(abs);
+        } catch (e2: any) {
+          if ((e2?.code || '').toUpperCase() === 'EACCES') {
+            emitPlanEvent({
+              type: 'remove_blocked',
+              root,
+              relPath,
+              code: e2?.code,
+              message: e2?.message || String(e2),
+            });
+          }
+          throw e2;
+        }
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('fs:remove failed:', error);
+      return { success: false, error: 'Failed to remove file' };
+    }
+  });
 }

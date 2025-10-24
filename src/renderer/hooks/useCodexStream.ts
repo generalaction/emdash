@@ -17,7 +17,11 @@ interface UseCodexStreamResult {
   isStreaming: boolean;
   awaitingThinking: boolean;
   seconds: number;
-  send: (text: string, attachments?: string) => Promise<{ success: boolean; error?: string }>;
+  send: (
+    text: string,
+    attachments?: string,
+    wirePrefix?: string
+  ) => Promise<{ success: boolean; error?: string }>;
   cancel: () => Promise<{ success: boolean; error?: string }>;
   appendMessage: (message: Message) => void;
 }
@@ -183,7 +187,7 @@ const useCodexStream = (options?: UseCodexStreamOptions | null): UseCodexStreamR
   }, []);
 
   const send = useCallback(
-    async (text: string, attachments: string = '') => {
+    async (text: string, attachments: string = '', wirePrefix: string = '') => {
       if (!normalizedOptions) {
         return { success: false, error: 'workspace-unavailable' };
       }
@@ -234,7 +238,7 @@ const useCodexStream = (options?: UseCodexStreamOptions | null): UseCodexStreamR
       try {
         await window.electronAPI.codexSendMessageStream(
           normalizedOptions.workspaceId,
-          `${text}${attachments ?? ''}`,
+          `${wirePrefix || ''}${text}${attachments ?? ''}`,
           conversationIdRef.current ?? undefined
         );
         return { success: true };

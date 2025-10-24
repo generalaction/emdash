@@ -8,6 +8,7 @@ type Props = {
   cols?: number;
   rows?: number;
   shell?: string;
+  env?: Record<string, string>;
   className?: string;
   variant?: 'dark' | 'light';
   themeOverride?: any; // optional xterm theme overrides
@@ -24,6 +25,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
   cols = 80,
   rows = 24,
   shell,
+  env,
   className,
   variant = 'dark',
   themeOverride,
@@ -184,12 +186,17 @@ const TerminalPaneComponent: React.FC<Props> = ({
     const startTsRef = { current: Date.now() } as { current: number };
     (async () => {
       try {
+        try {
+          const envKeys = env ? Object.keys(env) : [];
+          if (envKeys.length) log.info('PTY starting with env', { id, envKeys });
+        } catch {}
         const res = await window.electronAPI.ptyStart({
           id,
           cwd,
           cols,
           rows,
           shell,
+          env,
         });
         if (!res?.ok) {
           term.writeln('\x1b[31mFailed to start PTY:\x1b[0m ' + (res as any)?.error);
@@ -199,6 +206,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
         }
         if (res?.ok) {
           try {
+            log.info('PTY started', { id });
             onStartSuccess && onStartSuccess();
           } catch {}
         }
