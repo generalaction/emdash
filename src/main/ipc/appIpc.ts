@@ -115,7 +115,13 @@ export function registerAppIpc() {
         });
         return { success: true };
       } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
+        const pretty =
+          which === 'ghostty' ? 'Ghostty' : which === 'zed' ? 'Zed' : which.toString();
+        // Return short, friendly copy instead of the full command output
+        let msg = `Unable to open in ${pretty}`;
+        if (which === 'ghostty') msg = 'Ghostty is not installed or not available on this platform.';
+        if (which === 'zed') msg = 'Zed is not installed or not available on this platform.';
+        return { success: false, error: msg };
       }
     }
   );
