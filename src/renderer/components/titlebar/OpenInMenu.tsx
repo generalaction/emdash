@@ -32,9 +32,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  const callOpen = async (
-    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed'
-  ) => {
+  const callOpen = async (app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed') => {
     try {
       const res = await (window as any).electronAPI?.openIn?.({ app, path });
       if (!res?.success) {
