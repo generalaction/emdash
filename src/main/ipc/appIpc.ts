@@ -18,7 +18,10 @@ export function registerAppIpc() {
   // Open a filesystem path in a specific application (Finder/Cursor/VS Code/Terminal)
   ipcMain.handle(
     'app:openIn',
-    async (_event, args: { app: 'finder' | 'cursor' | 'vscode' | 'terminal'; path: string }) => {
+    async (
+      _event,
+      args: { app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed'; path: string }
+    ) => {
       const target = args?.path;
       const which = args?.app;
       if (!target || typeof target !== 'string' || !which) {
@@ -47,6 +50,13 @@ export function registerAppIpc() {
               // This should open a new tab/window with CWD set to target
               command = `open -a Terminal ${quoted(target)}`;
               break;
+            case 'ghostty':
+              // Prefer ghostty CLI when available; otherwise use open -a with args
+              command = `command -v ghostty >/dev/null 2>&1 && ghostty --working-directory ${quoted(target)} || open -a "Ghostty" --args --working-directory ${quoted(target)}`;
+              break;
+            case 'zed':
+              command = `command -v zed >/dev/null 2>&1 && zed ${quoted(target)} || open -a "Zed" ${quoted(target)}`;
+              break;
           }
         } else if (platform === 'win32') {
           switch (which) {
@@ -64,6 +74,9 @@ export function registerAppIpc() {
               // Prefer Windows Terminal if available, fallback to cmd
               command = `wt -d ${quoted(target)} || start cmd /K "cd /d ${target}"`;
               break;
+            case 'ghostty':
+            case 'zed':
+              return { success: false, error: `${which} is not supported on Windows` } as any;
           }
         } else {
           // linux and others
@@ -80,6 +93,12 @@ export function registerAppIpc() {
             case 'terminal':
               // Try x-terminal-emulator as a generic launcher
               command = `x-terminal-emulator --working-directory=${quoted(target)} || gnome-terminal --working-directory=${quoted(target)} || konsole --workdir ${quoted(target)}`;
+              break;
+            case 'ghostty':
+              command = `ghostty --working-directory ${quoted(target)} || x-terminal-emulator --working-directory=${quoted(target)}`;
+              break;
+            case 'zed':
+              command = `zed ${quoted(target)} || xdg-open ${quoted(target)}`;
               break;
           }
         }

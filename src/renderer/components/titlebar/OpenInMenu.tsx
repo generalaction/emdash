@@ -2,9 +2,12 @@ import React from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useToast } from '@/hooks/use-toast';
 import cursorLogo from '../../../assets/images/cursorlogo.png';
 import finderLogo from '../../../assets/images/finder.png';
 import terminalLogo from '../../../assets/images/terminal.png';
+import zedLogo from '../../../assets/images/zed.png';
+import ghosttyLogo from '../../../assets/images/ghostty.png';
 
 interface OpenInMenuProps {
   path: string;
@@ -18,6 +21,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
+  const { toast } = useToast();
 
   React.useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -28,10 +32,33 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  const callOpen = async (app: 'finder' | 'cursor' | 'vscode' | 'terminal') => {
+  const callOpen = async (
+    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed'
+  ) => {
     try {
-      await (window as any).electronAPI?.openIn?.({ app, path });
-    } catch {}
+      const res = await (window as any).electronAPI?.openIn?.({ app, path });
+      if (!res?.success) {
+        const pretty = app === 'ghostty' ? 'Ghostty' : app === 'zed' ? 'Zed' : app;
+        toast({
+          title: `Open in ${pretty} failed`,
+          description:
+            res?.error ||
+            (app === 'ghostty'
+              ? 'Ghostty is not installed or not available on this platform.'
+              : app === 'zed'
+                ? 'Zed is not installed or not available on this platform.'
+                : 'Application not available.'),
+          variant: 'destructive',
+        });
+      }
+    } catch (e: any) {
+      const pretty = app === 'ghostty' ? 'Ghostty' : app === 'zed' ? 'Zed' : app;
+      toast({
+        title: `Open in ${pretty} failed`,
+        description: e?.message || String(e),
+        variant: 'destructive',
+      });
+    }
     setOpen(false);
   };
 
@@ -82,6 +109,14 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
             <button className={menuItemBase} role="menuitem" onClick={() => callOpen('terminal')}>
               <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
               <span>Terminal</span>
+            </button>
+            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('ghostty')}>
+              <img src={ghosttyLogo} alt="Ghostty" className="h-4 w-4 rounded" />
+              <span>Ghostty</span>
+            </button>
+            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('zed')}>
+              <img src={zedLogo} alt="Zed" className="h-4 w-4 rounded" />
+              <span>Zed</span>
             </button>
           </motion.div>
         )}
