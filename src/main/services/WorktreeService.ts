@@ -244,7 +244,10 @@ export class WorktreeService {
     const cleaned = head.replace(/\s+/g, '');
     if (!cleaned) return null;
     // If there's a slash in the head, take the segment before the first slash
-    const seg = cleaned.split('/')[0]?.replace(/^[./-]+/, '').replace(/[./-]+$/, '');
+    const seg = cleaned
+      .split('/')[0]
+      ?.replace(/^[./-]+/, '')
+      .replace(/[./-]+$/, '');
     return seg || null;
   }
 

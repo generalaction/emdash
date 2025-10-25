@@ -23,9 +23,11 @@ declare global {
         };
         error?: string;
       }>;
-      updateSettings: (settings: Partial<{
-        repository: { branchTemplate?: string; pushOnCreate?: boolean };
-      }>) => Promise<{
+      updateSettings: (
+        settings: Partial<{
+          repository: { branchTemplate?: string; pushOnCreate?: boolean };
+        }>
+      ) => Promise<{
         success: boolean;
         settings?: {
           repository: { branchTemplate: string; pushOnCreate: boolean };

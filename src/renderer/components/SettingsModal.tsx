@@ -116,9 +116,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         label: 'Repository',
         title: 'Repository',
         description: '',
-        sections: [
-          { title: 'Branch creation', render: () => <RepositorySettingsCard /> },
-        ],
+        sections: [{ title: 'Branch creation', render: () => <RepositorySettingsCard /> }],
       },
       connections: {
         icon: Cable,

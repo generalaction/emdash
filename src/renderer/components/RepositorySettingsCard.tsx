@@ -12,7 +12,7 @@ const DEFAULTS: RepoSettings = {
   pushOnCreate: true,
 };
 
-  const PLACEHOLDER_HELP =
+const PLACEHOLDER_HELP =
   'Use {slug} for the workspace name and {timestamp} for epoch milliseconds.';
 
 const RepositorySettingsCard: React.FC = () => {
@@ -41,22 +41,25 @@ const RepositorySettingsCard: React.FC = () => {
     void load();
   }, [load]);
 
-  const savePartial = useCallback(async (partial: Partial<RepoSettings>) => {
-    setSaving(true);
-    try {
-      const next = { ...settings, ...partial };
-      const res = await window.electronAPI.updateSettings({ repository: next });
-      if (res?.success && res.settings?.repository) {
-        const repo = res.settings.repository;
-        setSettings({
-          branchTemplate: repo.branchTemplate ?? DEFAULTS.branchTemplate,
-          pushOnCreate: repo.pushOnCreate ?? DEFAULTS.pushOnCreate,
-        });
+  const savePartial = useCallback(
+    async (partial: Partial<RepoSettings>) => {
+      setSaving(true);
+      try {
+        const next = { ...settings, ...partial };
+        const res = await window.electronAPI.updateSettings({ repository: next });
+        if (res?.success && res.settings?.repository) {
+          const repo = res.settings.repository;
+          setSettings({
+            branchTemplate: repo.branchTemplate ?? DEFAULTS.branchTemplate,
+            pushOnCreate: repo.pushOnCreate ?? DEFAULTS.pushOnCreate,
+          });
+        }
+      } finally {
+        setSaving(false);
       }
-    } finally {
-      setSaving(false);
-    }
-  }, [settings]);
+    },
+    [settings]
+  );
 
   const example = useMemo(() => {
     // lightweight preview using fake slug and timestamp
@@ -71,8 +74,7 @@ const RepositorySettingsCard: React.FC = () => {
         <span className="text-xs text-muted-foreground">New branch name template</span>
         <Input
           value={settings.branchTemplate}
-          onChange={(e) => setSettings((s) => ({ ...s, branchTemplate: e.target.value }))
-          }
+          onChange={(e) => setSettings((s) => ({ ...s, branchTemplate: e.target.value }))}
           onBlur={() => savePartial({ branchTemplate: settings.branchTemplate.trim() })}
           placeholder={DEFAULTS.branchTemplate}
           aria-label="New branch name template"
