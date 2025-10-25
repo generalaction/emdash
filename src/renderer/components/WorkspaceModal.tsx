@@ -12,6 +12,8 @@ import { type Provider } from '../types';
 import { Separator } from './ui/separator';
 import { type LinearIssueSummary } from '../types/linear';
 import { LinearIssueSelector } from './LinearIssueSelector';
+import JiraIssueSelector from './JiraIssueSelector';
+import { type JiraIssueSummary } from '../types/jira';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
@@ -20,7 +22,8 @@ interface WorkspaceModalProps {
     name: string,
     initialPrompt?: string,
     selectedProvider?: Provider,
-    linkedIssue?: LinearIssueSummary | null
+    linkedIssue?: LinearIssueSummary | null,
+    linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -43,6 +46,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [touched, setTouched] = useState(false);
   const [initialPrompt, setInitialPrompt] = useState('');
   const [selectedIssue, setSelectedIssue] = useState<LinearIssueSummary | null>(null);
+  const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
   const normalizedExisting = existingNames.map((n) => n.toLowerCase());
@@ -147,7 +151,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           convertToWorkspaceName(workspaceName),
                           showAdvanced ? initialPrompt.trim() || undefined : undefined,
                           selectedProvider,
-                          selectedIssue
+                          selectedIssue,
+                          selectedJiraIssue
                         );
                         setWorkspaceName('');
                         setInitialPrompt('');
@@ -257,6 +262,22 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               />
                             </div>
                           </div>
+                          <div className="flex items-start gap-4">
+                            <label
+                              htmlFor="jira-issue"
+                              className="w-32 shrink-0 pt-2 text-sm font-medium text-foreground"
+                            >
+                              Jira issue
+                            </label>
+                            <div className="min-w-0 flex-1">
+                              <JiraIssueSelector
+                                selectedIssue={selectedJiraIssue}
+                                onIssueChange={setSelectedJiraIssue}
+                                isOpen={isOpen && showAdvanced}
+                                className="w-full"
+                              />
+                            </div>
+                          </div>
                         </div>
                         <div className="flex items-start gap-4">
                           <label
@@ -273,7 +294,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               placeholder={
                                 selectedIssue
                                   ? `e.g. Fix the attached Linear ticket ${selectedIssue.identifier} — describe any constraints.`
-                                  : `e.g. Summarize the key problems and propose a plan.`
+                                  : selectedJiraIssue
+                                    ? `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`
+                                    : `e.g. Summarize the key problems and propose a plan.`
                               }
                               className="min-h-[80px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none"
                               rows={3}

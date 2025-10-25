@@ -1,7 +1,9 @@
 import { type LinearIssueSummary } from './linear';
+import { type JiraIssueSummary } from './jira';
 
 export interface WorkspaceMetadata {
   linearIssue?: LinearIssueSummary | null;
+  jiraIssue?: JiraIssueSummary | null;
   initialPrompt?: string | null;
 }
 

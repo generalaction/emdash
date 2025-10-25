@@ -299,6 +299,29 @@ declare global {
         issues?: any[];
         error?: string;
       }>;
+      // Jira integration
+      jiraSaveCredentials?: (args: {
+        siteUrl: string;
+        email: string;
+        token: string;
+      }) => Promise<{ success: boolean; displayName?: string; error?: string }>;
+      jiraClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      jiraCheckConnection?: () => Promise<{
+        connected: boolean;
+        displayName?: string;
+        siteUrl?: string;
+        error?: string;
+      }>;
+      jiraInitialFetch?: (limit?: number) => Promise<{
+        success: boolean;
+        issues?: any[];
+        error?: string;
+      }>;
+      jiraSearchIssues?: (
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      jiraSetProjectKey?: (projectKey: string) => Promise<{ success: boolean; error?: string }>;
       getCliProviders?: () => Promise<{
         success: boolean;
         providers?: Array<{

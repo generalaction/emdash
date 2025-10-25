@@ -2,8 +2,10 @@ import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { type Provider } from '../types';
 import { type LinearIssueSummary } from '../types/linear';
+import { type JiraIssueSummary } from '../types/jira';
 import openaiLogo from '../../assets/images/openai.png';
 import linearLogo from '../../assets/images/linear.png';
+import jiraLogo from '../../assets/images/jira.png';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Check } from 'lucide-react';
 import claudeLogo from '../../assets/images/claude.png';
@@ -22,6 +24,7 @@ import PlanModeToggle from './PlanModeToggle';
 type Props = {
   provider: Provider;
   linearIssue?: LinearIssueSummary | null;
+  jiraIssue?: JiraIssueSummary | null;
   planModeEnabled?: boolean;
   onPlanModeChange?: (next: boolean) => void;
   onApprovePlan?: () => void;
@@ -30,6 +33,7 @@ type Props = {
 export const ProviderBar: React.FC<Props> = ({
   provider,
   linearIssue,
+  jiraIssue,
   planModeEnabled,
   onPlanModeChange,
   onApprovePlan,
@@ -165,6 +169,58 @@ export const ProviderBar: React.FC<Props> = ({
                                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                                 <span className="sr-only">Open in Linear</span>
                               </a>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
+              {jiraIssue ? (
+                <TooltipProvider delayDuration={250}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-gray-200 bg-gray-100 px-2 text-xs text-foreground dark:border-gray-700 dark:bg-gray-700"
+                        title={`${jiraIssue.key} — ${jiraIssue.summary || ''}`}
+                        onClick={() => {
+                          try {
+                            if (jiraIssue.url)
+                              (window as any).electronAPI?.openExternal?.(jiraIssue.url);
+                          } catch {}
+                        }}
+                      >
+                        <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
+                        <span className="font-medium">{jiraIssue.key}</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-sm">
+                      <div className="text-xs">
+                        <div className="mb-1.5 flex min-w-0 items-center gap-2">
+                          <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
+                            <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
+                            <span className="text-[11px] font-medium text-foreground">{jiraIssue.key}</span>
+                          </span>
+                          {jiraIssue.summary ? (
+                            <span className="truncate text-foreground">{jiraIssue.summary}</span>
+                          ) : null}
+                        </div>
+                        <div className="space-y-0.5 text-muted-foreground">
+                          {jiraIssue.status?.name ? (
+                            <div>
+                              <span className="font-medium">Status:</span> {jiraIssue.status.name}
+                            </div>
+                          ) : null}
+                          {jiraIssue.assignee?.displayName || jiraIssue.assignee?.name ? (
+                            <div>
+                              <span className="font-medium">Assignee:</span> {jiraIssue.assignee?.displayName || jiraIssue.assignee?.name}
+                            </div>
+                          ) : null}
+                          {jiraIssue.project?.key ? (
+                            <div>
+                              <span className="font-medium">Project:</span> {jiraIssue.project?.key}
                             </div>
                           ) : null}
                         </div>

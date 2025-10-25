@@ -3,7 +3,10 @@ import { Loader2 } from 'lucide-react';
 import IntegrationRow from './IntegrationRow';
 import { Input } from './ui/input';
 import { useGithubAuth } from '../hooks/useGithubAuth';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Info } from 'lucide-react';
 import linearLogo from '../../assets/images/linear-icon.png';
+import jiraLogo from '../../assets/images/jira.png';
 import githubLogo from '../../assets/images/github.png';
 
 type LinearState = {
@@ -32,6 +35,15 @@ const IntegrationsCard: React.FC = () => {
   );
   const { installed, authenticated, user, isLoading, login, checkStatus } = useGithubAuth();
   const [githubError, setGithubError] = useState<string | null>(null);
+  // Jira state
+  const [jiraSite, setJiraSite] = useState('');
+  const [jiraEmail, setJiraEmail] = useState('');
+  const [jiraToken, setJiraToken] = useState('');
+  const [jiraStatus, setJiraStatus] = useState<'checking' | 'connected' | 'disconnected' | 'error'>('checking');
+  const [jiraDetail, setJiraDetail] = useState<string | null>(null);
+  const [jiraError, setJiraError] = useState<string | null>(null);
+  const [jiraSetupOpen, setJiraSetupOpen] = useState(false);
+  const [jiraProjectKey, setJiraProjectKey] = useState('');
   const updateLinearState = useCallback((updater: (prev: LinearState) => LinearState) => {
     setLinearState((prev) => {
       const next = updater(prev);
@@ -77,6 +89,38 @@ const IntegrationsCard: React.FC = () => {
     if (cachedLinearState) return;
     loadLinearStatus();
   }, [loadLinearStatus]);
+
+  // Jira connection load
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const api: any = (window as any).electronAPI;
+        if (!api?.jiraCheckConnection) {
+          setJiraStatus('error');
+          // setJiraError('Jira integration unavailable.');
+          return;
+        }
+        const res = await api.jiraCheckConnection();
+        if (cancel) return;
+        if (res?.connected) {
+          setJiraStatus('connected');
+          setJiraDetail(res?.displayName || res?.siteUrl || 'Connected');
+          if ((res as any)?.projectKey) setJiraProjectKey((res as any).projectKey);
+        } else {
+          setJiraStatus('disconnected');
+        }
+      } catch (e) {
+        if (!cancel) {
+          setJiraStatus('error');
+          setJiraError('Unable to verify Jira connection.');
+        }
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, []);
 
   const handleLinearInputChange = useCallback(
     (value: string) => {
@@ -333,6 +377,156 @@ const IntegrationsCard: React.FC = () => {
       {githubError ? (
         <p className="text-xs text-red-600" role="alert">
           {githubError}
+        </p>
+      ) : null}
+
+      <IntegrationRow
+        logoSrc={jiraLogo}
+        name="Jira"
+        accountLabel={jiraDetail ?? undefined}
+        status={
+          jiraStatus === 'checking'
+            ? 'loading'
+            : jiraStatus === 'connected'
+              ? 'connected'
+              : jiraStatus === 'error'
+                ? 'error'
+                : 'disconnected'
+        }
+        middle={
+          jiraStatus === 'connected' ? (
+            <div className="flex w-full max-w-[540px] items-center gap-2">
+              <span className="text-sm text-muted-foreground">Connected</span>
+              <div className="ml-auto flex items-center gap-2">
+                <Input
+                  placeholder="Project key (e.g., KAN)"
+                  value={jiraProjectKey}
+                  onChange={(e) => setJiraProjectKey(e.target.value.toUpperCase())}
+                  className="h-8 w-[180px]"
+                />
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
+                  onClick={async () => {
+                    setJiraError(null);
+                    try {
+                      const api: any = (window as any).electronAPI;
+                      const res = await api?.jiraSetProjectKey?.(jiraProjectKey.trim());
+                      if (!res?.success) setJiraError(res?.error || 'Failed to save project key.');
+                    } catch (e: any) {
+                      setJiraError(e?.message || 'Failed to save project key.');
+                    }
+                  }}
+                  disabled={!jiraProjectKey.trim()}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : jiraSetupOpen ? (
+            <div className="flex w-full max-w-[540px] flex-col gap-2 sm:flex-row sm:items-center">
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground hover:text-foreground"
+                      title="How to get Jira credentials"
+                    >
+                      <Info className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-sm whitespace-pre-line text-xs leading-snug">
+                    {`Setup:
+1) Site URL: open your Jira in the browser and copy the base URL (e.g. https://your-domain.atlassian.net).
+2) Email: the Atlassian account email you use to sign in.
+3) API token: create one at https://id.atlassian.com/manage-profile/security/api-tokens → Create API token → Copy.`}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Input
+                placeholder="https://your-domain.atlassian.net"
+                value={jiraSite}
+                onChange={(e) => setJiraSite(e.target.value)}
+                className="h-8 flex-1"
+              />
+              <Input
+                placeholder="email@example.com"
+                value={jiraEmail}
+                onChange={(e) => setJiraEmail(e.target.value)}
+                className="h-8 flex-1"
+              />
+              <Input
+                type="password"
+                placeholder="API token"
+                value={jiraToken}
+                onChange={(e) => setJiraToken(e.target.value)}
+                className="h-8 flex-1"
+              />
+            </div>
+          ) : null
+        }
+        rightExtra={
+          jiraStatus !== 'connected' && !jiraSetupOpen ? (
+            <button
+              type="button"
+              className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
+              onClick={() => setJiraSetupOpen(true)}
+            >
+              Set up Jira
+            </button>
+          ) : null
+        }
+        showStatusPill={false}
+        onConnect={async () => {
+          try {
+            setJiraError(null);
+            const api: any = (window as any).electronAPI;
+            const res = await api?.jiraSaveCredentials?.({
+              siteUrl: jiraSite.trim(),
+              email: jiraEmail.trim(),
+              token: jiraToken.trim(),
+            });
+            if (res?.success) {
+              setJiraStatus('connected');
+              setJiraDetail(res?.displayName || jiraSite.trim());
+              setJiraSite('');
+              setJiraEmail('');
+              setJiraToken('');
+              setJiraSetupOpen(false);
+            } else {
+              setJiraStatus('error');
+              setJiraError(res?.error || 'Failed to connect.');
+            }
+          } catch (e: any) {
+            setJiraStatus('error');
+            setJiraError(e?.message || 'Failed to connect.');
+          }
+        }}
+        connectDisabled={!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
+        connectContent={'Connect'}
+        onDisconnect={
+          jiraStatus === 'connected'
+            ? async () => {
+                try {
+                  const api: any = (window as any).electronAPI;
+                  const res = await api?.jiraClearCredentials?.();
+                  if (res?.success) {
+                    setJiraStatus('disconnected');
+                    setJiraDetail(null);
+                    setJiraSetupOpen(false);
+                  } else {
+                    setJiraError(res?.error || 'Failed to disconnect.');
+                  }
+                } catch (e: any) {
+                  setJiraError(e?.message || 'Failed to disconnect.');
+                }
+              }
+            : undefined
+        }
+      />
+      {jiraError ? (
+        <p className="text-xs text-red-600" role="alert">
+          {jiraError}
         </p>
       ) : null}
     </div>
