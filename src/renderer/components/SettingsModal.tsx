@@ -3,12 +3,13 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
-import { X, Settings2, Cable, RefreshCw } from 'lucide-react';
+import { X, Settings2, Cable, RefreshCw, GitBranch } from 'lucide-react';
 import VersionCard from './VersionCard';
 import IntegrationsCard from './IntegrationsCard';
 import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
 import TelemetryCard from './TelemetryCard';
 import ThemeCard from './ThemeCard';
+import RepositorySettingsCard from './RepositorySettingsCard';
 import { CliProviderStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
@@ -37,7 +38,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general' | 'connections';
+type SettingsTab = 'general' | 'repository' | 'connections';
 
 interface SettingsSection {
   title: string;
@@ -46,7 +47,7 @@ interface SettingsSection {
   render?: () => React.ReactNode;
 }
 
-const ORDERED_TABS: SettingsTab[] = ['general', 'connections'];
+const ORDERED_TABS: SettingsTab[] = ['general', 'repository', 'connections'];
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -109,6 +110,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'Version', render: () => <VersionCard /> },
           { title: 'Theme', render: () => <ThemeCard /> },
         ],
+      },
+      repository: {
+        icon: GitBranch,
+        label: 'Repository',
+        title: 'Repository',
+        description: '',
+        sections: [{ title: 'Branch creation', render: () => <RepositorySettingsCard /> }],
       },
       connections: {
         icon: Cable,

@@ -76,6 +76,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
+  // App settings
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
+
   // Worktree management
   worktreeCreate: (args: { projectPath: string; workspaceName: string; projectId: string }) =>
     ipcRenderer.invoke('worktree:create', args),

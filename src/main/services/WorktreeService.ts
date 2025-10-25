@@ -52,7 +52,13 @@ export class WorktreeService {
     try {
       const sluggedName = this.slugify(workspaceName);
       const timestamp = Date.now();
-      const branchName = `agent/${sluggedName}-${timestamp}`;
+      const { getAppSettings } = await import('../settings');
+      const settings = getAppSettings();
+      const template = settings?.repository?.branchTemplate || 'agent/{slug}-{timestamp}';
+      const branchName = this.renderBranchNameTemplate(template, {
+        slug: sluggedName,
+        timestamp: String(timestamp),
+      });
       const worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${timestamp}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 
@@ -106,14 +112,16 @@ export class WorktreeService {
       log.info(`Created worktree: ${workspaceName} -> ${branchName}`);
 
       // Push the new branch to origin and set upstream so PRs work out of the box
-      try {
-        await execFileAsync('git', ['push', '--set-upstream', 'origin', branchName], {
-          cwd: worktreePath,
-        });
-        log.info(`Pushed branch ${branchName} to origin with upstream tracking`);
-      } catch (pushErr) {
-        log.warn('Initial push of worktree branch failed:', pushErr as any);
-        // Don't fail worktree creation if push fails - user can push manually later
+      if (settings?.repository?.pushOnCreate !== false) {
+        try {
+          await execFileAsync('git', ['push', '--set-upstream', 'origin', branchName], {
+            cwd: worktreePath,
+          });
+          log.info(`Pushed branch ${branchName} to origin with upstream tracking`);
+        } catch (pushErr) {
+          log.warn('Initial push of worktree branch failed:', pushErr as any);
+          // Don't fail worktree creation if push fails - user can push manually later
+        }
       }
 
       return worktreeInfo;
@@ -134,6 +142,14 @@ export class WorktreeService {
 
       const worktrees: WorktreeInfo[] = [];
       const lines = stdout.trim().split('\n');
+      // Compute managed prefixes based on configured template
+      let managedPrefixes: string[] = ['agent', 'pr', 'orch'];
+      try {
+        const { getAppSettings } = await import('../settings');
+        const settings = getAppSettings();
+        const p = this.extractTemplatePrefix(settings?.repository?.branchTemplate);
+        if (p) managedPrefixes = Array.from(new Set([p, ...managedPrefixes]));
+      } catch {}
 
       for (const line of lines) {
         if (line.includes('[') && line.includes(']')) {
@@ -142,8 +158,15 @@ export class WorktreeService {
           const branchMatch = line.match(/\[([^\]]+)\]/);
           const branch = branchMatch ? branchMatch[1] : 'unknown';
 
-          const managedBranch =
-            branch.startsWith('agent/') || branch.startsWith('pr/') || branch.startsWith('orch/');
+          const managedBranch = managedPrefixes.some((pf) => {
+            return (
+              branch.startsWith(pf + '/') ||
+              branch.startsWith(pf + '-') ||
+              branch.startsWith(pf + '_') ||
+              branch.startsWith(pf + '.') ||
+              branch === pf
+            );
+          });
 
           if (!managedBranch) {
             const tracked = Array.from(this.worktrees.values()).find(
@@ -175,6 +198,57 @@ export class WorktreeService {
       log.error('Failed to list worktrees:', error);
       return [];
     }
+  }
+
+  /**
+   * Render a branch name from a user-configurable template.
+   * Supported placeholders: {slug}, {timestamp}
+   */
+  private renderBranchNameTemplate(
+    template: string,
+    ctx: { slug: string; timestamp: string }
+  ): string {
+    const replaced = template
+      .replace(/\{slug\}/g, ctx.slug)
+      .replace(/\{timestamp\}/g, ctx.timestamp);
+    return this.sanitizeBranchName(replaced);
+  }
+
+  /**
+   * Best-effort sanitization to ensure the branch name is a valid ref.
+   */
+  private sanitizeBranchName(name: string): string {
+    // Disallow illegal characters for Git refs, keep common allowed set including '/','-','_','.'
+    let n = name
+      .replace(/\s+/g, '-')
+      .replace(/[^A-Za-z0-9._\/-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/\/+/g, '/');
+    // No leading or trailing separators or dots
+    n = n.replace(/^[./-]+/, '').replace(/[./-]+$/, '');
+    // Avoid reserved ref names
+    if (!n || n === 'HEAD') {
+      n = `agent/${this.slugify('workspace')}-${Date.now()}`;
+    }
+    return n;
+  }
+
+  /**
+   * Extract a stable prefix from the user template, if any, prior to the first placeholder.
+   * E.g. 'agent/{slug}-{timestamp}' -> 'agent'
+   */
+  private extractTemplatePrefix(template?: string): string | null {
+    if (!template || typeof template !== 'string') return null;
+    const idx = template.indexOf('{');
+    const head = (idx >= 0 ? template.slice(0, idx) : template).trim();
+    const cleaned = head.replace(/\s+/g, '');
+    if (!cleaned) return null;
+    // If there's a slash in the head, take the segment before the first slash
+    const seg = cleaned
+      .split('/')[0]
+      ?.replace(/^[./-]+/, '')
+      .replace(/[./-]+$/, '');
+    return seg || null;
   }
 
   /**
