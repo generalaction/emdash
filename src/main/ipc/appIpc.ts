@@ -150,8 +150,7 @@ export function registerAppIpc() {
         if (which === 'ghostty')
           msg = 'Ghostty is not installed or not available on this platform.';
         if (which === 'zed') msg = 'Zed is not installed or not available on this platform.';
-        if (which === 'iterm2')
-          msg = 'iTerm2 is not installed or not available on this platform.';
+        if (which === 'iterm2') msg = 'iTerm2 is not installed or not available on this platform.';
         return { success: false, error: msg };
       }
     }
