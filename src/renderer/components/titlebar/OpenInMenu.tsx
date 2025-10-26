@@ -38,7 +38,13 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
       const res = await (window as any).electronAPI?.openIn?.({ app, path });
       if (!res?.success) {
         const pretty =
-          app === 'ghostty' ? 'Ghostty' : app === 'zed' ? 'Zed' : app === 'vscode' ? 'VS Code' : app;
+          app === 'ghostty'
+            ? 'Ghostty'
+            : app === 'zed'
+              ? 'Zed'
+              : app === 'vscode'
+                ? 'VS Code'
+                : app;
         toast({
           title: `Open in ${pretty} failed`,
           description:
