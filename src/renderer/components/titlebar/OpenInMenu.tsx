@@ -8,6 +8,7 @@ import finderLogo from '../../../assets/images/finder.png';
 import terminalLogo from '../../../assets/images/terminal.png';
 import zedLogo from '../../../assets/images/zed.png';
 import ghosttyLogo from '../../../assets/images/ghostty.png';
+import vscodeLogo from '../../../assets/images/vscode.png';
 
 interface OpenInMenuProps {
   path: string;
@@ -36,7 +37,8 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
     try {
       const res = await (window as any).electronAPI?.openIn?.({ app, path });
       if (!res?.success) {
-        const pretty = app === 'ghostty' ? 'Ghostty' : app === 'zed' ? 'Zed' : app;
+        const pretty =
+          app === 'ghostty' ? 'Ghostty' : app === 'zed' ? 'Zed' : app === 'vscode' ? 'VS Code' : app;
         toast({
           title: `Open in ${pretty} failed`,
           description:
@@ -50,7 +52,8 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         });
       }
     } catch (e: any) {
-      const pretty = app === 'ghostty' ? 'Ghostty' : app === 'zed' ? 'Zed' : app;
+      const pretty =
+        app === 'ghostty' ? 'Ghostty' : app === 'zed' ? 'Zed' : app === 'vscode' ? 'VS Code' : app;
       toast({
         title: `Open in ${pretty} failed`,
         description: e?.message || String(e),
@@ -103,6 +106,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
             <button className={menuItemBase} role="menuitem" onClick={() => callOpen('cursor')}>
               <img src={cursorLogo} alt="Cursor" className="h-4 w-4" />
               <span>Cursor</span>
+            </button>
+            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('vscode')}>
+              <img src={vscodeLogo} alt="VS Code" className="h-4 w-4 rounded" />
+              <span>VS Code</span>
             </button>
             <button className={menuItemBase} role="menuitem" onClick={() => callOpen('terminal')}>
               <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
