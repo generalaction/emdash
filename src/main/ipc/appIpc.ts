@@ -20,7 +20,10 @@ export function registerAppIpc() {
     'app:openIn',
     async (
       _event,
-      args: { app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed'; path: string }
+      args: {
+        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
+        path: string;
+      }
     ) => {
       const target = args?.path;
       const which = args?.app;
@@ -56,6 +59,14 @@ export function registerAppIpc() {
               // Open Terminal app at the target directory
               // This should open a new tab/window with CWD set to target
               command = `open -a Terminal ${quoted(target)}`;
+              break;
+            case 'iterm2':
+              // iTerm2 by bundle id, then by app name
+              command = [
+                `open -b com.googlecode.iterm2 ${quoted(target)}`,
+                `open -a "iTerm" ${quoted(target)}`,
+                `open -a "iTerm2" ${quoted(target)}`,
+              ].join(' || ');
               break;
             case 'ghostty':
               // Prefer ghostty CLI when available; otherwise use open -a with args
@@ -109,6 +120,8 @@ export function registerAppIpc() {
             case 'zed':
               command = `zed ${quoted(target)} || xdg-open ${quoted(target)}`;
               break;
+            case 'iterm2':
+              return { success: false, error: 'iTerm2 is only available on macOS' } as any;
           }
         }
 
@@ -124,12 +137,20 @@ export function registerAppIpc() {
         });
         return { success: true };
       } catch (error) {
-        const pretty = which === 'ghostty' ? 'Ghostty' : which === 'zed' ? 'Zed' : which.toString();
+        const pretty =
+          which === 'ghostty'
+            ? 'Ghostty'
+            : which === 'zed'
+              ? 'Zed'
+              : which === 'iterm2'
+                ? 'iTerm2'
+                : which.toString();
         // Return short, friendly copy instead of the full command output
         let msg = `Unable to open in ${pretty}`;
         if (which === 'ghostty')
           msg = 'Ghostty is not installed or not available on this platform.';
         if (which === 'zed') msg = 'Zed is not installed or not available on this platform.';
+        if (which === 'iterm2') msg = 'iTerm2 is not installed or not available on this platform.';
         return { success: false, error: msg };
       }
     }

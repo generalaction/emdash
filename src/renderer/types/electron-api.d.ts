@@ -181,7 +181,7 @@ declare global {
       }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
-        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed';
+        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
         path: string;
       }) => Promise<{ success: boolean; error?: string }>;
       connectToGitHub: (projectPath: string) => Promise<{
