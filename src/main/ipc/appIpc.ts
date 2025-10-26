@@ -43,7 +43,14 @@ export function registerAppIpc() {
               command = `command -v cursor >/dev/null 2>&1 && cursor ${quoted(target)} || open -a "Cursor" ${quoted(target)}`;
               break;
             case 'vscode':
-              command = `command -v code >/dev/null 2>&1 && code ${quoted(target)} || open -a "Visual Studio Code" ${quoted(target)}`;
+              // Try CLI first, then open by bundle id (handles non-standard app name/locations),
+              // then fall back to app name, and finally VS Code Insiders.
+              command = [
+                `command -v code >/dev/null 2>&1 && code ${quoted(target)}`,
+                `open -b com.microsoft.VSCode --args ${quoted(target)}`,
+                `open -b com.microsoft.VSCodeInsiders --args ${quoted(target)}`,
+                `open -a "Visual Studio Code" ${quoted(target)}`,
+              ].join(' || ');
               break;
             case 'terminal':
               // Open Terminal app at the target directory
@@ -68,7 +75,8 @@ export function registerAppIpc() {
               command = `start "" cursor ${quoted(target)}`;
               break;
             case 'vscode':
-              command = `start "" code ${quoted(target)}`;
+              // Try stable CLI, then Insiders CLI
+              command = `start "" code ${quoted(target)} || start "" code-insiders ${quoted(target)}`;
               break;
             case 'terminal':
               // Prefer Windows Terminal if available, fallback to cmd
@@ -88,7 +96,8 @@ export function registerAppIpc() {
               command = `cursor ${quoted(target)}`;
               break;
             case 'vscode':
-              command = `code ${quoted(target)}`;
+              // Try stable CLI, then Insiders CLI
+              command = `code ${quoted(target)} || code-insiders ${quoted(target)}`;
               break;
             case 'terminal':
               // Try x-terminal-emulator as a generic launcher
