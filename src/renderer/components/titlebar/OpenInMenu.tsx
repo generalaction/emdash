@@ -9,6 +9,7 @@ import terminalLogo from '../../../assets/images/terminal.png';
 import zedLogo from '../../../assets/images/zed.png';
 import ghosttyLogo from '../../../assets/images/ghostty.png';
 import vscodeLogo from '../../../assets/images/vscode.png';
+import iterm2Logo from '../../../assets/images/iterm2.png';
 
 interface OpenInMenuProps {
   path: string;
@@ -33,7 +34,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  const callOpen = async (app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed') => {
+  const callOpen = async (
+    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2'
+  ) => {
     try {
       const res = await (window as any).electronAPI?.openIn?.({ app, path });
       if (!res?.success) {
@@ -44,7 +47,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               ? 'Zed'
               : app === 'vscode'
                 ? 'VS Code'
-                : app;
+                : app === 'iterm2'
+                  ? 'iTerm2'
+                  : app;
         toast({
           title: `Open in ${pretty} failed`,
           description:
@@ -53,13 +58,23 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               ? 'Ghostty is not installed or not available on this platform.'
               : app === 'zed'
                 ? 'Zed is not installed or not available on this platform.'
-                : 'Application not available.'),
+                : app === 'iterm2'
+                  ? 'iTerm2 is not installed or not available on this platform.'
+                  : 'Application not available.'),
           variant: 'destructive',
         });
       }
     } catch (e: any) {
       const pretty =
-        app === 'ghostty' ? 'Ghostty' : app === 'zed' ? 'Zed' : app === 'vscode' ? 'VS Code' : app;
+        app === 'ghostty'
+          ? 'Ghostty'
+          : app === 'zed'
+            ? 'Zed'
+            : app === 'vscode'
+              ? 'VS Code'
+              : app === 'iterm2'
+                ? 'iTerm2'
+                : app;
       toast({
         title: `Open in ${pretty} failed`,
         description: e?.message || String(e),
@@ -120,6 +135,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
             <button className={menuItemBase} role="menuitem" onClick={() => callOpen('terminal')}>
               <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
               <span>Terminal</span>
+            </button>
+            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('iterm2')}>
+              <img src={iterm2Logo} alt="iTerm2" className="h-4 w-4 rounded" />
+              <span>iTerm2</span>
             </button>
             <button className={menuItemBase} role="menuitem" onClick={() => callOpen('ghostty')}>
               <img src={ghosttyLogo} alt="Ghostty" className="h-4 w-4 rounded" />

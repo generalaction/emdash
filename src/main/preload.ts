@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Open a path in a specific app
   openIn: (args: {
-    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed';
+    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
     path: string;
   }) => ipcRenderer.invoke('app:openIn', args),
 
