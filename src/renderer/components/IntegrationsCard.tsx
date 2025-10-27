@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 import IntegrationRow from './IntegrationRow';
 import { Input } from './ui/input';
 import { useGithubAuth } from '../hooks/useGithubAuth';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { Info } from 'lucide-react';
+import { menuMotion } from './ui/motion';
 import linearLogo from '../../assets/images/linear-icon.png';
 import jiraLogo from '../../assets/images/jira.png';
+import JiraSetupForm from './integrations/JiraSetupForm';
 import githubLogo from '../../assets/images/github.png';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Info } from 'lucide-react';
 
 type LinearState = {
   checking: boolean;
@@ -43,6 +46,7 @@ const IntegrationsCard: React.FC = () => {
   const [jiraDetail, setJiraDetail] = useState<string | null>(null);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraSetupOpen, setJiraSetupOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
   const updateLinearState = useCallback((updater: (prev: LinearState) => LinearState) => {
     setLinearState((prev) => {
       const next = updater(prev);
@@ -396,7 +400,7 @@ const IntegrationsCard: React.FC = () => {
             <div className="flex w-full max-w-[540px] items-center gap-2">
               <span className="text-sm text-muted-foreground">Connected</span>
             </div>
-          ) : jiraSetupOpen ? (
+          ) : false ? (
             <div className="flex w-full max-w-[540px] flex-col gap-2 sm:flex-row sm:items-center">
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
@@ -439,44 +443,71 @@ const IntegrationsCard: React.FC = () => {
           ) : null
         }
         rightExtra={
-          jiraStatus !== 'connected' && !jiraSetupOpen ? (
-            <button
-              type="button"
-              className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
-              onClick={() => setJiraSetupOpen(true)}
-            >
-              Set up Jira
-            </button>
+          jiraStatus !== 'connected' ? (
+            <div>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
+                onClick={() => setJiraSetupOpen((v) => !v)}
+                aria-expanded={jiraSetupOpen}
+                aria-haspopup="dialog"
+              >
+                Connect Jira
+              </button>
+              <AnimatePresence>
+                {jiraSetupOpen ? (
+                  <motion.div
+                    role="dialog"
+                    aria-label="Jira setup"
+                    className="absolute right-0 top-full z-50 mt-2 w-[420px] md:w-[480px] max-w-[calc(100vw-3rem)] rounded-xl border border-border/60 bg-background/95 p-3 shadow-2xl ring-1 ring-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+                    style={{ transformOrigin: 'top right' }}
+                    {...(menuMotion(!!reduceMotion) as any)}
+                  >
+                    <JiraSetupForm
+                      site={jiraSite}
+                      email={jiraEmail}
+                      token={jiraToken}
+                      onChange={(u) => {
+                        if (typeof u.site === 'string') setJiraSite(u.site);
+                        if (typeof u.email === 'string') setJiraEmail(u.email);
+                        if (typeof u.token === 'string') setJiraToken(u.token);
+                      }}
+                      onClose={() => setJiraSetupOpen(false)}
+                      canSubmit={!!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
+                      error={jiraError}
+                      onSubmit={async () => {
+                        try {
+                          setJiraError(null);
+                          const api: any = (window as any).electronAPI;
+                          const res = await api?.jiraSaveCredentials?.({
+                            siteUrl: jiraSite.trim(),
+                            email: jiraEmail.trim(),
+                            token: jiraToken.trim(),
+                          });
+                          if (res?.success) {
+                            setJiraStatus('connected');
+                            setJiraDetail(res?.displayName || jiraSite.trim());
+                            setJiraSite('');
+                            setJiraEmail('');
+                            setJiraToken('');
+                            setJiraSetupOpen(false);
+                          } else {
+                            setJiraStatus('error');
+                            setJiraError(res?.error || 'Failed to connect.');
+                          }
+                        } catch (e: any) {
+                          setJiraStatus('error');
+                          setJiraError(e?.message || 'Failed to connect.');
+                        }
+                      }}
+                    />
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
           ) : null
         }
         showStatusPill={false}
-        onConnect={async () => {
-          try {
-            setJiraError(null);
-            const api: any = (window as any).electronAPI;
-            const res = await api?.jiraSaveCredentials?.({
-              siteUrl: jiraSite.trim(),
-              email: jiraEmail.trim(),
-              token: jiraToken.trim(),
-            });
-            if (res?.success) {
-              setJiraStatus('connected');
-              setJiraDetail(res?.displayName || jiraSite.trim());
-              setJiraSite('');
-              setJiraEmail('');
-              setJiraToken('');
-              setJiraSetupOpen(false);
-            } else {
-              setJiraStatus('error');
-              setJiraError(res?.error || 'Failed to connect.');
-            }
-          } catch (e: any) {
-            setJiraStatus('error');
-            setJiraError(e?.message || 'Failed to connect.');
-          }
-        }}
-        connectDisabled={!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
-        connectContent={'Connect'}
         onDisconnect={
           jiraStatus === 'connected'
             ? async () => {

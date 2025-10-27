@@ -213,7 +213,7 @@ const JiraIssueSelector: React.FC<Props> = ({
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by key, summary, or assignee…"
+              placeholder="Search by key"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={disabled}
