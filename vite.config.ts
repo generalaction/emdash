@@ -23,6 +23,8 @@ export default defineConfig(({ command }) => ({
     },
   },
   server: {
-    port: 3000,
+    // Allow overriding with env VITE_PORT; default 3000. Keep strict to avoid port drift from Electron.
+    port: Number(process.env.VITE_PORT || process.env.PORT || '3000'),
+    strictPort: true,
   },
 }));

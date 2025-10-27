@@ -23,7 +23,12 @@ export function createMainWindow(): BrowserWindow {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    const devPort = Number(process.env.VITE_PORT || process.env.PORT || '3000');
+    try {
+      mainWindow.loadURL(`http://localhost:${devPort}`);
+    } catch (_e) {
+      mainWindow.loadURL('http://localhost:3000');
+    }
   } else {
     // renderer build outputs to dist/renderer
     mainWindow.loadFile(join(__dirname, '..', '..', 'renderer', 'index.html'));

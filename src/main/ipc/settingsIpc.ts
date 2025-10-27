@@ -11,18 +11,12 @@ export function registerSettingsIpc() {
     }
   });
 
-  ipcMain.handle(
-    'settings:update',
-    async (
-      _event,
-      partial: Partial<{ repository: { branchTemplate?: string; pushOnCreate?: boolean } }>
-    ) => {
-      try {
-        const settings = updateAppSettings((partial as Partial<AppSettings>) || {});
-        return { success: true, settings };
-      } catch (error) {
-        return { success: false, error: (error as Error).message };
-      }
+  ipcMain.handle('settings:update', async (_event, partial: Partial<AppSettings>) => {
+    try {
+      const settings = updateAppSettings(partial || {});
+      return { success: true, settings };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
     }
-  );
+  });
 }

@@ -11,6 +11,8 @@ export const projects = sqliteTable(
     gitBranch: text('git_branch'),
     githubRepository: text('github_repository'),
     githubConnected: integer('github_connected').notNull().default(0),
+    githubOwner: text('github_owner'),
+    createdBy: text('created_by'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

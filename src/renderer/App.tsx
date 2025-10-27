@@ -4,6 +4,7 @@ import { Button } from './components/ui/button';
 import { FolderOpen } from 'lucide-react';
 import LeftSidebar from './components/LeftSidebar';
 import ProjectMainView from './components/ProjectMainView';
+import GithubImportModal from './components/GithubImportModal';
 import WorkspaceModal from './components/WorkspaceModal';
 import ChatInterface from './components/ChatInterface';
 import { Toaster } from './components/ui/toaster';
@@ -154,7 +155,9 @@ interface Project {
   githubInfo?: {
     repository: string;
     connected: boolean;
+    owner?: string;
   };
+  createdBy?: string;
   workspaces?: Workspace[];
 }
 
@@ -217,6 +220,7 @@ const AppContent: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
+  const [showGithubImportModal, setShowGithubImportModal] = useState<boolean>(false);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [activeWorkspaceProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
@@ -571,14 +575,16 @@ const AppContent: React.FC = () => {
 
           if (isAuthenticated && isGithubRemote) {
             const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
-            if (githubInfo.success) {
-              const projectWithGithub = withRepoKey({
-                ...baseProject,
-                githubInfo: {
-                  repository: githubInfo.repository || '',
-                  connected: true,
-                },
-              });
+          if (githubInfo.success) {
+            const projectWithGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: githubInfo.repository || '',
+                connected: true,
+                owner: (githubInfo.repository || '').split('/')?.[0] || undefined,
+              },
+              createdBy: (user?.login || user?.name || undefined) as any,
+            });
 
               const saveResult = await window.electronAPI.saveProject(projectWithGithub);
               if (saveResult.success) {
@@ -608,6 +614,7 @@ const AppContent: React.FC = () => {
                 repository: isGithubRemote ? '' : '',
                 connected: false,
               },
+              createdBy: (user?.login || user?.name || undefined) as any,
             });
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
@@ -859,6 +866,101 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleOpenFromGitHub = useCallback(() => {
+    setShowGithubImportModal(true);
+  }, []);
+
+  const openProjectAtPath = useCallback(
+    async (absPath: string) => {
+      try {
+        const gitInfo = await window.electronAPI.getGitInfo(absPath);
+        const canonicalPath = gitInfo.rootPath || gitInfo.path || absPath;
+        const repoKey = normalizePathForComparison(canonicalPath);
+        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+
+        if (existingProject) {
+          activateProjectView(existingProject);
+          toast({
+            title: 'Project already open',
+            description: `"${existingProject.name}" is already in the sidebar.`,
+          });
+          return;
+        }
+
+        if (!gitInfo.isGitRepo) {
+          toast({
+            title: 'Import Complete',
+            description: `Cloned directory is not a Git repository. Path: ${canonicalPath}`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        const remoteUrl = gitInfo.remote || '';
+        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+        const projectName = canonicalPath.split(/[\/\\]/).filter(Boolean).pop() || 'Project';
+
+        const baseProject: Project = {
+          id: Date.now().toString(),
+          name: projectName,
+          path: canonicalPath,
+          repoKey,
+          gitInfo: {
+            isGitRepo: true,
+            remote: gitInfo.remote || undefined,
+            branch: gitInfo.branch || undefined,
+          },
+          workspaces: [],
+        };
+
+        if (isAuthenticated && isGithubRemote) {
+          const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+          if (githubInfo.success) {
+            const projectWithGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: { repository: githubInfo.repository || '', connected: true },
+            });
+            const saveResult = await window.electronAPI.saveProject(projectWithGithub);
+            if (saveResult.success) {
+              setProjects((prev) => [...prev, projectWithGithub]);
+              activateProjectView(projectWithGithub);
+            }
+          } else {
+            toast({
+              title: 'GitHub Connection Failed',
+              description: `Imported project, but GitHub connection failed: ${githubInfo.error}`,
+              variant: 'destructive',
+            });
+            const projectWithoutGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: { repository: '', connected: false },
+            });
+            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+            if (saveResult.success) {
+              setProjects((prev) => [...prev, projectWithoutGithub]);
+              activateProjectView(projectWithoutGithub);
+            }
+          }
+        } else {
+          const projectWithoutGithub = withRepoKey({
+            ...baseProject,
+            githubInfo: { repository: '', connected: false },
+          });
+          const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+          if (saveResult.success) {
+            setProjects((prev) => [...prev, projectWithoutGithub]);
+            activateProjectView(projectWithoutGithub);
+          }
+        }
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Open imported project failed:', error as any);
+        toast({ title: 'Open Project Failed', description: 'See console for details.', variant: 'destructive' });
+      }
+    },
+    [activateProjectView, getProjectRepoKey, isAuthenticated, normalizePathForComparison, projects, toast, withRepoKey]
+  );
+
   // PR checkout via PR list is disabled; handler removed
 
   const handleGoHome = () => {
@@ -1080,6 +1182,14 @@ const AppContent: React.FC = () => {
                 <FolderOpen className="mr-2 h-5 w-5" />
                 Open Project
               </Button>
+              <Button
+                onClick={handleOpenFromGitHub}
+                size="lg"
+                variant="secondary"
+                className="min-w-[200px]"
+              >
+                Open from GitHub
+              </Button>
             </div>
 
             {null}
@@ -1140,6 +1250,14 @@ const AppContent: React.FC = () => {
             <Button onClick={handleOpenProject} size="lg" className="min-w-[200px]">
               <FolderOpen className="mr-2 h-5 w-5" />
               Open Project
+            </Button>
+            <Button
+              onClick={handleOpenFromGitHub}
+              size="lg"
+              variant="secondary"
+              className="min-w-[200px]"
+            >
+              Open from GitHub
             </Button>
           </div>
 
@@ -1241,6 +1359,11 @@ const AppContent: React.FC = () => {
             </ResizablePanelGroup>
           </div>
           <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
+          <GithubImportModal
+            isOpen={showGithubImportModal}
+            onClose={() => setShowGithubImportModal(false)}
+            onImported={(p) => openProjectAtPath(p)}
+          />
           <CommandPaletteWrapper
             isOpen={showCommandPalette}
             onClose={handleCloseCommandPalette}
