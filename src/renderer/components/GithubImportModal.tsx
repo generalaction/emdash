@@ -10,7 +10,6 @@ import { useGithubAuth } from '../hooks/useGithubAuth';
 import { Spinner } from './ui/spinner';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Repository = {
   id: number;
@@ -335,14 +334,7 @@ export const GithubImportModal: React.FC<{
                         aria-label="Search repositories"
                       />
                     </div>
-                    <Select value={sortKey} onValueChange={(v) => setSortKey(v as any)}>
-                      <SelectTrigger className="w-[170px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
-                      <SelectContent align="end">
-                        <SelectItem value="updated">Recently updated</SelectItem>
-                        <SelectItem value="alpha">Alphabetical</SelectItem>
-                        <SelectItem value="stars">Stars</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {null}
                     <TooltipProvider delayDuration={250}>
                       <Tooltip>
                         <TooltipTrigger asChild>
