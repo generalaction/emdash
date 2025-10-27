@@ -436,6 +436,53 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       }
       return parts.join('\n');
     }
+
+    const gh = (md as any)?.githubIssue as
+      | {
+          number: number;
+          title?: string;
+          url?: string;
+          state?: string;
+          assignees?: any[];
+          labels?: any[];
+          body?: string;
+        }
+      | undefined;
+    if (gh) {
+      const parts: string[] = [];
+      const line1 = `Linked GitHub issue: #${gh.number}${gh.title ? ` — ${gh.title}` : ''}`;
+      parts.push(line1);
+      const details: string[] = [];
+      if (gh.state) details.push(`State: ${gh.state}`);
+      try {
+        const as = Array.isArray(gh.assignees)
+          ? gh.assignees
+              .map((a: any) => a?.name || a?.login)
+              .filter(Boolean)
+              .join(', ')
+          : '';
+        if (as) details.push(`Assignees: ${as}`);
+      } catch {}
+      try {
+        const ls = Array.isArray(gh.labels)
+          ? gh.labels
+              .map((l: any) => l?.name)
+              .filter(Boolean)
+              .join(', ')
+          : '';
+        if (ls) details.push(`Labels: ${ls}`);
+      } catch {}
+      if (details.length) parts.push(`Details: ${details.join(' • ')}`);
+      if (gh.url) parts.push(`URL: ${gh.url}`);
+      const body = typeof gh.body === 'string' ? gh.body.trim() : '';
+      if (body) {
+        const max = 1500;
+        const clipped = body.length > max ? body.slice(0, max) + '\n…' : body;
+        parts.push('', 'Issue Description:', clipped);
+      }
+      return parts.join('\n');
+    }
+
     const j = md?.jiraIssue as any;
     if (j) {
       const lines: string[] = [];
@@ -597,6 +644,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         <ProviderBar
           provider={provider}
           linearIssue={workspace.metadata?.linearIssue || null}
+          githubIssue={workspace.metadata?.githubIssue || null}
+          jiraIssue={workspace.metadata?.jiraIssue || null}
           planModeEnabled={planEnabled}
           onPlanModeChange={setPlanEnabled}
           onApprovePlan={async () => {

@@ -170,6 +170,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     branchName?: string;
   }) => ipcRenderer.invoke('github:createPullRequestWorktree', args),
   githubLogout: () => ipcRenderer.invoke('github:logout'),
+  // GitHub issues
+  githubIssuesList: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('github:issues:list', projectPath, limit),
+  githubIssuesSearch: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('github:issues:search', projectPath, searchTerm, limit),
+  githubIssueGet: (projectPath: string, number: number) =>
+    ipcRenderer.invoke('github:issues:get', projectPath, number),
   // Linear integration
   linearSaveToken: (token: string) => ipcRenderer.invoke('linear:saveToken', token),
   linearCheckConnection: () => ipcRenderer.invoke('linear:checkConnection'),
