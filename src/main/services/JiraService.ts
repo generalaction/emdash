@@ -4,7 +4,7 @@ import { app } from 'electron';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
-type JiraCreds = { siteUrl: string; email: string; projectKey?: string };
+type JiraCreds = { siteUrl: string; email: string };
 
 function encodeBasic(email: string, token: string) {
   const raw = `${email}:${token}`;
@@ -16,7 +16,6 @@ export interface JiraConnectionStatus {
   accountId?: string;
   displayName?: string;
   siteUrl?: string;
-  projectKey?: string;
   error?: string;
 }
 
@@ -32,32 +31,20 @@ export default class JiraService {
       const obj = JSON.parse(raw);
       const siteUrl = String(obj?.siteUrl || '').trim();
       const email = String(obj?.email || '').trim();
-      const projectKey = String(obj?.projectKey || '').trim() || undefined;
       if (!siteUrl || !email) return null;
-      return { siteUrl, email, projectKey };
+      return { siteUrl, email };
     } catch {
       return null;
     }
   }
 
   private writeCreds(creds: JiraCreds) {
-    const { siteUrl, email, projectKey } = creds;
+    const { siteUrl, email } = creds;
     const obj: any = { siteUrl, email };
-    if (projectKey) obj.projectKey = projectKey;
     writeFileSync(this.CONF_FILE, JSON.stringify(obj), 'utf8');
   }
 
-  async saveProjectKey(projectKey: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const creds = this.readCreds();
-      if (!creds) return { success: false, error: 'Jira is not connected.' };
-      const normalized = String(projectKey || '').trim().toUpperCase();
-      this.writeCreds({ ...creds, projectKey: normalized || undefined });
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
-    }
-  }
+  // Removed: project key storage — rely on exact key search instead
 
   async saveCredentials(siteUrl: string, email: string, token: string): Promise<{
     success: boolean;
@@ -103,7 +90,6 @@ export default class JiraService {
         accountId: me?.accountId,
         displayName: me?.displayName,
         siteUrl: creds.siteUrl,
-        projectKey: creds.projectKey,
       };
     } catch (e: any) {
       return { connected: false, error: e?.message || String(e) };
@@ -112,22 +98,50 @@ export default class JiraService {
 
   async initialFetch(limit = 50): Promise<any[]> {
     const { siteUrl, email, token } = await this.requireAuth();
-    const projectKey = this.readCreds()?.projectKey;
-    const jql = projectKey
-      ? `project = ${projectKey} ORDER BY updated DESC`
-      : 'ORDER BY updated DESC';
-    const data = await this.searchRaw(siteUrl, email, token, jql, limit);
-    return this.normalizeIssues(siteUrl, data);
+    const jqlCandidates: string[] = [];
+    // Pragmatic fallbacks that typically work with limited permissions
+    jqlCandidates.push(
+      'assignee = currentUser() ORDER BY updated DESC',
+      'reporter = currentUser() ORDER BY updated DESC',
+      'ORDER BY updated DESC'
+    );
+
+    for (const jql of jqlCandidates) {
+      try {
+        const issues = await this.searchRaw(siteUrl, email, token, jql, limit);
+        if (issues.length > 0) return this.normalizeIssues(siteUrl, issues);
+      } catch {
+        // Try next candidate if this one is forbidden or failed
+      }
+    }
+    // Final fallback: use issue picker to get recent/history issues, then hydrate via GET /issue/{key}
+    try {
+      const keys = await this.getRecentIssueKeys(siteUrl, email, token, limit);
+      if (keys.length > 0) {
+        const results: any[] = [];
+        for (const key of keys.slice(0, limit)) {
+          try {
+            const issue = await this.getIssueByKey(siteUrl, email, token, key);
+            if (issue) results.push(issue);
+          } catch {
+            // skip individual failures
+          }
+        }
+        if (results.length > 0) return this.normalizeIssues(siteUrl, results);
+      }
+    } catch {
+      // ignore
+    }
+    return [];
   }
 
   async searchIssues(searchTerm: string, limit = 20): Promise<any[]> {
     const term = (searchTerm || '').trim();
     if (!term) return [];
     const { siteUrl, email, token } = await this.requireAuth();
-    const projectKey = this.readCreds()?.projectKey;
     const sanitized = term.replace(/\"/g, '\\\"');
     const inner = `text ~ \"${sanitized}\" OR key = ${term}`;
-    const jql = projectKey ? `project = ${projectKey} AND (${inner})` : inner;
+    const jql = inner;
     const data = await this.searchRaw(siteUrl, email, token, jql, limit);
     return this.normalizeIssues(siteUrl, data);
   }
@@ -224,7 +238,6 @@ export default class JiraService {
     const term = (searchTerm || '').trim();
     if (!term) return [];
     const { siteUrl, email, token } = await this.requireAuth();
-    const projectKey = this.readCreds()?.projectKey;
 
     const looksLikeKey = /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(term);
     if (looksLikeKey) {
@@ -241,7 +254,7 @@ export default class JiraService {
     const sanitized = term.replace(/"/g, '\\"');
     const extraKey = looksLikeKey ? ` OR issueKey = ${term.toUpperCase()}` : '';
     const inner = `text ~ \"${sanitized}\"${extraKey}`;
-    const jql = projectKey ? `project = ${projectKey} AND (${inner})` : inner;
+    const jql = inner;
     const data = await this.searchRaw(siteUrl, email, token, jql, limit);
     return this.normalizeIssues(siteUrl, data);
   }
@@ -258,6 +271,32 @@ export default class JiraService {
     const data = JSON.parse(body || '{}');
     if (!data || data.errorMessages) return null;
     return data;
+  }
+
+  private async getRecentIssueKeys(
+    siteUrl: string,
+    email: string,
+    token: string,
+    limit: number
+  ): Promise<string[]> {
+    // Jira issue picker provides recent/history issue suggestions
+    const url = new URL('/rest/api/3/issue/picker', siteUrl);
+    url.searchParams.set('query', '');
+    url.searchParams.set('currentJQL', '');
+    const body = await this.doGet(url, email, token);
+    const data = JSON.parse(body || '{}');
+    const keys: string[] = [];
+    const sections = Array.isArray(data?.sections) ? data.sections : [];
+    for (const sec of sections) {
+      const issues = Array.isArray(sec?.issues) ? sec.issues : [];
+      for (const it of issues) {
+        const k = String(it?.key || '').trim();
+        if (k && !keys.includes(k)) keys.push(k);
+        if (keys.length >= limit) break;
+      }
+      if (keys.length >= limit) break;
+    }
+    return keys;
   }
 
   private normalizeIssues(siteUrl: string, rawIssues: any[]): any[] {

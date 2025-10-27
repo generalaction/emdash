@@ -19,9 +19,6 @@ export function registerJiraIpc() {
 
   ipcMain.handle('jira:clearCredentials', async () => jira.clearCredentials());
   ipcMain.handle('jira:checkConnection', async () => jira.checkConnection());
-  ipcMain.handle('jira:setProjectKey', async (_e, projectKey: string) =>
-    jira.saveProjectKey(projectKey)
-  );
 
   ipcMain.handle('jira:initialFetch', async (_e, limit?: number) => {
     try {

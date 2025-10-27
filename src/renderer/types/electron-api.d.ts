@@ -321,7 +321,6 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
-      jiraSetProjectKey?: (projectKey: string) => Promise<{ success: boolean; error?: string }>;
       getCliProviders?: () => Promise<{
         success: boolean;
         providers?: Array<{

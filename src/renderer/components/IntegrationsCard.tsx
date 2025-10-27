@@ -43,7 +43,6 @@ const IntegrationsCard: React.FC = () => {
   const [jiraDetail, setJiraDetail] = useState<string | null>(null);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraSetupOpen, setJiraSetupOpen] = useState(false);
-  const [jiraProjectKey, setJiraProjectKey] = useState('');
   const updateLinearState = useCallback((updater: (prev: LinearState) => LinearState) => {
     setLinearState((prev) => {
       const next = updater(prev);
@@ -106,7 +105,6 @@ const IntegrationsCard: React.FC = () => {
         if (res?.connected) {
           setJiraStatus('connected');
           setJiraDetail(res?.displayName || res?.siteUrl || 'Connected');
-          if ((res as any)?.projectKey) setJiraProjectKey((res as any).projectKey);
         } else {
           setJiraStatus('disconnected');
         }
@@ -397,31 +395,6 @@ const IntegrationsCard: React.FC = () => {
           jiraStatus === 'connected' ? (
             <div className="flex w-full max-w-[540px] items-center gap-2">
               <span className="text-sm text-muted-foreground">Connected</span>
-              <div className="ml-auto flex items-center gap-2">
-                <Input
-                  placeholder="Project key (e.g., KAN)"
-                  value={jiraProjectKey}
-                  onChange={(e) => setJiraProjectKey(e.target.value.toUpperCase())}
-                  className="h-8 w-[180px]"
-                />
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
-                  onClick={async () => {
-                    setJiraError(null);
-                    try {
-                      const api: any = (window as any).electronAPI;
-                      const res = await api?.jiraSetProjectKey?.(jiraProjectKey.trim());
-                      if (!res?.success) setJiraError(res?.error || 'Failed to save project key.');
-                    } catch (e: any) {
-                      setJiraError(e?.message || 'Failed to save project key.');
-                    }
-                  }}
-                  disabled={!jiraProjectKey.trim()}
-                >
-                  Save
-                </button>
-              </div>
             </div>
           ) : jiraSetupOpen ? (
             <div className="flex w-full max-w-[540px] flex-col gap-2 sm:flex-row sm:items-center">
