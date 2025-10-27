@@ -13,12 +13,13 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "outDir": "./dist/main",
-    "rootDir": "./src/main",
+    "rootDir": "./src",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src/main/**/*"],
+  "include": ["src/main/**/*", "src/shared/**/*"],
   "exclude": ["node_modules", "dist"]
 }
