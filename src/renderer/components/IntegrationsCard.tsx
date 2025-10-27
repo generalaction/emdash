@@ -400,7 +400,10 @@ const IntegrationsCard: React.FC = () => {
         middle={
           jiraStatus === 'connected' ? (
             <div className="flex w-full max-w-[540px] items-center gap-2">
-              <span className="text-sm text-muted-foreground">Connected</span>
+              <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Connected
+              </span>
             </div>
           ) : false ? (
             <div className="flex w-full max-w-[540px] flex-col gap-2 sm:flex-row sm:items-center">
