@@ -85,27 +85,30 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
     loadIssues();
   }, [isOpen, canListGithub, isLoadingIssues, hasRequestedIssues, loadIssues, disabled]);
 
-  const searchIssues = useCallback(async (term: string) => {
-    if (!term.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-    if (!api?.githubIssuesSearch) return;
-    setIsSearching(true);
-    try {
-      const result = await api.githubIssuesSearch(projectPath, term.trim(), 20);
-      if (!isMountedRef.current) return;
-      if (result?.success) setSearchResults(result.issues ?? []);
-      else setSearchResults([]);
-    } catch {
-      if (!isMountedRef.current) return;
-      setSearchResults([]);
-    } finally {
-      if (!isMountedRef.current) return;
-      setIsSearching(false);
-    }
-  }, [api, projectPath]);
+  const searchIssues = useCallback(
+    async (term: string) => {
+      if (!term.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+      if (!api?.githubIssuesSearch) return;
+      setIsSearching(true);
+      try {
+        const result = await api.githubIssuesSearch(projectPath, term.trim(), 20);
+        if (!isMountedRef.current) return;
+        if (result?.success) setSearchResults(result.issues ?? []);
+        else setSearchResults([]);
+      } catch {
+        if (!isMountedRef.current) return;
+        setSearchResults([]);
+      } finally {
+        if (!isMountedRef.current) return;
+        setIsSearching(false);
+      }
+    },
+    [api, projectPath]
+  );
 
   useEffect(() => {
     const id = setTimeout(() => searchIssues(searchTerm), 300);
@@ -178,7 +181,9 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
               <>
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
                   <img src={githubLogo} alt="GitHub" className="h-3.5 w-3.5" />
-                  <span className="text-[11px] font-medium text-foreground">#{selectedIssue.number}</span>
+                  <span className="text-[11px] font-medium text-foreground">
+                    #{selectedIssue.number}
+                  </span>
                 </span>
                 {selectedIssue.title ? (
                   <>
@@ -211,10 +216,12 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
               showIssues.map((issue) => (
                 <SelectItem key={issue.number} value={`#${issue.number}`}>
                   <SelectItemText>
-                    <span className="gap-2 flex min-w-0 items-center">
+                    <span className="flex min-w-0 items-center gap-2">
                       <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
                         <img src={githubLogo} alt="GitHub" className="h-3.5 w-3.5" />
-                        <span className="text-[11px] font-medium text-foreground">#{issue.number}</span>
+                        <span className="text-[11px] font-medium text-foreground">
+                          #{issue.number}
+                        </span>
                       </span>
                       {issue.title ? (
                         <span className="ml-2 truncate text-muted-foreground">{issue.title}</span>

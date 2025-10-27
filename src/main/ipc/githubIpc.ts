@@ -207,22 +207,19 @@ export function registerGithubIpc() {
     }
   );
 
-  ipcMain.handle(
-    'github:issues:get',
-    async (_e, projectPath: string, number: number) => {
-      if (!projectPath) return { success: false, error: 'Project path is required' };
-      if (!number || !Number.isFinite(number)) {
-        return { success: false, error: 'Issue number is required' };
-      }
-      try {
-        const issue = await githubService.getIssue(projectPath, number);
-        return { success: !!issue, issue: issue ?? undefined };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unable to get issue';
-        return { success: false, error: message };
-      }
+  ipcMain.handle('github:issues:get', async (_e, projectPath: string, number: number) => {
+    if (!projectPath) return { success: false, error: 'Project path is required' };
+    if (!number || !Number.isFinite(number)) {
+      return { success: false, error: 'Issue number is required' };
     }
-  );
+    try {
+      const issue = await githubService.getIssue(projectPath, number);
+      return { success: !!issue, issue: issue ?? undefined };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to get issue';
+      return { success: false, error: message };
+    }
+  });
 
   ipcMain.handle('github:listPullRequests', async (_, args: { projectPath: string }) => {
     const projectPath = args?.projectPath;

@@ -361,7 +361,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               id="initial-prompt"
                               value={initialPrompt}
                               onChange={(e) => setInitialPrompt(e.target.value)}
-
                               placeholder={
                                 selectedLinearIssue
                                   ? `e.g. Fix the attached Linear ticket ${selectedLinearIssue.identifier} — describe any constraints.`

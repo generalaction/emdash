@@ -132,15 +132,7 @@ export class GitHubService {
   > {
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
     try {
-      const fields = [
-        'number',
-        'title',
-        'url',
-        'state',
-        'updatedAt',
-        'assignees',
-        'labels',
-      ];
+      const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
       const { stdout } = await execAsync(
         `gh issue list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
         { cwd: projectPath }
@@ -174,15 +166,7 @@ export class GitHubService {
     const term = String(searchTerm || '').trim();
     if (!term) return [];
     try {
-      const fields = [
-        'number',
-        'title',
-        'url',
-        'state',
-        'updatedAt',
-        'assignees',
-        'labels',
-      ];
+      const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
       const { stdout } = await execAsync(
         `gh issue list --state open --search ${JSON.stringify(term)} --limit ${safeLimit} --json ${fields.join(',')}`,
         { cwd: projectPath }
