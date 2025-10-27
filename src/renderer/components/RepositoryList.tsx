@@ -56,13 +56,6 @@ const RepositoryList: React.FC<RepositoryListProps> = ({
 
   return (
     <div className="mx-auto w-full max-w-[600px]">
-      <div className="mb-6">
-        <h2 className="mb-2 text-center text-2xl">Your Repositories</h2>
-        <p className="text-center text-sm text-gray-500">
-          {repositories.length} repositories found
-        </p>
-      </div>
-
       <div className="max-h-96 space-y-2 overflow-y-auto">
         {repositories.map((repo) => (
           <Card
