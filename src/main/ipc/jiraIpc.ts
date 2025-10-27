@@ -36,7 +36,8 @@ export function registerJiraIpc() {
 
   ipcMain.handle('jira:searchIssues', async (_e, searchTerm: string, limit?: number) => {
     try {
-      const issues = await jira.searchIssues(searchTerm, limit ?? 20);
+      // Use enhanced search that supports direct key lookups
+      const issues = await jira.smartSearchIssues(searchTerm, limit ?? 20);
       return { success: true, issues };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };

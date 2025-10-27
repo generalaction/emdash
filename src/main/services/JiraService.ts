@@ -219,6 +219,47 @@ export default class JiraService {
     });
   }
 
+  // Enhanced search that supports direct issue-key lookups and robust quoting
+  async smartSearchIssues(searchTerm: string, limit = 20): Promise<any[]> {
+    const term = (searchTerm || '').trim();
+    if (!term) return [];
+    const { siteUrl, email, token } = await this.requireAuth();
+    const projectKey = this.readCreds()?.projectKey;
+
+    const looksLikeKey = /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(term);
+    if (looksLikeKey) {
+      const keyUpper = term.toUpperCase();
+      try {
+        const issue = await this.getIssueByKey(siteUrl, email, token, keyUpper);
+        if (issue) return this.normalizeIssues(siteUrl, [issue]);
+      } catch {
+        // If direct fetch fails (404/403/etc.), we fall back to JQL search below
+      }
+    }
+
+    // Build JQL safely (escape quotes in term)
+    const sanitized = term.replace(/"/g, '\\"');
+    const extraKey = looksLikeKey ? ` OR issueKey = ${term.toUpperCase()}` : '';
+    const inner = `text ~ \"${sanitized}\"${extraKey}`;
+    const jql = projectKey ? `project = ${projectKey} AND (${inner})` : inner;
+    const data = await this.searchRaw(siteUrl, email, token, jql, limit);
+    return this.normalizeIssues(siteUrl, data);
+  }
+
+  private async getIssueByKey(
+    siteUrl: string,
+    email: string,
+    token: string,
+    key: string
+  ): Promise<any | null> {
+    const url = new URL(`/rest/api/3/issue/${encodeURIComponent(key)}`, siteUrl);
+    url.searchParams.set('fields', 'summary,updated,project,status,assignee');
+    const body = await this.doGet(url, email, token);
+    const data = JSON.parse(body || '{}');
+    if (!data || data.errorMessages) return null;
+    return data;
+  }
+
   private normalizeIssues(siteUrl: string, rawIssues: any[]): any[] {
     const base = siteUrl.replace(/\/$/, '');
     return (rawIssues || []).map((it) => {
@@ -239,4 +280,3 @@ export default class JiraService {
     });
   }
 }
-
