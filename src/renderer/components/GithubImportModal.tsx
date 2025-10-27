@@ -10,6 +10,7 @@ import { useGithubAuth } from '../hooks/useGithubAuth';
 import { Spinner } from './ui/spinner';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Repository = {
   id: number;
@@ -33,26 +34,40 @@ export const GithubImportModal: React.FC<{
   onImported: (localPath: string) => Promise<void> | void;
 }> = ({ isOpen, onClose, onImported }) => {
   const shouldReduceMotion = useReducedMotion();
-  const { authenticated, installed, checkStatus } = useGithubAuth();
+  const { authenticated, installed, user, checkStatus } = useGithubAuth();
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   type View = 'list' | 'cloning' | 'error';
   const [view, setView] = useState<View>('list');
+  type SourceTab = 'repos' | 'url';
+  const [tab, setTab] = useState<SourceTab>('repos');
   const [isCloning, setIsCloning] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [cloningTarget, setCloningTarget] = useState<string | null>(null);
   const [cloneRoot, setCloneRoot] = useState<string>('');
   const [savedDefaultRoot, setSavedDefaultRoot] = useState<string>('');
 
+  const [sortKey, setSortKey] = useState<'updated' | 'alpha' | 'stars'>('updated');
   const filtered = useMemo(() => {
     if (!search.trim()) return repositories;
     const q = search.trim().toLowerCase();
-    return repositories.filter(
+    const base = repositories.filter(
       (r) => r.name.toLowerCase().includes(q) || r.full_name.toLowerCase().includes(q)
     );
-  }, [repositories, search]);
+    const sorted = [...base];
+    if (sortKey === 'updated') {
+      sorted.sort(
+        (a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
+      );
+    } else if (sortKey === 'alpha') {
+      sorted.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    } else if (sortKey === 'stars') {
+      sorted.sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0));
+    }
+    return sorted;
+  }, [repositories, search, sortKey]);
 
   const fetchRepos = useCallback(async () => {
     setLoading(true);
@@ -120,6 +135,26 @@ export const GithubImportModal: React.FC<{
     return { candidate: sanitizeJoin(baseDir, repoName), tried: [repoName] };
   };
 
+  const [repoUrl, setRepoUrl] = useState<string>('');
+  const isValidRepoUrl = (input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) return false;
+    if (/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\.git)?$/i.test(trimmed)) return true;
+    if (/^git@github\.com:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\.git)?$/i.test(trimmed)) return true;
+    if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(trimmed)) return true;
+    return false;
+  };
+  const normalizeToHttps = (input: string) => {
+    const t = input.trim();
+    if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(t)) return `https://github.com/${t}.git`;
+    if (/^git@github\.com:/.test(t)) {
+      const rest = t.replace(/^git@github\.com:/, '').replace(/\.git$/i, '');
+      return `https://github.com/${rest}.git`;
+    }
+    if (/^https:\/\//i.test(t)) return t.endsWith('.git') ? t : `${t}.git`;
+    return t;
+  };
+
   const handleImportRepository = useCallback(
     async (repo: Repository) => {
       if (!installed || !authenticated) {
@@ -172,6 +207,60 @@ export const GithubImportModal: React.FC<{
     [authenticated, installed, onImported, onClose]
   );
 
+  const handleImportByUrl = useCallback(async () => {
+    if (!installed || !authenticated) {
+      setError('GitHub CLI not ready. Please connect in Settings.');
+      return;
+    }
+    const url = normalizeToHttps(repoUrl);
+    if (!isValidRepoUrl(url)) {
+      setError('Please enter a valid GitHub repository URL or owner/name.');
+      return;
+    }
+    const ownerName = url.match(/github\.com\/([^\/]+)\/([^\/]+)\.git/i);
+    const name = ownerName?.[2] || 'repo';
+    setSelectedRepo({
+      id: Date.now(),
+      name,
+      full_name: ownerName ? `${ownerName[1]}/${ownerName[2]}` : name,
+      description: null,
+      html_url: url.replace(/\.git$/i, ''),
+      clone_url: url,
+      ssh_url: '',
+      default_branch: 'main',
+      private: false,
+      updated_at: null,
+      language: null,
+      stargazers_count: 0,
+      forks_count: 0,
+    });
+    setView('cloning');
+    setIsCloning(true);
+    try {
+      const root = String(cloneRoot || '').trim();
+      if (!root) throw new Error('Invalid clone root. Set it in Settings > Repository.');
+      const { tried } = await uniqueClonePath(root, name);
+      const tryTargets = tried.map((leaf) => `${root.replace(/[\\/]+$/, '')}/${leaf}`);
+      let successPath: string | null = null;
+      for (const target of tryTargets) {
+        setCloningTarget(target);
+        const result = await window.electronAPI.githubCloneRepository(url, target);
+        if (result?.success) {
+          successPath = target;
+          break;
+        }
+      }
+      if (!successPath) throw new Error('Clone failed. Choose another clone root or try again.');
+      await onImported(successPath);
+      onClose();
+    } catch (e: any) {
+      setError(e?.message || 'Import failed.');
+      setView('error');
+    } finally {
+      setIsCloning(false);
+    }
+  }, [authenticated, installed, repoUrl, cloneRoot, onImported, onClose]);
+
   return createPortal(
     <AnimatePresence>
       {isOpen && (
@@ -203,6 +292,12 @@ export const GithubImportModal: React.FC<{
                   Select a repository to clone and open in emdash.
                 </p>
               </div>
+              {installed && authenticated && (user?.login || user?.name) ? (
+                <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
+                  <div className="h-5 w-5 overflow-hidden rounded-full bg-muted" />
+                  <span className="truncate">{user?.login || user?.name}</span>
+                </div>
+              ) : null}
               <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
                 <X className="h-4 w-4" />
               </Button>
@@ -211,6 +306,23 @@ export const GithubImportModal: React.FC<{
             <div className="flex flex-col gap-3 p-5 pb-20">
               {view === 'list' && (
                 <>
+                  <div className="inline-flex w-full items-center gap-2 rounded-md border border-border/60 bg-muted/20 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setTab('repos')}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-sm transition ${tab === 'repos' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                      Your Repositories
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTab('url')}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-sm transition ${tab === 'url' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                      By URL
+                    </button>
+                  </div>
+                  {tab === 'repos' && (
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1">
                       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -222,6 +334,14 @@ export const GithubImportModal: React.FC<{
                         aria-label="Search repositories"
                       />
                     </div>
+                    <Select value={sortKey} onValueChange={(v) => setSortKey(v as any)}>
+                      <SelectTrigger className="w-[170px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
+                      <SelectContent align="end">
+                        <SelectItem value="updated">Recently updated</SelectItem>
+                        <SelectItem value="alpha">Alphabetical</SelectItem>
+                        <SelectItem value="stars">Stars</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <TooltipProvider delayDuration={250}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -273,6 +393,26 @@ export const GithubImportModal: React.FC<{
                       </div>
                     ) : null}
                   </div>
+                  )}
+                  {tab === 'url' && (
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Repository URL or owner/name</label>
+                        <Input
+                          placeholder="e.g. https://github.com/owner/repo or owner/repo"
+                          value={repoUrl}
+                          onChange={(e) => setRepoUrl(e.target.value)}
+                          aria-label="Repository URL"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button onClick={handleImportByUrl} disabled={!isValidRepoUrl(repoUrl)}>Import</Button>
+                        {!isValidRepoUrl(repoUrl) && repoUrl.trim() ? (
+                          <span className="text-xs text-muted-foreground">Enter a valid GitHub URL or owner/name</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
