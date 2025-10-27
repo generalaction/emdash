@@ -54,6 +54,8 @@ vi.mock('../../renderer/lib/logger', () => ({
 import {
   startContainerRun,
   subscribeToContainerRuns,
+  subscribeToWorkspaceRunState,
+  getContainerRunState,
   resetContainerRunListeners,
 } from '../../renderer/lib/containerRuns';
 
@@ -99,6 +101,52 @@ describe('containerRuns renderer bridge', () => {
 
     expect(events).toEqual([sample]);
     expect(infoMock).toHaveBeenCalledWith('[containers] runner event', sample);
+
+    unsubscribe();
+  });
+
+  it('tracks workspace state and notifies workspace listeners', () => {
+    const updates: Array<{ status: string; previewUrl?: string | undefined }> = [];
+    const unsubscribe = subscribeToWorkspaceRunState('ws-1', (state) =>
+      updates.push({ status: state.status, previewUrl: state.previewUrl })
+    );
+
+    triggerEvent({
+      ts: 1,
+      workspaceId: 'ws-1',
+      runId: 'run-1',
+      mode: 'container',
+      type: 'lifecycle',
+      status: 'building',
+    });
+
+    triggerEvent({
+      ts: 2,
+      workspaceId: 'ws-1',
+      runId: 'run-1',
+      mode: 'container',
+      type: 'ports',
+      previewService: 'app',
+      ports: [
+        { service: 'app', protocol: 'tcp', container: 3000, host: 5100 },
+        { service: 'api', protocol: 'tcp', container: 8080, host: 5200 },
+      ],
+    });
+
+    triggerEvent({
+      ts: 3,
+      workspaceId: 'ws-1',
+      runId: 'run-1',
+      mode: 'container',
+      type: 'lifecycle',
+      status: 'ready',
+    });
+
+    const state = getContainerRunState('ws-1');
+    expect(state?.status).toBe('ready');
+    expect(state?.previewUrl).toBe('http://localhost:5100');
+    expect(state?.ports).toHaveLength(2);
+    expect(updates.at(-1)).toEqual({ status: 'ready', previewUrl: 'http://localhost:5100' });
 
     unsubscribe();
   });
