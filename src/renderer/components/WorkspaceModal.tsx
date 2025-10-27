@@ -258,6 +258,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 selectedIssue={selectedIssue}
                                 onIssueChange={setSelectedIssue}
                                 isOpen={isOpen && showAdvanced}
+                                disabled={!!selectedJiraIssue}
                                 className="w-full"
                               />
                             </div>
@@ -274,6 +275,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 selectedIssue={selectedJiraIssue}
                                 onIssueChange={setSelectedJiraIssue}
                                 isOpen={isOpen && showAdvanced}
+                                disabled={!!selectedIssue}
                                 className="w-full"
                               />
                             </div>

@@ -13,6 +13,7 @@ interface Props {
   onIssueChange: (issue: JiraIssueSummary | null) => void;
   isOpen?: boolean;
   className?: string;
+  disabled?: boolean;
 }
 
 const JiraIssueSelector: React.FC<Props> = ({
@@ -20,6 +21,7 @@ const JiraIssueSelector: React.FC<Props> = ({
   onIssueChange,
   isOpen = false,
   className = '',
+  disabled = false,
 }) => {
   const [availableIssues, setAvailableIssues] = useState<JiraIssueSummary[]>([]);
   const [isLoadingIssues, setIsLoadingIssues] = useState(false);
@@ -34,6 +36,9 @@ const JiraIssueSelector: React.FC<Props> = ({
   const canList = typeof window !== 'undefined' && !!window.electronAPI?.jiraInitialFetch;
   const issuesLoaded = availableIssues.length > 0;
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  // Only disable when explicitly disabled, or when not connected and we can't load
+  const isDisabled =
+    disabled || (isConnected === false ? isLoadingIssues || !!issueListError || !issuesLoaded : false);
 
   useEffect(() => () => void (isMountedRef.current = false), []);
 
@@ -96,10 +101,10 @@ const JiraIssueSelector: React.FC<Props> = ({
   }, [canList]);
 
   useEffect(() => {
-    if (!isOpen || !canList) return;
+    if (!isOpen || !canList || disabled) return;
     if (isLoadingIssues || hasRequestedIssues) return;
     loadIssues();
-  }, [isOpen, canList, isLoadingIssues, hasRequestedIssues, loadIssues]);
+  }, [isOpen, canList, isLoadingIssues, hasRequestedIssues, loadIssues, disabled]);
 
   const searchIssues = useCallback(async (term: string) => {
     if (!term.trim()) {
@@ -179,7 +184,7 @@ const JiraIssueSelector: React.FC<Props> = ({
       <Select
         value={selectedIssue?.key || undefined}
         onValueChange={handleIssueSelect}
-        disabled={!isConnected ? isLoadingIssues || !!issueListError || !issuesLoaded : false}
+        disabled={isDisabled}
       >
         <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
@@ -211,6 +216,7 @@ const JiraIssueSelector: React.FC<Props> = ({
               placeholder="Search by key, summary, or assignee…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={disabled}
               className="h-7 w-full border-none bg-transparent pl-9 pr-3 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </div>
