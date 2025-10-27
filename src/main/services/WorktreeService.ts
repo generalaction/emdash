@@ -272,23 +272,66 @@ export class WorktreeService {
 
       // Remove the worktree directory via git first
       try {
-        await execFileAsync('git', ['worktree', 'remove', pathToRemove], {
+        // Use --force to remove even when there are untracked/modified files
+        await execFileAsync('git', ['worktree', 'remove', '--force', pathToRemove], {
           cwd: projectPath,
         });
       } catch (gitError) {
         console.warn('git worktree remove failed, attempting filesystem cleanup', gitError);
       }
 
+      // Best-effort prune to clear any stale worktree metadata that can keep a branch "checked out"
+      try {
+        await execFileAsync('git', ['worktree', 'prune', '--verbose'], { cwd: projectPath });
+      } catch (pruneErr) {
+        console.warn('git worktree prune failed (continuing):', pruneErr);
+      }
+
       // Ensure directory is removed even if git command failed
       if (fs.existsSync(pathToRemove)) {
-        await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+        try {
+          await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+        } catch (rmErr: any) {
+          // Handle permission issues by making files writable, then retry
+          if (rmErr && (rmErr.code === 'EACCES' || rmErr.code === 'EPERM')) {
+            try {
+              if (process.platform === 'win32') {
+                // Remove read-only attribute recursively on Windows
+                await execFileAsync('cmd', ['/c', 'attrib', '-R', '/S', '/D', pathToRemove + '\\*']);
+              } else {
+                // Make everything writable on POSIX
+                await execFileAsync('chmod', ['-R', 'u+w', pathToRemove]);
+              }
+            } catch (permErr) {
+              console.warn('Failed to adjust permissions for worktree cleanup:', permErr);
+            }
+            // Retry removal once after permissions adjusted
+            await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+          } else {
+            throw rmErr;
+          }
+        }
       }
 
       if (branchToDelete) {
+        const tryDeleteBranch = async () =>
+          await execFileAsync('git', ['branch', '-D', branchToDelete!], { cwd: projectPath });
         try {
-          await execFileAsync('git', ['branch', '-D', branchToDelete], { cwd: projectPath });
-        } catch (branchError) {
-          console.warn(`Failed to delete branch ${branchToDelete}:`, branchError);
+          await tryDeleteBranch();
+        } catch (branchError: any) {
+          const msg = String(branchError?.stderr || branchError?.message || branchError);
+          // If git thinks the branch is still checked out in a (now removed) worktree,
+          // prune and retry once more.
+          if (/checked out at /.test(msg)) {
+            try {
+              await execFileAsync('git', ['worktree', 'prune', '--verbose'], { cwd: projectPath });
+              await tryDeleteBranch();
+            } catch (retryErr) {
+              console.warn(`Failed to delete branch ${branchToDelete} after prune:`, retryErr);
+            }
+          } else {
+            console.warn(`Failed to delete branch ${branchToDelete}:`, branchError);
+          }
         }
       }
 
