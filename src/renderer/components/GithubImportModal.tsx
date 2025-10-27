@@ -297,7 +297,7 @@ export const GithubImportModal: React.FC<{
               </Button>
             </header>
 
-            <div className="flex flex-col gap-3 p-5 pb-20">
+            <div className="flex flex-col gap-3 p-5 pb-6">
               {view === 'list' && (
                 <>
                   <div className="inline-flex w-full items-center gap-2 rounded-md border border-border/60 bg-muted/20 p-1">
@@ -468,7 +468,7 @@ export const GithubImportModal: React.FC<{
                 </div>
               )}
               {/* Sticky footer with destination and change action */}
-              <div className="sticky bottom-0 -mx-5 -mb-5 border-t border-border/60 bg-background/95 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="sticky bottom-0 -mx-5 -mb-5 border-t border-border/60 bg-background/95 px-5 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Folder className="h-3.5 w-3.5" />
