@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 
 import { log } from '../lib/logger';
 import {
@@ -7,11 +7,18 @@ import {
   loadWorkspaceContainerConfig,
 } from '../services/containerConfigService';
 import type { ResolvedContainerConfig } from '@shared/container';
+import {
+  containerRunnerService,
+  type ContainerStartError,
+  type ContainerStartResult,
+} from '../services/containerRunnerService';
+import type { RunnerMode } from '@shared/container';
 
 type ContainerConfigIpcErrorCode =
   | ContainerConfigLoadErrorCode
   | 'INVALID_ARGUMENT'
-  | 'UNKNOWN';
+  | 'UNKNOWN'
+  | 'PORT_ALLOC_FAILED';
 
 export interface SerializedContainerConfigError {
   code: ContainerConfigIpcErrorCode;
@@ -26,6 +33,30 @@ export interface ContainerConfigIpcResponse {
   sourcePath?: string | null;
   error?: SerializedContainerConfigError;
 }
+
+export interface ContainerStartIpcSuccess {
+  ok: true;
+  runId: string;
+  sourcePath: string | null;
+}
+
+export interface ContainerStartIpcFailure {
+  ok: false;
+  error: SerializedContainerConfigError;
+}
+
+export type ContainerStartIpcResponse = ContainerStartIpcSuccess | ContainerStartIpcFailure;
+
+containerRunnerService.onRunnerEvent((event) => {
+  const windows = BrowserWindow.getAllWindows();
+  for (const window of windows) {
+    try {
+      window.webContents.send('run:event', event);
+    } catch (error) {
+      log.warn('Failed to forward container runner event', error);
+    }
+  }
+});
 
 export function registerContainerIpc(): void {
   ipcMain.handle('container:load-config', async (_event, args): Promise<ContainerConfigIpcResponse> => {
@@ -68,6 +99,28 @@ export function registerContainerIpc(): void {
       };
     }
   });
+
+  ipcMain.handle(
+    'container:start-run',
+    async (_event, args): Promise<ContainerStartIpcResponse> => {
+      const parsed = parseStartRunArgs(args);
+      if (!parsed) {
+        return {
+          ok: false,
+          error: {
+            code: 'INVALID_ARGUMENT',
+            message:
+              '`workspaceId` and `workspacePath` must be provided to start a container run',
+            configPath: null,
+            configKey: null,
+          },
+        };
+      }
+
+      const result = await containerRunnerService.startMockRun(parsed);
+      return serializeStartRunResult(result);
+    }
+  );
 }
 
 function resolveWorkspacePath(args: unknown): string | null {
@@ -95,5 +148,64 @@ function serializeError(error: ContainerConfigLoadError): SerializedContainerCon
     message: error.message,
     configPath: error.configPath ?? null,
     configKey: error.configKey ?? null,
+  };
+}
+
+function parseStartRunArgs(args: unknown):
+  | {
+      workspaceId: string;
+      workspacePath: string;
+      runId?: string;
+      mode?: RunnerMode;
+    }
+  | null {
+  if (!args || typeof args !== 'object') {
+    return null;
+  }
+
+  const payload = args as Record<string, unknown>;
+  const workspaceId = typeof payload.workspaceId === 'string' ? payload.workspaceId.trim() : '';
+  const workspacePath =
+    typeof payload.workspacePath === 'string' ? payload.workspacePath.trim() : '';
+  if (!workspaceId || !workspacePath) {
+    return null;
+  }
+
+  let runId: string | undefined;
+  if (typeof payload.runId === 'string' && payload.runId.trim().length > 0) {
+    runId = payload.runId.trim();
+  }
+
+  let mode: RunnerMode | undefined;
+  if (typeof payload.mode === 'string') {
+    if (payload.mode === 'container' || payload.mode === 'host') {
+      mode = payload.mode;
+    }
+  }
+
+  return { workspaceId, workspacePath, runId, mode };
+}
+
+function serializeStartRunResult(result: ContainerStartResult): ContainerStartIpcResponse {
+  if (result.ok) {
+    return {
+      ok: true,
+      runId: result.runId,
+      sourcePath: result.sourcePath,
+    };
+  }
+
+  return {
+    ok: false,
+    error: serializeStartError(result.error),
+  };
+}
+
+function serializeStartError(error: ContainerStartError): SerializedContainerConfigError {
+  return {
+    code: error.code,
+    message: error.message,
+    configPath: error.configPath,
+    configKey: error.configKey,
   };
 }
