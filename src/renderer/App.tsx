@@ -21,6 +21,7 @@ import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sid
 import RightSidebar from './components/RightSidebar';
 import { type Provider } from './types';
 import { type LinearIssueSummary } from './types/linear';
+import { type GitHubIssueSummary } from './types/github';
 import { type JiraIssueSummary } from './types/jira';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
@@ -162,6 +163,7 @@ interface Project {
 interface WorkspaceMetadata {
   linearIssue?: LinearIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
+  githubIssue?: GitHubIssueSummary | null;
   initialPrompt?: string | null;
   pullRequest?: {
     number: number;
@@ -662,7 +664,7 @@ const AppContent: React.FC = () => {
     initialPrompt?: string,
     selectedProvider?: Provider,
     linkedLinearIssue: LinearIssueSummary | null = null,
-    linkedGithubIssue: GitHubIssueSummary | null = null
+    linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null
   ) => {
     if (!selectedProject) return;

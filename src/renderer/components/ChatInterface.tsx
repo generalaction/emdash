@@ -467,6 +467,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         parts.push('', 'Issue Description:', clipped);
       }
       return parts.join('\n');
+    }
 
     const j = md?.jiraIssue as any;
     if (j) {
@@ -629,6 +630,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         <ProviderBar
           provider={provider}
           linearIssue={workspace.metadata?.linearIssue || null}
+          githubIssue={workspace.metadata?.githubIssue || null}
+          jiraIssue={workspace.metadata?.jiraIssue || null}
           planModeEnabled={planEnabled}
           onPlanModeChange={setPlanEnabled}
           onApprovePlan={async () => {

@@ -27,8 +27,7 @@ interface WorkspaceModalProps {
     initialPrompt?: string,
     selectedProvider?: Provider,
     linkedLinearIssue?: LinearIssueSummary | null,
-    linkedGithubIssue?: GitHubIssueSummary | null
-    linkedIssue?: LinearIssueSummary | null,
+    linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null
   ) => void;
   projectName: string;
@@ -56,7 +55,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [selectedLinearIssue, setSelectedLinearIssue] = useState<LinearIssueSummary | null>(null);
   const [selectedGithubIssue, setSelectedGithubIssue] = useState<GitHubIssueSummary | null>(null);
 
-  const [selectedIssue, setSelectedIssue] = useState<LinearIssueSummary | null>(null);
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const shouldReduceMotion = useReducedMotion();
@@ -182,8 +180,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           showAdvanced ? initialPrompt.trim() || undefined : undefined,
                           selectedProvider,
                           selectedLinearIssue,
-                          selectedGithubIssue
-                          selectedIssue,
+                          selectedGithubIssue,
                           selectedJiraIssue
                         );
                         setWorkspaceName('');
@@ -332,7 +329,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                   selectedIssue={selectedJiraIssue}
                                   onIssueChange={setSelectedJiraIssue}
                                   isOpen={isOpen && showAdvanced}
-                                  disabled={!!selectedIssue}
+                                  disabled={!!selectedLinearIssue}
                                   className="w-full"
                                 />
                               ) : (
@@ -366,8 +363,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               onChange={(e) => setInitialPrompt(e.target.value)}
 
                               placeholder={
-                                selectedIssue
-                                  ? `e.g. Fix the attached Linear ticket ${selectedIssue.identifier} — describe any constraints.`
+                                selectedLinearIssue
+                                  ? `e.g. Fix the attached Linear ticket ${selectedLinearIssue.identifier} — describe any constraints.`
                                   : selectedJiraIssue
                                     ? `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`
                                     : `e.g. Summarize the key problems and propose a plan.`

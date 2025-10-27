@@ -16,9 +16,9 @@ export const TooltipContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         // High z-index to appear above sidebars, selects, modals
-        'z-[240] overflow-hidden rounded-md border px-3 py-1.5 text-xs shadow-md',
-        // 2025-09-22 update: use foreground/background colors
-        'bg-foreground text-background',
+        'z-[240] overflow-hidden rounded-md border border-border px-3 py-1.5 text-xs shadow-md',
+        // Default to app background + foreground (white in light)
+        'bg-background text-foreground',
         'animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
         'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
         className
@@ -26,7 +26,7 @@ export const TooltipContent = React.forwardRef<
       {...props}
     >
       {props.children}
-      <TooltipPrimitive.Arrow className="fill-foreground" />
+      <TooltipPrimitive.Arrow className="fill-background" />
     </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ));

@@ -14,6 +14,7 @@ interface GitHubIssueSelectorProps {
   onIssueChange: (issue: GitHubIssueSummary | null) => void;
   isOpen?: boolean;
   className?: string;
+  disabled?: boolean;
 }
 
 export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
@@ -22,6 +23,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   onIssueChange,
   isOpen = false,
   className = '',
+  disabled = false,
 }) => {
   const [availableIssues, setAvailableIssues] = useState<GitHubIssueSummary[]>([]);
   const [isLoadingIssues, setIsLoadingIssues] = useState(false);
@@ -78,10 +80,10 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   }, [api, canListGithub, projectPath]);
 
   useEffect(() => {
-    if (!isOpen || !canListGithub) return;
+    if (!isOpen || !canListGithub || disabled) return;
     if (isLoadingIssues || hasRequestedIssues) return;
     loadIssues();
-  }, [isOpen, canListGithub, isLoadingIssues, hasRequestedIssues, loadIssues]);
+  }, [isOpen, canListGithub, isLoadingIssues, hasRequestedIssues, loadIssues, disabled]);
 
   const searchIssues = useCallback(async (term: string) => {
     if (!term.trim()) {
@@ -168,7 +170,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
       <Select
         value={selectedIssue ? `#${selectedIssue.number}` : undefined}
         onValueChange={handleIssueSelect}
-        disabled={isLoadingIssues || !!issueListError || !issuesLoaded}
+        disabled={disabled || isLoadingIssues || !!issueListError || !issuesLoaded}
       >
         <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
@@ -259,4 +261,3 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
 };
 
 export default GitHubIssueSelector;
-
