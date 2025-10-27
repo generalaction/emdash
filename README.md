@@ -459,6 +459,37 @@ find "$HOME" -type f -name 'emdash.db*' -print
 - [x] Linear integration to track and close out issues
 - [ ] Assign the same prompt to different providers at the same time and compare results
 
+## Issue Integrations
+
+### Jira
+
+<img src="./src/assets/images/jira.png" alt="Jira" height="18" />  Connect your Jira site and attach issues to workspaces.
+
+- Prerequisites
+  - Site URL: the base URL of your site, for example `https://your-domain.atlassian.net`.
+  - Email: your Atlassian account email.
+  - API token: create at https://id.atlassian.com/manage-profile/security/api-tokens.
+- Connect
+  - Open Settings → Integrations → Jira → Set up Jira.
+  - Enter Site URL, Email, and API token → Connect.
+- Use
+  - In “New Workspace” → Advanced options → Jira issue, type an exact key (e.g., `ABC-123`) or search text.
+  - If listing is limited, you can still fetch a specific issue by its key.
+- Tips
+  - Use your atlassian.net site URL, not `api.atlassian.com`.
+  - If listing fails or you get 401/403, your account may lack the “Browse projects” permission for those projects.
+
+### Linear
+
+<img src="./src/assets/images/linear-icon.png" alt="Linear" height="18" />  Connect Linear to browse and attach issues.
+
+- Prerequisites
+  - Linear API key (create from Linear → Settings → API).
+- Connect
+  - Open Settings → Integrations → Linear, paste your API key → Connect.
+- Use
+  - In “New Workspace” → Advanced options → Linear issue, pick from the list or search by title/assignee.
+
 ## Security & Privacy
 
 - We take data security and privacy seriously. See docs/telemetry.md for exact details.
