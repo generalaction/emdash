@@ -12,6 +12,10 @@ import { type Provider } from '../types';
 import { Separator } from './ui/separator';
 import { type LinearIssueSummary } from '../types/linear';
 import { LinearIssueSelector } from './LinearIssueSelector';
+import JiraIssueSelector from './JiraIssueSelector';
+import { type JiraIssueSummary } from '../types/jira';
+import { Badge } from './ui/badge';
+import jiraLogo from '../../assets/images/jira.png';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
@@ -20,7 +24,8 @@ interface WorkspaceModalProps {
     name: string,
     initialPrompt?: string,
     selectedProvider?: Provider,
-    linkedIssue?: LinearIssueSummary | null
+    linkedIssue?: LinearIssueSummary | null,
+    linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -43,6 +48,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [touched, setTouched] = useState(false);
   const [initialPrompt, setInitialPrompt] = useState('');
   const [selectedIssue, setSelectedIssue] = useState<LinearIssueSummary | null>(null);
+  const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
+  const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
   const normalizedExisting = existingNames.map((n) => n.toLowerCase());
@@ -85,6 +92,23 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setSelectedIssue(null);
     }
   }, [isOpen]);
+
+  // Check Jira connection to decide whether to render the Jira selector
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const api: any = (window as any).electronAPI;
+        const res = await api?.jiraCheckConnection?.();
+        if (!cancel) setIsJiraConnected(!!res?.connected);
+      } catch {
+        if (!cancel) setIsJiraConnected(false);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, []);
 
   return createPortal(
     <AnimatePresence>
@@ -147,7 +171,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           convertToWorkspaceName(workspaceName),
                           showAdvanced ? initialPrompt.trim() || undefined : undefined,
                           selectedProvider,
-                          selectedIssue
+                          selectedIssue,
+                          selectedJiraIssue
                         );
                         setWorkspaceName('');
                         setInitialPrompt('');
@@ -253,8 +278,41 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 selectedIssue={selectedIssue}
                                 onIssueChange={setSelectedIssue}
                                 isOpen={isOpen && showAdvanced}
+                                disabled={!!selectedJiraIssue}
                                 className="w-full"
                               />
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-4">
+                            <label
+                              htmlFor="jira-issue"
+                              className="w-32 shrink-0 pt-2 text-sm font-medium text-foreground"
+                            >
+                              Jira issue
+                            </label>
+                            <div className="min-w-0 flex-1">
+                              {isJiraConnected ? (
+                                <JiraIssueSelector
+                                  selectedIssue={selectedJiraIssue}
+                                  onIssueChange={setSelectedJiraIssue}
+                                  isOpen={isOpen && showAdvanced}
+                                  disabled={!!selectedIssue}
+                                  className="w-full"
+                                />
+                              ) : (
+                                <div className="rounded-md border border-border bg-muted/40 p-2">
+                                  <div className="flex items-center gap-2">
+                                    <Badge className="inline-flex items-center gap-1.5">
+                                      <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
+                                      <span>Connect Jira</span>
+                                    </Badge>
+                                  </div>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    Add your Jira site, email, and API token in Settings →
+                                    Integrations to browse and attach issues here.
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -273,7 +331,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               placeholder={
                                 selectedIssue
                                   ? `e.g. Fix the attached Linear ticket ${selectedIssue.identifier} — describe any constraints.`
-                                  : `e.g. Summarize the key problems and propose a plan.`
+                                  : selectedJiraIssue
+                                    ? `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`
+                                    : `e.g. Summarize the key problems and propose a plan.`
                               }
                               className="min-h-[80px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none"
                               rows={3}

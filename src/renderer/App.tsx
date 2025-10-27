@@ -21,6 +21,7 @@ import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sid
 import RightSidebar from './components/RightSidebar';
 import { type Provider } from './types';
 import { type LinearIssueSummary } from './types/linear';
+import { type JiraIssueSummary } from './types/jira';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
@@ -160,6 +161,7 @@ interface Project {
 
 interface WorkspaceMetadata {
   linearIssue?: LinearIssueSummary | null;
+  jiraIssue?: JiraIssueSummary | null;
   initialPrompt?: string | null;
   pullRequest?: {
     number: number;
@@ -659,7 +661,8 @@ const AppContent: React.FC = () => {
     workspaceName: string,
     initialPrompt?: string,
     selectedProvider?: Provider,
-    linkedLinearIssue: LinearIssueSummary | null = null
+    linkedLinearIssue: LinearIssueSummary | null = null,
+    linkedJiraIssue: JiraIssueSummary | null = null
   ) => {
     if (!selectedProject) return;
 
@@ -722,8 +725,12 @@ const AppContent: React.FC = () => {
       }
 
       const workspaceMetadata: WorkspaceMetadata | null =
-        linkedLinearIssue || preparedPrompt
-          ? { linearIssue: linkedLinearIssue ?? null, initialPrompt: preparedPrompt ?? null }
+        linkedLinearIssue || linkedJiraIssue || preparedPrompt
+          ? {
+              linearIssue: linkedLinearIssue ?? null,
+              jiraIssue: linkedJiraIssue ?? null,
+              initialPrompt: preparedPrompt ?? null,
+            }
           : null;
 
       // Create Git worktree
