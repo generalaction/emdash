@@ -630,6 +630,20 @@ export interface ElectronAPI {
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
+  // GitHub issues
+  githubIssuesList?: (
+    projectPath: string,
+    limit?: number
+  ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+  githubIssuesSearch?: (
+    projectPath: string,
+    searchTerm: string,
+    limit?: number
+  ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+  githubIssueGet?: (
+    projectPath: string,
+    number: number
+  ) => Promise<{ success: boolean; issue?: any; error?: string }>;
 
   // Linear integration
   linearCheckConnection?: () => Promise<{

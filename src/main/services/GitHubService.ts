@@ -114,6 +114,127 @@ export class GitHubService {
   }
 
   /**
+   * List open GitHub issues for the current repo (cwd = projectPath)
+   */
+  async listIssues(
+    projectPath: string,
+    limit: number = 50
+  ): Promise<
+    Array<{
+      number: number;
+      title: string;
+      url?: string;
+      state?: string;
+      updatedAt?: string | null;
+      assignees?: Array<{ login?: string; name?: string }>;
+      labels?: Array<{ name?: string }>;
+    }>
+  > {
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    try {
+      const fields = [
+        'number',
+        'title',
+        'url',
+        'state',
+        'updatedAt',
+        'assignees',
+        'labels',
+      ];
+      const { stdout } = await execAsync(
+        `gh issue list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
+        { cwd: projectPath }
+      );
+      const list = JSON.parse(stdout || '[]');
+      if (!Array.isArray(list)) return [];
+      return list;
+    } catch (error) {
+      console.error('Failed to list GitHub issues:', error);
+      throw error;
+    }
+  }
+
+  /** Search open issues in current repo */
+  async searchIssues(
+    projectPath: string,
+    searchTerm: string,
+    limit: number = 20
+  ): Promise<
+    Array<{
+      number: number;
+      title: string;
+      url?: string;
+      state?: string;
+      updatedAt?: string | null;
+      assignees?: Array<{ login?: string; name?: string }>;
+      labels?: Array<{ name?: string }>;
+    }>
+  > {
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
+    const term = String(searchTerm || '').trim();
+    if (!term) return [];
+    try {
+      const fields = [
+        'number',
+        'title',
+        'url',
+        'state',
+        'updatedAt',
+        'assignees',
+        'labels',
+      ];
+      const { stdout } = await execAsync(
+        `gh issue list --state open --search ${JSON.stringify(term)} --limit ${safeLimit} --json ${fields.join(',')}`,
+        { cwd: projectPath }
+      );
+      const list = JSON.parse(stdout || '[]');
+      if (!Array.isArray(list)) return [];
+      return list;
+    } catch (error) {
+      // Surface empty results rather than failing hard on weird queries
+      return [];
+    }
+  }
+
+  /** Get a single issue with body for enrichment */
+  async getIssue(
+    projectPath: string,
+    number: number
+  ): Promise<{
+    number: number;
+    title?: string;
+    body?: string;
+    url?: string;
+    state?: string;
+    updatedAt?: string | null;
+    assignees?: Array<{ login?: string; name?: string }>;
+    labels?: Array<{ name?: string }>;
+  } | null> {
+    try {
+      const fields = [
+        'number',
+        'title',
+        'body',
+        'url',
+        'state',
+        'updatedAt',
+        'assignees',
+        'labels',
+      ];
+      const { stdout } = await execAsync(
+        `gh issue view ${JSON.stringify(String(number))} --json ${fields.join(',')}`,
+        { cwd: projectPath }
+      );
+      const data = JSON.parse(stdout || 'null');
+      if (!data || typeof data !== 'object') return null;
+      return data;
+    } catch (error) {
+      console.error('Failed to view GitHub issue:', error);
+      return null;
+    }
+  }
+
+  /**
    * Authenticate with GitHub using Personal Access Token
    */
   async authenticateWithToken(token: string): Promise<AuthResult> {

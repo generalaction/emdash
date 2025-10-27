@@ -1,7 +1,9 @@
 import { type LinearIssueSummary } from './linear';
+import { type GitHubIssueSummary } from './github';
 
 export interface WorkspaceMetadata {
   linearIssue?: LinearIssueSummary | null;
+  githubIssue?: GitHubIssueSummary | null;
   initialPrompt?: string | null;
 }
 

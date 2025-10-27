@@ -178,6 +178,52 @@ export function registerGithubIpc() {
     }
   });
 
+  // GitHub issues: list/search/get for the repository at projectPath
+  ipcMain.handle('github:issues:list', async (_e, projectPath: string, limit?: number) => {
+    if (!projectPath) return { success: false, error: 'Project path is required' };
+    try {
+      const issues = await githubService.listIssues(projectPath, limit ?? 50);
+      return { success: true, issues };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to list issues';
+      return { success: false, error: message };
+    }
+  });
+
+  ipcMain.handle(
+    'github:issues:search',
+    async (_e, projectPath: string, searchTerm: string, limit?: number) => {
+      if (!projectPath) return { success: false, error: 'Project path is required' };
+      if (!searchTerm || typeof searchTerm !== 'string') {
+        return { success: false, error: 'Search term is required' };
+      }
+      try {
+        const issues = await githubService.searchIssues(projectPath, searchTerm, limit ?? 20);
+        return { success: true, issues };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to search issues';
+        return { success: false, error: message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'github:issues:get',
+    async (_e, projectPath: string, number: number) => {
+      if (!projectPath) return { success: false, error: 'Project path is required' };
+      if (!number || !Number.isFinite(number)) {
+        return { success: false, error: 'Issue number is required' };
+      }
+      try {
+        const issue = await githubService.getIssue(projectPath, number);
+        return { success: !!issue, issue: issue ?? undefined };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to get issue';
+        return { success: false, error: message };
+      }
+    }
+  );
+
   ipcMain.handle('github:listPullRequests', async (_, args: { projectPath: string }) => {
     const projectPath = args?.projectPath;
     if (!projectPath) {
