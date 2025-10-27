@@ -297,7 +297,14 @@ export class WorktreeService {
             try {
               if (process.platform === 'win32') {
                 // Remove read-only attribute recursively on Windows
-                await execFileAsync('cmd', ['/c', 'attrib', '-R', '/S', '/D', pathToRemove + '\\*']);
+                await execFileAsync('cmd', [
+                  '/c',
+                  'attrib',
+                  '-R',
+                  '/S',
+                  '/D',
+                  pathToRemove + '\\*',
+                ]);
               } else {
                 // Make everything writable on POSIX
                 await execFileAsync('chmod', ['-R', 'u+w', pathToRemove]);

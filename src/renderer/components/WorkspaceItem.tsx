@@ -22,7 +22,11 @@ interface WorkspaceItemProps {
   showDelete?: boolean;
 }
 
-export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelete, showDelete }) => {
+export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
+  workspace,
+  onDelete,
+  showDelete,
+}) => {
   const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(
     workspace.path,
     workspace.id
@@ -59,7 +63,7 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelet
             }}
             isDeleting={isDeleting}
             aria-label={`Delete workspace ${workspace.name}`}
-            className="absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive opacity-0 group-hover/workspace:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity duration-150"
+            className="absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-destructive focus:opacity-100 focus-visible:opacity-100 group-hover/workspace:opacity-100"
           />
         ) : null}
         {/* Badge area remains stable */}
