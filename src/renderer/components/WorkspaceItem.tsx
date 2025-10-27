@@ -19,9 +19,10 @@ interface Workspace {
 interface WorkspaceItemProps {
   workspace: Workspace;
   onDelete?: () => void | Promise<void>;
+  showDelete?: boolean;
 }
 
-export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelete }) => {
+export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelete, showDelete }) => {
   const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(
     workspace.path,
     workspace.id
@@ -47,30 +48,28 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelet
         {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
           <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
         ) : pr ? (
-          <div className="flex items-center gap-1">
-            {(pr.state === 'MERGED' || pr.state === 'CLOSED') && onDelete ? (
-              <WorkspaceDeleteButton
-                workspaceName={workspace.name}
-                onConfirm={async () => {
-                  try {
-                    setIsDeleting(true);
-                    await onDelete();
-                  } finally {
-                    setIsDeleting(false);
-                  }
-                }}
-                isDeleting={isDeleting}
-                aria-label={`Delete workspace ${workspace.name}`}
-                className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-              />
-            ) : null}
-            <span
-              className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-              title={`${pr.title || 'Pull Request'} (#${pr.number})`}
-            >
-              {pr.isDraft ? 'draft' : pr.state.toLowerCase()}
-            </span>
-          </div>
+          <span
+            className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+          >
+            {pr.isDraft ? 'draft' : pr.state.toLowerCase()}
+          </span>
+        ) : null}
+        {showDelete && onDelete ? (
+          <WorkspaceDeleteButton
+            workspaceName={workspace.name}
+            onConfirm={async () => {
+              try {
+                setIsDeleting(true);
+                await onDelete();
+              } finally {
+                setIsDeleting(false);
+              }
+            }}
+            isDeleting={isDeleting}
+            aria-label={`Delete workspace ${workspace.name}`}
+            className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100"
+          />
         ) : null}
       </div>
     </div>
