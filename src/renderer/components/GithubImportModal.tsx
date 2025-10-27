@@ -291,12 +291,7 @@ export const GithubImportModal: React.FC<{
                   Select a repository to clone and open in emdash.
                 </p>
               </div>
-              {installed && authenticated && (user?.login || user?.name) ? (
-                <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-                  <div className="h-5 w-5 overflow-hidden rounded-full bg-muted" />
-                  <span className="truncate">{user?.login || user?.name}</span>
-                </div>
-              ) : null}
+              {null}
               <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
                 <X className="h-4 w-4" />
               </Button>
@@ -324,6 +319,29 @@ export const GithubImportModal: React.FC<{
                   {tab === 'repos' && (
                   <>
                   <div className="flex items-center gap-2">
+                    {installed && authenticated ? (
+                      <TooltipProvider delayDuration={250}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted">
+                              {((user as any)?.avatar_url as string | undefined) ? (
+                                <img
+                                  src={(user as any).avatar_url as string}
+                                  alt="GitHub avatar"
+                                  className="h-full w-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="h-full w-full bg-muted" />
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <span>{user?.login || user?.name || 'GitHub account'}</span>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : null}
                     <div className="relative flex-1">
                       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
