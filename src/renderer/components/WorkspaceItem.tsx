@@ -19,9 +19,14 @@ interface Workspace {
 interface WorkspaceItemProps {
   workspace: Workspace;
   onDelete?: () => void | Promise<void>;
+  showDelete?: boolean;
 }
 
-export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelete }) => {
+export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
+  workspace,
+  onDelete,
+  showDelete,
+}) => {
   const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(
     workspace.path,
     workspace.id
@@ -43,35 +48,37 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelet
         {workspace.agentId && <Bot className="h-3 w-3 flex-shrink-0 text-purple-500" />}
         {/* No left-side delete icon; only show next to status badge on the right */}
       </div>
-      <div className="flex flex-shrink-0 items-center space-x-2">
-        {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
-          <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
-        ) : pr ? (
-          <div className="flex items-center gap-1">
-            {(pr.state === 'MERGED' || pr.state === 'CLOSED') && onDelete ? (
-              <WorkspaceDeleteButton
-                workspaceName={workspace.name}
-                onConfirm={async () => {
-                  try {
-                    setIsDeleting(true);
-                    await onDelete();
-                  } finally {
-                    setIsDeleting(false);
-                  }
-                }}
-                isDeleting={isDeleting}
-                aria-label={`Delete workspace ${workspace.name}`}
-                className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-              />
-            ) : null}
+      <div className="relative flex flex-shrink-0 items-center pl-6">
+        {/* Delete button overlays to the left of the badge, no layout shift */}
+        {showDelete && onDelete ? (
+          <WorkspaceDeleteButton
+            workspaceName={workspace.name}
+            onConfirm={async () => {
+              try {
+                setIsDeleting(true);
+                await onDelete();
+              } finally {
+                setIsDeleting(false);
+              }
+            }}
+            isDeleting={isDeleting}
+            aria-label={`Delete workspace ${workspace.name}`}
+            className="absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-destructive focus:opacity-100 focus-visible:opacity-100 group-hover/workspace:opacity-100"
+          />
+        ) : null}
+        {/* Badge area remains stable */}
+        <div aria-hidden={isLoading ? 'true' : 'false'}>
+          {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
+            <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
+          ) : pr ? (
             <span
               className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
               title={`${pr.title || 'Pull Request'} (#${pr.number})`}
             >
               {pr.isDraft ? 'draft' : pr.state.toLowerCase()}
             </span>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </div>
   );

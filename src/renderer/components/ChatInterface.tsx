@@ -413,6 +413,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const md = workspace.metadata || null;
     const p = (md?.initialPrompt || '').trim();
     if (p) return p;
+    const parts: string[] = [];
     const issue = md?.linearIssue;
     if (issue) {
       const parts: string[] = [];
@@ -435,6 +436,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       }
       return parts.join('\n');
     }
+
     const gh = (md as any)?.githubIssue as
       | { number: number; title?: string; url?: string; state?: string; assignees?: any[]; labels?: any[]; body?: string }
       | undefined;
@@ -465,6 +467,20 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         parts.push('', 'Issue Description:', clipped);
       }
       return parts.join('\n');
+
+    const j = md?.jiraIssue as any;
+    if (j) {
+      const lines: string[] = [];
+      const l1 = `Linked Jira issue: ${j.key}${j.summary ? ` — ${j.summary}` : ''}`;
+      lines.push(l1);
+      const details: string[] = [];
+      if (j.status?.name) details.push(`Status: ${j.status.name}`);
+      if (j.assignee?.displayName || j.assignee?.name)
+        details.push(`Assignee: ${j.assignee?.displayName || j.assignee?.name}`);
+      if (j.project?.key) details.push(`Project: ${j.project.key}`);
+      if (details.length) lines.push(`Details: ${details.join(' • ')}`);
+      if (j.url) lines.push(`URL: ${j.url}`);
+      return lines.join('\n');
     }
     return null;
   }, [isTerminal, workspace.metadata]);

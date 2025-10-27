@@ -95,7 +95,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   );
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/40">
+    <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/40">
       <div className="flex items-center gap-3">
         {avatar}
         {onNameClick ? (
