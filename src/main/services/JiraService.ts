@@ -46,7 +46,11 @@ export default class JiraService {
 
   // Removed: project key storage — rely on exact key search instead
 
-  async saveCredentials(siteUrl: string, email: string, token: string): Promise<{
+  async saveCredentials(
+    siteUrl: string,
+    email: string,
+    token: string
+  ): Promise<{
     success: boolean;
     displayName?: string;
     error?: string;

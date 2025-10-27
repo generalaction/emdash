@@ -38,7 +38,8 @@ const JiraIssueSelector: React.FC<Props> = ({
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   // Only disable when explicitly disabled, or when not connected and we can't load
   const isDisabled =
-    disabled || (isConnected === false ? isLoadingIssues || !!issueListError || !issuesLoaded : false);
+    disabled ||
+    (isConnected === false ? isLoadingIssues || !!issueListError || !issuesLoaded : false);
 
   useEffect(() => () => void (isMountedRef.current = false), []);
 
@@ -118,7 +119,7 @@ const JiraIssueSelector: React.FC<Props> = ({
     try {
       const result = await api.jiraSearchIssues(term.trim(), 20);
       if (!isMountedRef.current) return;
-      setSearchResults(result?.success ? result.issues ?? [] : []);
+      setSearchResults(result?.success ? (result.issues ?? []) : []);
     } catch {
       if (isMountedRef.current) setSearchResults([]);
     } finally {
@@ -139,7 +140,9 @@ const JiraIssueSelector: React.FC<Props> = ({
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 16) {
-      setVisibleCount((c) => Math.min(c + 10, (searchTerm.trim() ? searchResults : availableIssues).length));
+      setVisibleCount((c) =>
+        Math.min(c + 10, (searchTerm.trim() ? searchResults : availableIssues).length)
+      );
     }
   };
 
@@ -192,7 +195,9 @@ const JiraIssueSelector: React.FC<Props> = ({
               <>
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
                   <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-                  <span className="text-[11px] font-medium text-foreground">{selectedIssue.key}</span>
+                  <span className="text-[11px] font-medium text-foreground">
+                    {selectedIssue.key}
+                  </span>
                 </span>
                 {selectedIssue.summary ? (
                   <>

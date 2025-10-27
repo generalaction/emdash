@@ -42,7 +42,9 @@ const IntegrationsCard: React.FC = () => {
   const [jiraSite, setJiraSite] = useState('');
   const [jiraEmail, setJiraEmail] = useState('');
   const [jiraToken, setJiraToken] = useState('');
-  const [jiraStatus, setJiraStatus] = useState<'checking' | 'connected' | 'disconnected' | 'error'>('checking');
+  const [jiraStatus, setJiraStatus] = useState<'checking' | 'connected' | 'disconnected' | 'error'>(
+    'checking'
+  );
   const [jiraDetail, setJiraDetail] = useState<string | null>(null);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraSetupOpen, setJiraSetupOpen] = useState(false);
@@ -412,7 +414,10 @@ const IntegrationsCard: React.FC = () => {
                       <Info className="h-4 w-4" aria-hidden="true" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-sm whitespace-pre-line text-xs leading-snug">
+                  <TooltipContent
+                    side="top"
+                    className="max-w-sm whitespace-pre-line text-xs leading-snug"
+                  >
                     {`Setup:
 1) Site URL: open your Jira in the browser and copy the base URL (e.g. https://your-domain.atlassian.net).
 2) Email: the Atlassian account email you use to sign in.
@@ -459,7 +464,7 @@ const IntegrationsCard: React.FC = () => {
                   <motion.div
                     role="dialog"
                     aria-label="Jira setup"
-                    className="absolute right-0 top-full z-50 mt-2 w-[420px] md:w-[480px] max-w-[calc(100vw-3rem)] rounded-xl border border-border/60 bg-background/95 p-3 shadow-2xl ring-1 ring-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+                    className="absolute right-0 top-full z-50 mt-2 w-[420px] max-w-[calc(100vw-3rem)] rounded-xl border border-border/60 bg-background/95 p-3 shadow-2xl ring-1 ring-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:w-[480px]"
                     style={{ transformOrigin: 'top right' }}
                     {...(menuMotion(!!reduceMotion) as any)}
                   >

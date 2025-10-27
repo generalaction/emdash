@@ -68,8 +68,8 @@ const JiraSetupForm: React.FC<Props> = ({
               </li>
               <li>Use your Atlassian account email address.</li>
               <li>
-                Create an API token: id.atlassian.com/manage-profile/security/api-tokens → Create API
-                token → Copy the token here.
+                Create an API token: id.atlassian.com/manage-profile/security/api-tokens → Create
+                API token → Copy the token here.
               </li>
             </ol>
           </div>

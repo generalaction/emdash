@@ -308,7 +308,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                     </Badge>
                                   </div>
                                   <p className="mt-1 text-xs text-muted-foreground">
-                                    Add your Jira site, email, and API token in Settings → Integrations to browse and attach issues here.
+                                    Add your Jira site, email, and API token in Settings →
+                                    Integrations to browse and attach issues here.
                                   </p>
                                 </div>
                               )}

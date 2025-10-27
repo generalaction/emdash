@@ -23,4 +23,3 @@ export interface JiraIssueSummary {
   assignee?: JiraUserRef | null;
   updatedAt?: string | null;
 }
-
