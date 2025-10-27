@@ -1,4 +1,6 @@
 // Updated for Codex integration
+import type { ResolvedContainerConfig } from '../../shared/container';
+
 export {};
 
 declare global {
@@ -179,6 +181,24 @@ declare global {
         behind?: number;
         error?: string;
       }>;
+      loadContainerConfig: (
+        workspacePath: string
+      ) => Promise<
+        | {
+            ok: true;
+            config: ResolvedContainerConfig;
+            sourcePath: string | null;
+          }
+        | {
+            ok: false;
+            error: {
+              code: 'INVALID_ARGUMENT' | 'INVALID_JSON' | 'VALIDATION_FAILED' | 'IO_ERROR' | 'UNKNOWN';
+              message: string;
+              configPath: string | null;
+              configKey: string | null;
+            };
+          }
+      >;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
         app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
