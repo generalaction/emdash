@@ -237,6 +237,13 @@ declare global {
         content?: string;
         error?: string;
       }>;
+      fsWriteFile: (
+        root: string,
+        relPath: string,
+        content: string,
+        mkdirs?: boolean
+      ) => Promise<{ success: boolean; error?: string }>;
+      fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
       // Attachments
       saveAttachment: (args: {
         workspacePath: string;
