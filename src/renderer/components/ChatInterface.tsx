@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
@@ -492,8 +493,11 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                 type="button"
                 className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
                 onClick={() => window.electronAPI.openExternal(state.previewUrl!)}
+                aria-label="Open preview (external)"
+                title="Open preview"
               >
                 Open Preview
+                <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
               </button>
             ) : null}
           </div>
