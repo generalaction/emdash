@@ -136,7 +136,7 @@ export class ContainerRunnerService extends EventEmitter {
     try {
       // Ensure Docker is available
       try {
-        await execAsync('docker info --format {{.ServerVersion}}');
+        await execAsync("docker info --format '{{.ServerVersion}}'");
       } catch (e) {
         const message = 'Docker is not available. Please install and start Docker Desktop.';
         const event = { ts: now(), workspaceId, runId, mode, type: 'error' as const, code: 'DOCKER_NOT_AVAILABLE' as const, message };
@@ -152,6 +152,7 @@ export class ContainerRunnerService extends EventEmitter {
       const allocated = await this.portAllocator.allocate(portRequests);
 
       const previewService = (config.ports.find((p) => p.preview) || config.ports[0])?.service ?? 'app';
+      const previewMapping = allocated.find((m) => m.service === previewService);
 
       emitLifecycle('building');
 
@@ -176,6 +177,12 @@ export class ContainerRunnerService extends EventEmitter {
       const workdir = path.posix.join('/workspace', config.workdir.replace(/\\/g, '/'));
       dockerArgs.push('-w', workdir);
 
+      // Ensure dev servers bind externally
+      dockerArgs.push('-e', 'HOST=0.0.0.0');
+      if (previewMapping?.container) {
+        dockerArgs.push('-e', `PORT=${previewMapping.container}`);
+      }
+
       // Env file (optional)
       if (config.envFile) {
         const envAbs = path.resolve(workspacePath, config.envFile);
@@ -197,13 +204,16 @@ export class ContainerRunnerService extends EventEmitter {
       if (pm === 'npm') installCmd = 'npm ci || npm install';
       else if (pm === 'pnpm') installCmd = 'corepack enable && pnpm install --frozen-lockfile || pnpm install';
       else if (pm === 'yarn') installCmd = 'corepack enable && yarn install --frozen-lockfile || yarn install';
-      const bashCmd = `bash -lc ${JSON.stringify(`${installCmd} && ${startCmd}`)}`;
+      const script = `${installCmd} && ${startCmd}`;
 
-      dockerArgs.push(image, bashCmd);
+      // Important: pass command and args as separate tokens so Docker
+      // executes the intended binary (bash) with '-lc' and the script.
+      dockerArgs.push(image, 'bash', '-lc', script);
 
       emitLifecycle('starting');
 
       const cmd = `docker ${dockerArgs.map((a) => (a.includes(' ') ? JSON.stringify(a) : a)).join(' ')}`;
+      log.info('[containers] docker run cmd', cmd);
       const { stdout } = await execAsync(cmd);
       const containerId = (stdout || '').trim();
 
@@ -219,6 +229,7 @@ export class ContainerRunnerService extends EventEmitter {
         sourcePath: loadResult.sourcePath ?? null,
       };
     } catch (error) {
+      log.error('[containers] docker run failed', error);
       const serialized = this.serializeStartError(error, {
         workspaceId,
         runId,
@@ -355,8 +366,18 @@ export class ContainerRunnerService extends EventEmitter {
       };
     }
 
-    const message =
-      cause instanceof Error ? cause.message : 'Failed to start container run';
+    // Prefer stderr/stdout details when the error originates from child_process.exec
+    let message = 'Failed to start container run';
+    if (cause && typeof cause === 'object') {
+      const anyErr = cause as any;
+      if (typeof anyErr.stderr === 'string' && anyErr.stderr.trim().length > 0) {
+        message = anyErr.stderr.trim();
+      } else if (typeof anyErr.stdout === 'string' && anyErr.stdout.trim().length > 0) {
+        message = anyErr.stdout.trim();
+      } else if (anyErr instanceof Error && typeof anyErr.message === 'string') {
+        message = anyErr.message;
+      }
+    }
     return {
       error: {
         code: 'UNKNOWN',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
 import { GitBranch, Plus, Loader2 } from 'lucide-react';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from './ui/breadcrumb';
@@ -11,6 +11,14 @@ import { ChangesBadge } from './WorkspaceChanges';
 import { Spinner } from './ui/spinner';
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import { useToast } from '../hooks/use-toast';
+import dockerLogo from '../../assets/images/docker.png';
+import {
+  getContainerRunState,
+  startContainerRun,
+  subscribeToWorkspaceRunState,
+  type ContainerRunState,
+} from '@/lib/containerRuns';
 
 interface Project {
   id: string;
@@ -57,10 +65,20 @@ function WorkspaceRow({
   onClick: () => void;
   onDelete: () => void | Promise<void>;
 }) {
+  const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { pr } = usePrStatus(ws.path);
   const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(ws.path, ws.id);
+  const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
+    getContainerRunState(ws.id)
+  );
+  const [isStartingContainer, setIsStartingContainer] = useState(false);
+  const [isStoppingContainer, setIsStoppingContainer] = useState(false);
+  const containerActive = useMemo(() => {
+    const status = containerState?.status;
+    return status === 'building' || status === 'starting' || status === 'ready';
+  }, [containerState?.status]);
 
   useEffect(() => {
     (async () => {
@@ -88,6 +106,63 @@ function WorkspaceRow({
     };
   }, [ws.id]);
 
+  useEffect(() => {
+    const off = subscribeToWorkspaceRunState(ws.id, (state) => setContainerState(state));
+    return () => {
+      off?.();
+    };
+  }, [ws.id]);
+
+  const handleStartContainer = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsStartingContainer(true);
+      const res = await startContainerRun({
+        workspaceId: ws.id,
+        workspacePath: ws.path,
+        mode: 'container',
+      });
+      if (res?.ok !== true) {
+        toast({
+          title: 'Failed to start container',
+          description: res?.error?.message || 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Failed to start container',
+        description: error?.message || String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsStartingContainer(false);
+    }
+  };
+
+  const handleStopContainer = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsStoppingContainer(true);
+      const res = await (window as any).electronAPI.stopContainerRun(ws.id);
+      if (!res?.ok) {
+        toast({
+          title: 'Failed to stop container',
+          description: res?.error || 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Failed to stop container',
+        description: error?.message || String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsStoppingContainer(false);
+    }
+  };
+
   return (
     <div
       onClick={onClick}
@@ -112,6 +187,33 @@ function WorkspaceRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        {/* Container controls */}
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-8 px-2 text-xs"
+          onClick={handleStartContainer}
+          disabled={isStartingContainer || containerActive}
+        >
+          {isStartingContainer ? (
+            <>
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> Starting…
+            </>
+          ) : (
+            <>
+              <img src={dockerLogo} alt="Docker" className="mr-1 h-4 w-4" /> Start
+            </>
+          )}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2 text-xs"
+          onClick={handleStopContainer}
+          disabled={isStoppingContainer || !containerActive}
+        >
+          {isStoppingContainer ? 'Stopping…' : 'Stop'}
+        </Button>
         {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
           <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
         ) : pr ? (

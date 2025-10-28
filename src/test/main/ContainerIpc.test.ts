@@ -6,7 +6,7 @@ const {
   handleMock,
   windows,
   getAllWindowsMock,
-  startMockRunMock,
+  startRunMock,
   containerRunnerServiceMock,
   getRunnerEventListener,
   onRunnerEventMock,
@@ -21,7 +21,7 @@ const {
   const windows: Array<{ webContents: { send: ReturnType<typeof vi.fn> } }> = [];
   const getAllWindowsMock = vi.fn(() => windows);
 
-  const startMockRunMock = vi.fn();
+  const startRunMock = vi.fn();
   const containerRunnerServiceMock: any = {};
   let runnerListener: ((event: RunnerEvent) => void) | null = null;
 
@@ -31,14 +31,14 @@ const {
   });
 
   containerRunnerServiceMock.onRunnerEvent = onRunnerEventMock;
-  containerRunnerServiceMock.startMockRun = startMockRunMock;
+  containerRunnerServiceMock.startRun = startRunMock;
 
   return {
     handlers,
     handleMock,
     windows,
     getAllWindowsMock,
-    startMockRunMock,
+    startRunMock,
     containerRunnerServiceMock,
     getRunnerEventListener: () => runnerListener,
     onRunnerEventMock,
@@ -88,7 +88,7 @@ describe('registerContainerIpc', () => {
     handlers.clear();
     handleMock.mockClear();
     loadWorkspaceContainerConfigMock.mockReset();
-    startMockRunMock.mockReset();
+    startRunMock.mockReset();
     onRunnerEventMock.mockClear();
     windows.length = 0;
     getAllWindowsMock.mockClear();
@@ -199,7 +199,7 @@ describe('registerContainerIpc', () => {
         workdir: '.',
         ports: [{ service: 'app', container: 3000, protocol: 'tcp', preview: true }],
       };
-      startMockRunMock.mockResolvedValue({
+      startRunMock.mockResolvedValue({
         ok: true,
         runId: 'run-123',
         config,
@@ -211,7 +211,7 @@ describe('registerContainerIpc', () => {
 
       const result = await handler({}, { workspaceId: ' ws-1 ', workspacePath: ' /tmp/workspace ' });
 
-      expect(startMockRunMock).toHaveBeenCalledWith({
+      expect(startRunMock).toHaveBeenCalledWith({
         workspaceId: 'ws-1',
         workspacePath: '/tmp/workspace',
       });
@@ -223,7 +223,7 @@ describe('registerContainerIpc', () => {
     });
 
     it('returns serialized error when runner service fails', async () => {
-      startMockRunMock.mockResolvedValue({
+      startRunMock.mockResolvedValue({
         ok: false,
         error: {
           code: 'PORT_ALLOC_FAILED',
@@ -264,7 +264,7 @@ describe('registerContainerIpc', () => {
           configPath: null,
         },
       });
-      expect(startMockRunMock).not.toHaveBeenCalled();
+      expect(startRunMock).not.toHaveBeenCalled();
     });
   });
 

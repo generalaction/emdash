@@ -216,7 +216,19 @@ export async function startContainerRun(args: StartRunArgs) {
     throw new Error('workspaceId and workspacePath are required to start a container run');
   }
 
-  return api?.startContainerRun?.(payload);
+  if (!api || typeof api.startContainerRun !== 'function') {
+    throw new Error('Electron bridge not available: startContainerRun');
+  }
+  try {
+    // Basic client-side trace for debugging
+    log.info?.('[containers] invoking startContainerRun', payload);
+    const res = await api.startContainerRun(payload);
+    log.info?.('[containers] startContainerRun response', res);
+    return res;
+  } catch (error) {
+    log.error?.('[containers] startContainerRun failed', error);
+    throw error;
+  }
 }
 
 export function resetContainerRunListeners() {

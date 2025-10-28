@@ -103,6 +103,7 @@ export function registerContainerIpc(): void {
   ipcMain.handle(
     'container:start-run',
     async (_event, args): Promise<ContainerStartIpcResponse> => {
+      log.info('IPC container:start-run invoked with args', args);
       const parsed = parseStartRunArgs(args);
       if (!parsed) {
         return {
@@ -117,8 +118,8 @@ export function registerContainerIpc(): void {
         };
       }
 
-      // For now, use the mock runner to generate events/results in tests and dev
-      const result = await containerRunnerService.startMockRun(parsed);
+      const result = await containerRunnerService.startRun(parsed);
+      log.info('IPC container:start-run result', result?.ok);
       return serializeStartRunResult(result);
     }
   );

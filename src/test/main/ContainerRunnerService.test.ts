@@ -44,8 +44,8 @@ describe('ContainerRunnerService', () => {
     });
 
     const allocateMock = vi.fn(async () => [
-      { service: 'app', protocol: 'tcp', container: 3000, host: 5000 },
-      { service: 'api', protocol: 'tcp', container: 4000, host: 6000 },
+      { service: 'app', protocol: 'tcp' as const, container: 3000, host: 5000 },
+      { service: 'api', protocol: 'tcp' as const, container: 4000, host: 6000 },
     ]);
 
     const service = new ContainerRunnerService({ portAllocator: { allocate: allocateMock } });
