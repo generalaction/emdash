@@ -36,7 +36,11 @@ describe('loadWorkspaceContainerConfig', () => {
       expect(result.sourcePath).toBeNull();
       expect(result.config.packageManager).toBe('pnpm');
       expect(result.config.start).toBe('npm run dev');
-      expect(result.config.ports[0]).toMatchObject({ service: 'app', container: 3000, preview: true });
+      expect(result.config.ports[0]).toMatchObject({
+        service: 'app',
+        container: 3000,
+        preview: true,
+      });
     }
   });
 

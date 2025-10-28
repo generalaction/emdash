@@ -152,13 +152,32 @@ export class ContainerRunnerService extends EventEmitter {
     const DOCKER_INFO_TIMEOUT_MS = 8000;
     const DOCKER_RUN_TIMEOUT_MS = 2 * 60 * 1000;
 
-    const emitLifecycle = (status: 'building' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed') => {
+    const emitLifecycle = (
+      status: 'building' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed'
+    ) => {
       this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status });
     };
 
-    const emitPorts = (ports: Array<{ service: string; container: number; host: number }>, previewService: string) => {
-      const mapped = ports.map((p) => ({ service: p.service, protocol: 'tcp' as const, container: p.container, host: p.host, url: `http://localhost:${p.host}` }));
-      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'ports', previewService, ports: mapped });
+    const emitPorts = (
+      ports: Array<{ service: string; container: number; host: number }>,
+      previewService: string
+    ) => {
+      const mapped = ports.map((p) => ({
+        service: p.service,
+        protocol: 'tcp' as const,
+        container: p.container,
+        host: p.host,
+        url: `http://localhost:${p.host}`,
+      }));
+      this.emitRunnerEvent({
+        ts: now(),
+        workspaceId,
+        runId,
+        mode,
+        type: 'ports',
+        previewService,
+        ports: mapped,
+      });
     };
 
     try {
@@ -168,32 +187,68 @@ export class ContainerRunnerService extends EventEmitter {
 
       if (!fs.existsSync(workdirAbs)) {
         const message = `Configured workdir does not exist: ${workdirAbs}`;
-        const event = { ts: now(), workspaceId, runId, mode, type: 'error' as const, code: 'INVALID_CONFIG' as const, message };
+        const event = {
+          ts: now(),
+          workspaceId,
+          runId,
+          mode,
+          type: 'error' as const,
+          code: 'INVALID_CONFIG' as const,
+          message,
+        };
         this.emitRunnerEvent(event);
         return {
           ok: false,
-          error: { code: 'INVALID_ARGUMENT', message, configKey: 'workdir', configPath: workdirAbs },
+          error: {
+            code: 'INVALID_ARGUMENT',
+            message,
+            configKey: 'workdir',
+            configPath: workdirAbs,
+          },
         };
       }
 
       const pkgJsonPath = path.join(workdirAbs, 'package.json');
       if (!fs.existsSync(pkgJsonPath)) {
         const message = `No package.json found in workdir: ${workdirAbs}. Set the correct 'workdir' in .emdash/config.json`;
-        this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'error', code: 'INVALID_CONFIG', message });
+        this.emitRunnerEvent({
+          ts: now(),
+          workspaceId,
+          runId,
+          mode,
+          type: 'error',
+          code: 'INVALID_CONFIG',
+          message,
+        });
         return {
           ok: false,
-          error: { code: 'INVALID_ARGUMENT', message, configKey: 'workdir', configPath: workdirAbs },
+          error: {
+            code: 'INVALID_ARGUMENT',
+            message,
+            configKey: 'workdir',
+            configPath: workdirAbs,
+          },
         };
       }
 
       // Ensure Docker is available
       try {
         log.info('[containers] checking docker availability');
-        await execAsync("docker info --format '{{.ServerVersion}}'", { timeout: DOCKER_INFO_TIMEOUT_MS });
+        await execAsync("docker info --format '{{.ServerVersion}}'", {
+          timeout: DOCKER_INFO_TIMEOUT_MS,
+        });
         log.info('[containers] docker is available');
       } catch (e) {
         const message = 'Docker is not available or not responding. Please start Docker Desktop.';
-        const event = { ts: now(), workspaceId, runId, mode, type: 'error' as const, code: 'DOCKER_NOT_AVAILABLE' as const, message };
+        const event = {
+          ts: now(),
+          workspaceId,
+          runId,
+          mode,
+          type: 'error' as const,
+          code: 'DOCKER_NOT_AVAILABLE' as const,
+          message,
+        };
         this.emitRunnerEvent(event);
         return {
           ok: false,
@@ -205,7 +260,8 @@ export class ContainerRunnerService extends EventEmitter {
       const portRequests = config.ports;
       const allocated = await this.portAllocator.allocate(portRequests);
 
-      const previewService = (config.ports.find((p) => p.preview) || config.ports[0])?.service ?? 'app';
+      const previewService =
+        (config.ports.find((p) => p.preview) || config.ports[0])?.service ?? 'app';
       const previewMapping = allocated.find((m) => m.service === previewService);
 
       emitLifecycle('building');
@@ -241,7 +297,15 @@ export class ContainerRunnerService extends EventEmitter {
         const envAbs = path.resolve(workspacePath, config.envFile);
         if (!fs.existsSync(envAbs)) {
           const message = `Env file not found: ${envAbs}`;
-          this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'error', code: 'ENVFILE_NOT_FOUND', message });
+          this.emitRunnerEvent({
+            ts: now(),
+            workspaceId,
+            runId,
+            mode,
+            type: 'error',
+            code: 'ENVFILE_NOT_FOUND',
+            message,
+          });
           return {
             ok: false,
             error: { code: 'UNKNOWN', message, configKey: 'envFile', configPath: envAbs },
@@ -258,13 +322,16 @@ export class ContainerRunnerService extends EventEmitter {
       let installCmd = '';
       if (detectedPm === 'npm') {
         // Avoid creating package-lock.json on fallback installs
-        installCmd = 'if [ -f package-lock.json ]; then npm ci; else npm install --no-package-lock; fi';
+        installCmd =
+          'if [ -f package-lock.json ]; then npm ci; else npm install --no-package-lock; fi';
       } else if (detectedPm === 'pnpm') {
         // Use frozen lockfile when present; otherwise allow creation per pnpm defaults
-        installCmd = 'corepack enable && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install; fi';
+        installCmd =
+          'corepack enable && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install; fi';
       } else if (detectedPm === 'yarn') {
         // Yarn v1 supports --frozen-lockfile; for others we fall back to plain install
-        installCmd = 'corepack enable && if [ -f yarn.lock ]; then yarn install --frozen-lockfile || yarn install; else yarn install; fi';
+        installCmd =
+          'corepack enable && if [ -f yarn.lock ]; then yarn install --frozen-lockfile || yarn install; else yarn install; fi';
       }
       const script = `${installCmd} && ${startCmd}`;
 
@@ -280,8 +347,19 @@ export class ContainerRunnerService extends EventEmitter {
       const containerId = (stdout || '').trim();
 
       // Emit ports and ready lifecycle
-      emitPorts(allocated.map((a) => ({ service: a.service, container: a.container, host: a.host })), previewService);
-      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status: 'starting', containerId });
+      emitPorts(
+        allocated.map((a) => ({ service: a.service, container: a.container, host: a.host })),
+        previewService
+      );
+      this.emitRunnerEvent({
+        ts: now(),
+        workspaceId,
+        runId,
+        mode,
+        type: 'lifecycle',
+        status: 'starting',
+        containerId,
+      });
       emitLifecycle('ready');
 
       return {
@@ -310,13 +388,35 @@ export class ContainerRunnerService extends EventEmitter {
     const runId = this.generateRunId(now);
     const containerName = `emdash_ws_${workspaceId}`;
     try {
-      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status: 'stopping' });
+      this.emitRunnerEvent({
+        ts: now(),
+        workspaceId,
+        runId,
+        mode,
+        type: 'lifecycle',
+        status: 'stopping',
+      });
       await promisify(exec)(`docker rm -f ${JSON.stringify(containerName)}`);
-      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status: 'stopped' });
+      this.emitRunnerEvent({
+        ts: now(),
+        workspaceId,
+        runId,
+        mode,
+        type: 'lifecycle',
+        status: 'stopped',
+      });
       return { ok: true } as const;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'error', code: 'UNKNOWN', message });
+      this.emitRunnerEvent({
+        ts: now(),
+        workspaceId,
+        runId,
+        mode,
+        type: 'error',
+        code: 'UNKNOWN',
+        message,
+      });
       return { ok: false, error: message } as const;
     }
   }

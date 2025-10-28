@@ -2,10 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import {
-  ContainerConfigError,
-  resolveContainerConfig,
-} from '../src/shared/container/config';
+import { ContainerConfigError, resolveContainerConfig } from '../src/shared/container/config';
 import { generateMockStartEvents } from '../src/shared/container/mockRunner';
 import { PortManager } from '../src/shared/container/portManager';
 

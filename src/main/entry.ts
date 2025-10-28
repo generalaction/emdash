@@ -23,4 +23,3 @@ try {
 // Load the actual application bootstrap
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 require('./main');
-

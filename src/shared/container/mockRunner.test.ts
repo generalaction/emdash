@@ -49,8 +49,20 @@ describe('generateMockStartEvents', () => {
     if (portsEvent.type !== 'ports') throw new Error('Expected ports event');
     expect(portsEvent.previewService).toBe('app');
     expect(portsEvent.ports).toEqual([
-      { service: 'app', protocol: 'tcp', container: 3000, host: 45000, url: 'http://localhost:45000' },
-      { service: 'inspect', protocol: 'tcp', container: 9229, host: 45001, url: 'http://localhost:45001' },
+      {
+        service: 'app',
+        protocol: 'tcp',
+        container: 3000,
+        host: 45000,
+        url: 'http://localhost:45000',
+      },
+      {
+        service: 'inspect',
+        protocol: 'tcp',
+        container: 9229,
+        host: 45001,
+        url: 'http://localhost:45001',
+      },
     ]);
 
     expect(events.map((event) => event.ts)).toEqual([1000, 1001, 1002, 1003]);

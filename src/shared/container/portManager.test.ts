@@ -21,15 +21,14 @@ describe('PortManager', () => {
     manager = new PortManager({ minPort: BASE_PORT, maxPort: BASE_PORT + PORT_RANGE });
   });
 
-
   it('allocates unique host ports for each container port', async () => {
     const allocations = await manager.allocate(buildPorts());
     const hosts = allocations.map((entry) => entry.host);
 
     expect(new Set(hosts).size).toBe(2);
-    expect(allocations.every((entry) => entry.host >= BASE_PORT && entry.host <= BASE_PORT + PORT_RANGE)).toBe(
-      true
-    );
+    expect(
+      allocations.every((entry) => entry.host >= BASE_PORT && entry.host <= BASE_PORT + PORT_RANGE)
+    ).toBe(true);
   });
 
   it('does not reuse reserved host ports', async () => {

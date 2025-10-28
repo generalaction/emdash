@@ -181,9 +181,7 @@ declare global {
         behind?: number;
         error?: string;
       }>;
-      loadContainerConfig: (
-        workspacePath: string
-      ) => Promise<
+      loadContainerConfig: (workspacePath: string) => Promise<
         | {
             ok: true;
             config: ResolvedContainerConfig;

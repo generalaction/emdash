@@ -1,38 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunnerEvent } from '@shared/container';
 
-const {
-  startRunMock,
-  onRunEventMock,
-  removeRunListenersMock,
-  triggerEvent,
-  windowMock,
-} = vi.hoisted(() => {
-  const startRunMock = vi.fn();
-  let handler: ((event: RunnerEvent) => void) | undefined;
-  const onRunEventMock = vi.fn((cb: (event: RunnerEvent) => void) => {
-    handler = cb;
-    return () => {
-      handler = undefined;
+const { startRunMock, onRunEventMock, removeRunListenersMock, triggerEvent, windowMock } =
+  vi.hoisted(() => {
+    const startRunMock = vi.fn();
+    let handler: ((event: RunnerEvent) => void) | undefined;
+    const onRunEventMock = vi.fn((cb: (event: RunnerEvent) => void) => {
+      handler = cb;
+      return () => {
+        handler = undefined;
+      };
+    });
+    const removeRunListenersMock = vi.fn();
+    const windowMock = {
+      electronAPI: {
+        startContainerRun: startRunMock,
+        onRunEvent: onRunEventMock,
+        removeRunEventListeners: removeRunListenersMock,
+      },
+    } as const;
+
+    return {
+      startRunMock,
+      onRunEventMock,
+      removeRunListenersMock,
+      triggerEvent: (event: RunnerEvent) => handler?.(event),
+      windowMock,
     };
   });
-  const removeRunListenersMock = vi.fn();
-  const windowMock = {
-    electronAPI: {
-      startContainerRun: startRunMock,
-      onRunEvent: onRunEventMock,
-      removeRunEventListeners: removeRunListenersMock,
-    },
-  } as const;
-
-  return {
-    startRunMock,
-    onRunEventMock,
-    removeRunListenersMock,
-    triggerEvent: (event: RunnerEvent) => handler?.(event),
-    windowMock,
-  };
-});
 
 const { infoMock } = vi.hoisted(() => {
   const infoMock = vi.fn();

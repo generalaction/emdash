@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  ContainerConfigError,
-  resolveContainerConfig,
-  validateContainerConfig,
-} from './config';
+import { ContainerConfigError, resolveContainerConfig, validateContainerConfig } from './config';
 
 describe('resolveContainerConfig', () => {
   it('applies defaults when config is empty', () => {

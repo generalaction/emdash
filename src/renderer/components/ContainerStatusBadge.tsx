@@ -63,7 +63,7 @@ export const ContainerStatusBadge: React.FC<Props> = ({
         aria-live="polite"
       >
         <img src={dockerLogo} alt="" className="mr-1.5 h-3.5 w-3.5" />
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+        <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
         Starting…
       </span>
     );
@@ -77,7 +77,7 @@ export const ContainerStatusBadge: React.FC<Props> = ({
         role="group"
       >
         <img src={dockerLogo} alt="" className="ml-2 mr-1.5 h-3.5 w-3.5" />
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
         <span className="pr-2">Running</span>
         <TooltipProvider delayDuration={200}>
           <Tooltip>
@@ -109,4 +109,3 @@ export const ContainerStatusBadge: React.FC<Props> = ({
 };
 
 export default ContainerStatusBadge;
-

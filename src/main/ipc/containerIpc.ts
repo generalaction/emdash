@@ -59,46 +59,49 @@ containerRunnerService.onRunnerEvent((event) => {
 });
 
 export function registerContainerIpc(): void {
-  ipcMain.handle('container:load-config', async (_event, args): Promise<ContainerConfigIpcResponse> => {
-    const workspacePath = resolveWorkspacePath(args);
-    if (!workspacePath) {
-      return {
-        ok: false,
-        error: {
-          code: 'INVALID_ARGUMENT',
-          message: '`workspacePath` must be a non-empty string',
-          configPath: null,
-          configKey: null,
-        },
-      };
-    }
-
-    try {
-      const result = await loadWorkspaceContainerConfig(workspacePath);
-      if (result.ok) {
+  ipcMain.handle(
+    'container:load-config',
+    async (_event, args): Promise<ContainerConfigIpcResponse> => {
+      const workspacePath = resolveWorkspacePath(args);
+      if (!workspacePath) {
         return {
-          ok: true,
-          config: result.config,
-          sourcePath: result.sourcePath,
+          ok: false,
+          error: {
+            code: 'INVALID_ARGUMENT',
+            message: '`workspacePath` must be a non-empty string',
+            configPath: null,
+            configKey: null,
+          },
         };
       }
 
-      const serializedError = serializeError(result.error);
-      log.debug('container:load-config validation failed', serializedError);
-      return { ok: false, error: serializedError };
-    } catch (error) {
-      log.error('container:load-config unexpected failure', error);
-      return {
-        ok: false,
-        error: {
-          code: 'UNKNOWN',
-          message: 'Failed to load container configuration',
-          configPath: null,
-          configKey: null,
-        },
-      };
+      try {
+        const result = await loadWorkspaceContainerConfig(workspacePath);
+        if (result.ok) {
+          return {
+            ok: true,
+            config: result.config,
+            sourcePath: result.sourcePath,
+          };
+        }
+
+        const serializedError = serializeError(result.error);
+        log.debug('container:load-config validation failed', serializedError);
+        return { ok: false, error: serializedError };
+      } catch (error) {
+        log.error('container:load-config unexpected failure', error);
+        return {
+          ok: false,
+          error: {
+            code: 'UNKNOWN',
+            message: 'Failed to load container configuration',
+            configPath: null,
+            configKey: null,
+          },
+        };
+      }
     }
-  });
+  );
 
   ipcMain.handle(
     'container:start-run',
@@ -110,8 +113,7 @@ export function registerContainerIpc(): void {
           ok: false,
           error: {
             code: 'INVALID_ARGUMENT',
-            message:
-              '`workspaceId` and `workspacePath` must be provided to start a container run',
+            message: '`workspaceId` and `workspacePath` must be provided to start a container run',
             configPath: null,
             configKey: null,
           },
@@ -124,18 +126,21 @@ export function registerContainerIpc(): void {
     }
   );
 
-  ipcMain.handle('container:stop-run', async (_event, args): Promise<{ ok: boolean; error?: string }> => {
-    try {
-      const workspaceId = typeof args?.workspaceId === 'string' ? args.workspaceId.trim() : '';
-      if (!workspaceId) {
-        return { ok: false, error: '`workspaceId` must be provided' };
+  ipcMain.handle(
+    'container:stop-run',
+    async (_event, args): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const workspaceId = typeof args?.workspaceId === 'string' ? args.workspaceId.trim() : '';
+        if (!workspaceId) {
+          return { ok: false, error: '`workspaceId` must be provided' };
+        }
+        const res = await containerRunnerService.stopRun(workspaceId);
+        return res as any;
+      } catch (error: any) {
+        return { ok: false, error: error?.message || String(error) };
       }
-      const res = await containerRunnerService.stopRun(workspaceId);
-      return res as any;
-    } catch (error: any) {
-      return { ok: false, error: error?.message || String(error) };
     }
-  });
+  );
 }
 
 function resolveWorkspacePath(args: unknown): string | null {
@@ -166,14 +171,12 @@ function serializeError(error: ContainerConfigLoadError): SerializedContainerCon
   };
 }
 
-function parseStartRunArgs(args: unknown):
-  | {
-      workspaceId: string;
-      workspacePath: string;
-      runId?: string;
-      mode?: RunnerMode;
-    }
-  | null {
+function parseStartRunArgs(args: unknown): {
+  workspaceId: string;
+  workspacePath: string;
+  runId?: string;
+  mode?: RunnerMode;
+} | null {
   if (!args || typeof args !== 'object') {
     return null;
   }

@@ -145,7 +145,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     runId?: string;
     mode?: 'container' | 'host';
   }) => ipcRenderer.invoke('container:start-run', args),
-  stopContainerRun: (workspaceId: string) => ipcRenderer.invoke('container:stop-run', { workspaceId }),
+  stopContainerRun: (workspaceId: string) =>
+    ipcRenderer.invoke('container:stop-run', { workspaceId }),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   // Telemetry (minimal, anonymous)
   captureTelemetry: (event: 'feature_used' | 'error', properties?: Record<string, any>) =>
@@ -467,9 +468,7 @@ export interface ElectronAPI {
 
   onRunEvent: (callback: (event: any) => void) => void;
   removeRunEventListeners: () => void;
-  loadContainerConfig: (
-    workspacePath: string
-  ) => Promise<
+  loadContainerConfig: (workspacePath: string) => Promise<
     | { ok: true; config: any; sourcePath: string | null }
     | {
         ok: false;

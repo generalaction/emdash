@@ -23,11 +23,6 @@
       "#types": ["./src/types/index.ts"]
     }
   },
-  "include": [
-    "src/renderer/**/*",
-    "src/shared/**/*",
-    "src/types/**/*",
-    "src/test/**/*"
-  ],
+  "include": ["src/renderer/**/*", "src/shared/**/*", "src/types/**/*", "src/test/**/*"],
   "exclude": ["node_modules", "dist"]
 }

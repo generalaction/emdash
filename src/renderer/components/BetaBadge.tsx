@@ -33,4 +33,3 @@ export const BetaBadge: React.FC<BetaBadgeProps> = ({ tooltip = DEFAULT_TOOLTIP,
 };
 
 export default BetaBadge;
-

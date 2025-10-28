@@ -120,10 +120,14 @@ async function readConfigFile(
     }
     return {
       content: null,
-      error: new ContainerConfigLoadError('IO_ERROR', `Failed to read ${configPath}: ${err.message}`, {
-        configPath,
-        cause: error,
-      }),
+      error: new ContainerConfigLoadError(
+        'IO_ERROR',
+        `Failed to read ${configPath}: ${err.message}`,
+        {
+          configPath,
+          cause: error,
+        }
+      ),
     };
   }
 }

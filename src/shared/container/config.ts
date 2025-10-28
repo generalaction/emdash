@@ -75,7 +75,10 @@ export function resolveContainerConfig(
       : {};
 
   const version = resolveVersion(source.version);
-  const packageManager = resolvePackageManager(source.packageManager, options.inferredPackageManager);
+  const packageManager = resolvePackageManager(
+    source.packageManager,
+    options.inferredPackageManager
+  );
   const start = resolveStartCommand(source.start);
   const envFile = resolveEnvFile(source.envFile);
   const workdir = resolveWorkdir(source.workdir);
@@ -102,10 +105,7 @@ function resolveVersion(raw: unknown): 1 {
   return DEFAULT_VERSION;
 }
 
-function resolvePackageManager(
-  raw: unknown,
-  inferred?: PackageManager
-): PackageManager {
+function resolvePackageManager(raw: unknown, inferred?: PackageManager): PackageManager {
   if (raw == null) return inferred ?? 'npm';
   if (typeof raw !== 'string') {
     throw new ContainerConfigError(
@@ -191,7 +191,10 @@ function resolvePorts(raw: unknown): ResolvedContainerPortConfig[] {
       throw new ContainerConfigError('Only TCP protocol is supported in M1', `${path}.protocol`);
     }
     if (preview != null && typeof preview !== 'boolean') {
-      throw new ContainerConfigError('`preview` must be a boolean when provided', `${path}.preview`);
+      throw new ContainerConfigError(
+        '`preview` must be a boolean when provided',
+        `${path}.preview`
+      );
     }
     result.push({
       service: service.trim(),
@@ -265,7 +268,11 @@ export type ContainerConfigSchema = {
         readonly required: readonly ['service', 'container'];
         readonly properties: {
           readonly service: { readonly type: 'string'; readonly minLength: 1 };
-          readonly container: { readonly type: 'integer'; readonly minimum: 1; readonly maximum: 65535 };
+          readonly container: {
+            readonly type: 'integer';
+            readonly minimum: 1;
+            readonly maximum: 65535;
+          };
           readonly preview: { readonly type: 'boolean' };
           readonly protocol: { readonly type: 'string'; readonly enum: readonly ['tcp'] };
         };

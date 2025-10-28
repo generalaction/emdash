@@ -27,14 +27,11 @@ function resolveContainerId(workspaceId: string): string {
 
 function previewServiceFromConfig(config: ResolvedContainerConfig): string {
   const previewPort = config.ports.find((port) => port.preview);
-  return previewPort ? previewPort.service : config.ports[0]?.service ?? 'app';
+  return previewPort ? previewPort.service : (config.ports[0]?.service ?? 'app');
 }
 
 function withUrl(mapping: RunnerPortMapping): RunnerPortMapping {
-  const url =
-    mapping.protocol === 'tcp'
-      ? `http://localhost:${mapping.host}`
-      : undefined;
+  const url = mapping.protocol === 'tcp' ? `http://localhost:${mapping.host}` : undefined;
   return url ? { ...mapping, url } : mapping;
 }
 
@@ -56,9 +53,7 @@ function createEventBase(
   };
 }
 
-export async function generateMockStartEvents(
-  options: MockStartOptions
-): Promise<RunnerEvent[]> {
+export async function generateMockStartEvents(options: MockStartOptions): Promise<RunnerEvent[]> {
   const now = options.now ?? Date.now;
   const nextTs = createTimestampGenerator(now);
   const mode = options.mode ?? DEFAULT_MODE;
@@ -95,9 +90,7 @@ export async function generateMockStartEvents(
   ];
 }
 
-export function buildMockPortAllocator(
-  hostPorts: number[]
-): PortAllocator {
+export function buildMockPortAllocator(hostPorts: number[]): PortAllocator {
   return {
     async allocate(requests: ResolvedContainerPortConfig[]): Promise<RunnerPortMapping[]> {
       if (hostPorts.length < requests.length) {

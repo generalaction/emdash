@@ -209,7 +209,10 @@ describe('registerContainerIpc', () => {
       registerContainerIpc();
       const handler = getHandler('container:start-run');
 
-      const result = await handler({}, { workspaceId: ' ws-1 ', workspacePath: ' /tmp/workspace ' });
+      const result = await handler(
+        {},
+        { workspaceId: ' ws-1 ', workspacePath: ' /tmp/workspace ' }
+      );
 
       expect(startRunMock).toHaveBeenCalledWith({
         workspaceId: 'ws-1',
