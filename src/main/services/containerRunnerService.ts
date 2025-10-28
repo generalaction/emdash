@@ -1,4 +1,8 @@
 import { EventEmitter } from 'node:events';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import type { ResolvedContainerConfig } from '@shared/container';
 import {
@@ -78,6 +82,170 @@ export class ContainerRunnerService extends EventEmitter {
 
   emitRunnerEvent(event: RunnerEvent): boolean {
     return this.emit(RUN_EVENT_CHANNEL, event);
+  }
+
+  /**
+   * Start a real container run using the local Docker CLI.
+   * Emits runner events compatible with the existing renderer.
+   */
+  async startRun(options: ContainerStartOptions): Promise<ContainerStartResult> {
+    const { workspaceId, workspacePath } = options;
+    if (!workspaceId || !workspacePath) {
+      return {
+        ok: false,
+        error: {
+          code: 'INVALID_ARGUMENT',
+          message: '`workspaceId` and `workspacePath` are required',
+          configKey: null,
+          configPath: null,
+        },
+      };
+    }
+
+    // Load container config
+    const loadResult = await this.loadConfig(workspacePath);
+    if (loadResult.ok === false) {
+      return {
+        ok: false,
+        error: this.serializeConfigError(loadResult.error),
+      };
+    }
+
+    const config = loadResult.config;
+    const now = options.now ?? Date.now;
+    const runId = options.runId ?? this.generateRunId(now);
+    const mode: RunnerMode = options.mode ?? 'container';
+
+    // Currently we only implement container mode here.
+    if (mode !== 'container') {
+      // Fallback to mock for host mode until implemented
+      return this.startMockRun({ ...options, runId, mode });
+    }
+
+    const execAsync = promisify(exec);
+
+    const emitLifecycle = (status: 'building' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed') => {
+      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status });
+    };
+
+    const emitPorts = (ports: Array<{ service: string; container: number; host: number }>, previewService: string) => {
+      const mapped = ports.map((p) => ({ service: p.service, protocol: 'tcp' as const, container: p.container, host: p.host, url: `http://localhost:${p.host}` }));
+      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'ports', previewService, ports: mapped });
+    };
+
+    try {
+      // Ensure Docker is available
+      try {
+        await execAsync('docker info --format {{.ServerVersion}}');
+      } catch (e) {
+        const message = 'Docker is not available. Please install and start Docker Desktop.';
+        const event = { ts: now(), workspaceId, runId, mode, type: 'error' as const, code: 'DOCKER_NOT_AVAILABLE' as const, message };
+        this.emitRunnerEvent(event);
+        return {
+          ok: false,
+          error: { code: 'UNKNOWN', message, configKey: null, configPath: null },
+        };
+      }
+
+      // Allocate host ports for requested container ports
+      const portRequests = config.ports;
+      const allocated = await this.portAllocator.allocate(portRequests);
+
+      const previewService = (config.ports.find((p) => p.preview) || config.ports[0])?.service ?? 'app';
+
+      emitLifecycle('building');
+
+      // Ensure no leftover container with the same name
+      const containerName = `emdash_ws_${workspaceId}`;
+      try {
+        await execAsync(`docker rm -f ${JSON.stringify(containerName)}`);
+      } catch {}
+
+      // Compose docker run args
+      const image = 'node:20';
+      const dockerArgs: string[] = ['run', '-d', '--name', containerName];
+
+      // Port mappings
+      for (const m of allocated) {
+        dockerArgs.push('-p', `${m.host}:${m.container}`);
+      }
+
+      // Workspace mount and workdir
+      const absWorkspace = path.resolve(workspacePath);
+      dockerArgs.push('-v', `${absWorkspace}:/workspace`);
+      const workdir = path.posix.join('/workspace', config.workdir.replace(/\\/g, '/'));
+      dockerArgs.push('-w', workdir);
+
+      // Env file (optional)
+      if (config.envFile) {
+        const envAbs = path.resolve(workspacePath, config.envFile);
+        if (!fs.existsSync(envAbs)) {
+          const message = `Env file not found: ${envAbs}`;
+          this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'error', code: 'ENVFILE_NOT_FOUND', message });
+          return {
+            ok: false,
+            error: { code: 'UNKNOWN', message, configKey: 'envFile', configPath: envAbs },
+          };
+        }
+        dockerArgs.push('--env-file', envAbs);
+      }
+
+      // Build command: install + start
+      const pm = config.packageManager;
+      const startCmd = config.start;
+      let installCmd = '';
+      if (pm === 'npm') installCmd = 'npm ci || npm install';
+      else if (pm === 'pnpm') installCmd = 'corepack enable && pnpm install --frozen-lockfile || pnpm install';
+      else if (pm === 'yarn') installCmd = 'corepack enable && yarn install --frozen-lockfile || yarn install';
+      const bashCmd = `bash -lc ${JSON.stringify(`${installCmd} && ${startCmd}`)}`;
+
+      dockerArgs.push(image, bashCmd);
+
+      emitLifecycle('starting');
+
+      const cmd = `docker ${dockerArgs.map((a) => (a.includes(' ') ? JSON.stringify(a) : a)).join(' ')}`;
+      const { stdout } = await execAsync(cmd);
+      const containerId = (stdout || '').trim();
+
+      // Emit ports and ready lifecycle
+      emitPorts(allocated.map((a) => ({ service: a.service, container: a.container, host: a.host })), previewService);
+      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status: 'starting', containerId });
+      emitLifecycle('ready');
+
+      return {
+        ok: true,
+        runId,
+        config,
+        sourcePath: loadResult.sourcePath ?? null,
+      };
+    } catch (error) {
+      const serialized = this.serializeStartError(error, {
+        workspaceId,
+        runId,
+        mode,
+        now,
+      });
+      if (serialized.event) this.emitRunnerEvent(serialized.event);
+      return { ok: false, error: serialized.error };
+    }
+  }
+
+  /** Stop and remove a running container for a workspace */
+  async stopRun(workspaceId: string, opts: { now?: () => number; mode?: RunnerMode } = {}) {
+    const now = opts.now ?? Date.now;
+    const mode = opts.mode ?? 'container';
+    const runId = this.generateRunId(now);
+    const containerName = `emdash_ws_${workspaceId}`;
+    try {
+      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status: 'stopping' });
+      await promisify(exec)(`docker rm -f ${JSON.stringify(containerName)}`);
+      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status: 'stopped' });
+      return { ok: true } as const;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'error', code: 'UNKNOWN', message });
+      return { ok: false, error: message } as const;
+    }
   }
 
   async startMockRun(options: ContainerStartOptions): Promise<ContainerStartResult> {

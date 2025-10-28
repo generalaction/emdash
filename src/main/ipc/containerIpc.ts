@@ -117,10 +117,24 @@ export function registerContainerIpc(): void {
         };
       }
 
+      // For now, use the mock runner to generate events/results in tests and dev
       const result = await containerRunnerService.startMockRun(parsed);
       return serializeStartRunResult(result);
     }
   );
+
+  ipcMain.handle('container:stop-run', async (_event, args): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const workspaceId = typeof args?.workspaceId === 'string' ? args.workspaceId.trim() : '';
+      if (!workspaceId) {
+        return { ok: false, error: '`workspaceId` must be provided' };
+      }
+      const res = await containerRunnerService.stopRun(workspaceId);
+      return res as any;
+    } catch (error: any) {
+      return { ok: false, error: error?.message || String(error) };
+    }
+  });
 }
 
 function resolveWorkspacePath(args: unknown): string | null {

@@ -61,3 +61,5 @@ AGENTS.md
 
 # Local generated worktrees for perf experiments
 worktrees/
+
+/container.md

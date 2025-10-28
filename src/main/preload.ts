@@ -145,6 +145,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     runId?: string;
     mode?: 'container' | 'host';
   }) => ipcRenderer.invoke('container:start-run', args),
+  stopContainerRun: (workspaceId: string) => ipcRenderer.invoke('container:stop-run', { workspaceId }),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   // Telemetry (minimal, anonymous)
   captureTelemetry: (event: 'feature_used' | 'error', properties?: Record<string, any>) =>
@@ -466,6 +467,50 @@ export interface ElectronAPI {
 
   onRunEvent: (callback: (event: any) => void) => void;
   removeRunEventListeners: () => void;
+  loadContainerConfig: (
+    workspacePath: string
+  ) => Promise<
+    | { ok: true; config: any; sourcePath: string | null }
+    | {
+        ok: false;
+        error: {
+          code:
+            | 'INVALID_ARGUMENT'
+            | 'INVALID_JSON'
+            | 'VALIDATION_FAILED'
+            | 'IO_ERROR'
+            | 'UNKNOWN'
+            | 'PORT_ALLOC_FAILED';
+          message: string;
+          configPath: string | null;
+          configKey: string | null;
+        };
+      }
+  >;
+  startContainerRun: (args: {
+    workspaceId: string;
+    workspacePath: string;
+    runId?: string;
+    mode?: 'container' | 'host';
+  }) => Promise<
+    | { ok: true; runId: string; sourcePath: string | null }
+    | {
+        ok: false;
+        error: {
+          code:
+            | 'INVALID_ARGUMENT'
+            | 'INVALID_JSON'
+            | 'VALIDATION_FAILED'
+            | 'IO_ERROR'
+            | 'PORT_ALLOC_FAILED'
+            | 'UNKNOWN';
+          message: string;
+          configPath: string | null;
+          configKey: string | null;
+        };
+      }
+  >;
+  stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
 
   // GitHub integration
   githubAuth: () => Promise<{ success: boolean; token?: string; user?: any; error?: string }>;
