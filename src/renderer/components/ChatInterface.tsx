@@ -21,7 +21,6 @@ import { Workspace, Message } from '../types/chat';
 import {
   getContainerRunState,
   subscribeToWorkspaceRunState,
-  startContainerRun,
   type ContainerRunState,
 } from '@/lib/containerRuns';
 
@@ -66,8 +65,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
     getContainerRunState(workspace.id)
   );
-  const [isStartingContainer, setIsStartingContainer] = useState(false);
-  const [isStoppingContainer, setIsStoppingContainer] = useState(false);
   const initializedConversationRef = useRef<string | null>(null);
 
   const codexStream = useCodexStream(
@@ -473,82 +470,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     };
   }, [workspace.id]);
 
-  const handleStartContainer = async () => {
-    try {
-      setIsStartingContainer(true);
-      const res = await startContainerRun({
-        workspaceId: workspace.id,
-        workspacePath: workspace.path,
-        mode: 'container',
-      });
-      if (res?.ok !== true) {
-        toast({
-          title: 'Failed to start container',
-          description: res?.error?.message || 'Unknown error',
-          variant: 'destructive',
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Failed to start container',
-        description: error?.message || String(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsStartingContainer(false);
-    }
-  };
-
-  const handleStopContainer = async () => {
-    try {
-      setIsStoppingContainer(true);
-      const res = await window.electronAPI.stopContainerRun(workspace.id);
-      if (!res?.ok) {
-        toast({
-          title: 'Failed to stop container',
-          description: res?.error || 'Unknown error',
-          variant: 'destructive',
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Failed to stop container',
-        description: error?.message || String(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsStoppingContainer(false);
-    }
-  };
-
-  const containerControlsNode = useMemo(() => {
-    const status = containerState?.status;
-    const active = status === 'building' || status === 'starting' || status === 'ready';
-    return (
-      <div className="mt-4 px-6">
-        <div className="mx-auto max-w-4xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="inline-flex items-center rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
-              onClick={handleStartContainer}
-              disabled={isStartingContainer || active}
-            >
-              {isStartingContainer ? 'Starting…' : 'Start Container'}
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center rounded border border-border px-3 py-1.5 text-sm font-medium text-foreground disabled:opacity-50"
-              onClick={handleStopContainer}
-              disabled={isStoppingContainer || !active}
-            >
-              {isStoppingContainer ? 'Stopping…' : 'Stop'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }, [containerState?.status, handleStartContainer, handleStopContainer, isStartingContainer, isStoppingContainer]);
+  // Container start/stop controls have been moved to the Project view.
 
   const containerStatusNode = useMemo(() => {
     const state = containerState;
@@ -605,7 +527,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
 
   return (
     <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
-      {containerControlsNode}
       {isTerminal ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">

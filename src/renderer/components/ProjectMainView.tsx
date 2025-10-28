@@ -188,7 +188,6 @@ function WorkspaceRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {/* Container controls */}
         {!containerActive ? (
           <TooltipProvider delayDuration={200}>
             <Tooltip>
@@ -202,18 +201,17 @@ function WorkspaceRow({
                 >
                   {isStartingContainer ? (
                     <>
-                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> Starting…
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> Connecting…
                     </>
                   ) : (
                     <>
-                      <img src={dockerLogo} alt="Docker" className="mr-1 h-4 w-4" /> Start
+                      <img src={dockerLogo} alt="Docker" className="mr-1 h-4 w-4" /> Connect
                     </>
                   )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs max-w-[22rem] leading-snug">
-                Starts this workspace inside a Docker container, installs deps, and maps
-                declared ports for preview.
+                Connects this workspace to a Docker container, installs deps, and maps declared ports for preview.
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
