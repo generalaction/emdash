@@ -64,6 +64,7 @@ export interface ContainerRunnerServiceOptions {
 
 export class ContainerRunnerService extends EventEmitter {
   private readonly portAllocator: Pick<PortManager, 'allocate'>;
+  private readonly startInFlight = new Map<string, Promise<ContainerStartResult>>();
 
   constructor(options: ContainerRunnerServiceOptions = {}) {
     super();
@@ -89,6 +90,17 @@ export class ContainerRunnerService extends EventEmitter {
    * Emits runner events compatible with the existing renderer.
    */
   async startRun(options: ContainerStartOptions): Promise<ContainerStartResult> {
+    const existing = this.startInFlight.get(options.workspaceId);
+    if (existing) return existing;
+
+    const promise = this._startRunImpl(options).finally(() => {
+      this.startInFlight.delete(options.workspaceId);
+    });
+    this.startInFlight.set(options.workspaceId, promise);
+    return promise;
+  }
+
+  private async _startRunImpl(options: ContainerStartOptions): Promise<ContainerStartResult> {
     const { workspaceId, workspacePath } = options;
     if (!workspaceId || !workspacePath) {
       return {
@@ -124,6 +136,9 @@ export class ContainerRunnerService extends EventEmitter {
 
     const execAsync = promisify(exec);
 
+    const DOCKER_INFO_TIMEOUT_MS = 8000;
+    const DOCKER_RUN_TIMEOUT_MS = 2 * 60 * 1000;
+
     const emitLifecycle = (status: 'building' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed') => {
       this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status });
     };
@@ -136,9 +151,11 @@ export class ContainerRunnerService extends EventEmitter {
     try {
       // Ensure Docker is available
       try {
-        await execAsync("docker info --format '{{.ServerVersion}}'");
+        log.info('[containers] checking docker availability');
+        await execAsync("docker info --format '{{.ServerVersion}}'", { timeout: DOCKER_INFO_TIMEOUT_MS });
+        log.info('[containers] docker is available');
       } catch (e) {
-        const message = 'Docker is not available. Please install and start Docker Desktop.';
+        const message = 'Docker is not available or not responding. Please start Docker Desktop.';
         const event = { ts: now(), workspaceId, runId, mode, type: 'error' as const, code: 'DOCKER_NOT_AVAILABLE' as const, message };
         this.emitRunnerEvent(event);
         return {
@@ -214,7 +231,7 @@ export class ContainerRunnerService extends EventEmitter {
 
       const cmd = `docker ${dockerArgs.map((a) => (a.includes(' ') ? JSON.stringify(a) : a)).join(' ')}`;
       log.info('[containers] docker run cmd', cmd);
-      const { stdout } = await execAsync(cmd);
+      const { stdout } = await execAsync(cmd, { timeout: DOCKER_RUN_TIMEOUT_MS });
       const containerId = (stdout || '').trim();
 
       // Emit ports and ready lifecycle
