@@ -424,6 +424,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
           workspacePath={workspaceId}
           files={fileChanges}
           initialFile={selectedPath}
+          onRefreshChanges={refreshChanges}
         />
       )}
     </div>
