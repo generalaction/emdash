@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { ResolvedContainerConfig } from '@shared/container';
+import type { ResolvedContainerConfig, PackageManager } from '@shared/container';
 import {
   generateMockStartEvents,
   PortAllocationError,
@@ -22,6 +22,19 @@ import {
 } from './containerConfigService';
 
 const RUN_EVENT_CHANNEL = 'runner-event';
+
+function detectPackageManagerFromWorkdir(dir: string): PackageManager | undefined {
+  try {
+    const pnpmLock = path.join(dir, 'pnpm-lock.yaml');
+    const yarnLock = path.join(dir, 'yarn.lock');
+    const npmLock = path.join(dir, 'package-lock.json');
+    const npmShrinkwrap = path.join(dir, 'npm-shrinkwrap.json');
+    if (fs.existsSync(pnpmLock)) return 'pnpm';
+    if (fs.existsSync(yarnLock)) return 'yarn';
+    if (fs.existsSync(npmLock) || fs.existsSync(npmShrinkwrap)) return 'npm';
+  } catch {}
+  return undefined;
+}
 
 export type ContainerStartErrorCode =
   | 'INVALID_ARGUMENT'
@@ -149,6 +162,30 @@ export class ContainerRunnerService extends EventEmitter {
     };
 
     try {
+      // Host-side preflight checks to prevent unintended workspace mutations
+      const absWorkspace = path.resolve(workspacePath);
+      const workdirAbs = path.resolve(absWorkspace, config.workdir);
+
+      if (!fs.existsSync(workdirAbs)) {
+        const message = `Configured workdir does not exist: ${workdirAbs}`;
+        const event = { ts: now(), workspaceId, runId, mode, type: 'error' as const, code: 'INVALID_CONFIG' as const, message };
+        this.emitRunnerEvent(event);
+        return {
+          ok: false,
+          error: { code: 'INVALID_ARGUMENT', message, configKey: 'workdir', configPath: workdirAbs },
+        };
+      }
+
+      const pkgJsonPath = path.join(workdirAbs, 'package.json');
+      if (!fs.existsSync(pkgJsonPath)) {
+        const message = `No package.json found in workdir: ${workdirAbs}. Set the correct 'workdir' in .emdash/config.json`;
+        this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'error', code: 'INVALID_CONFIG', message });
+        return {
+          ok: false,
+          error: { code: 'INVALID_ARGUMENT', message, configKey: 'workdir', configPath: workdirAbs },
+        };
+      }
+
       // Ensure Docker is available
       try {
         log.info('[containers] checking docker availability');
@@ -189,7 +226,6 @@ export class ContainerRunnerService extends EventEmitter {
       }
 
       // Workspace mount and workdir
-      const absWorkspace = path.resolve(workspacePath);
       dockerArgs.push('-v', `${absWorkspace}:/workspace`);
       const workdir = path.posix.join('/workspace', config.workdir.replace(/\\/g, '/'));
       dockerArgs.push('-w', workdir);
@@ -214,13 +250,22 @@ export class ContainerRunnerService extends EventEmitter {
         dockerArgs.push('--env-file', envAbs);
       }
 
-      // Build command: install + start
-      const pm = config.packageManager;
+      // Build command: safe install + start
+      // Detect package manager from lockfiles in workdir to avoid wrong PM creating lockfiles.
+      const detectedPm = detectPackageManagerFromWorkdir(workdirAbs) ?? config.packageManager;
       const startCmd = config.start;
+
       let installCmd = '';
-      if (pm === 'npm') installCmd = 'npm ci || npm install';
-      else if (pm === 'pnpm') installCmd = 'corepack enable && pnpm install --frozen-lockfile || pnpm install';
-      else if (pm === 'yarn') installCmd = 'corepack enable && yarn install --frozen-lockfile || yarn install';
+      if (detectedPm === 'npm') {
+        // Avoid creating package-lock.json on fallback installs
+        installCmd = 'if [ -f package-lock.json ]; then npm ci; else npm install --no-package-lock; fi';
+      } else if (detectedPm === 'pnpm') {
+        // Use frozen lockfile when present; otherwise allow creation per pnpm defaults
+        installCmd = 'corepack enable && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install; fi';
+      } else if (detectedPm === 'yarn') {
+        // Yarn v1 supports --frozen-lockfile; for others we fall back to plain install
+        installCmd = 'corepack enable && if [ -f yarn.lock ]; then yarn install --frozen-lockfile || yarn install; else yarn install; fi';
+      }
       const script = `${installCmd} && ${startCmd}`;
 
       // Important: pass command and args as separate tokens so Docker
