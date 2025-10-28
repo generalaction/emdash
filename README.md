@@ -14,7 +14,6 @@
 [![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
 <br />
-<br />
 
 <div align="center" style="margin:24px 0;">
 
@@ -25,9 +24,10 @@
 </div>
 
 <br />
-<br />
 
-emdash is a cross-platform UI layer for running multiple coding agents in parallel — currently supporting OpenAI Codex CLI, Claude Code CLI, Droid (Factory CLI), Gemini CLI, Cursor CLI, Amp Code CLI, GitHub Copilot CLI, and Charm CLI. Each agent runs in its own Git worktree so you can fan out tasks, keep changes compartmentalized, and manage everything from a single UI.
+**Run multiple coding agents in parallel—provider-agnostic, worktree-isolated, and local-first.**
+
+Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 10+ CLIs, such as Claude Code and Codex) and runs each agent in its own Git worktree to keep changes clean; when the environment matters, you can run a PR in its own Docker container. Hand off Linear, GitHub, or Jira tickets to an agent, review diffs side-by-side, and keep everything local—your data never leaves your machine.
 
 ## Install
 
