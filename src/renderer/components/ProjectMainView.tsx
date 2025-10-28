@@ -126,6 +126,8 @@ function WorkspaceRow({
 
         <WorkspaceDeleteButton
           workspaceName={ws.name}
+          workspacePath={ws.path}
+          workspaceBranch={ws.branch}
           onConfirm={async () => {
             try {
               setIsDeleting(true);

@@ -280,8 +280,61 @@ export class WorktreeService {
       }
 
       // Ensure directory is removed even if git command failed
+      // Use multiple attempts to handle ENOTEMPTY errors
       if (fs.existsSync(pathToRemove)) {
-        await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+        let lastError: Error | null = null;
+        
+        // Try multiple times with delays
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+            lastError = null;
+            break; // Success
+          } catch (rmError) {
+            lastError = rmError as Error;
+            if (attempt < 2) {
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+        }
+        
+        // If all attempts failed, try alternative approach
+        if (lastError) {
+          console.warn('fs.rm failed after retries, trying alternative approach', lastError);
+          try {
+            const entries = await fs.promises.readdir(pathToRemove, { withFileTypes: true });
+            for (const entry of entries) {
+              const fullPath = path.join(pathToRemove, entry.name);
+              if (entry.isDirectory()) {
+                // Recursive removal for subdirectories
+                let subDirError: Error | null = null;
+                for (let subAttempt = 0; subAttempt < 2; subAttempt++) {
+                  try {
+                    await fs.promises.rm(fullPath, { recursive: true, force: true });
+                    subDirError = null;
+                    break;
+                  } catch (subErr) {
+                    subDirError = subErr as Error;
+                    if (subAttempt < 1) {
+                      await new Promise(resolve => setTimeout(resolve, 50));
+                    }
+                  }
+                }
+                if (subDirError) {
+                  throw subDirError;
+                }
+              } else {
+                await fs.promises.unlink(fullPath);
+              }
+            }
+            // Try removing the now-empty directory
+            await fs.promises.rmdir(pathToRemove);
+          } catch (fallbackError) {
+            console.error('All removal attempts failed:', fallbackError);
+            throw new Error(`Failed to remove directory ${pathToRemove}: ${fallbackError}`);
+          }
+        }
       }
 
       if (branchToDelete) {
@@ -352,6 +405,53 @@ export class WorktreeService {
       log.error('Failed to get worktree status:', error);
       return {
         hasChanges: false,
+        stagedFiles: [],
+        unstagedFiles: [],
+        untrackedFiles: [],
+      };
+    }
+  }
+
+  /**
+   * Check if a worktree has uncommitted changes or unpushed commits
+   */
+  async hasUncommittedChanges(worktreePath: string, branch?: string): Promise<{
+    hasChanges: boolean;
+    hasUnpushedCommits: boolean;
+    stagedFiles: string[];
+    unstagedFiles: string[];
+    untrackedFiles: string[];
+  }> {
+    try {
+      const status = await this.getWorktreeStatus(worktreePath);
+      
+      let hasUnpushedCommits = false;
+      if (branch) {
+        try {
+          // Check if there are commits that haven't been pushed to origin
+          const { stdout: aheadBehind } = await execFileAsync(
+            'git',
+            ['rev-list', '--count', '--left-right', `origin/${branch}...${branch}`],
+            { cwd: worktreePath }
+          );
+          
+          const [behind, ahead] = aheadBehind.trim().split('\t').map(Number);
+          hasUnpushedCommits = ahead > 0;
+        } catch (error) {
+          // If we can't check upstream (e.g., branch doesn't exist on origin), assume there might be unpushed changes
+          hasUnpushedCommits = true;
+        }
+      }
+
+      return {
+        ...status,
+        hasUnpushedCommits,
+      };
+    } catch (error) {
+      log.error('Failed to check for uncommitted changes:', error);
+      return {
+        hasChanges: false,
+        hasUnpushedCommits: false,
         stagedFiles: [],
         unstagedFiles: [],
         untrackedFiles: [],

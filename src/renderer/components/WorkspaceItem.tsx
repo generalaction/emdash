@@ -58,6 +58,8 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelet
         {showDelete && onDelete ? (
           <WorkspaceDeleteButton
             workspaceName={workspace.name}
+            workspacePath={workspace.path}
+            workspaceBranch={workspace.branch}
             onConfirm={async () => {
               try {
                 setIsDeleting(true);

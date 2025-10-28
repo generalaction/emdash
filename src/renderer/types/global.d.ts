@@ -39,6 +39,10 @@ declare global {
       worktreeStatus: (args: {
         worktreePath: string;
       }) => Promise<{ success: boolean; status?: any; error?: string }>;
+      worktreeHasUncommittedChanges: (args: {
+        worktreePath: string;
+        branch?: string;
+      }) => Promise<{ success: boolean; result?: any; error?: string }>;
       worktreeMerge: (args: {
         projectPath: string;
         worktreeId: string;

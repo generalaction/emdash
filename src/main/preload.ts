@@ -91,6 +91,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     branch?: string;
   }) => ipcRenderer.invoke('worktree:remove', args),
   worktreeStatus: (args: { worktreePath: string }) => ipcRenderer.invoke('worktree:status', args),
+  worktreeHasUncommittedChanges: (args: { worktreePath: string; branch?: string }) =>
+    ipcRenderer.invoke('worktree:hasUncommittedChanges', args),
   worktreeMerge: (args: { projectPath: string; worktreeId: string }) =>
     ipcRenderer.invoke('worktree:merge', args),
   worktreeGet: (args: { worktreeId: string }) => ipcRenderer.invoke('worktree:get', args),

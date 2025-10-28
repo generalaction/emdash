@@ -76,6 +76,20 @@ export function registerWorktreeIpc(): void {
     }
   });
 
+  // Check if worktree has uncommitted changes
+  ipcMain.handle(
+    'worktree:hasUncommittedChanges',
+    async (event, args: { worktreePath: string; branch?: string }) => {
+      try {
+        const result = await worktreeService.hasUncommittedChanges(args.worktreePath, args.branch);
+        return { success: true, result };
+      } catch (error) {
+        console.error('Failed to check uncommitted changes:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
   // Merge worktree changes
   ipcMain.handle(
     'worktree:merge',
