@@ -13,6 +13,7 @@ import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
+import BetaBadge from './BetaBadge';
 import {
   getContainerRunState,
   startContainerRun,
@@ -187,6 +188,7 @@ function WorkspaceRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        <BetaBadge />
         <ContainerStatusBadge
           active={containerActive}
           isStarting={isStartingContainerState}
