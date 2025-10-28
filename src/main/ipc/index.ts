@@ -17,6 +17,7 @@ import { registerTelemetryIpc } from './telemetryIpc';
 import { registerJiraIpc } from './jiraIpc';
 import { registerPlanLockIpc } from '../services/planLockIpc';
 import { registerSettingsIpc } from './settingsIpc';
+import { registerContainerIpc } from './containerIpc';
 
 export function registerAllIpc() {
   // Core app/utility IPC
@@ -31,6 +32,7 @@ export function registerAllIpc() {
   registerGithubIpc();
   registerDatabaseIpc();
   registerGitIpc();
+  registerContainerIpc();
 
   // Existing modules
   registerPtyIpc();

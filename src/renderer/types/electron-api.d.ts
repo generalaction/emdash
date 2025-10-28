@@ -1,4 +1,6 @@
 // Updated for Codex integration
+import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
+
 export {};
 
 declare global {
@@ -179,6 +181,56 @@ declare global {
         behind?: number;
         error?: string;
       }>;
+      loadContainerConfig: (workspacePath: string) => Promise<
+        | {
+            ok: true;
+            config: ResolvedContainerConfig;
+            sourcePath: string | null;
+          }
+        | {
+            ok: false;
+            error: {
+              code:
+                | 'INVALID_ARGUMENT'
+                | 'INVALID_JSON'
+                | 'VALIDATION_FAILED'
+                | 'IO_ERROR'
+                | 'UNKNOWN'
+                | 'PORT_ALLOC_FAILED';
+              message: string;
+              configPath: string | null;
+              configKey: string | null;
+            };
+          }
+      >;
+      startContainerRun: (args: {
+        workspaceId: string;
+        workspacePath: string;
+        runId?: string;
+        mode?: RunnerMode;
+      }) => Promise<
+        | {
+            ok: true;
+            runId: string;
+            sourcePath: string | null;
+          }
+        | {
+            ok: false;
+            error: {
+              code:
+                | 'INVALID_ARGUMENT'
+                | 'INVALID_JSON'
+                | 'VALIDATION_FAILED'
+                | 'IO_ERROR'
+                | 'PORT_ALLOC_FAILED'
+                | 'UNKNOWN';
+              message: string;
+              configPath: string | null;
+              configKey: string | null;
+            };
+          }
+      >;
+      stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
         app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
@@ -258,7 +310,7 @@ declare global {
       }>;
 
       // Run events
-      onRunEvent: (callback: (event: any) => void) => void;
+      onRunEvent: (callback: (event: RunnerEvent) => void) => void;
       removeRunEventListeners: () => void;
 
       // GitHub integration
@@ -619,7 +671,7 @@ export interface ElectronAPI {
   }>;
 
   // Run events
-  onRunEvent: (callback: (event: any) => void) => void;
+  onRunEvent: (callback: (event: RunnerEvent) => void) => void;
   removeRunEventListeners: () => void;
 
   // GitHub integration

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
@@ -18,6 +19,11 @@ import { PLAN_CHAT_PREAMBLE } from '@/lib/planRules';
 import { type Provider } from '../types';
 import { buildAttachmentsSection, buildImageAttachmentsSection } from '../lib/attachments';
 import { Workspace, Message } from '../types/chat';
+import {
+  getContainerRunState,
+  subscribeToWorkspaceRunState,
+  type ContainerRunState,
+} from '@/lib/containerRuns';
 
 declare const window: Window & {
   electronAPI: {
@@ -57,6 +63,9 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   const [hasCursorActivity, setHasCursorActivity] = useState(false);
   const [hasCopilotActivity, setHasCopilotActivity] = useState(false);
   const [cliStartFailed, setCliStartFailed] = useState(false);
+  const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
+    getContainerRunState(workspace.id)
+  );
   const initializedConversationRef = useRef<string | null>(null);
 
   const codexStream = useCodexStream(
@@ -98,6 +107,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   useEffect(() => {
     initializedConversationRef.current = null;
     setCliStartFailed(false);
+    setContainerState(getContainerRunState(workspace.id));
   }, [workspace.id]);
 
   // On workspace change, restore last-selected provider (including Droid).
@@ -514,6 +524,73 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     } catch {}
   }, [provider, workspace.id]);
 
+  useEffect(() => {
+    const off = subscribeToWorkspaceRunState(workspace.id, (state) => {
+      setContainerState(state);
+    });
+    return () => {
+      off?.();
+    };
+  }, [workspace.id]);
+
+  // Container start/stop controls have been moved to the Project view.
+
+  const containerStatusNode = useMemo(() => {
+    const state = containerState;
+    if (!state?.runId) return null;
+    const statusText = state.status.replace(/_/g, ' ');
+    const ports = state.ports ?? [];
+    return (
+      <div className="mt-4 px-6">
+        <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="font-medium text-foreground">
+              Container status: <span className="capitalize">{statusText}</span>
+              {state.containerId ? (
+                <span className="ml-2 text-xs text-muted-foreground">#{state.containerId}</span>
+              ) : null}
+            </div>
+            {state.previewUrl ? (
+              <button
+                type="button"
+                className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                onClick={() => window.electronAPI.openExternal(state.previewUrl!)}
+                aria-label="Open preview (external)"
+                title="Open preview"
+              >
+                Open Preview
+                <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+          {ports.length ? (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {ports.map((port) => (
+                <span
+                  key={`${state.runId}-${port.service}-${port.host}`}
+                  className="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1"
+                >
+                  <span className="font-medium text-foreground">{port.service}</span>
+                  <span>host {port.host}</span>
+                  <span>→</span>
+                  <span>container {port.container}</span>
+                  {state.previewService === port.service ? (
+                    <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">preview</span>
+                  ) : null}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {state.lastError ? (
+            <div className="mt-2 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+              {state.lastError.message}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }, [containerState]);
+
   return (
     <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
       {isTerminal ? (
@@ -554,6 +631,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
               <WorkspaceNotice workspaceName={workspace.name} />
             </div>
           </div>
+          {containerStatusNode}
           <div className="mt-4 min-h-0 flex-1 px-6">
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
@@ -628,6 +706,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
               </div>
             </div>
           ) : null}
+          {containerStatusNode}
           <MessageList
             messages={activeStream.messages}
             streamingOutput={streamingOutputForList}

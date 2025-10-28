@@ -14,8 +14,8 @@ export function createMainWindow(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // __dirname here resolves to dist/main/app at runtime
-      // preload is emitted to dist/main/preload.js
+      // __dirname here resolves to dist/main/main/app at runtime (dev)
+      // Preload is emitted to dist/main/main/preload.js
       preload: join(__dirname, '..', 'preload.js'),
     },
     titleBarStyle: 'hiddenInset',
