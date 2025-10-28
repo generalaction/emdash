@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, Square } from 'lucide-react';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { GitBranch, Plus, Loader2 } from 'lucide-react';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from './ui/breadcrumb';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
@@ -13,7 +12,7 @@ import { Spinner } from './ui/spinner';
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import { useToast } from '../hooks/use-toast';
-import dockerLogo from '../../assets/images/docker.png';
+import ContainerStatusBadge from './ContainerStatusBadge';
 import {
   getContainerRunState,
   startContainerRun,
@@ -188,82 +187,15 @@ function WorkspaceRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {!containerActive ? (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
-                  onClick={handleStartContainer}
-                  disabled={isStartingContainer}
-                  aria-busy={isStartingContainer}
-                >
-                  {isStartingContainer ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                      Connecting…
-                    </>
-                  ) : (
-                    <>
-                      <img src={dockerLogo} alt="Docker" className="mr-1.5 h-3.5 w-3.5" />
-                      Connect
-                    </>
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[22rem] text-xs leading-snug">
-                Connects this workspace to a Docker container, installs deps, and maps declared ports for preview.
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : null}
-
-        {isStartingContainerState ? (
-          <span
-            className="inline-flex h-8 items-center rounded-md border border-dashed border-border/70 bg-muted/40 px-2.5 text-xs font-medium text-foreground"
-            aria-live="polite"
-          >
-            <img src={dockerLogo} alt="" className="mr-1.5 h-3.5 w-3.5" />
-            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-            Starting…
-          </span>
-        ) : null}
-
-        {isReady ? (
-          <div
-            className="inline-flex h-8 items-center overflow-hidden rounded-md border border-border/70 bg-background text-xs font-medium text-foreground"
-            aria-live="polite"
-            role="group"
-          >
-            <img src={dockerLogo} alt="" className="ml-2 mr-1.5 h-3.5 w-3.5" />
-            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="pr-2">Running</span>
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={handleStopContainer}
-                    disabled={isStoppingContainer}
-                    className="h-8 border-l border-border/60 px-2 text-muted-foreground transition hover:bg-muted/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
-                    aria-label="Stop container"
-                    title="Stop container"
-                  >
-                    {isStoppingContainer ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Square className="h-4 w-4" aria-hidden="true" />
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs">
-                  Stop container
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        ) : null}
+        <ContainerStatusBadge
+          active={containerActive}
+          isStarting={isStartingContainerState}
+          isReady={isReady}
+          startingAction={isStartingContainer}
+          stoppingAction={isStoppingContainer}
+          onStart={handleStartContainer}
+          onStop={handleStopContainer}
+        />
         {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
           <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
         ) : pr ? (
