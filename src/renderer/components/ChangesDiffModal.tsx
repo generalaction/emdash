@@ -282,30 +282,33 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                             const isMeta = e.metaKey || e.ctrlKey;
                             if (isMeta && e.key.toLowerCase() === 's') {
                               e.preventDefault();
-                          try {
-                            const contentToWrite = editorValue.replace(/\n/g, eol);
-                            const res = await window.electronAPI.fsWriteFile(
-                              workspacePath,
-                              selected!,
-                              contentToWrite,
-                              true
-                            );
-                            if (!res?.success) throw new Error(res?.error || 'Write failed');
-                            setDirty(false);
-                            setRefreshKey((k) => k + 1);
+                              try {
+                                const contentToWrite = editorValue.replace(/\n/g, eol);
+                                const res = await window.electronAPI.fsWriteFile(
+                                  workspacePath,
+                                  selected!,
+                                  contentToWrite,
+                                  true
+                                );
+                                if (!res?.success) throw new Error(res?.error || 'Write failed');
+                                setDirty(false);
+                                setRefreshKey((k) => k + 1);
                                 toast({ title: 'Saved', description: selected! });
-                            if (onRefreshChanges) await onRefreshChanges();
-                          } catch (err: any) {
-                            toast({
-                              title: 'Save failed',
-                              description: String(err?.message || 'Unable to save file'),
-                              variant: 'destructive',
-                            });
-                          }
+                                if (onRefreshChanges) await onRefreshChanges();
+                              } catch (err: any) {
+                                toast({
+                                  title: 'Save failed',
+                                  description: String(err?.message || 'Unable to save file'),
+                                  variant: 'destructive',
+                                });
+                              }
                             }
                             if (e.key === 'Escape') {
                               // Exit edit mode (prompt if dirty)
-                              if (!dirty || window.confirm('Discard unsaved changes and exit edit?')) {
+                              if (
+                                !dirty ||
+                                window.confirm('Discard unsaved changes and exit edit?')
+                              ) {
                                 setIsEditing(false);
                                 setDirty(false);
                               }
