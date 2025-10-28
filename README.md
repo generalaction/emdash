@@ -1,28 +1,37 @@
+<img width="4856" height="1000" alt="gh_banner" src="https://github.com/user-attachments/assets/7c7c6e83-774a-43f4-8a6f-df10b3ba5751" />
 
-<p align="center">
-    <img src="./src/assets/images/emdash/emdash_logo.svg#gh-light-mode-only"
-  alt="Emdash" width="900">
-    <img src="./src/assets/images/emdash/emdash_logo_white.svg#gh-dark-mode-only"
-  alt="Emdash" width="900">
-  </p>
+<br />
 
-emdash is a cross-platform UI layer for running multiple coding agents in parallel — currently supporting OpenAI Codex CLI, Claude Code CLI, Droid (Factory CLI), Gemini CLI, Cursor CLI, Amp Code CLI, GitHub Copilot CLI, and Charm CLI. Each agent runs in its own Git worktree so you can fan out tasks, keep changes compartmentalized, and manage everything from a single UI.
+[![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash)
+[![Last Commit](https://img.shields.io/github/last-commit/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/commits/main)
+[![Commit Activity](https://img.shields.io/github/commit-activity/m/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/graphs/commit-activity)
+[![Issues](https://img.shields.io/github/issues/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/issues)
+[![Release](https://img.shields.io/github/v/release/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
+[![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
+<br>
+[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/Rm63cQaE)
+[![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
-<hr style="border:0; height:1px; background:#d0d7de; margin:24px 0;">
+<br />
+<br />
 
 <div align="center" style="margin:24px 0;">
-  <a href="https://discord.gg/fUhgQcNg" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
-    <img src="https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white" alt="Join the Emdash Discord" height="40">
-  </a>
 
   <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
     <img src="./docs/media/downloadformacos.png" alt="Download app for macOS" height="40">
   </a>
 
-  <a href="https://x.com/emdashsh" style="display:inline-block; text-decoration:none; outline:none; border:none;">
-    <img src="https://img.shields.io/badge/Follow%20on%20X-%23000000.svg?logo=x&logoColor=white" alt="Follow on X" height="40">
-  </a>
 </div>
+
+<br />
+<br />
+
+
+emdash is a cross-platform UI layer for running multiple coding agents in parallel — currently supporting OpenAI Codex CLI, Claude Code CLI, Droid (Factory CLI), Gemini CLI, Cursor CLI, Amp Code CLI, GitHub Copilot CLI, and Charm CLI. Each agent runs in its own Git worktree so you can fan out tasks, keep changes compartmentalized, and manage everything from a single UI.
+
+<hr style="border:0; height:1px; background:#d0d7de; margin:24px 0;">
+
 
 
 
