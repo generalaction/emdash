@@ -137,6 +137,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrStatus: (args: { workspacePath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
   getBranchStatus: (args: { workspacePath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
+  loadContainerConfig: (workspacePath: string) =>
+    ipcRenderer.invoke('container:load-config', { workspacePath }),
+  startContainerRun: (args: {
+    workspaceId: string;
+    workspacePath: string;
+    runId?: string;
+    mode?: 'container' | 'host';
+  }) => ipcRenderer.invoke('container:start-run', args),
+  stopContainerRun: (workspaceId: string) =>
+    ipcRenderer.invoke('container:stop-run', { workspaceId }),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   // Telemetry (minimal, anonymous)
   captureTelemetry: (event: 'feature_used' | 'error', properties?: Record<string, any>) =>
@@ -170,6 +180,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     branchName?: string;
   }) => ipcRenderer.invoke('github:createPullRequestWorktree', args),
   githubLogout: () => ipcRenderer.invoke('github:logout'),
+  // GitHub issues
+  githubIssuesList: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('github:issues:list', projectPath, limit),
+  githubIssuesSearch: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('github:issues:search', projectPath, searchTerm, limit),
+  githubIssueGet: (projectPath: string, number: number) =>
+    ipcRenderer.invoke('github:issues:get', projectPath, number),
   // Linear integration
   linearSaveToken: (token: string) => ipcRenderer.invoke('linear:saveToken', token),
   linearCheckConnection: () => ipcRenderer.invoke('linear:checkConnection'),
@@ -177,6 +194,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   linearInitialFetch: (limit?: number) => ipcRenderer.invoke('linear:initialFetch', limit),
   linearSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('linear:searchIssues', searchTerm, limit),
+  // Jira integration
+  jiraSaveCredentials: (args: { siteUrl: string; email: string; token: string }) =>
+    ipcRenderer.invoke('jira:saveCredentials', args),
+  jiraClearCredentials: () => ipcRenderer.invoke('jira:clearCredentials'),
+  jiraCheckConnection: () => ipcRenderer.invoke('jira:checkConnection'),
+  jiraInitialFetch: (limit?: number) => ipcRenderer.invoke('jira:initialFetch', limit),
+  jiraSearchIssues: (searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
   getCliProviders: () => ipcRenderer.invoke('connections:getCliProviders'),
   // Database methods
   getProjects: () => ipcRenderer.invoke('db:getProjects'),
@@ -458,6 +483,48 @@ export interface ElectronAPI {
 
   onRunEvent: (callback: (event: any) => void) => void;
   removeRunEventListeners: () => void;
+  loadContainerConfig: (workspacePath: string) => Promise<
+    | { ok: true; config: any; sourcePath: string | null }
+    | {
+        ok: false;
+        error: {
+          code:
+            | 'INVALID_ARGUMENT'
+            | 'INVALID_JSON'
+            | 'VALIDATION_FAILED'
+            | 'IO_ERROR'
+            | 'UNKNOWN'
+            | 'PORT_ALLOC_FAILED';
+          message: string;
+          configPath: string | null;
+          configKey: string | null;
+        };
+      }
+  >;
+  startContainerRun: (args: {
+    workspaceId: string;
+    workspacePath: string;
+    runId?: string;
+    mode?: 'container' | 'host';
+  }) => Promise<
+    | { ok: true; runId: string; sourcePath: string | null }
+    | {
+        ok: false;
+        error: {
+          code:
+            | 'INVALID_ARGUMENT'
+            | 'INVALID_JSON'
+            | 'VALIDATION_FAILED'
+            | 'IO_ERROR'
+            | 'PORT_ALLOC_FAILED'
+            | 'UNKNOWN';
+          message: string;
+          configPath: string | null;
+          configKey: string | null;
+        };
+      }
+  >;
+  stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
 
   // GitHub integration
   githubAuth: () => Promise<{ success: boolean; token?: string; user?: any; error?: string }>;

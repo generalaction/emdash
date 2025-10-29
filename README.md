@@ -1,45 +1,33 @@
+<img width="4856" height="1000" alt="gh_banner" src="https://github.com/user-attachments/assets/7c7c6e83-774a-43f4-8a6f-df10b3ba5751" />
 
-<p align="center">
-    <img src="./src/assets/images/emdash/emdash_logo.svg#gh-light-mode-only"
-  alt="Emdash" width="900">
-    <img src="./src/assets/images/emdash/emdash_logo_white.svg#gh-dark-mode-only"
-  alt="Emdash" width="900">
-  </p>
+<br />
 
-emdash is a cross-platform UI layer for running multiple coding agents in parallel — currently supporting OpenAI Codex CLI, Claude Code CLI, Droid (Factory CLI), Gemini CLI, Cursor CLI, Amp Code CLI, GitHub Copilot CLI, and Charm CLI. Each agent runs in its own Git worktree so you can fan out tasks, keep changes compartmentalized, and manage everything from a single UI.
+[![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash)
+[![Last Commit](https://img.shields.io/github/last-commit/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/commits/main)
+[![Commit Activity](https://img.shields.io/github/commit-activity/m/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/graphs/commit-activity)
+[![Issues](https://img.shields.io/github/issues/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/issues)
+[![Release](https://img.shields.io/github/v/release/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
+[![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
+<br>
+[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/Rm63cQaE)
+[![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
-<hr style="border:0; height:1px; background:#d0d7de; margin:24px 0;">
+<br />
 
 <div align="center" style="margin:24px 0;">
-  <a href="https://discord.gg/fUhgQcNg" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
-    <img src="https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white" alt="Join the Emdash Discord" height="40">
-  </a>
 
   <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
     <img src="./docs/media/downloadformacos.png" alt="Download app for macOS" height="40">
   </a>
 
-  <a href="https://x.com/emdashsh" style="display:inline-block; text-decoration:none; outline:none; border:none;">
-    <img src="https://img.shields.io/badge/Follow%20on%20X-%23000000.svg?logo=x&logoColor=white" alt="Follow on X" height="40">
-  </a>
 </div>
 
-
-
-<br />
 <br />
 
-  <p align="center">
-  <img src="./docs/media/modelselector.png" alt="Provider selector showing supported CLIs" width="360">
-  <br />
-  <em>Emdash supports the widest range of CLI providers</em>
-  <br />
-</p>
+**Run multiple coding agents in parallel—provider-agnostic, worktree-isolated, and local-first.**
 
-
-<p align="center">
-    <img src="./docs/media/emdash-screenshot.png" alt="Emdash app screenshot" width="100%">
-</p>
+Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 10+ CLIs, such as Claude Code and Codex) and runs each agent in its own Git worktree to keep changes clean; when the environment matters, you can run a PR in its own Docker container. Hand off Linear, GitHub, or Jira tickets to an agent, review diffs side-by-side, and keep everything local—your data never leaves your machine.
 
 ## Install
 
@@ -458,6 +446,37 @@ find "$HOME" -type f -name 'emdash.db*' -print
 - [ ] Planning chat with controlled execution (draft actions in a separate chat, then run them one by one)
 - [x] Linear integration to track and close out issues
 - [ ] Assign the same prompt to different providers at the same time and compare results
+
+## Issue Integrations
+
+### Jira
+
+<img src="./src/assets/images/jira.png" alt="Jira" height="18" />  Connect your Jira site and attach issues to workspaces.
+
+- Prerequisites
+  - Site URL: the base URL of your site, for example `https://your-domain.atlassian.net`.
+  - Email: your Atlassian account email.
+  - API token: create at https://id.atlassian.com/manage-profile/security/api-tokens.
+- Connect
+  - Open Settings → Integrations → Jira → Set up Jira.
+  - Enter Site URL, Email, and API token → Connect.
+- Use
+  - In “New Workspace” → Advanced options → Jira issue, type an exact key (e.g., `ABC-123`) or search text.
+  - If listing is limited, you can still fetch a specific issue by its key.
+- Tips
+  - Use your atlassian.net site URL, not `api.atlassian.com`.
+  - If listing fails or you get 401/403, your account may lack the “Browse projects” permission for those projects.
+
+### Linear
+
+<img src="./src/assets/images/linear-icon.png" alt="Linear" height="18" />  Connect Linear to browse and attach issues.
+
+- Prerequisites
+  - Linear API key (create from Linear → Settings → API).
+- Connect
+  - Open Settings → Integrations → Linear, paste your API key → Connect.
+- Use
+  - In “New Workspace” → Advanced options → Linear issue, pick from the list or search by title/assignee.
 
 ## Security & Privacy
 

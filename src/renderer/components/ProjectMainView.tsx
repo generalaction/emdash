@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
 import { GitBranch, Plus, Loader2 } from 'lucide-react';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from './ui/breadcrumb';
@@ -11,6 +11,15 @@ import { ChangesBadge } from './WorkspaceChanges';
 import { Spinner } from './ui/spinner';
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import { useToast } from '../hooks/use-toast';
+import ContainerStatusBadge from './ContainerStatusBadge';
+import BetaBadge from './BetaBadge';
+import {
+  getContainerRunState,
+  startContainerRun,
+  subscribeToWorkspaceRunState,
+  type ContainerRunState,
+} from '@/lib/containerRuns';
 
 interface Project {
   id: string;
@@ -57,10 +66,20 @@ function WorkspaceRow({
   onClick: () => void;
   onDelete: () => void | Promise<void>;
 }) {
+  const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { pr } = usePrStatus(ws.path);
   const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(ws.path, ws.id);
+  const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
+    getContainerRunState(ws.id)
+  );
+  const [isStartingContainer, setIsStartingContainer] = useState(false);
+  const [isStoppingContainer, setIsStoppingContainer] = useState(false);
+  const containerStatus = containerState?.status;
+  const isReady = containerStatus === 'ready';
+  const isStartingContainerState = containerStatus === 'building' || containerStatus === 'starting';
+  const containerActive = isStartingContainerState || isReady;
 
   useEffect(() => {
     (async () => {
@@ -88,6 +107,63 @@ function WorkspaceRow({
     };
   }, [ws.id]);
 
+  useEffect(() => {
+    const off = subscribeToWorkspaceRunState(ws.id, (state) => setContainerState(state));
+    return () => {
+      off?.();
+    };
+  }, [ws.id]);
+
+  const handleStartContainer = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsStartingContainer(true);
+      const res = await startContainerRun({
+        workspaceId: ws.id,
+        workspacePath: ws.path,
+        mode: 'container',
+      });
+      if (res?.ok !== true) {
+        toast({
+          title: 'Failed to start container',
+          description: res?.error?.message || 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Failed to start container',
+        description: error?.message || String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsStartingContainer(false);
+    }
+  };
+
+  const handleStopContainer = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsStoppingContainer(true);
+      const res = await (window as any).electronAPI.stopContainerRun(ws.id);
+      if (!res?.ok) {
+        toast({
+          title: 'Failed to stop container',
+          description: res?.error || 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Failed to stop container',
+        description: error?.message || String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsStoppingContainer(false);
+    }
+  };
+
   return (
     <div
       onClick={onClick}
@@ -112,6 +188,16 @@ function WorkspaceRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        <BetaBadge />
+        <ContainerStatusBadge
+          active={containerActive}
+          isStarting={isStartingContainerState}
+          isReady={isReady}
+          startingAction={isStartingContainer}
+          stoppingAction={isStoppingContainer}
+          onStart={handleStartContainer}
+          onStop={handleStopContainer}
+        />
         {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
           <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
         ) : pr ? (
@@ -251,8 +337,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </AlertDescription>
               </Alert>
             )}
-
-            {/* Pull Requests section temporarily removed */}
           </div>
         </div>
       </div>
