@@ -207,7 +207,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     return (
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
-                          <div className="group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground focus-within:bg-accent focus-within:text-accent-foreground">
+                          <div className="group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground">
                             <button
                               type="button"
                               className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
