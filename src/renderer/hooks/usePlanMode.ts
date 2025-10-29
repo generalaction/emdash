@@ -35,10 +35,10 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
       if (!resHidden?.success) {
         log.warn('[plan] failed to write hidden planning.md', resHidden?.error);
       }
-      // Root-level helper for agents that don’t read hidden dirs
+      // Root-level helper for agents that don't read hidden dirs
       const rootRel = 'PLANNING.md';
       log.info('[plan] writing policy (root helper)', { workspacePath, rootRel });
-      const rootHeader = '# Plan Mode (Read‑only)\n\n';
+      const rootHeader = '# Plan Mode (Read-only)\n\n';
       const rootBody = `${rootHeader}${PLANNING_MD}`;
       const resRoot = await (window as any).electronAPI.fsWriteFile(
         workspacePath,
