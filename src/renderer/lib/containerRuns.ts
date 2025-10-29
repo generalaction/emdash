@@ -271,7 +271,11 @@ export async function refreshWorkspaceRunState(workspaceId: string) {
         mode: 'container',
         type: 'ports',
         previewService: res.previewService ?? res.ports[0]?.service ?? 'app',
-        ports: res.ports.map((p: any) => ({ ...p, protocol: 'tcp', url: `http://localhost:${p.host}` })),
+        ports: res.ports.map((p: any) => ({
+          ...p,
+          protocol: 'tcp',
+          url: `http://localhost:${p.host}`,
+        })),
       } as any;
       updateWorkspaceState(portsEvent);
       const lifecycleEvent: RunnerEvent = {

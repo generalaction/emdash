@@ -191,7 +191,12 @@ function WorkspaceRow({
   const previewService = containerState?.previewService;
 
   return (
-    <div className={['rounded-xl border border-border bg-background', active ? 'ring-2 ring-primary' : ''].join(' ')}>
+    <div
+      className={[
+        'rounded-xl border border-border bg-background',
+        active ? 'ring-2 ring-primary' : '',
+      ].join(' ')}
+    >
       <div
         onClick={onClick}
         role="button"
@@ -235,7 +240,9 @@ function WorkspaceRow({
               aria-controls={`ws-${ws.id}-ports`}
             >
               <ChevronDown
-                className={['h-3.5 w-3.5 transition-transform', expanded ? 'rotate-180' : ''].join(' ')}
+                className={['h-3.5 w-3.5 transition-transform', expanded ? 'rotate-180' : ''].join(
+                  ' '
+                )}
                 aria-hidden="true"
               />
               Ports
@@ -304,7 +311,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   isCreatingWorkspace = false,
   onDeleteProject,
 }) => {
-
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">

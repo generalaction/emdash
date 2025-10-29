@@ -4,7 +4,11 @@ import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { ResolvedContainerConfig, PackageManager, ResolvedContainerPortConfig } from '@shared/container';
+import type {
+  ResolvedContainerConfig,
+  PackageManager,
+  ResolvedContainerPortConfig,
+} from '@shared/container';
 import {
   generateMockStartEvents,
   PortAllocationError,
@@ -111,12 +115,31 @@ export class ContainerRunnerService extends EventEmitter {
     const execAsync = promisify(exec);
     const project = `emdash_ws_${workspaceId}`;
 
-    const emitLifecycle = (status: 'building' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed') => {
+    const emitLifecycle = (
+      status: 'building' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed'
+    ) => {
       this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status });
     };
-    const emitPorts = (ports: Array<{ service: string; container: number; host: number }>, previewService: string) => {
-      const mapped = ports.map((p) => ({ service: p.service, protocol: 'tcp' as const, container: p.container, host: p.host, url: `http://localhost:${p.host}` }));
-      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'ports', previewService, ports: mapped });
+    const emitPorts = (
+      ports: Array<{ service: string; container: number; host: number }>,
+      previewService: string
+    ) => {
+      const mapped = ports.map((p) => ({
+        service: p.service,
+        protocol: 'tcp' as const,
+        container: p.container,
+        host: p.host,
+        url: `http://localhost:${p.host}`,
+      }));
+      this.emitRunnerEvent({
+        ts: now(),
+        workspaceId,
+        runId,
+        mode,
+        type: 'ports',
+        previewService,
+        ports: mapped,
+      });
     };
 
     try {
@@ -125,8 +148,19 @@ export class ContainerRunnerService extends EventEmitter {
         await execAsync('docker compose version');
       } catch {
         const message = 'Docker Compose is not available. Please install/update Docker Desktop.';
-        this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'error', code: 'UNKNOWN', message });
-        return { ok: false, error: { code: 'UNKNOWN', message, configKey: null, configPath: null } };
+        this.emitRunnerEvent({
+          ts: now(),
+          workspaceId,
+          runId,
+          mode,
+          type: 'error',
+          code: 'UNKNOWN',
+          message,
+        });
+        return {
+          ok: false,
+          error: { code: 'UNKNOWN', message, configKey: null, configPath: null },
+        };
       }
 
       // Always attempt autodiscovery first to avoid introducing unknown services (e.g. default 'app')
@@ -161,7 +195,9 @@ export class ContainerRunnerService extends EventEmitter {
 
       // Build a sanitized compose file that removes host bindings (ports) and replaces with expose
       const sanitizedAbs = path.join(workspacePath, '.emdash', 'compose.sanitized.json');
-      try { fs.mkdirSync(path.dirname(sanitizedAbs), { recursive: true }); } catch {}
+      try {
+        fs.mkdirSync(path.dirname(sanitizedAbs), { recursive: true });
+      } catch {}
       try {
         const cfgJson = await this.loadComposeConfigJson(composeFile, workspacePath);
         const portMap = new Map<string, number[]>();
@@ -178,7 +214,9 @@ export class ContainerRunnerService extends EventEmitter {
 
       // Write override file mapping container ports -> random host ports
       const overrideAbs = path.join(workspacePath, '.emdash', 'compose.override.yml');
-      try { fs.mkdirSync(path.dirname(overrideAbs), { recursive: true }); } catch {}
+      try {
+        fs.mkdirSync(path.dirname(overrideAbs), { recursive: true });
+      } catch {}
       fs.writeFileSync(overrideAbs, this.buildComposeOverrideYaml(allocated), 'utf8');
 
       // Run compose up -d
@@ -196,10 +234,16 @@ export class ContainerRunnerService extends EventEmitter {
       // Discover actual published ports
       let published: Array<{ service: string; container: number; host: number }> = [];
       try {
-        const { stdout } = await execAsync(`docker compose -p ${JSON.stringify(project)} ps --format json`);
+        const { stdout } = await execAsync(
+          `docker compose -p ${JSON.stringify(project)} ps --format json`
+        );
         published = this.parseComposePs(stdout, allocated);
       } catch {
-        published = allocated.map((a) => ({ service: a.service, container: a.container, host: a.host }));
+        published = allocated.map((a) => ({
+          service: a.service,
+          container: a.container,
+          host: a.host,
+        }));
       }
       emitPorts(published, previewService);
       emitLifecycle('ready');
@@ -212,7 +256,9 @@ export class ContainerRunnerService extends EventEmitter {
     }
   }
 
-  private buildComposeOverrideYaml(mappings: Array<{ service: string; container: number; host: number }>): string {
+  private buildComposeOverrideYaml(
+    mappings: Array<{ service: string; container: number; host: number }>
+  ): string {
     const byService = new Map<string, Array<{ container: number; host: number }>>();
     for (const m of mappings) {
       const arr = byService.get(m.service) ?? [];
@@ -235,7 +281,10 @@ export class ContainerRunnerService extends EventEmitter {
     return lines.join('\n') + '\n';
   }
 
-  private parseComposePs(out: string, allocated: Array<{ service: string; container: number; host: number }>): Array<{ service: string; container: number; host: number }> {
+  private parseComposePs(
+    out: string,
+    allocated: Array<{ service: string; container: number; host: number }>
+  ): Array<{ service: string; container: number; host: number }> {
     const trimmed = (out || '').trim();
     if (!trimmed) return allocated;
     let records: any[] = [];
@@ -246,7 +295,11 @@ export class ContainerRunnerService extends EventEmitter {
       records = trimmed
         .split('\n')
         .map((l) => {
-          try { return JSON.parse(l); } catch { return null; }
+          try {
+            return JSON.parse(l);
+          } catch {
+            return null;
+          }
         })
         .filter(Boolean) as any[];
     }
@@ -266,10 +319,7 @@ export class ContainerRunnerService extends EventEmitter {
     return result.length ? result : allocated;
   }
 
-  private async loadComposeConfigJson(
-    composeFile: string,
-    workspacePath: string
-  ): Promise<any> {
+  private async loadComposeConfigJson(composeFile: string, workspacePath: string): Promise<any> {
     const execAsync = promisify(exec);
     const { stdout } = await execAsync(
       `docker compose -f ${JSON.stringify(composeFile)} config --format json`,
@@ -307,10 +357,16 @@ export class ContainerRunnerService extends EventEmitter {
     return { ...cfg, services: nextServices };
   }
 
-  private async discoverComposePorts(composeFile: string, workspacePath: string): Promise<Array<{ service: string; container: number }>> {
+  private async discoverComposePorts(
+    composeFile: string,
+    workspacePath: string
+  ): Promise<Array<{ service: string; container: number }>> {
     const execAsync = promisify(exec);
     try {
-      const { stdout } = await execAsync(`docker compose -f ${JSON.stringify(composeFile)} config --format json`, { cwd: workspacePath });
+      const { stdout } = await execAsync(
+        `docker compose -f ${JSON.stringify(composeFile)} config --format json`,
+        { cwd: workspacePath }
+      );
       const cfg = JSON.parse(stdout || '{}');
       const services = cfg?.services || cfg?.Services || {};
       const result: Array<{ service: string; container: number }> = [];
@@ -321,7 +377,8 @@ export class ContainerRunnerService extends EventEmitter {
         for (const p of ports) {
           // long form object
           if (p && typeof p === 'object') {
-            const target = p.target ?? p.TargetPort ?? p.ContainerPort ?? p.Target ?? p.containerPort;
+            const target =
+              p.target ?? p.TargetPort ?? p.ContainerPort ?? p.Target ?? p.containerPort;
             const protocol = (p.protocol ?? 'tcp').toString().toLowerCase();
             if (typeof target === 'number' && protocol === 'tcp') {
               result.push({ service: key, container: target });
@@ -372,14 +429,23 @@ export class ContainerRunnerService extends EventEmitter {
     return this.emit(RUN_EVENT_CHANNEL, event);
   }
 
-  async inspectRun(workspaceId: string): Promise<
-    | { ok: true; running: boolean; ports: Array<{ service: string; container: number; host: number }>; previewService?: string }
+  async inspectRun(
+    workspaceId: string
+  ): Promise<
+    | {
+        ok: true;
+        running: boolean;
+        ports: Array<{ service: string; container: number; host: number }>;
+        previewService?: string;
+      }
     | { ok: false; error: string }
   > {
     const execAsync = promisify(exec);
     const project = `emdash_ws_${workspaceId}`;
     try {
-      const { stdout } = await execAsync(`docker compose -p ${JSON.stringify(project)} ps --format json`);
+      const { stdout } = await execAsync(
+        `docker compose -p ${JSON.stringify(project)} ps --format json`
+      );
       // Parse published ports and running state
       let records: any[] = [];
       try {
@@ -390,7 +456,11 @@ export class ContainerRunnerService extends EventEmitter {
           .trim()
           .split('\n')
           .map((l) => {
-            try { return JSON.parse(l); } catch { return null; }
+            try {
+              return JSON.parse(l);
+            } catch {
+              return null;
+            }
           })
           .filter(Boolean) as any[];
       }

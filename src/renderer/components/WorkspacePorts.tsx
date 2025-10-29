@@ -69,7 +69,9 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, ports, previewUrl, previ
                 {isPreview ? (
                   <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">preview</span>
                 ) : null}
-                <span className="text-muted-foreground">{p.host} → {p.container}</span>
+                <span className="text-muted-foreground">
+                  {p.host} → {p.container}
+                </span>
                 <button
                   type="button"
                   className="ml-1 inline-flex items-center gap-1 rounded border border-border/70 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/40"
@@ -109,7 +111,8 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, ports, previewUrl, previ
         </div>
       ) : (
         <div className="mt-2 rounded-md border border-dashed border-border/70 bg-muted/40 p-2 text-xs text-muted-foreground">
-          No service ports were exposed in docker-compose. Services without ports still run inside the Compose network.
+          No service ports were exposed in docker-compose. Services without ports still run inside
+          the Compose network.
         </div>
       )}
     </motion.div>

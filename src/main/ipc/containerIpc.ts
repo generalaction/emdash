@@ -144,8 +144,16 @@ export function registerContainerIpc(): void {
 
   ipcMain.handle(
     'container:inspect-run',
-    async (_event, args): Promise<
-      | { ok: true; running: boolean; ports: Array<{ service: string; container: number; host: number }>; previewService?: string }
+    async (
+      _event,
+      args
+    ): Promise<
+      | {
+          ok: true;
+          running: boolean;
+          ports: Array<{ service: string; container: number; host: number }>;
+          previewService?: string;
+        }
       | { ok: false; error: string }
     > => {
       try {
