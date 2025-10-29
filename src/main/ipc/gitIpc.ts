@@ -371,6 +371,16 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           const { stdout: st } = await execAsync('git status --porcelain', { cwd: workspacePath });
           if (st && st.trim().length > 0) {
             await execAsync('git add -A', { cwd: workspacePath });
+            // Never stage plan mode artifacts
+            try {
+              await execAsync('git reset -q .emdash || true', { cwd: workspacePath });
+            } catch {}
+            try {
+              await execAsync('git reset -q PLANNING.md || true', { cwd: workspacePath });
+            } catch {}
+            try {
+              await execAsync('git reset -q planning.md || true', { cwd: workspacePath });
+            } catch {}
             try {
               await execAsync(`git commit -m ${JSON.stringify(commitMessage)}`, {
                 cwd: workspacePath,
