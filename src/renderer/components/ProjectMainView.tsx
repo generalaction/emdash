@@ -193,7 +193,7 @@ function WorkspaceRow({
   return (
     <div
       className={[
-        'rounded-xl border border-border bg-background',
+        'rounded-xl border border-border bg-background overflow-hidden',
         active ? 'ring-2 ring-primary' : '',
       ].join(' ')}
     >
@@ -202,7 +202,7 @@ function WorkspaceRow({
         role="button"
         tabIndex={0}
         className={[
-          'group flex items-start justify-between gap-3',
+          'group flex items-start justify-between gap-3 rounded-t-xl',
           'px-4 py-3 transition-all hover:bg-muted/40 hover:shadow-sm',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         ].join(' ')}
