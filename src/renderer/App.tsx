@@ -224,6 +224,7 @@ const AppContent: React.FC = () => {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [activeWorkspaceProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
   const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -1118,6 +1119,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleDeleteProject = async (project: Project) => {
+    setDeletingProjectId(project.id);
     try {
       const res = await window.electronAPI.deleteProject(project.id);
       if (!res?.success) throw new Error(res?.error || 'Failed to delete project');
@@ -1138,6 +1140,8 @@ const AppContent: React.FC = () => {
           err instanceof Error ? err.message : 'Could not delete project. See console for details.',
         variant: 'destructive',
       });
+    } finally {
+      setDeletingProjectId((current) => (current === project.id ? null : current));
     }
   };
 
@@ -1214,6 +1218,7 @@ const AppContent: React.FC = () => {
               onDeleteWorkspace={handleDeleteWorkspace}
               isCreatingWorkspace={isCreatingWorkspace}
               onDeleteProject={handleDeleteProject}
+              isDeletingProject={deletingProjectId === selectedProject.id}
             />
           )}
         </div>
@@ -1313,6 +1318,8 @@ const AppContent: React.FC = () => {
                   onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
                   isCreatingWorkspace={isCreatingWorkspace}
                   onDeleteWorkspace={handleDeleteWorkspace}
+                  onDeleteProject={handleDeleteProject}
+                  deletingProjectId={deletingProjectId}
                 />
               </ResizablePanel>
               <ResizableHandle

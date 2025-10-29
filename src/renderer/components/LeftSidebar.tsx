@@ -17,6 +17,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collap
 import { Home, ChevronDown, Plus } from 'lucide-react';
 import GithubStatus from './GithubStatus';
 import { WorkspaceItem } from './WorkspaceItem';
+import ProjectDeleteButton from './ProjectDeleteButton';
 
 interface Project {
   id: string;
@@ -78,6 +79,8 @@ interface LeftSidebarProps {
   onCreateWorkspaceForProject?: (project: Project) => void;
   isCreatingWorkspace?: boolean;
   onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void>;
+  onDeleteProject?: (project: Project) => void | Promise<void>;
+  deletingProjectId?: string | null;
 }
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -96,6 +99,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onCreateWorkspaceForProject,
   isCreatingWorkspace,
   onDeleteWorkspace,
+  onDeleteProject,
+  deletingProjectId,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
 
@@ -183,10 +188,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 >
                   {(project) => {
                     const typedProject = project as Project;
+                    const isDeletingProject = deletingProjectId === typedProject.id;
+                    const deleteButtonClass = [
+                      'ml-1 inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-muted-foreground transition-opacity duration-150 hover:bg-muted hover:text-destructive focus:opacity-100 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100',
+                      isDeletingProject ? 'opacity-100' : 'opacity-0',
+                    ].join(' ');
                     return (
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
-                          <div className="flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                          <div className="group flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-within:bg-accent focus-within:text-accent-foreground">
                             <button
                               type="button"
                               className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
@@ -200,6 +210,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
                             </button>
+                            {onDeleteProject ? (
+                              <ProjectDeleteButton
+                                projectName={typedProject.name}
+                                onConfirm={() => onDeleteProject?.(typedProject)}
+                                isDeleting={isDeletingProject}
+                                aria-label={`Delete project ${typedProject.name}`}
+                                className={deleteButtonClass}
+                              />
+                            ) : null}
                             <CollapsibleTrigger asChild>
                               <button
                                 type="button"

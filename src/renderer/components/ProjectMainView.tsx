@@ -238,6 +238,7 @@ interface ProjectMainViewProps {
   onDeleteWorkspace: (project: Project, workspace: Workspace) => void | Promise<void>;
   isCreatingWorkspace?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
+  isDeletingProject?: boolean;
 }
 
 const ProjectMainView: React.FC<ProjectMainViewProps> = ({
@@ -248,6 +249,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onDeleteWorkspace,
   isCreatingWorkspace = false,
   onDeleteProject,
+  isDeletingProject = false,
 }) => {
   // PR list functionality is temporarily disabled.
 
@@ -282,6 +284,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 <ProjectDeleteButton
                   projectName={project.name}
                   onConfirm={() => onDeleteProject?.(project)}
+                  isDeleting={isDeletingProject}
                   className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:text-destructive"
                 />
               ) : null}
