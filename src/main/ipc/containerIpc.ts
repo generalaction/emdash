@@ -141,6 +141,26 @@ export function registerContainerIpc(): void {
       }
     }
   );
+
+  ipcMain.handle(
+    'container:inspect-run',
+    async (_event, args): Promise<
+      | { ok: true; running: boolean; ports: Array<{ service: string; container: number; host: number }>; previewService?: string }
+      | { ok: false; error: string }
+    > => {
+      try {
+        const workspaceId = typeof args?.workspaceId === 'string' ? args.workspaceId.trim() : '';
+        if (!workspaceId) {
+          return { ok: false, error: '`workspaceId` must be provided' } as const;
+        }
+        return await containerRunnerService.inspectRun(workspaceId);
+      } catch (error: any) {
+        const message = error?.message || String(error);
+        log.warn('container:inspect-run failed', message);
+        return { ok: false, error: message } as const;
+      }
+    }
+  );
 }
 
 function resolveWorkspacePath(args: unknown): string | null {

@@ -250,6 +250,45 @@ export function resetContainerRunListeners() {
   unsubscribe = undefined;
 }
 
+/**
+ * Inspect any existing compose stack for this workspace and hydrate local state,
+ * so UI shows ports/running status after a window refresh.
+ */
+export async function refreshWorkspaceRunState(workspaceId: string) {
+  ensureSubscribed();
+  const api = (window as any).electronAPI;
+  if (!api?.inspectContainerRun) return;
+  try {
+    const res = await api.inspectContainerRun(workspaceId);
+    if (!res?.ok) return;
+    const now = Date.now();
+    if (res.running && Array.isArray(res.ports) && res.ports.length > 0) {
+      const runId = `resume_${now}`;
+      const portsEvent: RunnerEvent = {
+        ts: now,
+        workspaceId,
+        runId,
+        mode: 'container',
+        type: 'ports',
+        previewService: res.previewService ?? res.ports[0]?.service ?? 'app',
+        ports: res.ports.map((p: any) => ({ ...p, protocol: 'tcp', url: `http://localhost:${p.host}` })),
+      } as any;
+      updateWorkspaceState(portsEvent);
+      const lifecycleEvent: RunnerEvent = {
+        ts: now,
+        workspaceId,
+        runId,
+        mode: 'container',
+        type: 'lifecycle',
+        status: 'ready',
+      } as any;
+      updateWorkspaceState(lifecycleEvent);
+    }
+  } catch (error) {
+    log.warn?.('[containers] refresh run state failed', error);
+  }
+}
+
 export interface ContainerRunState {
   workspaceId: string;
   runId?: string;

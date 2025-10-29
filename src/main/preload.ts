@@ -147,6 +147,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }) => ipcRenderer.invoke('container:start-run', args),
   stopContainerRun: (workspaceId: string) =>
     ipcRenderer.invoke('container:stop-run', { workspaceId }),
+  inspectContainerRun: (workspaceId: string) =>
+    ipcRenderer.invoke('container:inspect-run', { workspaceId }),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   // Telemetry (minimal, anonymous)
   captureTelemetry: (event: 'feature_used' | 'error', properties?: Record<string, any>) =>

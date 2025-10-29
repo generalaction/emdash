@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2 } from 'lucide-react';
+import { GitBranch, Plus, Loader2, ChevronDown } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from './ui/breadcrumb';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
@@ -13,7 +14,7 @@ import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
-import BetaBadge from './BetaBadge';
+import WorkspacePorts from './WorkspacePorts';
 import {
   getContainerRunState,
   startContainerRun,
@@ -80,6 +81,17 @@ function WorkspaceRow({
   const isReady = containerStatus === 'ready';
   const isStartingContainerState = containerStatus === 'building' || containerStatus === 'starting';
   const containerActive = isStartingContainerState || isReady;
+  const [expanded, setExpanded] = useState(false);
+
+  // Auto-expand when we transition to ready and have ports
+  useEffect(() => {
+    if (isReady && (containerState?.ports?.length ?? 0) > 0) {
+      setExpanded(true);
+    }
+    if (!containerActive) {
+      setExpanded(false);
+    }
+  }, [isReady, containerActive, containerState?.ports?.length]);
 
   useEffect(() => {
     (async () => {
@@ -112,6 +124,16 @@ function WorkspaceRow({
     return () => {
       off?.();
     };
+  }, [ws.id]);
+
+  // On mount, try to hydrate state by inspecting existing compose stack
+  useEffect(() => {
+    (async () => {
+      try {
+        const mod = await import('@/lib/containerRuns');
+        await mod.refreshWorkspaceRunState(ws.id);
+      } catch {}
+    })();
   }, [ws.id]);
 
   const handleStartContainer = async (e: React.MouseEvent) => {
@@ -164,68 +186,101 @@ function WorkspaceRow({
     }
   };
 
+  const ports = containerState?.ports ?? [];
+  const previewUrl = containerState?.previewUrl;
+  const previewService = containerState?.previewService;
+
   return (
-    <div
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      className={[
-        'group flex items-start justify-between gap-3 rounded-xl border border-border bg-background',
-        'px-4 py-3 transition-all hover:bg-muted/40 hover:shadow-sm',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-        active ? 'ring-2 ring-primary' : '',
-      ].join(' ')}
-    >
-      <div className="min-w-0">
-        <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
-        <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-          {isRunning || ws.status === 'running' ? <Spinner size="sm" className="size-3" /> : null}
-          <GitBranch className="size-3" />
-          <span className="max-w-[24rem] truncate font-mono" title={`origin/${ws.branch}`}>
-            origin/{ws.branch}
-          </span>
+    <div className={['rounded-xl border border-border bg-background', active ? 'ring-2 ring-primary' : ''].join(' ')}>
+      <div
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+        className={[
+          'group flex items-start justify-between gap-3',
+          'px-4 py-3 transition-all hover:bg-muted/40 hover:shadow-sm',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+        ].join(' ')}
+      >
+        <div className="min-w-0">
+          <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            {isRunning || ws.status === 'running' ? <Spinner size="sm" className="size-3" /> : null}
+            <GitBranch className="size-3" />
+            <span className="max-w-[24rem] truncate font-mono" title={`origin/${ws.branch}`}>
+              origin/{ws.branch}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <ContainerStatusBadge
+            active={containerActive}
+            isStarting={isStartingContainerState}
+            isReady={isReady}
+            startingAction={isStartingContainer}
+            stoppingAction={isStoppingContainer}
+            onStart={handleStartContainer}
+            onStop={handleStopContainer}
+          />
+          {containerActive ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded((v) => !v);
+              }}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
+              aria-expanded={expanded}
+              aria-controls={`ws-${ws.id}-ports`}
+            >
+              <ChevronDown
+                className={['h-3.5 w-3.5 transition-transform', expanded ? 'rotate-180' : ''].join(' ')}
+                aria-hidden="true"
+              />
+              Ports
+            </button>
+          ) : null}
+          {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
+            <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
+          ) : pr ? (
+            <span
+              className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+            >
+              {pr.isDraft ? 'draft' : pr.state.toLowerCase()}
+            </span>
+          ) : null}
+          {ws.agentId && <Badge variant="outline">agent</Badge>}
+
+          <WorkspaceDeleteButton
+            workspaceName={ws.name}
+            onConfirm={async () => {
+              try {
+                setIsDeleting(true);
+                await onDelete();
+              } finally {
+                setIsDeleting(false);
+              }
+            }}
+            isDeleting={isDeleting}
+            aria-label={`Delete workspace ${ws.name}`}
+            className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0"
+          />
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <BetaBadge />
-        <ContainerStatusBadge
-          active={containerActive}
-          isStarting={isStartingContainerState}
-          isReady={isReady}
-          startingAction={isStartingContainer}
-          stoppingAction={isStoppingContainer}
-          onStart={handleStartContainer}
-          onStop={handleStopContainer}
-        />
-        {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
-          <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
-        ) : pr ? (
-          <span
-            className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-            title={`${pr.title || 'Pull Request'} (#${pr.number})`}
-          >
-            {pr.isDraft ? 'draft' : pr.state.toLowerCase()}
-          </span>
+      <AnimatePresence initial={false}>
+        {containerActive && expanded ? (
+          <WorkspacePorts
+            key={`ports-${ws.id}`}
+            workspaceId={ws.id}
+            ports={ports}
+            previewUrl={previewUrl}
+            previewService={previewService}
+          />
         ) : null}
-        {ws.agentId && <Badge variant="outline">agent</Badge>}
-
-        <WorkspaceDeleteButton
-          workspaceName={ws.name}
-          onConfirm={async () => {
-            try {
-              setIsDeleting(true);
-              await onDelete();
-            } finally {
-              // If deletion succeeds, this row will unmount; if it fails, revert spinner
-              setIsDeleting(false);
-            }
-          }}
-          isDeleting={isDeleting}
-          aria-label={`Delete workspace ${ws.name}`}
-          className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0"
-        />
-      </div>
+      </AnimatePresence>
     </div>
   );
 }
@@ -249,7 +304,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   isCreatingWorkspace = false,
   onDeleteProject,
 }) => {
-  // PR list functionality is temporarily disabled.
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">

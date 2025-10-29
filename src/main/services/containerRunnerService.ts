@@ -159,6 +159,23 @@ export class ContainerRunnerService extends EventEmitter {
         previewService = this.choosePreviewService(portRequests);
       }
 
+      // Build a sanitized compose file that removes host bindings (ports) and replaces with expose
+      const sanitizedAbs = path.join(workspacePath, '.emdash', 'compose.sanitized.json');
+      try { fs.mkdirSync(path.dirname(sanitizedAbs), { recursive: true }); } catch {}
+      try {
+        const cfgJson = await this.loadComposeConfigJson(composeFile, workspacePath);
+        const portMap = new Map<string, number[]>();
+        for (const req of portRequests) {
+          const arr = portMap.get(req.service) ?? [];
+          if (!arr.includes(req.container)) arr.push(req.container);
+          portMap.set(req.service, arr);
+        }
+        const sanitized = this.sanitizeComposeConfig(cfgJson, portMap);
+        fs.writeFileSync(sanitizedAbs, JSON.stringify(sanitized, null, 2), 'utf8');
+      } catch (e) {
+        log.warn('[containers] failed to sanitize compose file; proceeding with original', e);
+      }
+
       // Write override file mapping container ports -> random host ports
       const overrideAbs = path.join(workspacePath, '.emdash', 'compose.override.yml');
       try { fs.mkdirSync(path.dirname(overrideAbs), { recursive: true }); } catch {}
@@ -168,7 +185,9 @@ export class ContainerRunnerService extends EventEmitter {
       const argsArr: string[] = ['compose'];
       const envFileAbs = config.envFile ? path.resolve(workspacePath, config.envFile) : null;
       if (envFileAbs && fs.existsSync(envFileAbs)) argsArr.push('--env-file', envFileAbs);
-      argsArr.push('-p', project, '-f', composeFile, '-f', overrideAbs, 'up', '-d');
+      // Prefer sanitized file when available
+      const composePathForUp = fs.existsSync(sanitizedAbs) ? sanitizedAbs : composeFile;
+      argsArr.push('-p', project, '-f', composePathForUp, '-f', overrideAbs, 'up', '-d');
       emitLifecycle('starting');
       const cmd = `docker ${argsArr.map((a) => (a.includes(' ') ? JSON.stringify(a) : a)).join(' ')}`;
       log.info('[containers] compose up cmd', cmd);
@@ -247,6 +266,47 @@ export class ContainerRunnerService extends EventEmitter {
     return result.length ? result : allocated;
   }
 
+  private async loadComposeConfigJson(
+    composeFile: string,
+    workspacePath: string
+  ): Promise<any> {
+    const execAsync = promisify(exec);
+    const { stdout } = await execAsync(
+      `docker compose -f ${JSON.stringify(composeFile)} config --format json`,
+      { cwd: workspacePath }
+    );
+    try {
+      return JSON.parse(stdout || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  private sanitizeComposeConfig(cfg: any, requested: Map<string, number[]>): any {
+    if (!cfg || typeof cfg !== 'object') return cfg;
+    const services = cfg.services || cfg.Services || {};
+    const nextServices: Record<string, any> = {};
+    for (const key of Object.keys(services)) {
+      const svc = { ...(services as any)[key] };
+      // Merge existing expose (numbers or strings) with requested containers
+      const currentExpose: number[] = [];
+      const exposeArr = Array.isArray(svc.expose) ? svc.expose : [];
+      for (const ex of exposeArr) {
+        const n = typeof ex === 'string' ? parseInt(ex, 10) : Number(ex);
+        if (Number.isFinite(n)) currentExpose.push(n);
+      }
+      const req = requested.get(key) ?? [];
+      for (const p of req) if (!currentExpose.includes(p)) currentExpose.push(p);
+      // Remove host-published ports entirely to avoid conflicts
+      if (svc.ports) delete svc.ports;
+      if (currentExpose.length > 0) {
+        svc.expose = currentExpose;
+      }
+      nextServices[key] = svc;
+    }
+    return { ...cfg, services: nextServices };
+  }
+
   private async discoverComposePorts(composeFile: string, workspacePath: string): Promise<Array<{ service: string; container: number }>> {
     const execAsync = promisify(exec);
     try {
@@ -310,6 +370,53 @@ export class ContainerRunnerService extends EventEmitter {
 
   emitRunnerEvent(event: RunnerEvent): boolean {
     return this.emit(RUN_EVENT_CHANNEL, event);
+  }
+
+  async inspectRun(workspaceId: string): Promise<
+    | { ok: true; running: boolean; ports: Array<{ service: string; container: number; host: number }>; previewService?: string }
+    | { ok: false; error: string }
+  > {
+    const execAsync = promisify(exec);
+    const project = `emdash_ws_${workspaceId}`;
+    try {
+      const { stdout } = await execAsync(`docker compose -p ${JSON.stringify(project)} ps --format json`);
+      // Parse published ports and running state
+      let records: any[] = [];
+      try {
+        const parsed = JSON.parse((stdout || '').trim());
+        records = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        records = (stdout || '')
+          .trim()
+          .split('\n')
+          .map((l) => {
+            try { return JSON.parse(l); } catch { return null; }
+          })
+          .filter(Boolean) as any[];
+      }
+      const running = records.some((r) => {
+        const st = r?.State || r?.state || r?.Status;
+        return typeof st === 'string' && st.toLowerCase().includes('running');
+      });
+      const ports = this.parseComposePs(stdout, []);
+      const previewService = this.choosePreviewServiceFromPublished(ports);
+      return { ok: true, running, ports, previewService };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+  }
+
+  private choosePreviewServiceFromPublished(
+    ports: Array<{ service: string; container: number; host: number }>
+  ): string | undefined {
+    if (!Array.isArray(ports) || ports.length === 0) return undefined;
+    const byName = (names: string[]) => ports.find((p) => names.includes(p.service))?.service;
+    const name = byName(['web', 'app', 'frontend', 'ui']);
+    if (name) return name;
+    const byPort = ports.find((p) => [3000, 5173, 8080, 8000].includes(p.container))?.service;
+    if (byPort) return byPort;
+    return ports[0]?.service;
   }
 
   /**
