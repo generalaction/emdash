@@ -20,8 +20,14 @@ interface Props {
 
 const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className }) => {
   const { effectiveTheme } = useTheme();
-  const { terminals, activeTerminalId, activeTerminal, createTerminal, setActiveTerminal, closeTerminal } =
-    useWorkspaceTerminals(workspace?.id ?? null, workspace?.path);
+  const {
+    terminals,
+    activeTerminalId,
+    activeTerminal,
+    createTerminal,
+    setActiveTerminal,
+    closeTerminal,
+  } = useWorkspaceTerminals(workspace?.id ?? null, workspace?.path);
 
   const themeOverride = useMemo(
     () =>

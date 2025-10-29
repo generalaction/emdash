@@ -92,7 +92,7 @@ function loadFromStorage(workspaceId: string): WorkspaceTerminalsState | null {
     if (typeof parsed.activeId === 'string' && parsed.activeId) {
       activeId = terminals.some((terminal) => terminal.id === parsed.activeId)
         ? parsed.activeId
-        : terminals[0]?.id ?? null;
+        : (terminals[0]?.id ?? null);
     } else {
       activeId = terminals[0]?.id ?? null;
     }
@@ -158,7 +158,10 @@ function ensureSnapshot(workspaceId: string, state: WorkspaceTerminalsState) {
   return workspaceSnapshots.get(workspaceId)!;
 }
 
-function ensureWorkspaceState(workspaceId: string, workspacePath?: string): WorkspaceTerminalsState {
+function ensureWorkspaceState(
+  workspaceId: string,
+  workspacePath?: string
+): WorkspaceTerminalsState {
   let state = workspaceStates.get(workspaceId);
   if (state) {
     ensureSnapshot(workspaceId, state);

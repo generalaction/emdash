@@ -22,7 +22,11 @@ interface WorkspaceItemProps {
   showDelete?: boolean;
 }
 
-export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelete, showDelete }) => {
+export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
+  workspace,
+  onDelete,
+  showDelete,
+}) => {
   const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(
     workspace.path,
     workspace.id
@@ -68,7 +72,7 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({ workspace, onDelet
             }}
             isDeleting={isDeleting}
             aria-label={`Delete workspace ${workspace.name}`}
-            className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100"
+            className="inline-flex items-center justify-center rounded p-1 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-destructive focus:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
           />
         ) : null}
       </div>
