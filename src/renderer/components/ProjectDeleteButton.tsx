@@ -45,11 +45,12 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}
                 disabled={isDeleting}
+                onClick={(e) => e.stopPropagation()}
               >
                 {isDeleting ? (
-                  <Spinner className="h-4 w-4" size="sm" />
+                  <Spinner className="h-3.5 w-3.5" size="sm" />
                 ) : (
-                  <Trash className="h-4 w-4" />
+                  <Trash className="h-3.5 w-3.5" />
                 )}
               </button>
             </AlertDialogTrigger>
@@ -59,7 +60,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <AlertDialogContent className="space-y-4">
+      <AlertDialogContent onClick={(e) => e.stopPropagation()} className="space-y-4">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete project?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -70,7 +71,8 @@ export const ProjectDeleteButton: React.FC<Props> = ({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
-            onClick={async () => {
+            onClick={async (e) => {
+              e.stopPropagation();
               try {
                 await onConfirm();
               } catch {}
