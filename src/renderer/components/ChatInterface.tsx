@@ -642,12 +642,12 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
             {portsExpanded && sorted.length ? (
               <motion.div
                 id={`chat-ports-${workspace.id}`}
-                className="mt-2 text-xs text-muted-foreground"
-                initial={reduceMotion ? false : { opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={reduceMotion ? { opacity: 1, height: 'auto' } : { opacity: 0, height: 0 }}
+                className="text-xs text-muted-foreground"
+                initial={reduceMotion ? false : { opacity: 0, height: 0, paddingTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', paddingTop: 8 }}
+                exit={reduceMotion ? { opacity: 1, height: 'auto', paddingTop: 0 } : { opacity: 0, height: 0, paddingTop: 0 }}
                 transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                style={{ overflow: 'hidden' }}
+                style={{ overflow: 'hidden', display: 'grid' }}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-2">
@@ -657,7 +657,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                     <span>Mapped host → container per service</span>
                   </div>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="pt-2 flex flex-wrap gap-2">
                   {sorted.map((port) => (
                     <span
                       key={`${state.runId}-${port.service}-${port.host}`}

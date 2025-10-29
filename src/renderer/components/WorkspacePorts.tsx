@@ -74,7 +74,7 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, workspacePath, ports, pr
       animate={{ opacity: 1, height: 'auto' }}
       exit={reduceMotion ? { opacity: 1, height: 'auto' } : { opacity: 0, height: 0 }}
       transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-      style={{ overflow: 'hidden' }}
+      style={{ overflow: 'hidden', display: 'grid' }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
@@ -99,7 +99,7 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, workspacePath, ports, pr
       </div>
 
       {sorted?.length ? (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="pt-2 flex flex-wrap gap-2">
           {sorted.map((p) => {
             const key = `${workspaceId}-${p.service}-${p.host}`;
             const url = p.url ?? `http://localhost:${p.host}`;
