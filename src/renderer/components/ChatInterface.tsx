@@ -4,7 +4,6 @@ import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import { TerminalModeBanner } from './TerminalModeBanner';
-import { WorkspaceNotice } from './WorkspaceNotice';
 import { providerMeta } from '../providers/meta';
 import MessageList from './MessageList';
 import ProviderBar from './ProviderBar';
@@ -271,7 +270,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
             if (!hasInitialPrompt && messagesResult.messages.length === 0) {
               const welcomeMessage: Message = {
                 id: `welcome-${Date.now()}`,
-                content: `Hello! You're working in workspace **${workspace.name}**. What can the agent do for you?`,
+                content: 'Hello! What can the agent do for you?',
                 sender: 'agent',
                 timestamp: new Date(),
               };
@@ -299,7 +298,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     codexStream.conversationId,
     codexStream.messages.length,
     codexStream.appendMessage,
-    workspace.name,
   ]);
 
   useEffect(() => {
@@ -624,11 +622,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                 }
                 return null;
               })()}
-            </div>
-          </div>
-          <div className="mt-2 px-6">
-            <div className="mx-auto max-w-4xl">
-              <WorkspaceNotice workspaceName={workspace.name} />
             </div>
           </div>
           {containerStatusNode}
