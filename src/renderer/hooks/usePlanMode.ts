@@ -40,13 +40,17 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
       let wroteRootHelper = false;
       try {
         const gitRef = await (window as any).electronAPI.fsRead(workspacePath, '.git', 1024);
-        const isWorktree = !!(gitRef?.success && typeof gitRef.content === 'string' && /^gitdir:\s*/i.test(gitRef.content.trim()));
+        const isWorktree = !!(
+          gitRef?.success &&
+          typeof gitRef.content === 'string' &&
+          /^gitdir:\s*/i.test(gitRef.content.trim())
+        );
         if (!isWorktree) {
           const rootRel = 'PLANNING.md';
           let exists = false;
           try {
             const readTry = await (window as any).electronAPI.fsRead?.(workspacePath, rootRel, 1);
-            exists = !!(readTry?.success);
+            exists = !!readTry?.success;
           } catch {}
           if (!exists) {
             log.info('[plan] writing policy (root helper)', { workspacePath, rootRel });
@@ -128,7 +132,10 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
       try {
         const metaRel = '.emdash/planning.meta.json';
         const metaRead = await (window as any).electronAPI.fsRead?.(workspacePath, metaRel, 4096);
-        const meta = metaRead?.success && typeof metaRead.content === 'string' ? JSON.parse(metaRead.content) : {};
+        const meta =
+          metaRead?.success && typeof metaRead.content === 'string'
+            ? JSON.parse(metaRead.content)
+            : {};
         if (meta?.wroteRootHelper) {
           const rootRel = 'PLANNING.md';
           await (window as any).electronAPI.fsRemove(workspacePath, rootRel);
