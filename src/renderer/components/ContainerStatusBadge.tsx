@@ -61,9 +61,10 @@ export const ContainerStatusBadge: React.FC<Props> = ({
       <span
         className="inline-flex h-8 items-center rounded-md border border-dashed border-border/70 bg-muted/40 px-2.5 text-xs font-medium text-foreground"
         aria-live="polite"
+        aria-busy="true"
       >
         <img src={dockerLogo} alt="" className="mr-1.5 h-3.5 w-3.5" />
-        <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
         Starting…
       </span>
     );
