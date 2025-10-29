@@ -282,6 +282,7 @@ function WorkspaceRow({
           <WorkspacePorts
             key={`ports-${ws.id}`}
             workspaceId={ws.id}
+            workspacePath={ws.path}
             ports={ports}
             previewUrl={previewUrl}
             previewService={previewService}

@@ -1,18 +1,62 @@
 import React, { useState } from 'react';
-import { ExternalLink, Copy, Check } from 'lucide-react';
+import { ExternalLink, Copy, Check, Globe, Database, Server } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import type { RunnerPortMapping } from '@shared/container/events';
 
 interface Props {
   workspaceId: string;
+  workspacePath?: string;
   ports: Array<RunnerPortMapping & { url?: string }>;
   previewUrl?: string;
   previewService?: string;
 }
 
-const WorkspacePorts: React.FC<Props> = ({ workspaceId, ports, previewUrl, previewService }) => {
+const WorkspacePorts: React.FC<Props> = ({ workspaceId, workspacePath, ports, previewUrl, previewService }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
+
+  const norm = (s: string) => s.toLowerCase();
+  const sorted = [...(ports ?? [])].sort((a, b) => {
+    const ap = previewService && norm(previewService) === norm(a.service);
+    const bp = previewService && norm(previewService) === norm(b.service);
+    if (ap && !bp) return -1;
+    if (!ap && bp) return 1;
+    const an = norm(a.service);
+    const bn = norm(b.service);
+    if (an !== bn) return an < bn ? -1 : 1;
+    if (a.container !== b.container) return a.container - b.container;
+    return a.host - b.host;
+  });
+
+  function ServiceIcon({ name, port }: { name: string; port: number }) {
+    const [src, setSrc] = React.useState<string | null>(null);
+    React.useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const api: any = (window as any).electronAPI;
+          if (!api?.resolveServiceIcon) return;
+          // Workspace overrides only; no vendor-specific lookups
+          const res = await api.resolveServiceIcon({ service: name, allowNetwork: false, workspacePath });
+          if (!cancelled && res?.ok && typeof res.dataUrl === 'string') {
+            setSrc(res.dataUrl);
+          }
+        } catch {}
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [name, workspacePath]);
+    if (src) {
+      return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
+    }
+    // Generic, vendor-agnostic heuristics by port
+    const webPorts = new Set([80, 443, 3000, 5173, 8080, 8000]);
+    const dbPorts = new Set([5432, 3306, 27017, 1433, 1521]);
+    if (webPorts.has(port)) return <Globe className="h-3.5 w-3.5" aria-hidden="true" />;
+    if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
+    return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
+  }
 
   const handleCopy = async (text: string, key: string) => {
     try {
@@ -54,9 +98,9 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, ports, previewUrl, previ
         ) : null}
       </div>
 
-      {ports?.length ? (
+      {sorted?.length ? (
         <div className="mt-2 flex flex-wrap gap-2">
-          {ports.map((p) => {
+          {sorted.map((p) => {
             const key = `${workspaceId}-${p.service}-${p.host}`;
             const url = p.url ?? `http://localhost:${p.host}`;
             const isPreview = p.service === previewService;
@@ -65,7 +109,10 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, ports, previewUrl, previ
                 key={key}
                 className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
               >
-                <span className="font-medium">{p.service}</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <ServiceIcon name={p.service} port={p.container} />
+                  <span className="font-medium">{p.service}</span>
+                </span>
                 {isPreview ? (
                   <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">preview</span>
                 ) : null}

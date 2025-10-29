@@ -90,7 +90,15 @@ function updateWorkspaceState(event: RunnerEvent) {
     case 'ports': {
       const portsEvent = event as RunnerPortsEvent;
       state.previewService = portsEvent.previewService;
-      state.ports = portsEvent.ports.map(clonePort);
+      const seen = new Set<string>();
+      const unique = [] as Array<RunnerPortMapping & { url: string }>;
+      for (const p of portsEvent.ports) {
+        const key = `${p.service}:${p.container}:${p.host}:${p.protocol || 'tcp'}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(clonePort(p));
+      }
+      state.ports = unique;
       const previewPort = state.ports.find((p) => p.service === state.previewService && p.url);
       state.previewUrl = previewPort?.url;
       break;

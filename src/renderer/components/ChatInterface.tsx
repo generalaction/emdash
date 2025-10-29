@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Globe, Database, Server, ChevronDown } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import ContainerStatusBadge from './ContainerStatusBadge';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
@@ -65,6 +67,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
     getContainerRunState(workspace.id)
   );
+  const reduceMotion = useReducedMotion();
+  const [portsExpanded, setPortsExpanded] = useState(false);
   const initializedConversationRef = useRef<string | null>(null);
 
   const codexStream = useCodexStream(
@@ -108,6 +112,14 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     setCliStartFailed(false);
     setContainerState(getContainerRunState(workspace.id));
   }, [workspace.id]);
+
+  // Auto-expand/collapse ports in chat view based on container activity
+  useEffect(() => {
+    const status = containerState?.status;
+    const active = status === 'starting' || status === 'building' || status === 'ready';
+    if (status === 'ready' && (containerState?.ports?.length ?? 0) > 0) setPortsExpanded(true);
+    if (!active) setPortsExpanded(false);
+  }, [containerState?.status, containerState?.ports?.length]);
 
   // On workspace change, restore last-selected provider (including Droid).
   // If a locked provider exists (including Droid), prefer locked.
@@ -531,54 +543,142 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     };
   }, [workspace.id]);
 
-  // Container start/stop controls have been moved to the Project view.
-
   const containerStatusNode = useMemo(() => {
     const state = containerState;
     if (!state?.runId) return null;
-    const statusText = state.status.replace(/_/g, ' ');
     const ports = state.ports ?? [];
+    const containerActive =
+      state.status === 'starting' || state.status === 'building' || state.status === 'ready';
+    if (!containerActive) return null; // Hide bar in chat when not active
+
+    const norm = (s: string) => s.toLowerCase();
+    const sorted = [...ports].sort((a, b) => {
+      const ap = state.previewService && norm(state.previewService) === norm(a.service);
+      const bp = state.previewService && norm(state.previewService) === norm(b.service);
+      if (ap && !bp) return -1;
+      if (!ap && bp) return 1;
+      const an = norm(a.service);
+      const bn = norm(b.service);
+      if (an !== bn) return an < bn ? -1 : 1;
+      if (a.container !== b.container) return a.container - b.container;
+      return a.host - b.host;
+    });
+
+    const ServiceIcon: React.FC<{ name: string; port: number }> = ({ name, port }) => {
+      const [src, setSrc] = React.useState<string | null>(null);
+      React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const api: any = (window as any).electronAPI;
+            if (!api?.resolveServiceIcon) return;
+            // Workspace overrides only; no vendor-specific lookups
+            const res = await api.resolveServiceIcon({ service: name, allowNetwork: false, workspacePath: workspace.path });
+            if (!cancelled && res?.ok && typeof res.dataUrl === 'string') setSrc(res.dataUrl);
+          } catch {}
+        })();
+        return () => { cancelled = true; };
+      }, [name]);
+      if (src) return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
+      const webPorts = new Set([80, 443, 3000, 5173, 8080, 8000]);
+      const dbPorts = new Set([5432, 3306, 27017, 1433, 1521]);
+      if (webPorts.has(port)) return <Globe className="h-3.5 w-3.5" aria-hidden="true" />;
+      if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
+      return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
+    };
     return (
       <div className="mt-4 px-6">
         <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium text-foreground">
-              Container status: <span className="capitalize">{statusText}</span>
+              <ContainerStatusBadge
+                active={state.status === 'starting' || state.status === 'building' || state.status === 'ready'}
+                isStarting={state.status === 'starting' || state.status === 'building'}
+                isReady={state.status === 'ready'}
+                startingAction={false}
+                stoppingAction={false}
+                onStart={() => {}}
+                onStop={() => {}}
+                showStop={false}
+              />
               {state.containerId ? (
                 <span className="ml-2 text-xs text-muted-foreground">#{state.containerId}</span>
               ) : null}
             </div>
-            {state.previewUrl ? (
-              <button
-                type="button"
-                className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-                onClick={() => window.electronAPI.openExternal(state.previewUrl!)}
-                aria-label="Open preview (external)"
-                title="Open preview"
-              >
-                Open Preview
-                <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-          {ports.length ? (
-            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-              {ports.map((port) => (
-                <span
-                  key={`${state.runId}-${port.service}-${port.host}`}
-                  className="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1"
+            <div className="flex items-center gap-2">
+              {containerActive ? (
+                <button
+                  type="button"
+                  onClick={() => setPortsExpanded((v) => !v)}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
+                  aria-expanded={portsExpanded}
+                  aria-controls={`chat-ports-${workspace.id}`}
                 >
-                  <span className="font-medium text-foreground">{port.service}</span>
-                  <span>host {port.host}</span>
-                  <span>→</span>
-                  <span>container {port.container}</span>
-                  {state.previewService === port.service ? (
-                    <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">preview</span>
-                  ) : null}
-                </span>
-              ))}
+                  <ChevronDown
+                    className={[
+                      'h-3.5 w-3.5 transition-transform',
+                      portsExpanded ? 'rotate-180' : '',
+                    ].join(' ')}
+                    aria-hidden="true"
+                  />
+                  Ports
+                </button>
+              ) : null}
+              {state.previewUrl ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                  onClick={() => window.electronAPI.openExternal(state.previewUrl!)}
+                  aria-label="Open preview (external)"
+                  title="Open preview"
+                >
+                  Open Preview
+                  <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
-          ) : null}
+          </div>
+          <AnimatePresence initial={false}>
+            {portsExpanded && sorted.length ? (
+              <motion.div
+                id={`chat-ports-${workspace.id}`}
+                className="mt-2 text-xs text-muted-foreground"
+                initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={reduceMotion ? { opacity: 1, height: 'auto' } : { opacity: 0, height: 0 }}
+                transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                style={{ overflow: 'hidden' }}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 font-medium text-foreground">
+                      Ports
+                    </span>
+                    <span>Mapped host → container per service</span>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {sorted.map((port) => (
+                    <span
+                      key={`${state.runId}-${port.service}-${port.host}`}
+                      className="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1"
+                    >
+                      <span className="inline-flex items-center gap-1.5 text-foreground">
+                        <ServiceIcon name={port.service} port={port.container} />
+                        <span className="font-medium">{port.service}</span>
+                      </span>
+                      <span>host {port.host}</span>
+                      <span>→</span>
+                      <span>container {port.container}</span>
+                      {state.previewService === port.service ? (
+                        <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">preview</span>
+                      ) : null}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
           {state.lastError ? (
             <div className="mt-2 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
               {state.lastError.message}
@@ -587,7 +687,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         </div>
       </div>
     );
-  }, [containerState]);
+  }, [containerState, portsExpanded, reduceMotion, workspace.id, workspace.path]);
 
   return (
     <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>

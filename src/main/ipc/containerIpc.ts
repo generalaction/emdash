@@ -13,6 +13,7 @@ import {
   type ContainerStartResult,
 } from '../services/containerRunnerService';
 import type { RunnerMode } from '@shared/container';
+import { resolveServiceIcon } from '../services/iconService';
 
 type ContainerConfigIpcErrorCode =
   | ContainerConfigLoadErrorCode
@@ -166,6 +167,22 @@ export function registerContainerIpc(): void {
         const message = error?.message || String(error);
         log.warn('container:inspect-run failed', message);
         return { ok: false, error: message } as const;
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'icons:resolve-service',
+    async (_event, args: any): Promise<{ ok: boolean; dataUrl?: string; error?: string }> => {
+      try {
+        const service = typeof args?.service === 'string' ? args.service : '';
+        const allowNetwork = args?.allowNetwork === true;
+        const workspacePath = typeof args?.workspacePath === 'string' ? args.workspacePath : undefined;
+        const res = await resolveServiceIcon({ service, allowNetwork, workspacePath });
+        if (res.ok) return { ok: true, dataUrl: res.dataUrl };
+        return { ok: false };
+      } catch (error: any) {
+        return { ok: false, error: error?.message || String(error) };
       }
     }
   );
