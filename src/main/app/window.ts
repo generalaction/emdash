@@ -26,7 +26,8 @@ export function createMainWindow(): BrowserWindow {
     mainWindow.loadURL('http://localhost:3000');
   } else {
     // renderer build outputs to dist/renderer
-    mainWindow.loadFile(join(__dirname, '..', '..', 'renderer', 'index.html'));
+    // __dirname resolves to dist/main/main/app at runtime; go up to dist and into renderer
+    mainWindow.loadFile(join(__dirname, '..', '..', '..', 'renderer', 'index.html'));
   }
 
   // Route external links to the user’s default browser
