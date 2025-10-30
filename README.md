@@ -91,8 +91,8 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 
 ## 🖼️ Demo
 
-Add an agents.md file
-
+#### Add an agents.md file
+![Agents.md](https://github.com/user-attachments/assets/7426b97b-e073-4533-9a70-67bb39639517)
 #### Run multiple agents in parallel
 
 ![Parallel agents](https://github.com/user-attachments/assets/ef20f7d6-73c7-4d00-9009-d4a95f5f6031)
