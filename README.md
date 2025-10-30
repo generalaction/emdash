@@ -85,8 +85,9 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 
 | Tool | Status | Authentication |
 | ----------- | ------ | ----------- |
-| [Linear](https://linear.app) | ✅ Supported | Connect by passing your API key |
-
+| [Linear](https://linear.app) | ✅ Supported | Connect with a Linear API key. |
+| [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
+| [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
 
 ## 🖼️ Preview
 
