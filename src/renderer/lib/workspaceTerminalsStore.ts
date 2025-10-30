@@ -64,7 +64,7 @@ function loadFromStorage(workspaceId: string): WorkspaceTerminalsState | null {
 
     const terminals = Array.isArray(parsed.terminals)
       ? parsed.terminals
-          .map((item) => {
+          .map((item: any) => {
             if (!item || typeof item !== 'object') return null;
             const id = typeof item.id === 'string' && item.id ? item.id : null;
             const title = typeof item.title === 'string' && item.title ? item.title : null;
@@ -80,7 +80,7 @@ function loadFromStorage(workspaceId: string): WorkspaceTerminalsState | null {
                   : Date.now(),
             } satisfies WorkspaceTerminal;
           })
-          .filter(Boolean)
+          .filter((x: WorkspaceTerminal | null): x is WorkspaceTerminal => Boolean(x))
       : [];
 
     const counter =
@@ -90,7 +90,7 @@ function loadFromStorage(workspaceId: string): WorkspaceTerminalsState | null {
 
     let activeId: string | null = null;
     if (typeof parsed.activeId === 'string' && parsed.activeId) {
-      activeId = terminals.some((terminal) => terminal.id === parsed.activeId)
+      activeId = terminals.some((terminal: WorkspaceTerminal) => terminal.id === parsed.activeId)
         ? parsed.activeId
         : (terminals[0]?.id ?? null);
     } else {
