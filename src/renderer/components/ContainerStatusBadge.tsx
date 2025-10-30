@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Square } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
 
@@ -11,6 +11,7 @@ interface Props {
   stoppingAction?: boolean; // stopping request in-flight
   onStart: (e: React.MouseEvent) => void | Promise<void>;
   onStop: (e: React.MouseEvent) => void | Promise<void>;
+  showStop?: boolean; // optionally hide stop control (e.g., read-only view)
 }
 
 export const ContainerStatusBadge: React.FC<Props> = ({
@@ -21,6 +22,7 @@ export const ContainerStatusBadge: React.FC<Props> = ({
   stoppingAction = false,
   onStart,
   onStop,
+  showStop = true,
 }) => {
   if (!active) {
     return (
@@ -37,8 +39,8 @@ export const ContainerStatusBadge: React.FC<Props> = ({
             >
               {startingAction ? (
                 <>
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  Connecting…
+                  Connecting
+                  <Loader2 className="ml-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                 </>
               ) : (
                 <>
@@ -61,10 +63,11 @@ export const ContainerStatusBadge: React.FC<Props> = ({
       <span
         className="inline-flex h-8 items-center rounded-md border border-dashed border-border/70 bg-muted/40 px-2.5 text-xs font-medium text-foreground"
         aria-live="polite"
+        aria-busy="true"
       >
         <img src={dockerLogo} alt="" className="mr-1.5 h-3.5 w-3.5" />
-        <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
-        Starting…
+        Starting
+        <Loader2 className="ml-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
       </span>
     );
   }
@@ -79,29 +82,34 @@ export const ContainerStatusBadge: React.FC<Props> = ({
         <img src={dockerLogo} alt="" className="ml-2 mr-1.5 h-3.5 w-3.5" />
         <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
         <span className="pr-2">Running</span>
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={onStop}
-                disabled={stoppingAction}
-                className="h-8 border-l border-border/60 px-2 text-muted-foreground transition hover:bg-muted/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
-                aria-label="Stop container"
-                title="Stop container"
-              >
-                {stoppingAction ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Square className="h-4 w-4" aria-hidden="true" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">
-              Stop container
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {showStop ? (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onStop}
+                  disabled={stoppingAction}
+                  className="h-8 px-2 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
+                  aria-label="Stop container"
+                  title="Stop container"
+                >
+                  {stoppingAction ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <span
+                      className="inline-block h-3.5 w-3.5 rounded-[2px] bg-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                Stop container
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
       </div>
     );
   }

@@ -13,6 +13,7 @@ import {
   type ContainerStartResult,
 } from '../services/containerRunnerService';
 import type { RunnerMode } from '@shared/container';
+import { resolveServiceIcon } from '../services/iconService';
 
 type ContainerConfigIpcErrorCode =
   | ContainerConfigLoadErrorCode
@@ -136,6 +137,51 @@ export function registerContainerIpc(): void {
         }
         const res = await containerRunnerService.stopRun(workspaceId);
         return res as any;
+      } catch (error: any) {
+        return { ok: false, error: error?.message || String(error) };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'container:inspect-run',
+    async (
+      _event,
+      args
+    ): Promise<
+      | {
+          ok: true;
+          running: boolean;
+          ports: Array<{ service: string; container: number; host: number }>;
+          previewService?: string;
+        }
+      | { ok: false; error: string }
+    > => {
+      try {
+        const workspaceId = typeof args?.workspaceId === 'string' ? args.workspaceId.trim() : '';
+        if (!workspaceId) {
+          return { ok: false, error: '`workspaceId` must be provided' } as const;
+        }
+        return await containerRunnerService.inspectRun(workspaceId);
+      } catch (error: any) {
+        const message = error?.message || String(error);
+        log.warn('container:inspect-run failed', message);
+        return { ok: false, error: message } as const;
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'icons:resolve-service',
+    async (_event, args: any): Promise<{ ok: boolean; dataUrl?: string; error?: string }> => {
+      try {
+        const service = typeof args?.service === 'string' ? args.service : '';
+        const allowNetwork = args?.allowNetwork === true;
+        const workspacePath =
+          typeof args?.workspacePath === 'string' ? args.workspacePath : undefined;
+        const res = await resolveServiceIcon({ service, allowNetwork, workspacePath });
+        if (res.ok) return { ok: true, dataUrl: res.dataUrl };
+        return { ok: false };
       } catch (error: any) {
         return { ok: false, error: error?.message || String(error) };
       }
