@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Square } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
 
@@ -90,14 +90,17 @@ export const ContainerStatusBadge: React.FC<Props> = ({
                   type="button"
                   onClick={onStop}
                   disabled={stoppingAction}
-                  className="h-8 border-l border-border/60 px-2 text-muted-foreground transition hover:bg-muted/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
+                  className="h-8 px-2 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
                   aria-label="Stop container"
                   title="Stop container"
                 >
                   {stoppingAction ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                   ) : (
-                    <Square className="h-4 w-4" aria-hidden="true" />
+                    <span
+                      className="inline-block h-3.5 w-3.5 rounded-[2px] bg-muted-foreground"
+                      aria-hidden="true"
+                    />
                   )}
                 </button>
               </TooltipTrigger>

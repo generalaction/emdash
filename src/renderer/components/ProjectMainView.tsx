@@ -256,7 +256,9 @@ function WorkspaceRow({
               className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
               title={`${pr.title || 'Pull Request'} (#${pr.number})`}
             >
-              {pr.isDraft ? 'draft' : pr.state.toLowerCase()}
+              {pr.isDraft
+                ? 'draft'
+                : (String(pr.state).toLowerCase() === 'open' ? 'PR open' : String(pr.state).toLowerCase())}
             </span>
           ) : null}
           {ws.agentId && <Badge variant="outline">agent</Badge>}
