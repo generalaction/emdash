@@ -17,6 +17,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collap
 import { Home, ChevronDown, Plus } from 'lucide-react';
 import GithubStatus from './GithubStatus';
 import { WorkspaceItem } from './WorkspaceItem';
+import ProjectDeleteButton from './ProjectDeleteButton';
 
 interface Project {
   id: string;
@@ -78,6 +79,7 @@ interface LeftSidebarProps {
   onCreateWorkspaceForProject?: (project: Project) => void;
   isCreatingWorkspace?: boolean;
   onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void>;
+  onDeleteProject?: (project: Project) => void | Promise<void>;
 }
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -96,8 +98,25 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onCreateWorkspaceForProject,
   isCreatingWorkspace,
   onDeleteWorkspace,
+  onDeleteProject,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
+  const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
+
+  const handleDeleteProject = React.useCallback(
+    async (project: Project) => {
+      if (!onDeleteProject) {
+        return;
+      }
+      setDeletingProjectId(project.id);
+      try {
+        await onDeleteProject(project);
+      } finally {
+        setDeletingProjectId((current) => (current === project.id ? null : current));
+      }
+    },
+    [onDeleteProject]
+  );
 
   const githubProfileUrl = React.useMemo(() => {
     if (!githubAuthenticated) {
@@ -183,10 +202,12 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 >
                   {(project) => {
                     const typedProject = project as Project;
+                    const isDeletingProject = deletingProjectId === typedProject.id;
+                    const showProjectDelete = Boolean(onDeleteProject);
                     return (
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
-                          <div className="flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                          <div className="group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground">
                             <button
                               type="button"
                               className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
@@ -200,16 +221,31 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
                             </button>
-                            <CollapsibleTrigger asChild>
-                              <button
-                                type="button"
-                                aria-label={`Toggle workspaces for ${typedProject.name}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="-mr-1 ml-2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                              >
-                                <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                              </button>
-                            </CollapsibleTrigger>
+                            <div className="relative flex flex-shrink-0 items-center pl-6">
+                              {showProjectDelete ? (
+                                <ProjectDeleteButton
+                                  projectName={typedProject.name}
+                                  onConfirm={() => handleDeleteProject(typedProject)}
+                                  isDeleting={isDeletingProject}
+                                  aria-label={`Delete project ${typedProject.name}`}
+                                  className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-destructive focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-100 ${
+                                    isDeletingProject
+                                      ? 'opacity-100'
+                                      : 'group-hover/workspace:opacity-100'
+                                  }`}
+                                />
+                              ) : null}
+                              <CollapsibleTrigger asChild>
+                                <button
+                                  type="button"
+                                  aria-label={`Toggle workspaces for ${typedProject.name}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                  <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                                </button>
+                              </CollapsibleTrigger>
+                            </div>
                           </div>
 
                           <CollapsibleContent asChild>

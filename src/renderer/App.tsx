@@ -1313,6 +1313,7 @@ const AppContent: React.FC = () => {
                   onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
                   isCreatingWorkspace={isCreatingWorkspace}
                   onDeleteWorkspace={handleDeleteWorkspace}
+                  onDeleteProject={handleDeleteProject}
                 />
               </ResizablePanel>
               <ResizableHandle
