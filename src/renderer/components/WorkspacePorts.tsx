@@ -73,10 +73,10 @@ const WorkspacePorts: React.FC<Props> = ({
         try {
           const api: any = (window as any).electronAPI;
           if (!api?.resolveServiceIcon) return;
-          // Workspace overrides only; no vendor-specific lookups
+          // Allow network fetch in production to populate cache/offline use
           const res = await api.resolveServiceIcon({
             service: name,
-            allowNetwork: false,
+            allowNetwork: true,
             workspacePath,
           });
           if (!cancelled && res?.ok && typeof res.dataUrl === 'string') {
@@ -177,7 +177,6 @@ const WorkspacePorts: React.FC<Props> = ({
                   }}
                   title="Open in browser"
                 >
-                  Open
                   <ExternalLink className="h-3 w-3" aria-hidden="true" />
                 </button>
                 <button
@@ -191,44 +190,15 @@ const WorkspacePorts: React.FC<Props> = ({
                 >
                   {copiedKey === key ? (
                     <>
-                      Copied
                       <Check className="h-3 w-3 text-emerald-500" aria-hidden="true" />
                     </>
                   ) : (
                     <>
-                      Copy
+                      
                       <Copy className="h-3 w-3" aria-hidden="true" />
                     </>
                   )}
                 </button>
-                {hasCompose ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 rounded border border-border/70 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/40"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        const res = await (window as any).electronAPI.setExposeMode({
-                          workspaceId,
-                          mode: 'service',
-                          service: p.service,
-                        });
-                        if (!res?.ok) {
-                          toast({
-                            title: 'Expose failed',
-                            description: res?.error || 'Unable to expose service',
-                            variant: 'destructive',
-                          });
-                        } else {
-                          toast({ title: 'Exposed', description: `Service: ${p.service}` });
-                        }
-                      } catch {}
-                    }}
-                    title="Expose only this service"
-                  >
-                    Expose only
-                  </button>
-                ) : null}
               </div>
             );
           })}

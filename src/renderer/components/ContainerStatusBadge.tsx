@@ -39,8 +39,8 @@ export const ContainerStatusBadge: React.FC<Props> = ({
             >
               {startingAction ? (
                 <>
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  Connecting…
+                  Connecting
+                  <Loader2 className="ml-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                 </>
               ) : (
                 <>
@@ -66,8 +66,8 @@ export const ContainerStatusBadge: React.FC<Props> = ({
         aria-busy="true"
       >
         <img src={dockerLogo} alt="" className="mr-1.5 h-3.5 w-3.5" />
-        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-        Starting…
+        Starting
+        <Loader2 className="ml-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
       </span>
     );
   }
