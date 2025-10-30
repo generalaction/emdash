@@ -194,7 +194,6 @@ const WorkspacePorts: React.FC<Props> = ({
                     </>
                   ) : (
                     <>
-                      
                       <Copy className="h-3 w-3" aria-hidden="true" />
                     </>
                   )}
