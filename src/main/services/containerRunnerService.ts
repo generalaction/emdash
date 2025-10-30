@@ -217,7 +217,11 @@ export class ContainerRunnerService extends EventEmitter {
       try {
         fs.mkdirSync(path.dirname(overrideAbs), { recursive: true });
       } catch {}
-      fs.writeFileSync(overrideAbs, this.buildComposeOverrideYaml(allocated), 'utf8');
+      fs.writeFileSync(
+        overrideAbs,
+        this.buildComposeOverrideYaml(allocated, workspacePath, portRequests),
+        'utf8'
+      );
 
       // Run compose up -d
       const argsArr: string[] = ['compose'];
@@ -257,7 +261,9 @@ export class ContainerRunnerService extends EventEmitter {
   }
 
   private buildComposeOverrideYaml(
-    mappings: Array<{ service: string; container: number; host: number }>
+    mappings: Array<{ service: string; container: number; host: number }>,
+    workspacePath: string,
+    portRequests: ResolvedContainerPortConfig[]
   ): string {
     const byService = new Map<string, Array<{ container: number; host: number }>>();
     for (const m of mappings) {
@@ -265,17 +271,39 @@ export class ContainerRunnerService extends EventEmitter {
       arr.push({ container: m.container, host: m.host });
       byService.set(m.service, arr);
     }
+    // Collect all unique services to add volume mounts
+    const allServices = new Set<string>();
+    for (const m of mappings) {
+      allServices.add(m.service);
+    }
+    for (const req of portRequests) {
+      allServices.add(req.service);
+    }
+    
+    const absWorkspace = path.resolve(workspacePath);
     const lines: string[] = [];
     // Omit top-level 'version' to avoid deprecation warning; Compose v2 ignores it.
     lines.push('services:');
-    for (const [svc, ports] of byService.entries()) {
+    for (const svc of allServices) {
       lines.push(`  ${svc}:`);
-      lines.push('    ports:');
-      for (const p of ports) {
-        lines.push('      -');
-        lines.push(`        target: ${p.container}`);
-        lines.push(`        published: ${p.host}`);
-        lines.push('        protocol: tcp');
+      
+      // Add volume mount for live updates - mount workspace to /workspace
+      // This ensures file changes on the host are immediately visible in containers
+      lines.push('    volumes:');
+      // Escape the path properly for YAML (handle Windows paths)
+      const volumePath = absWorkspace.replace(/\\/g, '/').replace(/'/g, "''");
+      lines.push(`      - '${volumePath}:/workspace'`);
+      
+      // Add port mappings if this service has any
+      const ports = byService.get(svc);
+      if (ports && ports.length > 0) {
+        lines.push('    ports:');
+        for (const p of ports) {
+          lines.push('      -');
+          lines.push(`        target: ${p.container}`);
+          lines.push(`        published: ${p.host}`);
+          lines.push('        protocol: tcp');
+        }
       }
     }
     return lines.join('\n') + '\n';
