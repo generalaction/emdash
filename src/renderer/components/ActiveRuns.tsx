@@ -7,7 +7,11 @@ import {
   SidebarMenuItem,
 } from './ui/sidebar';
 import dockerLogo from '../../assets/images/docker.png';
-import { subscribeToAllRunStates, getAllRunStates, type ContainerRunState } from '@/lib/containerRuns';
+import {
+  subscribeToAllRunStates,
+  getAllRunStates,
+  type ContainerRunState,
+} from '@/lib/containerRuns';
 
 interface Props {
   projects: any[];

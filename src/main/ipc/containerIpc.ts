@@ -177,7 +177,8 @@ export function registerContainerIpc(): void {
       try {
         const service = typeof args?.service === 'string' ? args.service : '';
         const allowNetwork = args?.allowNetwork === true;
-        const workspacePath = typeof args?.workspacePath === 'string' ? args.workspacePath : undefined;
+        const workspacePath =
+          typeof args?.workspacePath === 'string' ? args.workspacePath : undefined;
         const res = await resolveServiceIcon({ service, allowNetwork, workspacePath });
         if (res.ok) return { ok: true, dataUrl: res.dataUrl };
         return { ok: false };

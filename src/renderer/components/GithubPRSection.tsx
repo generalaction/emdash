@@ -43,14 +43,24 @@ function parseRepoInput(input: string): RepoChoice | null {
   if (urlMatch) {
     const owner = urlMatch[1];
     const name = urlMatch[2].replace(/\.git$/i, '');
-    return { owner, name, fullName: `${owner}/${name}`, url: `https://github.com/${owner}/${name}.git` };
+    return {
+      owner,
+      name,
+      fullName: `${owner}/${name}`,
+      url: `https://github.com/${owner}/${name}.git`,
+    };
   }
   // Accept owner/repo
   const simple = s.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/);
   if (simple) {
     const owner = simple[1];
     const name = simple[2];
-    return { owner, name, fullName: `${owner}/${name}`, url: `https://github.com/${owner}/${name}.git` };
+    return {
+      owner,
+      name,
+      fullName: `${owner}/${name}`,
+      url: `https://github.com/${owner}/${name}.git`,
+    };
   }
   return null;
 }
@@ -81,11 +91,13 @@ const GithubPRSection: React.FC<Props> = ({ projectId, projectPath, onOpenWorksp
     setSelectedRepo(parsed);
     setIsFetching(true);
     try {
-      const localPath = cloneTargetPath ?? (() => {
-        const seg = `${parsed.owner}-${parsed.name}`;
-        const base = projectPath.replace(/[\\/]+$/, '');
-        return `${base}/../gh/${seg}`;
-      })();
+      const localPath =
+        cloneTargetPath ??
+        (() => {
+          const seg = `${parsed.owner}-${parsed.name}`;
+          const base = projectPath.replace(/[\\/]+$/, '');
+          return `${base}/../gh/${seg}`;
+        })();
       const cloneRes = await window.electronAPI.githubCloneRepository(parsed.url, localPath);
       if (!cloneRes?.success) {
         setError(cloneRes?.error || 'Clone failed');
@@ -181,7 +193,11 @@ const GithubPRSection: React.FC<Props> = ({ projectId, projectPath, onOpenWorksp
             />
           </div>
           <Button type="button" onClick={handleFetchPrs} disabled={isFetching}>
-            {isFetching ? <Spinner size="sm" className="mr-2" /> : <Search className="mr-2 h-4 w-4" />}
+            {isFetching ? (
+              <Spinner size="sm" className="mr-2" />
+            ) : (
+              <Search className="mr-2 h-4 w-4" />
+            )}
             Fetch PRs
           </Button>
         </div>
@@ -199,9 +215,13 @@ const GithubPRSection: React.FC<Props> = ({ projectId, projectPath, onOpenWorksp
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <GitPullRequest className="h-4 w-4" />
-                      <span className="truncate text-sm font-medium">#{pr.number} {pr.title}</span>
+                      <span className="truncate text-sm font-medium">
+                        #{pr.number} {pr.title}
+                      </span>
                       {pr.isDraft ? (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">draft</span>
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          draft
+                        </span>
                       ) : null}
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
@@ -239,4 +259,3 @@ const GithubPRSection: React.FC<Props> = ({ projectId, projectPath, onOpenWorksp
 };
 
 export default GithubPRSection;
-

@@ -573,11 +573,17 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
             const api: any = (window as any).electronAPI;
             if (!api?.resolveServiceIcon) return;
             // Workspace overrides only; no vendor-specific lookups
-            const res = await api.resolveServiceIcon({ service: name, allowNetwork: false, workspacePath: workspace.path });
+            const res = await api.resolveServiceIcon({
+              service: name,
+              allowNetwork: false,
+              workspacePath: workspace.path,
+            });
             if (!cancelled && res?.ok && typeof res.dataUrl === 'string') setSrc(res.dataUrl);
           } catch {}
         })();
-        return () => { cancelled = true; };
+        return () => {
+          cancelled = true;
+        };
       }, [name]);
       if (src) return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
       const webPorts = new Set([80, 443, 3000, 5173, 8080, 8000]);
@@ -592,7 +598,11 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium text-foreground">
               <ContainerStatusBadge
-                active={state.status === 'starting' || state.status === 'building' || state.status === 'ready'}
+                active={
+                  state.status === 'starting' ||
+                  state.status === 'building' ||
+                  state.status === 'ready'
+                }
                 isStarting={state.status === 'starting' || state.status === 'building'}
                 isReady={state.status === 'ready'}
                 startingAction={false}
@@ -645,8 +655,14 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                 className="text-xs text-muted-foreground"
                 initial={reduceMotion ? false : { opacity: 0, height: 0, paddingTop: 0 }}
                 animate={{ opacity: 1, height: 'auto', paddingTop: 8 }}
-                exit={reduceMotion ? { opacity: 1, height: 'auto', paddingTop: 0 } : { opacity: 0, height: 0, paddingTop: 0 }}
-                transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                exit={
+                  reduceMotion
+                    ? { opacity: 1, height: 'auto', paddingTop: 0 }
+                    : { opacity: 0, height: 0, paddingTop: 0 }
+                }
+                transition={
+                  reduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                }
                 style={{ overflow: 'hidden', display: 'grid' }}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -657,7 +673,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                     <span>Mapped host → container per service</span>
                   </div>
                 </div>
-                <div className="pt-2 flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 pt-2">
                   {sorted.map((port) => (
                     <span
                       key={`${state.runId}-${port.service}-${port.host}`}
@@ -671,7 +687,9 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                       <span>→</span>
                       <span>container {port.container}</span>
                       {state.previewService === port.service ? (
-                        <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">preview</span>
+                        <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">
+                          preview
+                        </span>
                       ) : null}
                     </span>
                   ))}

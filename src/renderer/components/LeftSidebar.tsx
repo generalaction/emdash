@@ -100,7 +100,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
 
-
   const githubProfileUrl = React.useMemo(() => {
     if (!githubAuthenticated) {
       return null;
@@ -128,7 +127,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       user={githubUser}
     />
   );
-
 
   return (
     <div className="relative h-full">

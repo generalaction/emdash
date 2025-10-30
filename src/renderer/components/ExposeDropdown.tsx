@@ -20,7 +20,11 @@ export default function ExposeDropdown({
       if (!res?.ok) throw new Error(res?.error || 'Failed to apply expose mode');
       toast({ title: 'Expose updated', description: `Mode: ${mode}` });
     } catch (e: any) {
-      toast({ title: 'Failed to update expose', description: e?.message || String(e), variant: 'destructive' });
+      toast({
+        title: 'Failed to update expose',
+        description: e?.message || String(e),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -43,4 +47,3 @@ export default function ExposeDropdown({
     </Select>
   );
 }
-

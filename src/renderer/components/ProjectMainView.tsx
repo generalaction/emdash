@@ -193,7 +193,7 @@ function WorkspaceRow({
   return (
     <div
       className={[
-        'rounded-xl border border-border bg-background overflow-hidden',
+        'overflow-hidden rounded-xl border border-border bg-background',
         active ? 'ring-2 ring-primary' : '',
       ].join(' ')}
     >
@@ -257,7 +257,9 @@ function WorkspaceRow({
             >
               {pr.isDraft
                 ? 'draft'
-                : (String(pr.state).toLowerCase() === 'open' ? 'PR open' : String(pr.state).toLowerCase())}
+                : String(pr.state).toLowerCase() === 'open'
+                  ? 'PR open'
+                  : String(pr.state).toLowerCase()}
             </span>
           ) : null}
           {ws.agentId && <Badge variant="outline">agent</Badge>}
@@ -400,7 +402,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </AlertDescription>
               </Alert>
             )}
-
           </div>
         </div>
       </div>

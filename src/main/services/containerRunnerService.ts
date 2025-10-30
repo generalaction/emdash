@@ -429,9 +429,7 @@ export class ContainerRunnerService extends EventEmitter {
     return this.emit(RUN_EVENT_CHANNEL, event);
   }
 
-  async inspectRun(
-    workspaceId: string
-  ): Promise<
+  async inspectRun(workspaceId: string): Promise<
     | {
         ok: true;
         running: boolean;

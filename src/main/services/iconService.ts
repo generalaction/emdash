@@ -4,7 +4,10 @@ import path from 'node:path';
 import https from 'node:https';
 
 function toSlug(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-');
 }
 
 function bufferToDataUrl(buf: Buffer, contentType: string): string {
@@ -17,15 +20,16 @@ function readFileAsDataUrl(abs: string): string | null {
   try {
     const data = fs.readFileSync(abs);
     const ext = path.extname(abs).toLowerCase();
-    const mime = ext === '.svg'
-      ? 'image/svg+xml'
-      : ext === '.png'
-      ? 'image/png'
-      : ext === '.jpg' || ext === '.jpeg'
-      ? 'image/jpeg'
-      : ext === '.ico'
-      ? 'image/x-icon'
-      : 'application/octet-stream';
+    const mime =
+      ext === '.svg'
+        ? 'image/svg+xml'
+        : ext === '.png'
+          ? 'image/png'
+          : ext === '.jpg' || ext === '.jpeg'
+            ? 'image/jpeg'
+            : ext === '.ico'
+              ? 'image/x-icon'
+              : 'application/octet-stream';
     return bufferToDataUrl(data, mime);
   } catch {
     return null;
@@ -68,7 +72,10 @@ function allowlisted(domain: string): boolean {
   return allow.has(domain);
 }
 
-async function fetchHttps(url: string, maxBytes = 200_000): Promise<{ data: Buffer; contentType: string } | null> {
+async function fetchHttps(
+  url: string,
+  maxBytes = 200_000
+): Promise<{ data: Buffer; contentType: string } | null> {
   return new Promise((resolve) => {
     try {
       https
@@ -77,9 +84,11 @@ async function fetchHttps(url: string, maxBytes = 200_000): Promise<{ data: Buff
           const loc = res.headers.location;
           if (status >= 300 && status < 400 && loc && /^https:\/\//i.test(loc)) {
             // One hop follow
-            https.get(loc, (res2) => {
-              pipeResp(res2);
-            }).on('error', () => resolve(null));
+            https
+              .get(loc, (res2) => {
+                pipeResp(res2);
+              })
+              .on('error', () => resolve(null));
             return;
           }
           pipeResp(res);
@@ -127,7 +136,9 @@ export async function resolveServiceIcon(opts: {
   // 1) Workspace overrides
   if (opts.workspacePath) {
     const p = path.join(opts.workspacePath, '.emdash', 'service-icons');
-    const candidates = ['.svg', '.png', '.jpg', '.jpeg', '.ico'].map((ext) => path.join(p, `${slug}${ext}`));
+    const candidates = ['.svg', '.png', '.jpg', '.jpeg', '.ico'].map((ext) =>
+      path.join(p, `${slug}${ext}`)
+    );
     for (const abs of candidates) {
       if (fs.existsSync(abs)) {
         const dataUrl = readFileAsDataUrl(abs);
@@ -138,7 +149,9 @@ export async function resolveServiceIcon(opts: {
 
   // 2) Cache under userData
   const cacheDir = path.join(app.getPath('userData'), 'icons');
-  try { fs.mkdirSync(cacheDir, { recursive: true }); } catch {}
+  try {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  } catch {}
   const cacheFile = path.join(cacheDir, `${slug}.ico`);
   if (fs.existsSync(cacheFile)) {
     const dataUrl = readFileAsDataUrl(cacheFile);
@@ -164,4 +177,3 @@ export async function resolveServiceIcon(opts: {
 
   return { ok: false };
 }
-
