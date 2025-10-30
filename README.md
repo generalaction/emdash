@@ -93,11 +93,13 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 
 Add an agents.md file
 
-Run multiple agents in parallel
+#### Run multiple agents in parallel
+
+![Parallel agents](https://github.com/user-attachments/assets/ef20f7d6-73c7-4d00-9009-d4a95f5f6031)
 
 #### Passing a Linear ticket
 
-![Demo animation](https://github.com/user-attachments/assets/027bf66f-9b04-48ba-aa0b-a85f0104ee71)
+![Passing Linear](https://github.com/user-attachments/assets/027bf66f-9b04-48ba-aa0b-a85f0104ee71)
 
 
 ## 🛠️ Contributing
