@@ -29,11 +29,13 @@
 
 Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 10+ CLIs, such as Claude Code and Codex) and runs each agent in its own Git worktree to keep changes clean; when the environment matters, you can run a PR in its own Docker container. Hand off Linear, GitHub, or Jira tickets to an agent, review diffs side-by-side, and keep everything local—your data never leaves your machine.
 
+<div align="center" style="margin:24px 0;">
 
 [Installation](#installation) • [Integrations](#integrations) • [Demo](#demo) • [Contributing](#contributing) • [FAQ](#faq)
 
+</div>
 
-## 🚀 Installation
+# Installation
 
 **[Latest Release (macOS • Windows • Linux)](https://github.com/generalaction/emdash/releases/latest)**
 
@@ -55,11 +57,9 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
 </details>
 
-## 🔌 Integrations
+# Integrations
 
 <img width="4856" height="1000" alt="integration_banner" src="https://github.com/user-attachments/assets/894c3db8-3be5-4730-ae7d-197958b0a044" />
-
-
 
 ### Supported CLI Providers
 
@@ -89,7 +89,7 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
 | [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
 
-## 🖼️ Demo
+# Demo
 
 #### Add an agents.md file
 ![Agents.md](https://github.com/user-attachments/assets/7426b97b-e073-4533-9a70-67bb39639517)
@@ -102,11 +102,11 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 ![Passing Linear](https://github.com/user-attachments/assets/027bf66f-9b04-48ba-aa0b-a85f0104ee71)
 
 
-## 🛠️ Contributing
+# Contributing
 
 Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/YOUR_INVITE) to discuss.
 
-## FAQ
+# FAQ
 
 <details>
 <summary><b>What telemetry do you collect and can I disable it?</b></summary>
