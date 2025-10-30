@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.3.22",
+  "version": "0.3.24",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "scripts": {
@@ -64,6 +64,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "tsconfig-paths": "^3.15.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-collapsible": "^1.1.12",
