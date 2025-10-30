@@ -258,6 +258,27 @@ export function resetContainerRunListeners() {
   unsubscribe = undefined;
 }
 
+export function getAllRunStates(): ContainerRunState[] {
+  return Array.from(workspaceStates.values()).map((s) => ({ ...s }));
+}
+
+export function subscribeToAllRunStates(
+  listener: (states: ContainerRunState[]) => void
+): () => void {
+  ensureSubscribed();
+  // Emit current snapshot immediately
+  try {
+    listener(getAllRunStates());
+  } catch {}
+  // Reuse the event bus to push snapshots on any update
+  const off = subscribeToContainerRuns(() => {
+    try {
+      listener(getAllRunStates());
+    } catch {}
+  });
+  return () => off();
+}
+
 /**
  * Inspect any existing compose stack for this workspace and hydrate local state,
  * so UI shows ports/running status after a window refresh.

@@ -15,6 +15,7 @@ import {
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Home, ChevronDown, Plus } from 'lucide-react';
+import ActiveRuns from './ActiveRuns';
 import GithubStatus from './GithubStatus';
 import { WorkspaceItem } from './WorkspaceItem';
 
@@ -99,6 +100,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
 
+
   const githubProfileUrl = React.useMemo(() => {
     if (!githubAuthenticated) {
       return null;
@@ -127,6 +129,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     />
   );
 
+
   return (
     <div className="relative h-full">
       <Sidebar className="lg:border-r-0">
@@ -150,6 +153,12 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
+          <ActiveRuns
+            projects={projects}
+            onSelectProject={onSelectProject}
+            onSelectWorkspace={onSelectWorkspace}
+          />
 
           <SidebarGroup>
             <SidebarGroupLabel className="sr-only">Projects</SidebarGroupLabel>
