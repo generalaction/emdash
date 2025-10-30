@@ -15,6 +15,7 @@ import ProjectDeleteButton from './ProjectDeleteButton';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import WorkspacePorts from './WorkspacePorts';
+import GithubPRSection from './GithubPRSection';
 import {
   getContainerRunState,
   startContainerRun,
@@ -398,6 +399,21 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </AlertDescription>
               </Alert>
             )}
+
+            {/* <GithubPRSection
+              projectId={project.id}
+              projectPath={project.path}
+              onOpenWorkspace={(ws) => {
+                // Optimistically open the new workspace in chat
+                onSelectWorkspace({
+                  id: ws.id,
+                  name: ws.name,
+                  branch: ws.branch,
+                  path: ws.path,
+                  status: ws.status,
+                });
+              }}
+            /> */}
           </div>
         </div>
       </div>
