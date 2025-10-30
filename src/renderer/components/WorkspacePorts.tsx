@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Copy, Check, Globe, Database, Server } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import type { RunnerPortMapping } from '@shared/container/events';
+import { useToast } from '@/hooks/use-toast';
 
 interface Props {
   workspaceId: string;
@@ -11,9 +12,45 @@ interface Props {
   previewService?: string;
 }
 
-const WorkspacePorts: React.FC<Props> = ({ workspaceId, workspacePath, ports, previewUrl, previewService }) => {
+const WorkspacePorts: React.FC<Props> = ({
+  workspaceId,
+  workspacePath,
+  ports,
+  previewUrl,
+  previewService,
+}) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
+  const { toast } = useToast();
+
+  const [hasCompose, setHasCompose] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const api: any = (window as any).electronAPI;
+        const candidates = [
+          'docker-compose.yml',
+          'docker-compose.yaml',
+          'compose.yml',
+          'compose.yaml',
+        ];
+        for (const file of candidates) {
+          const res = await api?.fsRead?.(workspacePath || '', file, 1);
+          if (!cancelled && res?.success) {
+            setHasCompose(true);
+            return;
+          }
+        }
+        if (!cancelled) setHasCompose(false);
+      } catch {
+        if (!cancelled) setHasCompose(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspacePath]);
 
   const norm = (s: string) => s.toLowerCase();
   const sorted = [...(ports ?? [])].sort((a, b) => {
@@ -37,7 +74,11 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, workspacePath, ports, pr
           const api: any = (window as any).electronAPI;
           if (!api?.resolveServiceIcon) return;
           // Workspace overrides only; no vendor-specific lookups
-          const res = await api.resolveServiceIcon({ service: name, allowNetwork: false, workspacePath });
+          const res = await api.resolveServiceIcon({
+            service: name,
+            allowNetwork: false,
+            workspacePath,
+          });
           if (!cancelled && res?.ok && typeof res.dataUrl === 'string') {
             setSrc(res.dataUrl);
           }
@@ -66,6 +107,12 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, workspacePath, ports, pr
     } catch {}
   };
 
+  const exposeMode: 'none' | 'preview' | 'all' = useMemo(() => {
+    if (!ports || ports.length === 0) return 'none';
+    const allPreview = ports.every((p) => p.service === previewService);
+    return allPreview ? 'preview' : 'all';
+  }, [ports, previewService]);
+
   return (
     <motion.div
       id={`ws-${workspaceId}-ports`}
@@ -83,23 +130,25 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, workspacePath, ports, pr
           </span>
           <span>Mapped host → container per service</span>
         </div>
-        {previewUrl ? (
-          <button
-            type="button"
-            className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.electronAPI.openExternal(previewUrl);
-            }}
-          >
-            Open Preview
-            <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
-          </button>
-        ) : null}
+        <div className="inline-flex items-center gap-2">
+          {previewUrl ? (
+            <button
+              type="button"
+              className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.electronAPI.openExternal(previewUrl);
+              }}
+            >
+              Open Preview
+              <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {sorted?.length ? (
-        <div className="pt-2 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 pt-2">
           {sorted.map((p) => {
             const key = `${workspaceId}-${p.service}-${p.host}`;
             const url = p.url ?? `http://localhost:${p.host}`;
@@ -152,14 +201,87 @@ const WorkspacePorts: React.FC<Props> = ({ workspaceId, workspacePath, ports, pr
                     </>
                   )}
                 </button>
+                {hasCompose ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded border border-border/70 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/40"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const res = await (window as any).electronAPI.setExposeMode({
+                          workspaceId,
+                          mode: 'service',
+                          service: p.service,
+                        });
+                        if (!res?.ok) {
+                          toast({
+                            title: 'Expose failed',
+                            description: res?.error || 'Unable to expose service',
+                            variant: 'destructive',
+                          });
+                        } else {
+                          toast({ title: 'Exposed', description: `Service: ${p.service}` });
+                        }
+                      } catch {}
+                    }}
+                    title="Expose only this service"
+                  >
+                    Expose only
+                  </button>
+                ) : null}
               </div>
             );
           })}
         </div>
       ) : (
         <div className="mt-2 rounded-md border border-dashed border-border/70 bg-muted/40 p-2 text-xs text-muted-foreground">
-          No service ports were exposed in docker-compose. Services without ports still run inside
-          the Compose network.
+          {hasCompose ? (
+            <>
+              <div>No service ports are currently exposed to the host.</div>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <div>Live expose requires a docker-compose.yml at the workspace root.</div>
+              <button
+                type="button"
+                className="inline-flex items-center rounded border border-border/70 bg-background px-2 py-0.5 text-[11px] font-medium hover:bg-muted/40"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const api: any = (window as any).electronAPI;
+                    const content = `services:\n  web:\n    image: node:20\n    working_dir: /workspace\n    volumes:\n      - ./:/workspace\n    environment:\n      - HOST=0.0.0.0\n      - PORT=3000\n    command: bash -lc \"if [ -f package-lock.json ]; then npm ci; else npm install --no-package-lock; fi && npm run dev\"\n    expose:\n      - \"3000\"\n`;
+                    const res = await api.fsWriteFile(
+                      workspacePath || '',
+                      'docker-compose.yml',
+                      content,
+                      false
+                    );
+                    if (res?.success) {
+                      setHasCompose(true);
+                      toast({
+                        title: 'docker-compose.yml created',
+                        description: 'Stop and reconnect to use Expose controls.',
+                      });
+                    } else {
+                      toast({
+                        title: 'Failed to create docker-compose.yml',
+                        description: res?.error || 'Unknown error',
+                        variant: 'destructive',
+                      });
+                    }
+                  } catch (err: any) {
+                    toast({
+                      title: 'Failed to create docker-compose.yml',
+                      description: err?.message || String(err),
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+              >
+                Create minimal docker-compose.yml
+              </button>
+            </div>
+          )}
         </div>
       )}
     </motion.div>
