@@ -95,7 +95,10 @@ Add an agents.md file
 
 Run multiple agents in parallel
 
-Passing a Linear ticket
+#### Passing a Linear ticket
+
+![Demo animation](https://github.com/user-attachments/assets/027bf66f-9b04-48ba-aa0b-a85f0104ee71)
+
 
 ## 🛠️ Contributing
 
