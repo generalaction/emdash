@@ -52,7 +52,6 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
       }
       await logPlanEvent(workspacePath, 'planning.md written (hidden + root helper)');
 
-
       // Root-level helper only for non-worktree repos and only if it doesn't exist.
       let wroteRootHelper = false;
       try {
