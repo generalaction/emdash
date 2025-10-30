@@ -572,10 +572,10 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
           try {
             const api: any = (window as any).electronAPI;
             if (!api?.resolveServiceIcon) return;
-            // Workspace overrides only; no vendor-specific lookups
+            // Allow network fetch in production to populate cache/offline use
             const res = await api.resolveServiceIcon({
               service: name,
-              allowNetwork: false,
+              allowNetwork: true,
               workspacePath: workspace.path,
             });
             if (!cancelled && res?.ok && typeof res.dataUrl === 'string') setSrc(res.dataUrl);
