@@ -43,6 +43,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 - Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg  
 - Intel x64: https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
 
+[![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
 > macOS users can also: `brew install --cask emdash`
 
 ### Windows
@@ -60,7 +61,22 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 Emdash integrates with 10+ CLIs. Feel
 
-### CLI Providers
+### Supported CLI Providers
+
+| CLI Provider | Status | Install |
+| ----------- | ------ | ----------- |
+| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | `npm install -g @openai/codex`. |
+| [Amp](https://ampcode.com/manual) | ✅ Supported | `curl -fsSL https://ampcode.com/install.sh | bash` then run `amp`. |
+| [Auggie (Augment Code)](https://docs.augmentcode.com/cli/overview) | ✅ Supported | `npm install -g @augmentcode/auggie`. |
+| [Charm – Crush](https://github.com/charmbracelet/crush) | ✅ Supported | `go install github.com/charmbracelet/crush@latest`. |
+| [Claude Code](https://www.npmjs.com/package/%40anthropic-ai/claude-code) | ✅ Supported | `npm install -g @anthropic-ai/claude-code`. |
+| [Cursor CLI](https://cursor.com/cli) | ✅ Supported | `curl https://cursor.com/install -fsS | bash`. |
+| [GitHub Copilot (CLI)](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | `gh extension install github/gh-copilot`. |
+| [OpenCode.ai](https://opencode.ai/docs/) | ✅ Supported | `npm install -g opencode-ai`. |
+| [Droid (Factory)](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | `curl -fsSL https://app.factory.ai/cli | sh` then run `droid`. |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | ✅ Supported | `npm install -g @google/gemini-cli`. |
+| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code`. |
+
 
 ### Issues
 
