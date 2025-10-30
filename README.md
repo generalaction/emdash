@@ -59,9 +59,11 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 <img width="4856" height="1000" alt="integration_banner" src="https://github.com/user-attachments/assets/894c3db8-3be5-4730-ae7d-197958b0a044" />
 
-Emdash integrates with 10+ CLIs. Feel
+
 
 ### Supported CLI Providers
+
+Emdash currently integrates with eleven CLI providers and are adding new providers regularly. If you miss one, let us know or create a PR. 
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
@@ -77,8 +79,14 @@ Emdash integrates with 10+ CLIs. Feel
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | ✅ Supported | `npm install -g @google/gemini-cli`. |
 | [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code`. |
 
-
 ### Issues
+
+Emdash allows you to pass engineering tickets straight from your issue tracker to your coding agent at workspace creation. 
+
+| Tool | Status | Authentication |
+| ----------- | ------ | ----------- |
+| [Linear](https://linear.app) | ✅ Supported | Connect by passing your API key |
+
 
 ## 🖼️ Preview
 
