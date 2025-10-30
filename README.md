@@ -30,7 +30,7 @@
 Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 10+ CLIs, such as Claude Code and Codex) and runs each agent in its own Git worktree to keep changes clean; when the environment matters, you can run a PR in its own Docker container. Hand off Linear, GitHub, or Jira tickets to an agent, review diffs side-by-side, and keep everything local—your data never leaves your machine.
 
 
-[Installation](#installation) • [Integrations](#integrations) • [Preview](#preview) • [Contributing](#contributing) • [FAQ](#faq)
+[Installation](#installation) • [Integrations](#integrations) • [Demo](#demo) • [Contributing](#contributing) • [FAQ](#faq)
 
 
 ## 🚀 Installation
@@ -89,7 +89,13 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
 | [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
 
-## 🖼️ Preview
+## 🖼️ Demo
+
+Add an agents.md file
+
+Run multiple agents in parallel
+
+Passing a Linear ticket
 
 ## 🛠️ Contributing
 
