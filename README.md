@@ -106,5 +106,93 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 
 Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/YOUR_INVITE) to discuss.
 
-## ❔FAQ
+## FAQ
+
+<details>
+<summary><b>What telemetry do you collect and can I disable it?</b></summary>
+
+> We send **anonymous, allow‑listed events** (app start/close, feature usage names, app/platform versions) to PostHog.  
+> We **do not** send code, file paths, repo names, prompts, or PII.
+>
+> **Disable telemetry:**
+>
+> - In the app: **Settings → General → Privacy & Telemetry** (toggle off)
+> - Or via env var before launch:
+>
+> ```bash
+> TELEMETRY_ENABLED=false
+> ```
+>
+> Full details: see `docs/telemetry.md`.
+</details>
+
+<details>
+<summary><b>Where is my data stored?</b></summary>
+
+> Everything is **local‑first**. We store app state in a local **SQLite** database:
+>
+> ```
+> macOS:  ~/Library/Application Support/emdash/emdash.db
+> Windows: %APPDATA%/emdash/emdash.db
+> Linux:  ~/.config/emdash/emdash.db
+> ```
+>
+> You can reset by deleting the DB (quit the app first). The file is recreated on next launch.
+</details>
+
+<details>
+<summary><b>Do I need GitHub CLI?</b></summary>
+
+> **Only if you want GitHub features** (open PRs from Emdash, fetch repo info, GitHub Issues integration).  
+> Install & sign in:
+>
+> ```bash
+> gh auth login
+> ```
+>
+> If you don’t use GitHub features, you can skip installing `gh`.
+</details>
+
+<details>
+<summary><b>How do I add a new provider?</b></summary>
+
+> Emdash is **provider‑agnostic** and built to add CLIs quickly.
+>
+> - Open a PR following the **Contributing Guide** (`CONTRIBUTING.md`).
+> - Include: provider name, how it’s invoked (CLI command), auth notes, and minimal setup steps.
+> - We’ll add it to the **Integrations** matrix and wire up provider selection in the UI.
+>
+> If you’re unsure where to start, open an issue with the CLI’s link and typical commands.
+</details>
+
+<details>
+<summary><b>I hit a native‑module crash (sqlite3 / node‑pty / keytar). What’s the fast fix?</b></summary>
+
+> This usually happens after switching Node/Electron versions.
+>
+> 1) Rebuild native modules:
+>
+> ```bash
+> npm run rebuild
+> ```
+>
+> 2) If that fails, clean and reinstall:
+>
+> ```bash
+> npm run reset
+> ```
+>
+> (Resets `node_modules`, reinstalls, and re‑builds Electron native deps.)
+</details>
+
+<details>
+<summary><b>What permissions does Emdash need?</b></summary>
+
+> - **Filesystem/Git:** to read/write your repo and create **Git worktrees** for isolation.  
+> - **Network:** only for provider CLIs you choose to use (e.g., Codex, Claude) and optional GitHub actions.  
+> - **Local DB:** to store your app state in SQLite on your machine.
+>
+> Emdash itself does **not** send your code or chats to our servers. Third‑party CLIs may transmit data per their policies.
+</details>
+
 
