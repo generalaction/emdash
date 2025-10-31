@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { ExternalLink, Globe, Database, Server, ChevronDown } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import ContainerStatusBadge from './ContainerStatusBadge';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import { TerminalModeBanner } from './TerminalModeBanner';
-import { WorkspaceNotice } from './WorkspaceNotice';
 import { providerMeta } from '../providers/meta';
 import MessageList from './MessageList';
 import ProviderBar from './ProviderBar';
@@ -18,6 +20,11 @@ import { PLAN_CHAT_PREAMBLE } from '@/lib/planRules';
 import { type Provider } from '../types';
 import { buildAttachmentsSection, buildImageAttachmentsSection } from '../lib/attachments';
 import { Workspace, Message } from '../types/chat';
+import {
+  getContainerRunState,
+  subscribeToWorkspaceRunState,
+  type ContainerRunState,
+} from '@/lib/containerRuns';
 
 declare const window: Window & {
   electronAPI: {
@@ -57,6 +64,11 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   const [hasCursorActivity, setHasCursorActivity] = useState(false);
   const [hasCopilotActivity, setHasCopilotActivity] = useState(false);
   const [cliStartFailed, setCliStartFailed] = useState(false);
+  const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
+    getContainerRunState(workspace.id)
+  );
+  const reduceMotion = useReducedMotion();
+  const [portsExpanded, setPortsExpanded] = useState(false);
   const initializedConversationRef = useRef<string | null>(null);
 
   const codexStream = useCodexStream(
@@ -98,7 +110,16 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   useEffect(() => {
     initializedConversationRef.current = null;
     setCliStartFailed(false);
+    setContainerState(getContainerRunState(workspace.id));
   }, [workspace.id]);
+
+  // Auto-expand/collapse ports in chat view based on container activity
+  useEffect(() => {
+    const status = containerState?.status;
+    const active = status === 'starting' || status === 'building' || status === 'ready';
+    if (status === 'ready' && (containerState?.ports?.length ?? 0) > 0) setPortsExpanded(true);
+    if (!active) setPortsExpanded(false);
+  }, [containerState?.status, containerState?.ports?.length]);
 
   // On workspace change, restore last-selected provider (including Droid).
   // If a locked provider exists (including Droid), prefer locked.
@@ -261,7 +282,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
             if (!hasInitialPrompt && messagesResult.messages.length === 0) {
               const welcomeMessage: Message = {
                 id: `welcome-${Date.now()}`,
-                content: `Hello! You're working in workspace **${workspace.name}**. What can the agent do for you?`,
+                content: 'Hello! What can the agent do for you?',
                 sender: 'agent',
                 timestamp: new Date(),
               };
@@ -289,7 +310,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     codexStream.conversationId,
     codexStream.messages.length,
     codexStream.appendMessage,
-    workspace.name,
   ]);
 
   useEffect(() => {
@@ -413,6 +433,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const md = workspace.metadata || null;
     const p = (md?.initialPrompt || '').trim();
     if (p) return p;
+    const parts: string[] = [];
     const issue = md?.linearIssue;
     if (issue) {
       const parts: string[] = [];
@@ -435,6 +456,67 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       }
       return parts.join('\n');
     }
+
+    const gh = (md as any)?.githubIssue as
+      | {
+          number: number;
+          title?: string;
+          url?: string;
+          state?: string;
+          assignees?: any[];
+          labels?: any[];
+          body?: string;
+        }
+      | undefined;
+    if (gh) {
+      const parts: string[] = [];
+      const line1 = `Linked GitHub issue: #${gh.number}${gh.title ? ` — ${gh.title}` : ''}`;
+      parts.push(line1);
+      const details: string[] = [];
+      if (gh.state) details.push(`State: ${gh.state}`);
+      try {
+        const as = Array.isArray(gh.assignees)
+          ? gh.assignees
+              .map((a: any) => a?.name || a?.login)
+              .filter(Boolean)
+              .join(', ')
+          : '';
+        if (as) details.push(`Assignees: ${as}`);
+      } catch {}
+      try {
+        const ls = Array.isArray(gh.labels)
+          ? gh.labels
+              .map((l: any) => l?.name)
+              .filter(Boolean)
+              .join(', ')
+          : '';
+        if (ls) details.push(`Labels: ${ls}`);
+      } catch {}
+      if (details.length) parts.push(`Details: ${details.join(' • ')}`);
+      if (gh.url) parts.push(`URL: ${gh.url}`);
+      const body = typeof gh.body === 'string' ? gh.body.trim() : '';
+      if (body) {
+        const max = 1500;
+        const clipped = body.length > max ? body.slice(0, max) + '\n…' : body;
+        parts.push('', 'Issue Description:', clipped);
+      }
+      return parts.join('\n');
+    }
+
+    const j = md?.jiraIssue as any;
+    if (j) {
+      const lines: string[] = [];
+      const l1 = `Linked Jira issue: ${j.key}${j.summary ? ` — ${j.summary}` : ''}`;
+      lines.push(l1);
+      const details: string[] = [];
+      if (j.status?.name) details.push(`Status: ${j.status.name}`);
+      if (j.assignee?.displayName || j.assignee?.name)
+        details.push(`Assignee: ${j.assignee?.displayName || j.assignee?.name}`);
+      if (j.project?.key) details.push(`Project: ${j.project.key}`);
+      if (details.length) lines.push(`Details: ${details.join(' • ')}`);
+      if (j.url) lines.push(`URL: ${j.url}`);
+      return lines.join('\n');
+    }
     return null;
   }, [isTerminal, workspace.metadata]);
 
@@ -451,6 +533,179 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       localStorage.setItem(`workspaceProvider:${workspace.id}`, provider);
     } catch {}
   }, [provider, workspace.id]);
+
+  useEffect(() => {
+    const off = subscribeToWorkspaceRunState(workspace.id, (state) => {
+      setContainerState(state);
+    });
+    return () => {
+      off?.();
+    };
+  }, [workspace.id]);
+
+  const containerStatusNode = useMemo(() => {
+    const state = containerState;
+    if (!state?.runId) return null;
+    const ports = state.ports ?? [];
+    const containerActive =
+      state.status === 'starting' || state.status === 'building' || state.status === 'ready';
+    if (!containerActive) return null; // Hide bar in chat when not active
+
+    const norm = (s: string) => s.toLowerCase();
+    const sorted = [...ports].sort((a, b) => {
+      const ap = state.previewService && norm(state.previewService) === norm(a.service);
+      const bp = state.previewService && norm(state.previewService) === norm(b.service);
+      if (ap && !bp) return -1;
+      if (!ap && bp) return 1;
+      const an = norm(a.service);
+      const bn = norm(b.service);
+      if (an !== bn) return an < bn ? -1 : 1;
+      if (a.container !== b.container) return a.container - b.container;
+      return a.host - b.host;
+    });
+
+    const ServiceIcon: React.FC<{ name: string; port: number }> = ({ name, port }) => {
+      const [src, setSrc] = React.useState<string | null>(null);
+      React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const api: any = (window as any).electronAPI;
+            if (!api?.resolveServiceIcon) return;
+            // Allow network fetch in production to populate cache/offline use
+            const res = await api.resolveServiceIcon({
+              service: name,
+              allowNetwork: true,
+              workspacePath: workspace.path,
+            });
+            if (!cancelled && res?.ok && typeof res.dataUrl === 'string') setSrc(res.dataUrl);
+          } catch {}
+        })();
+        return () => {
+          cancelled = true;
+        };
+      }, [name]);
+      if (src) return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
+      const webPorts = new Set([80, 443, 3000, 5173, 8080, 8000]);
+      const dbPorts = new Set([5432, 3306, 27017, 1433, 1521]);
+      if (webPorts.has(port)) return <Globe className="h-3.5 w-3.5" aria-hidden="true" />;
+      if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
+      return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
+    };
+    return (
+      <div className="mt-4 px-6">
+        <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="font-medium text-foreground">
+              <ContainerStatusBadge
+                active={
+                  state.status === 'starting' ||
+                  state.status === 'building' ||
+                  state.status === 'ready'
+                }
+                isStarting={state.status === 'starting' || state.status === 'building'}
+                isReady={state.status === 'ready'}
+                startingAction={false}
+                stoppingAction={false}
+                onStart={() => {}}
+                onStop={() => {}}
+                showStop={false}
+              />
+              {state.containerId ? (
+                <span className="ml-2 text-xs text-muted-foreground">#{state.containerId}</span>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
+              {containerActive ? (
+                <button
+                  type="button"
+                  onClick={() => setPortsExpanded((v) => !v)}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
+                  aria-expanded={portsExpanded}
+                  aria-controls={`chat-ports-${workspace.id}`}
+                >
+                  <ChevronDown
+                    className={[
+                      'h-3.5 w-3.5 transition-transform',
+                      portsExpanded ? 'rotate-180' : '',
+                    ].join(' ')}
+                    aria-hidden="true"
+                  />
+                  Ports
+                </button>
+              ) : null}
+              {state.previewUrl ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                  onClick={() => window.electronAPI.openExternal(state.previewUrl!)}
+                  aria-label="Open preview (external)"
+                  title="Open preview"
+                >
+                  Open Preview
+                  <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <AnimatePresence initial={false}>
+            {portsExpanded && sorted.length ? (
+              <motion.div
+                id={`chat-ports-${workspace.id}`}
+                className="text-xs text-muted-foreground"
+                initial={reduceMotion ? false : { opacity: 0, height: 0, paddingTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', paddingTop: 8 }}
+                exit={
+                  reduceMotion
+                    ? { opacity: 1, height: 'auto', paddingTop: 0 }
+                    : { opacity: 0, height: 0, paddingTop: 0 }
+                }
+                transition={
+                  reduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                }
+                style={{ overflow: 'hidden', display: 'grid' }}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 font-medium text-foreground">
+                      Ports
+                    </span>
+                    <span>Mapped host → container per service</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {sorted.map((port) => (
+                    <span
+                      key={`${state.runId}-${port.service}-${port.host}`}
+                      className="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1"
+                    >
+                      <span className="inline-flex items-center gap-1.5 text-foreground">
+                        <ServiceIcon name={port.service} port={port.container} />
+                        <span className="font-medium">{port.service}</span>
+                      </span>
+                      <span>host {port.host}</span>
+                      <span>→</span>
+                      <span>container {port.container}</span>
+                      {state.previewService === port.service ? (
+                        <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">
+                          preview
+                        </span>
+                      ) : null}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          {state.lastError ? (
+            <div className="mt-2 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+              {state.lastError.message}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }, [containerState, portsExpanded, reduceMotion, workspace.id, workspace.path]);
 
   return (
     <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
@@ -487,11 +742,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
               })()}
             </div>
           </div>
-          <div className="mt-2 px-6">
-            <div className="mx-auto max-w-4xl">
-              <WorkspaceNotice workspaceName={workspace.name} />
-            </div>
-          </div>
+          {containerStatusNode}
           <div className="mt-4 min-h-0 flex-1 px-6">
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
@@ -566,6 +817,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
               </div>
             </div>
           ) : null}
+          {containerStatusNode}
           <MessageList
             messages={activeStream.messages}
             streamingOutput={streamingOutputForList}
@@ -582,6 +834,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         <ProviderBar
           provider={provider}
           linearIssue={workspace.metadata?.linearIssue || null}
+          githubIssue={workspace.metadata?.githubIssue || null}
+          jiraIssue={workspace.metadata?.jiraIssue || null}
           planModeEnabled={planEnabled}
           onPlanModeChange={setPlanEnabled}
           onApprovePlan={async () => {

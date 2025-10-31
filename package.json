@@ -1,12 +1,12 @@
 {
   "name": "emdash",
-  "version": "0.3.21",
+  "version": "0.3.25",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
-  "main": "dist/main/main.js",
+  "main": "dist/main/main/entry.js",
   "scripts": {
     "d": "npm install && npm run dev",
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
-    "dev:main": "tsc -p tsconfig.main.json && electron dist/main/main.js --dev",
+    "dev:main": "tsc -p tsconfig.main.json && electron dist/main/main/entry.js --dev",
     "dev:renderer": "vite",
     "build": "npm run build:main && npm run build:renderer",
     "build:main": "tsc -p tsconfig.main.json",
@@ -56,7 +56,7 @@
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",
     "postcss": "^8.4.32",
-    "prettier": "^3.6.2",
+    "prettier": "3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.3.3",
@@ -64,6 +64,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "tsconfig-paths": "^3.15.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-collapsible": "^1.1.12",

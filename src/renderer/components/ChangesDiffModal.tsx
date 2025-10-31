@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { X, Pencil, Save, Undo2 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useFileDiff, type DiffLine } from '../hooks/useFileDiff';
 import { type FileChange } from '../hooks/useFileChanges';
+import { useToast } from '../hooks/use-toast';
 
 interface ChangesDiffModalProps {
   open: boolean;
@@ -11,6 +12,7 @@ interface ChangesDiffModalProps {
   workspacePath: string;
   files: FileChange[];
   initialFile?: string;
+  onRefreshChanges?: () => Promise<void> | void;
 }
 
 const Line: React.FC<{ text?: string; type: DiffLine['type'] }> = ({ text = '', type }) => {
@@ -35,10 +37,62 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   workspacePath,
   files,
   initialFile,
+  onRefreshChanges,
 }) => {
   const [selected, setSelected] = useState<string | undefined>(initialFile || files[0]?.path);
-  const { lines, loading } = useFileDiff(workspacePath, selected);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { lines, loading } = useFileDiff(workspacePath, selected, refreshKey);
   const shouldReduceMotion = useReducedMotion();
+  const { toast } = useToast();
+
+  // Inline edit mode state (right pane)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editorValue, setEditorValue] = useState<string>('');
+  const [editorLoading, setEditorLoading] = useState<boolean>(false);
+  const [dirty, setDirty] = useState<boolean>(false);
+  const [eol, setEol] = useState<'\n' | '\r\n'>('\n');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Load working copy when toggling into edit mode
+  const loadWorkingCopy = async (pathRel: string) => {
+    setEditorLoading(true);
+    try {
+      const res = await window.electronAPI.fsRead(workspacePath, pathRel, 512 * 1024);
+      if (!res?.success) {
+        toast({ title: 'Cannot Edit', description: res?.error || 'Failed to read file.' });
+        setIsEditing(false);
+        return;
+      }
+      if (res.truncated) {
+        toast({ title: 'File Too Large', description: 'Inline editing limited to ~500KB.' });
+        setIsEditing(false);
+        return;
+      }
+      const content = String(res.content || '');
+      const detectedEol = content.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+      setEol(detectedEol as any);
+      setEditorValue(content);
+      setDirty(false);
+      // Focus after next paint
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    } catch (e) {
+      toast({ title: 'Cannot Edit', description: 'Failed to read file.' });
+      setIsEditing(false);
+    } finally {
+      setEditorLoading(false);
+    }
+  };
+
+  // Exit edit mode on file switch, with confirmation if dirty
+  const switchFile = async (nextPath: string) => {
+    if (isEditing && dirty) {
+      const proceed = window.confirm('Discard unsaved changes?');
+      if (!proceed) return;
+    }
+    setSelected(nextPath);
+    setIsEditing(false);
+    setDirty(false);
+  };
 
   const grouped = useMemo(() => {
     // Convert linear diff into rows for side-by-side
@@ -106,7 +160,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-gray-100'
                       : 'text-gray-700 dark:text-gray-300'
                   }`}
-                  onClick={() => setSelected(f.path)}
+                  onClick={() => switchFile(f.path)}
                 >
                   <div className="truncate font-medium">{f.path}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -117,14 +171,72 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex items-center justify-between border-b border-gray-200 bg-white/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/50">
+              <div className="flex items-center justify-between border-b border-gray-200 bg-white/80 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-900/50">
                 <div className="truncate text-sm text-gray-700 dark:text-gray-200">{selected}</div>
-                <button
-                  onClick={onClose}
-                  className="rounded-md p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {!isEditing ? (
+                    <button
+                      className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900/40"
+                      onClick={async () => {
+                        if (!selected) return;
+                        await loadWorkingCopy(selected);
+                        setIsEditing(true);
+                      }}
+                      title="Edit right side"
+                    >
+                      <Pencil className="h-3.5 w-3.5" /> Edit
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900/40"
+                        onClick={async () => {
+                          if (!selected) return;
+                          try {
+                            const contentToWrite = editorValue.replace(/\n/g, eol);
+                            const res = await window.electronAPI.fsWriteFile(
+                              workspacePath,
+                              selected,
+                              contentToWrite,
+                              true
+                            );
+                            if (!res?.success) throw new Error(res?.error || 'Write failed');
+                            setDirty(false);
+                            setRefreshKey((k) => k + 1);
+                            toast({ title: 'Saved', description: selected });
+                            if (onRefreshChanges) await onRefreshChanges();
+                          } catch (e: any) {
+                            toast({
+                              title: 'Save failed',
+                              description: String(e?.message || e || 'Unable to save file'),
+                              variant: 'destructive',
+                            });
+                          }
+                        }}
+                        title="Save (⌘/Ctrl+S)"
+                      >
+                        <Save className="h-3.5 w-3.5" /> Save
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900/40"
+                        onClick={async () => {
+                          if (!selected) return;
+                          await loadWorkingCopy(selected);
+                          setDirty(false);
+                        }}
+                        title="Discard local edits"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" /> Discard
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={onClose}
+                    className="rounded-md p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-auto">
@@ -144,13 +256,66 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       ))}
                     </div>
                     <div className="bg-white dark:bg-gray-900">
-                      {grouped.map((r, idx) => (
-                        <Line
-                          key={`r-${idx}`}
-                          text={r.right?.right ?? r.right?.left}
-                          type={r.right?.type || 'context'}
+                      {!isEditing ? (
+                        grouped.map((r, idx) => (
+                          <Line
+                            key={`r-${idx}`}
+                            text={r.right?.right ?? r.right?.left}
+                            type={r.right?.type || 'context'}
+                          />
+                        ))
+                      ) : editorLoading ? (
+                        <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
+                          Loading file…
+                        </div>
+                      ) : (
+                        <textarea
+                          ref={textareaRef}
+                          className="h-full w-full resize-none bg-white p-3 font-mono text-[12px] leading-5 text-gray-800 outline-none dark:bg-gray-900 dark:text-gray-100"
+                          value={editorValue}
+                          onChange={(e) => {
+                            setEditorValue(e.target.value);
+                            setDirty(true);
+                          }}
+                          spellCheck={false}
+                          onKeyDown={async (e) => {
+                            const isMeta = e.metaKey || e.ctrlKey;
+                            if (isMeta && e.key.toLowerCase() === 's') {
+                              e.preventDefault();
+                              try {
+                                const contentToWrite = editorValue.replace(/\n/g, eol);
+                                const res = await window.electronAPI.fsWriteFile(
+                                  workspacePath,
+                                  selected!,
+                                  contentToWrite,
+                                  true
+                                );
+                                if (!res?.success) throw new Error(res?.error || 'Write failed');
+                                setDirty(false);
+                                setRefreshKey((k) => k + 1);
+                                toast({ title: 'Saved', description: selected! });
+                                if (onRefreshChanges) await onRefreshChanges();
+                              } catch (err: any) {
+                                toast({
+                                  title: 'Save failed',
+                                  description: String(err?.message || 'Unable to save file'),
+                                  variant: 'destructive',
+                                });
+                              }
+                            }
+                            if (e.key === 'Escape') {
+                              // Exit edit mode (prompt if dirty)
+                              if (
+                                !dirty ||
+                                window.confirm('Discard unsaved changes and exit edit?')
+                              ) {
+                                setIsEditing(false);
+                                setDirty(false);
+                              }
+                            }
+                          }}
                         />
-                      ))}
+                      )}
                     </div>
                   </div>
                 )}

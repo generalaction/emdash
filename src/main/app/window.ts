@@ -14,8 +14,8 @@ export function createMainWindow(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // __dirname here resolves to dist/main/app at runtime
-      // preload is emitted to dist/main/preload.js
+      // __dirname here resolves to dist/main/main/app at runtime (dev)
+      // Preload is emitted to dist/main/main/preload.js
       preload: join(__dirname, '..', 'preload.js'),
     },
     titleBarStyle: 'hiddenInset',
@@ -30,8 +30,12 @@ export function createMainWindow(): BrowserWindow {
       mainWindow.loadURL('http://localhost:3000');
     }
   } else {
+    // In production, compiled main files are under dist/main/main/**
+    // Renderer build outputs to dist/renderer/index.html (sibling of dist/main)
+    // __dirname here resolves to dist/main/main/app, so we go up 3 levels.
     // renderer build outputs to dist/renderer
-    mainWindow.loadFile(join(__dirname, '..', '..', 'renderer', 'index.html'));
+    // __dirname resolves to dist/main/main/app at runtime; go up to dist and into renderer
+    mainWindow.loadFile(join(__dirname, '..', '..', '..', 'renderer', 'index.html'));
   }
 
   // Route external links to the user’s default browser

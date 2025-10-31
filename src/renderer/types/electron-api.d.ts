@@ -1,4 +1,6 @@
 // Updated for Codex integration
+import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
+
 export {};
 
 declare global {
@@ -179,6 +181,56 @@ declare global {
         behind?: number;
         error?: string;
       }>;
+      loadContainerConfig: (workspacePath: string) => Promise<
+        | {
+            ok: true;
+            config: ResolvedContainerConfig;
+            sourcePath: string | null;
+          }
+        | {
+            ok: false;
+            error: {
+              code:
+                | 'INVALID_ARGUMENT'
+                | 'INVALID_JSON'
+                | 'VALIDATION_FAILED'
+                | 'IO_ERROR'
+                | 'UNKNOWN'
+                | 'PORT_ALLOC_FAILED';
+              message: string;
+              configPath: string | null;
+              configKey: string | null;
+            };
+          }
+      >;
+      startContainerRun: (args: {
+        workspaceId: string;
+        workspacePath: string;
+        runId?: string;
+        mode?: RunnerMode;
+      }) => Promise<
+        | {
+            ok: true;
+            runId: string;
+            sourcePath: string | null;
+          }
+        | {
+            ok: false;
+            error: {
+              code:
+                | 'INVALID_ARGUMENT'
+                | 'INVALID_JSON'
+                | 'VALIDATION_FAILED'
+                | 'IO_ERROR'
+                | 'PORT_ALLOC_FAILED'
+                | 'UNKNOWN';
+              message: string;
+              configPath: string | null;
+              configKey: string | null;
+            };
+          }
+      >;
+      stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
         app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
@@ -237,6 +289,13 @@ declare global {
         content?: string;
         error?: string;
       }>;
+      fsWriteFile: (
+        root: string,
+        relPath: string,
+        content: string,
+        mkdirs?: boolean
+      ) => Promise<{ success: boolean; error?: string }>;
+      fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
       // Attachments
       saveAttachment: (args: {
         workspacePath: string;
@@ -251,7 +310,7 @@ declare global {
       }>;
 
       // Run events
-      onRunEvent: (callback: (event: any) => void) => void;
+      onRunEvent: (callback: (event: RunnerEvent) => void) => void;
       removeRunEventListeners: () => void;
 
       // GitHub integration
@@ -319,6 +378,28 @@ declare global {
         issues?: any[];
         error?: string;
       }>;
+      // Jira integration
+      jiraSaveCredentials?: (args: {
+        siteUrl: string;
+        email: string;
+        token: string;
+      }) => Promise<{ success: boolean; displayName?: string; error?: string }>;
+      jiraClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      jiraCheckConnection?: () => Promise<{
+        connected: boolean;
+        displayName?: string;
+        siteUrl?: string;
+        error?: string;
+      }>;
+      jiraInitialFetch?: (limit?: number) => Promise<{
+        success: boolean;
+        issues?: any[];
+        error?: string;
+      }>;
+      jiraSearchIssues?: (
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
       getCliProviders?: () => Promise<{
         success: boolean;
         providers?: Array<{
@@ -590,7 +671,7 @@ export interface ElectronAPI {
   }>;
 
   // Run events
-  onRunEvent: (callback: (event: any) => void) => void;
+  onRunEvent: (callback: (event: RunnerEvent) => void) => void;
   removeRunEventListeners: () => void;
 
   // GitHub integration
@@ -630,6 +711,20 @@ export interface ElectronAPI {
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
+  // GitHub issues
+  githubIssuesList?: (
+    projectPath: string,
+    limit?: number
+  ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+  githubIssuesSearch?: (
+    projectPath: string,
+    searchTerm: string,
+    limit?: number
+  ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+  githubIssueGet?: (
+    projectPath: string,
+    number: number
+  ) => Promise<{ success: boolean; issue?: any; error?: string }>;
 
   // Linear integration
   linearCheckConnection?: () => Promise<{

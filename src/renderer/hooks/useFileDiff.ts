@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 
 export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
 
-export function useFileDiff(workspacePath: string | undefined, filePath: string | undefined) {
+export function useFileDiff(
+  workspacePath: string | undefined,
+  filePath: string | undefined,
+  refreshKey: number = 0
+) {
   const [lines, setLines] = useState<DiffLine[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +33,7 @@ export function useFileDiff(workspacePath: string | undefined, filePath: string 
     return () => {
       cancelled = true;
     };
-  }, [workspacePath, filePath]);
+  }, [workspacePath, filePath, refreshKey]);
 
   return { lines, loading, error };
 }

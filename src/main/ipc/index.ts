@@ -14,8 +14,10 @@ import { registerLinearIpc } from './linearIpc';
 import { registerConnectionsIpc } from './connectionsIpc';
 import { registerUpdateIpc } from '../services/updateIpc';
 import { registerTelemetryIpc } from './telemetryIpc';
+import { registerJiraIpc } from './jiraIpc';
 import { registerPlanLockIpc } from '../services/planLockIpc';
 import { registerSettingsIpc } from './settingsIpc';
+import { registerContainerIpc } from './containerIpc';
 
 export function registerAllIpc() {
   // Core app/utility IPC
@@ -30,6 +32,7 @@ export function registerAllIpc() {
   registerGithubIpc();
   registerDatabaseIpc();
   registerGitIpc();
+  registerContainerIpc();
 
   // Existing modules
   registerPtyIpc();
@@ -39,5 +42,6 @@ export function registerAllIpc() {
   registerAgentIpc();
   registerLinearIpc();
   registerConnectionsIpc();
+  registerJiraIpc();
   registerPlanLockIpc();
 }

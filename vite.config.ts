@@ -19,6 +19,7 @@ export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src/renderer'),
+      '@shared': resolve(__dirname, './src/shared'),
       '#types': resolve(__dirname, './src/types'),
     },
   },

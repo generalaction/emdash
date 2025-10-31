@@ -13,6 +13,7 @@ interface LinearIssueSelectorProps {
   onIssueChange: (issue: LinearIssueSummary | null) => void;
   isOpen?: boolean;
   className?: string;
+  disabled?: boolean;
 }
 
 export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
@@ -20,6 +21,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   onIssueChange,
   isOpen = false,
   className = '',
+  disabled = false,
 }) => {
   const [availableIssues, setAvailableIssues] = useState<LinearIssueSummary[]>([]);
   const [isLoadingIssues, setIsLoadingIssues] = useState(false);
@@ -34,6 +36,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
 
   const canListLinear = typeof window !== 'undefined' && !!window.electronAPI?.linearInitialFetch;
   const issuesLoaded = availableIssues.length > 0;
+  const isDisabled = disabled || isLoadingIssues || !!issueListError || !issuesLoaded;
 
   useEffect(() => {
     return () => {
@@ -90,7 +93,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   }, [canListLinear]);
 
   useEffect(() => {
-    if (!isOpen || !canListLinear) {
+    if (!isOpen || !canListLinear || disabled) {
       return;
     }
     if (isLoadingIssues || hasRequestedIssues) {
@@ -204,7 +207,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
       <Select
         value={selectedIssue?.identifier || undefined}
         onValueChange={handleIssueSelect}
-        disabled={isLoadingIssues || !!issueListError || !issuesLoaded}
+        disabled={isDisabled}
       >
         <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
@@ -238,6 +241,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
               placeholder="Search by name, ID, or assignee..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={disabled}
               className="h-7 w-full border-none bg-transparent pl-9 pr-3 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </div>

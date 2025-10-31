@@ -18,10 +18,11 @@
     "types": ["react", "react-dom", "node"],
     "paths": {
       "@/*": ["./src/renderer/*"],
+      "@shared/*": ["./src/shared/*"],
       "#types/*": ["./src/types/*"],
       "#types": ["./src/types/index.ts"]
     }
   },
-  "include": ["src/renderer/**/*", "src/types/**/*"],
+  "include": ["src/renderer/**/*", "src/shared/**/*", "src/types/**/*", "src/test/**/*"],
   "exclude": ["node_modules", "dist"]
 }

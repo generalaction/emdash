@@ -22,6 +22,8 @@ import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sid
 import RightSidebar from './components/RightSidebar';
 import { type Provider } from './types';
 import { type LinearIssueSummary } from './types/linear';
+import { type GitHubIssueSummary } from './types/github';
+import { type JiraIssueSummary } from './types/jira';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
@@ -163,6 +165,8 @@ interface Project {
 
 interface WorkspaceMetadata {
   linearIssue?: LinearIssueSummary | null;
+  jiraIssue?: JiraIssueSummary | null;
+  githubIssue?: GitHubIssueSummary | null;
   initialPrompt?: string | null;
   pullRequest?: {
     number: number;
@@ -666,7 +670,9 @@ const AppContent: React.FC = () => {
     workspaceName: string,
     initialPrompt?: string,
     selectedProvider?: Provider,
-    linkedLinearIssue: LinearIssueSummary | null = null
+    linkedLinearIssue: LinearIssueSummary | null = null,
+    linkedGithubIssue: GitHubIssueSummary | null = null,
+    linkedJiraIssue: JiraIssueSummary | null = null
   ) => {
     if (!selectedProject) return;
 
@@ -724,13 +730,56 @@ const AppContent: React.FC = () => {
           }
           parts.push('');
         }
+        if (linkedGithubIssue) {
+          // Enrich linked GitHub issue with body via gh if available
+          let issue = linkedGithubIssue;
+          try {
+            const api: any = (window as any).electronAPI;
+            const res = await api?.githubIssueGet?.(selectedProject.path, linkedGithubIssue.number);
+            if (res?.success) {
+              const body: string | undefined = res?.issue?.body || res?.body;
+              if (body) issue = { ...linkedGithubIssue, body } as any;
+            }
+          } catch {}
+          const detailParts: string[] = [];
+          const stateName = issue.state?.toString()?.trim();
+          const assignees = Array.isArray(issue.assignees)
+            ? issue.assignees
+                .map((a) => a?.name || a?.login)
+                .filter(Boolean)
+                .join(', ')
+            : '';
+          const labels = Array.isArray(issue.labels)
+            ? issue.labels
+                .map((l) => l?.name)
+                .filter(Boolean)
+                .join(', ')
+            : '';
+          if (stateName) detailParts.push(`State: ${stateName}`);
+          if (assignees) detailParts.push(`Assignees: ${assignees}`);
+          if (labels) detailParts.push(`Labels: ${labels}`);
+          parts.push(`GitHub: #${issue.number} — ${issue.title}`);
+          if (detailParts.length) parts.push(`Details: ${detailParts.join(' • ')}`);
+          if (issue.url) parts.push(`URL: ${issue.url}`);
+          if ((issue as any).body) {
+            parts.push('');
+            parts.push('Issue Description:');
+            parts.push(String((issue as any).body).trim());
+          }
+          parts.push('');
+        }
         parts.push(initialPrompt.trim());
         preparedPrompt = parts.join('\n');
       }
 
       const workspaceMetadata: WorkspaceMetadata | null =
-        linkedLinearIssue || preparedPrompt
-          ? { linearIssue: linkedLinearIssue ?? null, initialPrompt: preparedPrompt ?? null }
+        linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt
+          ? {
+              linearIssue: linkedLinearIssue ?? null,
+              jiraIssue: linkedJiraIssue ?? null,
+              githubIssue: linkedGithubIssue ?? null,
+              initialPrompt: preparedPrompt ?? null,
+            }
           : null;
 
       // Create Git worktree
@@ -813,6 +862,64 @@ const AppContent: React.FC = () => {
           } catch (seedError) {
             const { log } = await import('./lib/logger');
             log.error('Failed to seed workspace with Linear issue context:', seedError as any);
+          }
+        }
+        if (workspaceMetadata?.githubIssue) {
+          try {
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
+              newWorkspace.id
+            );
+
+            if (convoResult?.success && convoResult.conversation?.id) {
+              const issue = workspaceMetadata.githubIssue;
+              const detailParts: string[] = [];
+              const stateName = issue.state?.toString()?.trim();
+              const assignees = Array.isArray(issue.assignees)
+                ? issue.assignees
+                    .map((a) => a?.name || a?.login)
+                    .filter(Boolean)
+                    .join(', ')
+                : '';
+              const labels = Array.isArray(issue.labels)
+                ? issue.labels
+                    .map((l) => l?.name)
+                    .filter(Boolean)
+                    .join(', ')
+                : '';
+              if (stateName) detailParts.push(`State: ${stateName}`);
+              if (assignees) detailParts.push(`Assignees: ${assignees}`);
+              if (labels) detailParts.push(`Labels: ${labels}`);
+
+              const lines = [`Linked GitHub issue: #${issue.number} — ${issue.title}`];
+
+              if (detailParts.length) {
+                lines.push(`Details: ${detailParts.join(' • ')}`);
+              }
+
+              if (issue.url) {
+                lines.push(`URL: ${issue.url}`);
+              }
+
+              if ((issue as any)?.body) {
+                lines.push('');
+                lines.push('Issue Description:');
+                lines.push(String((issue as any).body).trim());
+              }
+
+              await window.electronAPI.saveMessage({
+                id: `github-context-${newWorkspace.id}`,
+                conversationId: convoResult.conversation.id,
+                content: lines.join('\n'),
+                sender: 'agent',
+                metadata: JSON.stringify({
+                  isGitHubContext: true,
+                  githubIssue: issue,
+                }),
+              });
+            }
+          } catch (seedError) {
+            const { log } = await import('./lib/logger');
+            log.error('Failed to seed workspace with GitHub issue context:', seedError as any);
           }
         }
 
@@ -1340,6 +1447,7 @@ const AppContent: React.FC = () => {
                   onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
                   isCreatingWorkspace={isCreatingWorkspace}
                   onDeleteWorkspace={handleDeleteWorkspace}
+                  onDeleteProject={handleDeleteProject}
                 />
               </ResizablePanel>
               <ResizableHandle
@@ -1397,6 +1505,7 @@ const AppContent: React.FC = () => {
             projectName={selectedProject?.name || ''}
             defaultBranch={selectedProject?.gitInfo.branch || 'main'}
             existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
+            projectPath={selectedProject?.path}
           />
           <Toaster />
         </RightSidebarProvider>

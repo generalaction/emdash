@@ -56,8 +56,9 @@ Thumbs.db
 
 # AI assistant instructions
 CLAUDE.md
-AGENTS.md
 .notes/
 
 # Local generated worktrees for perf experiments
 worktrees/
+
+/container.md
