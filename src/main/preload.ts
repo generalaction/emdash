@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -56,12 +57,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
-  onPtyHistory: (id: string, listener: (data: string) => void) => {
-    const channel = `pty:history:${id}`;
-    const wrapped = (_: Electron.IpcRendererEvent, data: string) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
+  ptyGetSnapshot: (args: { id: string }) => ipcRenderer.invoke('pty:snapshot:get', args),
+  ptySaveSnapshot: (args: { id: string; payload: TerminalSnapshotPayload }) =>
+    ipcRenderer.invoke('pty:snapshot:save', args),
+  ptyClearSnapshot: (args: { id: string }) => ipcRenderer.invoke('pty:snapshot:clear', args),
   onPtyExit: (id: string, listener: (info: { exitCode: number; signal?: number }) => void) => {
     const channel = `pty:exit:${id}`;
     const wrapped = (_: Electron.IpcRendererEvent, info: { exitCode: number; signal?: number }) =>
@@ -382,12 +381,21 @@ export interface ElectronAPI {
     env?: Record<string, string>;
     cols?: number;
     rows?: number;
-  }) => Promise<{ ok: boolean }>;
+  }) => Promise<{ ok: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows: number }) => void;
   ptyKill: (id: string) => void;
   onPtyData: (id: string, listener: (data: string) => void) => () => void;
-  onPtyHistory: (id: string, listener: (data: string) => void) => () => void;
+  ptyGetSnapshot: (args: { id: string }) => Promise<{
+    ok: boolean;
+    snapshot?: any;
+    error?: string;
+  }>;
+  ptySaveSnapshot: (args: {
+    id: string;
+    payload: TerminalSnapshotPayload;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
   onPtyExit: (
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void

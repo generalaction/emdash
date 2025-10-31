@@ -30,6 +30,21 @@ import SettingsModal from './components/SettingsModal';
 import CommandPalette from './components/CommandPalette';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { usePlanToasts } from './hooks/usePlanToasts';
+import { terminalSessionRegistry } from './terminal/SessionRegistry';
+
+const TERMINAL_PROVIDER_IDS = [
+  'qwen',
+  'codex',
+  'claude',
+  'droid',
+  'gemini',
+  'cursor',
+  'copilot',
+  'amp',
+  'opencode',
+  'charm',
+  'auggie',
+] as const;
 
 interface AppKeyboardShortcutsProps {
   showCommandPalette: boolean;
@@ -1004,24 +1019,21 @@ const AppContent: React.FC = () => {
         } catch {}
         try {
           // Provider-scoped keys
-          const providers = [
-            'qwen',
-            'codex',
-            'claude',
-            'droid',
-            'gemini',
-            'cursor',
-            'copilot',
-            'amp',
-            'opencode',
-            'charm',
-            'auggie',
-          ];
-          for (const p of providers) {
+          for (const p of TERMINAL_PROVIDER_IDS) {
             const k = initialPromptSentKey(workspace.id, p);
             localStorage.removeItem(k);
           }
         } catch {}
+      } catch {}
+      try {
+        window.electronAPI.ptyKill?.(`workspace-${workspace.id}`);
+      } catch {}
+      try {
+        for (const provider of TERMINAL_PROVIDER_IDS) {
+          try {
+            window.electronAPI.ptyKill?.(`${provider}-main-${workspace.id}`);
+          } catch {}
+        }
       } catch {}
       try {
         if (workspace.agentId) {
@@ -1034,6 +1046,20 @@ const AppContent: React.FC = () => {
       } catch (agentError) {
         const { log } = await import('./lib/logger');
         log.warn('Failed to remove agent before deleting workspace:', agentError as any);
+      }
+
+      const sessionIds = [
+        `workspace-${workspace.id}`,
+        ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${workspace.id}`),
+      ];
+
+      for (const sessionId of sessionIds) {
+        try {
+          terminalSessionRegistry.dispose(sessionId);
+        } catch {}
+        try {
+          await window.electronAPI.ptyClearSnapshot({ id: sessionId });
+        } catch {}
       }
 
       const removeResult = await window.electronAPI.worktreeRemove({
