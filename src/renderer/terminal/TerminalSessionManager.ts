@@ -46,7 +46,9 @@ export class TerminalSessionManager {
   private readonly activityListeners = new Set<() => void>();
   private readonly readyListeners = new Set<() => void>();
   private readonly errorListeners = new Set<(message: string) => void>();
-  private readonly exitListeners = new Set<(info: { exitCode: number | undefined; signal?: number }) => void>();
+  private readonly exitListeners = new Set<
+    (info: { exitCode: number | undefined; signal?: number }) => void
+  >();
   private firstFrameRendered = false;
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
@@ -104,7 +106,10 @@ export class TerminalSessionManager {
     const resizeDisposable = this.terminal.onResize(({ cols, rows }) => {
       window.electronAPI.ptyResize({ id: this.id, cols, rows });
     });
-    this.disposables.push(() => inputDisposable.dispose(), () => resizeDisposable.dispose());
+    this.disposables.push(
+      () => inputDisposable.dispose(),
+      () => resizeDisposable.dispose()
+    );
 
     void this.restoreSnapshot().finally(() => this.connectPty());
     this.startSnapshotTimer();
@@ -229,17 +234,18 @@ export class TerminalSessionManager {
   }
 
   private applyTheme(theme: SessionTheme) {
-    const base = theme.base === 'light'
-      ? {
-          background: '#ffffff',
-          foreground: '#1f2933',
-          cursor: '#1f2933',
-        }
-      : {
-          background: '#1f2937',
-          foreground: '#f9fafb',
-          cursor: '#f9fafb',
-        };
+    const base =
+      theme.base === 'light'
+        ? {
+            background: '#ffffff',
+            foreground: '#1f2933',
+            cursor: '#1f2933',
+          }
+        : {
+            background: '#1f2937',
+            foreground: '#f9fafb',
+            cursor: '#f9fafb',
+          };
     this.terminal.options.theme = { ...base, ...(theme.override ?? {}) };
   }
 
@@ -260,14 +266,15 @@ export class TerminalSessionManager {
   private connectPty() {
     const { workspaceId, cwd, shell, env, initialSize } = this.options;
     const id = workspaceId;
-    void window.electronAPI.ptyStart({
-      id,
-      cwd,
-      shell,
-      env,
-      cols: initialSize.cols,
-      rows: initialSize.rows,
-    })
+    void window.electronAPI
+      .ptyStart({
+        id,
+        cwd,
+        shell,
+        env,
+        cols: initialSize.cols,
+        rows: initialSize.rows,
+      })
       .then((result) => {
         if (result?.ok) {
           this.ptyStarted = true;
@@ -447,7 +454,11 @@ export class TerminalSessionManager {
   private sendSizeIfStarted() {
     if (!this.ptyStarted) return;
     try {
-      window.electronAPI.ptyResize({ id: this.id, cols: this.terminal.cols, rows: this.terminal.rows });
+      window.electronAPI.ptyResize({
+        id: this.id,
+        cols: this.terminal.cols,
+        rows: this.terminal.rows,
+      });
     } catch (error) {
       log.warn('Terminal resize sync failed', { id: this.id, error });
     }

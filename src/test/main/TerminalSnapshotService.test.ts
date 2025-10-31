@@ -12,7 +12,9 @@ describe('TerminalSnapshotService', () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'terminal-snapshot-test-'));
     process.env.EMDASH_TERMINAL_SNAPSHOT_DIR = tempDir;
     vi.resetModules();
-    ({ terminalSnapshotService: service } = await import('../../main/services/TerminalSnapshotService'));
+    ({ terminalSnapshotService: service } = await import(
+      '../../main/services/TerminalSnapshotService'
+    ));
   });
 
   afterEach(() => {

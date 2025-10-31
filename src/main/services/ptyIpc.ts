@@ -101,18 +101,15 @@ export function registerPtyIpc(): void {
     }
   });
 
-  ipcMain.handle(
-    'pty:snapshot:get',
-    async (_event, args: { id: string }) => {
-      try {
-        const snapshot = await terminalSnapshotService.getSnapshot(args.id);
-        return { ok: true, snapshot };
-      } catch (error: any) {
-        log.error('pty:snapshot:get failed', { id: args.id, error });
-        return { ok: false, error: error?.message || String(error) };
-      }
+  ipcMain.handle('pty:snapshot:get', async (_event, args: { id: string }) => {
+    try {
+      const snapshot = await terminalSnapshotService.getSnapshot(args.id);
+      return { ok: true, snapshot };
+    } catch (error: any) {
+      log.error('pty:snapshot:get failed', { id: args.id, error });
+      return { ok: false, error: error?.message || String(error) };
     }
-  );
+  });
 
   ipcMain.handle(
     'pty:snapshot:save',

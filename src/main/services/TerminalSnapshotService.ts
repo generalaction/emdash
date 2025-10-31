@@ -76,7 +76,9 @@ async function removeFile(filePath: string): Promise<void> {
   }
 }
 
-async function listSnapshots(): Promise<Array<{ id: string; path: string; stats: StoredSnapshot }>> {
+async function listSnapshots(): Promise<
+  Array<{ id: string; path: string; stats: StoredSnapshot }>
+> {
   try {
     const entries = await fs.promises.readdir(BASE_DIR);
     const result: Array<{ id: string; path: string; stats: StoredSnapshot }> = [];
@@ -103,7 +105,10 @@ class TerminalSnapshotService {
     return record ? { ...record } : null;
   }
 
-  async saveSnapshot(id: string, payload: TerminalSnapshotPayload): Promise<{ ok: boolean; error?: string }> {
+  async saveSnapshot(
+    id: string,
+    payload: TerminalSnapshotPayload
+  ): Promise<{ ok: boolean; error?: string }> {
     try {
       if (payload.version !== TERMINAL_SNAPSHOT_VERSION) {
         return { ok: false, error: 'Unsupported snapshot version' };

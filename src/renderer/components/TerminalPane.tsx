@@ -39,7 +39,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
   onExit,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const sessionRef = useRef<ReturnType<typeof terminalSessionRegistry['attach']> | null>(null);
+  const sessionRef = useRef<ReturnType<(typeof terminalSessionRegistry)['attach']> | null>(null);
   const activityCleanupRef = useRef<(() => void) | null>(null);
   const readyCleanupRef = useRef<(() => void) | null>(null);
   const errorCleanupRef = useRef<(() => void) | null>(null);

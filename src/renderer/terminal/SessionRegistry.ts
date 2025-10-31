@@ -1,4 +1,8 @@
-import { TerminalSessionManager, type SessionTheme, type TerminalSessionOptions } from './TerminalSessionManager';
+import {
+  TerminalSessionManager,
+  type SessionTheme,
+  type TerminalSessionOptions,
+} from './TerminalSessionManager';
 
 const DEFAULT_SCROLLBACK_LINES = 100_000;
 
