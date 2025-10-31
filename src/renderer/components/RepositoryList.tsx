@@ -75,7 +75,12 @@ const RepositoryList: React.FC<RepositoryListProps> = ({
                     {repo.private && <Lock className="h-4 w-4 text-gray-400" />}
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <span className="truncate">Owner: <span className="text-gray-700 dark:text-gray-300">{repo.full_name.split('/')[0]}</span></span>
+                    <span className="truncate">
+                      Owner:{' '}
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {repo.full_name.split('/')[0]}
+                      </span>
+                    </span>
                   </div>
                   {repo.description && (
                     <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">

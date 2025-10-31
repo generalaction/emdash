@@ -575,16 +575,16 @@ const AppContent: React.FC = () => {
 
           if (isAuthenticated && isGithubRemote) {
             const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
-          if (githubInfo.success) {
-            const projectWithGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: githubInfo.repository || '',
-                connected: true,
-                owner: (githubInfo.repository || '').split('/')?.[0] || undefined,
-              },
-              createdBy: (user?.login || user?.name || undefined) as any,
-            });
+            if (githubInfo.success) {
+              const projectWithGithub = withRepoKey({
+                ...baseProject,
+                githubInfo: {
+                  repository: githubInfo.repository || '',
+                  connected: true,
+                  owner: (githubInfo.repository || '').split('/')?.[0] || undefined,
+                },
+                createdBy: (user?.login || user?.name || undefined) as any,
+              });
 
               const saveResult = await window.electronAPI.saveProject(projectWithGithub);
               if (saveResult.success) {
@@ -898,7 +898,11 @@ const AppContent: React.FC = () => {
 
         const remoteUrl = gitInfo.remote || '';
         const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-        const projectName = canonicalPath.split(/[\/\\]/).filter(Boolean).pop() || 'Project';
+        const projectName =
+          canonicalPath
+            .split(/[\/\\]/)
+            .filter(Boolean)
+            .pop() || 'Project';
 
         const baseProject: Project = {
           id: Date.now().toString(),
@@ -955,10 +959,22 @@ const AppContent: React.FC = () => {
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Open imported project failed:', error as any);
-        toast({ title: 'Open Project Failed', description: 'See console for details.', variant: 'destructive' });
+        toast({
+          title: 'Open Project Failed',
+          description: 'See console for details.',
+          variant: 'destructive',
+        });
       }
     },
-    [activateProjectView, getProjectRepoKey, isAuthenticated, normalizePathForComparison, projects, toast, withRepoKey]
+    [
+      activateProjectView,
+      getProjectRepoKey,
+      isAuthenticated,
+      normalizePathForComparison,
+      projects,
+      toast,
+      withRepoKey,
+    ]
   );
 
   // PR checkout via PR list is disabled; handler removed

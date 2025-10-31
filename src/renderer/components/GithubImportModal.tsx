@@ -138,7 +138,8 @@ export const GithubImportModal: React.FC<{
   const isValidRepoUrl = (input: string) => {
     const trimmed = input.trim();
     if (!trimmed) return false;
-    if (/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\.git)?$/i.test(trimmed)) return true;
+    if (/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\.git)?$/i.test(trimmed))
+      return true;
     if (/^git@github\.com:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\.git)?$/i.test(trimmed)) return true;
     if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(trimmed)) return true;
     return false;
@@ -278,7 +279,9 @@ export const GithubImportModal: React.FC<{
             initial={shouldReduceMotion ? false : { opacity: 0, y: 8, scale: 0.995 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 6, scale: 0.995 }}
-            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            transition={
+              shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+            }
             className="mx-4 w-full max-w-2xl overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl"
           >
             <header className="flex items-center justify-between border-b border-border/60 px-5 py-3">
@@ -292,7 +295,13 @@ export const GithubImportModal: React.FC<{
                 </p>
               </div>
               {null}
-              <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                aria-label="Close"
+              >
                 <X className="h-4 w-4" />
               </Button>
             </header>
@@ -317,99 +326,113 @@ export const GithubImportModal: React.FC<{
                     </button>
                   </div>
                   {tab === 'repos' && (
-                  <>
-                  <div className="flex items-center gap-2">
-                    {installed && authenticated ? (
-                      <TooltipProvider delayDuration={250}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted">
-                              {((user as any)?.avatar_url as string | undefined) ? (
-                                <img
-                                  src={(user as any).avatar_url as string}
-                                  alt="GitHub avatar"
-                                  className="h-full w-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <div className="h-full w-full bg-muted" />
-                              )}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <span>{user?.login || user?.name || 'GitHub account'}</span>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : null}
-                    <div className="relative flex-1">
-                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        placeholder="Search repositories…"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8"
-                        aria-label="Search repositories"
-                      />
-                    </div>
-                    {null}
-                    <TooltipProvider delayDuration={250}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={fetchRepos}
-                            aria-label="Refresh"
-                            disabled={loading}
-                          >
-                            {loading ? <Spinner size="sm" /> : <RefreshCw className="h-4 w-4" />}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Refresh list</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Separator />
-                  {!installed ? (
-                    <Alert>
-                      <AlertTitle>GitHub CLI not installed</AlertTitle>
-                      <AlertDescription>
-                        Install GitHub CLI (gh) to enable listing and importing repositories.
-                      </AlertDescription>
-                    </Alert>
-                  ) : !authenticated ? (
-                    <Alert>
-                      <AlertTitle>Not authenticated</AlertTitle>
-                      <AlertDescription>Run “gh auth login” in your terminal and try again.</AlertDescription>
-                    </Alert>
-                  ) : null}
-                  {error ? (
-                    <Alert variant="destructive">
-                      <AlertTitle>Couldn’t load repositories</AlertTitle>
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  ) : null}
-
-                  <div className="min-h-40 max-h-96 overflow-y-auto rounded-md">
-                    <RepositoryList
-                      repositories={filtered}
-                      onOpenRepository={(repo) => handleImportRepository(repo as any)}
-                      onImportRepository={(repo) => handleImportRepository(repo as any)}
-                    />
-                    {Array.isArray(filtered) && filtered.length === 0 && !loading && installed && authenticated ? (
-                      <div className="py-12 text-center text-sm text-muted-foreground">
-                        {search.trim() ? 'No repositories match your search.' : 'No repositories found.'}
+                    <>
+                      <div className="flex items-center gap-2">
+                        {installed && authenticated ? (
+                          <TooltipProvider delayDuration={250}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted">
+                                  {((user as any)?.avatar_url as string | undefined) ? (
+                                    <img
+                                      src={(user as any).avatar_url as string}
+                                      alt="GitHub avatar"
+                                      className="h-full w-full object-cover"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className="h-full w-full bg-muted" />
+                                  )}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <span>{user?.login || user?.name || 'GitHub account'}</span>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : null}
+                        <div className="relative flex-1">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            placeholder="Search repositories…"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-8"
+                            aria-label="Search repositories"
+                          />
+                        </div>
+                        {null}
+                        <TooltipProvider delayDuration={250}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={fetchRepos}
+                                aria-label="Refresh"
+                                disabled={loading}
+                              >
+                                {loading ? (
+                                  <Spinner size="sm" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Refresh list</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
-                    ) : null}
-                  </div>
-                  </>
+                      <Separator />
+                      {!installed ? (
+                        <Alert>
+                          <AlertTitle>GitHub CLI not installed</AlertTitle>
+                          <AlertDescription>
+                            Install GitHub CLI (gh) to enable listing and importing repositories.
+                          </AlertDescription>
+                        </Alert>
+                      ) : !authenticated ? (
+                        <Alert>
+                          <AlertTitle>Not authenticated</AlertTitle>
+                          <AlertDescription>
+                            Run “gh auth login” in your terminal and try again.
+                          </AlertDescription>
+                        </Alert>
+                      ) : null}
+                      {error ? (
+                        <Alert variant="destructive">
+                          <AlertTitle>Couldn’t load repositories</AlertTitle>
+                          <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                      ) : null}
+
+                      <div className="max-h-96 min-h-40 overflow-y-auto rounded-md">
+                        <RepositoryList
+                          repositories={filtered}
+                          onOpenRepository={(repo) => handleImportRepository(repo as any)}
+                          onImportRepository={(repo) => handleImportRepository(repo as any)}
+                        />
+                        {Array.isArray(filtered) &&
+                        filtered.length === 0 &&
+                        !loading &&
+                        installed &&
+                        authenticated ? (
+                          <div className="py-12 text-center text-sm text-muted-foreground">
+                            {search.trim()
+                              ? 'No repositories match your search.'
+                              : 'No repositories found.'}
+                          </div>
+                        ) : null}
+                      </div>
+                    </>
                   )}
                   {tab === 'url' && (
                     <div className="flex flex-col gap-3">
                       <div>
-                        <label className="mb-1 block text-xs text-muted-foreground">Repository URL or owner/name</label>
+                        <label className="mb-1 block text-xs text-muted-foreground">
+                          Repository URL or owner/name
+                        </label>
                         <Input
                           placeholder="e.g. https://github.com/owner/repo or owner/repo"
                           value={repoUrl}
@@ -418,9 +441,13 @@ export const GithubImportModal: React.FC<{
                         />
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button onClick={handleImportByUrl} disabled={!isValidRepoUrl(repoUrl)}>Import</Button>
+                        <Button onClick={handleImportByUrl} disabled={!isValidRepoUrl(repoUrl)}>
+                          Import
+                        </Button>
                         {!isValidRepoUrl(repoUrl) && repoUrl.trim() ? (
-                          <span className="text-xs text-muted-foreground">Enter a valid GitHub URL or owner/name</span>
+                          <span className="text-xs text-muted-foreground">
+                            Enter a valid GitHub URL or owner/name
+                          </span>
                         ) : null}
                       </div>
                     </div>
@@ -435,7 +462,10 @@ export const GithubImportModal: React.FC<{
                     {selectedRepo ? (
                       <>
                         <div>
-                          Cloning <span className="font-medium text-foreground">{selectedRepo.full_name}</span>
+                          Cloning{' '}
+                          <span className="font-medium text-foreground">
+                            {selectedRepo.full_name}
+                          </span>
                         </div>
                         {cloningTarget ? (
                           <div>
@@ -455,13 +485,18 @@ export const GithubImportModal: React.FC<{
                 <div className="flex min-h-[260px] flex-col items-center justify-center gap-4 py-8">
                   <Alert variant="destructive" className="max-w-md">
                     <AlertTitle>Import failed</AlertTitle>
-                    <AlertDescription>{error || 'We could not clone this repository.'}</AlertDescription>
+                    <AlertDescription>
+                      {error || 'We could not clone this repository.'}
+                    </AlertDescription>
                   </Alert>
                   <div className="flex gap-2">
                     <Button type="button" variant="secondary" onClick={() => setView('list')}>
                       Back to list
                     </Button>
-                    <Button type="button" onClick={() => selectedRepo && handleImportRepository(selectedRepo)}>
+                    <Button
+                      type="button"
+                      onClick={() => selectedRepo && handleImportRepository(selectedRepo)}
+                    >
                       Retry
                     </Button>
                   </div>
@@ -473,7 +508,10 @@ export const GithubImportModal: React.FC<{
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Folder className="h-3.5 w-3.5" />
                     <span>
-                      Destination: <code className="rounded bg-muted/60 px-1 text-foreground">{cloneRoot || 'Not set'}</code>
+                      Destination:{' '}
+                      <code className="rounded bg-muted/60 px-1 text-foreground">
+                        {cloneRoot || 'Not set'}
+                      </code>
                     </span>
                   </div>
                   <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
