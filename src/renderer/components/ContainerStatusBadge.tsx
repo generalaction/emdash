@@ -12,6 +12,7 @@ interface Props {
   onStart: (e: React.MouseEvent) => void | Promise<void>;
   onStop: (e: React.MouseEvent) => void | Promise<void>;
   showStop?: boolean; // optionally hide stop control (e.g., read-only view)
+  workspacePath?: string; // optional: used to detect compose and tweak tooltip copy
 }
 
 export const ContainerStatusBadge: React.FC<Props> = ({
@@ -23,7 +24,38 @@ export const ContainerStatusBadge: React.FC<Props> = ({
   onStart,
   onStop,
   showStop = true,
+  workspacePath,
 }) => {
+  const [hasCompose, setHasCompose] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!workspacePath) return;
+        const api: any = (window as any).electronAPI;
+        const candidates = [
+          'docker-compose.yml',
+          'docker-compose.yaml',
+          'compose.yml',
+          'compose.yaml',
+        ];
+        for (const file of candidates) {
+          const res = await api?.fsRead?.(workspacePath, file, 1);
+          if (!cancelled && res?.success) {
+            setHasCompose(true);
+            return;
+          }
+        }
+        if (!cancelled) setHasCompose(false);
+      } catch {
+        if (!cancelled) setHasCompose(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspacePath]);
+
   if (!active) {
     return (
       <TooltipProvider delayDuration={200}>
@@ -33,9 +65,11 @@ export const ContainerStatusBadge: React.FC<Props> = ({
               type="button"
               className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
               onClick={onStart}
-              disabled={startingAction}
+              disabled={startingAction || hasCompose}
               aria-busy={startingAction}
-              aria-label="Connect to host machine"
+              aria-label={
+                hasCompose ? 'Compose containerization coming soon' : 'Connect to host machine'
+              }
             >
               {startingAction ? (
                 <>
@@ -51,7 +85,9 @@ export const ContainerStatusBadge: React.FC<Props> = ({
             </button>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-[22rem] text-xs leading-snug">
-            Connect to host machine. Installs deps and maps declared ports for preview.
+            {hasCompose
+              ? 'Docker Compose (multi‑service) containerization is coming soon.'
+              : 'Connect to host machine. Installs deps and maps declared ports for preview.'}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
