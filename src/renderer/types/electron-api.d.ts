@@ -4,12 +4,30 @@ import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../sha
 export {};
 
 declare global {
+  type RendererRepositorySettings = {
+    branchTemplate: string;
+    pushOnCreate: boolean;
+    cloneRoot: string;
+  };
+
+  type RendererRepositorySettingsPartial = Partial<RendererRepositorySettings>;
+
   interface Window {
     electronAPI: {
       // App info
       getAppVersion: () => Promise<string>;
       getElectronVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
+      pickDirectory: (opts?: {
+        title?: string;
+        message?: string;
+        defaultPath?: string;
+      }) => Promise<{
+        success: boolean;
+        canceled?: boolean;
+        path?: string;
+        error?: string;
+      }>;
       // Updater
       checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -21,18 +39,18 @@ declare global {
       getSettings: () => Promise<{
         success: boolean;
         settings?: {
-          repository: { branchTemplate: string; pushOnCreate: boolean };
+          repository: RendererRepositorySettings;
         };
         error?: string;
       }>;
       updateSettings: (
         settings: Partial<{
-          repository: { branchTemplate?: string; pushOnCreate?: boolean };
+          repository: RendererRepositorySettingsPartial;
         }>
       ) => Promise<{
         success: boolean;
         settings?: {
-          repository: { branchTemplate: string; pushOnCreate: boolean };
+          repository: RendererRepositorySettings;
         };
         error?: string;
       }>;
