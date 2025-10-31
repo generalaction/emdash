@@ -43,15 +43,26 @@ declare global {
         env?: Record<string, string>;
         cols?: number;
         rows?: number;
-      }) => Promise<{ ok: boolean }>;
+      }) => Promise<{ ok: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
       onPtyData: (id: string, listener: (data: string) => void) => () => void;
+      ptyGetSnapshot: (args: { id: string }) => Promise<{
+        ok: boolean;
+        snapshot?: any;
+        error?: string;
+      }>;
+      ptySaveSnapshot: (args: { id: string; payload: TerminalSnapshotPayload }) => Promise<{
+        ok: boolean;
+        error?: string;
+      }>;
+      ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
       onPtyExit: (
         id: string,
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
+      onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
 
       // Worktree management
       worktreeCreate: (args: {
@@ -453,15 +464,26 @@ export interface ElectronAPI {
     env?: Record<string, string>;
     cols?: number;
     rows?: number;
-  }) => Promise<{ ok: boolean }>;
+  }) => Promise<{ ok: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
   ptyKill: (id: string) => void;
   onPtyData: (id: string, listener: (data: string) => void) => () => void;
+  ptyGetSnapshot: (args: { id: string }) => Promise<{
+    ok: boolean;
+    snapshot?: any;
+    error?: string;
+  }>;
+  ptySaveSnapshot: (args: { id: string; payload: TerminalSnapshotPayload }) => Promise<{
+    ok: boolean;
+    error?: string;
+  }>;
+  ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
   onPtyExit: (
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void
   ) => () => void;
+  onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
 
   // Worktree management
   worktreeCreate: (args: {
@@ -755,3 +777,4 @@ export interface ElectronAPI {
     }) => void
   ) => () => void;
 }
+import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';

@@ -1,25 +1,11 @@
 import { ipcMain, WebContents } from 'electron';
 import { startPty, writePty, resizePty, killPty, getPty } from './ptyManager';
 import { log } from '../lib/logger';
+import { terminalSnapshotService } from './TerminalSnapshotService';
+import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
-
-// Simple scrollback buffer per PTY id, to replay when re-attaching
-const buffers = new Map<string, string[]>();
-const MAX_BUFFER_BYTES = 200_000; // ~200 KB
-
-function appendBuffer(id: string, chunk: string) {
-  const arr = buffers.get(id) ?? [];
-  arr.push(chunk);
-  // Trim if over byte budget
-  let total = arr.reduce((n, s) => n + Buffer.byteLength(s, 'utf8'), 0);
-  while (arr.length > 1 && total > MAX_BUFFER_BYTES) {
-    const removed = arr.shift()!;
-    total -= Buffer.byteLength(removed, 'utf8');
-  }
-  buffers.set(id, arr);
-}
 
 export function registerPtyIpc(): void {
   ipcMain.handle(
@@ -58,7 +44,6 @@ export function registerPtyIpc(): void {
         // Attach listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
-            appendBuffer(id, data);
             owners.get(id)?.send(`pty:data:${id}`, data);
           });
 
@@ -66,17 +51,8 @@ export function registerPtyIpc(): void {
             owners.get(id)?.send(`pty:exit:${id}`, { exitCode, signal });
             owners.delete(id);
             listeners.delete(id);
-            buffers.delete(id);
           });
           listeners.add(id);
-        }
-
-        // If there's buffered history, replay it to the current owner
-        const history = buffers.get(id);
-        if (history && history.length) {
-          try {
-            wc.send(`pty:history:${id}`, history.join(''));
-          } catch {}
         }
 
         // Signal that PTY is ready so renderer may inject initial prompt safely
@@ -103,7 +79,7 @@ export function registerPtyIpc(): void {
     try {
       writePty(args.id, args.data);
     } catch (e) {
-      log.error('pty:input error', e);
+      log.error('pty:input error', { id: args.id, error: e });
     }
   });
 
@@ -111,7 +87,7 @@ export function registerPtyIpc(): void {
     try {
       resizePty(args.id, args.cols, args.rows);
     } catch (e) {
-      log.error('pty:resize error', e);
+      log.error('pty:resize error', { id: args.id, cols: args.cols, rows: args.rows, error: e });
     }
   });
 
@@ -120,9 +96,38 @@ export function registerPtyIpc(): void {
       killPty(args.id);
       owners.delete(args.id);
       listeners.delete(args.id);
-      buffers.delete(args.id);
     } catch (e) {
-      log.error('pty:kill error', e);
+      log.error('pty:kill error', { id: args.id, error: e });
     }
+  });
+
+  ipcMain.handle(
+    'pty:snapshot:get',
+    async (_event, args: { id: string }) => {
+      try {
+        const snapshot = await terminalSnapshotService.getSnapshot(args.id);
+        return { ok: true, snapshot };
+      } catch (error: any) {
+        log.error('pty:snapshot:get failed', { id: args.id, error });
+        return { ok: false, error: error?.message || String(error) };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'pty:snapshot:save',
+    async (_event, args: { id: string; payload: TerminalSnapshotPayload }) => {
+      const { id, payload } = args;
+      const result = await terminalSnapshotService.saveSnapshot(id, payload);
+      if (!result.ok) {
+        log.warn('pty:snapshot:save failed', { id, error: result.error });
+      }
+      return result;
+    }
+  );
+
+  ipcMain.handle('pty:snapshot:clear', async (_event, args: { id: string }) => {
+    await terminalSnapshotService.deleteSnapshot(args.id);
+    return { ok: true };
   });
 }

@@ -518,7 +518,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                   } catch {}
                 }}
                 onStartError={() => {
-                  // Mark CLI missing or failed to launch
                   setCliStartFailed(true);
                 }}
                 onStartSuccess={() => setCliStartFailed(false)}

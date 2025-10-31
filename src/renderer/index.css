@@ -129,41 +129,6 @@
 }
 
 @layer components {
-  /* Force right-sidebar terminal to light theme: white background and black text */
-  .bw-terminal .xterm .xterm-rows span,
-  .bw-terminal .xterm .xterm-rows div {
-    color: #000000 !important;
-    background-color: #ffffff !important;
-  }
-  .bw-terminal .xterm .xterm-cursor.xterm-focus:not(.xterm-hidden-cursor) .xterm-cursor-block {
-    background-color: #000000 !important;
-  }
-  .bw-terminal .xterm .xterm-cursor .xterm-cursor-outline,
-  .bw-terminal .xterm .xterm-cursor .xterm-cursor-bar,
-  .bw-terminal .xterm .xterm-cursor .xterm-cursor-underline {
-    border-color: #000000 !important;
-    background-color: #000000 !important;
-  }
-
-  /* Force right-sidebar terminal to dark theme: dark background and white text */
-  .dark .bw-terminal .xterm .xterm-rows span,
-  .dark .bw-terminal .xterm .xterm-rows div {
-    color: #ffffff !important;
-    background-color: #1f2937 !important;
-  }
-  .dark
-    .bw-terminal
-    .xterm
-    .xterm-cursor.xterm-focus:not(.xterm-hidden-cursor)
-    .xterm-cursor-block {
-    background-color: #ffffff !important;
-  }
-  .dark .bw-terminal .xterm .xterm-cursor .xterm-cursor-outline,
-  .dark .bw-terminal .xterm .xterm-cursor .xterm-cursor-bar,
-  .dark .bw-terminal .xterm .xterm-cursor .xterm-cursor-underline {
-    border-color: #ffffff !important;
-    background-color: #ffffff !important;
-  }
   .logo-shimmer-container {
     position: relative;
     display: inline-block;

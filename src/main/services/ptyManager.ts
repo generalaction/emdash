@@ -3,6 +3,7 @@ import os from 'os';
 // Lazy-require the native module inside startPty to avoid app-start crashes
 // when the native binary is missing or incompatible on some systems.
 import type { IPty } from 'node-pty';
+import { log } from '../lib/logger';
 
 type PtyRecord = {
   id: string;
@@ -83,7 +84,20 @@ export function startPty(options: {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const pty: typeof import('node-pty') = require('node-pty');
 
-  const proc = pty.spawn(useShell, [], {
+  // Provide sensible defaults for interactive shells so they render prompts
+  const args: string[] = [];
+  if (process.platform !== 'win32') {
+    try {
+      const base = String(useShell).split('/').pop() || '';
+      if (base === 'zsh') args.push('-il');
+      else if (base === 'bash') args.push('--noprofile', '--norc', '-i');
+      else if (base === 'fish' || base === 'sh') args.push('-i');
+      // Do not add args for known CLI binaries like codex/claude
+      if (/^(codex|claude)$/i.test(base)) args.length = 0;
+    } catch {}
+  }
+
+  const proc = pty.spawn(useShell, args, {
     name: 'xterm-256color',
     cols,
     rows,
@@ -98,19 +112,37 @@ export function startPty(options: {
 
 export function writePty(id: string, data: string): void {
   const rec = ptys.get(id);
-  if (!rec) return;
+  if (!rec) {
+    log.warn('ptyManager:writeMissing', { id, bytes: data.length });
+    return;
+  }
   rec.proc.write(data);
 }
 
 export function resizePty(id: string, cols: number, rows: number): void {
   const rec = ptys.get(id);
-  if (!rec) return;
-  rec.proc.resize(cols, rows);
+  if (!rec) {
+    log.warn('ptyManager:resizeMissing', { id, cols, rows });
+    return;
+  }
+  try {
+    rec.proc.resize(cols, rows);
+  } catch (error: any) {
+    // EBADF typically means the PTY has already exited; swallow and log once
+    if (error && (error.code === 'EBADF' || /EBADF/.test(String(error)))) {
+      log.warn('ptyManager:resizeAfterExit', { id, cols, rows });
+      return;
+    }
+    throw error;
+  }
 }
 
 export function killPty(id: string): void {
   const rec = ptys.get(id);
-  if (!rec) return;
+  if (!rec) {
+    log.warn('ptyManager:killMissing', { id });
+    return;
+  }
   try {
     rec.proc.kill();
   } finally {
