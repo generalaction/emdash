@@ -260,7 +260,7 @@ function WorkspaceRow({
                   <button
                     type="button"
                     disabled
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium opacity-50 cursor-not-allowed"
+                    className="inline-flex h-8 cursor-not-allowed items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium opacity-50"
                     aria-label="Connect disabled for Docker Compose projects"
                   >
                     <img src={dockerLogo} alt="Docker" className="mr-1.5 h-3.5 w-3.5" />
@@ -273,16 +273,16 @@ function WorkspaceRow({
               </Tooltip>
             </TooltipProvider>
           ) : (
-          <ContainerStatusBadge
-            active={containerActive}
-            isStarting={isStartingContainerState}
-            isReady={isReady}
-            startingAction={isStartingContainer}
-            stoppingAction={isStoppingContainer}
-            onStart={handleStartContainer}
-            onStop={handleStopContainer}
-            workspacePath={ws.path}
-          />
+            <ContainerStatusBadge
+              active={containerActive}
+              isStarting={isStartingContainerState}
+              isReady={isReady}
+              startingAction={isStartingContainer}
+              stoppingAction={isStoppingContainer}
+              onStart={handleStartContainer}
+              onStop={handleStopContainer}
+              workspacePath={ws.path}
+            />
           )}
           {containerActive ? (
             <button

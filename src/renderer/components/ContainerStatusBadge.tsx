@@ -33,7 +33,12 @@ export const ContainerStatusBadge: React.FC<Props> = ({
       try {
         if (!workspacePath) return;
         const api: any = (window as any).electronAPI;
-        const candidates = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'];
+        const candidates = [
+          'docker-compose.yml',
+          'docker-compose.yaml',
+          'compose.yml',
+          'compose.yaml',
+        ];
         for (const file of candidates) {
           const res = await api?.fsRead?.(workspacePath, file, 1);
           if (!cancelled && res?.success) {
@@ -62,7 +67,9 @@ export const ContainerStatusBadge: React.FC<Props> = ({
               onClick={onStart}
               disabled={startingAction || hasCompose}
               aria-busy={startingAction}
-              aria-label={hasCompose ? 'Compose containerization coming soon' : 'Connect to host machine'}
+              aria-label={
+                hasCompose ? 'Compose containerization coming soon' : 'Connect to host machine'
+              }
             >
               {startingAction ? (
                 <>
