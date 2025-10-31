@@ -253,6 +253,10 @@ function WorkspaceRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
+            <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
+          ) : null}
+
           {hasComposeFile ? (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -304,9 +308,7 @@ function WorkspaceRow({
               Ports
             </button>
           ) : null}
-          {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
-            <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
-          ) : pr ? (
+          {!isLoading && totalAdditions === 0 && totalDeletions === 0 && pr ? (
             <span
               className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
               title={`${pr.title || 'Pull Request'} (#${pr.number})`}
