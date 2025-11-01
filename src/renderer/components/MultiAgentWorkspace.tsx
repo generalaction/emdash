@@ -11,7 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useToast } from '@/hooks/use-toast';
 import { classifyActivity } from '@/lib/activityClassifier';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
-import { GitBranch, CornerDownLeft } from 'lucide-react';
+import { CornerDownLeft } from 'lucide-react';
 
 interface Props {
   workspace: Workspace;
@@ -135,7 +135,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
         <div className="flex items-center gap-2">
           <Input
             className="flex-1 h-9"
-            placeholder={`Describe the task for ${projectName}…`}
+            placeholder="Tell the agents what to do..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {
