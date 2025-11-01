@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Workflow, Check, Copy } from 'lucide-react';
+import { Workflow, ArrowUpRight, Check, Copy } from 'lucide-react';
 
 export const RoutingInfoCard: React.FC = () => {
   const installCommand = 'npm install -g @openai/codex';
@@ -56,6 +56,17 @@ export const RoutingInfoCard: React.FC = () => {
       <p className="mb-2 text-xs text-muted-foreground">
         Smart routing between available CLIs to pick the best tool for your request.
       </p>
+      <div className="mb-2">
+        <a
+          href="https://artificialanalysis.ai/insights/coding-agents-comparison"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-foreground hover:underline"
+        >
+          <span>Compare agents</span>
+          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      </div>
       <div className="flex items-center justify-between rounded-md border px-2 py-1 text-xs text-foreground">
         <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-[11px]">
           {installCommand}

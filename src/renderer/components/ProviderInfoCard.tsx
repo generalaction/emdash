@@ -150,6 +150,17 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
           </a>
         </div>
       ) : null}
+      <div className="mb-2">
+        <a
+          href="https://artificialanalysis.ai/insights/coding-agents-comparison"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-foreground hover:underline"
+        >
+          <span>Compare agents</span>
+          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      </div>
       <div className="mb-2 flex items-center justify-between rounded-md border px-2 py-1 text-xs text-foreground">
         <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-[11px]">
           {installCommand}
