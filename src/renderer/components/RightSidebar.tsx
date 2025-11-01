@@ -3,6 +3,8 @@ import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import WorkspaceTerminalPanel from './WorkspaceTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
+import { providerAssets } from '@/providers/assets';
+import { providerMeta } from '@/providers/meta';
 
 export interface RightSidebarWorkspace {
   id: string;
@@ -51,9 +53,24 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                   <div key={`${v.provider}-${i}`} className="mb-2 border-b border-border last:mb-0 last:border-b-0">
                     <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
                       <span className="inline-flex items-center gap-2">
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {v.provider}
-                        </span>
+                        {(() => {
+                          const asset = (providerAssets as any)[v.provider] as
+                            | { logo: string; alt: string; name: string; invertInDark?: boolean }
+                            | undefined;
+                          const meta = (providerMeta as any)[v.provider] as { label?: string } | undefined;
+                          return (
+                            <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
+                              {asset?.logo ? (
+                                <img
+                                  src={asset.logo}
+                                  alt={asset.alt || meta?.label || String(v.provider)}
+                                  className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                                />
+                              ) : null}
+                              {meta?.label || asset?.name || String(v.provider)}
+                            </span>
+                          );
+                        })()}
                         <span className="truncate" title={v.name}>
                           {v.name}
                         </span>
