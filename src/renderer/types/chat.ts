@@ -7,6 +7,62 @@ export interface WorkspaceMetadata {
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
   initialPrompt?: string | null;
+  // When present, this workspace is a multi-agent workspace orchestrating multiple worktrees
+  multiAgent?: {
+    enabled: boolean;
+    // Max panes allowed when the workspace was created (UI hint)
+    maxProviders?: number;
+    // Selected providers to run in parallel (ids match Provider type)
+    providers: Array<
+      | 'codex'
+      | 'claude'
+      | 'qwen'
+      | 'droid'
+      | 'gemini'
+      | 'cursor'
+      | 'copilot'
+      | 'amp'
+      | 'opencode'
+      | 'charm'
+      | 'auggie'
+      | 'goose'
+    >;
+    variants: Array<{
+      id: string; // stable variant id within this workspace
+      provider:
+        | 'codex'
+        | 'claude'
+        | 'qwen'
+        | 'droid'
+        | 'gemini'
+        | 'cursor'
+        | 'copilot'
+        | 'amp'
+        | 'opencode'
+        | 'charm'
+        | 'auggie'
+        | 'goose';
+      name: string; // worktree display name, e.g. workspaceName-providerSlug
+      branch: string;
+      path: string; // filesystem path of the worktree
+      worktreeId: string; // WorktreeService id (stable hash of path)
+    }>;
+    // If the user selected a winner, store the provider id
+    selectedProvider?:
+      | 'codex'
+      | 'claude'
+      | 'qwen'
+      | 'droid'
+      | 'gemini'
+      | 'cursor'
+      | 'copilot'
+      | 'amp'
+      | 'opencode'
+      | 'charm'
+      | 'auggie'
+      | 'goose'
+      | null;
+  } | null;
 }
 
 export interface Workspace {

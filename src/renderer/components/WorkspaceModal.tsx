@@ -18,6 +18,7 @@ import JiraIssueSelector from './JiraIssueSelector';
 import { type JiraIssueSummary } from '../types/jira';
 import { Badge } from './ui/badge';
 import jiraLogo from '../../assets/images/jira.png';
+import MultiProviderMenu from './MultiProviderMenu';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
@@ -28,7 +29,8 @@ interface WorkspaceModalProps {
     selectedProvider?: Provider,
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
-    linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null
+    linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null,
+    multiAgent?: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -47,6 +49,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 }) => {
   const [workspaceName, setWorkspaceName] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<Provider>('codex');
+  const [multiEnabled, setMultiEnabled] = useState(false);
+  const [selectedProviders, setSelectedProviders] = useState<Provider[]>(['codex', 'claude']);
+  const maxProviders = 4; // limit for multi-agent selection
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,11 +186,20 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           selectedProvider,
                           selectedLinearIssue,
                           selectedGithubIssue,
-                          selectedJiraIssue
+                          selectedJiraIssue,
+                          multiEnabled
+                            ? {
+                                enabled: true,
+                                providers: selectedProviders.slice(0, maxProviders),
+                                maxProviders,
+                              }
+                            : null
                         );
                         setWorkspaceName('');
                         setInitialPrompt('');
                         setSelectedProvider('codex');
+                        setSelectedProviders(['codex', 'claude']);
+                        setMultiEnabled(false);
                         setSelectedLinearIssue(null);
                         setSelectedGithubIssue(null);
                         setShowAdvanced(false);
@@ -242,11 +256,20 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       AI provider
                     </label>
                     <div className="min-w-0 flex-1">
-                      <ProviderSelector
-                        value={selectedProvider}
-                        onChange={setSelectedProvider}
-                        className="w-full"
-                      />
+                      {!multiEnabled ? (
+                        <ProviderSelector
+                          value={selectedProvider}
+                          onChange={setSelectedProvider}
+                          className="w-full"
+                        />
+                      ) : (
+                        <MultiProviderMenu
+                          value={selectedProviders}
+                          onChange={setSelectedProviders}
+                          max={maxProviders}
+                          className="w-full"
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -276,6 +299,24 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
                         <div className="flex flex-col gap-4">
+                          <div className="flex items-center gap-4">
+                            <label className="w-32 shrink-0 text-sm font-medium text-foreground">
+                              Multiple agents
+                            </label>
+                            <div className="min-w-0 flex-1">
+                              <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={multiEnabled}
+                                  onChange={(e) => setMultiEnabled(e.target.checked)}
+                                  className="h-4 w-4"
+                                />
+                                <span className="text-muted-foreground">
+                                  Run a task across multiple providers
+                                </span>
+                              </label>
+                            </div>
+                          </div>
                           <div className="flex items-start gap-4">
                             <label
                               htmlFor="linear-issue"

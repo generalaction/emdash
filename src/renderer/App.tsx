@@ -6,6 +6,7 @@ import LeftSidebar from './components/LeftSidebar';
 import ProjectMainView from './components/ProjectMainView';
 import WorkspaceModal from './components/WorkspaceModal';
 import ChatInterface from './components/ChatInterface';
+import MultiAgentWorkspace from './components/MultiAgentWorkspace';
 import { Toaster } from './components/ui/toaster';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import RequirementsNotice from './components/RequirementsNotice';
@@ -187,6 +188,59 @@ interface WorkspaceMetadata {
     author?: string | null;
     branch?: string;
   } | null;
+  // Multi-agent orchestration (when enabled)
+  multiAgent?: {
+    enabled: boolean;
+    maxProviders?: number;
+    providers: Array<
+      | 'codex'
+      | 'claude'
+      | 'qwen'
+      | 'droid'
+      | 'gemini'
+      | 'cursor'
+      | 'copilot'
+      | 'amp'
+      | 'opencode'
+      | 'charm'
+      | 'auggie'
+      | 'goose'
+    >;
+    variants: Array<{
+      id: string;
+      provider:
+        | 'codex'
+        | 'claude'
+        | 'qwen'
+        | 'droid'
+        | 'gemini'
+        | 'cursor'
+        | 'copilot'
+        | 'amp'
+        | 'opencode'
+        | 'charm'
+        | 'auggie'
+        | 'goose';
+      name: string;
+      branch: string;
+      path: string;
+      worktreeId: string;
+    }>;
+    selectedProvider?:
+      | 'codex'
+      | 'claude'
+      | 'qwen'
+      | 'droid'
+      | 'gemini'
+      | 'cursor'
+      | 'copilot'
+      | 'amp'
+      | 'opencode'
+      | 'charm'
+      | 'auggie'
+      | 'goose'
+      | null;
+  } | null;
 }
 
 interface Workspace {
@@ -247,6 +301,8 @@ const AppContent: React.FC = () => {
   // Show agent requirements block if none of the supported CLIs are detected locally.
   // We only actively detect Codex and Claude Code; Factory (Droid) docs are shown as an alternative.
   const showAgentRequirement = isCodexInstalled === false && isClaudeInstalled === false;
+
+  // No explicit winner propagation: the Right Sidebar lets users create PRs per variant directly.
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -680,7 +736,8 @@ const AppContent: React.FC = () => {
     selectedProvider?: Provider,
     linkedLinearIssue: LinearIssueSummary | null = null,
     linkedGithubIssue: GitHubIssueSummary | null = null,
-    linkedJiraIssue: JiraIssueSummary | null = null
+    linkedJiraIssue: JiraIssueSummary | null = null,
+    multiAgent: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null = null
   ) => {
     if (!selectedProject) return;
 
@@ -790,36 +847,114 @@ const AppContent: React.FC = () => {
             }
           : null;
 
-      // Create Git worktree
-      const worktreeResult = await window.electronAPI.worktreeCreate({
-        projectPath: selectedProject.path,
-        workspaceName,
-        projectId: selectedProject.id,
-      });
+      // Multi-agent or single-agent workspace creation
+      const useMulti =
+        !!multiAgent?.enabled &&
+        Array.isArray(multiAgent?.providers) &&
+        multiAgent!.providers.length >= 2;
+      let newWorkspace: Workspace;
+      if (useMulti) {
+        const providers = multiAgent!.providers.slice(0, multiAgent?.maxProviders || 4);
+        const variants: Array<{
+          id: string;
+          provider: Provider;
+          name: string;
+          branch: string;
+          path: string;
+          worktreeId: string;
+        }> = [];
+        for (const prov of providers) {
+          const vtName = `${workspaceName}-${prov.toLowerCase()}`;
+          const wtRes = await window.electronAPI.worktreeCreate({
+            projectPath: selectedProject.path,
+            workspaceName: vtName,
+            projectId: selectedProject.id,
+          });
+          if (!wtRes?.success || !wtRes.worktree) {
+            throw new Error(wtRes?.error || `Failed to create worktree for ${prov}`);
+          }
+          const wt = wtRes.worktree;
+          variants.push({
+            id: `${workspaceName}-${prov.toLowerCase()}`,
+            provider: prov,
+            name: vtName,
+            branch: wt.branch,
+            path: wt.path,
+            worktreeId: wt.id,
+          });
+        }
 
-      if (!worktreeResult.success) {
-        throw new Error(worktreeResult.error || 'Failed to create worktree');
+        const multiMeta: WorkspaceMetadata = {
+          ...(workspaceMetadata || {}),
+          multiAgent: {
+            enabled: true,
+            maxProviders: multiAgent?.maxProviders || 4,
+            providers,
+            variants,
+            selectedProvider: null,
+          },
+        };
+
+        const groupId = `ws-${workspaceName}-${Date.now()}`;
+        newWorkspace = {
+          id: groupId,
+          name: workspaceName,
+          branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
+          path: variants[0]?.path || selectedProject.path,
+          status: 'idle',
+          metadata: multiMeta,
+        } as Workspace;
+
+        const saveResult = await window.electronAPI.saveWorkspace({
+          ...newWorkspace,
+          projectId: selectedProject.id,
+          metadata: multiMeta,
+        });
+        if (!saveResult?.success) {
+          const { log } = await import('./lib/logger');
+          log.error('Failed to save multi-agent workspace:', saveResult?.error);
+          toast({ title: 'Error', description: 'Failed to create multi-agent workspace.' });
+          setIsCreatingWorkspace(false);
+          return;
+        }
+      } else {
+        // Create single worktree
+        const worktreeResult = await window.electronAPI.worktreeCreate({
+          projectPath: selectedProject.path,
+          workspaceName,
+          projectId: selectedProject.id,
+        });
+
+        if (!worktreeResult.success) {
+          throw new Error(worktreeResult.error || 'Failed to create worktree');
+        }
+
+        const worktree = worktreeResult.worktree;
+
+        newWorkspace = {
+          id: worktree.id,
+          name: workspaceName,
+          branch: worktree.branch,
+          path: worktree.path,
+          status: 'idle',
+          metadata: workspaceMetadata,
+        };
+
+        const saveResult = await window.electronAPI.saveWorkspace({
+          ...newWorkspace,
+          projectId: selectedProject.id,
+          metadata: workspaceMetadata,
+        });
+        if (!saveResult?.success) {
+          const { log } = await import('./lib/logger');
+          log.error('Failed to save workspace:', saveResult?.error);
+          toast({ title: 'Error', description: 'Failed to create workspace.' });
+          setIsCreatingWorkspace(false);
+          return;
+        }
       }
 
-      const worktree = worktreeResult.worktree;
-
-      const newWorkspace: Workspace = {
-        id: worktree.id,
-        name: workspaceName,
-        branch: worktree.branch,
-        path: worktree.path,
-        status: 'idle',
-        metadata: workspaceMetadata,
-      };
-
-      // Save workspace to database
-      const saveResult = await window.electronAPI.saveWorkspace({
-        ...newWorkspace,
-        projectId: selectedProject.id,
-        metadata: workspaceMetadata,
-      });
-
-      if (saveResult.success) {
+      {
         if (workspaceMetadata?.linearIssue) {
           try {
             const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
@@ -951,21 +1086,18 @@ const AppContent: React.FC = () => {
             : null
         );
 
-        // Set the active workspace and its provider
+        // Set the active workspace and its provider (none if multi-agent)
         setActiveWorkspace(newWorkspace);
-        setActiveWorkspaceProvider(selectedProvider || 'codex');
+        if ((newWorkspace.metadata as any)?.multiAgent?.enabled) {
+          setActiveWorkspaceProvider(null);
+        } else {
+          setActiveWorkspaceProvider(selectedProvider || 'codex');
+        }
 
         // toast({
         //   title: 'Workspace Created',
         //   description: `"${workspaceName}" workspace created successfully!`,
         // });
-      } else {
-        const { log } = await import('./lib/logger');
-        log.error('Failed to save workspace:', saveResult.error);
-        toast({
-          title: 'Error',
-          description: 'Failed to create workspace. Please check the console for details.',
-        });
       }
     } catch (error) {
       const { log } = await import('./lib/logger');
@@ -1225,12 +1357,20 @@ const AppContent: React.FC = () => {
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {activeWorkspace ? (
-            <ChatInterface
-              workspace={activeWorkspace}
-              projectName={selectedProject.name}
-              className="min-h-0 flex-1"
-              initialProvider={activeWorkspaceProvider || undefined}
-            />
+            (activeWorkspace.metadata as any)?.multiAgent?.enabled ? (
+              <MultiAgentWorkspace
+                workspace={activeWorkspace}
+                projectName={selectedProject.name}
+                projectId={selectedProject.id}
+              />
+            ) : (
+              <ChatInterface
+                workspace={activeWorkspace}
+                projectName={selectedProject.name}
+                className="min-h-0 flex-1"
+                initialProvider={activeWorkspaceProvider || undefined}
+              />
+            )
           ) : (
             <ProjectMainView
               project={selectedProject}
@@ -1304,7 +1444,11 @@ const AppContent: React.FC = () => {
           <Titlebar
             onToggleSettings={handleToggleSettings}
             isSettingsOpen={showSettings}
-            currentPath={activeWorkspace?.path || selectedProject?.path || null}
+            currentPath={
+              activeWorkspace?.metadata?.multiAgent?.enabled
+                ? null
+                : activeWorkspace?.path || selectedProject?.path || null
+            }
             githubUser={user}
           />
           <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">

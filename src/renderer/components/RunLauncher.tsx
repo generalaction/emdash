@@ -45,7 +45,6 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Provider Selection */}
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">AI Provider</label>
           <div className="flex gap-4">
@@ -72,7 +71,6 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
           </div>
         </div>
 
-        {/* Prompt */}
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">Prompt</label>
           <textarea
@@ -84,7 +82,6 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
           />
         </div>
 
-        {/* Number of Agents */}
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">Number of Agents</label>
           <select
@@ -100,7 +97,6 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
           </select>
         </div>
 
-        {/* Base Branch */}
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">Base Branch</label>
           <input
@@ -112,7 +108,6 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
           />
         </div>
 
-        {/* Repository Info */}
         <div className="rounded bg-gray-700 p-3">
           <div className="text-sm text-gray-300">
             <strong>Repository:</strong> {repo.path.split('/').pop()}
@@ -122,7 +117,6 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex gap-3 pt-4">
           <button
             type="submit"

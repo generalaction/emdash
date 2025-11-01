@@ -1,8 +1,12 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
+import { useFileChanges } from '@/hooks/useFileChanges';
 import WorkspaceTerminalPanel from './WorkspaceTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
+import { providerAssets } from '@/providers/assets';
+import { providerMeta } from '@/providers/meta';
+import type { Provider } from '../types';
 
 export interface RightSidebarWorkspace {
   id: string;
@@ -11,6 +15,7 @@ export interface RightSidebarWorkspace {
   path: string;
   status: 'active' | 'idle' | 'running';
   agentId?: string;
+  metadata?: any;
 }
 
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
@@ -19,6 +24,18 @@ interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
 
 const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...rest }) => {
   const { collapsed } = useRightSidebar();
+
+  // Detect multi-agent variants in workspace metadata
+  const variants: Array<{ provider: Provider; name: string; path: string }> = (() => {
+    try {
+      const v = workspace?.metadata?.multiAgent?.variants || [];
+      if (Array.isArray(v))
+        return v
+          .map((x: any) => ({ provider: x?.provider as Provider, name: x?.name, path: x?.path }))
+          .filter((x) => x?.path);
+    } catch {}
+    return [];
+  })();
 
   return (
     <aside
@@ -34,11 +51,71 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
       <div className="flex h-full w-full min-w-0 flex-col">
         {workspace ? (
           <div className="flex h-full flex-col">
-            <FileChangesPanel
-              workspaceId={workspace.path}
-              className="min-h-0 flex-1 border-b border-border"
-            />
-            <WorkspaceTerminalPanel workspace={workspace} className="min-h-0 flex-1" />
+            {variants.length > 1 ? (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {variants.map((v, i) => (
+                  <div
+                    key={`${v.provider}-${i}`}
+                    className="mb-2 border-b border-border last:mb-0 last:border-b-0"
+                  >
+                    <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
+                      <span className="inline-flex items-center gap-2">
+                        {(() => {
+                          const asset = (providerAssets as any)[v.provider] as
+                            | { logo: string; alt: string; name: string; invertInDark?: boolean }
+                            | undefined;
+                          const meta = (providerMeta as any)[v.provider] as
+                            | { label?: string }
+                            | undefined;
+                          return (
+                            <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
+                              {asset?.logo ? (
+                                <img
+                                  src={asset.logo}
+                                  alt={asset.alt || meta?.label || String(v.provider)}
+                                  className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                                />
+                              ) : null}
+                              {meta?.label || asset?.name || String(v.provider)}
+                            </span>
+                          );
+                        })()}
+                        <span className="truncate" title={v.name}>
+                          {v.name}
+                        </span>
+                      </span>
+                    </div>
+                    <VariantChangesIfAny path={v.path} />
+                  </div>
+                ))}
+              </div>
+            ) : variants.length === 1 ? (
+              (() => {
+                const v = variants[0];
+                const derived = {
+                  ...workspace,
+                  path: v.path,
+                  name: v.name || workspace.name,
+                } as any;
+                return (
+                  <>
+                    <VariantChangesIfAny
+                      path={v.path}
+                      className="min-h-0 flex-1 border-b border-border"
+                    />
+                    <WorkspaceTerminalPanel workspace={derived} className="min-h-0 flex-1" />
+                  </>
+                );
+              })()
+            ) : (
+              <>
+                <FileChangesPanel
+                  workspaceId={workspace.path}
+                  className="min-h-0 flex-1 border-b border-border"
+                />
+                <WorkspaceTerminalPanel workspace={workspace} className="min-h-0 flex-1" />
+              </>
+            )}
           </div>
         ) : (
           <div className="flex h-full flex-col text-sm text-muted-foreground">
@@ -70,3 +147,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
 };
 
 export default RightSidebar;
+
+const VariantChangesIfAny: React.FC<{ path: string; className?: string }> = ({
+  path,
+  className,
+}) => {
+  const { fileChanges } = useFileChanges(path);
+  if (!fileChanges || fileChanges.length === 0) return null;
+  return <FileChangesPanel workspaceId={path} className={className || 'min-h-0'} />;
+};
