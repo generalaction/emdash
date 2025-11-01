@@ -1,4 +1,4 @@
-import { app, ipcMain, shell } from 'electron';
+import { app, ipcMain, shell, dialog } from 'electron';
 import { exec } from 'child_process';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -183,4 +183,28 @@ export function registerAppIpc() {
   });
   ipcMain.handle('app:getElectronVersion', () => process.versions.electron);
   ipcMain.handle('app:getPlatform', () => process.platform);
+
+  // Generic directory picker
+  ipcMain.handle(
+    'app:pickDirectory',
+    async (
+      _event,
+      opts?: { title?: string; message?: string; defaultPath?: string }
+    ): Promise<{ success: boolean; canceled?: boolean; path?: string; error?: string }> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          title: opts?.title || 'Select Directory',
+          message: opts?.message || 'Choose a folder',
+          properties: ['openDirectory', 'createDirectory'],
+          defaultPath: opts?.defaultPath,
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, canceled: true };
+        }
+        return { success: true, path: result.filePaths[0] };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
 }

@@ -37,7 +37,9 @@ interface Project {
   githubInfo?: {
     repository: string;
     connected: boolean;
+    owner?: string;
   };
+  createdBy?: string;
   workspaces?: Workspace[];
 }
 
@@ -400,6 +402,21 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     )}
                   </BreadcrumbList>
                 </Breadcrumb>
+                {(project.githubInfo?.owner || project.createdBy) && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {project.githubInfo?.owner ? (
+                      <span>
+                        Owner: <span className="text-foreground">{project.githubInfo.owner}</span>
+                      </span>
+                    ) : null}
+                    {project.githubInfo?.owner && project.createdBy ? <span> • </span> : null}
+                    {project.createdBy ? (
+                      <span>
+                        Created by: <span className="text-foreground">{project.createdBy}</span>
+                      </span>
+                    ) : null}
+                  </div>
+                )}
               </div>
               {onDeleteProject ? (
                 <ProjectDeleteButton

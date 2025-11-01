@@ -26,7 +26,9 @@ export interface Project {
   githubInfo?: {
     repository: string;
     connected: boolean;
+    owner?: string;
   };
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +110,8 @@ export class DatabaseService {
     const gitBranch = project.gitInfo.branch ?? null;
     const githubRepository = project.githubInfo?.repository ?? null;
     const githubConnected = project.githubInfo?.connected ? 1 : 0;
+    const githubOwner = project.githubInfo?.owner ?? null;
+    const createdBy = project.createdBy ?? null;
 
     await db
       .insert(projectsTable)
@@ -119,6 +123,8 @@ export class DatabaseService {
         gitBranch,
         githubRepository,
         githubConnected,
+        githubOwner,
+        createdBy,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
@@ -129,6 +135,8 @@ export class DatabaseService {
           gitBranch,
           githubRepository,
           githubConnected,
+          githubOwner,
+          createdBy,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
@@ -349,8 +357,10 @@ export class DatabaseService {
         ? {
             repository: row.githubRepository,
             connected: !!row.githubConnected,
+            owner: row.githubOwner ?? undefined,
           }
         : undefined,
+      createdBy: row.createdBy ?? undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

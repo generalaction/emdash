@@ -56,13 +56,6 @@ const RepositoryList: React.FC<RepositoryListProps> = ({
 
   return (
     <div className="mx-auto w-full max-w-[600px]">
-      <div className="mb-6">
-        <h2 className="mb-2 text-center text-2xl">Your Repositories</h2>
-        <p className="text-center text-sm text-gray-500">
-          {repositories.length} repositories found
-        </p>
-      </div>
-
       <div className="max-h-96 space-y-2 overflow-y-auto">
         {repositories.map((repo) => (
           <Card
@@ -75,11 +68,19 @@ const RepositoryList: React.FC<RepositoryListProps> = ({
                 {getRepositoryIcon(repo)}
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center gap-2">
                     <h3 className="truncate font-medium text-gray-900 dark:text-gray-100">
                       {repo.name}
                     </h3>
                     {repo.private && <Lock className="h-4 w-4 text-gray-400" />}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="truncate">
+                      Owner:{' '}
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {repo.full_name.split('/')[0]}
+                      </span>
+                    </span>
                   </div>
                   {repo.description && (
                     <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">
