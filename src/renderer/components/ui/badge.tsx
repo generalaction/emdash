@@ -6,13 +6,13 @@ type Props = React.HTMLAttributes<HTMLSpanElement> & {
 };
 
 export const Badge: React.FC<Props> = ({ className, variant = 'secondary', ...props }) => {
-  const base = 'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs';
+  const base = 'inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium';
   const styles =
     variant === 'outline'
-      ? 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+      ? 'border border-border/70 bg-background text-foreground'
       : variant === 'default'
-        ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-        : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300 dark:border-gray-700';
+        ? 'bg-foreground text-background'
+        : 'border border-border/70 bg-muted/40 text-foreground';
   return <span className={cn(base, styles, className)} {...props} />;
 };
 
