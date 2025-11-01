@@ -1434,7 +1434,11 @@ const AppContent: React.FC = () => {
           <Titlebar
             onToggleSettings={handleToggleSettings}
             isSettingsOpen={showSettings}
-            currentPath={activeWorkspace?.path || selectedProject?.path || null}
+            currentPath={
+              activeWorkspace?.metadata?.multiAgent?.enabled
+                ? null
+                : activeWorkspace?.path || selectedProject?.path || null
+            }
             githubUser={user}
           />
           <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">

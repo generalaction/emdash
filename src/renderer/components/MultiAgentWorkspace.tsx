@@ -2,13 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { type Workspace } from '../types/chat';
 import { type Provider } from '../types';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 import OpenInMenu from './titlebar/OpenInMenu';
 import { TerminalPane } from './TerminalPane';
 import { providerMeta } from '@/providers/meta';
+import { providerAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
 import { useToast } from '@/hooks/use-toast';
 import { classifyActivity } from '@/lib/activityClassifier';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
+import { GitBranch, CornerDownLeft } from 'lucide-react';
 
 interface Props {
   workspace: Workspace;
@@ -130,14 +133,30 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
     <div className="flex h-full flex-col">
       <div className="border-b border-border p-3">
         <div className="flex items-center gap-2">
-          <input
-            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <Input
+            className="flex-1 h-9"
             placeholder={`Describe the task for ${projectName}…`}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (prompt.trim()) {
+                  void handleRunAll();
+                }
+              }
+            }}
           />
-          <Button onClick={handleRunAll} disabled={!prompt.trim()}>
-            Run in All
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/40"
+            onClick={handleRunAll}
+            disabled={!prompt.trim()}
+            title="Run in all panes (Enter)"
+            aria-label="Run in all panes"
+          >
+            <CornerDownLeft className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -150,10 +169,26 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
               <div className="flex h-full flex-col">
                 <div className="flex items-center justify-between gap-2 border-b border-border px-2 py-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium">{v.provider}</span>
+                    {(() => {
+                      const asset = providerAssets[v.provider];
+                      const meta = providerMeta[v.provider];
+                      return (
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[11px] font-medium">
+                          {asset?.logo ? (
+                            <img
+                              src={asset.logo}
+                              alt={asset.alt || meta?.label || v.provider}
+                              className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                            />
+                          ) : null}
+                          {meta?.label || asset?.name || v.provider}
+                        </span>
+                      );
+                    })()}
                     <span className="truncate text-xs text-muted-foreground" title={v.name}>
                       {v.name}
                     </span>
+                    
                   </div>
                   <div className="flex items-center gap-2">
                     {null}
