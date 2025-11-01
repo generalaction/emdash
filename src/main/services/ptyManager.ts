@@ -140,7 +140,6 @@ export function resizePty(id: string, cols: number, rows: number): void {
 export function killPty(id: string): void {
   const rec = ptys.get(id);
   if (!rec) {
-    log.warn('ptyManager:killMissing', { id });
     return;
   }
   try {
