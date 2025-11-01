@@ -17,58 +17,71 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     title: 'Codex',
     description:
       'CLI that connects to OpenAI models for project‑aware code assistance and terminal workflows.',
+    installCommand: 'npm install -g @openai/codex',
   },
   claude: {
     title: 'Claude Code',
     description:
       'CLI that uses Anthropic Claude for code edits, explanations, and structured refactors in the terminal.',
+    installCommand: 'npm install -g @anthropic-ai/claude-code',
   },
   qwen: {
     title: 'Qwen Code',
     description:
       'Command‑line interface to Alibaba’s Qwen Code models for coding assistance and code completion.',
+    installCommand: 'npm install -g @qwen-code/qwen-code',
   },
   droid: {
     title: 'Droid',
     description: 'Factory AI’s agent CLI for running multi‑step coding tasks from the terminal.',
+    installCommand: 'curl -fsSL https://app.factory.ai/cli | sh',
   },
   gemini: {
     title: 'Gemini',
     description:
       'CLI that uses Google Gemini models to assist with coding, reasoning, and command‑line tasks.',
+    installCommand: 'npm install -g @google/gemini-cli',
   },
   cursor: {
     title: 'Cursor',
     description:
       'Cursor’s agent CLI; provides editor‑style, project‑aware assistance from the shell.',
+    installCommand: 'curl https://cursor.com/install -fsS | bash',
   },
   copilot: {
     title: 'GitHub Copilot',
     description:
       'GitHub Copilot CLI brings Copilot prompts to the terminal for code, shell, and search help.',
+    installCommand: 'npm install -g @github/copilot',
   },
   amp: {
     title: 'Amp',
     description:
       'Amp Code CLI for agentic coding sessions against your repository from the terminal.',
+    installCommand: 'npm install -g @sourcegraph/amp@latest',
   },
   opencode: {
     title: 'OpenCode',
     description:
       'OpenCode CLI that interfaces with models for code generation and edits from the shell.',
+    installCommand: 'npm install -g opencode-ai',
   },
   charm: {
     title: 'Charm',
     description: 'Charm Crush agent CLI providing terminal‑first AI assistance for coding tasks.',
+    installCommand: 'npm install -g @charmland/crush',
   },
   auggie: {
     title: 'Auggie',
     description:
       'Augment Code CLI to run an agent against your repository for code changes and reviews.',
+    installCommand: 'npm install -g @augmentcode/auggie',
   },
   goose: {
     title: 'Goose',
     description: 'Goose CLI that routes tasks to tools and models for coding workflows.',
+    installCommand:
+      'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
   },
 };
 
