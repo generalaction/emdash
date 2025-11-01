@@ -11,6 +11,7 @@ export interface RightSidebarWorkspace {
   path: string;
   status: 'active' | 'idle' | 'running';
   agentId?: string;
+  metadata?: any;
 }
 
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
@@ -19,6 +20,16 @@ interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
 
 const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...rest }) => {
   const { collapsed } = useRightSidebar();
+
+  // Detect multi-agent variants in workspace metadata
+  const variants: Array<{ provider: string; name: string; path: string }> = (() => {
+    try {
+      const v = workspace?.metadata?.multiAgent?.variants || [];
+      if (Array.isArray(v))
+        return v.map((x: any) => ({ provider: x?.provider, name: x?.name, path: x?.path })).filter((x) => x?.path);
+    } catch {}
+    return [];
+  })();
 
   return (
     <aside
@@ -34,11 +45,51 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
       <div className="flex h-full w-full min-w-0 flex-col">
         {workspace ? (
           <div className="flex h-full flex-col">
-            <FileChangesPanel
-              workspaceId={workspace.path}
-              className="min-h-0 flex-1 border-b border-border"
-            />
-            <WorkspaceTerminalPanel workspace={workspace} className="min-h-0 flex-1" />
+            {variants.length > 1 ? (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {variants.map((v, i) => (
+                  <div key={`${v.provider}-${i}`} className="mb-2 border-b border-border last:mb-0 last:border-b-0">
+                    <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {v.provider}
+                        </span>
+                        <span className="truncate" title={v.name}>
+                          {v.name}
+                        </span>
+                      </span>
+                    </div>
+                    <FileChangesPanel workspaceId={v.path} className="min-h-0" />
+                  </div>
+                ))}
+              </div>
+            ) : variants.length === 1 ? (
+              (() => {
+                const v = variants[0];
+                const derived = {
+                  ...workspace,
+                  path: v.path,
+                  name: v.name || workspace.name,
+                } as any;
+                return (
+                  <>
+                    <FileChangesPanel
+                      workspaceId={v.path}
+                      className="min-h-0 flex-1 border-b border-border"
+                    />
+                    <WorkspaceTerminalPanel workspace={derived} className="min-h-0 flex-1" />
+                  </>
+                );
+              })()
+            ) : (
+              <>
+                <FileChangesPanel
+                  workspaceId={workspace.path}
+                  className="min-h-0 flex-1 border-b border-border"
+                />
+                <WorkspaceTerminalPanel workspace={workspace} className="min-h-0 flex-1" />
+              </>
+            )}
           </div>
         ) : (
           <div className="flex h-full flex-col text-sm text-muted-foreground">
