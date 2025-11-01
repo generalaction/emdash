@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
+import { useFileChanges } from '@/hooks/useFileChanges';
 import WorkspaceTerminalPanel from './WorkspaceTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { providerAssets } from '@/providers/assets';
@@ -76,7 +77,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                         </span>
                       </span>
                     </div>
-                    <FileChangesPanel workspaceId={v.path} className="min-h-0" />
+                    <VariantChangesIfAny path={v.path} />
                   </div>
                 ))}
               </div>
@@ -90,10 +91,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                 } as any;
                 return (
                   <>
-                    <FileChangesPanel
-                      workspaceId={v.path}
-                      className="min-h-0 flex-1 border-b border-border"
-                    />
+                    <VariantChangesIfAny path={v.path} className="min-h-0 flex-1 border-b border-border" />
                     <WorkspaceTerminalPanel workspace={derived} className="min-h-0 flex-1" />
                   </>
                 );
@@ -138,3 +136,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
 };
 
 export default RightSidebar;
+
+const VariantChangesIfAny: React.FC<{ path: string; className?: string }> = ({ path, className }) => {
+  const { fileChanges } = useFileChanges(path);
+  if (!fileChanges || fileChanges.length === 0) return null;
+  return <FileChangesPanel workspaceId={path} className={className || 'min-h-0'} />;
+};
