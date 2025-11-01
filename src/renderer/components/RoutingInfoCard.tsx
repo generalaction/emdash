@@ -67,8 +67,8 @@ export const RoutingInfoCard: React.FC = () => {
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
       </div>
-      <div className="flex items-center justify-between rounded-md border px-2 py-1 text-xs text-foreground">
-        <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-[11px]">
+      <div className="flex h-7 items-center justify-between rounded-md border px-2 text-xs text-foreground">
+        <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-[11px] leading-none">
           {installCommand}
         </code>
         <button
