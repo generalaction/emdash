@@ -273,25 +273,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <label className="w-32 shrink-0 text-sm font-medium text-foreground">
-                      Multiple agents
-                    </label>
-                    <div className="min-w-0 flex-1">
-                      <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={multiEnabled}
-                          onChange={(e) => setMultiEnabled(e.target.checked)}
-                          className="h-4 w-4"
-                        />
-                        <span className="text-muted-foreground">
-                          Run multiple providers in parallel for this workspace
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
                   <Accordion
                     type="single"
                     collapsible
@@ -318,6 +299,24 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
                         <div className="flex flex-col gap-4">
+                          <div className="flex items-center gap-4">
+                            <label className="w-32 shrink-0 text-sm font-medium text-foreground">
+                              Multiple agents
+                            </label>
+                            <div className="min-w-0 flex-1">
+                              <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={multiEnabled}
+                                  onChange={(e) => setMultiEnabled(e.target.checked)}
+                                  className="h-4 w-4"
+                                />
+                                <span className="text-muted-foreground">
+                                  Run a task across multiple providers
+                                </span>
+                              </label>
+                            </div>
+                          </div>
                           <div className="flex items-start gap-4">
                             <label
                               htmlFor="linear-issue"
