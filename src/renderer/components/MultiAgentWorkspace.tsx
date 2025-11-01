@@ -32,15 +32,8 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
   const [prompt, setPrompt] = useState('');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const multi = workspace.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
-
-  const gridClass = useMemo(() => {
-    const n = variants.length;
-    if (n <= 2) return 'grid-cols-1 md:grid-cols-2';
-    return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-2';
-  }, [variants.length]);
 
   // Ensure Codex agents are created per-variant for streaming orchestration
   useEffect(() => {

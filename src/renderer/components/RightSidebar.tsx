@@ -6,6 +6,7 @@ import WorkspaceTerminalPanel from './WorkspaceTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { providerAssets } from '@/providers/assets';
 import { providerMeta } from '@/providers/meta';
+import type { Provider } from '../types';
 
 export interface RightSidebarWorkspace {
   id: string;
@@ -25,12 +26,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
   const { collapsed } = useRightSidebar();
 
   // Detect multi-agent variants in workspace metadata
-  const variants: Array<{ provider: string; name: string; path: string }> = (() => {
+  const variants: Array<{ provider: Provider; name: string; path: string }> = (() => {
     try {
       const v = workspace?.metadata?.multiAgent?.variants || [];
       if (Array.isArray(v))
         return v
-          .map((x: any) => ({ provider: x?.provider, name: x?.name, path: x?.path }))
+          .map((x: any) => ({ provider: x?.provider as Provider, name: x?.name, path: x?.path }))
           .filter((x) => x?.path);
     } catch {}
     return [];
