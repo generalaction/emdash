@@ -68,7 +68,13 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
   const label = count === 0 ? 'Select providers' : names.join(', ');
   const primary = value[0];
   const primaryInfo = primary ? providerConfig[primary] : null;
-  const icons = count > 1 ? value.slice(0, 4).map((id) => providerConfig[id]).filter(Boolean) : [];
+  const icons =
+    count > 1
+      ? value
+          .slice(0, 4)
+          .map((id) => providerConfig[id])
+          .filter(Boolean)
+      : [];
 
   return (
     <div ref={ref} className={`relative ${className}`}>
@@ -86,7 +92,7 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
                 <img
                   src={primaryInfo.logo}
                   alt={primaryInfo.alt}
-                  className={`h-4 w-4 shrink-0 shadow-xs rounded-sm ${primaryInfo.invertInDark ? 'dark:invert' : ''}`}
+                  className={`shadow-xs h-4 w-4 shrink-0 rounded-sm ${primaryInfo.invertInDark ? 'dark:invert' : ''}`}
                 />
                 <span className="flex-1 truncate text-sm text-foreground">{label}</span>
               </>
@@ -102,9 +108,7 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
                     src={info.logo}
                     alt={info.alt}
                     className={[
-                      idx === 0
-                        ? 'h-4 w-4'
-                        : 'h-[13px] w-[13px] opacity-95',
+                      idx === 0 ? 'h-4 w-4' : 'h-[13px] w-[13px] opacity-95',
                       'rounded-sm ring-1 ring-border',
                       info.invertInDark ? 'dark:invert' : '',
                     ].join(' ')}
@@ -129,8 +133,14 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
             style={{ transformOrigin: 'top right' }}
             initial={shouldReduceMotion ? false : { opacity: 0, y: 6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={shouldReduceMotion ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 4, scale: 0.98 }}
-            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            exit={
+              shouldReduceMotion
+                ? { opacity: 1, y: 0, scale: 1 }
+                : { opacity: 0, y: 4, scale: 0.98 }
+            }
+            transition={
+              shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
+            }
           >
             {(Object.keys(providerConfig) as Provider[]).map((id) => {
               const info = providerConfig[id];
@@ -138,7 +148,7 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
               return (
                 <label
                   key={id}
-                  className={`flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm shadow-xs hover:bg-accent hover:text-accent-foreground ${
+                  className={`shadow-xs flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${
                     active ? 'bg-accent/40' : ''
                   }`}
                   onMouseDown={(e) => e.preventDefault()}

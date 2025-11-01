@@ -29,7 +29,19 @@ export interface WorkspaceMetadata {
     >;
     variants: Array<{
       id: string; // stable variant id within this workspace
-      provider: 'codex' | 'claude' | 'qwen' | 'droid' | 'gemini' | 'cursor' | 'copilot' | 'amp' | 'opencode' | 'charm' | 'auggie' | 'goose';
+      provider:
+        | 'codex'
+        | 'claude'
+        | 'qwen'
+        | 'droid'
+        | 'gemini'
+        | 'cursor'
+        | 'copilot'
+        | 'amp'
+        | 'opencode'
+        | 'charm'
+        | 'auggie'
+        | 'goose';
       name: string; // worktree display name, e.g. workspaceName-providerSlug
       branch: string;
       path: string; // filesystem path of the worktree

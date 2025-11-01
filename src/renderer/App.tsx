@@ -848,11 +848,21 @@ const AppContent: React.FC = () => {
           : null;
 
       // Multi-agent or single-agent workspace creation
-      const useMulti = !!multiAgent?.enabled && Array.isArray(multiAgent?.providers) && multiAgent!.providers.length >= 2;
+      const useMulti =
+        !!multiAgent?.enabled &&
+        Array.isArray(multiAgent?.providers) &&
+        multiAgent!.providers.length >= 2;
       let newWorkspace: Workspace;
       if (useMulti) {
         const providers = multiAgent!.providers.slice(0, multiAgent?.maxProviders || 4);
-        const variants: Array<{ id: string; provider: Provider; name: string; branch: string; path: string; worktreeId: string }> = [];
+        const variants: Array<{
+          id: string;
+          provider: Provider;
+          name: string;
+          branch: string;
+          path: string;
+          worktreeId: string;
+        }> = [];
         for (const prov of providers) {
           const vtName = `${workspaceName}-${prov.toLowerCase()}`;
           const wtRes = await window.electronAPI.worktreeCreate({

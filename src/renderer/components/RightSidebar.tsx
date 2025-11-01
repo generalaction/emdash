@@ -29,7 +29,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
     try {
       const v = workspace?.metadata?.multiAgent?.variants || [];
       if (Array.isArray(v))
-        return v.map((x: any) => ({ provider: x?.provider, name: x?.name, path: x?.path })).filter((x) => x?.path);
+        return v
+          .map((x: any) => ({ provider: x?.provider, name: x?.name, path: x?.path }))
+          .filter((x) => x?.path);
     } catch {}
     return [];
   })();
@@ -51,14 +53,19 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
             {variants.length > 1 ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {variants.map((v, i) => (
-                  <div key={`${v.provider}-${i}`} className="mb-2 border-b border-border last:mb-0 last:border-b-0">
+                  <div
+                    key={`${v.provider}-${i}`}
+                    className="mb-2 border-b border-border last:mb-0 last:border-b-0"
+                  >
                     <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
                       <span className="inline-flex items-center gap-2">
                         {(() => {
                           const asset = (providerAssets as any)[v.provider] as
                             | { logo: string; alt: string; name: string; invertInDark?: boolean }
                             | undefined;
-                          const meta = (providerMeta as any)[v.provider] as { label?: string } | undefined;
+                          const meta = (providerMeta as any)[v.provider] as
+                            | { label?: string }
+                            | undefined;
                           return (
                             <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
                               {asset?.logo ? (
@@ -91,7 +98,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                 } as any;
                 return (
                   <>
-                    <VariantChangesIfAny path={v.path} className="min-h-0 flex-1 border-b border-border" />
+                    <VariantChangesIfAny
+                      path={v.path}
+                      className="min-h-0 flex-1 border-b border-border"
+                    />
                     <WorkspaceTerminalPanel workspace={derived} className="min-h-0 flex-1" />
                   </>
                 );
@@ -137,7 +147,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
 
 export default RightSidebar;
 
-const VariantChangesIfAny: React.FC<{ path: string; className?: string }> = ({ path, className }) => {
+const VariantChangesIfAny: React.FC<{ path: string; className?: string }> = ({
+  path,
+  className,
+}) => {
   const { fileChanges } = useFileChanges(path);
   if (!fileChanges || fileChanges.length === 0) return null;
   return <FileChangesPanel workspaceId={path} className={className || 'min-h-0'} />;

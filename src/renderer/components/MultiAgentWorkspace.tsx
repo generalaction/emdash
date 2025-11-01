@@ -48,7 +48,10 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
       for (const v of variants) {
         if (v.provider === 'codex') {
           try {
-            await (window as any).electronAPI.codexCreateAgent?.(`${workspace.id}::${v.provider}` , v.path);
+            await (window as any).electronAPI.codexCreateAgent?.(
+              `${workspace.id}::${v.provider}`,
+              v.path
+            );
           } catch {}
         }
       }
@@ -134,7 +137,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
       <div className="border-b border-border p-3">
         <div className="flex items-center gap-2">
           <Input
-            className="flex-1 h-9"
+            className="h-9 flex-1"
             placeholder="Tell the agents what to do..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -188,7 +191,6 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
                     <span className="truncate text-xs text-muted-foreground" title={v.name}>
                       {v.name}
                     </span>
-                    
                   </div>
                   <div className="flex items-center gap-2">
                     {null}
