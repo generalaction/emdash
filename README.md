@@ -92,14 +92,14 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 # Demo
 
 #### Add an agents.md file
-![Agents.md](https://github.com/user-attachments/assets/dab94f63-e8fe-481e-8e9b-aea9d0b5eb23)
+![Agents.md](https://www.emdash.sh/agents_loop.gif)
 #### Run multiple agents in parallel
 
-![Parallel agents](https://github.com/user-attachments/assets/0efe3327-4d16-4693-9b6b-6f5457cba6c7)
+![Parallel agents](https://www.emdash.sh/parallel_loop.gif)
 
 #### Passing a Linear ticket
 
-![Passing Linear](https://github.com/user-attachments/assets/269e91b8-92c0-46e1-92db-43d197b4defa)
+![Passing Linear](https://www.emdash.sh/linear_looped.gif)
 
 
 # Contributing
@@ -194,5 +194,4 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 >
 > Emdash itself does **not** send your code or chats to our servers. Third‑party CLIs may transmit data per their policies.
 </details>
-
 
