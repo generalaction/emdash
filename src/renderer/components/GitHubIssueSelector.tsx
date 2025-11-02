@@ -147,7 +147,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   const issueHelperText = (() => {
     if (!canListGithub) return 'Connect GitHub CLI to browse issues.';
     if (hasRequestedIssues && !isLoadingIssues && !issuesLoaded && !issueListError)
-      return 'No GitHub issues available.';
+      return 'No GitHub issues available for this project.';
     return null;
   })();
 

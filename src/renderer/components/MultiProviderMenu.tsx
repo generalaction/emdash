@@ -2,6 +2,9 @@ import React from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { type Provider } from '../types';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { ProviderInfoCard } from './ProviderInfoCard';
+import type { UiProvider } from '@/providers/meta';
 import openaiLogo from '../../assets/images/openai.png';
 import claudeLogo from '../../assets/images/claude.png';
 import factoryLogo from '../../assets/images/factorydroid.png';
@@ -103,17 +106,23 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
             <>
               <div className="relative flex items-center">
                 {icons.map((info, idx) => (
-                  <img
+                  <div
                     key={`${info.alt}-${idx}`}
-                    src={info.logo}
-                    alt={info.alt}
                     className={[
                       idx === 0 ? 'h-4 w-4' : 'h-[13px] w-[13px] opacity-95',
-                      'rounded-sm ring-1 ring-border',
-                      info.invertInDark ? 'dark:invert' : '',
+                      'rounded-sm bg-white ring-1 ring-border dark:bg-white',
                     ].join(' ')}
                     style={{ marginLeft: idx === 0 ? 0 : -6, zIndex: 10 - idx }}
-                  />
+                  >
+                    <img
+                      src={info.logo}
+                      alt={info.alt}
+                      className={[
+                        info.invertInDark ? 'dark:invert' : '',
+                        'h-full w-full rounded-sm object-contain',
+                      ].join(' ')}
+                    />
+                  </div>
                 ))}
               </div>
               <span className="flex-1 truncate text-sm text-foreground">{label}</span>
@@ -142,40 +151,67 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {(Object.keys(providerConfig) as Provider[]).map((id) => {
-              const info = providerConfig[id];
-              const active = selected.has(id);
-              return (
-                <label
-                  key={id}
-                  className={`shadow-xs flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${
-                    active ? 'bg-accent/40' : ''
-                  }`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => toggle(id)}
-                >
-                  <input type="checkbox" checked={active} readOnly className="h-3.5 w-3.5" />
-                  <img
-                    src={info.logo}
-                    alt={info.alt}
-                    className={`h-4 w-4 rounded-sm ${info.invertInDark ? 'dark:invert' : ''}`}
-                  />
-                  <span className="truncate">{info.name}</span>
-                </label>
-              );
-            })}
-            <div className="px-1 py-1 text-right">
-              <button
-                className="rounded border border-border bg-background px-2 py-1 text-xs"
-                onClick={() => setOpen(false)}
-              >
-                Done
-              </button>
-            </div>
+            <TooltipProvider delayDuration={150}>
+              {(Object.keys(providerConfig) as Provider[]).map((id) => {
+                const info = providerConfig[id];
+                const active = selected.has(id);
+                return (
+                  <MultiTooltipRow key={id} id={id}>
+                    <label
+                      className={`shadow-xs flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${
+                        active ? 'bg-accent/40' : ''
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => toggle(id)}
+                    >
+                      <input type="checkbox" checked={active} readOnly className="h-3.5 w-3.5" />
+                      <img
+                        src={info.logo}
+                        alt={info.alt}
+                        className={`h-4 w-4 rounded-sm ${info.invertInDark ? 'dark:invert' : ''}`}
+                      />
+                      <span className="truncate">{info.name}</span>
+                    </label>
+                  </MultiTooltipRow>
+                );
+              })}
+            </TooltipProvider>
+            {/* Removed explicit Done button; panel closes on outside click */}
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+};
+
+// Tooltip wrapper matching the single-select ProviderSelector behavior
+const MultiTooltipRow: React.FC<{ id: Provider; children: React.ReactElement }> = ({
+  id,
+  children,
+}) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Tooltip open={open}>
+      <TooltipTrigger asChild>
+        {React.cloneElement(children, {
+          onMouseEnter: () => setOpen(true),
+          onMouseLeave: () => setOpen(false),
+          onPointerEnter: () => setOpen(true),
+          onPointerLeave: () => setOpen(false),
+        })}
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="start"
+        className="border-foreground/20 bg-background p-0 text-foreground"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onPointerEnter={() => setOpen(true)}
+        onPointerLeave={() => setOpen(false)}
+      >
+        <ProviderInfoCard id={id as UiProvider} />
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
