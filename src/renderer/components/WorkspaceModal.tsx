@@ -312,7 +312,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                   className="h-4 w-4"
                                 />
                                 <span className="text-muted-foreground">
-                                  Run a task across multiple providers
+                                  Run a task across multiple agents
                                 </span>
                               </label>
                             </div>
