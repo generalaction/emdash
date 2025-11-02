@@ -110,14 +110,17 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
                     key={`${info.alt}-${idx}`}
                     className={[
                       idx === 0 ? 'h-4 w-4' : 'h-[13px] w-[13px] opacity-95',
-                      'rounded-sm ring-1 ring-border bg-white dark:bg-white',
+                      'rounded-sm bg-white ring-1 ring-border dark:bg-white',
                     ].join(' ')}
                     style={{ marginLeft: idx === 0 ? 0 : -6, zIndex: 10 - idx }}
                   >
                     <img
                       src={info.logo}
                       alt={info.alt}
-                      className={[info.invertInDark ? 'dark:invert' : '', 'h-full w-full rounded-sm object-contain'].join(' ')}
+                      className={[
+                        info.invertInDark ? 'dark:invert' : '',
+                        'h-full w-full rounded-sm object-contain',
+                      ].join(' ')}
                     />
                   </div>
                 ))}
@@ -149,29 +152,29 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
             }
           >
             <TooltipProvider delayDuration={150}>
-            {(Object.keys(providerConfig) as Provider[]).map((id) => {
-              const info = providerConfig[id];
-              const active = selected.has(id);
-              return (
-                <MultiTooltipRow key={id} id={id}>
-                  <label
-                    className={`shadow-xs flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${
-                      active ? 'bg-accent/40' : ''
-                    }`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => toggle(id)}
-                  >
-                    <input type="checkbox" checked={active} readOnly className="h-3.5 w-3.5" />
-                    <img
-                      src={info.logo}
-                      alt={info.alt}
-                      className={`h-4 w-4 rounded-sm ${info.invertInDark ? 'dark:invert' : ''}`}
-                    />
-                    <span className="truncate">{info.name}</span>
-                  </label>
-                </MultiTooltipRow>
-              );
-            })}
+              {(Object.keys(providerConfig) as Provider[]).map((id) => {
+                const info = providerConfig[id];
+                const active = selected.has(id);
+                return (
+                  <MultiTooltipRow key={id} id={id}>
+                    <label
+                      className={`shadow-xs flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${
+                        active ? 'bg-accent/40' : ''
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => toggle(id)}
+                    >
+                      <input type="checkbox" checked={active} readOnly className="h-3.5 w-3.5" />
+                      <img
+                        src={info.logo}
+                        alt={info.alt}
+                        className={`h-4 w-4 rounded-sm ${info.invertInDark ? 'dark:invert' : ''}`}
+                      />
+                      <span className="truncate">{info.name}</span>
+                    </label>
+                  </MultiTooltipRow>
+                );
+              })}
             </TooltipProvider>
             {/* Removed explicit Done button; panel closes on outside click */}
           </motion.div>
@@ -182,7 +185,10 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
 };
 
 // Tooltip wrapper matching the single-select ProviderSelector behavior
-const MultiTooltipRow: React.FC<{ id: Provider; children: React.ReactElement }> = ({ id, children }) => {
+const MultiTooltipRow: React.FC<{ id: Provider; children: React.ReactElement }> = ({
+  id,
+  children,
+}) => {
   const [open, setOpen] = React.useState(false);
   return (
     <Tooltip open={open}>
