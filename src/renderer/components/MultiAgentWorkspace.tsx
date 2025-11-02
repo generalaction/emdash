@@ -66,7 +66,15 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
     }
     // GitHub
     const gh = (md as any)?.githubIssue as
-      | { number: number; title?: string; url?: string; state?: string; assignees?: any[]; labels?: any[]; body?: string }
+      | {
+          number: number;
+          title?: string;
+          url?: string;
+          state?: string;
+          assignees?: any[];
+          labels?: any[];
+          body?: string;
+        }
       | undefined;
     if (gh) {
       const parts: string[] = [];
@@ -76,13 +84,19 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
       if (gh.state) details.push(`State: ${gh.state}`);
       try {
         const as = Array.isArray(gh.assignees)
-          ? gh.assignees.map((a: any) => a?.name || a?.login).filter(Boolean).join(', ')
+          ? gh.assignees
+              .map((a: any) => a?.name || a?.login)
+              .filter(Boolean)
+              .join(', ')
           : '';
         if (as) details.push(`Assignees: ${as}`);
       } catch {}
       try {
         const ls = Array.isArray(gh.labels)
-          ? gh.labels.map((l: any) => l?.name).filter(Boolean).join(', ')
+          ? gh.labels
+              .map((l: any) => l?.name)
+              .filter(Boolean)
+              .join(', ')
           : '';
         if (ls) details.push(`Labels: ${ls}`);
       } catch {}

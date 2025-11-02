@@ -1074,7 +1074,8 @@ const AppContent: React.FC = () => {
             if (convoResult?.success && convoResult.conversation?.id) {
               const issue: any = workspaceMetadata.jiraIssue;
               const lines: string[] = [];
-              const line1 = `Linked Jira issue: ${issue.key || ''}${issue.summary ? ` — ${issue.summary}` : ''}`.trim();
+              const line1 =
+                `Linked Jira issue: ${issue.key || ''}${issue.summary ? ` — ${issue.summary}` : ''}`.trim();
               if (line1) lines.push(line1);
 
               const details: string[] = [];
