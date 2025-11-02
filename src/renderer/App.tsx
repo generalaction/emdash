@@ -1065,6 +1065,42 @@ const AppContent: React.FC = () => {
             log.error('Failed to seed workspace with GitHub issue context:', seedError as any);
           }
         }
+        if (workspaceMetadata?.jiraIssue) {
+          try {
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
+              newWorkspace.id
+            );
+
+            if (convoResult?.success && convoResult.conversation?.id) {
+              const issue: any = workspaceMetadata.jiraIssue;
+              const lines: string[] = [];
+              const line1 = `Linked Jira issue: ${issue.key || ''}${issue.summary ? ` — ${issue.summary}` : ''}`.trim();
+              if (line1) lines.push(line1);
+
+              const details: string[] = [];
+              if (issue.status?.name) details.push(`Status: ${issue.status.name}`);
+              if (issue.assignee?.displayName || issue.assignee?.name)
+                details.push(`Assignee: ${issue.assignee?.displayName || issue.assignee?.name}`);
+              if (issue.project?.key) details.push(`Project: ${issue.project.key}`);
+              if (details.length) lines.push(`Details: ${details.join(' • ')}`);
+              if (issue.url) lines.push(`URL: ${issue.url}`);
+
+              await window.electronAPI.saveMessage({
+                id: `jira-context-${newWorkspace.id}`,
+                conversationId: convoResult.conversation.id,
+                content: lines.join('\n'),
+                sender: 'agent',
+                metadata: JSON.stringify({
+                  isJiraContext: true,
+                  jiraIssue: issue,
+                }),
+              });
+            }
+          } catch (seedError) {
+            const { log } = await import('./lib/logger');
+            log.error('Failed to seed workspace with Jira issue context:', seedError as any);
+          }
+        }
 
         setProjects((prev) =>
           prev.map((project) =>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { type Workspace } from '../types/chat';
 import { type Provider } from '../types';
 import { Button } from './ui/button';
@@ -34,6 +34,85 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
   const [prompt, setPrompt] = useState('');
   const multi = workspace.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
+
+  // Build initial issue context (feature parity with single-agent ChatInterface)
+  const initialInjection: string | null = useMemo(() => {
+    const md: any = workspace.metadata || null;
+    if (!md) return null;
+    const p = (md.initialPrompt || '').trim();
+    if (p) return p;
+    // Linear
+    const issue = md.linearIssue;
+    if (issue) {
+      const parts: string[] = [];
+      const line1 = `Linked Linear issue: ${issue.identifier}${issue.title ? ` — ${issue.title}` : ''}`;
+      parts.push(line1);
+      const details: string[] = [];
+      if (issue.state?.name) details.push(`State: ${issue.state.name}`);
+      if (issue.assignee?.displayName || issue.assignee?.name)
+        details.push(`Assignee: ${issue.assignee?.displayName || issue.assignee?.name}`);
+      if (issue.team?.key) details.push(`Team: ${issue.team.key}`);
+      if (issue.project?.name) details.push(`Project: ${issue.project.name}`);
+      if (details.length) parts.push(`Details: ${details.join(' • ')}`);
+      if (issue.url) parts.push(`URL: ${issue.url}`);
+      const desc = (issue as any)?.description;
+      if (typeof desc === 'string' && desc.trim()) {
+        const trimmed = desc.trim();
+        const max = 1500;
+        const body = trimmed.length > max ? trimmed.slice(0, max) + '\n…' : trimmed;
+        parts.push('', 'Issue Description:', body);
+      }
+      return parts.join('\n');
+    }
+    // GitHub
+    const gh = (md as any)?.githubIssue as
+      | { number: number; title?: string; url?: string; state?: string; assignees?: any[]; labels?: any[]; body?: string }
+      | undefined;
+    if (gh) {
+      const parts: string[] = [];
+      const line1 = `Linked GitHub issue: #${gh.number}${gh.title ? ` — ${gh.title}` : ''}`;
+      parts.push(line1);
+      const details: string[] = [];
+      if (gh.state) details.push(`State: ${gh.state}`);
+      try {
+        const as = Array.isArray(gh.assignees)
+          ? gh.assignees.map((a: any) => a?.name || a?.login).filter(Boolean).join(', ')
+          : '';
+        if (as) details.push(`Assignees: ${as}`);
+      } catch {}
+      try {
+        const ls = Array.isArray(gh.labels)
+          ? gh.labels.map((l: any) => l?.name).filter(Boolean).join(', ')
+          : '';
+        if (ls) details.push(`Labels: ${ls}`);
+      } catch {}
+      if (details.length) parts.push(`Details: ${details.join(' • ')}`);
+      if (gh.url) parts.push(`URL: ${gh.url}`);
+      const body = typeof gh.body === 'string' ? gh.body.trim() : '';
+      if (body) {
+        const max = 1500;
+        const clipped = body.length > max ? body.slice(0, max) + '\n…' : body;
+        parts.push('', 'Issue Description:', clipped);
+      }
+      return parts.join('\n');
+    }
+    // Jira
+    const j = md?.jiraIssue as any;
+    if (j) {
+      const lines: string[] = [];
+      const l1 = `Linked Jira issue: ${j.key}${j.summary ? ` — ${j.summary}` : ''}`;
+      lines.push(l1);
+      const details: string[] = [];
+      if (j.status?.name) details.push(`Status: ${j.status.name}`);
+      if (j.assignee?.displayName || j.assignee?.name)
+        details.push(`Assignee: ${j.assignee?.displayName || j.assignee?.name}`);
+      if (j.project?.key) details.push(`Project: ${j.project.key}`);
+      if (details.length) lines.push(`Details: ${details.join(' • ')}`);
+      if (j.url) lines.push(`URL: ${j.url}`);
+      return lines.join('\n');
+    }
+    return null;
+  }, [workspace.metadata]);
 
   // Ensure Codex agents are created per-variant for streaming orchestration
   useEffect(() => {
@@ -113,9 +192,21 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
       tasks.push(injectPrompt(termId, v.provider, msg));
     });
     await Promise.all(tasks);
+    // Clear the input after sending
+    setPrompt('');
   };
 
-  // No explicit "Choose" action; PR creation in the Right Sidebar serves as the selection.
+  // Prefill the top input with the prepared issue context once (user can edit before sending)
+  const prefillOnceRef = useRef(false);
+  useEffect(() => {
+    if (prefillOnceRef.current) return;
+    const text = (initialInjection || '').trim();
+    if (text && !prompt) {
+      setPrompt(text);
+    }
+    prefillOnceRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialInjection]);
 
   if (!multi?.enabled || variants.length === 0) {
     return (
