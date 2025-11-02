@@ -329,9 +329,13 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 selectedIssue={selectedLinearIssue}
                                 onIssueChange={(issue) => {
                                   setSelectedLinearIssue(issue);
-                                  if (issue) setSelectedGithubIssue(null);
+                                  if (issue) {
+                                    setSelectedGithubIssue(null);
+                                    setSelectedJiraIssue(null);
+                                  }
                                 }}
                                 isOpen={isOpen && showAdvanced}
+                                disabled={!!selectedGithubIssue || !!selectedJiraIssue}
                                 className="w-full"
                               />
                             </div>
@@ -349,10 +353,13 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 selectedIssue={selectedGithubIssue}
                                 onIssueChange={(issue) => {
                                   setSelectedGithubIssue(issue);
-                                  if (issue) setSelectedLinearIssue(null);
+                                  if (issue) {
+                                    setSelectedLinearIssue(null);
+                                    setSelectedJiraIssue(null);
+                                  }
                                 }}
                                 isOpen={isOpen && showAdvanced}
-                                disabled={!!selectedJiraIssue}
+                                disabled={!!selectedJiraIssue || !!selectedLinearIssue}
                                 className="w-full"
                               />
                             </div>
@@ -368,9 +375,15 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               {isJiraConnected ? (
                                 <JiraIssueSelector
                                   selectedIssue={selectedJiraIssue}
-                                  onIssueChange={setSelectedJiraIssue}
+                                  onIssueChange={(issue) => {
+                                    setSelectedJiraIssue(issue);
+                                    if (issue) {
+                                      setSelectedLinearIssue(null);
+                                      setSelectedGithubIssue(null);
+                                    }
+                                  }}
                                   isOpen={isOpen && showAdvanced}
-                                  disabled={!!selectedLinearIssue}
+                                  disabled={!!selectedLinearIssue || !!selectedGithubIssue}
                                   className="w-full"
                                 />
                               ) : (
@@ -405,9 +418,11 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               placeholder={
                                 selectedLinearIssue
                                   ? `e.g. Fix the attached Linear ticket ${selectedLinearIssue.identifier} — describe any constraints.`
-                                  : selectedJiraIssue
-                                    ? `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`
-                                    : `e.g. Summarize the key problems and propose a plan.`
+                                  : selectedGithubIssue
+                                    ? `e.g. Fix the attached GitHub issue #${selectedGithubIssue.number} — describe any constraints.`
+                                    : selectedJiraIssue
+                                      ? `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`
+                                      : `e.g. Summarize the key problems and propose a plan.`
                               }
                               className="min-h-[80px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none"
                               rows={3}
