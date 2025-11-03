@@ -43,7 +43,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
       <div className="flex h-screen w-screen items-center justify-center bg-background p-6">
         <div className="max-w-xl rounded-md border border-border bg-card p-6 text-card-foreground shadow-sm">
           <h1 className="mb-2 text-lg font-semibold">Something went wrong</h1>
-          <p className="mb-4 text-sm text-muted-foreground break-all">{message}</p>
+          <p className="mb-4 break-all text-sm text-muted-foreground">{message}</p>
           <div className="flex items-center gap-2">
             <button
               type="button"
