@@ -14,6 +14,7 @@ import { useToast } from './hooks/use-toast';
 import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import { ThemeProvider } from './components/ThemeProvider';
+import ErrorBoundary from './components/ErrorBoundary';
 import emdashLogo from '../assets/images/emdash/emdash_logo.svg';
 import emdashLogoWhite from '../assets/images/emdash/emdash_logo_white.svg';
 import Titlebar from './components/titlebar/Titlebar';
@@ -1590,7 +1591,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </ThemeProvider>
   );
 };
