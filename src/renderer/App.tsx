@@ -1509,6 +1509,7 @@ const AppContent: React.FC = () => {
                   selectedProject={selectedProject}
                   onSelectProject={handleSelectProject}
                   onGoHome={handleGoHome}
+                  onOpenProject={handleOpenProject}
                   onSelectWorkspace={handleSelectWorkspace}
                   activeWorkspace={activeWorkspace || undefined}
                   onReorderProjects={handleReorderProjects}

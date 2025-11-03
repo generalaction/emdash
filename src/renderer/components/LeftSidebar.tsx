@@ -16,6 +16,7 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Home, ChevronDown, Plus } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
+import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
 import { WorkspaceItem } from './WorkspaceItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
@@ -65,6 +66,7 @@ interface LeftSidebarProps {
   selectedProject: Project | null;
   onSelectProject: (project: Project) => void;
   onGoHome: () => void;
+  onOpenProject?: () => void;
   onSelectWorkspace?: (workspace: Workspace) => void;
   activeWorkspace?: Workspace | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
@@ -88,6 +90,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   selectedProject,
   onSelectProject,
   onGoHome,
+  onOpenProject,
   onSelectWorkspace,
   activeWorkspace,
   onReorderProjects,
@@ -176,6 +179,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             onSelectProject={onSelectProject}
             onSelectWorkspace={onSelectWorkspace}
           />
+
+          {projects.length === 0 && (
+            <SidebarEmptyState
+              title="No projects yet"
+              description="Open a project to start creating worktrees and running coding agents."
+              actionLabel={onOpenProject ? 'Open Project' : undefined}
+              onAction={onOpenProject}
+            />
+          )}
 
           <SidebarGroup>
             <SidebarGroupLabel className="sr-only">Projects</SidebarGroupLabel>
