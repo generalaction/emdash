@@ -198,6 +198,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (provider === 'claude') return 'Tell Claude Code what to do...';
     if (provider === 'droid') return 'Factory Droid uses the terminal above.';
     if (provider === 'gemini') return 'Gemini CLI uses the terminal above.';
+    if (provider === 'kimi') return 'Kimi CLI runs in the terminal below.';
     if (provider === 'cursor') return 'Cursor CLI runs in the terminal above.';
     if (provider === 'copilot') return 'Copilot CLI runs in the terminal above.';
     if (provider === 'amp') return 'Amp CLI runs in the terminal above.';
@@ -221,7 +222,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     provider === 'cursor' ||
     provider === 'copilot' ||
     provider === 'amp' ||
-    provider === 'opencode'
+    provider === 'opencode' ||
+    provider === 'kimi'
       ? true
       : isLoading
         ? baseDisabled
@@ -357,7 +359,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   provider === 'cursor' ||
                   provider === 'copilot' ||
                   provider === 'amp' ||
-                  provider === 'opencode'
+                  provider === 'opencode' ||
+                  provider === 'kimi'
                     ? 'Terminal-only provider'
                     : isLoading
                       ? 'Stop Codex'
@@ -369,7 +372,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 provider === 'cursor' ||
                 provider === 'copilot' ||
                 provider === 'amp' ||
-                provider === 'opencode' ? (
+                provider === 'opencode' ||
+                provider === 'kimi' ? (
                   <div className="flex h-full w-full items-center justify-center">
                     <div className="h-3.5 w-3.5 rounded-[3px] bg-gray-500 dark:bg-gray-300" />
                   </div>

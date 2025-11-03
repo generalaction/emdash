@@ -26,6 +26,7 @@ import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
+import kimiLogo from '../../assets/images/kimi.png';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -105,6 +106,12 @@ const providerConfig = {
     name: 'Goose',
     logo: gooseLogo,
     alt: 'Goose CLI',
+    invertInDark: false,
+  },
+  kimi: {
+    name: 'Kimi',
+    logo: kimiLogo,
+    alt: 'Kimi CLI',
     invertInDark: false,
   },
 } as const;

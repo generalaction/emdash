@@ -57,7 +57,8 @@ export type Provider =
   | 'opencode'
   | 'charm'
   | 'auggie'
-  | 'goose';
+  | 'goose'
+  | 'kimi';
 
 // Keyboard shortcuts types
 export type {

@@ -21,6 +21,7 @@ import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
+import kimiLogo from '../../assets/images/kimi.png';
 import PlanModeToggle from './PlanModeToggle';
 
 type Props = {
@@ -55,6 +56,7 @@ export const ProviderBar: React.FC<Props> = ({
     charm: { name: 'Charm', logo: charmLogo },
     auggie: { name: 'Auggie', logo: augmentLogo },
     goose: { name: 'Goose', logo: gooseLogo },
+    kimi: { name: 'Kimi', logo: kimiLogo },
   };
   const cfg = map[provider] ?? { name: provider, logo: '' };
   return (

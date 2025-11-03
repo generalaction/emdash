@@ -10,6 +10,7 @@ import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
+import kimiLogo from '../../assets/images/kimi.png';
 import type { UiProvider } from './meta';
 
 export type ProviderAsset = { logo: string; alt: string; invertInDark?: boolean; name: string };
@@ -27,4 +28,5 @@ export const providerAssets: Record<UiProvider, ProviderAsset> = {
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm CLI' },
   auggie: { name: 'Augment Code', logo: augmentLogo, alt: 'Auggie CLI' },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
+  kimi: { name: 'Moonshot AI', logo: kimiLogo, alt: 'Kimi CLI' },
 };
