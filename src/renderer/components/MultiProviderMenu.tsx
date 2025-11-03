@@ -112,7 +112,7 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
                     key={`${info.alt}-${idx}`}
                     className={[
                       idx === 0 ? 'h-4 w-4' : 'h-[13px] w-[13px] opacity-95',
-                      'rounded-sm bg-white ring-1 ring-border dark:bg-white',
+                      'rounded-sm bg-transparent',
                     ].join(' ')}
                     style={{ marginLeft: idx === 0 ? 0 : -6, zIndex: 10 - idx }}
                   >

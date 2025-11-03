@@ -113,6 +113,8 @@ const VersionCard: React.FC = () => {
                 .replace(/(?:%22|%27|%60)+$/i, '') // strip encoded quotes/backticks at end
                 .replace(/["'`]+$/g, '') // strip raw quotes/backticks at end
                 .replace(/[\]\)\}\,\.]+$/, ''); // strip trailing ] ) } , .
+
+              const releasesUrl = 'https://github.com/generalaction/emdash/releases';
               return (
                 <div className="flex items-start gap-3">
                   <div className="inline-flex max-w-[520px] items-start gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 shadow-sm">
@@ -120,14 +122,22 @@ const VersionCard: React.FC = () => {
                       <span className="text-xs font-medium text-foreground">
                         Updater unavailable — download manually
                       </span>
+                      <button
+                        type="button"
+                        className="text-left text-xs text-primary underline underline-offset-2"
+                        onClick={() => window.electronAPI.openExternal(releasesUrl)}
+                        title={releasesUrl}
+                      >
+                        Open releases page
+                      </button>
                       {manualUrl ? (
                         <button
                           type="button"
-                          className="text-left text-xs text-primary underline underline-offset-2"
+                          className="text-left text-xs text-muted-foreground underline underline-offset-2"
                           onClick={() => window.electronAPI.openExternal(manualUrl)}
                           title={manualUrl}
                         >
-                          Open exact download link
+                          Direct link (from logs)
                         </button>
                       ) : null}
                     </div>
