@@ -1,15 +1,29 @@
 import { app } from 'electron';
 // Optional build-time defaults for distribution bundles
-// Loaded dynamically so dev builds don't require the JSON to be copied to dist.
+// Resolve robustly across dev and packaged layouts.
 let appConfig: { posthogHost?: string; posthogKey?: string } = {};
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  appConfig = require('./appConfig.json');
-} catch {
-  appConfig = {};
-}
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+
+function loadAppConfig(): { posthogHost?: string; posthogKey?: string } {
+  try {
+    const dir = __dirname; // e.g., dist/main/main in dev builds
+    const candidates = [
+      join(dir, 'appConfig.json'), // dist/main/main/appConfig.json
+      join(dir, '..', 'appConfig.json'), // dist/main/appConfig.json (CI injection path)
+    ];
+    for (const p of candidates) {
+      if (existsSync(p)) {
+        const raw = readFileSync(p, 'utf8');
+        return JSON.parse(raw);
+      }
+    }
+  } catch {
+    // fall through
+  }
+  return {};
+}
+appConfig = loadAppConfig();
 
 type TelemetryEvent =
   | 'app_started'
@@ -232,7 +246,7 @@ export function init(options?: InitOptions) {
   enabled = enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
   apiKey =
     env.POSTHOG_PROJECT_API_KEY || (appConfig?.posthogKey as string | undefined) || undefined;
-  host = env.POSTHOG_HOST || (appConfig?.posthogHost as string | undefined) || undefined;
+  host = normalizeHost(env.POSTHOG_HOST || (appConfig?.posthogHost as string | undefined) || undefined);
   installSource = options?.installSource || env.INSTALL_SOURCE || undefined;
 
   const state = loadOrCreateState();
@@ -247,6 +261,11 @@ export function init(options?: InitOptions) {
 }
 
 export function capture(event: TelemetryEvent, properties?: Record<string, any>) {
+  if (event === 'app_session') {
+    const dur = Math.max(0, Date.now() - (sessionStartMs || Date.now()));
+    void posthogCapture(event, { session_duration_ms: dur });
+    return;
+  }
   void posthogCapture(event, properties);
 }
 
@@ -306,4 +325,13 @@ function persistState(state: { instanceId: string; enabledOverride?: boolean }) 
   } catch {
     // ignore
   }
+}
+
+function normalizeHost(h: string | undefined): string | undefined {
+  if (!h) return undefined;
+  let s = String(h).trim();
+  if (!/^https?:\/\//i.test(s)) {
+    s = 'https://' + s;
+  }
+  return s.replace(/\/+$/, '');
 }
