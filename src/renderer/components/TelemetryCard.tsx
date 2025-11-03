@@ -3,16 +3,22 @@ import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 
 const TelemetryCard: React.FC = () => {
-  const [enabled, setEnabled] = React.useState<boolean>(true);
+  // Represents the user's telemetry preference (env + opt-out),
+  // not whether telemetry is currently sending (which also depends on keys).
+  const [prefEnabled, setPrefEnabled] = React.useState<boolean>(true);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [envDisabled, setEnvDisabled] = React.useState<boolean>(false);
+  const [hasKeyAndHost, setHasKeyAndHost] = React.useState<boolean>(true);
 
   const refresh = React.useCallback(async () => {
     try {
       const res = await window.electronAPI.getTelemetryStatus();
       if (res.success && res.status) {
-        setEnabled(Boolean(res.status.enabled));
-        setEnvDisabled(Boolean(res.status.envDisabled));
+        const { envDisabled: envOff, userOptOut, hasKeyAndHost } = res.status;
+        setEnvDisabled(Boolean(envOff));
+        setHasKeyAndHost(Boolean(hasKeyAndHost));
+        // Preference is enabled if env allows and user hasn't opted out.
+        setPrefEnabled(!Boolean(envOff) && userOptOut !== true);
       }
     } finally {
       setLoading(false);
@@ -24,7 +30,7 @@ const TelemetryCard: React.FC = () => {
   }, [refresh]);
 
   const onToggle = async (checked: boolean) => {
-    setEnabled(checked);
+    setPrefEnabled(checked);
     await window.electronAPI.setTelemetryEnabled(checked);
     await refresh();
   };
@@ -57,12 +63,19 @@ const TelemetryCard: React.FC = () => {
             <span> for details.</span>
           </p>
         </div>
-        <Switch
-          checked={enabled}
-          onCheckedChange={onToggle}
-          disabled={loading || envDisabled}
-          aria-label="Enable anonymous telemetry"
-        />
+        <div className="flex flex-col items-end gap-1">
+          <Switch
+            checked={prefEnabled}
+            onCheckedChange={onToggle}
+            disabled={loading || envDisabled}
+            aria-label="Enable anonymous telemetry"
+          />
+          {!hasKeyAndHost && (
+            <span className="text-[10px] text-muted-foreground">
+              Inactive in this build (no PostHog keys)
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex gap-2">
         <Button
