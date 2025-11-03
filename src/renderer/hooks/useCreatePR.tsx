@@ -36,6 +36,15 @@ export function useCreatePR() {
 
     setIsCreating(true);
     try {
+      // Guard: ensure Electron bridge methods exist (prevents hard crashes in plain web builds)
+      const api: any = (window as any).electronAPI;
+      if (!api?.gitCommitAndPush || !api?.createPullRequest) {
+        const msg =
+          'PR creation is only available in the Electron app. Start via "npm run d".';
+        toast({ title: 'Create PR Unavailable', description: msg, variant: 'destructive' });
+        return { success: false, error: 'Electron bridge unavailable' } as any;
+      }
+
       // Generate a PR title with Claude if none provided
       let finalPrOptions = prOptions || {};
       if (!finalPrOptions.title) {
@@ -49,7 +58,7 @@ export function useCreatePR() {
         }
       }
 
-      const commitRes = await window.electronAPI.gitCommitAndPush({
+      const commitRes = await api.gitCommitAndPush({
         workspacePath,
         commitMessage,
         createBranchIfOnDefault,
@@ -62,10 +71,10 @@ export function useCreatePR() {
           description: commitRes?.error || 'Unable to push changes.',
           variant: 'destructive',
         });
-        return { success: false, error: commitRes?.error || 'Commit/push failed' };
+        return { success: false, error: commitRes?.error || 'Commit/push failed' } as any;
       }
 
-      const res = await window.electronAPI.createPullRequest({
+      const res = await api.createPullRequest({
         workspacePath,
         fill: true,
         ...finalPrOptions,
@@ -112,7 +121,20 @@ export function useCreatePR() {
         });
       }
 
-      return res;
+      return res as any;
+    } catch (err: any) {
+      const message = err?.message || String(err) || 'Unknown error';
+      toast({
+        title: (
+          <span className="inline-flex items-center gap-2">
+            <img src={githubLogo} alt="GitHub" className="h-5 w-5 rounded-sm object-contain" />
+            Failed to Create PR
+          </span>
+        ),
+        description: message,
+        variant: 'destructive',
+      });
+      return { success: false, error: message } as any;
     } finally {
       setIsCreating(false);
     }
