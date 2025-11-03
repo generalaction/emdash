@@ -26,6 +26,7 @@ export interface WorkspaceMetadata {
       | 'charm'
       | 'auggie'
       | 'goose'
+      | 'kimi'
     >;
     variants: Array<{
       id: string; // stable variant id within this workspace
@@ -41,7 +42,8 @@ export interface WorkspaceMetadata {
         | 'opencode'
         | 'charm'
         | 'auggie'
-        | 'goose';
+        | 'goose'
+        | 'kimi';
       name: string; // worktree display name, e.g. workspaceName-providerSlug
       branch: string;
       path: string; // filesystem path of the worktree
@@ -61,6 +63,7 @@ export interface WorkspaceMetadata {
       | 'charm'
       | 'auggie'
       | 'goose'
+      | 'kimi'
       | null;
   } | null;
 }

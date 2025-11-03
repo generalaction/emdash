@@ -10,7 +10,8 @@ export type UiProvider =
   | 'opencode'
   | 'charm'
   | 'auggie'
-  | 'goose';
+  | 'goose'
+  | 'kimi';
 
 export type ProviderMeta = {
   label: string;
@@ -159,5 +160,15 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     helpUrl: 'https://block.github.io/goose/docs/quickstart/',
     idlePatterns: [/Ready|Awaiting|Press Enter|Next command/i],
     busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning/i],
+  },
+  kimi: {
+    label: 'Kimi',
+    icon: '../../assets/images/kimi.png',
+    terminalOnly: true,
+    cli: 'kimi',
+    helpUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
+    planActivate: undefined,
+    idlePatterns: [/Ready|Awaiting|Press Enter|Next command|\/help|\/setup/i],
+    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|Kimi CLI/i],
   },
 };

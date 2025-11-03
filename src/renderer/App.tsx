@@ -45,6 +45,7 @@ const TERMINAL_PROVIDER_IDS = [
   'opencode',
   'charm',
   'auggie',
+  'kimi',
 ] as const;
 
 interface AppKeyboardShortcutsProps {
@@ -205,6 +206,7 @@ interface WorkspaceMetadata {
       | 'charm'
       | 'auggie'
       | 'goose'
+      | 'kimi'
     >;
     variants: Array<{
       id: string;
@@ -220,7 +222,8 @@ interface WorkspaceMetadata {
         | 'opencode'
         | 'charm'
         | 'auggie'
-        | 'goose';
+        | 'goose'
+        | 'kimi';
       name: string;
       branch: string;
       path: string;
@@ -239,6 +242,7 @@ interface WorkspaceMetadata {
       | 'charm'
       | 'auggie'
       | 'goose'
+      | 'kimi'
       | null;
   } | null;
 }

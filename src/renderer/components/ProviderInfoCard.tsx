@@ -83,6 +83,13 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     installCommand:
       'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
   },
+  kimi: {
+    title: 'Kimi',
+    description:
+      'Kimi CLI by Moonshot AI — a shell-like coding agent with raw shell execution, Zsh integration, ACP and MCP support (technical preview).',
+    installCommand: 'uv tool install --python 3.13 kimi-cli',
+    hostingNote: 'macOS/Linux only; first run on macOS may take ~10s due to security checks.',
+  },
 };
 
 type Props = {

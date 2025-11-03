@@ -13,6 +13,7 @@ import opencodeLogo from '../../assets/images/opencode.png';
 import charmLogo from '../../assets/images/charm.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import qwenLogo from '../../assets/images/qwen.png';
+import kimiLogo from '../../assets/images/kimi.png';
 
 interface CliProvidersListProps {
   providers: CliProviderStatus[];
@@ -82,6 +83,12 @@ export const BASE_CLI_PROVIDERS: CliProviderStatus[] = [
     status: 'missing',
     docUrl: 'https://github.com/QwenLM/qwen-code',
   },
+  {
+    id: 'kimi',
+    name: 'Kimi',
+    status: 'missing',
+    docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
+  },
 ];
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -96,6 +103,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
   charm: charmLogo,
   auggie: augmentLogo,
   qwen: qwenLogo,
+  kimi: kimiLogo,
 };
 
 const renderProviderRow = (provider: CliProviderStatus) => {
