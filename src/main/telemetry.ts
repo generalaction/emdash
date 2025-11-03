@@ -246,7 +246,9 @@ export function init(options?: InitOptions) {
   enabled = enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
   apiKey =
     env.POSTHOG_PROJECT_API_KEY || (appConfig?.posthogKey as string | undefined) || undefined;
-  host = normalizeHost(env.POSTHOG_HOST || (appConfig?.posthogHost as string | undefined) || undefined);
+  host = normalizeHost(
+    env.POSTHOG_HOST || (appConfig?.posthogHost as string | undefined) || undefined
+  );
   installSource = options?.installSource || env.INSTALL_SOURCE || undefined;
 
   const state = loadOrCreateState();
