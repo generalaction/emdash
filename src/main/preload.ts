@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:getAppVersion'),
   getElectronVersion: () => ipcRenderer.invoke('app:getElectronVersion'),
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
+  pickDirectory: (opts?: { title?: string; message?: string; defaultPath?: string }) =>
+    ipcRenderer.invoke('app:pickDirectory', opts ?? {}),
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),

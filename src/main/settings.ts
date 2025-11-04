@@ -5,6 +5,8 @@ import { dirname, join } from 'path';
 export interface RepositorySettings {
   branchTemplate: string; // e.g., 'agent/{slug}-{timestamp}'
   pushOnCreate: boolean; // default true
+  // Root directory where GitHub repositories will be cloned
+  cloneRoot: string;
 }
 
 export interface AppSettings {
@@ -15,6 +17,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchTemplate: 'agent/{slug}-{timestamp}',
     pushOnCreate: true,
+    // Default to Documents/Emdash under the current user
+    cloneRoot: '',
   },
 };
 
@@ -48,13 +52,15 @@ export function getAppSettings(): AppSettings {
     if (existsSync(file)) {
       const raw = readFileSync(file, 'utf8');
       const parsed = JSON.parse(raw);
-      cached = normalizeSettings(deepMerge(DEFAULT_SETTINGS, parsed));
+      // Compute defaults that depend on app paths lazily
+      const withDynamicDefaults = ensureDynamicDefaults(DEFAULT_SETTINGS);
+      cached = normalizeSettings(deepMerge(withDynamicDefaults, parsed));
       return cached;
     }
   } catch {
     // ignore read/parse errors, fall through to defaults
   }
-  cached = { ...DEFAULT_SETTINGS };
+  cached = ensureDynamicDefaults({ ...DEFAULT_SETTINGS });
   return cached;
 }
 
@@ -89,6 +95,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
     repository: {
       branchTemplate: DEFAULT_SETTINGS.repository.branchTemplate,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
+      cloneRoot: DEFAULT_SETTINGS.repository.cloneRoot,
     },
   };
 
@@ -100,8 +107,38 @@ function normalizeSettings(input: AppSettings): AppSettings {
   // Keep templates reasonably short to avoid overly long refs
   if (template.length > 200) template = template.slice(0, 200);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
+  // Clone root: string and non-empty; fall back to dynamic default
+  let cloneRoot = String(repo?.cloneRoot ?? '').trim();
+  if (!cloneRoot) {
+    const docs = app.getPath('documents');
+    cloneRoot = joinPathSafe(docs, 'Emdash');
+  }
 
   out.repository.branchTemplate = template;
   out.repository.pushOnCreate = push;
+  out.repository.cloneRoot = cloneRoot;
   return out;
+}
+
+function joinPathSafe(base: string, leaf: string) {
+  try {
+    const { join } = require('path') as typeof import('path');
+    return join(base, leaf);
+  } catch {
+    return `${base.replace(/[\\/]+$/, '')}/${leaf.replace(/^[\\/]+/, '')}`;
+  }
+}
+
+function ensureDynamicDefaults(settings: AppSettings): AppSettings {
+  const clone = JSON.parse(JSON.stringify(settings)) as AppSettings;
+  try {
+    if (!clone.repository.cloneRoot) {
+      const docs = app.getPath('documents');
+      clone.repository.cloneRoot = joinPathSafe(docs, 'Emdash');
+    }
+  } catch {
+    // Fallback to a relative folder if app path is unavailable
+    if (!clone.repository.cloneRoot) clone.repository.cloneRoot = 'Documents/Emdash';
+  }
+  return clone;
 }

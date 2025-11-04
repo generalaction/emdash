@@ -5,11 +5,13 @@ import { Switch } from './ui/switch';
 type RepoSettings = {
   branchTemplate: string;
   pushOnCreate: boolean;
+  cloneRoot: string;
 };
 
 const DEFAULTS: RepoSettings = {
   branchTemplate: 'agent/{slug}-{timestamp}',
   pushOnCreate: true,
+  cloneRoot: 'Documents/Emdash',
 };
 
 const PLACEHOLDER_HELP =
@@ -28,6 +30,7 @@ const RepositorySettingsCard: React.FC = () => {
         setSettings({
           branchTemplate: repo.branchTemplate ?? DEFAULTS.branchTemplate,
           pushOnCreate: repo.pushOnCreate ?? DEFAULTS.pushOnCreate,
+          cloneRoot: repo.cloneRoot ?? DEFAULTS.cloneRoot,
         });
       } else {
         setSettings(DEFAULTS);
@@ -52,6 +55,7 @@ const RepositorySettingsCard: React.FC = () => {
           setSettings({
             branchTemplate: repo.branchTemplate ?? DEFAULTS.branchTemplate,
             pushOnCreate: repo.pushOnCreate ?? DEFAULTS.pushOnCreate,
+            cloneRoot: repo.cloneRoot ?? DEFAULTS.cloneRoot,
           });
         }
       } finally {
@@ -70,6 +74,20 @@ const RepositorySettingsCard: React.FC = () => {
 
   return (
     <div className="grid gap-3">
+      <label className="grid gap-1">
+        <span className="text-xs text-muted-foreground">Clone root directory</span>
+        <Input
+          value={settings.cloneRoot}
+          onChange={(e) => setSettings((s) => ({ ...s, cloneRoot: e.target.value }))}
+          onBlur={() => savePartial({ cloneRoot: settings.cloneRoot.trim() })}
+          placeholder={DEFAULTS.cloneRoot}
+          aria-label="Clone root directory"
+          disabled={loading}
+        />
+        <span className="text-[11px] text-muted-foreground">
+          Default destination for GitHub repository imports.
+        </span>
+      </label>
       <label className="grid gap-1">
         <span className="text-xs text-muted-foreground">New branch name template</span>
         <Input
