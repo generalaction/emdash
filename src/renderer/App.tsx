@@ -25,6 +25,7 @@ import { type Provider } from './types';
 import { type LinearIssueSummary } from './types/linear';
 import { type GitHubIssueSummary } from './types/github';
 import { type JiraIssueSummary } from './types/jira';
+import HowToUseMdash from './components/HowToUseEmdash';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
@@ -1389,7 +1390,7 @@ const AppContent: React.FC = () => {
               </Button>
             </div>
 
-            {null}
+            <HowToUseMdash className="mt-4" />
           </div>
         </div>
       );
@@ -1458,7 +1459,7 @@ const AppContent: React.FC = () => {
             </Button>
           </div>
 
-          {null}
+          <HowToUseMdash className="mt-2" />
         </div>
       </div>
     );
