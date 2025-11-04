@@ -80,8 +80,8 @@ const HowToUseEmdash: React.FC<HowToUseEmdashProps> = ({ defaultOpen = false, cl
             <span className="text-xs font-medium text-foreground">Create a workspace</span>
           </div>
           <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-            A workspace is an isolated git worktree where agents focus on a task. It keeps
-            changes clean and scoped, so you can run several in parallel.
+            A workspace is an isolated git worktree where agents focus on a task. It keeps changes
+            clean and scoped, so you can run several in parallel.
           </p>
         </div>
 
@@ -104,7 +104,12 @@ const HowToUseEmdash: React.FC<HowToUseEmdashProps> = ({ defaultOpen = false, cl
                   key={icon.alt + idx}
                   className="flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background shadow-sm"
                 >
-                  <img src={icon.src} alt={icon.alt} className="h-4 w-4 object-contain" draggable={false} />
+                  <img
+                    src={icon.src}
+                    alt={icon.alt}
+                    className="h-4 w-4 object-contain"
+                    draggable={false}
+                  />
                 </div>
               ))}
             </div>
