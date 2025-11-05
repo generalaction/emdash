@@ -15,7 +15,10 @@ export function registerSettingsIpc() {
     'settings:update',
     async (
       _event,
-      partial: Partial<{ repository: { branchTemplate?: string; pushOnCreate?: boolean } }>
+      partial: Partial<{
+        repository: { branchTemplate?: string; pushOnCreate?: boolean };
+        projectPrep: { autoInstallOnOpenInEditor?: boolean };
+      }>
     ) => {
       try {
         const settings = updateAppSettings((partial as Partial<AppSettings>) || {});

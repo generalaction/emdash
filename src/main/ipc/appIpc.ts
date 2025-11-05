@@ -2,6 +2,8 @@ import { app, ipcMain, shell } from 'electron';
 import { exec } from 'child_process';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ensureProjectPrepared } from '../services/ProjectPrep';
+import { getAppSettings } from '../settings';
 
 export function registerAppIpc() {
   // Open external links in default browser
@@ -127,6 +129,17 @@ export function registerAppIpc() {
 
         if (!command) {
           return { success: false, error: 'Unsupported platform or app' };
+        }
+
+        // Kick off background project preparation for editor IDE targets (if enabled)
+        if (which === 'cursor' || which === 'vscode' || which === 'zed') {
+          try {
+            const settings = getAppSettings();
+            if (settings?.projectPrep?.autoInstallOnOpenInEditor) {
+              // Fire-and-forget; does not block opening the editor
+              void ensureProjectPrepared(target).catch(() => {});
+            }
+          } catch {}
         }
 
         await new Promise<void>((resolve, reject) => {

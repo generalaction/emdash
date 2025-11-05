@@ -9,12 +9,18 @@ export interface RepositorySettings {
 
 export interface AppSettings {
   repository: RepositorySettings;
+  projectPrep: {
+    autoInstallOnOpenInEditor: boolean;
+  };
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchTemplate: 'agent/{slug}-{timestamp}',
     pushOnCreate: true,
+  },
+  projectPrep: {
+    autoInstallOnOpenInEditor: true,
   },
 };
 
@@ -90,6 +96,9 @@ function normalizeSettings(input: AppSettings): AppSettings {
       branchTemplate: DEFAULT_SETTINGS.repository.branchTemplate,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
     },
+    projectPrep: {
+      autoInstallOnOpenInEditor: DEFAULT_SETTINGS.projectPrep.autoInstallOnOpenInEditor,
+    },
   };
 
   // Repository
@@ -103,5 +112,10 @@ function normalizeSettings(input: AppSettings): AppSettings {
 
   out.repository.branchTemplate = template;
   out.repository.pushOnCreate = push;
+  // Project prep
+  const prep = (input as any)?.projectPrep || {};
+  out.projectPrep.autoInstallOnOpenInEditor = Boolean(
+    prep?.autoInstallOnOpenInEditor ?? DEFAULT_SETTINGS.projectPrep.autoInstallOnOpenInEditor
+  );
   return out;
 }

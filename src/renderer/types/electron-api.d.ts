@@ -22,17 +22,20 @@ declare global {
         success: boolean;
         settings?: {
           repository: { branchTemplate: string; pushOnCreate: boolean };
+          projectPrep?: { autoInstallOnOpenInEditor: boolean };
         };
         error?: string;
       }>;
       updateSettings: (
         settings: Partial<{
           repository: { branchTemplate?: string; pushOnCreate?: boolean };
+          projectPrep: { autoInstallOnOpenInEditor?: boolean };
         }>
       ) => Promise<{
         success: boolean;
         settings?: {
           repository: { branchTemplate: string; pushOnCreate: boolean };
+          projectPrep?: { autoInstallOnOpenInEditor: boolean };
         };
         error?: string;
       }>;
