@@ -5,12 +5,7 @@ import { spawn } from 'child_process';
 function pickNodeInstallCmd(target: string): string[] {
   // Prefer package manager based on lockfile presence
   if (existsSync(join(target, 'pnpm-lock.yaml'))) {
-    return [
-      'pnpm install --frozen-lockfile',
-      'pnpm install',
-      'npm ci',
-      'npm install',
-    ];
+    return ['pnpm install --frozen-lockfile', 'pnpm install', 'npm ci', 'npm install'];
   }
   if (existsSync(join(target, 'yarn.lock'))) {
     // Support modern Yarn (Berry) and classic Yarn
