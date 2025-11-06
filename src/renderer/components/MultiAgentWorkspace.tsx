@@ -10,8 +10,8 @@ import { providerAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
 import { useToast } from '@/hooks/use-toast';
 import { classifyActivity } from '@/lib/activityClassifier';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 import { CornerDownLeft } from 'lucide-react';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
 interface Props {
   workspace: Workspace;
@@ -32,6 +32,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
   const [prompt, setPrompt] = useState('');
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
   const multi = workspace.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
 
@@ -130,6 +131,10 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
 
   // Ensure Codex agents are created per-variant for streaming orchestration
   const agentIdsRef = useRef<string[]>([]);
+  const variantsKey = useMemo(
+    () => variants.map((v) => `${v.provider}:${v.path}`).join('|'),
+    [variants]
+  );
   useEffect(() => {
     const currentAgentIds: string[] = [];
     (async () => {
@@ -152,7 +157,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
       }
       agentIdsRef.current = [];
     };
-  }, [workspace.id, variants.map((v) => `${v.provider}:${v.path}`).join('|')]);
+  }, [workspace.id, variantsKey]);
 
   // Robust prompt injection modeled after useInitialPromptInjection, without one-shot gating
   const injectPrompt = async (ptyId: string, provider: Provider, text: string) => {
@@ -242,40 +247,62 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
 
   return (
     <div className="flex h-full flex-col">
-      <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
-        {variants.map((v, idx) => {
-          const isDark = effectiveTheme === 'dark';
-          const panel = (
-            <ResizablePanel key={v.worktreeId} defaultSize={100 / variants.length} minSize={15}>
-              <div className="flex h-full flex-col">
-                <div className="flex items-center justify-between gap-2 border-b border-border px-2 py-1.5">
+      {variants.map((v, idx) => {
+        const isDark = effectiveTheme === 'dark';
+        const isActive = idx === activeTabIndex;
+        return (
+          <div
+            key={v.worktreeId}
+            className={`flex-1 overflow-hidden ${isActive ? 'block' : 'hidden'}`}
+          >
+            <div className="flex h-full flex-col">
+              <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5">
+                <OpenInMenu path={v.path} />
+              </div>
+              <div className="flex items-center justify-center border-b border-border bg-muted/20 px-4 py-2">
+                <TooltipProvider delayDuration={250}>
                   <div className="flex items-center gap-2">
-                    {(() => {
-                      const asset = providerAssets[v.provider];
-                      const meta = providerMeta[v.provider];
+                    {variants.map((variant, tabIdx) => {
+                      const asset = providerAssets[variant.provider];
+                      const meta = providerMeta[variant.provider];
+                      const isTabActive = tabIdx === activeTabIndex;
                       return (
-                        <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[11px] font-medium">
-                          {asset?.logo ? (
-                            <img
-                              src={asset.logo}
-                              alt={asset.alt || meta?.label || v.provider}
-                              className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
-                            />
-                          ) : null}
-                          {meta?.label || asset?.name || v.provider}
-                        </span>
+                        <Tooltip key={variant.worktreeId}>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTabIndex(tabIdx)}
+                              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                                isTabActive
+                                  ? 'bg-background text-foreground shadow-sm'
+                                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                              }`}
+                            >
+                              {asset?.logo ? (
+                                <img
+                                  src={asset.logo}
+                                  alt={asset.alt || meta?.label || variant.provider}
+                                  className={`h-4 w-4 shrink-0 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                                />
+                              ) : null}
+                              <span>{meta?.label || asset?.name || variant.provider}</span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{variant.name}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       );
-                    })()}
-                    <span className="truncate text-xs text-muted-foreground" title={v.name}>
-                      {v.name}
-                    </span>
+                    })}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {null}
-                    <OpenInMenu path={v.path} />
-                  </div>
-                </div>
-                <div className={`min-h-0 flex-1 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                </TooltipProvider>
+              </div>
+              <div className="min-h-0 flex-1 px-6 pt-4">
+                <div
+                  className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+                    isDark ? 'bg-gray-800' : 'bg-white'
+                  }`}
+                >
                   <TerminalPane
                     id={`${v.provider}-main-${workspace.id}`}
                     cwd={v.path}
@@ -286,17 +313,10 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
                   />
                 </div>
               </div>
-            </ResizablePanel>
-          );
-          if (idx === variants.length - 1) return panel;
-          return (
-            <React.Fragment key={`${v.worktreeId}-frag`}>
-              {panel}
-              <ResizableHandle withHandle className="cursor-col-resize" />
-            </React.Fragment>
-          );
-        })}
-      </ResizablePanelGroup>
+            </div>
+          </div>
+        );
+      })}
 
       <div className="px-6 pb-6 pt-4">
         <div className="mx-auto max-w-4xl">
