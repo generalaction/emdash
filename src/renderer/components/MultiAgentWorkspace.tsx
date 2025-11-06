@@ -259,7 +259,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
               <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5">
                 <OpenInMenu path={v.path} />
               </div>
-              <div className="flex items-center justify-center mt-8 px-4 py-2">
+              <div className="mt-8 flex items-center justify-center px-4 py-2">
                 <TooltipProvider delayDuration={250}>
                   <div className="flex items-center gap-2">
                     {variants.map((variant, tabIdx) => {
