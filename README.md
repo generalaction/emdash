@@ -12,7 +12,7 @@
 [![Release](https://img.shields.io/github/v/release/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
 [![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
 <br>
-[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/Rm63cQaE)
+[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/UmTn6Nb7)
 [![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
 <br />
@@ -105,7 +105,7 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 
 # Contributing
 
-Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/YOUR_INVITE) to discuss.
+Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/UmTn6Nb7) to discuss.
 
 # FAQ
 
