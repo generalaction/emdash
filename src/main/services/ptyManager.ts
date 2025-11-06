@@ -128,12 +128,18 @@ export function resizePty(id: string, cols: number, rows: number): void {
   try {
     rec.proc.resize(cols, rows);
   } catch (error: any) {
-    // EBADF typically means the PTY has already exited; swallow and log once
-    if (error && (error.code === 'EBADF' || /EBADF/.test(String(error)))) {
-      log.warn('ptyManager:resizeAfterExit', { id, cols, rows });
+    // EBADF or native errors typically mean the PTY has already exited
+    if (
+      error &&
+      (error.code === 'EBADF' ||
+        /EBADF/.test(String(error)) ||
+        /Napi::Error/.test(String(error)) ||
+        error.message?.includes('not open'))
+    ) {
+      log.warn('ptyManager:resizeAfterExit', { id, cols, rows, error: String(error) });
       return;
     }
-    throw error;
+    log.error('ptyManager:resizeFailed', { id, cols, rows, error: String(error) });
   }
 }
 
