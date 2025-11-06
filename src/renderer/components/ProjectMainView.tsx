@@ -48,6 +48,7 @@ interface Workspace {
   path: string;
   status: 'active' | 'idle' | 'running';
   agentId?: string;
+  metadata?: any;
 }
 
 function StatusBadge({ status }: { status: Workspace['status'] }) {
@@ -257,7 +258,26 @@ function WorkspaceRow({
             <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
           ) : null}
 
-          {hasComposeFile ? (
+          {ws.metadata?.multiAgent?.enabled ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-8 cursor-not-allowed items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium opacity-50"
+                    aria-label="Connect disabled for multi-agent workspaces"
+                  >
+                    <img src={dockerLogo} alt="Docker" className="mr-1.5 h-3.5 w-3.5" />
+                    Connect
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[22rem] text-xs leading-snug">
+                  Docker containerization is not available for multi-agent workspaces.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : hasComposeFile ? (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>

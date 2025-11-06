@@ -100,7 +100,7 @@ const providerConfig = {
     name: 'Auggie',
     logo: augmentLogo,
     alt: 'Auggie CLI',
-    invertInDark: false,
+    invertInDark: true,
   },
   goose: {
     name: 'Goose',

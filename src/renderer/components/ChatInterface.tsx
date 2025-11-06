@@ -593,25 +593,28 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
       return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
     };
+    const isMultiAgent = workspace.metadata?.multiAgent?.enabled === true;
     return (
       <div className="mt-4 px-6">
         <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium text-foreground">
-              <ContainerStatusBadge
-                active={
-                  state.status === 'starting' ||
-                  state.status === 'building' ||
-                  state.status === 'ready'
-                }
-                isStarting={state.status === 'starting' || state.status === 'building'}
-                isReady={state.status === 'ready'}
-                startingAction={false}
-                stoppingAction={false}
-                onStart={() => {}}
-                onStop={() => {}}
-                showStop={false}
-              />
+              {!isMultiAgent ? (
+                <ContainerStatusBadge
+                  active={
+                    state.status === 'starting' ||
+                    state.status === 'building' ||
+                    state.status === 'ready'
+                  }
+                  isStarting={state.status === 'starting' || state.status === 'building'}
+                  isReady={state.status === 'ready'}
+                  startingAction={false}
+                  stoppingAction={false}
+                  onStart={() => {}}
+                  onStop={() => {}}
+                  showStop={false}
+                />
+              ) : null}
               {state.containerId ? (
                 <span className="ml-2 text-xs text-muted-foreground">#{state.containerId}</span>
               ) : null}

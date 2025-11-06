@@ -101,10 +101,14 @@ export class TerminalSessionManager {
 
     const inputDisposable = this.terminal.onData((data) => {
       this.emitActivity();
-      window.electronAPI.ptyInput({ id: this.id, data });
+      if (!this.disposed) {
+        window.electronAPI.ptyInput({ id: this.id, data });
+      }
     });
     const resizeDisposable = this.terminal.onResize(({ cols, rows }) => {
-      window.electronAPI.ptyResize({ id: this.id, cols, rows });
+      if (!this.disposed) {
+        window.electronAPI.ptyResize({ id: this.id, cols, rows });
+      }
     });
     this.disposables.push(
       () => inputDisposable.dispose(),
@@ -452,7 +456,7 @@ export class TerminalSessionManager {
   }
 
   private sendSizeIfStarted() {
-    if (!this.ptyStarted) return;
+    if (!this.ptyStarted || this.disposed) return;
     try {
       window.electronAPI.ptyResize({
         id: this.id,
