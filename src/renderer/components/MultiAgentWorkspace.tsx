@@ -232,36 +232,6 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border p-3">
-        <div className="flex items-center gap-2">
-          <Input
-            className="h-9 flex-1"
-            placeholder="Tell the agents what to do..."
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (prompt.trim()) {
-                  void handleRunAll();
-                }
-              }
-            }}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/40"
-            onClick={handleRunAll}
-            disabled={!prompt.trim()}
-            title="Run in all panes (Enter)"
-            aria-label="Run in all panes"
-          >
-            <CornerDownLeft className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
       <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
         {variants.map((v, idx) => {
           const isDark = effectiveTheme === 'dark';
@@ -317,6 +287,40 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
           );
         })}
       </ResizablePanelGroup>
+
+      <div className="px-6 pb-6 pt-4">
+        <div className="mx-auto max-w-4xl">
+          <div className="relative rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex items-center gap-2 rounded-md px-4 py-3">
+              <Input
+                className="h-9 flex-1 border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700"
+                placeholder="Tell the agents what to do..."
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (prompt.trim()) {
+                      void handleRunAll();
+                    }
+                  }
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 border border-gray-200 bg-gray-100 px-3 text-xs font-medium hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600"
+                onClick={handleRunAll}
+                disabled={!prompt.trim()}
+                title="Run in all panes (Enter)"
+                aria-label="Run in all panes"
+              >
+                <CornerDownLeft className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
