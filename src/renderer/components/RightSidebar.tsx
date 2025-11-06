@@ -58,8 +58,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                     key={`${v.provider}-${i}`}
                     className="mb-2 border-b border-border last:mb-0 last:border-b-0"
                   >
-                    <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
-                      <span className="inline-flex items-center gap-2">
+                    <div className="flex min-w-0 items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
+                      <span className="inline-flex min-w-0 items-center gap-2">
                         {(() => {
                           const asset = (providerAssets as any)[v.provider] as
                             | { logo: string; alt: string; name: string; invertInDark?: boolean }
@@ -68,7 +68,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                             | { label?: string }
                             | undefined;
                           return (
-                            <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
+                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
                               {asset?.logo ? (
                                 <img
                                   src={asset.logo}
