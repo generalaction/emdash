@@ -25,6 +25,7 @@ import {
   subscribeToWorkspaceRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
+import { useBrowser } from '@/providers/BrowserProvider';
 
 declare const window: Window & {
   electronAPI: {
@@ -62,6 +63,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   const [hasDroidActivity, setHasDroidActivity] = useState(false);
   const [hasGeminiActivity, setHasGeminiActivity] = useState(false);
   const [hasCursorActivity, setHasCursorActivity] = useState(false);
+  const browser = useBrowser();
   const [hasCopilotActivity, setHasCopilotActivity] = useState(false);
   const [cliStartFailed, setCliStartFailed] = useState(false);
   const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
@@ -593,7 +595,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
       return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
     };
-    const isMultiAgent = workspace.metadata?.multiAgent?.enabled === true;
+  const isMultiAgent = workspace.metadata?.multiAgent?.enabled === true;
     return (
       <div className="mt-4 px-6">
         <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">
@@ -638,17 +640,30 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                   Ports
                 </button>
               ) : null}
+              {/* Quick Preview removed from here to keep browser decoupled from containerization */}
               {state.previewUrl ? (
-                <button
-                  type="button"
-                  className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-                  onClick={() => window.electronAPI.openExternal(state.previewUrl!)}
-                  aria-label="Open preview (external)"
-                  title="Open preview"
-                >
-                  Open Preview
-                  <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                    onClick={() => window.electronAPI.openExternal(state.previewUrl!)}
+                    aria-label="Open preview (external)"
+                    title="Open preview"
+                  >
+                    Open Preview
+                    <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
+                    onClick={() => browser.open(state.previewUrl!)}
+                    aria-label="Open preview (in‑app)"
+                    title="Open in app"
+                  >
+                    Open In App
+                    <Globe className="ml-1.5 h-3 w-3" aria-hidden="true" />
+                  </button>
+                </>
               ) : null}
             </div>
           </div>

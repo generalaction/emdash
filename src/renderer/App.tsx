@@ -34,6 +34,9 @@ import CommandPalette from './components/CommandPalette';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { usePlanToasts } from './hooks/usePlanToasts';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
+import BrowserPane from './components/BrowserPane';
+import { BrowserProvider } from './providers/BrowserProvider';
+import { getContainerRunState } from './lib/containerRuns';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -1466,12 +1469,13 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div
-      className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
-      style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
-    >
-      <SidebarProvider>
-        <RightSidebarProvider defaultCollapsed>
+    <BrowserProvider>
+      <div
+        className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
+        style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
+      >
+        <SidebarProvider>
+          <RightSidebarProvider defaultCollapsed>
           <AppKeyboardShortcuts
             showCommandPalette={showCommandPalette}
             showSettings={showSettings}
@@ -1492,6 +1496,11 @@ const AppContent: React.FC = () => {
                 ? null
                 : activeWorkspace?.path || selectedProject?.path || null
             }
+            defaultPreviewUrl={
+              activeWorkspace?.id ? getContainerRunState(activeWorkspace.id)?.previewUrl || null : null
+            }
+            workspaceId={activeWorkspace?.id || null}
+            workspacePath={activeWorkspace?.path || null}
             githubUser={user}
           />
           <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
@@ -1583,9 +1592,11 @@ const AppContent: React.FC = () => {
             projectPath={selectedProject?.path}
           />
           <Toaster />
+          <BrowserPane workspaceId={activeWorkspace?.id || null} workspacePath={activeWorkspace?.path || null} />
         </RightSidebarProvider>
       </SidebarProvider>
-    </div>
+      </div>
+    </BrowserProvider>
   );
 };
 
