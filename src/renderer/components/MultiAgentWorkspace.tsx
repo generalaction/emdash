@@ -259,7 +259,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
               <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5">
                 <OpenInMenu path={v.path} />
               </div>
-              <div className="flex items-center justify-center border-b border-border bg-muted/20 px-4 py-2">
+              <div className="flex items-center justify-center mt-8 px-4 py-2">
                 <TooltipProvider delayDuration={250}>
                   <div className="flex items-center gap-2">
                     {variants.map((variant, tabIdx) => {
@@ -272,10 +272,10 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
                             <button
                               type="button"
                               onClick={() => setActiveTabIndex(tabIdx)}
-                              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                              className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all ${
                                 isTabActive
-                                  ? 'bg-background text-foreground shadow-sm'
-                                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                  ? 'border-2 border-foreground/30 bg-background text-foreground shadow-sm'
+                                  : 'border border-border/50 bg-transparent text-muted-foreground hover:border-border/70 hover:bg-background/50 hover:text-foreground'
                               }`}
                             >
                               {asset?.logo ? (
