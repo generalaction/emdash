@@ -32,7 +32,7 @@ const providerConfig: Record<Provider, ProviderInfo> = {
   amp: { name: 'Amp', logo: ampLogo, alt: 'Amp Code' },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm' },
-  auggie: { name: 'Auggie', logo: augmentLogo, alt: 'Auggie CLI' },
+  auggie: { name: 'Auggie', logo: augmentLogo, alt: 'Auggie CLI', invertInDark: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
 };
