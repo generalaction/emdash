@@ -78,23 +78,24 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
     browser.setBusy(true);
     browser.toggle(undefined);
 
-    // If we have a last URL and it is not the app's own port, we will open it immediately
-    // and let the user refresh; otherwise wait for server URL events.
     if (id) {
       try {
         const last = localStorage.getItem(`emdash:browser:lastUrl:${id}`);
         const running = localStorage.getItem(`emdash:preview:running:${id}`) === '1';
+        let openedFromLast = false;
         if (last) {
           const p = Number(new URL(last).port || 0);
-          if (!(appPort !== 0 && p === appPort)) {
-            // Avoid noisy connection-refused logs by waiting briefly for readiness
-            if (await isReachable(last)) {
-              browser.open(last);
-            }
+          const portClashesWithApp = appPort !== 0 && p === appPort;
+          const reachable = !portClashesWithApp && (await isReachable(last));
+          if (reachable) {
+            browser.open(last);
+            openedFromLast = true;
+          }
+          if (running && !reachable) {
+            try { localStorage.removeItem(`emdash:preview:running:${id}`); } catch {}
           }
         }
-        // If we already have a running server or a remembered URL, don't show a long spinner
-        if (running || last) browser.setBusy(false);
+        if (openedFromLast) browser.setBusy(false);
       } catch {}
     }
 
@@ -106,15 +107,27 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
         if (!installed && await needsInstall(wp)) {
           await (window as any).electronAPI?.hostPreviewSetup?.({ workspaceId: id, workspacePath: wp });
         }
-        // Minimal feedback
-        // try { toast({ title: 'Starting preview…', description: 'Launching workspace dev server' }); } catch {}
-        // Kick server
         const running = localStorage.getItem(`emdash:preview:running:${id}`) === '1';
         if (!running) {
           await (window as any).electronAPI?.hostPreviewStart?.({ workspaceId: id, workspacePath: wp, parentProjectPath: (parentProjectPath || '').trim() });
         }
-        // We no longer probe ports here. We rely on host preview URL events
-        // (or the user entering a URL manually) to navigate.
+        // Fallback: if no URL event yet after a short delay, try default dev port once.
+        setTimeout(async () => {
+          try {
+            const candidate = 'http://localhost:5173';
+            // Avoid the app's own port
+            const p = Number(new URL(candidate).port || 0);
+            if (appPort !== 0 && p === appPort) return;
+            if (await isReachable(candidate)) {
+              browser.open(candidate);
+              try {
+                localStorage.setItem(`emdash:browser:lastUrl:${id}`, candidate);
+                localStorage.setItem(`emdash:preview:running:${id}`, '1');
+              } catch {}
+              browser.setBusy(false);
+            }
+          } catch {}
+        }, 5000);
       } catch {}
     }
     // Fallback: clear spinner after a grace period if nothing arrives

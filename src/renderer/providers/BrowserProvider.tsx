@@ -71,21 +71,34 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const goBack = React.useCallback(() => {
+    try {
+      const api: any = (window as any).electronAPI;
+      if (api && typeof api.browserGoBack === 'function') { api.browserGoBack(); return; }
+    } catch {}
     const el = ensureRef();
     if (el && el.canGoBack()) el.goBack();
   }, []);
   const goForward = React.useCallback(() => {
+    try {
+      const api: any = (window as any).electronAPI;
+      if (api && typeof api.browserGoForward === 'function') { api.browserGoForward(); return; }
+    } catch {}
     const el = ensureRef();
     if (el && el.canGoForward()) el.goForward();
   }, []);
   const reload = React.useCallback(() => {
+    try {
+      const api: any = (window as any).electronAPI;
+      if (api && typeof api.browserReload === 'function') { api.browserReload(); return; }
+    } catch {}
     const el = ensureRef();
     if (el) el.reload();
   }, []);
   const focus = React.useCallback(() => ensureRef()?.focus(), []);
 
   const setPaneWidthPct = React.useCallback((pct: number) => {
-    const clamped = Math.max(10, Math.min(90, Math.round(pct)));
+    // Allow a much wider range for user control
+    const clamped = Math.max(5, Math.min(96, Math.round(pct)));
     setWidthPctState(clamped);
   }, []);
 

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Spinner } from './ui/spinner';
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+const HANDLE_PX = 6; // left gutter reserved for drag handle; keep preview bounds clear of it
 
 const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: string | null }> = ({ workspaceId, workspacePath }) => {
   const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, setBusy } = useBrowser();
@@ -17,6 +18,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   const [devCommand] = React.useState<string>('');
   const [preferredUrl] = React.useState<string>('');
   const [lines, setLines] = React.useState<string[]>([]);
+  const [dragging, setDragging] = React.useState<boolean>(false);
+  const widthPctRef = React.useRef<number>(widthPct);
+  React.useEffect(() => { widthPctRef.current = widthPct; }, [widthPct]);
 
   // Bind ref to provider
   React.useEffect(() => {
@@ -58,7 +62,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
               return next;
             });
           }
-          if (data.status === 'done' || data.status === 'error') {
+          // Only clear busy on error. On 'done' we likely start the dev server next,
+          // so we keep the spinner until a URL is reachable.
+          if (data.status === 'error') {
             setBusy(false);
           }
         }
@@ -117,8 +123,12 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
     const el = containerRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
-    // The window uses CSS pixels (DIP), so we pass rect directly
-    return { x: Math.round(rect.left), y: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height) };
+    // Leave a small gutter on the left for the drag handle so it can receive events above the preview view
+    const x = Math.round(rect.left + HANDLE_PX);
+    const y = Math.round(rect.top);
+    const w = Math.max(1, Math.round(rect.width - HANDLE_PX));
+    const h = Math.round(rect.height);
+    return { x, y, width: w, height: h };
   }, []);
 
   React.useEffect(() => {
@@ -153,44 +163,58 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   // Drag-resize from the left edge
   React.useEffect(() => {
     let dragging = false;
+    let pointerId: number | null = null;
     let startX = 0;
-    let startPct = widthPct;
-    const onDown = (e: MouseEvent) => {
+    let startPct = widthPctRef.current;
+    const handle = document.getElementById('emdash-browser-drag');
+    if (!handle) return;
+
+    const onPointerDown = (e: PointerEvent) => {
       dragging = true;
+      pointerId = e.pointerId;
+      try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch {}
+      setDragging(true);
       startX = e.clientX;
-      startPct = widthPct;
+      startPct = widthPctRef.current;
       document.body.style.cursor = 'col-resize';
       e.preventDefault();
     };
-    const onMove = (e: MouseEvent) => {
+    const onPointerMove = (e: PointerEvent) => {
       if (!dragging) return;
       const dx = startX - e.clientX; // dragging handle to left increases width
-      const vw = window.innerWidth || 1;
+      const vw = Math.max(1, window.innerWidth);
       const deltaPct = (dx / vw) * 100;
-      setWidthPct(clamp(startPct + deltaPct, 20, 90));
+      setWidthPct(clamp(startPct + deltaPct, 5, 96));
+      e.preventDefault();
     };
-    const onUp = () => {
+    const onPointerUp = (e: PointerEvent) => {
       if (!dragging) return;
       dragging = false;
+      try { if (pointerId != null) handle.releasePointerCapture?.(pointerId); } catch {}
+      pointerId = null;
+      setDragging(false);
+      document.body.style.cursor = '';
+      e.preventDefault();
+    };
+
+    handle.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp, { passive: false });
+    return () => {
+      handle.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove as any);
+      window.removeEventListener('pointerup', onPointerUp as any);
+      setDragging(false);
       document.body.style.cursor = '';
     };
-    const handle = document.getElementById('emdash-browser-drag');
-    handle?.addEventListener('mousedown', onDown);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      handle?.removeEventListener('mousedown', onDown);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [setWidthPct, widthPct]);
+  }, [setWidthPct]);
 
   const { goBack, goForward, reload, execJS } = useBrowser();
 
   return (
     <div
       className={cn(
-        'absolute left-0 right-0 bottom-0 z-[70] overflow-hidden',
+        'fixed left-0 right-0 bottom-0 z-[70] overflow-hidden',
         isOpen ? 'pointer-events-auto' : 'pointer-events-none'
       )}
       // Offset below the app titlebar so the pane’s toolbar is visible
@@ -270,7 +294,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
-          <button
+          {/* <button
             className="inline-flex h-6 items-center gap-1 rounded border border-border px-2 text-xs hover:bg-muted"
             title="Open DevTools"
             onClick={() => {
@@ -279,7 +303,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
             }}
           >
             <Bug className="h-3.5 w-3.5" />
-          </button>
+          </button> */}
           <button
             className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
             onClick={close}
@@ -303,8 +327,11 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
         )}
 
         <div className="relative min-h-0">
-          <div id="emdash-browser-drag" className="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize hover:bg-border/60" />
+          <div id="emdash-browser-drag" className="absolute left-0 top-0 z-[200] h-full w-[6px] cursor-col-resize hover:bg-border/60" />
           <div ref={containerRef} className="h-full w-full" />
+          {dragging ? (
+            <div className="absolute inset-0 z-[180] cursor-col-resize" style={{ background: 'transparent' }} />
+          ) : null}
           {(busy || !url) ? (
             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
               <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-[1px]">
