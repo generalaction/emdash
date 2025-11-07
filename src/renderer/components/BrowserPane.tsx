@@ -14,7 +14,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   workspacePath,
   overlayActive = false,
 }) => {
-  const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, showSpinner, hideSpinner } =
+  const { isOpen, url, widthPct, setWidthPct, close, navigate, clearUrl, busy, showSpinner, hideSpinner } =
     useBrowser();
   const [address, setAddress] = React.useState<string>('');
   const [title, setTitle] = React.useState<string>('');
@@ -66,12 +66,16 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   React.useEffect(() => {
     const prev = prevWorkspaceIdRef.current;
     const cur = (workspaceId || '').trim() || null;
+    try {
+      // Stop all other preview servers except the new current (if any)
+      (window as any).electronAPI?.hostPreviewStopAll?.(cur || '');
+    } catch {}
     if (prev && cur && prev !== cur) {
-      try {
-        (window as any).electronAPI?.hostPreviewStop?.(prev);
-        setRunning(prev, false);
-      } catch {}
+      try { setRunning(prev, false); } catch {}
     }
+    try { clearUrl(); } catch {}
+    try { hideSpinner(); } catch {}
+    setFailed(false);
     prevWorkspaceIdRef.current = cur;
   }, [workspaceId]);
 
@@ -214,6 +218,11 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
       return;
     }
     if (overlayActive || overlayRaised) {
+      try { (window as any).electronAPI?.browserHide?.(); } catch {}
+      return;
+    }
+    // If no URL yet, keep the native preview view hidden to avoid showing stale content
+    if (!url) {
       try { (window as any).electronAPI?.browserHide?.(); } catch {}
       return;
     }

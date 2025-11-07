@@ -39,6 +39,11 @@ export function registerHostPreviewIpc() {
     return hostPreviewService.stop(wid);
   });
 
+  ipcMain.handle('preview:host:stopAll', async (_e, exceptId?: string) => {
+    const ex = typeof exceptId === 'string' ? exceptId : '';
+    return hostPreviewService.stopAll(ex);
+  });
+
   const forward = (evt: any) => {
     const all = BrowserWindow.getAllWindows();
     for (const win of all) {

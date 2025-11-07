@@ -9,6 +9,7 @@ type BrowserController = {
   close: () => void;
   toggle: (url?: string) => void;
   navigate: (url: string) => void;
+  clearUrl: () => void;
   setWidthPct: (pct: number) => void;
   execJS: (code: string) => Promise<any>;
   goBack: () => void;
@@ -67,6 +68,10 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
     },
     [navigate]
   );
+
+  const clearUrl = React.useCallback(() => {
+    setUrl(null);
+  }, []);
 
   const execJS = React.useCallback(async (code: string) => {
     const el = ensureRef() as any;
@@ -129,6 +134,7 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
       close,
       toggle,
       navigate,
+      clearUrl,
       setWidthPct: setPaneWidthPct,
       execJS,
       goBack,
@@ -148,6 +154,7 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
       close,
       toggle,
       navigate,
+      clearUrl,
       setPaneWidthPct,
       execJS,
       goBack,

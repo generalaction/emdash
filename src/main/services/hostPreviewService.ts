@@ -186,6 +186,18 @@ class HostPreviewService extends EventEmitter {
     return { ok: true };
   }
 
+  stopAll(exceptId?: string | null): { ok: boolean; stopped: string[] } {
+    const stopped: string[] = [];
+    const except = (exceptId || '').trim();
+    for (const [id, proc] of this.procs.entries()) {
+      if (except && id === except) continue;
+      try { proc.kill(); } catch {}
+      this.procs.delete(id);
+      stopped.push(id);
+    }
+    return { ok: true, stopped };
+  }
+
   onEvent(listener: (evt: HostPreviewEvent) => void): () => void {
     this.on('event', listener);
     return () => this.off('event', listener);
