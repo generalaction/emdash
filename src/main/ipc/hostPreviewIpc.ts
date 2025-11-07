@@ -2,11 +2,14 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { hostPreviewService } from '../services/hostPreviewService';
 
 export function registerHostPreviewIpc() {
-  ipcMain.handle('preview:host:start', async (_e, args: { workspaceId: string; workspacePath: string; script?: string }) => {
+  ipcMain.handle('preview:host:start', async (
+    _e,
+    args: { workspaceId: string; workspacePath: string; script?: string; parentProjectPath?: string }
+  ) => {
     const id = String(args?.workspaceId || '').trim();
     const wp = String(args?.workspacePath || '').trim();
     if (!id || !wp) return { ok: false, error: 'workspaceId and workspacePath are required' };
-    return hostPreviewService.start(id, wp, { script: args?.script });
+    return hostPreviewService.start(id, wp, { script: args?.script, parentProjectPath: args?.parentProjectPath });
   });
 
   ipcMain.handle('preview:host:setup', async (_e, args: { workspaceId: string; workspacePath: string }) => {

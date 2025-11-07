@@ -8,9 +8,10 @@ interface Props {
   defaultUrl?: string;
   workspaceId?: string | null;
   workspacePath?: string | null;
+  parentProjectPath?: string | null;
 }
 
-const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspacePath }) => {
+const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspacePath, parentProjectPath }) => {
   const browser = useBrowser();
   async function needsInstall(path?: string | null): Promise<boolean> {
     const p = (path || '').trim();
@@ -55,6 +56,20 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
     return () => { try { off?.(); } catch {} };
   }, [browser, workspaceId]);
 
+  const isReachable = async (u?: string | null, timeoutMs = 900): Promise<boolean> => {
+    const url = (u || '').trim();
+    if (!url) return false;
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), timeoutMs);
+      await fetch(url, { method: 'GET', mode: 'no-cors', signal: c.signal });
+      clearTimeout(t);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleClick = React.useCallback(async () => {
     const id = (workspaceId || '').trim();
     const wp = (workspacePath || '').trim();
@@ -72,7 +87,10 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
         if (last) {
           const p = Number(new URL(last).port || 0);
           if (!(appPort !== 0 && p === appPort)) {
-            browser.open(last);
+            // Avoid noisy connection-refused logs by waiting briefly for readiness
+            if (await isReachable(last)) {
+              browser.open(last);
+            }
           }
         }
         // If we already have a running server or a remembered URL, don't show a long spinner
@@ -93,7 +111,7 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
         // Kick server
         const running = localStorage.getItem(`emdash:preview:running:${id}`) === '1';
         if (!running) {
-          await (window as any).electronAPI?.hostPreviewStart?.({ workspaceId: id, workspacePath: wp });
+          await (window as any).electronAPI?.hostPreviewStart?.({ workspaceId: id, workspacePath: wp, parentProjectPath: (parentProjectPath || '').trim() });
         }
         // We no longer probe ports here. We rely on host preview URL events
         // (or the user entering a URL manually) to navigate.
@@ -101,7 +119,7 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
     }
     // Fallback: clear spinner after a grace period if nothing arrives
     setTimeout(() => browser.setBusy(false), 15000);
-  }, [browser, workspaceId, workspacePath]);
+  }, [browser, workspaceId, workspacePath, parentProjectPath]);
 
   return (
     <TooltipProvider delayDuration={200}>

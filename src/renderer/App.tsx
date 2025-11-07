@@ -1501,6 +1501,7 @@ const AppContent: React.FC = () => {
             }
             workspaceId={activeWorkspace?.id || null}
             workspacePath={activeWorkspace?.path || null}
+            projectPath={selectedProject?.path || null}
             githubUser={user}
           />
           <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">

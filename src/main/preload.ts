@@ -361,7 +361,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Host preview (non-container)
-  hostPreviewStart: (args: { workspaceId: string; workspacePath: string; script?: string }) =>
+  hostPreviewStart: (args: { workspaceId: string; workspacePath: string; script?: string; parentProjectPath?: string }) =>
     ipcRenderer.invoke('preview:host:start', args),
   hostPreviewSetup: (args: { workspaceId: string; workspacePath: string }) =>
     ipcRenderer.invoke('preview:host:setup', args),
@@ -718,7 +718,7 @@ export interface ElectronAPI {
   ) => () => void;
 
   // Host preview (non-container)
-  hostPreviewStart: (args: { workspaceId: string; workspacePath: string; script?: string }) => Promise<{ ok: boolean; error?: string }>;
+  hostPreviewStart: (args: { workspaceId: string; workspacePath: string; script?: string; parentProjectPath?: string }) => Promise<{ ok: boolean; error?: string }>;
   hostPreviewSetup: (args: { workspaceId: string; workspacePath: string }) => Promise<{ ok: boolean; error?: string }>;
   hostPreviewStop: (workspaceId: string) => Promise<{ ok: boolean }>;
   onHostPreviewEvent: (

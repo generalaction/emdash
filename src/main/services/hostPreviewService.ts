@@ -70,10 +70,33 @@ class HostPreviewService extends EventEmitter {
     }
   }
 
-  start(workspaceId: string, workspacePath: string, opts?: { script?: string }): { ok: boolean; error?: string } {
+  start(
+    workspaceId: string,
+    workspacePath: string,
+    opts?: { script?: string; parentProjectPath?: string }
+  ): { ok: boolean; error?: string } {
     if (this.procs.has(workspaceId)) return { ok: true };
     const cwd = path.resolve(workspacePath);
     const pm = detectPackageManager(cwd);
+    // Preflight: if the workspace lacks node_modules but the parent has it, try linking
+    try {
+      const parent = (opts?.parentProjectPath || '').trim();
+      if (parent) {
+        const wsNm = path.join(cwd, 'node_modules');
+        const parentNm = path.join(parent, 'node_modules');
+        const wsExists = fs.existsSync(wsNm);
+        const parentExists = fs.existsSync(parentNm);
+        if (!wsExists && parentExists) {
+          try {
+            const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+            fs.symlinkSync(parentNm, wsNm, linkType as any);
+            log.info?.('[hostPreview] linked node_modules', { workspaceId, wsNm, parentNm, linkType });
+          } catch (e) {
+            log.warn?.('[hostPreview] failed to link node_modules; will rely on install if needed', e);
+          }
+        }
+      }
+    } catch {}
     const pkgPath = path.join(cwd, 'package.json');
     let script = 'dev';
     if (opts?.script && typeof opts.script === 'string' && opts.script.trim()) {
