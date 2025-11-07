@@ -6,8 +6,6 @@ import { Spinner } from './ui/spinner';
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
-const DEFAULT_URL = 'data:text/html,%3C!doctype%20html%3E%3Chtml%3E%3Chead%3E%3Cmeta%20charset%3Dutf-8%3E%3C%2Fhead%3E%3Cbody%20style%3D%22margin%3A0%3Bbackground%3A%23fff%3B%22%3E%3C%2Fbody%3E%3C%2Fhtml%3E';
-
 const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: string | null }> = ({ workspaceId, workspacePath }) => {
   const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, setBusy } = useBrowser();
   const [address, setAddress] = React.useState<string>('');
@@ -70,14 +68,48 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
             const p = Number(new URL(String(data.url)).port || 0);
             if (appPort !== 0 && p === appPort) return;
           } catch {}
+          // Mark busy and navigate; a readiness probe below will clear busy when reachable
+          setBusy(true);
           navigate(String(data.url));
           try { localStorage.setItem(`emdash:browser:lastUrl:${workspaceId}`, String(data.url)); } catch {}
-          setBusy(false);
         }
       } catch {}
     });
     return () => { try { off?.(); } catch {} };
   }, [workspaceId, navigate, setBusy]);
+
+  // When URL changes, keep spinner until the URL responds at least once
+  React.useEffect(() => {
+    let cancelled = false;
+    const u = (url || '').trim();
+    if (!u) return;
+    // Kick a lightweight readiness probe to avoid white screen with no feedback
+    (async () => {
+      const deadline = Date.now() + 15000; // 15s max
+      const tryOnce = async () => {
+        try {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), 900);
+          await fetch(u, { mode: 'no-cors', signal: c.signal });
+          clearTimeout(t);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      // If already busy=false (e.g., manual set), don’t force it back on
+      setBusy(true);
+      while (!cancelled && Date.now() < deadline) {
+        const ok = await tryOnce();
+        if (ok) break;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      if (!cancelled) setBusy(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url, setBusy]);
 
   // Switch to main-managed Browser (WebContentsView): report bounds + drive navigation via preload.
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -258,11 +290,11 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
             <X className="h-4 w-4" />
           </button>
         </div>
-        {(busy || loading || lines.length > 0) && (
+        {(!busy && url && lines.length > 0) && (
           <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
             <span className="font-medium">Workspace Preview</span>
             <div className="ml-auto inline-flex items-center gap-2 text-muted-foreground">
-              {busy || loading ? <Spinner size="sm" /> : null}
+              {/* Show only last log line here; spinner is centered overlay while busy */}
               {lines.length ? (
                 <span className="truncate max-w-[360px]">{lines[lines.length - 1]}</span>
               ) : null}
