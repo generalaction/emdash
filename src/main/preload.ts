@@ -370,9 +370,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hostPreviewSetup: (args: { workspaceId: string; workspacePath: string }) =>
     ipcRenderer.invoke('preview:host:setup', args),
   hostPreviewStop: (workspaceId: string) => ipcRenderer.invoke('preview:host:stop', workspaceId),
-  onHostPreviewEvent: (
-    listener: (data: any) => void
-  ) => {
+  onHostPreviewEvent: (listener: (data: any) => void) => {
     const channel = 'preview:host:event';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
     ipcRenderer.on(channel, wrapped);

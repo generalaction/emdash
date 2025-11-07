@@ -165,7 +165,9 @@ class HostPreviewService extends EventEmitter {
       child.stderr.on('data', onData);
       child.on('exit', () => {
         this.procs.delete(workspaceId);
-        try { this.emit('event', { type: 'exit', workspaceId } as HostPreviewEvent); } catch {}
+        try {
+          this.emit('event', { type: 'exit', workspaceId } as HostPreviewEvent);
+        } catch {}
       });
       return { ok: true };
     } catch (e: any) {

@@ -2,7 +2,10 @@ export const PROBE_TIMEOUT_MS = 900;
 export const SPINNER_MAX_MS = 15000;
 export const FALLBACK_DELAY_MS = 5000;
 
-export async function isReachable(url?: string | null, timeoutMs: number = PROBE_TIMEOUT_MS): Promise<boolean> {
+export async function isReachable(
+  url?: string | null,
+  timeoutMs: number = PROBE_TIMEOUT_MS
+): Promise<boolean> {
   const u = (url || '').trim();
   if (!u) return false;
   const c = new AbortController();
@@ -25,4 +28,3 @@ export function isAppPort(url: string, appPort: number): boolean {
     return false;
   }
 }
-

@@ -3,7 +3,14 @@ import { Globe } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { useBrowser } from '@/providers/BrowserProvider';
-import { getLastUrl, setLastUrl, isRunning, setRunning, isInstalled, setInstalled } from '@/lib/previewStorage';
+import {
+  getLastUrl,
+  setLastUrl,
+  isRunning,
+  setRunning,
+  isInstalled,
+  setInstalled,
+} from '@/lib/previewStorage';
 import { isReachable, isAppPort, FALLBACK_DELAY_MS, SPINNER_MAX_MS } from '@/lib/previewNetwork';
 
 interface Props {
@@ -58,11 +65,15 @@ const BrowserToggleButton: React.FC<Props> = ({
         }
         if (data?.type === 'setup' && data?.workspaceId && data?.status === 'done') {
           if (workspaceId && data.workspaceId !== workspaceId) return;
-          try { if (workspaceId) setInstalled(workspaceId, true); } catch {}
+          try {
+            if (workspaceId) setInstalled(workspaceId, true);
+          } catch {}
         }
         if (data?.type === 'exit' && data?.workspaceId) {
           if (workspaceId && data.workspaceId !== workspaceId) return;
-          try { if (workspaceId) setRunning(workspaceId, false); } catch {}
+          try {
+            if (workspaceId) setRunning(workspaceId, false);
+          } catch {}
         }
       } catch {}
     });
@@ -108,7 +119,9 @@ const BrowserToggleButton: React.FC<Props> = ({
             openedFromLast = true;
           }
           if (running && !reachable) {
-            try { setRunning(id, false); } catch {}
+            try {
+              setRunning(id, false);
+            } catch {}
           }
         }
         if (openedFromLast) browser.hideSpinner();

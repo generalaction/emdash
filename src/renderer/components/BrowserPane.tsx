@@ -13,7 +13,8 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   workspaceId,
   workspacePath,
 }) => {
-  const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, showSpinner, hideSpinner } = useBrowser();
+  const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, showSpinner, hideSpinner } =
+    useBrowser();
   const [address, setAddress] = React.useState<string>('');
   const [title, setTitle] = React.useState<string>('');
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -86,10 +87,14 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
           // Mark busy and navigate; a readiness probe below will clear busy when reachable
           showSpinner();
           navigate(String(data.url));
-          try { setLastUrl(String(workspaceId), String(data.url)); } catch {}
+          try {
+            setLastUrl(String(workspaceId), String(data.url));
+          } catch {}
         }
         if (data.type === 'exit') {
-          try { setRunning(String(workspaceId), false); } catch {}
+          try {
+            setRunning(String(workspaceId), false);
+          } catch {}
           hideSpinner();
         }
       } catch {}
@@ -141,7 +146,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   const handleRetry = React.useCallback(() => {
     if (!url) return;
     showSpinner();
-    try { (window as any).electronAPI?.browserReload?.(); } catch {}
+    try {
+      (window as any).electronAPI?.browserReload?.();
+    } catch {}
     setRetryTick((n) => n + 1);
   }, [url, showSpinner]);
 
@@ -400,7 +407,8 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
               <div className="rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm">
                 <div className="mb-2 font-medium text-foreground">Preview not reachable</div>
                 <div className="mb-3 max-w-[520px] text-xs text-muted-foreground">
-                  We couldn’t connect to {url}. This can happen if dependencies aren’t installed or the dev server hasn’t started yet.
+                  We couldn’t connect to {url}. This can happen if dependencies aren’t installed or
+                  the dev server hasn’t started yet.
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
