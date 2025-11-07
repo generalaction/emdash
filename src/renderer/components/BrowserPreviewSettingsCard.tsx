@@ -5,6 +5,7 @@ import safariLogo from '../../assets/images/safari.png';
 import firefoxLogo from '../../assets/images/firefox.png';
 import atlasLogo from '../../assets/images/atlas.png';
 import chromiumLogo from '../../assets/images/chromium.png';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 export default function BrowserPreviewSettingsCard() {
   const [enabled, setEnabled] = React.useState(true);
@@ -34,13 +35,14 @@ export default function BrowserPreviewSettingsCard() {
     fallback?: React.ReactNode;
     active?: boolean;
     disabled?: boolean;
-  }> = ({ label, iconSrc, fallback, active, disabled }) => {
+    tooltip?: string;
+  }> = ({ label, iconSrc, fallback, active, disabled, tooltip }) => {
     const [broken, setBroken] = React.useState(false);
     const base = 'inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs';
     const style = active
       ? 'border border-primary/40 bg-primary/10 text-primary'
       : 'border border-border/60 bg-muted/20 text-muted-foreground opacity-70';
-    return (
+    const node = (
       <span className={`${base} ${style}`} aria-disabled={disabled}>
         {iconSrc && !broken ? (
           <img
@@ -55,6 +57,17 @@ export default function BrowserPreviewSettingsCard() {
         <span>{label}</span>
       </span>
     );
+    if (tooltip || disabled) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>{node}</TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            {tooltip || 'Coming soon'}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    return node;
   };
 
   return (
@@ -73,13 +86,15 @@ export default function BrowserPreviewSettingsCard() {
         Enable in‑app browser preview
       </label>
       <div className="mt-3 text-xs text-muted-foreground">Engine</div>
-      <div className="mt-1 flex flex-wrap items-center gap-2">
-        <Badge label="Chromium" iconSrc={chromiumLogo} active />
-        <Badge label="Safari" iconSrc={safariLogo} disabled />
-        <Badge label="Chrome" iconSrc={chromeLogo} disabled />
-        <Badge label="Firefox" iconSrc={firefoxLogo} disabled />
-        <Badge label="ChatGPT Atlas" iconSrc={atlasLogo} disabled />
-      </div>
+      <TooltipProvider delayDuration={150}>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <Badge label="Chromium" iconSrc={chromiumLogo} active />
+          <Badge label="Safari" iconSrc={safariLogo} disabled tooltip="Coming soon" />
+          <Badge label="Chrome" iconSrc={chromeLogo} disabled tooltip="Coming soon" />
+          <Badge label="Firefox" iconSrc={firefoxLogo} disabled tooltip="Coming soon" />
+          <Badge label="ChatGPT Atlas" iconSrc={atlasLogo} disabled tooltip="Coming soon" />
+        </div>
+      </TooltipProvider>
     </div>
   );
 }
