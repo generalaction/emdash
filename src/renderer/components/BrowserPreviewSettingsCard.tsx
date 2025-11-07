@@ -5,6 +5,8 @@ import safariLogo from '../../assets/images/safari.png';
 import firefoxLogo from '../../assets/images/firefox.png';
 import atlasLogo from '../../assets/images/atlas.png';
 import chromiumLogo from '../../assets/images/chromium.png';
+import diaLogo from '../../assets/images/dia.png';
+import cometLogo from '../../assets/images/comet.png';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 export default function BrowserPreviewSettingsCard() {
@@ -73,7 +75,7 @@ export default function BrowserPreviewSettingsCard() {
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
       <div className="mb-2 text-sm text-muted-foreground">
-        Preview your workspace UI inside Emdash using the built-in browser view.
+        Preview UI changes using the built-in browser view.
       </div>
       <label className="flex items-center gap-2 text-sm">
         <input
@@ -93,6 +95,8 @@ export default function BrowserPreviewSettingsCard() {
           <Badge label="Chrome" iconSrc={chromeLogo} disabled tooltip="Coming soon" />
           <Badge label="Firefox" iconSrc={firefoxLogo} disabled tooltip="Coming soon" />
           <Badge label="ChatGPT Atlas" iconSrc={atlasLogo} disabled tooltip="Coming soon" />
+          <Badge label="Dia" iconSrc={diaLogo} disabled tooltip="Coming soon" />
+          <Badge label="Comet" iconSrc={cometLogo} disabled tooltip="Coming soon" />
         </div>
       </TooltipProvider>
     </div>
