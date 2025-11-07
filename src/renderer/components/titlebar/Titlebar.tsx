@@ -23,6 +23,7 @@ interface TitlebarProps {
   defaultPreviewUrl?: string | null;
   workspaceId?: string | null;
   workspacePath?: string | null;
+  projectPath?: string | null;
 }
 
 const Titlebar: React.FC<TitlebarProps> = ({
@@ -33,6 +34,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   defaultPreviewUrl,
   workspaceId,
   workspacePath,
+  projectPath,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -87,6 +89,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
             defaultUrl={defaultPreviewUrl || undefined}
             workspaceId={workspaceId}
             workspacePath={workspacePath}
+            parentProjectPath={projectPath}
           />
           <TooltipProvider delayDuration={200}>
             <Tooltip>
