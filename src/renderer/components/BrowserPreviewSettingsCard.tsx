@@ -4,6 +4,7 @@ import chromeLogo from '../../assets/images/chrome.png';
 import safariLogo from '../../assets/images/safari.png';
 import firefoxLogo from '../../assets/images/firefox.png';
 import atlasLogo from '../../assets/images/atlas.png';
+import chromiumLogo from '../../assets/images/chromium.png';
 
 export default function BrowserPreviewSettingsCard() {
   const [enabled, setEnabled] = React.useState(true);
@@ -59,7 +60,7 @@ export default function BrowserPreviewSettingsCard() {
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
       <div className="mb-2 text-sm text-muted-foreground">
-        Preview your workspace UI inside Emdash using the embedded Chromium engine.
+        Preview your workspace UI inside Emdash using the built-in browser view.
       </div>
       <label className="flex items-center gap-2 text-sm">
         <input
@@ -73,16 +74,11 @@ export default function BrowserPreviewSettingsCard() {
       </label>
       <div className="mt-3 text-xs text-muted-foreground">Engine</div>
       <div className="mt-1 flex flex-wrap items-center gap-2">
-        <Badge
-          label="Chromium (current)"
-          // Use a light blue globe as the Chromium mark
-          fallback={<Globe className="h-3.5 w-3.5 text-sky-500" />}
-          active
-        />
-        <Badge label="Safari (coming soon)" iconSrc={safariLogo} disabled />
-        <Badge label="Chrome (coming soon)" iconSrc={chromeLogo} disabled />
-        <Badge label="Firefox (coming soon)" iconSrc={firefoxLogo} disabled />
-        <Badge label="ChatGPT Atlas (coming soon)" iconSrc={atlasLogo} disabled />
+        <Badge label="Chromium" iconSrc={chromiumLogo} active />
+        <Badge label="Safari" iconSrc={safariLogo} disabled />
+        <Badge label="Chrome" iconSrc={chromeLogo} disabled />
+        <Badge label="Firefox" iconSrc={firefoxLogo} disabled />
+        <Badge label="ChatGPT Atlas" iconSrc={atlasLogo} disabled />
       </div>
     </div>
   );
