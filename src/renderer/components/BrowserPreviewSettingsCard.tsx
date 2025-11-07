@@ -1,4 +1,9 @@
 import React from 'react';
+import { Globe } from 'lucide-react';
+import chromeLogo from '../../assets/images/chrome.png';
+import safariLogo from '../../assets/images/safari.png';
+import firefoxLogo from '../../assets/images/firefox.png';
+import atlasLogo from '../../assets/images/atlas.png';
 
 export default function BrowserPreviewSettingsCard() {
   const [enabled, setEnabled] = React.useState(true);
@@ -22,6 +27,35 @@ export default function BrowserPreviewSettingsCard() {
     } catch {}
   };
 
+  const Badge: React.FC<{
+    label: string;
+    iconSrc?: string;
+    fallback?: React.ReactNode;
+    active?: boolean;
+    disabled?: boolean;
+  }> = ({ label, iconSrc, fallback, active, disabled }) => {
+    const [broken, setBroken] = React.useState(false);
+    const base = 'inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs';
+    const style = active
+      ? 'border border-primary/40 bg-primary/10 text-primary'
+      : 'border border-border/60 bg-muted/20 text-muted-foreground opacity-70';
+    return (
+      <span className={`${base} ${style}`} aria-disabled={disabled}>
+        {iconSrc && !broken ? (
+          <img
+            src={iconSrc}
+            alt=""
+            className="h-3.5 w-3.5 rounded-sm"
+            onError={() => setBroken(true)}
+          />
+        ) : (
+          fallback || null
+        )}
+        <span>{label}</span>
+      </span>
+    );
+  };
+
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
       <div className="mb-2 text-sm text-muted-foreground">
@@ -39,20 +73,17 @@ export default function BrowserPreviewSettingsCard() {
       </label>
       <div className="mt-3 text-xs text-muted-foreground">Engine</div>
       <div className="mt-1 flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs text-primary">
-          Chromium (current)
-        </span>
-        <span className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/20 px-2 py-0.5 text-xs text-muted-foreground opacity-70">
-          Safari (coming soon)
-        </span>
-        <span className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/20 px-2 py-0.5 text-xs text-muted-foreground opacity-70">
-          Chrome (coming soon)
-        </span>
-        <span className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/20 px-2 py-0.5 text-xs text-muted-foreground opacity-70">
-          Firefox (coming soon)
-        </span>
+        <Badge
+          label="Chromium (current)"
+          // Use a light blue globe as the Chromium mark
+          fallback={<Globe className="h-3.5 w-3.5 text-sky-500" />}
+          active
+        />
+        <Badge label="Safari (coming soon)" iconSrc={safariLogo} disabled />
+        <Badge label="Chrome (coming soon)" iconSrc={chromeLogo} disabled />
+        <Badge label="Firefox (coming soon)" iconSrc={firefoxLogo} disabled />
+        <Badge label="ChatGPT Atlas (coming soon)" iconSrc={atlasLogo} disabled />
       </div>
     </div>
   );
 }
-
