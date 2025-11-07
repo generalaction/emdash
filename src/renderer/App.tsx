@@ -1599,6 +1599,7 @@ const AppContent: React.FC = () => {
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}
               workspacePath={activeWorkspace?.path || null}
+              overlayActive={showSettings || showCommandPalette || showWorkspaceModal}
             />
           </RightSidebarProvider>
         </SidebarProvider>

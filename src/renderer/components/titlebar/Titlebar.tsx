@@ -50,6 +50,14 @@ const Titlebar: React.FC<TitlebarProps> = ({
     feedbackButtonRef.current?.blur();
   }, []);
 
+  // Broadcast overlay state so the preview pane can hide while feedback is open
+  useEffect(() => {
+    try {
+      const open = Boolean(isFeedbackOpen);
+      window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open } }));
+    } catch {}
+  }, [isFeedbackOpen]);
+
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
       if (event.defaultPrevented) {

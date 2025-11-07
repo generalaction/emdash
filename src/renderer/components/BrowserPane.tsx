@@ -9,9 +9,10 @@ import { PROBE_TIMEOUT_MS, SPINNER_MAX_MS, isAppPort } from '@/lib/previewNetwor
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const HANDLE_PX = 6; // left gutter reserved for drag handle; keep preview bounds clear of it
 
-const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: string | null }> = ({
+const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: string | null; overlayActive?: boolean }> = ({
   workspaceId,
   workspacePath,
+  overlayActive = false,
 }) => {
   const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, showSpinner, hideSpinner } =
     useBrowser();
@@ -32,6 +33,16 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   const [failed, setFailed] = React.useState<boolean>(false);
   const [retryTick, setRetryTick] = React.useState<number>(0);
   const [actionBusy, setActionBusy] = React.useState<null | 'install' | 'start'>(null);
+  const [overlayRaised, setOverlayRaised] = React.useState<boolean>(false);
+
+  // Listen for global overlay events (e.g., feedback modal) and hide preview when active
+  React.useEffect(() => {
+    const onOverlay = (e: any) => {
+      try { setOverlayRaised(Boolean(e?.detail?.open)); } catch {}
+    };
+    window.addEventListener('emdash:overlay:changed', onOverlay as any);
+    return () => window.removeEventListener('emdash:overlay:changed', onOverlay as any);
+  }, []);
 
   // Bind ref to provider
   React.useEffect(() => {
@@ -202,6 +213,10 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
       } catch {}
       return;
     }
+    if (overlayActive || overlayRaised) {
+      try { (window as any).electronAPI?.browserHide?.(); } catch {}
+      return;
+    }
     const bounds = computeBounds();
     if (bounds) {
       try {
@@ -228,7 +243,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
         ro?.disconnect?.();
       } catch {}
     };
-  }, [isOpen, url, computeBounds]);
+  }, [isOpen, url, computeBounds, overlayActive, overlayRaised]);
 
   // No programmatic load of about:blank to avoid ERR_ABORTED noise.
   React.useEffect(() => {
