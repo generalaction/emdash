@@ -1476,127 +1476,132 @@ const AppContent: React.FC = () => {
       >
         <SidebarProvider>
           <RightSidebarProvider defaultCollapsed>
-          <AppKeyboardShortcuts
-            showCommandPalette={showCommandPalette}
-            showSettings={showSettings}
-            handleToggleCommandPalette={handleToggleCommandPalette}
-            handleOpenSettings={handleOpenSettings}
-            handleCloseCommandPalette={handleCloseCommandPalette}
-            handleCloseSettings={handleCloseSettings}
-          />
-          <RightSidebarBridge
-            onCollapsedChange={handleRightSidebarCollapsedChange}
-            setCollapsedRef={rightSidebarSetCollapsedRef}
-          />
-          <Titlebar
-            onToggleSettings={handleToggleSettings}
-            isSettingsOpen={showSettings}
-            currentPath={
-              activeWorkspace?.metadata?.multiAgent?.enabled
-                ? null
-                : activeWorkspace?.path || selectedProject?.path || null
-            }
-            defaultPreviewUrl={
-              activeWorkspace?.id ? getContainerRunState(activeWorkspace.id)?.previewUrl || null : null
-            }
-            workspaceId={activeWorkspace?.id || null}
-            workspacePath={activeWorkspace?.path || null}
-            projectPath={selectedProject?.path || null}
-            isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
-            githubUser={user}
-          />
-          <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
-            <ResizablePanelGroup
-              direction="horizontal"
-              className="flex-1 overflow-hidden"
-              onLayout={handlePanelLayout}
-            >
-              <ResizablePanel
-                ref={leftSidebarPanelRef}
-                className="sidebar-panel sidebar-panel--left"
-                defaultSize={defaultPanelLayout[0]}
-                minSize={LEFT_SIDEBAR_MIN_SIZE}
-                maxSize={LEFT_SIDEBAR_MAX_SIZE}
-                collapsedSize={0}
-                collapsible
-                order={1}
+            <AppKeyboardShortcuts
+              showCommandPalette={showCommandPalette}
+              showSettings={showSettings}
+              handleToggleCommandPalette={handleToggleCommandPalette}
+              handleOpenSettings={handleOpenSettings}
+              handleCloseCommandPalette={handleCloseCommandPalette}
+              handleCloseSettings={handleCloseSettings}
+            />
+            <RightSidebarBridge
+              onCollapsedChange={handleRightSidebarCollapsedChange}
+              setCollapsedRef={rightSidebarSetCollapsedRef}
+            />
+            <Titlebar
+              onToggleSettings={handleToggleSettings}
+              isSettingsOpen={showSettings}
+              currentPath={
+                activeWorkspace?.metadata?.multiAgent?.enabled
+                  ? null
+                  : activeWorkspace?.path || selectedProject?.path || null
+              }
+              defaultPreviewUrl={
+                activeWorkspace?.id
+                  ? getContainerRunState(activeWorkspace.id)?.previewUrl || null
+                  : null
+              }
+              workspaceId={activeWorkspace?.id || null}
+              workspacePath={activeWorkspace?.path || null}
+              projectPath={selectedProject?.path || null}
+              isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
+              githubUser={user}
+            />
+            <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
+              <ResizablePanelGroup
+                direction="horizontal"
+                className="flex-1 overflow-hidden"
+                onLayout={handlePanelLayout}
               >
-                <LeftSidebar
-                  projects={projects}
-                  selectedProject={selectedProject}
-                  onSelectProject={handleSelectProject}
-                  onGoHome={handleGoHome}
-                  onOpenProject={handleOpenProject}
-                  onSelectWorkspace={handleSelectWorkspace}
-                  activeWorkspace={activeWorkspace || undefined}
-                  onReorderProjects={handleReorderProjects}
-                  onReorderProjectsFull={handleReorderProjectsFull}
-                  githubInstalled={ghInstalled}
-                  githubAuthenticated={isAuthenticated}
-                  githubUser={user}
-                  onSidebarContextChange={handleSidebarContextChange}
-                  onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
-                  isCreatingWorkspace={isCreatingWorkspace}
-                  onDeleteWorkspace={handleDeleteWorkspace}
-                  onDeleteProject={handleDeleteProject}
+                <ResizablePanel
+                  ref={leftSidebarPanelRef}
+                  className="sidebar-panel sidebar-panel--left"
+                  defaultSize={defaultPanelLayout[0]}
+                  minSize={LEFT_SIDEBAR_MIN_SIZE}
+                  maxSize={LEFT_SIDEBAR_MAX_SIZE}
+                  collapsedSize={0}
+                  collapsible
+                  order={1}
+                >
+                  <LeftSidebar
+                    projects={projects}
+                    selectedProject={selectedProject}
+                    onSelectProject={handleSelectProject}
+                    onGoHome={handleGoHome}
+                    onOpenProject={handleOpenProject}
+                    onSelectWorkspace={handleSelectWorkspace}
+                    activeWorkspace={activeWorkspace || undefined}
+                    onReorderProjects={handleReorderProjects}
+                    onReorderProjectsFull={handleReorderProjectsFull}
+                    githubInstalled={ghInstalled}
+                    githubAuthenticated={isAuthenticated}
+                    githubUser={user}
+                    onSidebarContextChange={handleSidebarContextChange}
+                    onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
+                    isCreatingWorkspace={isCreatingWorkspace}
+                    onDeleteWorkspace={handleDeleteWorkspace}
+                    onDeleteProject={handleDeleteProject}
+                  />
+                </ResizablePanel>
+                <ResizableHandle
+                  withHandle
+                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                 />
-              </ResizablePanel>
-              <ResizableHandle
-                withHandle
-                className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-              />
-              <ResizablePanel
-                className="sidebar-panel sidebar-panel--main"
-                defaultSize={defaultPanelLayout[1]}
-                minSize={MAIN_PANEL_MIN_SIZE}
-                order={2}
-              >
-                <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-                  {renderMainContent()}
-                </div>
-              </ResizablePanel>
-              <ResizableHandle
-                withHandle
-                className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-              />
-              <ResizablePanel
-                ref={rightSidebarPanelRef}
-                className="sidebar-panel sidebar-panel--right"
-                defaultSize={0}
-                minSize={RIGHT_SIDEBAR_MIN_SIZE}
-                maxSize={RIGHT_SIDEBAR_MAX_SIZE}
-                collapsedSize={0}
-                collapsible
-                order={3}
-              >
-                <RightSidebar workspace={activeWorkspace} className="lg:border-l-0" />
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          </div>
-          <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
-          <CommandPaletteWrapper
-            isOpen={showCommandPalette}
-            onClose={handleCloseCommandPalette}
-            projects={projects}
-            handleSelectProject={handleSelectProject}
-            handleSelectWorkspace={handleSelectWorkspace}
-            handleGoHome={handleGoHome}
-            handleOpenProject={handleOpenProject}
-            handleOpenSettings={handleOpenSettings}
-          />
-          <WorkspaceModal
-            isOpen={showWorkspaceModal}
-            onClose={() => setShowWorkspaceModal(false)}
-            onCreateWorkspace={handleCreateWorkspace}
-            projectName={selectedProject?.name || ''}
-            defaultBranch={selectedProject?.gitInfo.branch || 'main'}
-            existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
-            projectPath={selectedProject?.path}
-          />
-          <Toaster />
-          <BrowserPane workspaceId={activeWorkspace?.id || null} workspacePath={activeWorkspace?.path || null} />
-        </RightSidebarProvider>
-      </SidebarProvider>
+                <ResizablePanel
+                  className="sidebar-panel sidebar-panel--main"
+                  defaultSize={defaultPanelLayout[1]}
+                  minSize={MAIN_PANEL_MIN_SIZE}
+                  order={2}
+                >
+                  <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+                    {renderMainContent()}
+                  </div>
+                </ResizablePanel>
+                <ResizableHandle
+                  withHandle
+                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+                />
+                <ResizablePanel
+                  ref={rightSidebarPanelRef}
+                  className="sidebar-panel sidebar-panel--right"
+                  defaultSize={0}
+                  minSize={RIGHT_SIDEBAR_MIN_SIZE}
+                  maxSize={RIGHT_SIDEBAR_MAX_SIZE}
+                  collapsedSize={0}
+                  collapsible
+                  order={3}
+                >
+                  <RightSidebar workspace={activeWorkspace} className="lg:border-l-0" />
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </div>
+            <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
+            <CommandPaletteWrapper
+              isOpen={showCommandPalette}
+              onClose={handleCloseCommandPalette}
+              projects={projects}
+              handleSelectProject={handleSelectProject}
+              handleSelectWorkspace={handleSelectWorkspace}
+              handleGoHome={handleGoHome}
+              handleOpenProject={handleOpenProject}
+              handleOpenSettings={handleOpenSettings}
+            />
+            <WorkspaceModal
+              isOpen={showWorkspaceModal}
+              onClose={() => setShowWorkspaceModal(false)}
+              onCreateWorkspace={handleCreateWorkspace}
+              projectName={selectedProject?.name || ''}
+              defaultBranch={selectedProject?.gitInfo.branch || 'main'}
+              existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
+              projectPath={selectedProject?.path}
+            />
+            <Toaster />
+            <BrowserPane
+              workspaceId={activeWorkspace?.id || null}
+              workspacePath={activeWorkspace?.path || null}
+            />
+          </RightSidebarProvider>
+        </SidebarProvider>
       </div>
     </BrowserProvider>
   );

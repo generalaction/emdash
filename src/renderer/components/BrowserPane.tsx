@@ -7,7 +7,10 @@ import { Spinner } from './ui/spinner';
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const HANDLE_PX = 6; // left gutter reserved for drag handle; keep preview bounds clear of it
 
-const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: string | null }> = ({ workspaceId, workspacePath }) => {
+const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: string | null }> = ({
+  workspaceId,
+  workspacePath,
+}) => {
   const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, setBusy } = useBrowser();
   const [address, setAddress] = React.useState<string>('');
   const [title, setTitle] = React.useState<string>('');
@@ -20,7 +23,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   const [lines, setLines] = React.useState<string[]>([]);
   const [dragging, setDragging] = React.useState<boolean>(false);
   const widthPctRef = React.useRef<number>(widthPct);
-  React.useEffect(() => { widthPctRef.current = widthPct; }, [widthPct]);
+  React.useEffect(() => {
+    widthPctRef.current = widthPct;
+  }, [widthPct]);
 
   // Bind ref to provider
   React.useEffect(() => {
@@ -28,7 +33,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
     const dispatch = (detail: any) =>
       window.dispatchEvent(new CustomEvent('emdash:browser:internal', { detail }));
     if (el) dispatch({ type: 'bind', target: el });
-    return () => { dispatch({ type: 'bind', target: null }); };
+    return () => {
+      dispatch({ type: 'bind', target: null });
+    };
   }, []);
 
   // Keep address bar in sync
@@ -77,11 +84,17 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
           // Mark busy and navigate; a readiness probe below will clear busy when reachable
           setBusy(true);
           navigate(String(data.url));
-          try { localStorage.setItem(`emdash:browser:lastUrl:${workspaceId}`, String(data.url)); } catch {}
+          try {
+            localStorage.setItem(`emdash:browser:lastUrl:${workspaceId}`, String(data.url));
+          } catch {}
         }
       } catch {}
     });
-    return () => { try { off?.(); } catch {} };
+    return () => {
+      try {
+        off?.();
+      } catch {}
+    };
   }, [workspaceId, navigate, setBusy]);
 
   // When URL changes, keep spinner until the URL responds at least once
@@ -133,25 +146,36 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
 
   React.useEffect(() => {
     if (!isOpen) {
-      try { (window as any).electronAPI?.browserHide?.(); } catch {}
+      try {
+        (window as any).electronAPI?.browserHide?.();
+      } catch {}
       return;
     }
     const bounds = computeBounds();
     if (bounds) {
-      try { (window as any).electronAPI?.browserShow?.(bounds, url || undefined); } catch {}
+      try {
+        (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
+      } catch {}
     }
     const onResize = () => {
       const b = computeBounds();
-      if (b) try { (window as any).electronAPI?.browserSetBounds?.(b); } catch {}
+      if (b)
+        try {
+          (window as any).electronAPI?.browserSetBounds?.(b);
+        } catch {}
     };
     window.addEventListener('resize', onResize);
     const RO = (window as any).ResizeObserver;
     const ro = RO ? new RO(() => onResize()) : null;
     if (ro && containerRef.current) ro.observe(containerRef.current);
     return () => {
-      try { (window as any).electronAPI?.browserHide?.(); } catch {}
+      try {
+        (window as any).electronAPI?.browserHide?.();
+      } catch {}
       window.removeEventListener('resize', onResize);
-      try { ro?.disconnect?.(); } catch {}
+      try {
+        ro?.disconnect?.();
+      } catch {}
     };
   }, [isOpen, url, computeBounds]);
 
@@ -172,7 +196,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
     const onPointerDown = (e: PointerEvent) => {
       dragging = true;
       pointerId = e.pointerId;
-      try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch {}
+      try {
+        (e.target as Element).setPointerCapture?.(e.pointerId);
+      } catch {}
       setDragging(true);
       startX = e.clientX;
       startPct = widthPctRef.current;
@@ -190,7 +216,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
     const onPointerUp = (e: PointerEvent) => {
       if (!dragging) return;
       dragging = false;
-      try { if (pointerId != null) handle.releasePointerCapture?.(pointerId); } catch {}
+      try {
+        if (pointerId != null) handle.releasePointerCapture?.(pointerId);
+      } catch {}
       pointerId = null;
       setDragging(false);
       document.body.style.cursor = '';
@@ -214,7 +242,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   return (
     <div
       className={cn(
-        'fixed left-0 right-0 bottom-0 z-[70] overflow-hidden',
+        'fixed bottom-0 left-0 right-0 z-[70] overflow-hidden',
         isOpen ? 'pointer-events-auto' : 'pointer-events-none'
       )}
       // Offset below the app titlebar so the pane’s toolbar is visible
@@ -222,7 +250,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
       aria-hidden={!isOpen}
     >
       <div
-        className="absolute right-0 top-0 h-full bg-background shadow-xl border-l border-border"
+        className="absolute right-0 top-0 h-full border-l border-border bg-background shadow-xl"
         style={{
           width: `${widthPct}%`,
           transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
@@ -275,16 +303,18 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
           </form>
           {!url ? (
             <div className="hidden items-center gap-1.5 sm:flex">
-              {['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'].map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  className="inline-flex items-center rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
-                  onClick={() => navigate(u)}
-                >
-                  {u.replace('http://', '')}
-                </button>
-              ))}
+              {['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'].map(
+                (u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    className="inline-flex items-center rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+                    onClick={() => navigate(u)}
+                  >
+                    {u.replace('http://', '')}
+                  </button>
+                )
+              )}
             </div>
           ) : null}
           <button
@@ -309,36 +339,43 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
             onClick={close}
             title="Close"
             aria-label="Close"
-            
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        {(!busy && url && lines.length > 0) && (
+        {!busy && url && lines.length > 0 && (
           <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
             <span className="font-medium">Workspace Preview</span>
             <div className="ml-auto inline-flex items-center gap-2 text-muted-foreground">
               {/* Show only last log line here; spinner is centered overlay while busy */}
               {lines.length ? (
-                <span className="truncate max-w-[360px]">{lines[lines.length - 1]}</span>
+                <span className="max-w-[360px] truncate">{lines[lines.length - 1]}</span>
               ) : null}
             </div>
           </div>
         )}
 
         <div className="relative min-h-0">
-          <div id="emdash-browser-drag" className="absolute left-0 top-0 z-[200] h-full w-[6px] cursor-col-resize hover:bg-border/60" />
+          <div
+            id="emdash-browser-drag"
+            className="absolute left-0 top-0 z-[200] h-full w-[6px] cursor-col-resize hover:bg-border/60"
+          />
           <div ref={containerRef} className="h-full w-full" />
           {dragging ? (
-            <div className="absolute inset-0 z-[180] cursor-col-resize" style={{ background: 'transparent' }} />
+            <div
+              className="absolute inset-0 z-[180] cursor-col-resize"
+              style={{ background: 'transparent' }}
+            />
           ) : null}
-          {(busy || !url) ? (
+          {busy || !url ? (
             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
               <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-[1px]">
                 <Spinner size="md" />
                 <div className="leading-tight">
                   <div className="font-medium text-foreground">Loading preview…</div>
-                  <div className="text-xs text-muted-foreground/80">Starting or connecting to your dev server</div>
+                  <div className="text-xs text-muted-foreground/80">
+                    Starting or connecting to your dev server
+                  </div>
                 </div>
               </div>
             </div>

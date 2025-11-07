@@ -46,19 +46,25 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch {}
   }, []);
 
-  const open = React.useCallback((nextUrl?: string) => {
-    if (nextUrl) navigate(nextUrl);
-    setOpen(true);
-  }, [navigate]);
+  const open = React.useCallback(
+    (nextUrl?: string) => {
+      if (nextUrl) navigate(nextUrl);
+      setOpen(true);
+    },
+    [navigate]
+  );
 
   const close = React.useCallback(() => setOpen(false), []);
-  const toggle = React.useCallback((nextUrl?: string) => {
-    setOpen((prev) => {
-      const nextState = !prev;
-      if (nextState && nextUrl) navigate(nextUrl);
-      return nextState;
-    });
-  }, [navigate]);
+  const toggle = React.useCallback(
+    (nextUrl?: string) => {
+      setOpen((prev) => {
+        const nextState = !prev;
+        if (nextState && nextUrl) navigate(nextUrl);
+        return nextState;
+      });
+    },
+    [navigate]
+  );
 
   const execJS = React.useCallback(async (code: string) => {
     const el = ensureRef() as any;
@@ -73,7 +79,10 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const goBack = React.useCallback(() => {
     try {
       const api: any = (window as any).electronAPI;
-      if (api && typeof api.browserGoBack === 'function') { api.browserGoBack(); return; }
+      if (api && typeof api.browserGoBack === 'function') {
+        api.browserGoBack();
+        return;
+      }
     } catch {}
     const el = ensureRef();
     if (el && el.canGoBack()) el.goBack();
@@ -81,7 +90,10 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const goForward = React.useCallback(() => {
     try {
       const api: any = (window as any).electronAPI;
-      if (api && typeof api.browserGoForward === 'function') { api.browserGoForward(); return; }
+      if (api && typeof api.browserGoForward === 'function') {
+        api.browserGoForward();
+        return;
+      }
     } catch {}
     const el = ensureRef();
     if (el && el.canGoForward()) el.goForward();
@@ -89,7 +101,10 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const reload = React.useCallback(() => {
     try {
       const api: any = (window as any).electronAPI;
-      if (api && typeof api.browserReload === 'function') { api.browserReload(); return; }
+      if (api && typeof api.browserReload === 'function') {
+        api.browserReload();
+        return;
+      }
     } catch {}
     const el = ensureRef();
     if (el) el.reload();
@@ -102,23 +117,41 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setWidthPctState(clamped);
   }, []);
 
-  const value = React.useMemo<BrowserController>(() => ({
-    isOpen,
-    url,
-    widthPct,
-    busy,
-    open,
-    close,
-    toggle,
-    navigate,
-    setWidthPct: setPaneWidthPct,
-    execJS,
-    goBack,
-    goForward,
-    reload,
-    focus,
-    setBusy: setBusyState,
-  }), [isOpen, url, widthPct, busy, open, close, toggle, navigate, setPaneWidthPct, execJS, goBack, goForward, reload, focus]);
+  const value = React.useMemo<BrowserController>(
+    () => ({
+      isOpen,
+      url,
+      widthPct,
+      busy,
+      open,
+      close,
+      toggle,
+      navigate,
+      setWidthPct: setPaneWidthPct,
+      execJS,
+      goBack,
+      goForward,
+      reload,
+      focus,
+      setBusy: setBusyState,
+    }),
+    [
+      isOpen,
+      url,
+      widthPct,
+      busy,
+      open,
+      close,
+      toggle,
+      navigate,
+      setPaneWidthPct,
+      execJS,
+      goBack,
+      goForward,
+      reload,
+      focus,
+    ]
+  );
 
   return (
     <Ctx.Provider value={value}>
@@ -138,7 +171,10 @@ export function useBrowser() {
 }
 
 // An invisible singleton helper that lets BrowserPane register the webview ref
-const BrowserViewRefBinder: React.FC<{ refObj: React.MutableRefObject<Electron.WebviewTag | null>; onUrlChange: (u: string | null) => void; }> = ({ refObj, onUrlChange }) => {
+const BrowserViewRefBinder: React.FC<{
+  refObj: React.MutableRefObject<Electron.WebviewTag | null>;
+  onUrlChange: (u: string | null) => void;
+}> = ({ refObj, onUrlChange }) => {
   React.useEffect(() => {
     const handler = (e: any) => {
       if (!e || !e.detail) return;

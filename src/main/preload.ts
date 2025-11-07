@@ -361,8 +361,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Host preview (non-container)
-  hostPreviewStart: (args: { workspaceId: string; workspacePath: string; script?: string; parentProjectPath?: string }) =>
-    ipcRenderer.invoke('preview:host:start', args),
+  hostPreviewStart: (args: {
+    workspaceId: string;
+    workspacePath: string;
+    script?: string;
+    parentProjectPath?: string;
+  }) => ipcRenderer.invoke('preview:host:start', args),
   hostPreviewSetup: (args: { workspaceId: string; workspacePath: string }) =>
     ipcRenderer.invoke('preview:host:setup', args),
   hostPreviewStop: (workspaceId: string) => ipcRenderer.invoke('preview:host:stop', workspaceId),
@@ -718,17 +722,33 @@ export interface ElectronAPI {
   ) => () => void;
 
   // Host preview (non-container)
-  hostPreviewStart: (args: { workspaceId: string; workspacePath: string; script?: string; parentProjectPath?: string }) => Promise<{ ok: boolean; error?: string }>;
-  hostPreviewSetup: (args: { workspaceId: string; workspacePath: string }) => Promise<{ ok: boolean; error?: string }>;
+  hostPreviewStart: (args: {
+    workspaceId: string;
+    workspacePath: string;
+    script?: string;
+    parentProjectPath?: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  hostPreviewSetup: (args: {
+    workspaceId: string;
+    workspacePath: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
   hostPreviewStop: (workspaceId: string) => Promise<{ ok: boolean }>;
   onHostPreviewEvent: (
     listener: (data: { type: 'url'; workspaceId: string; url: string }) => void
   ) => () => void;
 
   // Main-managed browser (WebContentsView)
-  browserShow: (bounds: { x: number; y: number; width: number; height: number }, url?: string) => Promise<{ ok: boolean }>;
+  browserShow: (
+    bounds: { x: number; y: number; width: number; height: number },
+    url?: string
+  ) => Promise<{ ok: boolean }>;
   browserHide: () => Promise<{ ok: boolean }>;
-  browserSetBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<{ ok: boolean }>;
+  browserSetBounds: (bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => Promise<{ ok: boolean }>;
   browserLoadURL: (url: string) => Promise<{ ok: boolean }>;
   browserGoBack: () => Promise<{ ok: boolean }>;
   browserGoForward: () => Promise<{ ok: boolean }>;

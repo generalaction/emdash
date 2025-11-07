@@ -595,7 +595,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
       return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
     };
-  const isMultiAgent = workspace.metadata?.multiAgent?.enabled === true;
+    const isMultiAgent = workspace.metadata?.multiAgent?.enabled === true;
     return (
       <div className="mt-4 px-6">
         <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">

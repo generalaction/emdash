@@ -38,7 +38,10 @@ function normalizeUrl(u: string): string {
 class HostPreviewService extends EventEmitter {
   private procs = new Map<string, ChildProcessWithoutNullStreams>();
 
-  async setup(workspaceId: string, workspacePath: string): Promise<{ ok: boolean; error?: string }>{
+  async setup(
+    workspaceId: string,
+    workspacePath: string
+  ): Promise<{ ok: boolean; error?: string }> {
     const cwd = path.resolve(workspacePath);
     const pm = detectPackageManager(cwd);
     const cmd = pm;
@@ -48,24 +51,39 @@ class HostPreviewService extends EventEmitter {
     const hasPnpmLock = fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'));
     const args = pm === 'npm' ? (hasPkgLock ? ['ci'] : ['install']) : ['install'];
     try {
-      const child = spawn(cmd, args, { cwd, shell: true, env: { ...process.env, BROWSER: 'none' } });
+      const child = spawn(cmd, args, {
+        cwd,
+        shell: true,
+        env: { ...process.env, BROWSER: 'none' },
+      });
       this.emit('event', { type: 'setup', workspaceId, status: 'starting' } as HostPreviewEvent);
       const onData = (buf: Buffer) => {
         const line = buf.toString();
-        this.emit('event', { type: 'setup', workspaceId, status: 'line', line } as HostPreviewEvent);
+        this.emit('event', {
+          type: 'setup',
+          workspaceId,
+          status: 'line',
+          line,
+        } as HostPreviewEvent);
       };
       child.stdout.on('data', onData);
       child.stderr.on('data', onData);
       await new Promise<void>((resolve, reject) => {
         child.on('exit', (code) => {
-          if (code === 0) resolve(); else reject(new Error(`install exited with ${code}`));
+          if (code === 0) resolve();
+          else reject(new Error(`install exited with ${code}`));
         });
         child.on('error', reject);
       });
       this.emit('event', { type: 'setup', workspaceId, status: 'done' } as HostPreviewEvent);
       return { ok: true };
     } catch (e: any) {
-      this.emit('event', { type: 'setup', workspaceId, status: 'error', line: e?.message || String(e) } as HostPreviewEvent);
+      this.emit('event', {
+        type: 'setup',
+        workspaceId,
+        status: 'error',
+        line: e?.message || String(e),
+      } as HostPreviewEvent);
       return { ok: false, error: e?.message || String(e) };
     }
   }
@@ -90,9 +108,17 @@ class HostPreviewService extends EventEmitter {
           try {
             const linkType = process.platform === 'win32' ? 'junction' : 'dir';
             fs.symlinkSync(parentNm, wsNm, linkType as any);
-            log.info?.('[hostPreview] linked node_modules', { workspaceId, wsNm, parentNm, linkType });
+            log.info?.('[hostPreview] linked node_modules', {
+              workspaceId,
+              wsNm,
+              parentNm,
+              linkType,
+            });
           } catch (e) {
-            log.warn?.('[hostPreview] failed to link node_modules; will rely on install if needed', e);
+            log.warn?.(
+              '[hostPreview] failed to link node_modules; will rely on install if needed',
+              e
+            );
           }
         }
       }
@@ -108,7 +134,10 @@ class HostPreviewService extends EventEmitter {
         const scripts = (pkg && pkg.scripts) || {};
         const prefs = ['dev', 'start', 'serve', 'preview'];
         for (const k of prefs) {
-          if (typeof scripts[k] === 'string') { script = k; break; }
+          if (typeof scripts[k] === 'string') {
+            script = k;
+            break;
+          }
         }
       } catch {}
     }

@@ -11,15 +11,25 @@ interface Props {
   parentProjectPath?: string | null;
 }
 
-const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspacePath, parentProjectPath }) => {
+const BrowserToggleButton: React.FC<Props> = ({
+  defaultUrl,
+  workspaceId,
+  workspacePath,
+  parentProjectPath,
+}) => {
   const browser = useBrowser();
   async function needsInstall(path?: string | null): Promise<boolean> {
     const p = (path || '').trim();
     if (!p) return false;
     try {
-      const res = await (window as any).electronAPI?.fsList?.(p, { includeDirs: true, maxEntries: 2000 });
+      const res = await (window as any).electronAPI?.fsList?.(p, {
+        includeDirs: true,
+        maxEntries: 2000,
+      });
       const items = Array.isArray(res?.items) ? res.items : [];
-      const hasNodeModules = items.some((x: any) => x?.path === 'node_modules' && x?.type === 'dir');
+      const hasNodeModules = items.some(
+        (x: any) => x?.path === 'node_modules' && x?.type === 'dir'
+      );
       if (hasNodeModules) return false;
       const pkg = await (window as any).electronAPI?.fsRead?.(p, 'package.json', 1024 * 64);
       return !!pkg?.success;
@@ -49,11 +59,17 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
         }
         if (data?.type === 'setup' && data?.workspaceId && data?.status === 'done') {
           if (workspaceId && data.workspaceId !== workspaceId) return;
-          try { if (workspaceId) localStorage.setItem(`emdash:preview:installed:${workspaceId}`, '1'); } catch {}
+          try {
+            if (workspaceId) localStorage.setItem(`emdash:preview:installed:${workspaceId}`, '1');
+          } catch {}
         }
       } catch {}
     });
-    return () => { try { off?.(); } catch {} };
+    return () => {
+      try {
+        off?.();
+      } catch {}
+    };
   }, [browser, workspaceId]);
 
   const isReachable = async (u?: string | null, timeoutMs = 900): Promise<boolean> => {
@@ -92,7 +108,9 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
             openedFromLast = true;
           }
           if (running && !reachable) {
-            try { localStorage.removeItem(`emdash:preview:running:${id}`); } catch {}
+            try {
+              localStorage.removeItem(`emdash:preview:running:${id}`);
+            } catch {}
           }
         }
         if (openedFromLast) browser.setBusy(false);
@@ -104,12 +122,19 @@ const BrowserToggleButton: React.FC<Props> = ({ defaultUrl, workspaceId, workspa
       try {
         const installed = localStorage.getItem(`emdash:preview:installed:${id}`) === '1';
         // If install needed, run setup first (only when sentinel not present)
-        if (!installed && await needsInstall(wp)) {
-          await (window as any).electronAPI?.hostPreviewSetup?.({ workspaceId: id, workspacePath: wp });
+        if (!installed && (await needsInstall(wp))) {
+          await (window as any).electronAPI?.hostPreviewSetup?.({
+            workspaceId: id,
+            workspacePath: wp,
+          });
         }
         const running = localStorage.getItem(`emdash:preview:running:${id}`) === '1';
         if (!running) {
-          await (window as any).electronAPI?.hostPreviewStart?.({ workspaceId: id, workspacePath: wp, parentProjectPath: (parentProjectPath || '').trim() });
+          await (window as any).electronAPI?.hostPreviewStart?.({
+            workspaceId: id,
+            workspacePath: wp,
+            parentProjectPath: (parentProjectPath || '').trim(),
+          });
         }
         // Fallback: if no URL event yet after a short delay, try default dev port once.
         setTimeout(async () => {
