@@ -1502,6 +1502,7 @@ const AppContent: React.FC = () => {
             workspaceId={activeWorkspace?.id || null}
             workspacePath={activeWorkspace?.path || null}
             projectPath={selectedProject?.path || null}
+            isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
             githubUser={user}
           />
           <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
