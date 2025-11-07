@@ -5,7 +5,7 @@ import path from 'node:path';
 import { log } from '../lib/logger';
 
 export type HostPreviewEvent = {
-  type: 'url' | 'setup';
+  type: 'url' | 'setup' | 'exit';
   workspaceId: string;
   url?: string;
   status?: 'starting' | 'line' | 'done' | 'error';
@@ -165,6 +165,7 @@ class HostPreviewService extends EventEmitter {
       child.stderr.on('data', onData);
       child.on('exit', () => {
         this.procs.delete(workspaceId);
+        try { this.emit('event', { type: 'exit', workspaceId } as HostPreviewEvent); } catch {}
       });
       return { ok: true };
     } catch (e: any) {

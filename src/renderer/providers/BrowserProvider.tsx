@@ -16,6 +16,8 @@ type BrowserController = {
   reload: () => void;
   focus: () => void;
   setBusy: (next: boolean) => void;
+  showSpinner: () => void;
+  hideSpinner: () => void;
 };
 
 const Ctx = React.createContext<BrowserController | null>(null);
@@ -134,6 +136,8 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
       reload,
       focus,
       setBusy: setBusyState,
+      showSpinner: () => setBusyState(true),
+      hideSpinner: () => setBusyState(false),
     }),
     [
       isOpen,

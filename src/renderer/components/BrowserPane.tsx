@@ -3,6 +3,8 @@ import { X, RefreshCw, ArrowLeft, ArrowRight, ExternalLink, Bug, Globe } from 'l
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
 import { Spinner } from './ui/spinner';
+import { setLastUrl, setRunning } from '@/lib/previewStorage';
+import { PROBE_TIMEOUT_MS, SPINNER_MAX_MS, isAppPort } from '@/lib/previewNetwork';
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const HANDLE_PX = 6; // left gutter reserved for drag handle; keep preview bounds clear of it
@@ -11,7 +13,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   workspaceId,
   workspacePath,
 }) => {
-  const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, setBusy } = useBrowser();
+  const { isOpen, url, widthPct, setWidthPct, close, navigate, busy, showSpinner, hideSpinner } = useBrowser();
   const [address, setAddress] = React.useState<string>('');
   const [title, setTitle] = React.useState<string>('');
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -26,6 +28,8 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   React.useEffect(() => {
     widthPctRef.current = widthPct;
   }, [widthPct]);
+  const [failed, setFailed] = React.useState<boolean>(false);
+  const [retryTick, setRetryTick] = React.useState<number>(0);
 
   // Bind ref to provider
   React.useEffect(() => {
@@ -52,7 +56,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
     if (prev && cur && prev !== cur) {
       try {
         (window as any).electronAPI?.hostPreviewStop?.(prev);
-        localStorage.removeItem(`emdash:preview:running:${prev}`);
+        setRunning(prev, false);
       } catch {}
     }
     prevWorkspaceIdRef.current = cur;
@@ -72,21 +76,21 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
           // Only clear busy on error. On 'done' we likely start the dev server next,
           // so we keep the spinner until a URL is reachable.
           if (data.status === 'error') {
-            setBusy(false);
+            hideSpinner();
           }
         }
         if (data.type === 'url' && data.url) {
+          setFailed(false);
           const appPort = Number(window.location.port || 0);
-          try {
-            const p = Number(new URL(String(data.url)).port || 0);
-            if (appPort !== 0 && p === appPort) return;
-          } catch {}
+          if (isAppPort(String(data.url), appPort)) return;
           // Mark busy and navigate; a readiness probe below will clear busy when reachable
-          setBusy(true);
+          showSpinner();
           navigate(String(data.url));
-          try {
-            localStorage.setItem(`emdash:browser:lastUrl:${workspaceId}`, String(data.url));
-          } catch {}
+          try { setLastUrl(String(workspaceId), String(data.url)); } catch {}
+        }
+        if (data.type === 'exit') {
+          try { setRunning(String(workspaceId), false); } catch {}
+          hideSpinner();
         }
       } catch {}
     });
@@ -95,7 +99,7 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
         off?.();
       } catch {}
     };
-  }, [workspaceId, navigate, setBusy]);
+  }, [workspaceId, navigate, showSpinner, hideSpinner]);
 
   // When URL changes, keep spinner until the URL responds at least once
   React.useEffect(() => {
@@ -104,11 +108,11 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
     if (!u) return;
     // Kick a lightweight readiness probe to avoid white screen with no feedback
     (async () => {
-      const deadline = Date.now() + 15000; // 15s max
+      const deadline = Date.now() + SPINNER_MAX_MS; // cap spinner
       const tryOnce = async () => {
         try {
           const c = new AbortController();
-          const t = setTimeout(() => c.abort(), 900);
+          const t = setTimeout(() => c.abort(), PROBE_TIMEOUT_MS);
           await fetch(u, { mode: 'no-cors', signal: c.signal });
           clearTimeout(t);
           return true;
@@ -117,18 +121,29 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
         }
       };
       // If already busy=false (e.g., manual set), don’t force it back on
-      setBusy(true);
+      showSpinner();
+      let ok = false;
       while (!cancelled && Date.now() < deadline) {
-        const ok = await tryOnce();
+        ok = await tryOnce();
         if (ok) break;
         await new Promise((r) => setTimeout(r, 500));
       }
-      if (!cancelled) setBusy(false);
+      if (!cancelled) {
+        hideSpinner();
+        setFailed(!ok);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [url, setBusy]);
+  }, [url, showSpinner, hideSpinner, retryTick]);
+
+  const handleRetry = React.useCallback(() => {
+    if (!url) return;
+    showSpinner();
+    try { (window as any).electronAPI?.browserReload?.(); } catch {}
+    setRetryTick((n) => n + 1);
+  }, [url, showSpinner]);
 
   // Switch to main-managed Browser (WebContentsView): report bounds + drive navigation via preload.
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -376,6 +391,39 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
                   <div className="text-xs text-muted-foreground/80">
                     Starting or connecting to your dev server
                   </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {!busy && url && failed ? (
+            <div className="absolute inset-0 z-20 flex items-center justify-center">
+              <div className="rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm">
+                <div className="mb-2 font-medium text-foreground">Preview not reachable</div>
+                <div className="mb-3 max-w-[520px] text-xs text-muted-foreground">
+                  We couldn’t connect to {url}. This can happen if dependencies aren’t installed or the dev server hasn’t started yet.
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded border border-border bg-muted/40 px-2 py-1 text-xs text-foreground hover:bg-muted"
+                    onClick={handleRetry}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded border border-border bg-muted/40 px-2 py-1 text-xs text-foreground hover:bg-muted"
+                    onClick={() => url && (window as any).electronAPI?.openExternal?.(url)}
+                  >
+                    Open in browser
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded border border-border bg-muted/40 px-2 py-1 text-xs text-foreground hover:bg-muted"
+                    onClick={() => (window as any).electronAPI?.browserOpenDevTools?.()}
+                  >
+                    Open DevTools
+                  </button>
                 </div>
               </div>
             </div>

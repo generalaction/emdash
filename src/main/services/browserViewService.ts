@@ -16,6 +16,9 @@ class BrowserViewService {
         },
       });
       w.contentView.addChildView(this.view);
+      try {
+        this.view.webContents.setWindowOpenHandler?.(() => ({ action: 'deny' } as any));
+      } catch {}
       this.visible = true;
     }
     return this.view;

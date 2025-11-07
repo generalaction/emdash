@@ -3,6 +3,8 @@ import { Globe } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { useBrowser } from '@/providers/BrowserProvider';
+import { getLastUrl, setLastUrl, isRunning, setRunning, isInstalled, setInstalled } from '@/lib/previewStorage';
+import { isReachable, isAppPort, FALLBACK_DELAY_MS, SPINNER_MAX_MS } from '@/lib/previewNetwork';
 
 interface Props {
   defaultUrl?: string;
@@ -45,23 +47,22 @@ const BrowserToggleButton: React.FC<Props> = ({
         if (data?.type === 'url' && data?.workspaceId && data?.url) {
           if (workspaceId && data.workspaceId !== workspaceId) return;
           const appPort = Number(window.location.port || 0);
-          try {
-            const p = Number(new URL(String(data.url)).port || 0);
-            if (appPort !== 0 && p === appPort) return;
-          } catch {}
+          if (isAppPort(String(data.url), appPort)) return;
           browser.open(String(data.url));
           try {
             if (workspaceId) {
-              localStorage.setItem(`emdash:browser:lastUrl:${workspaceId}`, String(data.url));
-              localStorage.setItem(`emdash:preview:running:${workspaceId}`, '1');
+              setLastUrl(workspaceId, String(data.url));
+              setRunning(workspaceId, true);
             }
           } catch {}
         }
         if (data?.type === 'setup' && data?.workspaceId && data?.status === 'done') {
           if (workspaceId && data.workspaceId !== workspaceId) return;
-          try {
-            if (workspaceId) localStorage.setItem(`emdash:preview:installed:${workspaceId}`, '1');
-          } catch {}
+          try { if (workspaceId) setInstalled(workspaceId, true); } catch {}
+        }
+        if (data?.type === 'exit' && data?.workspaceId) {
+          if (workspaceId && data.workspaceId !== workspaceId) return;
+          try { if (workspaceId) setRunning(workspaceId, false); } catch {}
         }
       } catch {}
     });
@@ -91,44 +92,42 @@ const BrowserToggleButton: React.FC<Props> = ({
     const wp = (workspacePath || '').trim();
     const appPort = Number(window.location.port || 0);
     // Open pane immediately with no URL; we will navigate when ready
-    browser.setBusy(true);
+    browser.showSpinner();
     browser.toggle(undefined);
 
     if (id) {
       try {
-        const last = localStorage.getItem(`emdash:browser:lastUrl:${id}`);
-        const running = localStorage.getItem(`emdash:preview:running:${id}`) === '1';
+        const last = getLastUrl(id);
+        const running = isRunning(id);
         let openedFromLast = false;
         if (last) {
-          const p = Number(new URL(last).port || 0);
-          const portClashesWithApp = appPort !== 0 && p === appPort;
+          const portClashesWithApp = isAppPort(last, appPort);
           const reachable = !portClashesWithApp && (await isReachable(last));
           if (reachable) {
             browser.open(last);
             openedFromLast = true;
           }
           if (running && !reachable) {
-            try {
-              localStorage.removeItem(`emdash:preview:running:${id}`);
-            } catch {}
+            try { setRunning(id, false); } catch {}
           }
         }
-        if (openedFromLast) browser.setBusy(false);
+        if (openedFromLast) browser.hideSpinner();
       } catch {}
     }
 
     // Auto-run: setup (if needed) + start, then probe common ports; also rely on URL events
     if (id && wp) {
       try {
-        const installed = localStorage.getItem(`emdash:preview:installed:${id}`) === '1';
+        const installed = isInstalled(id);
         // If install needed, run setup first (only when sentinel not present)
         if (!installed && (await needsInstall(wp))) {
           await (window as any).electronAPI?.hostPreviewSetup?.({
             workspaceId: id,
             workspacePath: wp,
           });
+          setInstalled(id, true);
         }
-        const running = localStorage.getItem(`emdash:preview:running:${id}`) === '1';
+        const running = isRunning(id);
         if (!running) {
           await (window as any).electronAPI?.hostPreviewStart?.({
             workspaceId: id,
@@ -141,22 +140,21 @@ const BrowserToggleButton: React.FC<Props> = ({
           try {
             const candidate = 'http://localhost:5173';
             // Avoid the app's own port
-            const p = Number(new URL(candidate).port || 0);
-            if (appPort !== 0 && p === appPort) return;
+            if (isAppPort(candidate, appPort)) return;
             if (await isReachable(candidate)) {
               browser.open(candidate);
               try {
-                localStorage.setItem(`emdash:browser:lastUrl:${id}`, candidate);
-                localStorage.setItem(`emdash:preview:running:${id}`, '1');
+                setLastUrl(id, candidate);
+                setRunning(id, true);
               } catch {}
-              browser.setBusy(false);
+              browser.hideSpinner();
             }
           } catch {}
-        }, 5000);
+        }, FALLBACK_DELAY_MS);
       } catch {}
     }
     // Fallback: clear spinner after a grace period if nothing arrives
-    setTimeout(() => browser.setBusy(false), 15000);
+    setTimeout(() => browser.hideSpinner(), SPINNER_MAX_MS);
   }, [browser, workspaceId, workspacePath, parentProjectPath]);
 
   return (
