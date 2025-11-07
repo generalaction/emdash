@@ -1,5 +1,15 @@
 import React from 'react';
-import { X, RefreshCw, ArrowLeft, ArrowRight, ExternalLink, Bug, Info, Wrench, Play } from 'lucide-react';
+import {
+  X,
+  RefreshCw,
+  ArrowLeft,
+  ArrowRight,
+  ExternalLink,
+  Bug,
+  Info,
+  Wrench,
+  Play,
+} from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
 import { Spinner } from './ui/spinner';
@@ -9,13 +19,23 @@ import { PROBE_TIMEOUT_MS, SPINNER_MAX_MS, isAppPort } from '@/lib/previewNetwor
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const HANDLE_PX = 6; // left gutter reserved for drag handle; keep preview bounds clear of it
 
-const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: string | null; overlayActive?: boolean }> = ({
-  workspaceId,
-  workspacePath,
-  overlayActive = false,
-}) => {
-  const { isOpen, url, widthPct, setWidthPct, close, navigate, clearUrl, busy, showSpinner, hideSpinner } =
-    useBrowser();
+const BrowserPane: React.FC<{
+  workspaceId?: string | null;
+  workspacePath?: string | null;
+  overlayActive?: boolean;
+}> = ({ workspaceId, workspacePath, overlayActive = false }) => {
+  const {
+    isOpen,
+    url,
+    widthPct,
+    setWidthPct,
+    close,
+    navigate,
+    clearUrl,
+    busy,
+    showSpinner,
+    hideSpinner,
+  } = useBrowser();
   const [address, setAddress] = React.useState<string>('');
   const [title, setTitle] = React.useState<string>('');
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -38,7 +58,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
   // Listen for global overlay events (e.g., feedback modal) and hide preview when active
   React.useEffect(() => {
     const onOverlay = (e: any) => {
-      try { setOverlayRaised(Boolean(e?.detail?.open)); } catch {}
+      try {
+        setOverlayRaised(Boolean(e?.detail?.open));
+      } catch {}
     };
     window.addEventListener('emdash:overlay:changed', onOverlay as any);
     return () => window.removeEventListener('emdash:overlay:changed', onOverlay as any);
@@ -71,10 +93,16 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
       (window as any).electronAPI?.hostPreviewStopAll?.(cur || '');
     } catch {}
     if (prev && cur && prev !== cur) {
-      try { setRunning(prev, false); } catch {}
+      try {
+        setRunning(prev, false);
+      } catch {}
     }
-    try { clearUrl(); } catch {}
-    try { hideSpinner(); } catch {}
+    try {
+      clearUrl();
+    } catch {}
+    try {
+      hideSpinner();
+    } catch {}
     setFailed(false);
     prevWorkspaceIdRef.current = cur;
   }, [workspaceId]);
@@ -218,12 +246,16 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
       return;
     }
     if (overlayActive || overlayRaised) {
-      try { (window as any).electronAPI?.browserHide?.(); } catch {}
+      try {
+        (window as any).electronAPI?.browserHide?.();
+      } catch {}
       return;
     }
     // If no URL yet, keep the native preview view hidden to avoid showing stale content
     if (!url) {
-      try { (window as any).electronAPI?.browserHide?.(); } catch {}
+      try {
+        (window as any).electronAPI?.browserHide?.();
+      } catch {}
       return;
     }
     const bounds = computeBounds();
@@ -465,8 +497,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
                   <div className="flex-1">
                     <div className="font-medium text-foreground">Preview not reachable</div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      We couldn’t connect to <span className="font-mono text-foreground/80">{url}</span>.
-                      This often means dependencies aren’t installed or the dev server hasn’t started yet.
+                      We couldn’t connect to{' '}
+                      <span className="font-mono text-foreground/80">{url}</span>. This often means
+                      dependencies aren’t installed or the dev server hasn’t started yet.
                     </div>
                   </div>
                 </div>
@@ -477,7 +510,11 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
                     onClick={handleInstall}
                     disabled={!workspaceId || !workspacePath || actionBusy === 'start'}
                   >
-                    {actionBusy === 'install' ? <Spinner size="sm" /> : <Wrench className="h-3.5 w-3.5" />}
+                    {actionBusy === 'install' ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <Wrench className="h-3.5 w-3.5" />
+                    )}
                     Install dependencies
                   </button>
                   <button
@@ -486,7 +523,11 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
                     onClick={handleStart}
                     disabled={!workspaceId || !workspacePath || actionBusy === 'install'}
                   >
-                    {actionBusy === 'start' ? <Spinner size="sm" /> : <Play className="h-3.5 w-3.5" />}
+                    {actionBusy === 'start' ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <Play className="h-3.5 w-3.5" />
+                    )}
                     Start dev server
                   </button>
                   <span className="mx-1 h-5 w-px bg-border/70" />
@@ -519,7 +560,9 @@ const BrowserPane: React.FC<{ workspaceId?: string | null; workspacePath?: strin
                   <div className="mt-3 rounded-md border border-dashed border-border/70 bg-muted/40 p-2">
                     <div className="text-[11px] leading-snug text-muted-foreground">
                       <span className="font-medium text-foreground">Last setup log</span>
-                      <div className="mt-1 font-mono text-[11px] text-foreground/80">{lines[lines.length - 1]}</div>
+                      <div className="mt-1 font-mono text-[11px] text-foreground/80">
+                        {lines[lines.length - 1]}
+                      </div>
                     </div>
                   </div>
                 ) : null}

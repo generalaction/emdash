@@ -191,7 +191,9 @@ class HostPreviewService extends EventEmitter {
     const except = (exceptId || '').trim();
     for (const [id, proc] of this.procs.entries()) {
       if (except && id === except) continue;
-      try { proc.kill(); } catch {}
+      try {
+        proc.kill();
+      } catch {}
       this.procs.delete(id);
       stopped.push(id);
     }
