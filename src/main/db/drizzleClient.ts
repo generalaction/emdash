@@ -134,7 +134,7 @@ function createCallbacks(db: sqlite3Type.Database) {
   };
 
   const batch: AsyncBatchRemoteCallback = async (operations) => {
-    const results = [];
+    const results: any[] = [];
     for (const op of operations) {
       results.push(await remote(op.sql, op.params, op.method));
     }
@@ -221,7 +221,6 @@ export async function resetDrizzleClient(): Promise<void> {
 
   if (cachedInternal.owned) {
     await cachedInternal.client.close().catch(() => {
-      // ignore close errors during reset, they usually indicate a handle already closed elsewhere
     });
   }
 
