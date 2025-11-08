@@ -44,4 +44,3 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
 };
 
 export default AppKeyboardShortcuts;
-

@@ -19,5 +19,7 @@ export interface Project {
 }
 
 // Lightweight shapes for palette/list UIs, if needed later
-export type ProjectSummary = Pick<Project, 'id' | 'name'> & { workspaces?: Pick<Workspace, 'id' | 'name'>[] };
+export type ProjectSummary = Pick<Project, 'id' | 'name'> & {
+  workspaces?: Pick<Workspace, 'id' | 'name'>[];
+};
 export type WorkspaceSummary = Pick<Workspace, 'id' | 'name'>;

@@ -17,9 +17,13 @@ import ContainerStatusBadge from './ContainerStatusBadge';
 import WorkspacePorts from './WorkspacePorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
-import { getContainerRunState, startContainerRun, subscribeToWorkspaceRunState, type ContainerRunState } from '@/lib/containerRuns';
+import {
+  getContainerRunState,
+  startContainerRun,
+  subscribeToWorkspaceRunState,
+  type ContainerRunState,
+} from '@/lib/containerRuns';
 import type { Project, Workspace } from '../types/app';
-
 
 function WorkspaceRow({
   ws,
