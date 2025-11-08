@@ -18,7 +18,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import emdashLogo from '../assets/images/emdash/emdash_logo.svg';
 import emdashLogoWhite from '../assets/images/emdash/emdash_logo_white.svg';
 import Titlebar from './components/titlebar/Titlebar';
-import { SidebarProvider, useSidebar } from './components/ui/sidebar';
+import { SidebarProvider } from './components/ui/sidebar';
 import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sidebar';
 import RightSidebar from './components/RightSidebar';
 import { type Provider } from './types';
@@ -30,8 +30,8 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './componen
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
-import CommandPalette from './components/CommandPalette';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import CommandPaletteWrapper from './components/CommandPaletteWrapper';
+import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import { usePlanToasts } from './hooks/usePlanToasts';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
 import BrowserPane from './components/BrowserPane';
@@ -52,98 +52,6 @@ const TERMINAL_PROVIDER_IDS = [
   'auggie',
   'kimi',
 ] as const;
-
-interface AppKeyboardShortcutsProps {
-  showCommandPalette: boolean;
-  showSettings: boolean;
-  handleToggleCommandPalette: () => void;
-  handleOpenSettings: () => void;
-  handleCloseCommandPalette: () => void;
-  handleCloseSettings: () => void;
-}
-
-const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
-  showCommandPalette,
-  showSettings,
-  handleToggleCommandPalette,
-  handleOpenSettings,
-  handleCloseCommandPalette,
-  handleCloseSettings,
-}) => {
-  const { toggle: toggleLeftSidebar } = useSidebar();
-  const { toggle: toggleRightSidebar } = useRightSidebar();
-  const { toggleTheme } = useTheme();
-
-  // Single global keyboard shortcuts handler
-  useKeyboardShortcuts({
-    onToggleCommandPalette: handleToggleCommandPalette,
-    onOpenSettings: handleOpenSettings,
-    onToggleLeftSidebar: toggleLeftSidebar,
-    onToggleRightSidebar: toggleRightSidebar,
-    onToggleTheme: toggleTheme,
-    onCloseModal: showCommandPalette
-      ? handleCloseCommandPalette
-      : showSettings
-        ? handleCloseSettings
-        : undefined,
-    isCommandPaletteOpen: showCommandPalette,
-    isSettingsOpen: showSettings,
-  });
-
-  return null;
-};
-
-interface CommandPaletteWrapperProps {
-  isOpen: boolean;
-  onClose: () => void;
-  projects: Project[];
-  handleSelectProject: (project: Project) => void;
-  handleSelectWorkspace: (workspace: Workspace) => void;
-  handleGoHome: () => void;
-  handleOpenProject: () => void;
-  handleOpenSettings: () => void;
-}
-
-const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
-  isOpen,
-  onClose,
-  projects,
-  handleSelectProject,
-  handleSelectWorkspace,
-  handleGoHome,
-  handleOpenProject,
-  handleOpenSettings,
-}) => {
-  const { toggle: toggleLeftSidebar } = useSidebar();
-  const { toggle: toggleRightSidebar } = useRightSidebar();
-  const { toggleTheme } = useTheme();
-
-  return (
-    <CommandPalette
-      isOpen={isOpen}
-      onClose={onClose}
-      projects={projects}
-      onSelectProject={(projectId) => {
-        const project = projects.find((p) => p.id === projectId);
-        if (project) handleSelectProject(project);
-      }}
-      onSelectWorkspace={(projectId, workspaceId) => {
-        const project = projects.find((p) => p.id === projectId);
-        const workspace = project?.workspaces?.find((w) => w.id === workspaceId);
-        if (project && workspace) {
-          handleSelectProject(project);
-          handleSelectWorkspace(workspace);
-        }
-      }}
-      onOpenSettings={handleOpenSettings}
-      onToggleLeftSidebar={toggleLeftSidebar}
-      onToggleRightSidebar={toggleRightSidebar}
-      onToggleTheme={toggleTheme}
-      onGoHome={handleGoHome}
-      onOpenProject={handleOpenProject}
-    />
-  );
-};
 
 const RightSidebarBridge: React.FC<{
   onCollapsedChange: (collapsed: boolean) => void;
@@ -602,8 +510,6 @@ const AppContent: React.FC = () => {
     loadAppData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // handleGitHubAuth, handleLogout come from hook; toasts handled by callers as needed
 
   const handleOpenProject = async () => {
     try {
