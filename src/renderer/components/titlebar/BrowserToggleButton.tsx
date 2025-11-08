@@ -84,20 +84,6 @@ const BrowserToggleButton: React.FC<Props> = ({
     };
   }, [browser, workspaceId]);
 
-  const isReachable = async (u?: string | null, timeoutMs = 900): Promise<boolean> => {
-    const url = (u || '').trim();
-    if (!url) return false;
-    try {
-      const c = new AbortController();
-      const t = setTimeout(() => c.abort(), timeoutMs);
-      await fetch(url, { method: 'GET', mode: 'no-cors', signal: c.signal });
-      clearTimeout(t);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   const handleClick = React.useCallback(async () => {
     const id = (workspaceId || '').trim();
     const wp = (workspacePath || '').trim();
