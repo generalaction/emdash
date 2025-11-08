@@ -220,8 +220,7 @@ export async function resetDrizzleClient(): Promise<void> {
   if (!cachedInternal) return;
 
   if (cachedInternal.owned) {
-    await cachedInternal.client.close().catch(() => {
-    });
+    await cachedInternal.client.close().catch(() => {});
   }
 
   cachedInternal = null;

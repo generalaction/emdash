@@ -19,7 +19,7 @@ export interface AgentStartOptions {
 }
 
 export class AgentService extends EventEmitter {
-  private processes = new Map<string, ChildProcess>(); 
+  private processes = new Map<string, ChildProcess>();
   private writers = new Map<string, WriteStream>();
 
   private key(providerId: ProviderId, workspaceId: string) {

@@ -5,7 +5,7 @@ import { ToastAction } from '@/components/ui/toast';
 type Options = {
   checkOnMount?: boolean;
   onOpenSettings?: () => void;
-  snoozeHours?: number; 
+  snoozeHours?: number;
 };
 
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified'; // JSON: { version: string, at: number }

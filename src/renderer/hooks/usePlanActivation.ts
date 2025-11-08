@@ -9,7 +9,7 @@ import { logPlanEvent } from '@/lib/planLogs';
  */
 export function usePlanActivationTerminal(opts: {
   enabled: boolean;
-  providerId: string; 
+  providerId: string;
   workspaceId: string;
   workspacePath: string;
 }) {
