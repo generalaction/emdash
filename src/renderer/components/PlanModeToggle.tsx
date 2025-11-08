@@ -41,7 +41,7 @@ const PlanModeToggle: React.FC<Props> = ({
             className={
               'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-offset-0 ' +
               (active
-                ? // Persistent, humble active state: subtle tint + inset ring; no drop shadow
+                ? 
                   'border border-accent/60 bg-accent/10 text-foreground ring-1 ring-inset ring-accent/25 hover:bg-accent/15 focus-visible:ring-accent/40'
                 : 'border border-gray-200 bg-gray-100 text-foreground hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600') +
               (className ? ' ' + className : '')

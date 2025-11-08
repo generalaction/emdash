@@ -51,14 +51,6 @@ interface Workspace {
   metadata?: any;
 }
 
-function StatusBadge({ status }: { status: Workspace['status'] }) {
-  return (
-    <Badge variant="secondary" className="capitalize">
-      {status}
-    </Badge>
-  );
-}
-
 function WorkspaceRow({
   ws,
   active,

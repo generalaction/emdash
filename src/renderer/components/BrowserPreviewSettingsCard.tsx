@@ -1,5 +1,4 @@
 import React from 'react';
-import { Globe } from 'lucide-react';
 import chromeLogo from '../../assets/images/chrome.png';
 import safariLogo from '../../assets/images/safari.png';
 import firefoxLogo from '../../assets/images/firefox.png';

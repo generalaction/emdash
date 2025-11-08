@@ -178,7 +178,6 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
                 );
               })}
             </TooltipProvider>
-            {/* Removed explicit Done button; panel closes on outside click */}
           </motion.div>
         )}
       </AnimatePresence>

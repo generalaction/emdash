@@ -42,8 +42,6 @@ const BrowserPane: React.FC<{
   const [canBack, setCanBack] = React.useState(false);
   const [canFwd, setCanFwd] = React.useState(false);
   const webviewRef = React.useRef<Electron.WebviewTag | null>(null);
-  const [devCommand] = React.useState<string>('');
-  const [preferredUrl] = React.useState<string>('');
   const [lines, setLines] = React.useState<string[]>([]);
   const [dragging, setDragging] = React.useState<boolean>(false);
   const widthPctRef = React.useRef<number>(widthPct);
@@ -344,7 +342,7 @@ const BrowserPane: React.FC<{
     };
   }, [setWidthPct]);
 
-  const { goBack, goForward, reload, execJS } = useBrowser();
+  const { goBack, goForward, reload } = useBrowser();
 
   return (
     <div
@@ -454,7 +452,6 @@ const BrowserPane: React.FC<{
           <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
             <span className="font-medium">Workspace Preview</span>
             <div className="ml-auto inline-flex items-center gap-2 text-muted-foreground">
-              {/* Show only last log line here; spinner is centered overlay while busy */}
               {lines.length ? (
                 <span className="max-w-[360px] truncate">{lines[lines.length - 1]}</span>
               ) : null}
