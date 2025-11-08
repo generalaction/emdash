@@ -120,6 +120,11 @@ const BrowserPane: React.FC<{
           // so we keep the spinner until a URL is reachable.
           if (data.status === 'error') {
             hideSpinner();
+            setActionBusy(null);
+          }
+          if (data.status === 'done') {
+            // Install finished successfully: re-enable action buttons, but keep spinner until URL is reachable
+            setActionBusy(null);
           }
         }
         if (data.type === 'url' && data.url) {
@@ -202,6 +207,8 @@ const BrowserPane: React.FC<{
     showSpinner();
     try {
       await (window as any).electronAPI?.hostPreviewSetup?.({ workspaceId: id, workspacePath: wp });
+      // Success: unlock actions; spinner remains until URL reachable or user retries
+      setActionBusy(null);
     } catch {
       setActionBusy(null);
       hideSpinner();
@@ -216,6 +223,8 @@ const BrowserPane: React.FC<{
     showSpinner();
     try {
       await (window as any).electronAPI?.hostPreviewStart?.({ workspaceId: id, workspacePath: wp });
+      // Success: unlock actions; spinner remains until URL reachable or user retries
+      setActionBusy(null);
     } catch {
       setActionBusy(null);
       hideSpinner();
