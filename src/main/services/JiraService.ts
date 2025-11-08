@@ -44,8 +44,6 @@ export default class JiraService {
     writeFileSync(this.CONF_FILE, JSON.stringify(obj), 'utf8');
   }
 
-  // Removed: project key storage — rely on exact key search instead
-
   async saveCredentials(
     siteUrl: string,
     email: string,
@@ -250,7 +248,7 @@ export default class JiraService {
         const issue = await this.getIssueByKey(siteUrl, email, token, keyUpper);
         if (issue) return this.normalizeIssues(siteUrl, [issue]);
       } catch {
-        // If direct fetch fails (404/403/etc.), we fall back to JQL search below
+        // If direct fetch fails (404/403/etc.), falling back to JQL search below
       }
     }
 

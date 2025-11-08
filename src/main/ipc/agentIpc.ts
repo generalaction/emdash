@@ -94,6 +94,4 @@ export function registerAgentIpc() {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((w) => w.webContents.send('agent:stream-complete', data));
   });
-
-  // console.log('✅ Agent IPC handlers registered');
 }

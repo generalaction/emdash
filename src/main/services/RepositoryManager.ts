@@ -20,7 +20,7 @@ export class RepositoryManager {
   private repos: Map<string, Repo> = new Map();
 
   async scanRepositories(): Promise<Repo[]> {
-    // TODO: Implement actual repository scanning
+    // Need to implement actual repository scanning
     // For now, return empty array
     return [];
   }

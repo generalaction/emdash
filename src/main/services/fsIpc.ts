@@ -9,7 +9,7 @@ type ListArgs = {
 };
 
 type Item = {
-  path: string; // relative to root
+  path: string;
   type: 'file' | 'dir';
 };
 
@@ -120,7 +120,7 @@ export function registerFsIpc(): void {
     async (_event, args: { root: string; relPath: string; maxBytes?: number }) => {
       try {
         const { root, relPath } = args;
-        const maxBytes = Math.min(Math.max(args.maxBytes ?? 200 * 1024, 1024), 5 * 1024 * 1024); // 200KB default, clamp 1KB..5MB
+        const maxBytes = Math.min(Math.max(args.maxBytes ?? 200 * 1024, 1024), 5 * 1024 * 1024); 
         if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
         if (!relPath) return { success: false, error: 'Invalid relPath' };
 
@@ -189,7 +189,6 @@ export function registerFsIpc(): void {
           counter++;
         }
 
-        // Copy file
         fs.copyFileSync(srcPath, destAbs);
 
         const relFromWorkspace = path.relative(workspacePath, destAbs);

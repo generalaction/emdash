@@ -132,7 +132,6 @@ export async function revertFile(
       return { action: 'unstaged' };
     }
   } catch {
-    // Ignore errors, continue with checkout
   }
 
   // File is not staged, revert working directory changes

@@ -11,7 +11,6 @@ export function registerTelemetryIpc() {
     try {
       if (!isTelemetryEnabled()) return { success: false, disabled: true };
       const ev = String(args?.event || '') as any;
-      // Only allow a small, explicit set
       const allowed = new Set(['feature_used', 'error']);
       if (!allowed.has(ev)) return { success: false, error: 'event_not_allowed' };
       const props =

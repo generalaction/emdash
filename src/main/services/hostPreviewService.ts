@@ -47,8 +47,6 @@ class HostPreviewService extends EventEmitter {
     const cmd = pm;
     // Prefer clean install for npm when lockfile exists
     const hasPkgLock = fs.existsSync(path.join(cwd, 'package-lock.json'));
-    const hasYarnLock = fs.existsSync(path.join(cwd, 'yarn.lock'));
-    const hasPnpmLock = fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'));
     const args = pm === 'npm' ? (hasPkgLock ? ['ci'] : ['install']) : ['install'];
     try {
       const child = spawn(cmd, args, {

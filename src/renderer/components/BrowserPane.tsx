@@ -37,10 +37,9 @@ const BrowserPane: React.FC<{
     hideSpinner,
   } = useBrowser();
   const [address, setAddress] = React.useState<string>('');
-  const [title, setTitle] = React.useState<string>('');
-  const [loading, setLoading] = React.useState<boolean>(false);
-  const [canBack, setCanBack] = React.useState(false);
-  const [canFwd, setCanFwd] = React.useState(false);
+  const [loading] = React.useState<boolean>(false);
+  const [canBack] = React.useState(false);
+  const [canFwd] = React.useState(false);
   const webviewRef = React.useRef<Electron.WebviewTag | null>(null);
   const [lines, setLines] = React.useState<string[]>([]);
   const [dragging, setDragging] = React.useState<boolean>(false);
