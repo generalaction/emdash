@@ -1,7 +1,6 @@
 type Level = 'debug' | 'info' | 'warn' | 'error';
 
 function envLevel(): Level {
-  // No env dependency: enable debug only when explicitly requested via CLI or dev flag
   const hasDebugFlag = process.argv.includes('--debug-logs') || process.argv.includes('--dev');
   if (hasDebugFlag) return 'debug';
   return 'warn';
@@ -34,7 +33,6 @@ export const log = {
     }
   },
   error: (...args: any[]) => {
-    // Always log errors
     // eslint-disable-next-line no-console
     console.error(...args);
   },

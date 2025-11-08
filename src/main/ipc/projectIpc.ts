@@ -8,7 +8,6 @@ import { getMainWindow } from '../app/window';
 const execAsync = promisify(exec);
 
 export function registerProjectIpc() {
-  // Project management
   ipcMain.handle('project:open', async () => {
     try {
       const result = await dialog.showOpenDialog(getMainWindow()!, {

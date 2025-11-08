@@ -1,7 +1,7 @@
-import { spawn, exec, execFile, ChildProcessWithoutNullStreams, ChildProcess } from 'child_process';
+import { spawn, exec, execFile, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import { EventEmitter } from 'events';
-import { createWriteStream, existsSync, mkdirSync, WriteStream, readFileSync, statSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync, WriteStream, readFileSync } from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { databaseService } from './DatabaseService';

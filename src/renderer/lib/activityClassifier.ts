@@ -27,7 +27,6 @@ export function classifyActivity(
 
   if (p === 'claude') {
     // Busy cues seen in Claude Code CLI
-    // Example: "✻ Wrangling… (2s · ↑ 0 tokens · esc to interrupt)"
     if (/esc\s*to\s*interrupt/i.test(text)) return 'busy';
     if (
       /wrangling|crafting|thinking|reasoning|analyzing|planning|reading|scanning|applying/i.test(

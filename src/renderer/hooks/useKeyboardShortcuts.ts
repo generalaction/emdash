@@ -124,7 +124,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         config: APP_SHORTCUTS.SETTINGS,
         handler: () => handlers.onOpenSettings?.(),
         priority: 'global',
-        requiresClosed: true, // Can be triggered from modal
+        requiresClosed: true,
       },
       {
         config: APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR,

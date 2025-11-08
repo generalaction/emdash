@@ -100,7 +100,6 @@ export function registerUpdateIpc() {
           devDisabled: true,
         } as any;
       }
-      // On dev, autoUpdater may throw. We still attempt to check.
       const result = await autoUpdater.checkForUpdates();
       // electron-updater returns UpdateCheckResult or throws
       return { success: true, result: result ?? null };

@@ -85,10 +85,6 @@ export class WorktreeService {
       log.debug('Git worktree stdout:', stdout);
       log.debug('Git worktree stderr:', stderr);
 
-      // Do not treat localized/progress stderr as failure.
-      // Many git commands emit progress to stderr; rely on exit code instead.
-      // If execFileAsync didn't throw, assume success and verify on-disk state below.
-
       // Verify the worktree was actually created
       if (!fs.existsSync(worktreePath)) {
         throw new Error(`Worktree directory was not created: ${worktreePath}`);

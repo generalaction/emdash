@@ -131,9 +131,7 @@ export async function revertFile(
       await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: workspacePath });
       return { action: 'unstaged' };
     }
-  } catch {
-    // Ignore errors, continue with checkout
-  }
+  } catch {}
 
   // File is not staged, revert working directory changes
   await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: workspacePath });

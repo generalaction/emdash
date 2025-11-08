@@ -1,7 +1,4 @@
 import os from 'os';
-// Important: only import node-pty types, not the runtime module, at load time.
-// Lazy-require the native module inside startPty to avoid app-start crashes
-// when the native binary is missing or incompatible on some systems.
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 
@@ -92,7 +89,6 @@ export function startPty(options: {
       if (base === 'zsh') args.push('-il');
       else if (base === 'bash') args.push('--noprofile', '--norc', '-i');
       else if (base === 'fish' || base === 'sh') args.push('-i');
-      // Do not add args for known CLI binaries like codex/claude
       if (/^(codex|claude)$/i.test(base)) args.length = 0;
     } catch {}
   }

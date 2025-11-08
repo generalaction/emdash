@@ -5,9 +5,6 @@ export function ensureTerminalHost(): HTMLDivElement {
   const el = document.createElement('div');
   el.setAttribute('data-terminal-host', 'true');
   Object.assign(el.style, {
-    // Important: give the hidden host a non-zero size so xterm can
-    // correctly measure character dimensions even when not attached.
-    // Keep it far offscreen and non-interactive.
     position: 'fixed',
     left: '-10000px',
     top: '0px',

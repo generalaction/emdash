@@ -19,7 +19,7 @@ export interface AgentStartOptions {
 }
 
 export class AgentService extends EventEmitter {
-  private processes = new Map<string, ChildProcess>(); // key: providerId:workspaceId
+  private processes = new Map<string, ChildProcess>();
   private writers = new Map<string, WriteStream>();
 
   private key(providerId: ProviderId, workspaceId: string) {
@@ -250,8 +250,6 @@ export class AgentService extends EventEmitter {
       }
       return;
     }
-
-    // No other providers handled here
   }
 
   async stopStream(providerId: ProviderId, workspaceId: string): Promise<boolean> {

@@ -383,7 +383,6 @@ const useCodexStream = (options?: UseCodexStreamOptions | null): UseCodexStreamR
             // Seed buffer and mark as streaming
             streamBufferRef.current = tailRes.tail;
             setStreamingOutput(tailRes.tail);
-            // If we know when the stream started, compute elapsed seconds
             if (tailRes.startedAt) {
               const started = Date.parse(tailRes.startedAt);
               if (!Number.isNaN(started)) {
