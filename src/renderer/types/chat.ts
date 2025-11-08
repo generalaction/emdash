@@ -49,7 +49,6 @@ export interface WorkspaceMetadata {
       path: string; // filesystem path of the worktree
       worktreeId: string; // WorktreeService id (stable hash of path)
     }>;
-    // If the user selected a winner, store the provider id
     selectedProvider?:
       | 'codex'
       | 'claude'

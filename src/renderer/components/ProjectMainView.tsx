@@ -23,41 +23,7 @@ import {
   subscribeToWorkspaceRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
-
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  repoKey?: string;
-  gitInfo: {
-    isGitRepo: boolean;
-    remote?: string;
-    branch?: string;
-  };
-  githubInfo?: {
-    repository: string;
-    connected: boolean;
-  };
-  workspaces?: Workspace[];
-}
-
-interface Workspace {
-  id: string;
-  name: string;
-  branch: string;
-  path: string;
-  status: 'active' | 'idle' | 'running';
-  agentId?: string;
-  metadata?: any;
-}
-
-function StatusBadge({ status }: { status: Workspace['status'] }) {
-  return (
-    <Badge variant="secondary" className="capitalize">
-      {status}
-    </Badge>
-  );
-}
+import type { Project, Workspace } from '../types/app';
 
 function WorkspaceRow({
   ws,

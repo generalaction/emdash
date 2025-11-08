@@ -359,6 +359,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+
+  // Host preview (non-container)
+  hostPreviewStart: (args: {
+    workspaceId: string;
+    workspacePath: string;
+    script?: string;
+    parentProjectPath?: string;
+  }) => ipcRenderer.invoke('preview:host:start', args),
+  hostPreviewSetup: (args: { workspaceId: string; workspacePath: string }) =>
+    ipcRenderer.invoke('preview:host:setup', args),
+  hostPreviewStop: (workspaceId: string) => ipcRenderer.invoke('preview:host:stop', workspaceId),
+  hostPreviewStopAll: (exceptId?: string) => ipcRenderer.invoke('preview:host:stopAll', exceptId),
+  onHostPreviewEvent: (listener: (data: any) => void) => {
+    const channel = 'preview:host:event';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
+  // Main-managed browser (WebContentsView)
+  browserShow: (bounds: { x: number; y: number; width: number; height: number }, url?: string) =>
+    ipcRenderer.invoke('browser:view:show', { ...bounds, url }),
+  browserHide: () => ipcRenderer.invoke('browser:view:hide'),
+  browserSetBounds: (bounds: { x: number; y: number; width: number; height: number }) =>
+    ipcRenderer.invoke('browser:view:setBounds', bounds),
+  browserLoadURL: (url: string) => ipcRenderer.invoke('browser:view:loadURL', url),
+  browserGoBack: () => ipcRenderer.invoke('browser:view:goBack'),
+  browserGoForward: () => ipcRenderer.invoke('browser:view:goForward'),
+  browserReload: () => ipcRenderer.invoke('browser:view:reload'),
 });
 
 // Type definitions for the exposed API
@@ -690,6 +719,39 @@ export interface ElectronAPI {
       exitCode: number;
     }) => void
   ) => () => void;
+
+  // Host preview (non-container)
+  hostPreviewStart: (args: {
+    workspaceId: string;
+    workspacePath: string;
+    script?: string;
+    parentProjectPath?: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  hostPreviewSetup: (args: {
+    workspaceId: string;
+    workspacePath: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  hostPreviewStop: (workspaceId: string) => Promise<{ ok: boolean }>;
+  onHostPreviewEvent: (
+    listener: (data: { type: 'url'; workspaceId: string; url: string }) => void
+  ) => () => void;
+
+  // Main-managed browser (WebContentsView)
+  browserShow: (
+    bounds: { x: number; y: number; width: number; height: number },
+    url?: string
+  ) => Promise<{ ok: boolean }>;
+  browserHide: () => Promise<{ ok: boolean }>;
+  browserSetBounds: (bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => Promise<{ ok: boolean }>;
+  browserLoadURL: (url: string) => Promise<{ ok: boolean }>;
+  browserGoBack: () => Promise<{ ok: boolean }>;
+  browserGoForward: () => Promise<{ ok: boolean }>;
+  browserReload: () => Promise<{ ok: boolean }>;
 }
 
 declare global {

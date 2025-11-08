@@ -20,32 +20,8 @@ import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
 import { WorkspaceItem } from './WorkspaceItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
-
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  repoKey?: string;
-  gitInfo: {
-    isGitRepo: boolean;
-    remote?: string;
-    branch?: string;
-  };
-  githubInfo?: {
-    repository: string;
-    connected: boolean;
-  };
-  workspaces?: Workspace[];
-}
-
-interface Workspace {
-  id: string;
-  name: string;
-  branch: string;
-  path: string;
-  status: 'active' | 'idle' | 'running';
-  agentId?: string;
-}
+import type { Project } from '../types/app';
+import type { Workspace } from '../types/chat';
 
 const SidebarToggleButton: React.FC = () => {
   const { toggle } = useSidebar();

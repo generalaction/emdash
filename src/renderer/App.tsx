@@ -18,7 +18,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import emdashLogo from '../assets/images/emdash/emdash_logo.svg';
 import emdashLogoWhite from '../assets/images/emdash/emdash_logo_white.svg';
 import Titlebar from './components/titlebar/Titlebar';
-import { SidebarProvider, useSidebar } from './components/ui/sidebar';
+import { SidebarProvider } from './components/ui/sidebar';
 import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sidebar';
 import RightSidebar from './components/RightSidebar';
 import { type Provider } from './types';
@@ -30,10 +30,15 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './componen
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
-import CommandPalette from './components/CommandPalette';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import CommandPaletteWrapper from './components/CommandPaletteWrapper';
+import type { Project, Workspace } from './types/app';
+import type { WorkspaceMetadata as ChatWorkspaceMetadata } from './types/chat';
+import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import { usePlanToasts } from './hooks/usePlanToasts';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
+import BrowserPane from './components/BrowserPane';
+import { BrowserProvider } from './providers/BrowserProvider';
+import { getContainerRunState } from './lib/containerRuns';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -49,98 +54,6 @@ const TERMINAL_PROVIDER_IDS = [
   'auggie',
   'kimi',
 ] as const;
-
-interface AppKeyboardShortcutsProps {
-  showCommandPalette: boolean;
-  showSettings: boolean;
-  handleToggleCommandPalette: () => void;
-  handleOpenSettings: () => void;
-  handleCloseCommandPalette: () => void;
-  handleCloseSettings: () => void;
-}
-
-const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
-  showCommandPalette,
-  showSettings,
-  handleToggleCommandPalette,
-  handleOpenSettings,
-  handleCloseCommandPalette,
-  handleCloseSettings,
-}) => {
-  const { toggle: toggleLeftSidebar } = useSidebar();
-  const { toggle: toggleRightSidebar } = useRightSidebar();
-  const { toggleTheme } = useTheme();
-
-  // Single global keyboard shortcuts handler
-  useKeyboardShortcuts({
-    onToggleCommandPalette: handleToggleCommandPalette,
-    onOpenSettings: handleOpenSettings,
-    onToggleLeftSidebar: toggleLeftSidebar,
-    onToggleRightSidebar: toggleRightSidebar,
-    onToggleTheme: toggleTheme,
-    onCloseModal: showCommandPalette
-      ? handleCloseCommandPalette
-      : showSettings
-        ? handleCloseSettings
-        : undefined,
-    isCommandPaletteOpen: showCommandPalette,
-    isSettingsOpen: showSettings,
-  });
-
-  return null;
-};
-
-interface CommandPaletteWrapperProps {
-  isOpen: boolean;
-  onClose: () => void;
-  projects: Project[];
-  handleSelectProject: (project: Project) => void;
-  handleSelectWorkspace: (workspace: Workspace) => void;
-  handleGoHome: () => void;
-  handleOpenProject: () => void;
-  handleOpenSettings: () => void;
-}
-
-const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
-  isOpen,
-  onClose,
-  projects,
-  handleSelectProject,
-  handleSelectWorkspace,
-  handleGoHome,
-  handleOpenProject,
-  handleOpenSettings,
-}) => {
-  const { toggle: toggleLeftSidebar } = useSidebar();
-  const { toggle: toggleRightSidebar } = useRightSidebar();
-  const { toggleTheme } = useTheme();
-
-  return (
-    <CommandPalette
-      isOpen={isOpen}
-      onClose={onClose}
-      projects={projects}
-      onSelectProject={(projectId) => {
-        const project = projects.find((p) => p.id === projectId);
-        if (project) handleSelectProject(project);
-      }}
-      onSelectWorkspace={(projectId, workspaceId) => {
-        const project = projects.find((p) => p.id === projectId);
-        const workspace = project?.workspaces?.find((w) => w.id === workspaceId);
-        if (project && workspace) {
-          handleSelectProject(project);
-          handleSelectWorkspace(workspace);
-        }
-      }}
-      onOpenSettings={handleOpenSettings}
-      onToggleLeftSidebar={toggleLeftSidebar}
-      onToggleRightSidebar={toggleRightSidebar}
-      onToggleTheme={toggleTheme}
-      onGoHome={handleGoHome}
-      onOpenProject={handleOpenProject}
-    />
-  );
-};
 
 const RightSidebarBridge: React.FC<{
   onCollapsedChange: (collapsed: boolean) => void;
@@ -162,102 +75,8 @@ const RightSidebarBridge: React.FC<{
   return null;
 };
 
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  repoKey?: string;
-  gitInfo: {
-    isGitRepo: boolean;
-    remote?: string;
-    branch?: string;
-  };
-  githubInfo?: {
-    repository: string;
-    connected: boolean;
-  };
-  workspaces?: Workspace[];
-}
-
-interface WorkspaceMetadata {
-  linearIssue?: LinearIssueSummary | null;
-  jiraIssue?: JiraIssueSummary | null;
-  githubIssue?: GitHubIssueSummary | null;
-  initialPrompt?: string | null;
-  pullRequest?: {
-    number: number;
-    title: string;
-    url?: string;
-    author?: string | null;
-    branch?: string;
-  } | null;
-  // Multi-agent orchestration (when enabled)
-  multiAgent?: {
-    enabled: boolean;
-    maxProviders?: number;
-    providers: Array<
-      | 'codex'
-      | 'claude'
-      | 'qwen'
-      | 'droid'
-      | 'gemini'
-      | 'cursor'
-      | 'copilot'
-      | 'amp'
-      | 'opencode'
-      | 'charm'
-      | 'auggie'
-      | 'goose'
-      | 'kimi'
-    >;
-    variants: Array<{
-      id: string;
-      provider:
-        | 'codex'
-        | 'claude'
-        | 'qwen'
-        | 'droid'
-        | 'gemini'
-        | 'cursor'
-        | 'copilot'
-        | 'amp'
-        | 'opencode'
-        | 'charm'
-        | 'auggie'
-        | 'goose'
-        | 'kimi';
-      name: string;
-      branch: string;
-      path: string;
-      worktreeId: string;
-    }>;
-    selectedProvider?:
-      | 'codex'
-      | 'claude'
-      | 'qwen'
-      | 'droid'
-      | 'gemini'
-      | 'cursor'
-      | 'copilot'
-      | 'amp'
-      | 'opencode'
-      | 'charm'
-      | 'auggie'
-      | 'goose'
-      | 'kimi'
-      | null;
-  } | null;
-}
-
-interface Workspace {
-  id: string;
-  name: string;
-  branch: string;
-  path: string;
-  status: 'active' | 'idle' | 'running';
-  agentId?: string;
-  metadata?: WorkspaceMetadata | null;
-}
+// Shared types
+type WorkspaceMetadata = ChatWorkspaceMetadata;
 
 const TITLEBAR_HEIGHT = '36px';
 const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
@@ -307,8 +126,6 @@ const AppContent: React.FC = () => {
   // Show agent requirements block if none of the supported CLIs are detected locally.
   // We only actively detect Codex and Claude Code; Factory (Droid) docs are shown as an alternative.
   const showAgentRequirement = isCodexInstalled === false && isClaudeInstalled === false;
-
-  // No explicit winner propagation: the Right Sidebar lets users create PRs per variant directly.
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -563,7 +380,7 @@ const AppContent: React.FC = () => {
         const initialProjects = applyProjectOrder(projects.map(withRepoKey));
         setProjects(initialProjects);
 
-        // Non-blocking: refresh GH status via hook
+        // Refresh GH status via hook
         checkStatus();
 
         const projectsWithWorkspaces = await Promise.all(
@@ -599,8 +416,6 @@ const AppContent: React.FC = () => {
     loadAppData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // handleGitHubAuth, handleLogout come from hook; toasts handled by callers as needed
 
   const handleOpenProject = async () => {
     try {
@@ -1466,126 +1281,142 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div
-      className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
-      style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
-    >
-      <SidebarProvider>
-        <RightSidebarProvider defaultCollapsed>
-          <AppKeyboardShortcuts
-            showCommandPalette={showCommandPalette}
-            showSettings={showSettings}
-            handleToggleCommandPalette={handleToggleCommandPalette}
-            handleOpenSettings={handleOpenSettings}
-            handleCloseCommandPalette={handleCloseCommandPalette}
-            handleCloseSettings={handleCloseSettings}
-          />
-          <RightSidebarBridge
-            onCollapsedChange={handleRightSidebarCollapsedChange}
-            setCollapsedRef={rightSidebarSetCollapsedRef}
-          />
-          <Titlebar
-            onToggleSettings={handleToggleSettings}
-            isSettingsOpen={showSettings}
-            currentPath={
-              activeWorkspace?.metadata?.multiAgent?.enabled
-                ? null
-                : activeWorkspace?.path || selectedProject?.path || null
-            }
-            githubUser={user}
-          />
-          <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
-            <ResizablePanelGroup
-              direction="horizontal"
-              className="flex-1 overflow-hidden"
-              onLayout={handlePanelLayout}
-            >
-              <ResizablePanel
-                ref={leftSidebarPanelRef}
-                className="sidebar-panel sidebar-panel--left"
-                defaultSize={defaultPanelLayout[0]}
-                minSize={LEFT_SIDEBAR_MIN_SIZE}
-                maxSize={LEFT_SIDEBAR_MAX_SIZE}
-                collapsedSize={0}
-                collapsible
-                order={1}
+    <BrowserProvider>
+      <div
+        className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
+        style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
+      >
+        <SidebarProvider>
+          <RightSidebarProvider defaultCollapsed>
+            <AppKeyboardShortcuts
+              showCommandPalette={showCommandPalette}
+              showSettings={showSettings}
+              handleToggleCommandPalette={handleToggleCommandPalette}
+              handleOpenSettings={handleOpenSettings}
+              handleCloseCommandPalette={handleCloseCommandPalette}
+              handleCloseSettings={handleCloseSettings}
+            />
+            <RightSidebarBridge
+              onCollapsedChange={handleRightSidebarCollapsedChange}
+              setCollapsedRef={rightSidebarSetCollapsedRef}
+            />
+            <Titlebar
+              onToggleSettings={handleToggleSettings}
+              isSettingsOpen={showSettings}
+              currentPath={
+                activeWorkspace?.metadata?.multiAgent?.enabled
+                  ? null
+                  : activeWorkspace?.path || selectedProject?.path || null
+              }
+              defaultPreviewUrl={
+                activeWorkspace?.id
+                  ? getContainerRunState(activeWorkspace.id)?.previewUrl || null
+                  : null
+              }
+              workspaceId={activeWorkspace?.id || null}
+              workspacePath={activeWorkspace?.path || null}
+              projectPath={selectedProject?.path || null}
+              isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
+              githubUser={user}
+            />
+            <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
+              <ResizablePanelGroup
+                direction="horizontal"
+                className="flex-1 overflow-hidden"
+                onLayout={handlePanelLayout}
               >
-                <LeftSidebar
-                  projects={projects}
-                  selectedProject={selectedProject}
-                  onSelectProject={handleSelectProject}
-                  onGoHome={handleGoHome}
-                  onOpenProject={handleOpenProject}
-                  onSelectWorkspace={handleSelectWorkspace}
-                  activeWorkspace={activeWorkspace || undefined}
-                  onReorderProjects={handleReorderProjects}
-                  onReorderProjectsFull={handleReorderProjectsFull}
-                  githubInstalled={ghInstalled}
-                  githubAuthenticated={isAuthenticated}
-                  githubUser={user}
-                  onSidebarContextChange={handleSidebarContextChange}
-                  onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
-                  isCreatingWorkspace={isCreatingWorkspace}
-                  onDeleteWorkspace={handleDeleteWorkspace}
-                  onDeleteProject={handleDeleteProject}
+                <ResizablePanel
+                  ref={leftSidebarPanelRef}
+                  className="sidebar-panel sidebar-panel--left"
+                  defaultSize={defaultPanelLayout[0]}
+                  minSize={LEFT_SIDEBAR_MIN_SIZE}
+                  maxSize={LEFT_SIDEBAR_MAX_SIZE}
+                  collapsedSize={0}
+                  collapsible
+                  order={1}
+                >
+                  <LeftSidebar
+                    projects={projects}
+                    selectedProject={selectedProject}
+                    onSelectProject={handleSelectProject}
+                    onGoHome={handleGoHome}
+                    onOpenProject={handleOpenProject}
+                    onSelectWorkspace={handleSelectWorkspace}
+                    activeWorkspace={activeWorkspace || undefined}
+                    onReorderProjects={handleReorderProjects}
+                    onReorderProjectsFull={handleReorderProjectsFull}
+                    githubInstalled={ghInstalled}
+                    githubAuthenticated={isAuthenticated}
+                    githubUser={user}
+                    onSidebarContextChange={handleSidebarContextChange}
+                    onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
+                    isCreatingWorkspace={isCreatingWorkspace}
+                    onDeleteWorkspace={handleDeleteWorkspace}
+                    onDeleteProject={handleDeleteProject}
+                  />
+                </ResizablePanel>
+                <ResizableHandle
+                  withHandle
+                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                 />
-              </ResizablePanel>
-              <ResizableHandle
-                withHandle
-                className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-              />
-              <ResizablePanel
-                className="sidebar-panel sidebar-panel--main"
-                defaultSize={defaultPanelLayout[1]}
-                minSize={MAIN_PANEL_MIN_SIZE}
-                order={2}
-              >
-                <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-                  {renderMainContent()}
-                </div>
-              </ResizablePanel>
-              <ResizableHandle
-                withHandle
-                className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-              />
-              <ResizablePanel
-                ref={rightSidebarPanelRef}
-                className="sidebar-panel sidebar-panel--right"
-                defaultSize={0}
-                minSize={RIGHT_SIDEBAR_MIN_SIZE}
-                maxSize={RIGHT_SIDEBAR_MAX_SIZE}
-                collapsedSize={0}
-                collapsible
-                order={3}
-              >
-                <RightSidebar workspace={activeWorkspace} className="lg:border-l-0" />
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          </div>
-          <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
-          <CommandPaletteWrapper
-            isOpen={showCommandPalette}
-            onClose={handleCloseCommandPalette}
-            projects={projects}
-            handleSelectProject={handleSelectProject}
-            handleSelectWorkspace={handleSelectWorkspace}
-            handleGoHome={handleGoHome}
-            handleOpenProject={handleOpenProject}
-            handleOpenSettings={handleOpenSettings}
-          />
-          <WorkspaceModal
-            isOpen={showWorkspaceModal}
-            onClose={() => setShowWorkspaceModal(false)}
-            onCreateWorkspace={handleCreateWorkspace}
-            projectName={selectedProject?.name || ''}
-            defaultBranch={selectedProject?.gitInfo.branch || 'main'}
-            existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
-            projectPath={selectedProject?.path}
-          />
-          <Toaster />
-        </RightSidebarProvider>
-      </SidebarProvider>
-    </div>
+                <ResizablePanel
+                  className="sidebar-panel sidebar-panel--main"
+                  defaultSize={defaultPanelLayout[1]}
+                  minSize={MAIN_PANEL_MIN_SIZE}
+                  order={2}
+                >
+                  <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+                    {renderMainContent()}
+                  </div>
+                </ResizablePanel>
+                <ResizableHandle
+                  withHandle
+                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+                />
+                <ResizablePanel
+                  ref={rightSidebarPanelRef}
+                  className="sidebar-panel sidebar-panel--right"
+                  defaultSize={0}
+                  minSize={RIGHT_SIDEBAR_MIN_SIZE}
+                  maxSize={RIGHT_SIDEBAR_MAX_SIZE}
+                  collapsedSize={0}
+                  collapsible
+                  order={3}
+                >
+                  <RightSidebar workspace={activeWorkspace} className="lg:border-l-0" />
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </div>
+            <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
+            <CommandPaletteWrapper
+              isOpen={showCommandPalette}
+              onClose={handleCloseCommandPalette}
+              projects={projects}
+              handleSelectProject={handleSelectProject}
+              handleSelectWorkspace={handleSelectWorkspace}
+              handleGoHome={handleGoHome}
+              handleOpenProject={handleOpenProject}
+              handleOpenSettings={handleOpenSettings}
+            />
+            <WorkspaceModal
+              isOpen={showWorkspaceModal}
+              onClose={() => setShowWorkspaceModal(false)}
+              onCreateWorkspace={handleCreateWorkspace}
+              projectName={selectedProject?.name || ''}
+              defaultBranch={selectedProject?.gitInfo.branch || 'main'}
+              existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
+              projectPath={selectedProject?.path}
+            />
+            <Toaster />
+            <BrowserPane
+              workspaceId={activeWorkspace?.id || null}
+              workspacePath={activeWorkspace?.path || null}
+              overlayActive={showSettings || showCommandPalette || showWorkspaceModal}
+            />
+          </RightSidebarProvider>
+        </SidebarProvider>
+      </div>
+    </BrowserProvider>
   );
 };
 

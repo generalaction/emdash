@@ -28,7 +28,7 @@ type Variant = {
   worktreeId: string;
 };
 
-const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectId }) => {
+const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
   const [prompt, setPrompt] = useState('');
@@ -216,7 +216,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace, projectName, projectI
     if (!msg) return;
     // Send concurrently via PTY injection for all providers (Codex/Claude included)
     const tasks: Promise<any>[] = [];
-    variants.forEach((v, idx) => {
+    variants.forEach((v) => {
       const termId = `${v.provider}-main-${workspace.id}`;
       tasks.push(injectPrompt(termId, v.provider, msg));
     });

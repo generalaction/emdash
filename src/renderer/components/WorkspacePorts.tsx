@@ -3,6 +3,7 @@ import { ExternalLink, Copy, Check, Globe, Database, Server } from 'lucide-react
 import { motion, useReducedMotion } from 'motion/react';
 import type { RunnerPortMapping } from '@shared/container/events';
 import { useToast } from '@/hooks/use-toast';
+import { useBrowser } from '@/providers/BrowserProvider';
 
 interface Props {
   workspaceId: string;
@@ -22,6 +23,7 @@ const WorkspacePorts: React.FC<Props> = ({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
   const { toast } = useToast();
+  const browser = useBrowser();
 
   const [hasCompose, setHasCompose] = useState(false);
   useEffect(() => {
@@ -132,17 +134,31 @@ const WorkspacePorts: React.FC<Props> = ({
         </div>
         <div className="inline-flex items-center gap-2">
           {previewUrl ? (
-            <button
-              type="button"
-              className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.electronAPI.openExternal(previewUrl);
-              }}
-            >
-              Open Preview
-              <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
-            </button>
+            <>
+              <button
+                type="button"
+                className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.electronAPI.openExternal(previewUrl);
+                }}
+              >
+                Open Preview
+                <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center rounded border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  browser.open(previewUrl);
+                }}
+                title="Open preview in in‑app browser"
+              >
+                Open In App
+                <Globe className="ml-1.5 h-3 w-3" aria-hidden="true" />
+              </button>
+            </>
           ) : null}
         </div>
       </div>

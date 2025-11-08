@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
+import BrowserToggleButton from './BrowserToggleButton';
 
 interface GithubUser {
   login?: string;
@@ -19,6 +20,11 @@ interface TitlebarProps {
   isSettingsOpen?: boolean;
   currentPath?: string | null;
   githubUser?: GithubUser | null;
+  defaultPreviewUrl?: string | null;
+  workspaceId?: string | null;
+  workspacePath?: string | null;
+  projectPath?: string | null;
+  isWorkspaceMultiAgent?: boolean;
 }
 
 const Titlebar: React.FC<TitlebarProps> = ({
@@ -26,6 +32,11 @@ const Titlebar: React.FC<TitlebarProps> = ({
   isSettingsOpen = false,
   currentPath,
   githubUser,
+  defaultPreviewUrl,
+  workspaceId,
+  workspacePath,
+  projectPath,
+  isWorkspaceMultiAgent,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -38,6 +49,14 @@ const Titlebar: React.FC<TitlebarProps> = ({
     setIsFeedbackOpen(false);
     feedbackButtonRef.current?.blur();
   }, []);
+
+  // Broadcast overlay state so the preview pane can hide while feedback is open
+  useEffect(() => {
+    try {
+      const open = Boolean(isFeedbackOpen);
+      window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open } }));
+    } catch {}
+  }, [isFeedbackOpen]);
 
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
@@ -76,6 +95,14 @@ const Titlebar: React.FC<TitlebarProps> = ({
       <header className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-gray-50 pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-gray-900">
         <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
           {currentPath ? <OpenInMenu path={currentPath} align="right" /> : null}
+          {workspaceId && !isWorkspaceMultiAgent ? (
+            <BrowserToggleButton
+              defaultUrl={defaultPreviewUrl || undefined}
+              workspaceId={workspaceId}
+              workspacePath={workspacePath}
+              parentProjectPath={projectPath}
+            />
+          ) : null}
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
