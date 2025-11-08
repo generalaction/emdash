@@ -31,6 +31,8 @@ import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
+import type { Project, Workspace } from './types/app';
+import type { WorkspaceMetadata as ChatWorkspaceMetadata } from './types/chat';
 import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import { usePlanToasts } from './hooks/usePlanToasts';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
@@ -73,102 +75,8 @@ const RightSidebarBridge: React.FC<{
   return null;
 };
 
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  repoKey?: string;
-  gitInfo: {
-    isGitRepo: boolean;
-    remote?: string;
-    branch?: string;
-  };
-  githubInfo?: {
-    repository: string;
-    connected: boolean;
-  };
-  workspaces?: Workspace[];
-}
-
-interface WorkspaceMetadata {
-  linearIssue?: LinearIssueSummary | null;
-  jiraIssue?: JiraIssueSummary | null;
-  githubIssue?: GitHubIssueSummary | null;
-  initialPrompt?: string | null;
-  pullRequest?: {
-    number: number;
-    title: string;
-    url?: string;
-    author?: string | null;
-    branch?: string;
-  } | null;
-  // Multi-agent orchestration (when enabled)
-  multiAgent?: {
-    enabled: boolean;
-    maxProviders?: number;
-    providers: Array<
-      | 'codex'
-      | 'claude'
-      | 'qwen'
-      | 'droid'
-      | 'gemini'
-      | 'cursor'
-      | 'copilot'
-      | 'amp'
-      | 'opencode'
-      | 'charm'
-      | 'auggie'
-      | 'goose'
-      | 'kimi'
-    >;
-    variants: Array<{
-      id: string;
-      provider:
-        | 'codex'
-        | 'claude'
-        | 'qwen'
-        | 'droid'
-        | 'gemini'
-        | 'cursor'
-        | 'copilot'
-        | 'amp'
-        | 'opencode'
-        | 'charm'
-        | 'auggie'
-        | 'goose'
-        | 'kimi';
-      name: string;
-      branch: string;
-      path: string;
-      worktreeId: string;
-    }>;
-    selectedProvider?:
-      | 'codex'
-      | 'claude'
-      | 'qwen'
-      | 'droid'
-      | 'gemini'
-      | 'cursor'
-      | 'copilot'
-      | 'amp'
-      | 'opencode'
-      | 'charm'
-      | 'auggie'
-      | 'goose'
-      | 'kimi'
-      | null;
-  } | null;
-}
-
-interface Workspace {
-  id: string;
-  name: string;
-  branch: string;
-  path: string;
-  status: 'active' | 'idle' | 'running';
-  agentId?: string;
-  metadata?: WorkspaceMetadata | null;
-}
+// Shared types
+type WorkspaceMetadata = ChatWorkspaceMetadata;
 
 const TITLEBAR_HEIGHT = '36px';
 const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
@@ -218,8 +126,6 @@ const AppContent: React.FC = () => {
   // Show agent requirements block if none of the supported CLIs are detected locally.
   // We only actively detect Codex and Claude Code; Factory (Droid) docs are shown as an alternative.
   const showAgentRequirement = isCodexInstalled === false && isClaudeInstalled === false;
-
-  // No explicit winner propagation: the Right Sidebar lets users create PRs per variant directly.
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -474,7 +380,7 @@ const AppContent: React.FC = () => {
         const initialProjects = applyProjectOrder(projects.map(withRepoKey));
         setProjects(initialProjects);
 
-        // Non-blocking: refresh GH status via hook
+        // Refresh GH status via hook
         checkStatus();
 
         const projectsWithWorkspaces = await Promise.all(
