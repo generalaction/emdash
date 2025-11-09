@@ -54,10 +54,10 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           echo "python=$(which python3)" >> $GITHUB_ENV
 
-      - name: Install dependencies
+      - name: Install dependencies (strict lockfile)
         env:
           npm_config_python: ${{ env.python }}
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Build app (ts + vite)
         run: npm run build
@@ -169,10 +169,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
-      - name: Install dependencies
+      - name: Install dependencies (allow platform optional deps)
         env:
           npm_config_python: ${{ env.python }}
-        run: npm ci || npm install
+        run: |
+          # Avoid using a mac-generated lockfile on Linux; it omits linux-only optional deps (e.g., rollup native)
+          rm -f package-lock.json
+          npm install
 
       - name: Build app (ts + vite)
         run: npm run build
@@ -258,10 +261,10 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           echo "python=$(which python3)" >> $GITHUB_ENV
 
-      - name: Install dependencies
+      - name: Install dependencies (strict lockfile)
         env:
           npm_config_python: ${{ env.python }}
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Import Apple signing certificate
         uses: apple-actions/import-codesign-certs@v2
