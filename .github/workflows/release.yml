@@ -173,10 +173,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
-      - name: Install dependencies
+      - name: Install dependencies (allow platform optional deps)
         env:
           npm_config_python: ${{ env.python }}
-        run: npm ci || npm install
+        run: |
+          # Avoid using a mac-generated lockfile on Linux; it omits linux-only optional deps (e.g., rollup native)
+          rm -f package-lock.json
+          npm install
 
       - name: Build app (ts + vite)
         run: npm run build
