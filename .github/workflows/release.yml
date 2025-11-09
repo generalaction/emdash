@@ -54,10 +54,14 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           echo "python=$(which python3)" >> $GITHUB_ENV
 
-      - name: Install dependencies
+      - name: Install dependencies (allow platform optional deps)
         env:
           npm_config_python: ${{ env.python }}
-        run: npm ci || npm install
+        run: |
+          # npm ci honors the mac-generated lockfile and may omit linux optional deps (e.g., rollup native)
+          # Use a fresh install on Linux to resolve platform-specific optionalDependencies correctly.
+          rm -f package-lock.json
+          npm install
 
       - name: Build app (ts + vite)
         run: npm run build
