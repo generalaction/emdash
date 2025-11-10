@@ -36,11 +36,12 @@ function setStatusInternal(workspaceId: string, next: Derived) {
   if (prev === next) return;
   statusByWorkspace.set(workspaceId, next);
   const ls = listenersByWorkspace.get(workspaceId);
-  if (ls) for (const fn of Array.from(ls)) {
-    try {
-      fn(next);
-    } catch {}
-  }
+  if (ls)
+    for (const fn of Array.from(ls)) {
+      try {
+        fn(next);
+      } catch {}
+    }
 }
 
 // Wire global event listeners once
@@ -89,10 +90,7 @@ export function getDerivedStatus(workspaceId: string): Derived {
   return statusByWorkspace.get(workspaceId) || 'idle';
 }
 
-export function subscribeDerivedStatus(
-  workspaceId: string,
-  listener: Listener
-): () => void {
+export function subscribeDerivedStatus(workspaceId: string, listener: Listener): () => void {
   wireGlobal();
   let set = listenersByWorkspace.get(workspaceId);
   if (!set) {

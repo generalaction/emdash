@@ -32,4 +32,3 @@ const KanbanColumn: React.FC<{
 };
 
 export default KanbanColumn;
-

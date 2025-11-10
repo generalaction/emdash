@@ -60,7 +60,7 @@ const KanbanCard: React.FC<{
 
         {providers.length > 0 ? (
           <div className="flex shrink-0 items-center gap-1">
-            {busy ? <Spinner size="sm" className="text-muted-foreground shrink-0" /> : null}
+            {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
             {providers.slice(0, 3).map((p) => {
               const a = providerAssets[p];
               if (!a) return null;
@@ -84,12 +84,14 @@ const KanbanCard: React.FC<{
               );
             })}
             {providers.length > 3 ? (
-              <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">+{providers.length - 3}</span>
+              <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                +{providers.length - 3}
+              </span>
             ) : null}
           </div>
         ) : asset ? (
           <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
-            {busy ? <Spinner size="sm" className="text-muted-foreground shrink-0" /> : null}
+            {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
             <img
               src={asset.logo}
               alt={asset.alt}

@@ -14,9 +14,9 @@ import { activityStore } from '../../lib/activityStore';
 
 const order: KanbanStatus[] = ['todo', 'in-progress', 'done'];
 const titles: Record<KanbanStatus, string> = {
-  'todo': 'To‑do',
+  todo: 'To‑do',
   'in-progress': 'In‑progress',
-  'done': 'Done',
+  done: 'Done',
 };
 
 const KanbanBoard: React.FC<{
@@ -132,7 +132,7 @@ const KanbanBoard: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, project.workspaces?.length]);
 
-  const byStatus: Record<KanbanStatus, Workspace[]> = { 'todo': [], 'in-progress': [], 'done': [] };
+  const byStatus: Record<KanbanStatus, Workspace[]> = { todo: [], 'in-progress': [], done: [] };
   for (const ws of project.workspaces || []) {
     const s = statusMap[ws.id] || 'todo';
     byStatus[s].push(ws);
@@ -145,7 +145,7 @@ const KanbanBoard: React.FC<{
   };
 
   return (
-    <div className="h-full w-full grid grid-cols-1 gap-4 p-3 sm:grid-cols-3">
+    <div className="grid h-full w-full grid-cols-1 gap-4 p-3 sm:grid-cols-3">
       {order.map((s) => (
         <KanbanColumn
           key={s}
@@ -164,9 +164,7 @@ const KanbanBoard: React.FC<{
               <div className="px-3 py-4 text-center text-xs text-muted-foreground">No items</div>
             )
           ) : (
-            byStatus[s].map((ws) => (
-              <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />
-            ))
+            byStatus[s].map((ws) => <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />)
           )}
         </KanbanColumn>
       ))}

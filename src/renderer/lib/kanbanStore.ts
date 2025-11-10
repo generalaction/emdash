@@ -48,4 +48,3 @@ export function getAll(): MapShape {
 export function clearAll(): void {
   write({});
 }
-

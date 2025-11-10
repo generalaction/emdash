@@ -967,7 +967,7 @@ const AppContent: React.FC = () => {
 
   const handleSelectWorkspace = (workspace: Workspace) => {
     setActiveWorkspace(workspace);
-    setActiveWorkspaceProvider(null); 
+    setActiveWorkspaceProvider(null);
   };
 
   const handleStartCreateWorkspaceFromSidebar = useCallback(
