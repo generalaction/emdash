@@ -75,7 +75,9 @@ const KanbanCard: React.FC<{
               );
             })}
             {providers.length > 3 ? (
-              <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">+{providers.length - 3}</span>
+              <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                +{providers.length - 3}
+              </span>
             ) : null}
           </div>
         ) : asset ? (
