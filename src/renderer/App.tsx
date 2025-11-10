@@ -39,6 +39,7 @@ import { terminalSessionRegistry } from './terminal/SessionRegistry';
 import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
+import KanbanBoard from './components/kanban/KanbanBoard';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -1157,7 +1158,19 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const [showKanban, setShowKanban] = useState<boolean>(false);
+
   const renderMainContent = () => {
+    if (selectedProject && showKanban) {
+      return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <KanbanBoard
+            project={selectedProject}
+            onOpenWorkspace={(ws: any) => handleSelectWorkspace(ws)}
+          />
+        </div>
+      );
+    }
     if (showHomeView) {
       return (
         <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
@@ -1286,6 +1299,11 @@ const AppContent: React.FC = () => {
         className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
         style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
       >
+        {/** Kanban view state **/}
+        {(() => {
+          // Track Kanban locally in this component scope
+          return null;
+        })()}
         <SidebarProvider>
           <RightSidebarProvider defaultCollapsed>
             <AppKeyboardShortcuts
@@ -1318,6 +1336,9 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path || null}
               isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
               githubUser={user}
+              onToggleKanban={() => setShowKanban((v) => !v)}
+              isKanbanOpen={Boolean(showKanban)}
+              kanbanAvailable={Boolean(selectedProject)}
             />
             <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
               <ResizablePanelGroup
