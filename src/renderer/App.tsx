@@ -1166,7 +1166,10 @@ const AppContent: React.FC = () => {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <KanbanBoard
             project={selectedProject}
-            onOpenWorkspace={(ws: any) => handleSelectWorkspace(ws)}
+            onOpenWorkspace={(ws: any) => {
+              handleSelectWorkspace(ws);
+              setShowKanban(false);
+            }}
             onCreateWorkspace={() => setShowWorkspaceModal(true)}
           />
         </div>
