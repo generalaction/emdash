@@ -2,6 +2,7 @@ import React from 'react';
 import type { Project, Workspace } from '../../types/app';
 import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
+import { Button } from '../ui/button';
 import { getAll, getStatus, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import {
   subscribeDerivedStatus,
@@ -21,7 +22,8 @@ const titles: Record<KanbanStatus, string> = {
 const KanbanBoard: React.FC<{
   project: Project;
   onOpenWorkspace?: (ws: Workspace) => void;
-}> = ({ project, onOpenWorkspace }) => {
+  onCreateWorkspace?: () => void;
+}> = ({ project, onOpenWorkspace, onCreateWorkspace }) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
 
   React.useEffect(() => {
@@ -135,6 +137,7 @@ const KanbanBoard: React.FC<{
     const s = statusMap[ws.id] || 'todo';
     byStatus[s].push(ws);
   }
+  const hasAny = (project.workspaces?.length ?? 0) > 0;
 
   const handleDrop = (target: KanbanStatus, workspaceId: string) => {
     setStatus(workspaceId, target);
@@ -151,7 +154,15 @@ const KanbanBoard: React.FC<{
           onDropCard={(id) => handleDrop(s, id)}
         >
           {byStatus[s].length === 0 ? (
-            <div className="px-3 py-4 text-center text-xs text-muted-foreground">No items</div>
+            s === 'todo' && !hasAny && onCreateWorkspace ? (
+              <div className="flex h-full items-center justify-center p-4">
+                <Button variant="secondary" size="sm" onClick={onCreateWorkspace}>
+                  Create workspace
+                </Button>
+              </div>
+            ) : (
+              <div className="px-3 py-4 text-center text-xs text-muted-foreground">No items</div>
+            )
           ) : (
             byStatus[s].map((ws) => (
               <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />

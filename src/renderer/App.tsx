@@ -1167,6 +1167,7 @@ const AppContent: React.FC = () => {
           <KanbanBoard
             project={selectedProject}
             onOpenWorkspace={(ws: any) => handleSelectWorkspace(ws)}
+            onCreateWorkspace={() => setShowWorkspaceModal(true)}
           />
         </div>
       );
