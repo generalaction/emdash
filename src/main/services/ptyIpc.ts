@@ -1,4 +1,4 @@
-import { ipcMain, WebContents } from 'electron';
+import { app, ipcMain, WebContents } from 'electron';
 import { startPty, writePty, resizePty, killPty, getPty } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -6,6 +6,22 @@ import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
+
+function safeSendToOwner(id: string, channel: string, payload: any): boolean {
+  const wc = owners.get(id);
+  if (!wc) return false;
+  try {
+    if (typeof (wc as any).isDestroyed === 'function' && (wc as any).isDestroyed()) {
+      return false;
+    }
+    wc.send(channel, payload);
+    return true;
+  } catch (err) {
+    // Swallow errors that occur if the renderer closed while data was in-flight
+    log.warn('ptyIpc:sendFailed', { id, channel, error: String((err as any)?.message || err) });
+    return false;
+  }
+}
 
 export function registerPtyIpc(): void {
   ipcMain.handle(
@@ -41,14 +57,28 @@ export function registerPtyIpc(): void {
         const wc = event.sender;
         owners.set(id, wc);
 
+        // If the owning WebContents is destroyed (window closed), kill PTY and cleanup
+        try {
+          wc.once('destroyed', () => {
+            log.debug('pty:ownerDestroyed', { id });
+            try {
+              killPty(id);
+            } catch {}
+            owners.delete(id);
+            listeners.delete(id);
+          });
+        } catch {}
+
         // Attach listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
-            owners.get(id)?.send(`pty:data:${id}`, data);
+            // Guard against sending to destroyed/non-existent webContents
+            safeSendToOwner(id, `pty:data:${id}`, data);
           });
 
           proc.onExit(({ exitCode, signal }) => {
-            owners.get(id)?.send(`pty:exit:${id}`, { exitCode, signal });
+            // Notify owner if still alive; otherwise drop silently
+            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             owners.delete(id);
             listeners.delete(id);
           });
@@ -128,3 +158,16 @@ export function registerPtyIpc(): void {
     return { ok: true };
   });
 }
+
+// Ensure no orphan PTYs keep running during app shutdown
+try {
+  app.on('before-quit', () => {
+    for (const id of Array.from(owners.keys())) {
+      try {
+        killPty(id);
+      } catch {}
+    }
+    owners.clear();
+    listeners.clear();
+  });
+} catch {}

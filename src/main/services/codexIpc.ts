@@ -137,7 +137,11 @@ export function setupCodexIpc() {
     // Broadcast to all renderer processes
     const windows = require('electron').BrowserWindow.getAllWindows();
     windows.forEach((window: any) => {
-      window.webContents.send('codex:stream-output', data);
+      try {
+        window.webContents.send('codex:stream-output', data);
+      } catch (e) {
+        log.warn('[codexIpc] broadcast failed', e);
+      }
     });
   });
 
@@ -145,7 +149,11 @@ export function setupCodexIpc() {
     // Broadcast to all renderer processes
     const windows = require('electron').BrowserWindow.getAllWindows();
     windows.forEach((window: any) => {
-      window.webContents.send('codex:stream-error', data);
+      try {
+        window.webContents.send('codex:stream-error', data);
+      } catch (e) {
+        log.warn('[codexIpc] broadcast failed', e);
+      }
     });
   });
 
@@ -153,7 +161,11 @@ export function setupCodexIpc() {
     // Broadcast to all renderer processes
     const windows = require('electron').BrowserWindow.getAllWindows();
     windows.forEach((window: any) => {
-      window.webContents.send('codex:stream-complete', data);
+      try {
+        window.webContents.send('codex:stream-complete', data);
+      } catch (e) {
+        log.warn('[codexIpc] broadcast failed', e);
+      }
     });
   });
 

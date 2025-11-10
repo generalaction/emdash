@@ -1,4 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron';
+import { log } from '../lib/logger';
 import { agentService } from '../services/AgentService';
 import { codexService } from '../services/CodexService';
 
@@ -64,34 +65,64 @@ export function registerAgentIpc() {
   // Bridge Codex native events to generic agent events so renderer can listen once
   codexService.on('codex:output', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
-    windows.forEach((w) =>
-      w.webContents.send('agent:stream-output', { providerId: 'codex', ...data })
-    );
+    windows.forEach((w) => {
+      try {
+        w.webContents.send('agent:stream-output', { providerId: 'codex', ...data });
+      } catch (e) {
+        log.warn('agentIpc:broadcastFailed', { channel: 'agent:stream-output', error: e });
+      }
+    });
   });
   codexService.on('codex:error', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
-    windows.forEach((w) =>
-      w.webContents.send('agent:stream-error', { providerId: 'codex', ...data })
-    );
+    windows.forEach((w) => {
+      try {
+        w.webContents.send('agent:stream-error', { providerId: 'codex', ...data });
+      } catch (e) {
+        log.warn('agentIpc:broadcastFailed', { channel: 'agent:stream-error', error: e });
+      }
+    });
   });
   codexService.on('codex:complete', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
-    windows.forEach((w) =>
-      w.webContents.send('agent:stream-complete', { providerId: 'codex', ...data })
-    );
+    windows.forEach((w) => {
+      try {
+        w.webContents.send('agent:stream-complete', { providerId: 'codex', ...data });
+      } catch (e) {
+        log.warn('agentIpc:broadcastFailed', { channel: 'agent:stream-complete', error: e });
+      }
+    });
   });
 
   // Forward AgentService events (Claude et al.)
   agentService.on('agent:output', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
-    windows.forEach((w) => w.webContents.send('agent:stream-output', data));
+    windows.forEach((w) => {
+      try {
+        w.webContents.send('agent:stream-output', data);
+      } catch (e) {
+        log.warn('agentIpc:broadcastFailed', { channel: 'agent:stream-output', error: e });
+      }
+    });
   });
   agentService.on('agent:error', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
-    windows.forEach((w) => w.webContents.send('agent:stream-error', data));
+    windows.forEach((w) => {
+      try {
+        w.webContents.send('agent:stream-error', data);
+      } catch (e) {
+        log.warn('agentIpc:broadcastFailed', { channel: 'agent:stream-error', error: e });
+      }
+    });
   });
   agentService.on('agent:complete', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
-    windows.forEach((w) => w.webContents.send('agent:stream-complete', data));
+    windows.forEach((w) => {
+      try {
+        w.webContents.send('agent:stream-complete', data);
+      } catch (e) {
+        log.warn('agentIpc:broadcastFailed', { channel: 'agent:stream-complete', error: e });
+      }
+    });
   });
 }
