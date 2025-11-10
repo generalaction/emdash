@@ -2,6 +2,8 @@ import React from 'react';
 import type { Workspace } from '../../types/app';
 import { providerAssets } from '../../providers/assets';
 import { providerMeta, type UiProvider } from '../../providers/meta';
+import { activityStore } from '../../lib/activityStore';
+import { Spinner } from '../ui/spinner';
 
 function resolveProvider(workspaceId: string): UiProvider | null {
   try {
@@ -29,6 +31,8 @@ const KanbanCard: React.FC<{
   const adminProvider: UiProvider | null = (multi?.selectedProvider as UiProvider) || null;
 
   const handleClick = () => onOpen?.(ws);
+  const [busy, setBusy] = React.useState<boolean>(false);
+  React.useEffect(() => activityStore.subscribe(ws.id, setBusy), [ws.id]);
 
   return (
     <div
@@ -56,6 +60,7 @@ const KanbanCard: React.FC<{
 
         {providers.length > 0 ? (
           <div className="flex shrink-0 items-center gap-1">
+            {busy ? <Spinner size="sm" className="text-muted-foreground shrink-0" /> : null}
             {providers.slice(0, 3).map((p) => {
               const a = providerAssets[p];
               if (!a) return null;
@@ -70,7 +75,11 @@ const KanbanCard: React.FC<{
                   }`}
                   title={tooltip}
                 >
-                  <img src={a.logo} alt={a.alt} className="h-3.5 w-3.5 shrink-0 rounded-sm" />
+                  <img
+                    src={a.logo}
+                    alt={a.alt}
+                    className={`h-3.5 w-3.5 shrink-0 rounded-sm ${a.invertInDark ? 'dark:invert' : ''}`}
+                  />
                 </span>
               );
             })}
@@ -80,7 +89,12 @@ const KanbanCard: React.FC<{
           </div>
         ) : asset ? (
           <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
-            <img src={asset.logo} alt={asset.alt} className="h-3.5 w-3.5 shrink-0 rounded-sm" />
+            {busy ? <Spinner size="sm" className="text-muted-foreground shrink-0" /> : null}
+            <img
+              src={asset.logo}
+              alt={asset.alt}
+              className={`h-3.5 w-3.5 shrink-0 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`}
+            />
           </span>
         ) : null}
       </div>
@@ -92,7 +106,9 @@ const KanbanCard: React.FC<{
             <img
               src={providerAssets[adminProvider].logo}
               alt={providerAssets[adminProvider].alt}
-              className="h-3.5 w-3.5 rounded-sm"
+              className={`h-3.5 w-3.5 rounded-sm ${
+                providerAssets[adminProvider].invertInDark ? 'dark:invert' : ''
+              }`}
             />
           </span>
         </div>

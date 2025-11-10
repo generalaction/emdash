@@ -62,6 +62,12 @@ export function registerAgentIpc() {
   );
 
   // Bridge Codex native events to generic agent events so renderer can listen once
+  codexService.on('codex:start', (data: any) => {
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach((w) =>
+      w.webContents.send('agent:stream-start', { providerId: 'codex', ...data })
+    );
+  });
   codexService.on('codex:output', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((w) =>
@@ -85,6 +91,10 @@ export function registerAgentIpc() {
   agentService.on('agent:output', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((w) => w.webContents.send('agent:stream-output', data));
+  });
+  agentService.on('agent:start', (data: any) => {
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach((w) => w.webContents.send('agent:stream-start', data));
   });
   agentService.on('agent:error', (data: any) => {
     const windows = BrowserWindow.getAllWindows();

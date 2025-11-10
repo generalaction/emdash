@@ -339,6 +339,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onAgentStreamStart: (
+    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string }) => void
+  ) => {
+    const channel = 'agent:stream-start';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   onAgentStreamError: (
     listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string; error: string }) => void
   ) => {
@@ -708,6 +716,9 @@ export interface ElectronAPI {
       agentId?: string;
       conversationId?: string;
     }) => void
+  ) => () => void;
+  onAgentStreamStart: (
+    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string }) => void
   ) => () => void;
   onAgentStreamError: (
     listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string; error: string }) => void
