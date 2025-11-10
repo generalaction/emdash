@@ -3,6 +3,7 @@ import type { Project, Workspace } from '../../types/app';
 import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
 import { Button } from '../ui/button';
+import { Inbox, Plus } from 'lucide-react';
 import { getAll, getStatus, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import {
   subscribeDerivedStatus,
@@ -155,13 +156,27 @@ const KanbanBoard: React.FC<{
         >
           {byStatus[s].length === 0 ? (
             s === 'todo' && !hasAny && onCreateWorkspace ? (
-              <div className="flex h-full items-center justify-center p-4">
-                <Button variant="secondary" size="sm" onClick={onCreateWorkspace}>
-                  Create workspace
-                </Button>
+              <div className="flex h-full flex-col">
+                <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-center text-sm text-muted-foreground">
+                  <div className="mx-auto mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-border/60 bg-background/60">
+                    <Inbox className="h-3.5 w-3.5" aria-hidden="true" />
+                  </div>
+                  <span>No items</span>
+                </div>
+                <div className="flex flex-1 items-center justify-center">
+                  <Button variant="secondary" size="sm" onClick={onCreateWorkspace}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    Create workspace
+                  </Button>
+                </div>
               </div>
             ) : (
-              <div className="px-3 py-4 text-center text-xs text-muted-foreground">No items</div>
+              <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-center text-sm text-muted-foreground">
+                <div className="mx-auto mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-border/60 bg-background/60">
+                  <Inbox className="h-3.5 w-3.5" aria-hidden="true" />
+                </div>
+                <span>No items</span>
+              </div>
             )
           ) : (
             byStatus[s].map((ws) => <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />)
