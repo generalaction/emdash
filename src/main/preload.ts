@@ -138,6 +138,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:get-branch-status', args),
   getCommitHistory: (args: { workspacePath: string; limit?: number }) =>
     ipcRenderer.invoke('git:get-commit-history', args),
+  getCommitDetails: (args: { workspacePath: string; commitSha: string }) =>
+    ipcRenderer.invoke('git:get-commit-details', args),
+  revertCommit: (args: { workspacePath: string; commitSha: string }) =>
+    ipcRenderer.invoke('git:revert-commit', args),
   loadContainerConfig: (workspacePath: string) =>
     ipcRenderer.invoke('container:load-config', { workspacePath }),
   startContainerRun: (args: {

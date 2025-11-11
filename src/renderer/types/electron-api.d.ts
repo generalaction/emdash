@@ -208,6 +208,15 @@ declare global {
         }>;
         error?: string;
       }>;
+      getCommitDetails: (args: { workspacePath: string; commitSha: string }) => Promise<{
+        success: boolean;
+        details?: string;
+        error?: string;
+      }>;
+      revertCommit: (args: { workspacePath: string; commitSha: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
       loadContainerConfig: (workspacePath: string) => Promise<
         | {
             ok: true;

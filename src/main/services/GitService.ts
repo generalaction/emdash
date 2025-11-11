@@ -385,3 +385,22 @@ export async function getCommitHistory(
     return { branch, commits: [] };
   }
 }
+
+export async function getCommitDetails(workspacePath: string, commitSha: string): Promise<string> {
+  const sha = (commitSha || '').trim();
+  if (!sha) throw new Error('Commit SHA is required');
+  await execFileAsync('git', ['rev-parse', '--verify', sha], { cwd: workspacePath });
+  const { stdout } = await execFileAsync(
+    'git',
+    ['show', '--stat', '--pretty=fuller', '--color=never', sha],
+    { cwd: workspacePath }
+  );
+  return stdout || '';
+}
+
+export async function revertCommit(workspacePath: string, commitSha: string): Promise<void> {
+  const sha = (commitSha || '').trim();
+  if (!sha) throw new Error('Commit SHA is required');
+  await execFileAsync('git', ['rev-parse', '--verify', sha], { cwd: workspacePath });
+  await execFileAsync('git', ['revert', '--no-edit', sha], { cwd: workspacePath });
+}
