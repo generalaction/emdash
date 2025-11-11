@@ -444,83 +444,68 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
             className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-[0.12em] text-gray-600 dark:text-gray-300"
           >
             <span>Commits</span>
-            <span className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
-              {commitHistoryLoading && <Spinner size="sm" className="text-gray-400" />}
-              <ChevronDown
-                className={`h-3 w-3 transition-transform ${
-                  showCommitHistory ? '' : '-rotate-90'
-                }`}
-              />
-            </span>
+            <ChevronDown
+              className={`h-3 w-3 text-gray-400 transition-transform dark:text-gray-500 ${
+                showCommitHistory ? '' : '-rotate-90'
+              }`}
+            />
           </button>
           {showCommitHistory && (
             <div className="mt-3 space-y-2">
-              {commitHistoryLoading && visibleCommits.length === 0 ? (
-                <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                  <Spinner size="sm" className="text-gray-400" />
-                  <span>Loading commits…</span>
-                </div>
-              ) : visibleCommits.length === 0 ? (
-                <div className="text-[11px] text-gray-500 dark:text-gray-400">No commits yet</div>
-              ) : (
-                visibleCommits.map((commit) => (
-                  <div
-                    key={commit.sha}
-                    className="group flex items-center justify-between gap-3 rounded px-1 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900/40"
-                  >
-                    <div className="flex min-w-0 items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
-                      <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full bg-sky-500 dark:bg-sky-400" />
-                      <button
-                        type="button"
-                        className="font-mono text-[11px] text-gray-500 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopySha(commit.sha);
-                        }}
-                        title="Copy commit SHA"
-                      >
-                        {commit.shortSha}
-                      </button>
-                      <span className="text-gray-400 dark:text-gray-500">·</span>
-                      <span
-                        className="truncate"
-                        title={commit.summary || '(no message)'}
-                      >
-                        {commit.summary || '(no message)'}
-                      </span>
-                    </div>
-                    <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
-                      <button
-                        type="button"
-                        disabled={revertingCommitSha === commit.sha}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRevertCommit(commit);
-                        }}
-                        className="flex items-center rounded border border-transparent p-1 text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-900/40 dark:hover:text-gray-200"
-                        title="Revert this commit"
-                      >
-                        {revertingCommitSha === commit.sha ? (
-                          <Spinner size="sm" className="h-3 w-3 text-gray-400" />
-                        ) : (
-                          <RotateCcw className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopySha(commit.sha);
-                        }}
-                        className="flex items-center rounded border border-transparent p-1 text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-900/40 dark:hover:text-gray-200"
-                        title="Copy commit SHA"
-                      >
-                        <CopyIcon className="h-4 w-4" />
-                      </button>
-                    </div>
+              {visibleCommits.map((commit) => (
+                <div
+                  key={commit.sha}
+                  className="group flex items-center justify-between gap-3 rounded px-1 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900/40"
+                >
+                  <div className="flex min-w-0 items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
+                    <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full bg-sky-500 dark:bg-sky-400" />
+                    <button
+                      type="button"
+                      className="font-mono text-[11px] text-gray-500 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopySha(commit.sha);
+                      }}
+                      title="Copy commit SHA"
+                    >
+                      {commit.shortSha}
+                    </button>
+                    <span className="text-gray-400 dark:text-gray-500">·</span>
+                    <span className="truncate" title={commit.summary || '(no message)'}>
+                      {commit.summary || '(no message)'}
+                    </span>
                   </div>
-                ))
-              )}
+                  <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                    <button
+                      type="button"
+                      disabled={revertingCommitSha === commit.sha}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRevertCommit(commit);
+                      }}
+                      className="flex items-center rounded border border-transparent p-1 text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-900/40 dark:hover:text-gray-200"
+                      title="Revert this commit"
+                    >
+                      {revertingCommitSha === commit.sha ? (
+                        <Spinner size="sm" className="h-3 w-3 text-gray-400" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopySha(commit.sha);
+                      }}
+                      className="flex items-center rounded border border-transparent p-1 text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-900/40 dark:hover:text-gray-200"
+                      title="Copy commit SHA"
+                    >
+                      <CopyIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
