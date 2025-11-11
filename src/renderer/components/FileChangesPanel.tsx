@@ -441,7 +441,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
           <button
             type="button"
             onClick={() => setShowCommitHistory((prev) => !prev)}
-            className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-[0.12em] text-gray-600 dark:text-gray-300"
+            className="flex w-full items-center justify-between pl-2 text-left text-sm font-medium text-gray-600 dark:text-gray-200"
           >
             <span>Commits</span>
             <ChevronDown
@@ -451,11 +451,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
             />
           </button>
           {showCommitHistory && (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-2 pl-2">
               {visibleCommits.map((commit) => (
                 <div
                   key={commit.sha}
-                  className="group flex items-center justify-between gap-3 rounded px-1 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900/40"
+                  className="group flex items-center justify-between gap-3 rounded px-0 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900/40"
                 >
                   <div className="flex min-w-0 items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
                     <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full bg-sky-500 dark:bg-sky-400" />
