@@ -136,6 +136,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrStatus: (args: { workspacePath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
   getBranchStatus: (args: { workspacePath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
+  getCommitHistory: (args: { workspacePath: string; limit?: number }) =>
+    ipcRenderer.invoke('git:get-commit-history', args),
   loadContainerConfig: (workspacePath: string) =>
     ipcRenderer.invoke('container:load-config', { workspacePath }),
   startContainerRun: (args: {
@@ -496,6 +498,28 @@ export interface ElectronAPI {
     web?: boolean;
     fill?: boolean;
   }) => Promise<{ success: boolean; url?: string; output?: string; error?: string }>;
+  getPrStatus: (args: {
+    workspacePath: string;
+  }) => Promise<{ success: boolean; pr?: any | null; error?: string }>;
+  getBranchStatus: (args: {
+    workspacePath: string;
+  }) => Promise<{ success: boolean; branch?: string; defaultBranch?: string; ahead?: number; behind?: number; error?: string }>;
+  getCommitHistory: (args: {
+    workspacePath: string;
+    limit?: number;
+  }) => Promise<{
+    success: boolean;
+    branch?: string;
+    commits?: Array<{
+      sha: string;
+      shortSha: string;
+      summary: string;
+      relativeDate?: string;
+      date?: string;
+      authorName?: string;
+    }>;
+    error?: string;
+  }>;
   connectToGitHub: (
     projectPath: string
   ) => Promise<{ success: boolean; repository?: string; branch?: string; error?: string }>;

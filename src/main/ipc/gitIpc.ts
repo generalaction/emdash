@@ -7,6 +7,7 @@ import {
   getFileDiff as gitGetFileDiff,
   stageFile as gitStageFile,
   revertFile as gitRevertFile,
+  getCommitHistory as gitGetCommitHistory,
 } from '../services/GitService';
 
 const execAsync = promisify(exec);
@@ -59,6 +60,20 @@ export function registerGitIpc() {
         return { success: true, action: result.action };
       } catch (error) {
         log.error('Failed to revert file:', { filePath: args.filePath, error });
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  // Git: Commit history
+  ipcMain.handle(
+    'git:get-commit-history',
+    async (_, args: { workspacePath: string; limit?: number }) => {
+      try {
+        const { branch, commits } = await gitGetCommitHistory(args.workspacePath, args.limit);
+        return { success: true, branch, commits };
+      } catch (error) {
+        log.error('Failed to load commit history:', error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }

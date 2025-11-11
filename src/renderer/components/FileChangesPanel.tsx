@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
@@ -9,7 +9,8 @@ import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import PrStatusSkeleton from './ui/pr-status-skeleton';
 import FileTypeIcon from './ui/file-type-icon';
-import { Plus, Undo2 } from 'lucide-react';
+import { ChevronDown, Plus, Undo2 } from 'lucide-react';
+import { useCommitHistory } from '../hooks/useCommitHistory';
 
 interface FileChangesPanelProps {
   workspaceId: string;
@@ -23,6 +24,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
+  const [showCommitHistory, setShowCommitHistory] = useState(true);
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
   const { fileChanges, refreshChanges } = useFileChanges(workspaceId);
   const { toast } = useToast();
@@ -31,6 +33,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
   const { pr, loading: prLoading, refresh: refreshPr } = usePrStatus(workspaceId);
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
+  const {
+    commits: recentCommits,
+    branch: commitBranch,
+    isLoading: commitHistoryLoading,
+    refresh: refreshCommitHistory,
+  } = useCommitHistory(workspaceId);
+  const visibleCommits = useMemo(() => recentCommits.slice(0, 6), [recentCommits]);
+  const shouldShowCommitHistory = commitHistoryLoading || visibleCommits.length > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -168,6 +178,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
         });
         setCommitMessage(''); // Clear the input
         await refreshChanges();
+        await refreshCommitHistory();
         try {
           await refreshPr();
         } catch {}
@@ -341,6 +352,58 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
           </div>
         )}
       </div>
+
+      {shouldShowCommitHistory && (
+        <div className="border-b border-gray-100 px-3 py-2 text-xs dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setShowCommitHistory((prev) => !prev)}
+            className="flex w-full items-center justify-between text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400"
+          >
+            <span>
+              Recent commits
+              {commitBranch ? ` (${commitBranch})` : ''}
+            </span>
+            <span className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
+              {commitHistoryLoading && <Spinner size="sm" className="text-gray-400" />}
+              <ChevronDown
+                className={`h-3 w-3 transition-transform ${
+                  showCommitHistory ? '' : '-rotate-90'
+                }`}
+              />
+            </span>
+          </button>
+          {showCommitHistory && (
+            <div className="mt-3 space-y-3">
+              {commitHistoryLoading && visibleCommits.length === 0 ? (
+                <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                  <Spinner size="sm" className="text-gray-400" />
+                  <span>Loading commits…</span>
+                </div>
+              ) : visibleCommits.length === 0 ? (
+                <div className="text-[11px] text-gray-500 dark:text-gray-400">No commits yet</div>
+              ) : (
+                visibleCommits.map((commit, idx) => (
+                  <div key={commit.sha} className="flex items-center gap-2">
+                    <div className="relative flex h-8 w-4 items-center justify-center">
+                      {idx !== visibleCommits.length - 1 && (
+                        <span className="absolute left-1/2 top-4 bottom-0 w-px -translate-x-1/2 bg-gray-200 dark:bg-gray-700" />
+                      )}
+                      <span className="h-2.5 w-2.5 rounded-full bg-sky-400 dark:bg-sky-500" />
+                    </div>
+                    <span className="font-mono text-[11px] text-gray-500 dark:text-gray-400">
+                      {commit.shortSha}
+                    </span>
+                    <span className="truncate text-sm text-gray-900 dark:text-gray-100">
+                      {commit.summary || '(no message)'}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {fileChanges.map((change, index) => (

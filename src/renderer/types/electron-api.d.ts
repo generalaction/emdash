@@ -195,6 +195,19 @@ declare global {
         behind?: number;
         error?: string;
       }>;
+      getCommitHistory: (args: { workspacePath: string; limit?: number }) => Promise<{
+        success: boolean;
+        branch?: string;
+        commits?: Array<{
+          sha: string;
+          shortSha: string;
+          summary: string;
+          relativeDate?: string;
+          date?: string;
+          authorName?: string;
+        }>;
+        error?: string;
+      }>;
       loadContainerConfig: (workspacePath: string) => Promise<
         | {
             ok: true;

@@ -13,6 +13,15 @@ export type GitChange = {
   isStaged: boolean;
 };
 
+export type GitCommit = {
+  sha: string;
+  shortSha: string;
+  summary: string;
+  relativeDate?: string;
+  date?: string;
+  authorName?: string;
+};
+
 export async function getStatus(workspacePath: string): Promise<GitChange[]> {
   // Return empty if not a git repo
   try {
@@ -237,5 +246,142 @@ export async function getFileDiff(
         return { lines: [] };
       }
     }
+  }
+}
+
+export async function getCommitHistory(
+  workspacePath: string,
+  limit = 20
+): Promise<{ branch: string; commits: GitCommit[] }> {
+  // Ensure repo exists
+  try {
+    await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: workspacePath,
+    });
+  } catch {
+    return { branch: '', commits: [] };
+  }
+
+  let branch = '';
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: workspacePath,
+    });
+    branch = (stdout || '').trim();
+  } catch {
+    branch = '';
+  }
+
+  // Resolve default branch for comparison (prefer remote default)
+  let defaultBranch = 'main';
+  try {
+    const { stdout } = await execFileAsync(
+      'gh',
+      ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'],
+      { cwd: workspacePath }
+    );
+    const db = (stdout || '').trim();
+    if (db) defaultBranch = db;
+  } catch {
+    try {
+      const { stdout } = await execFileAsync('git', ['remote', 'show', 'origin'], {
+        cwd: workspacePath,
+      });
+      const line =
+        (stdout || '')
+          .split('\n')
+          .map((l) => l.trim())
+          .find((l) => l.toLowerCase().startsWith('head branch')) || '';
+      const parts = line.split(':');
+      const branchName = parts[1]?.trim();
+      if (branchName) defaultBranch = branchName;
+    } catch {
+      // keep fallback main
+    }
+  }
+
+  // Determine comparison ref: prefer tracking upstream, then origin/default, then local default
+  let baseRef: string | null = null;
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+      { cwd: workspacePath }
+    );
+    const upstream = (stdout || '').trim();
+    if (upstream && upstream !== 'HEAD') baseRef = upstream;
+  } catch {
+    baseRef = null;
+  }
+
+  const remoteDefault = `origin/${defaultBranch}`;
+  const hasRef = async (ref: string) => {
+    try {
+      await execFileAsync('git', ['rev-parse', '--verify', ref], { cwd: workspacePath });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (!baseRef && (await hasRef(remoteDefault))) {
+    baseRef = remoteDefault;
+  }
+  if (
+    !baseRef &&
+    branch &&
+    defaultBranch &&
+    branch !== defaultBranch &&
+    (await hasRef(defaultBranch))
+  ) {
+    baseRef = defaultBranch;
+  }
+
+  if (!baseRef) {
+    return { branch, commits: [] };
+  }
+
+  let compareRange = `${baseRef}..HEAD`;
+  if (baseRef === branch) {
+    // If somehow the resolved ref equals the current branch, don't log anything
+    return { branch, commits: [] };
+  }
+
+  // If merge-base exists, prefer it to avoid duplicate commits when branch diverged
+  try {
+    const { stdout } = await execFileAsync('git', ['merge-base', 'HEAD', baseRef], {
+      cwd: workspacePath,
+    });
+    const mb = (stdout || '').trim();
+    if (mb) compareRange = `${mb}..HEAD`;
+  } catch {
+    // ignore, keep default range
+  }
+  const safeLimit = Math.min(Math.max(Number.isFinite(limit) ? Number(limit) : 20, 1), 50);
+  const format = '%H%x1f%h%x1f%s%x1f%cr%x1f%ci%x1f%an%x1e';
+  try {
+    const args = ['log', compareRange];
+    args.push('-n', String(safeLimit), `--pretty=format:${format}`);
+    const { stdout } = await execFileAsync('git', args, { cwd: workspacePath });
+
+    const commits: GitCommit[] = (stdout || '')
+      .split('\x1e')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .map((entry) => {
+        const [sha, shortSha, summary, relativeDate, date, authorName] = entry.split('\x1f');
+        return {
+          sha,
+          shortSha,
+          summary: summary || '',
+          relativeDate,
+          date,
+          authorName,
+        };
+      });
+
+    return { branch, commits };
+  } catch {
+    return { branch, commits: [] };
   }
 }
