@@ -9,15 +9,8 @@ import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import PrStatusSkeleton from './ui/pr-status-skeleton';
 import FileTypeIcon from './ui/file-type-icon';
-import { ChevronDown, Copy as CopyIcon, Plus, RotateCcw, Undo2 } from 'lucide-react';
-import { useCommitHistory, type CommitHistoryEntry } from '../hooks/useCommitHistory';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './ui/alert-dialog';
+import { ChevronDown, Copy as CopyIcon, Plus, Undo2 } from 'lucide-react';
+import { useCommitHistory } from '../hooks/useCommitHistory';
 
 interface FileChangesPanelProps {
   workspaceId: string;
@@ -32,11 +25,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const [showCommitHistory, setShowCommitHistory] = useState(true);
-  const [commitDetailsOpen, setCommitDetailsOpen] = useState(false);
-  const [commitDetailsContent, setCommitDetailsContent] = useState('');
-  const [commitDetailsTarget, setCommitDetailsTarget] = useState<CommitHistoryEntry | null>(null);
-  const [commitDetailsLoading, setCommitDetailsLoading] = useState(false);
-  const [revertingCommitSha, setRevertingCommitSha] = useState<string | null>(null);
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
   const { fileChanges, refreshChanges } = useFileChanges(workspaceId);
   const { toast } = useToast();
@@ -258,60 +246,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
     }
   };
 
-  const handleShowCommitDetails = async (commit: CommitHistoryEntry) => {
-    setCommitDetailsTarget(commit);
-    setCommitDetailsOpen(true);
-    setCommitDetailsLoading(true);
-    setCommitDetailsContent('');
-    try {
-      const result = await window.electronAPI.getCommitDetails({
-        workspacePath: workspaceId,
-        commitSha: commit.sha,
-      });
-      if (result?.success) {
-        setCommitDetailsContent(result.details || 'No details available for this commit.');
-      } else {
-        throw new Error(result?.error || 'Failed to load commit details.');
-      }
-    } catch (error) {
-      toast({
-        title: 'Details unavailable',
-        description: error instanceof Error ? error.message : 'Failed to load commit details.',
-        variant: 'destructive',
-      });
-      setCommitDetailsOpen(false);
-    } finally {
-      setCommitDetailsLoading(false);
-    }
-  };
-
-  const handleRevertCommit = async (commit: CommitHistoryEntry) => {
-    setRevertingCommitSha(commit.sha);
-    try {
-      const result = await window.electronAPI.revertCommit({
-        workspacePath: workspaceId,
-        commitSha: commit.sha,
-      });
-      if (result?.success) {
-        toast({
-          title: 'Commit reverted',
-          description: `Created revert for ${commit.shortSha}.`,
-        });
-        await refreshChanges();
-        await refreshCommitHistory();
-      } else {
-        throw new Error(result?.error || 'Failed to revert commit.');
-      }
-    } catch (error) {
-      toast({
-        title: 'Revert failed',
-        description: error instanceof Error ? error.message : 'Failed to revert commit.',
-        variant: 'destructive',
-      });
-    } finally {
-      setRevertingCommitSha(null);
-    }
-  };
 
   return (
     <div className={`flex h-full flex-col bg-white shadow-sm dark:bg-gray-800 ${className}`}>
@@ -475,23 +409,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                       {commit.summary || '(no message)'}
                     </span>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
-                    <button
-                      type="button"
-                      disabled={revertingCommitSha === commit.sha}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRevertCommit(commit);
-                      }}
-                      className="flex items-center rounded border border-transparent p-1 text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-900/40 dark:hover:text-gray-200"
-                      title="Revert this commit"
-                    >
-                      {revertingCommitSha === commit.sha ? (
-                        <Spinner size="sm" className="h-3 w-3 text-gray-400" />
-                      ) : (
-                        <RotateCcw className="h-4 w-4" />
-                      )}
-                    </button>
+                  <div className="flex flex-shrink-0 items-center opacity-0 transition group-hover:opacity-100">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -596,39 +514,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
           onRefreshChanges={refreshChanges}
         />
       )}
-      <AlertDialog open={commitDetailsOpen} onOpenChange={setCommitDetailsOpen}>
-        <AlertDialogContent className="max-h-[80vh] max-w-3xl overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-left text-base font-semibold">
-              Commit Details {commitDetailsTarget ? `(${commitDetailsTarget.shortSha})` : ''}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-left text-sm text-gray-500 dark:text-gray-400">
-              {commitDetailsTarget?.summary}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
-            {commitDetailsLoading ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <Spinner size="sm" />
-                <span>Loading commit details…</span>
-              </div>
-            ) : (
-              <pre className="whitespace-pre-wrap break-all text-xs leading-relaxed">
-                {commitDetailsContent || 'No details available.'}
-              </pre>
-            )}
-          </div>
-          <div className="mt-4 flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCommitDetailsOpen(false)}
-            >
-              Close
-            </Button>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
