@@ -135,9 +135,6 @@ jobs:
             echo "Arm64 app not found at $APP" && exit 1
           fi
 
-      # Optional: upload build artifacts for debugging even if publish fails
-      # Deliberately skip uploading debug DMGs to avoid confusion
-
   release-linux:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

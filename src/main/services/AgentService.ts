@@ -67,6 +67,11 @@ export class AgentService extends EventEmitter {
   async startStream(opts: AgentStartOptions): Promise<void> {
     const { providerId, workspaceId, worktreePath, message, conversationId } = opts;
 
+    // Notify renderers that a stream is starting for this workspace
+    try {
+      this.emit('agent:start', { providerId, workspaceId });
+    } catch {}
+
     // If codex, delegate to codexService (and events are bridged in agent IPC setup)
     if (providerId === 'codex') {
       await codexService.sendMessageStream(workspaceId, message, conversationId);

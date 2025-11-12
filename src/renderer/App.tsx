@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './components/ui/button';
-
 import { FolderOpen } from 'lucide-react';
 import LeftSidebar from './components/LeftSidebar';
 import ProjectMainView from './components/ProjectMainView';
@@ -39,6 +38,7 @@ import { terminalSessionRegistry } from './terminal/SessionRegistry';
 import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
+import KanbanBoard from './components/kanban/KanbanBoard';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -124,7 +124,6 @@ const AppContent: React.FC = () => {
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const showGithubRequirement = !ghInstalled || !isAuthenticated;
   // Show agent requirements block if none of the supported CLIs are detected locally.
-  // We only actively detect Codex and Claude Code; Factory (Droid) docs are shown as an alternative.
   const showAgentRequirement = isCodexInstalled === false && isClaudeInstalled === false;
 
   const normalizePathForComparison = useCallback(
@@ -400,7 +399,6 @@ const AppContent: React.FC = () => {
           console.error('Failed to check Codex CLI installation:', codexStatus.error);
         }
 
-        // Best-effort: detect Claude Code CLI presence
         try {
           const claude = await (window as any).electronAPI.agentCheckInstallation?.('claude');
           setIsClaudeInstalled(!!claude?.isInstalled);
@@ -514,15 +512,6 @@ const AppContent: React.FC = () => {
               const { log } = await import('./lib/logger');
               log.error('Failed to save project:', saveResult.error);
             }
-
-            if (isAuthenticated && !isGithubRemote && remoteUrl) {
-              // Optional: non-destructive info toast to clarify no GitHub features
-              // toast({
-              //   title: 'Non‑GitHub repository',
-              //   description: 'Connected project without GitHub features (remote is not github.com).',
-              //   variant: 'default',
-              // });
-            }
           }
         } catch (error) {
           const { log } = await import('./lib/logger');
@@ -573,7 +562,7 @@ const AppContent: React.FC = () => {
           try {
             const api: any = (window as any).electronAPI;
             let description: string | undefined;
-            // Try bulk first
+            // Try bulk search first
             try {
               const res = await api?.linearGetIssues?.([linkedLinearIssue.identifier]);
               const arr = res?.issues || res || [];
@@ -739,7 +728,7 @@ const AppContent: React.FC = () => {
           return;
         }
       } else {
-        // Create single worktree
+        // Create worktree
         const worktreeResult = await window.electronAPI.worktreeCreate({
           projectPath: selectedProject.path,
           workspaceName,
@@ -951,11 +940,6 @@ const AppContent: React.FC = () => {
         } else {
           setActiveWorkspaceProvider(selectedProvider || 'codex');
         }
-
-        // toast({
-        //   title: 'Workspace Created',
-        //   description: `"${workspaceName}" workspace created successfully!`,
-        // });
       }
     } catch (error) {
       const { log } = await import('./lib/logger');
@@ -971,8 +955,6 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // PR checkout via PR list is disabled; handler removed
-
   const handleGoHome = () => {
     setSelectedProject(null);
     setShowHomeView(true);
@@ -985,7 +967,7 @@ const AppContent: React.FC = () => {
 
   const handleSelectWorkspace = (workspace: Workspace) => {
     setActiveWorkspace(workspace);
-    setActiveWorkspaceProvider(null); // Clear provider when switching workspaces
+    setActiveWorkspaceProvider(null);
   };
 
   const handleStartCreateWorkspaceFromSidebar = useCallback(
@@ -1157,7 +1139,23 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const [showKanban, setShowKanban] = useState<boolean>(false);
+
   const renderMainContent = () => {
+    if (selectedProject && showKanban) {
+      return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <KanbanBoard
+            project={selectedProject}
+            onOpenWorkspace={(ws: any) => {
+              handleSelectWorkspace(ws);
+              setShowKanban(false);
+            }}
+            onCreateWorkspace={() => setShowWorkspaceModal(true)}
+          />
+        </div>
+      );
+    }
     if (showHomeView) {
       return (
         <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
@@ -1286,6 +1284,11 @@ const AppContent: React.FC = () => {
         className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
         style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
       >
+        {/** Kanban view state **/}
+        {(() => {
+          // Track Kanban locally in this component scope
+          return null;
+        })()}
         <SidebarProvider>
           <RightSidebarProvider defaultCollapsed>
             <AppKeyboardShortcuts
@@ -1318,6 +1321,9 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path || null}
               isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
               githubUser={user}
+              onToggleKanban={() => setShowKanban((v) => !v)}
+              isKanbanOpen={Boolean(showKanban)}
+              kanbanAvailable={Boolean(selectedProject)}
             />
             <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
               <ResizablePanelGroup

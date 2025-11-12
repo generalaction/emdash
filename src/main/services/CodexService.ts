@@ -305,6 +305,10 @@ export class CodexService extends EventEmitter {
       );
 
       this.initializeStreamLog(workspaceId, agent, message);
+      // Notify UI that streaming is starting
+      try {
+        this.emit('codex:start', { workspaceId, agentId: agent.id, conversationId });
+      } catch {}
       const child = spawn('codex', args, {
         cwd: agent.worktreePath,
         stdio: ['ignore', 'pipe', 'pipe'],

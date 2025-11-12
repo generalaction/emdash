@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Command, MessageSquare, Settings as SettingsIcon } from 'lucide-react';
+import { Command, MessageSquare, Settings as SettingsIcon, KanbanSquare } from 'lucide-react';
 import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
 import { Button } from '../ui/button';
@@ -25,6 +25,9 @@ interface TitlebarProps {
   workspacePath?: string | null;
   projectPath?: string | null;
   isWorkspaceMultiAgent?: boolean;
+  onToggleKanban?: () => void;
+  isKanbanOpen?: boolean;
+  kanbanAvailable?: boolean;
 }
 
 const Titlebar: React.FC<TitlebarProps> = ({
@@ -37,6 +40,9 @@ const Titlebar: React.FC<TitlebarProps> = ({
   workspacePath,
   projectPath,
   isWorkspaceMultiAgent,
+  onToggleKanban,
+  isKanbanOpen = false,
+  kanbanAvailable = false,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -95,6 +101,27 @@ const Titlebar: React.FC<TitlebarProps> = ({
       <header className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-gray-50 pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-gray-900">
         <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
           {currentPath ? <OpenInMenu path={currentPath} align="right" /> : null}
+          {kanbanAvailable ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Toggle Kanban view"
+                    onClick={onToggleKanban}
+                    className="h-8 w-8 text-muted-foreground hover:bg-background/80"
+                  >
+                    <KanbanSquare className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs font-medium">
+                  Kanban
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
           {workspaceId && !isWorkspaceMultiAgent ? (
             <BrowserToggleButton
               defaultUrl={defaultPreviewUrl || undefined}
