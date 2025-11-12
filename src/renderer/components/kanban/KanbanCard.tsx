@@ -103,17 +103,19 @@ const KanbanCard: React.FC<{
               </span>
             ) : null}
           </div>
-        ) : asset && (SHOW_PROVIDER_LOGOS || busy) ? (
-          <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
-            {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
-            {SHOW_PROVIDER_LOGOS ? (
+        ) : asset ? (
+          SHOW_PROVIDER_LOGOS ? (
+            <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
+              {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
               <img
                 src={asset.logo}
                 alt={asset.alt}
                 className={`h-3.5 w-3.5 shrink-0 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`}
               />
-            ) : null}
-          </span>
+            </span>
+          ) : busy ? (
+            <Spinner size="sm" className="shrink-0 text-muted-foreground" />
+          ) : null
         ) : null}
       </div>
 

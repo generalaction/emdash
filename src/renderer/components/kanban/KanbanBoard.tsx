@@ -46,10 +46,9 @@ const KanbanBoard: React.FC<{
       offs.push(watchWorkspaceActivity(ws.id));
       const off = subscribeDerivedStatus(ws.id, (derived) => {
         if (derived !== 'busy') return;
-        // Guard with current state at the time of update
+        // Always reflect busy workspaces as in-progress (even if previously done)
         setStatusMap((prev) => {
-          const cur = prev[ws.id] || 'todo';
-          if (cur === 'done' || cur === 'in-progress') return prev;
+          if (prev[ws.id] === 'in-progress') return prev;
           setStatus(ws.id, 'in-progress');
           return { ...prev, [ws.id]: 'in-progress' };
         });
@@ -158,6 +157,13 @@ const KanbanBoard: React.FC<{
             }
           }
           if (hasChanges && !cancelled) {
+            // Do not auto-complete while busy
+            let currentlyBusy = false;
+            const un = activityStore.subscribe(ws.id, (b) => {
+              currentlyBusy = b;
+            });
+            un?.();
+            if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
               setStatus(ws.id, 'done');
@@ -202,6 +208,13 @@ const KanbanBoard: React.FC<{
             }
           }
           if (hasPr && !cancelled) {
+            // Do not auto-complete while busy
+            let currentlyBusy = false;
+            const un = activityStore.subscribe(ws.id, (b) => {
+              currentlyBusy = b;
+            });
+            un?.();
+            if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
               setStatus(ws.id, 'done');
@@ -249,6 +262,12 @@ const KanbanBoard: React.FC<{
             }
           }
           if (ahead > 0 && !cancelled) {
+            let currentlyBusy = false;
+            const un = activityStore.subscribe(ws.id, (b) => {
+              currentlyBusy = b;
+            });
+            un?.();
+            if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
               setStatus(ws.id, 'done');
