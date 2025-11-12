@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
@@ -40,6 +40,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
   } = useCommitHistory(workspaceId);
   const visibleCommits = useMemo(() => recentCommits.slice(0, 6), [recentCommits]);
   const shouldShowCommitHistory = visibleCommits.length > 0;
+  const prevHadChanges = useRef(hasChanges);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +67,13 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, hasChanges]);
+
+  useEffect(() => {
+    if (prevHadChanges.current && !hasChanges) {
+      refreshCommitHistory();
+    }
+    prevHadChanges.current = hasChanges;
+  }, [hasChanges, refreshCommitHistory]);
 
   const handleStageFile = async (filePath: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent opening diff modal
