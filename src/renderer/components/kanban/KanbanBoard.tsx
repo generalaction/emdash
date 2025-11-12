@@ -17,7 +17,7 @@ const order: KanbanStatus[] = ['todo', 'in-progress', 'done'];
 const titles: Record<KanbanStatus, string> = {
   todo: 'To‑do',
   'in-progress': 'In‑progress',
-  done: 'Done',
+  done: 'Ready for review',
 };
 
 const KanbanBoard: React.FC<{
@@ -131,6 +131,141 @@ const KanbanBoard: React.FC<{
     }
     return () => offs.forEach((f) => f());
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id, project.workspaces?.length]);
+
+  // Promote any workspace with local changes directly to "Ready for review" (done)
+  React.useEffect(() => {
+    let cancelled = false;
+    const wsList = project.workspaces || [];
+    const check = async () => {
+      for (const ws of wsList) {
+        const variantPaths: string[] = (() => {
+          try {
+            const v = ws?.metadata?.multiAgent?.variants || [];
+            if (Array.isArray(v)) return v.map((x: any) => String(x?.path || '')).filter(Boolean);
+          } catch {}
+          return [];
+        })();
+        const paths = [ws.path, ...variantPaths].filter((p, i, arr) => p && arr.indexOf(p) === i);
+        if (paths.length === 0) continue;
+        try {
+          let hasChanges = false;
+          for (const p of paths) {
+            const res = await (window as any).electronAPI?.getGitStatus?.(p);
+            if (res?.success && Array.isArray(res?.changes) && res.changes.length > 0) {
+              hasChanges = true;
+              break;
+            }
+          }
+          if (hasChanges && !cancelled) {
+            setStatusMap((prev) => {
+              if (prev[ws.id] === 'done') return prev;
+              setStatus(ws.id, 'done');
+              return { ...prev, [ws.id]: 'done' };
+            });
+          }
+        } catch {
+          // ignore per‑workspace errors
+        }
+      }
+    };
+    check();
+    const id = window.setInterval(check, 10000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [project.id, project.workspaces?.length]);
+
+  // Promote any workspace with an open PR to "Ready for review" (done)
+  React.useEffect(() => {
+    let cancelled = false;
+    const wsList = project.workspaces || [];
+    const check = async () => {
+      for (const ws of wsList) {
+        const variantPaths: string[] = (() => {
+          try {
+            const v = ws?.metadata?.multiAgent?.variants || [];
+            if (Array.isArray(v)) return v.map((x: any) => String(x?.path || '')).filter(Boolean);
+          } catch {}
+          return [];
+        })();
+        const paths = [ws.path, ...variantPaths].filter((p, i, arr) => p && arr.indexOf(p) === i);
+        if (paths.length === 0) continue;
+        try {
+          let hasPr = false;
+          for (const p of paths) {
+            const res = await (window as any).electronAPI?.getPrStatus?.({ workspacePath: p });
+            if (res?.success && res?.pr) {
+              hasPr = true;
+              break;
+            }
+          }
+          if (hasPr && !cancelled) {
+            setStatusMap((prev) => {
+              if (prev[ws.id] === 'done') return prev;
+              setStatus(ws.id, 'done');
+              return { ...prev, [ws.id]: 'done' };
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+    check();
+    const id = window.setInterval(check, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [project.id, project.workspaces?.length]);
+
+  // Promote any workspace that is ahead of the default branch (has commits) to "Ready for review"
+  React.useEffect(() => {
+    let cancelled = false;
+    const wsList = project.workspaces || [];
+    const check = async () => {
+      for (const ws of wsList) {
+        const variantPaths: string[] = (() => {
+          try {
+            const v = ws?.metadata?.multiAgent?.variants || [];
+            if (Array.isArray(v)) return v.map((x: any) => String(x?.path || '')).filter(Boolean);
+          } catch {}
+          return [];
+        })();
+        const paths = [ws.path, ...variantPaths].filter((p, i, arr) => p && arr.indexOf(p) === i);
+        if (paths.length === 0) continue;
+        try {
+          let ahead = 0;
+          for (const p of paths) {
+            const res = await (window as any).electronAPI?.getBranchStatus?.({ workspacePath: p });
+            if (res?.success) {
+              const a = Number(res?.ahead ?? 0);
+              if (a > 0) {
+                ahead = a;
+                break;
+              }
+            }
+          }
+          if (ahead > 0 && !cancelled) {
+            setStatusMap((prev) => {
+              if (prev[ws.id] === 'done') return prev;
+              setStatus(ws.id, 'done');
+              return { ...prev, [ws.id]: 'done' };
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+    check();
+    const id = window.setInterval(check, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, [project.id, project.workspaces?.length]);
 
   const byStatus: Record<KanbanStatus, Workspace[]> = { todo: [], 'in-progress': [], done: [] };
