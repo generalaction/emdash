@@ -3,6 +3,7 @@ import type { Workspace } from '../../types/app';
 import { providerAssets } from '../../providers/assets';
 import { providerMeta, type UiProvider } from '../../providers/meta';
 import { activityStore } from '../../lib/activityStore';
+import ProviderTooltip from './ProviderTooltip';
 import { Spinner } from '../ui/spinner';
 
 function resolveProvider(workspaceId: string): UiProvider | null {
@@ -36,22 +37,28 @@ const KanbanCard: React.FC<{
   React.useEffect(() => activityStore.subscribe(ws.id, setBusy), [ws.id]);
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="rounded-lg border border-border bg-background p-3 shadow-sm transition hover:bg-muted/40 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-      draggable={draggable}
-      onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', ws.id);
-      }}
-      onDoubleClick={handleClick}
-      onClick={handleClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleClick();
-        }
-      }}
+    <ProviderTooltip
+      providers={providers.length > 0 ? providers : provider ? [provider] : []}
+      adminProvider={adminProvider}
+      side="top"
+      delay={150}
+    >
+      <div
+          role="button"
+          tabIndex={0}
+          className="rounded-lg border border-border bg-background p-3 shadow-sm transition hover:bg-muted/40 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+          draggable={draggable}
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', ws.id);
+          }}
+          onDoubleClick={handleClick}
+          onClick={handleClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleClick();
+            }
+          }}
     >
       <div className="flex w-full items-center justify-between gap-2 overflow-hidden">
         <div className="min-w-0">
@@ -122,7 +129,8 @@ const KanbanCard: React.FC<{
           </span>
         </div>
       ) : null}
-    </div>
+          </div>
+    </ProviderTooltip>
   );
 };
 
