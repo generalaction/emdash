@@ -1,11 +1,18 @@
 // Generate a concise PR title using Claude Code based on current git status
-// Falls back to null if Claude is unavailable or any error occurs
 
+// Try Claude first; if unavailable, fall back to Codex
 export async function generatePrTitleWithClaude(workspaceId: string): Promise<string | null> {
   try {
-    // Check Claude installation availability
-    const installed = await (window as any).electronAPI.agentCheckInstallation?.('claude');
-    if (!installed?.success || !installed?.isInstalled) return null;
+    // Pick provider: prefer Claude, then Codex
+    let provider: 'claude' | 'codex' | null = null;
+    const claude = await (window as any).electronAPI.agentCheckInstallation?.('claude');
+    if (claude?.success && claude?.isInstalled) {
+      provider = 'claude';
+    } else {
+      const codex = await (window as any).electronAPI.agentCheckInstallation?.('codex');
+      if (codex?.success && codex?.isInstalled) provider = 'codex';
+    }
+    if (!provider) return null;
 
     // Gather changes summary from git status
     const status = await (window as any).electronAPI.getGitStatus(workspaceId);
@@ -45,25 +52,23 @@ export async function generatePrTitleWithClaude(workspaceId: string): Promise<st
     const buffer: { text: string } = { text: '' };
 
     const offOut = (window as any).electronAPI.onAgentStreamOutput?.((data: any) => {
-      if (data?.providerId !== 'claude') return;
+      if (data?.providerId !== provider) return;
       if (data?.workspaceId !== workspaceId) return;
       const chunk = typeof data.output === 'string' ? data.output : '';
       if (chunk) buffer.text += chunk;
     });
     const offErr = (window as any).electronAPI.onAgentStreamError?.((_data: any) => {
-      // ignore; we'll fall back if empty
     });
 
     const done = new Promise<string>((resolve) => {
       const offDone = (window as any).electronAPI.onAgentStreamComplete?.((data: any) => {
-        if (data?.providerId !== 'claude') return;
+        if (data?.providerId !== provider) return;
         if (data?.workspaceId !== workspaceId) return;
         offOut?.();
         offErr?.();
         offDone?.();
         resolve(buffer.text || '');
       });
-      // Timeout in case the stream hangs
       setTimeout(() => {
         try {
           offOut?.();
@@ -75,7 +80,7 @@ export async function generatePrTitleWithClaude(workspaceId: string): Promise<st
     });
 
     await (window as any).electronAPI.agentSendMessageStream?.({
-      providerId: 'claude',
+      providerId: provider,
       workspaceId,
       worktreePath: workspaceId,
       message: prompt,
@@ -85,7 +90,6 @@ export async function generatePrTitleWithClaude(workspaceId: string): Promise<st
     const raw = (await done).trim();
     if (!raw) return null;
 
-    // Take first non-empty line. Clean punctuation and quotes.
     const firstLine =
       raw
         .split(/\r?\n/)
@@ -93,9 +97,9 @@ export async function generatePrTitleWithClaude(workspaceId: string): Promise<st
         .find((l) => !!l) || '';
     if (!firstLine) return null;
     const cleaned = firstLine
-      .replace(/^\s*#+\s*/, '') // leading markdown header
-      .replace(/^['"`]+|['"`]+$/g, '') // strip quotes/backticks
-      .replace(/\s*\.$/, '') // trailing period
+      .replace(/^\s*#+\s*/, '') 
+      .replace(/^['"`]+|['"`]+$/g, '') 
+      .replace(/\s*\.$/, '') 
       .slice(0, 120)
       .trim();
 
