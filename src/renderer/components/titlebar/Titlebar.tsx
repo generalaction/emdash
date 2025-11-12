@@ -107,7 +107,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
-                    variant={isKanbanOpen ? 'secondary' : 'ghost'}
+                    variant="ghost"
                     size="icon"
                     aria-label="Toggle Kanban view"
                     onClick={onToggleKanban}
