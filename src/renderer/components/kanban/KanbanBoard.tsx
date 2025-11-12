@@ -161,7 +161,7 @@ const KanbanBoard: React.FC<{
                   <div className="mx-auto mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-border/60 bg-background/60">
                     <Inbox className="h-3.5 w-3.5" aria-hidden="true" />
                   </div>
-                  <span>No items</span>
+                  <span className='ml-2'>No items</span>
                 </div>
                 <div className="flex flex-1 items-center justify-center">
                   <Button variant="secondary" size="sm" onClick={onCreateWorkspace}>
@@ -175,7 +175,7 @@ const KanbanBoard: React.FC<{
                 <div className="mx-auto mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-border/60 bg-background/60">
                   <Inbox className="h-3.5 w-3.5" aria-hidden="true" />
                 </div>
-                <span>No items</span>
+                <span className="ml-2">No items</span>
               </div>
             )
           ) : (
