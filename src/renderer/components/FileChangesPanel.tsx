@@ -389,7 +389,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
               {visibleCommits.map((commit) => (
                 <div
                   key={commit.sha}
-                  className="group flex items-center justify-between gap-3 rounded px-0 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900/40"
+                  className="group -mx-2 flex items-center justify-between gap-3 rounded px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900/40"
                 >
                   <div className="flex min-w-0 items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
                     <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full bg-sky-500 dark:bg-sky-400" />
