@@ -57,8 +57,7 @@ export async function generatePrTitleWithClaude(workspaceId: string): Promise<st
       const chunk = typeof data.output === 'string' ? data.output : '';
       if (chunk) buffer.text += chunk;
     });
-    const offErr = (window as any).electronAPI.onAgentStreamError?.((_data: any) => {
-    });
+    const offErr = (window as any).electronAPI.onAgentStreamError?.((_data: any) => {});
 
     const done = new Promise<string>((resolve) => {
       const offDone = (window as any).electronAPI.onAgentStreamComplete?.((data: any) => {
@@ -97,9 +96,9 @@ export async function generatePrTitleWithClaude(workspaceId: string): Promise<st
         .find((l) => !!l) || '';
     if (!firstLine) return null;
     const cleaned = firstLine
-      .replace(/^\s*#+\s*/, '') 
-      .replace(/^['"`]+|['"`]+$/g, '') 
-      .replace(/\s*\.$/, '') 
+      .replace(/^\s*#+\s*/, '')
+      .replace(/^['"`]+|['"`]+$/g, '')
+      .replace(/\s*\.$/, '')
       .slice(0, 120)
       .trim();
 

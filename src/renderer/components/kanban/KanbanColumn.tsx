@@ -1,6 +1,4 @@
 import React from 'react';
-import KanbanCard from './KanbanCard';
-import type { Workspace } from '../../types/app';
 
 const KanbanColumn: React.FC<{
   title: string;

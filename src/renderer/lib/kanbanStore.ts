@@ -1,5 +1,3 @@
-import type { Workspace } from '../types/app';
-
 export type KanbanStatus = 'todo' | 'in-progress' | 'done';
 
 const STORAGE_KEY = 'emdash:kanban:statusByWorkspace';

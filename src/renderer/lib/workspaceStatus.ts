@@ -1,7 +1,6 @@
 // Lightweight derived status store for workspaces based on agent activity
 // - Derives 'busy' when we receive stream output for a workspace
 // - Derives 'idle' after a short inactivity window or when a 'complete' event fires
-// - Consumers subscribe per-workspace to react to status changes
 
 type Derived = 'idle' | 'busy';
 import { subscribeToWorkspaceRunState } from './containerRuns';
