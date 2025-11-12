@@ -505,11 +505,15 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean; pr?: any | null; error?: string }>;
   getBranchStatus: (args: {
     workspacePath: string;
-  }) => Promise<{ success: boolean; branch?: string; defaultBranch?: string; ahead?: number; behind?: number; error?: string }>;
-  getCommitHistory: (args: {
-    workspacePath: string;
-    limit?: number;
   }) => Promise<{
+    success: boolean;
+    branch?: string;
+    defaultBranch?: string;
+    ahead?: number;
+    behind?: number;
+    error?: string;
+  }>;
+  getCommitHistory: (args: { workspacePath: string; limit?: number }) => Promise<{
     success: boolean;
     branch?: string;
     commits?: Array<{

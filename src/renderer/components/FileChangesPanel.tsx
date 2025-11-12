@@ -246,7 +246,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
     }
   };
 
-
   return (
     <div className={`flex h-full flex-col bg-white shadow-sm dark:bg-gray-800 ${className}`}>
       <div className="bg-gray-50 px-3 py-2 dark:bg-gray-900">
