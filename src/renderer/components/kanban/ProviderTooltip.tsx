@@ -55,15 +55,12 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
 
   // Diff summary state
   const [open, setOpen] = React.useState(false);
-  const [diffSummary, setDiffSummary] = React.useState<
-    | {
-        files: number;
-        additions: number;
-        deletions: number;
-        top: Array<{ path: string; additions: number; deletions: number; status?: string }>;
-      }
-    | null
-  >(null);
+  const [diffSummary, setDiffSummary] = React.useState<{
+    files: number;
+    additions: number;
+    deletions: number;
+    top: Array<{ path: string; additions: number; deletions: number; status?: string }>;
+  } | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -77,13 +74,14 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
           return;
         }
         const filtered = (res.changes as Array<any>).filter(
-          (c) => !String(c?.path || '').startsWith('.emdash/') && String(c?.path || '') !== 'PLANNING.md'
+          (c) =>
+            !String(c?.path || '').startsWith('.emdash/') && String(c?.path || '') !== 'PLANNING.md'
         );
         const additions = filtered.reduce((s, c) => s + Number(c?.additions || 0), 0);
         const deletions = filtered.reduce((s, c) => s + Number(c?.deletions || 0), 0);
         const top = filtered
           .slice()
-          .sort((a, b) => (b.additions + b.deletions) - (a.additions + a.deletions))
+          .sort((a, b) => b.additions + b.deletions - (a.additions + a.deletions))
           .slice(0, 3)
           .map((c) => ({
             path: String(c.path || ''),
@@ -108,7 +106,10 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
     <TooltipProvider delayDuration={delay}>
       <Tooltip onOpenChange={setOpen}>
         <TooltipTrigger asChild>{children}</TooltipTrigger>
-        <TooltipContent side={side} className="max-w-xs rounded-md border border-border bg-background p-2 text-xs shadow-sm">
+        <TooltipContent
+          side={side}
+          className="max-w-xs rounded-md border border-border bg-background p-2 text-xs shadow-sm"
+        >
           {workspaceName ? (
             <div className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold leading-tight text-foreground">
               <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -117,7 +118,7 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
               </span>
             </div>
           ) : null}
-          <div className="mt-0.5 mb-1 font-medium text-foreground">Providers</div>
+          <div className="mb-1 mt-0.5 font-medium text-foreground">Providers</div>
           <div className="flex flex-col gap-1">
             {items.map((it) => (
               <div key={it.id} className="flex items-center gap-2 text-foreground/90">
@@ -152,7 +153,9 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
                     <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px]">
                       -{diffSummary.deletions}
                     </span>
-                    <span className="text-muted-foreground">· {diffSummary.files} file{diffSummary.files === 1 ? '' : 's'}</span>
+                    <span className="text-muted-foreground">
+                      · {diffSummary.files} file{diffSummary.files === 1 ? '' : 's'}
+                    </span>
                   </div>
                   {diffSummary.top.map((t) => (
                     <div key={t.path} className="flex items-center justify-between gap-2">
