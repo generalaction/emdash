@@ -256,7 +256,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
             className={`flex-1 overflow-hidden ${isActive ? 'block' : 'hidden'}`}
           >
             <div className="flex h-full flex-col">
-              <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5">
+              <div className="flex items-center justify-end gap-2 px-3 py-1.5">
                 <OpenInMenu path={v.path} />
               </div>
               <div className="mt-8 flex items-center justify-center px-4 py-2">
