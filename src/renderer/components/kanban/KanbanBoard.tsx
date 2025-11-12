@@ -46,7 +46,6 @@ const KanbanBoard: React.FC<{
       offs.push(watchWorkspaceActivity(ws.id));
       const off = subscribeDerivedStatus(ws.id, (derived) => {
         if (derived !== 'busy') return;
-        // Always reflect busy workspaces as in-progress (even if previously done)
         setStatusMap((prev) => {
           if (prev[ws.id] === 'in-progress') return prev;
           setStatus(ws.id, 'in-progress');
