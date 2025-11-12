@@ -503,9 +503,7 @@ export interface ElectronAPI {
   getPrStatus: (args: {
     workspacePath: string;
   }) => Promise<{ success: boolean; pr?: any | null; error?: string }>;
-  getBranchStatus: (args: {
-    workspacePath: string;
-  }) => Promise<{
+  getBranchStatus: (args: { workspacePath: string }) => Promise<{
     success: boolean;
     branch?: string;
     defaultBranch?: string;
