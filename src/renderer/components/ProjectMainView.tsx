@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown } from 'lucide-react';
+import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from './ui/breadcrumb';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -366,37 +365,55 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         <div className="container mx-auto max-w-6xl p-6">
           <div className="mx-auto w-full max-w-4xl space-y-8">
             <div className="space-y-2">
-              <header className="flex items-start justify-between">
+              <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
-                  <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-
-                <Breadcrumb className="text-muted-foreground">
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbLink className="text-muted-foreground">
-                        {project.path}
-                      </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    {project.gitInfo.branch && (
-                      <BreadcrumbItem>
-                        <Badge variant="secondary" className="gap-1">
-                          <GitBranch className="size-3" />
-                          origin/{project.gitInfo.branch}
-                        </Badge>
-                      </BreadcrumbItem>
-                    )}
-                  </BreadcrumbList>
-                </Breadcrumb>
-              </div>
-              {onDeleteProject ? (
-                <ProjectDeleteButton
-                  projectName={project.name}
-                  onConfirm={() => onDeleteProject?.(project)}
-                  className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:text-destructive"
-                />
-              ) : null}
-            </header>
-            <Separator className="my-2" />
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <h1 className="cursor-help text-3xl font-semibold tracking-tight">
+                          {project.name}
+                        </h1>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[28rem]">
+                        <p className="font-mono text-xs">{project.path}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    {project.gitInfo.branch ? (
+                      <Badge variant="secondary" className="gap-1 font-mono">
+                        <GitBranch className="size-3" />
+                        origin/{project.gitInfo.branch}
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 self-start">
+                  {project.githubInfo?.connected && project.githubInfo.repository ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1 px-3 text-xs font-medium"
+                      onClick={() =>
+                        window.electronAPI.openExternal(
+                          `https://github.com/${project.githubInfo?.repository}`
+                        )
+                      }
+                    >
+                      View on GitHub
+                      <ArrowUpRight className="size-3" />
+                    </Button>
+                  ) : null}
+                  {onDeleteProject ? (
+                    <ProjectDeleteButton
+                      projectName={project.name}
+                      onConfirm={() => onDeleteProject?.(project)}
+                      className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:text-destructive"
+                    />
+                  ) : null}
+                </div>
+              </header>
+              <Separator className="my-2" />
             </div>
 
             <div className="space-y-6">
