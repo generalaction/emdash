@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -15,6 +15,7 @@ import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import WorkspacePorts from './WorkspacePorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import dockerLogo from '../../assets/images/docker.png';
 import {
   getContainerRunState,
@@ -23,6 +24,14 @@ import {
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import type { Project, Workspace } from '../types/app';
+
+type RemoteBranchOption = { value: string; label: string };
+
+const normalizeBaseRef = (ref?: string | null): string | undefined => {
+  if (!ref) return undefined;
+  const trimmed = ref.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
 
 function WorkspaceRow({
   ws,
@@ -359,6 +368,100 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   isCreatingWorkspace = false,
   onDeleteProject,
 }) => {
+  const { toast } = useToast();
+  const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
+    normalizeBaseRef(project.gitInfo.baseRef)
+  );
+  const [branchOptions, setBranchOptions] = useState<RemoteBranchOption[]>([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+  const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
+  const [branchLoadError, setBranchLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
+  }, [project.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadBranches = async () => {
+      if (!project.path) return;
+      setIsLoadingBranches(true);
+      setBranchLoadError(null);
+      try {
+        const res = await window.electronAPI.listRemoteBranches({ projectPath: project.path });
+        if (!res?.success) {
+          throw new Error(res?.error || 'Failed to load remote branches');
+        }
+        const options =
+          res.branches?.map((item) => ({
+            value: item.label,
+            label: item.label,
+          })) ?? [];
+        const current = baseBranch ?? normalizeBaseRef(project.gitInfo.baseRef);
+        const withCurrent =
+          current && !options.some((opt) => opt.value === current)
+            ? [{ value: current, label: current }, ...options]
+            : options;
+        if (!cancelled) {
+          setBranchOptions(withCurrent);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBranchLoadError(error instanceof Error ? error.message : String(error));
+          setBranchOptions((prev) => {
+            if (prev.length > 0) return prev;
+            return baseBranch ? [{ value: baseBranch, label: baseBranch }] : [];
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingBranches(false);
+        }
+      }
+    };
+    loadBranches();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, project.path, project.gitInfo.baseRef, baseBranch]);
+
+  const handleBaseBranchChange = useCallback(
+    async (nextValue: string) => {
+      const trimmed = normalizeBaseRef(nextValue);
+      if (!trimmed || trimmed === baseBranch) return;
+      const previous = baseBranch;
+      setBaseBranch(trimmed);
+      setIsSavingBaseBranch(true);
+      try {
+        const res = await window.electronAPI.updateProjectSettings({
+          projectId: project.id,
+          baseRef: trimmed,
+        });
+        if (!res?.success) {
+          throw new Error(res?.error || 'Failed to update base branch');
+        }
+        setBranchOptions((prev) => {
+          if (prev.some((opt) => opt.value === trimmed)) return prev;
+          return [{ value: trimmed, label: trimmed }, ...prev];
+        });
+        toast({
+          title: 'Base branch updated',
+          description: `New workspaces will start from ${trimmed}.`,
+        });
+      } catch (error) {
+        setBaseBranch(previous);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to update base branch',
+          description: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setIsSavingBaseBranch(false);
+      }
+    },
+    [baseBranch, project.id, toast]
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
@@ -417,51 +520,89 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             </div>
 
             <div className="space-y-6">
+              <div className="rounded-xl border bg-card p-4 shadow-sm">
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Base branch for new workspaces</p>
+                    <p className="text-xs text-muted-foreground">
+                      New workspaces start from the latest code on this branch.
+                    </p>
+                  </div>
+                  <Select
+                    value={baseBranch}
+                    onValueChange={handleBaseBranchChange}
+                    disabled={isLoadingBranches || isSavingBaseBranch || branchOptions.length === 0}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue
+                        placeholder={
+                          isLoadingBranches
+                            ? 'Loading branches…'
+                            : branchOptions.length === 0
+                              ? 'No remote branches found'
+                              : 'Select a base branch'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branchOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {branchLoadError ? (
+                    <p className="text-xs text-destructive">{branchLoadError}</p>
+                  ) : null}
+                </div>
+              </div>
+
               <div className="space-y-3">
                 <div className="flex items-center justify-start gap-3">
                   <h2 className="text-lg font-semibold">Workspaces</h2>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onCreateWorkspace}
-                  disabled={isCreatingWorkspace}
-                  aria-busy={isCreatingWorkspace}
-                >
-                  {isCreatingWorkspace ? (
-                    <>
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                      Creating…
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="mr-2 size-4" />
-                      Create workspace
-                    </>
-                  )}
-                </Button>
-              </div>
-              <div className="flex flex-col gap-3">
-                {(project.workspaces ?? []).map((ws) => (
-                  <WorkspaceRow
-                    key={ws.id}
-                    ws={ws}
-                    active={activeWorkspace?.id === ws.id}
-                    onClick={() => onSelectWorkspace(ws)}
-                    onDelete={() => onDeleteWorkspace(project, ws)}
-                  />
-                ))}
-              </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={onCreateWorkspace}
+                    disabled={isCreatingWorkspace}
+                    aria-busy={isCreatingWorkspace}
+                  >
+                    {isCreatingWorkspace ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Creating…
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 size-4" />
+                        Create workspace
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {(project.workspaces ?? []).map((ws) => (
+                    <WorkspaceRow
+                      key={ws.id}
+                      ws={ws}
+                      active={activeWorkspace?.id === ws.id}
+                      onClick={() => onSelectWorkspace(ws)}
+                      onDelete={() => onDeleteWorkspace(project, ws)}
+                    />
+                  ))}
+                </div>
               </div>
 
               {(!project.workspaces || project.workspaces.length === 0) && (
                 <Alert>
                   <AlertTitle>What’s a workspace?</AlertTitle>
-                <AlertDescription className="flex items-center justify-between gap-4">
-                  <p className="text-sm text-muted-foreground">
-                    Each workspace is an isolated copy and branch of your repo (Git-tracked files
-                    only).
-                  </p>
-                </AlertDescription>
+                  <AlertDescription className="flex items-center justify-between gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Each workspace is an isolated copy and branch of your repo (Git-tracked files
+                      only).
+                    </p>
+                  </AlertDescription>
                 </Alert>
               )}
             </div>
