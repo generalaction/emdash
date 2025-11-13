@@ -6,6 +6,8 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
 
+type BaseRefInfo = { remote: string; branch: string; fullRef: string };
+
 const execFileAsync = promisify(execFile);
 
 export interface WorktreeInfo {
@@ -77,23 +79,16 @@ export class WorktreeService {
       }
 
       const baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
-
-      try {
-        await execFileAsync('git', ['fetch', baseRefInfo.remote, baseRefInfo.branch], {
-          cwd: projectPath,
-        });
-        log.info(`Fetched latest ${baseRefInfo.fullRef} for worktree creation`);
-      } catch (error) {
-        log.error('Failed to fetch base ref before worktree creation', error);
-        const message =
-          error instanceof Error && error.message ? error.message : 'Unknown git fetch error';
-        throw new Error(`Failed to fetch ${baseRefInfo.fullRef}: ${message}`);
-      }
+      const fetchedBaseRef = await this.fetchBaseRefWithFallback(
+        projectPath,
+        projectId,
+        baseRefInfo
+      );
 
       // Create the worktree
       const { stdout, stderr } = await execFileAsync(
         'git',
-        ['worktree', 'add', '-b', branchName, worktreePath, baseRefInfo.fullRef],
+        ['worktree', 'add', '-b', branchName, worktreePath, fetchedBaseRef.fullRef],
         { cwd: projectPath }
       );
 
@@ -435,9 +430,7 @@ export class WorktreeService {
     }
   }
 
-  private parseBaseRef(
-    ref?: string | null
-  ): { remote: string; branch: string; fullRef: string } | null {
+  private parseBaseRef(ref?: string | null): BaseRefInfo | null {
     if (!ref) return null;
     const cleaned = ref
       .trim()
@@ -451,10 +444,7 @@ export class WorktreeService {
     return { remote, branch, fullRef: `${remote}/${branch}` };
   }
 
-  private async resolveProjectBaseRef(
-    projectPath: string,
-    projectId: string
-  ): Promise<{ remote: string; branch: string; fullRef: string }> {
+  private async resolveProjectBaseRef(projectPath: string, projectId: string): Promise<BaseRefInfo> {
     const settings = await projectSettingsService.getProjectSettings(projectId);
     if (!settings) {
       throw new Error(
@@ -478,6 +468,87 @@ export class WorktreeService {
       branch,
       fullRef: `${fallbackRemote}/${branch}`,
     };
+  }
+
+  private async buildDefaultBaseRef(projectPath: string): Promise<BaseRefInfo> {
+    const remote = 'origin';
+    const branch = await this.getDefaultBranch(projectPath);
+    const cleanBranch = branch?.trim() || 'main';
+    return { remote, branch: cleanBranch, fullRef: `${remote}/${cleanBranch}` };
+  }
+
+  private extractErrorMessage(error: any): string {
+    if (!error) return '';
+    const parts: Array<string | undefined> = [];
+    if (typeof error.message === 'string') parts.push(error.message);
+    if (typeof error.stderr === 'string') parts.push(error.stderr);
+    if (typeof error.stdout === 'string') parts.push(error.stdout);
+    return parts
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+  }
+
+  private isMissingRemoteRefError(error: any): boolean {
+    const msg = this.extractErrorMessage(error).toLowerCase();
+    if (!msg) return false;
+    return (
+      msg.includes("couldn't find remote ref") ||
+      msg.includes('could not find remote ref') ||
+      msg.includes('remote ref does not exist') ||
+      msg.includes('fatal: the remote end hung up unexpectedly') ||
+      msg.includes('no such ref was fetched')
+    );
+  }
+
+  private async fetchBaseRefWithFallback(
+    projectPath: string,
+    projectId: string,
+    target: BaseRefInfo
+  ): Promise<BaseRefInfo> {
+    try {
+      await execFileAsync('git', ['fetch', target.remote, target.branch], {
+        cwd: projectPath,
+      });
+      log.info(`Fetched latest ${target.fullRef} for worktree creation`);
+      return target;
+    } catch (error) {
+      log.warn(`Failed to fetch ${target.fullRef}`, error);
+      if (!this.isMissingRemoteRefError(error)) {
+        const message = this.extractErrorMessage(error) || 'Unknown git fetch error';
+        throw new Error(`Failed to fetch ${target.fullRef}: ${message}`);
+      }
+
+      // Attempt fallback to default branch
+      const fallback = await this.buildDefaultBaseRef(projectPath);
+      if (fallback.fullRef === target.fullRef) {
+        const message = this.extractErrorMessage(error) || 'Unknown git fetch error';
+        throw new Error(`Failed to fetch ${target.fullRef}: ${message}`);
+      }
+
+      try {
+        await execFileAsync('git', ['fetch', fallback.remote, fallback.branch], {
+          cwd: projectPath,
+        });
+        log.info(`Fetched fallback ${fallback.fullRef} after missing base ref`);
+
+        try {
+          await projectSettingsService.updateProjectSettings(projectId, {
+            baseRef: fallback.fullRef,
+          });
+          log.info(`Updated project ${projectId} baseRef to fallback ${fallback.fullRef}`);
+        } catch (persistError) {
+          log.warn('Failed to persist fallback baseRef', persistError);
+        }
+
+        return fallback;
+      } catch (fallbackError) {
+        const msg = this.extractErrorMessage(fallbackError) || 'Unknown git fetch error';
+        throw new Error(
+          `Failed to fetch base branch. Tried ${target.fullRef} and ${fallback.fullRef}. ${msg} Please verify the branch exists on the remote.`
+        );
+      }
+    }
   }
 
   /**
