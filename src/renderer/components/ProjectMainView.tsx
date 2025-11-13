@@ -363,11 +363,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
-        <div className="container mx-auto max-w-6xl space-y-8 p-6">
-          <div className="mb-8 space-y-2">
-            <header className="flex items-start justify-between">
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+        <div className="container mx-auto max-w-6xl p-6">
+          <div className="mx-auto w-full max-w-4xl space-y-8">
+            <div className="space-y-2">
+              <header className="flex items-start justify-between">
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
 
                 <Breadcrumb className="text-muted-foreground">
                   <BreadcrumbList>
@@ -396,12 +397,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               ) : null}
             </header>
             <Separator className="my-2" />
-          </div>
+            </div>
 
-          <div className="max-w-4xl space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-start gap-3">
-                <h2 className="text-lg font-semibold">Workspaces</h2>
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-start gap-3">
+                  <h2 className="text-lg font-semibold">Workspaces</h2>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -433,19 +434,20 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   />
                 ))}
               </div>
-            </div>
+              </div>
 
-            {(!project.workspaces || project.workspaces.length === 0) && (
-              <Alert>
-                <AlertTitle>What’s a workspace?</AlertTitle>
+              {(!project.workspaces || project.workspaces.length === 0) && (
+                <Alert>
+                  <AlertTitle>What’s a workspace?</AlertTitle>
                 <AlertDescription className="flex items-center justify-between gap-4">
                   <p className="text-sm text-muted-foreground">
                     Each workspace is an isolated copy and branch of your repo (Git-tracked files
                     only).
                   </p>
                 </AlertDescription>
-              </Alert>
-            )}
+                </Alert>
+              )}
+            </div>
           </div>
         </div>
       </div>
