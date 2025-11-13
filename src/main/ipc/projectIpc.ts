@@ -6,6 +6,41 @@ import { promisify } from 'util';
 import { getMainWindow } from '../app/window';
 
 const execAsync = promisify(exec);
+const DEFAULT_REMOTE = 'origin';
+const DEFAULT_BRANCH = 'main';
+
+const normalizeRemoteName = (remote?: string | null) => {
+  if (!remote) return DEFAULT_REMOTE;
+  const trimmed = remote.trim();
+  if (!trimmed) return DEFAULT_REMOTE;
+  if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) {
+    return trimmed;
+  }
+  return DEFAULT_REMOTE;
+};
+
+const computeBaseRef = (remote?: string | null, branch?: string | null) => {
+  const remoteName = normalizeRemoteName(remote);
+  if (branch && branch.trim().length > 0) {
+    const trimmed = branch.trim();
+    if (trimmed.includes('/')) return trimmed;
+    return `${remoteName}/${trimmed}`;
+  }
+  return `${remoteName}/${DEFAULT_BRANCH}`;
+};
+
+const detectDefaultBranch = async (projectPath: string, remote?: string | null) => {
+  const remoteName = normalizeRemoteName(remote);
+  try {
+    const { stdout } = await execAsync(`git remote show ${remoteName}`, {
+      cwd: projectPath,
+    });
+    const match = stdout.match(/HEAD branch:\s*(\S+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+};
 
 export function registerProjectIpc() {
   ipcMain.handle('project:open', async () => {
@@ -64,6 +99,32 @@ export function registerProjectIpc() {
         branch = stdout.trim();
       } catch {}
 
+      let defaultBranch: string | null = null;
+      if (!branch) {
+        defaultBranch = await detectDefaultBranch(resolvedProjectPath, remote);
+      }
+
+      let upstream: string | null = null;
+      let aheadCount: number | null = null;
+      let behindCount: number | null = null;
+      try {
+        const { stdout } = await execAsync('git rev-parse --abbrev-ref --symbolic-full-name @{u}', {
+          cwd: resolvedProjectPath,
+        });
+        upstream = stdout.trim();
+      } catch {}
+
+      if (upstream) {
+        try {
+          const { stdout } = await execAsync('git rev-list --left-right --count HEAD...@{u}', {
+            cwd: resolvedProjectPath,
+          });
+          const [ahead, behind] = stdout.trim().split(/\s+/);
+          aheadCount = Number.parseInt(ahead, 10);
+          behindCount = Number.parseInt(behind, 10);
+        } catch {}
+      }
+
       let rootPath: string | null = null;
       try {
         const { stdout } = await execAsync('git rev-parse --show-toplevel', {
@@ -75,10 +136,21 @@ export function registerProjectIpc() {
         }
       } catch {}
 
+      const baseRef = computeBaseRef(remote, branch || defaultBranch);
+
+      const safeAhead =
+        typeof aheadCount === 'number' && Number.isFinite(aheadCount) ? aheadCount : undefined;
+      const safeBehind =
+        typeof behindCount === 'number' && Number.isFinite(behindCount) ? behindCount : undefined;
+
       return {
         isGitRepo: true,
         remote,
         branch,
+        baseRef,
+        upstream,
+        aheadCount: safeAhead,
+        behindCount: safeBehind,
         path: resolvedProjectPath,
         rootPath: rootPath || resolvedProjectPath,
       };

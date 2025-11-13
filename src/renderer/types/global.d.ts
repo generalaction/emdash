@@ -64,6 +64,10 @@ declare global {
         isGitRepo: boolean;
         remote?: string;
         branch?: string;
+        baseRef?: string;
+        upstream?: string;
+        aheadCount?: number;
+        behindCount?: number;
         path?: string;
         rootPath?: string;
         error?: string;
