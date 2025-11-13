@@ -52,8 +52,11 @@ export function GithubStatus({
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <div>
                 <p className="font-medium">GitHub not authenticated</p>
-                <p className="text-[11px] text-gray-700/80 dark:text-gray-200/80">
-                  Run <code className="rounded bg-gray-100 px-1">gh auth login</code>
+                <p className="text-[11px] text-gray-800 dark:text-gray-100">
+                  Run{' '}
+                  <code className="rounded border border-gray-200 bg-gray-100 px-1 py-0.5 text-gray-900 dark:border-white/20 dark:bg-white/10 dark:text-white">
+                    gh auth login
+                  </code>
                 </p>
               </div>
             </div>
