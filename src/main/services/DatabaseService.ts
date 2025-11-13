@@ -149,6 +149,64 @@ export class DatabaseService {
     return rows.map((row) => this.mapDrizzleProjectRow(row));
   }
 
+  async getProjectById(projectId: string): Promise<Project | null> {
+    if (this.disabled) return null;
+    if (!projectId) {
+      throw new Error('projectId is required');
+    }
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(projectsTable)
+      .where(eq(projectsTable.id, projectId))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return this.mapDrizzleProjectRow(rows[0]);
+  }
+
+  async updateProjectBaseRef(projectId: string, nextBaseRef: string): Promise<Project | null> {
+    if (this.disabled) return null;
+    if (!projectId) {
+      throw new Error('projectId is required');
+    }
+    const trimmed = typeof nextBaseRef === 'string' ? nextBaseRef.trim() : '';
+    if (!trimmed) {
+      throw new Error('baseRef cannot be empty');
+    }
+
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select({
+        id: projectsTable.id,
+        gitRemote: projectsTable.gitRemote,
+        gitBranch: projectsTable.gitBranch,
+      })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, projectId))
+      .limit(1);
+
+    if (rows.length === 0) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    const source = rows[0];
+    const normalized = this.computeBaseRef(trimmed, source.gitRemote, source.gitBranch);
+
+    await db
+      .update(projectsTable)
+      .set({
+        baseRef: normalized,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(projectsTable.id, projectId));
+
+    return this.getProjectById(projectId);
+  }
+
   async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
     const metadataValue =

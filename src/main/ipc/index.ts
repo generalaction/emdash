@@ -5,6 +5,7 @@ import { setupCodexIpc } from '../services/codexIpc';
 
 import { registerAppIpc } from './appIpc';
 import { registerProjectIpc } from './projectIpc';
+import { registerProjectSettingsIpc } from './projectSettingsIpc';
 import { registerGithubIpc } from './githubIpc';
 import { registerDatabaseIpc } from './dbIpc';
 import { registerDebugIpc } from './debugIpc';
@@ -31,6 +32,7 @@ export function registerAllIpc() {
 
   // Domain IPC
   registerProjectIpc();
+  registerProjectSettingsIpc();
   registerGithubIpc();
   registerDatabaseIpc();
   registerGitIpc();

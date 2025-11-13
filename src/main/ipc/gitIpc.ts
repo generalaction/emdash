@@ -476,4 +476,48 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       return { success: false, error: error as string };
     }
   });
+
+  ipcMain.handle(
+    'git:list-remote-branches',
+    async (_, args: { projectPath: string; remote?: string }) => {
+      const { projectPath, remote = 'origin' } = args || ({} as { projectPath: string });
+      if (!projectPath) {
+        return { success: false, error: 'projectPath is required' };
+      }
+      try {
+        await execAsync('git rev-parse --is-inside-work-tree', { cwd: projectPath });
+      } catch {
+        return { success: false, error: 'Not a git repository' };
+      }
+
+      try {
+        const { stdout } = await execAsync(
+          `git for-each-ref --format="%(refname:short)" refs/remotes/${remote}`,
+          { cwd: projectPath }
+        );
+
+        const branches =
+          stdout
+            ?.split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+            .filter((line) => !line.endsWith('/HEAD'))
+            .map((ref) => {
+              const [remoteAlias, ...rest] = ref.split('/');
+              const branch = rest.join('/') || ref;
+              return {
+                ref,
+                remote: remoteAlias || remote,
+                branch,
+                label: `${remoteAlias || remote}/${branch}`,
+              };
+            }) ?? [];
+
+        return { success: true, branches };
+      } catch (error) {
+        log.error('Failed to list remote branches:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
 }
