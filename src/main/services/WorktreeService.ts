@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { projectSettingsService } from './ProjectSettingsService';
 
 const execFileAsync = promisify(execFile);
 
@@ -75,10 +76,24 @@ export class WorktreeService {
         fs.mkdirSync(worktreesDir, { recursive: true });
       }
 
+      const baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
+
+      try {
+        await execFileAsync('git', ['fetch', baseRefInfo.remote, baseRefInfo.branch], {
+          cwd: projectPath,
+        });
+        log.info(`Fetched latest ${baseRefInfo.fullRef} for worktree creation`);
+      } catch (error) {
+        log.error('Failed to fetch base ref before worktree creation', error);
+        const message =
+          error instanceof Error && error.message ? error.message : 'Unknown git fetch error';
+        throw new Error(`Failed to fetch ${baseRefInfo.fullRef}: ${message}`);
+      }
+
       // Create the worktree
       const { stdout, stderr } = await execFileAsync(
         'git',
-        ['worktree', 'add', '-b', branchName, worktreePath],
+        ['worktree', 'add', '-b', branchName, worktreePath, baseRefInfo.fullRef],
         { cwd: projectPath }
       );
 
@@ -418,6 +433,51 @@ export class WorktreeService {
     } catch {
       return 'main';
     }
+  }
+
+  private parseBaseRef(
+    ref?: string | null
+  ): { remote: string; branch: string; fullRef: string } | null {
+    if (!ref) return null;
+    const cleaned = ref
+      .trim()
+      .replace(/^refs\/remotes\//, '')
+      .replace(/^remotes\//, '');
+    if (!cleaned) return null;
+    const [remote, ...rest] = cleaned.split('/');
+    if (!remote || rest.length === 0) return null;
+    const branch = rest.join('/');
+    if (!branch) return null;
+    return { remote, branch, fullRef: `${remote}/${branch}` };
+  }
+
+  private async resolveProjectBaseRef(
+    projectPath: string,
+    projectId: string
+  ): Promise<{ remote: string; branch: string; fullRef: string }> {
+    const settings = await projectSettingsService.getProjectSettings(projectId);
+    if (!settings) {
+      throw new Error(
+        'Project settings not found. Please re-open the project in emdash and try again.'
+      );
+    }
+
+    const parsed = this.parseBaseRef(settings.baseRef);
+    if (parsed) {
+      return parsed;
+    }
+
+    const fallbackRemote = 'origin';
+    const fallbackBranch =
+      settings.gitBranch?.trim() && !settings.gitBranch.includes(' ')
+        ? settings.gitBranch.trim()
+        : await this.getDefaultBranch(projectPath);
+    const branch = fallbackBranch || 'main';
+    return {
+      remote: fallbackRemote,
+      branch,
+      fullRef: `${fallbackRemote}/${branch}`,
+    };
   }
 
   /**
