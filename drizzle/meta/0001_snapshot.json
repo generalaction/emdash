@@ -222,7 +222,7 @@
         "idx_projects_path": {
           "name": "idx_projects_path",
           "columns": ["path"],
-          "isUnique": false
+          "isUnique": true
         }
       },
       "foreignKeys": {},
