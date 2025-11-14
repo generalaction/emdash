@@ -32,13 +32,13 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <p className="text-sm font-medium text-foreground">Base branch:</p>
+        <p className="text-xs font-medium text-foreground">Base branch</p>
         <Select
           value={baseBranch}
           onValueChange={onBaseBranchChange}
           disabled={isLoadingBranches || isSavingBaseBranch || branchOptions.length === 0}
         >
-          <SelectTrigger className="w-full sm:w-auto sm:min-w-[16rem]">
+          <SelectTrigger className="h-8 w-full gap-2 px-3 text-xs font-medium shadow-none sm:w-auto">
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
           <SelectContent>
