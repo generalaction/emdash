@@ -1,14 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
-import { Switch } from './ui/switch';
 
 export type RemoteBranchOption = {
   value: string;
   label: string;
 };
-
-const isAgentBranch = (value: string) => value.includes('/agent/');
 
 interface BaseBranchControlsProps {
   baseBranch?: string;
@@ -17,6 +14,7 @@ interface BaseBranchControlsProps {
   isSavingBaseBranch: boolean;
   branchLoadError: string | null;
   onBaseBranchChange: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
@@ -26,10 +24,10 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   isSavingBaseBranch,
   branchLoadError,
   onBaseBranchChange,
+  onOpenChange,
 }) => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAgentBranches, setShowAgentBranches] = useState(true);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const longestLabelLength = useMemo(
     () => branchOptions.reduce((max, option) => Math.max(max, option.label.length), 0),
@@ -47,13 +45,10 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       ? 'No remote branches found'
       : 'Select a base branch';
   const filteredOptions = useMemo(() => {
-    const baseOptions = showAgentBranches
-      ? branchOptions
-      : branchOptions.filter((option) => !isAgentBranch(option.value));
-    if (!searchTerm.trim()) return baseOptions;
+    if (!searchTerm.trim()) return branchOptions;
     const query = searchTerm.trim().toLowerCase();
-    return baseOptions.filter((option) => option.label.toLowerCase().includes(query));
-  }, [branchOptions, searchTerm, showAgentBranches]);
+    return branchOptions.filter((option) => option.label.toLowerCase().includes(query));
+  }, [branchOptions, searchTerm]);
 
   const displayedOptions = useMemo(() => {
     if (!baseBranch) return filteredOptions;
@@ -76,6 +71,14 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       setSearchTerm('');
     }
   }, [open]);
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      onOpenChange?.(nextOpen);
+    },
+    [onOpenChange]
+  );
+
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
@@ -85,7 +88,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
           onValueChange={onBaseBranchChange}
           disabled={isLoadingBranches || isSavingBaseBranch || branchOptions.length === 0}
           open={open}
-          onOpenChange={setOpen}
+          onOpenChange={handleOpenChange}
         >
           <SelectTrigger className="h-8 w-full gap-2 px-3 text-xs font-medium shadow-none sm:w-auto">
             <SelectValue placeholder={placeholder} />
@@ -110,16 +113,6 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
                 placeholder="Search branches"
                 className="w-full rounded-md border border-input bg-popover px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
               />
-            </div>
-            <div className="flex items-center justify-between px-2 pb-2 text-xs text-muted-foreground">
-              <label className="flex items-center gap-2">
-                <Switch
-                  checked={showAgentBranches}
-                  onCheckedChange={(checked) => setShowAgentBranches(Boolean(checked))}
-                  aria-label="Toggle agent branches"
-                />
-                Show agent branches
-              </label>
             </div>
             <ScrollArea
               className="w-full"

@@ -510,6 +510,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   isSavingBaseBranch={isSavingBaseBranch}
                   branchLoadError={branchLoadError}
                   onBaseBranchChange={handleBaseBranchChange}
+                  onOpenChange={(isOpen) => {
+                    if (isOpen) {
+                      setBranchReloadToken((token) => token + 1);
+                    }
+                  }}
                 />
               </header>
               <Separator className="my-2" />

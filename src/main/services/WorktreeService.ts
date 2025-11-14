@@ -354,6 +354,32 @@ export class WorktreeService {
             console.warn(`Failed to delete branch ${branchToDelete}:`, branchError);
           }
         }
+
+        let remoteAlias = 'origin';
+        let remoteBranchName = branchToDelete;
+        if (branchToDelete.startsWith('origin/')) {
+          remoteBranchName = branchToDelete.replace(/^origin\//, '');
+        }
+        try {
+          await execFileAsync('git', ['push', remoteAlias, '--delete', remoteBranchName], {
+            cwd: projectPath,
+          });
+          log.info(`Deleted remote branch ${remoteAlias}/${remoteBranchName}`);
+        } catch (remoteError: any) {
+          const msg = String(remoteError?.stderr || remoteError?.message || remoteError);
+          if (
+            /remote ref does not exist/i.test(msg) ||
+            /unknown revision/i.test(msg) ||
+            /not found/i.test(msg)
+          ) {
+            log.info(`Remote branch ${remoteAlias}/${remoteBranchName} already absent`);
+          } else {
+            log.warn(
+              `Failed to delete remote branch ${remoteAlias}/${remoteBranchName}:`,
+              remoteError
+            );
+          }
+        }
       }
 
       if (worktree) {
