@@ -440,6 +440,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         if (!res?.success) {
           throw new Error(res?.error || 'Failed to update base branch');
         }
+        if (project.gitInfo) {
+          project.gitInfo.baseRef = trimmed;
+        }
         setBranchOptions((prev) => {
           if (prev.some((opt) => opt.value === trimmed)) return prev;
           return [{ value: trimmed, label: trimmed }, ...prev];
