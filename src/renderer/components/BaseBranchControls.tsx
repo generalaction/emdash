@@ -33,6 +33,10 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   );
   const estimatedDropdownWidthCh = Math.min(60, Math.max(longestLabelLength, 16));
   const dropdownWidth = `min(${estimatedDropdownWidthCh}ch, 32rem)`;
+  const navigationKeys = useMemo(
+    () => new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Enter', 'Escape']),
+    []
+  );
   const placeholder = isLoadingBranches
     ? 'Loading branches…'
     : branchOptions.length === 0
@@ -91,7 +95,11 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
                 ref={searchInputRef}
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.currentTarget.value)}
-                onKeyDown={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  if (!navigationKeys.has(event.key)) {
+                    event.stopPropagation();
+                  }
+                }}
                 placeholder="Search branches"
                 className="w-full rounded-md border border-input bg-popover px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
               />
