@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Search } from 'lucide-react';
 import jiraLogo from '../../assets/images/jira.png';
 import { type JiraIssueSummary } from '../types/jira';
@@ -190,31 +190,9 @@ const JiraIssueSelector: React.FC<Props> = ({
         disabled={isDisabled}
       >
         <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
-            {selectedIssue ? (
-              <>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
-                  <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-                  <span className="text-[11px] font-medium text-foreground">
-                    {selectedIssue.key}
-                  </span>
-                </span>
-                {selectedIssue.summary ? (
-                  <>
-                    <span className="shrink-0 text-foreground">-</span>
-                    <span className="truncate">{selectedIssue.summary}</span>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{issuePlaceholder}</span>
-              </>
-            )}
-          </div>
+          <SelectValue placeholder={issuePlaceholder} />
         </SelectTrigger>
-        <SelectContent side="top">
+        <SelectContent side="top" className="z-[120]">
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -230,17 +208,15 @@ const JiraIssueSelector: React.FC<Props> = ({
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
                 <SelectItem key={issue.id || issue.key} value={issue.key}>
-                  <SelectItemText>
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
-                        <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-                        <span className="text-[11px] font-medium text-foreground">{issue.key}</span>
-                      </span>
-                      {issue.summary ? (
-                        <span className="truncate text-foreground">{issue.summary}</span>
-                      ) : null}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
+                      <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
+                      <span className="text-[11px] font-medium text-foreground">{issue.key}</span>
                     </span>
-                  </SelectItemText>
+                    {issue.summary ? (
+                      <span className="truncate text-foreground">{issue.summary}</span>
+                    ) : null}
+                  </span>
                 </SelectItem>
               ))
             ) : searchTerm.trim() ? (

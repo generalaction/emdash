@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Search } from 'lucide-react';
 import linearLogo from '../../assets/images/linear.png';
 import { type LinearIssueSummary } from '../types/linear';
@@ -210,31 +210,9 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
         disabled={isDisabled}
       >
         <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
-            {selectedIssue ? (
-              <>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
-                  <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
-                  <span className="text-[11px] font-medium text-foreground">
-                    {selectedIssue.identifier}
-                  </span>
-                </span>
-                {selectedIssue.title ? (
-                  <>
-                    <span className="shrink-0 text-foreground">-</span>
-                    <span className="truncate">{selectedIssue.title}</span>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 shrink-0 dark:invert" />
-                <span className="truncate">{issuePlaceholder}</span>
-              </>
-            )}
-          </div>
+          <SelectValue placeholder={issuePlaceholder} />
         </SelectTrigger>
-        <SelectContent side="top">
+        <SelectContent side="top" className="z-[120]">
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -250,23 +228,17 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
                 <SelectItem key={issue.id || issue.identifier} value={issue.identifier}>
-                  <SelectItemText>
-                    <span className="gap- 2 flex min-w-0 items-center">
-                      <span className="items- center inline-flex shrink-0 gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
-                        <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
-                        <span className="text-[11px] font-medium text-foreground">
-                          {issue.identifier}
-                        </span>
+                  <span className="gap-2 flex min-w-0 items-center">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
+                      <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
+                      <span className="text-[11px] font-medium text-foreground">
+                        {issue.identifier}
                       </span>
-                      {issue.title ? (
-                        <>
-                          <span className="text-muted- foreground ml-2 truncate">
-                            {issue.title}
-                          </span>
-                        </>
-                      ) : null}
                     </span>
-                  </SelectItemText>
+                    {issue.title ? (
+                      <span className="ml-2 truncate text-muted-foreground">{issue.title}</span>
+                    ) : null}
+                  </span>
                 </SelectItem>
               ))
             ) : searchTerm.trim() ? (
