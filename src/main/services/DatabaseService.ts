@@ -22,6 +22,7 @@ export interface Project {
     isGitRepo: boolean;
     remote?: string;
     branch?: string;
+    baseRef?: string;
   };
   githubInfo?: {
     repository: string;
@@ -106,6 +107,11 @@ export class DatabaseService {
     const { db } = await getDrizzleClient();
     const gitRemote = project.gitInfo.remote ?? null;
     const gitBranch = project.gitInfo.branch ?? null;
+    const baseRef = this.computeBaseRef(
+      project.gitInfo.baseRef,
+      project.gitInfo.remote,
+      project.gitInfo.branch
+    );
     const githubRepository = project.githubInfo?.repository ?? null;
     const githubConnected = project.githubInfo?.connected ? 1 : 0;
 
@@ -117,6 +123,7 @@ export class DatabaseService {
         path: project.path,
         gitRemote,
         gitBranch,
+        baseRef: baseRef ?? null,
         githubRepository,
         githubConnected,
         updatedAt: sql`CURRENT_TIMESTAMP`,
@@ -127,6 +134,7 @@ export class DatabaseService {
           name: project.name,
           gitRemote,
           gitBranch,
+          baseRef: baseRef ?? null,
           githubRepository,
           githubConnected,
           updatedAt: sql`CURRENT_TIMESTAMP`,
@@ -139,6 +147,64 @@ export class DatabaseService {
     const { db } = await getDrizzleClient();
     const rows = await db.select().from(projectsTable).orderBy(desc(projectsTable.updatedAt));
     return rows.map((row) => this.mapDrizzleProjectRow(row));
+  }
+
+  async getProjectById(projectId: string): Promise<Project | null> {
+    if (this.disabled) return null;
+    if (!projectId) {
+      throw new Error('projectId is required');
+    }
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(projectsTable)
+      .where(eq(projectsTable.id, projectId))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return this.mapDrizzleProjectRow(rows[0]);
+  }
+
+  async updateProjectBaseRef(projectId: string, nextBaseRef: string): Promise<Project | null> {
+    if (this.disabled) return null;
+    if (!projectId) {
+      throw new Error('projectId is required');
+    }
+    const trimmed = typeof nextBaseRef === 'string' ? nextBaseRef.trim() : '';
+    if (!trimmed) {
+      throw new Error('baseRef cannot be empty');
+    }
+
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select({
+        id: projectsTable.id,
+        gitRemote: projectsTable.gitRemote,
+        gitBranch: projectsTable.gitBranch,
+      })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, projectId))
+      .limit(1);
+
+    if (rows.length === 0) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    const source = rows[0];
+    const normalized = this.computeBaseRef(trimmed, source.gitRemote, source.gitBranch);
+
+    await db
+      .update(projectsTable)
+      .set({
+        baseRef: normalized,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(projectsTable.id, projectId));
+
+    return this.getProjectById(projectId);
   }
 
   async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
@@ -335,6 +401,52 @@ export class DatabaseService {
     await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
   }
 
+  private computeBaseRef(
+    preferred?: string | null,
+    remote?: string | null,
+    branch?: string | null
+  ): string {
+    const remoteName = this.getRemoteAlias(remote);
+    const normalize = (value?: string | null): string | undefined => {
+      if (!value) return undefined;
+      const trimmed = value.trim();
+      if (!trimmed || trimmed.includes('://')) return undefined;
+
+      if (trimmed.includes('/')) {
+        const [head, ...rest] = trimmed.split('/');
+        const branchPart = rest.join('/').replace(/^\/+/, '');
+        if (head && branchPart) {
+          return `${head}/${branchPart}`;
+        }
+        if (!head && branchPart) {
+          return `${remoteName}/${branchPart}`;
+        }
+        return undefined;
+      }
+      return `${remoteName}/${trimmed.replace(/^\/+/, '')}`;
+    };
+
+    return normalize(preferred) ?? normalize(branch) ?? `${remoteName}/${this.defaultBranchName()}`;
+  }
+
+  private defaultRemoteName(): string {
+    return 'origin';
+  }
+
+  private getRemoteAlias(remote?: string | null): string {
+    if (!remote) return this.defaultRemoteName();
+    const trimmed = remote.trim();
+    if (!trimmed) return this.defaultRemoteName();
+    if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) {
+      return trimmed;
+    }
+    return this.defaultRemoteName();
+  }
+
+  private defaultBranchName(): string {
+    return 'main';
+  }
+
   private mapDrizzleProjectRow(row: ProjectRow): Project {
     return {
       id: row.id,
@@ -344,6 +456,7 @@ export class DatabaseService {
         isGitRepo: !!(row.gitRemote || row.gitBranch),
         remote: row.gitRemote ?? undefined,
         branch: row.gitBranch ?? undefined,
+        baseRef: this.computeBaseRef(row.baseRef, row.gitRemote, row.gitBranch),
       },
       githubInfo: row.githubRepository
         ? {

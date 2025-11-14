@@ -10,6 +10,7 @@ export interface Project {
     isGitRepo: boolean;
     remote?: string;
     branch?: string;
+    baseRef?: string;
   };
   githubInfo?: {
     repository: string;

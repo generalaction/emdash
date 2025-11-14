@@ -9,6 +9,7 @@ export const projects = sqliteTable(
     path: text('path').notNull(),
     gitRemote: text('git_remote'),
     gitBranch: text('git_branch'),
+    baseRef: text('base_ref'),
     githubRepository: text('github_repository'),
     githubConnected: integer('github_connected').notNull().default(0),
     createdAt: text('created_at')

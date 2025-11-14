@@ -1,5 +1,5 @@
 import React from 'react';
-import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { useToast } from '@/hooks/use-toast';
 
 type Mode = 'none' | 'preview' | 'all';
@@ -34,15 +34,9 @@ export default function ExposeDropdown({
         <span className="text-xs">Expose: {value}</span>
       </SelectTrigger>
       <SelectContent align="end">
-        <SelectItem value="none">
-          <SelectItemText>None</SelectItemText>
-        </SelectItem>
-        <SelectItem value="preview">
-          <SelectItemText>Preview only</SelectItemText>
-        </SelectItem>
-        <SelectItem value="all">
-          <SelectItemText>All</SelectItemText>
-        </SelectItem>
+        <SelectItem value="none">None</SelectItem>
+        <SelectItem value="preview">Preview only</SelectItem>
+        <SelectItem value="all">All</SelectItem>
       </SelectContent>
     </Select>
   );
