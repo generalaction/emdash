@@ -374,7 +374,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
   const [branchLoadError, setBranchLoadError] = useState<string | null>(null);
-  const [isFetchingBaseBranch, setIsFetchingBaseBranch] = useState(false);
 
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
@@ -464,52 +463,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     [baseBranch, project.id, toast]
   );
 
-  const handleFetchLatest = useCallback(async () => {
-    if (!project.path) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing project path',
-        description: 'Cannot fetch latest without a project path.',
-      });
-      return;
-    }
-    setIsFetchingBaseBranch(true);
-    try {
-      const res = await window.electronAPI.fetchProjectBaseRef({
-        projectId: project.id,
-        projectPath: project.path,
-      });
-      if (!res?.success || !res.baseRef) {
-        throw new Error(res?.error || 'Failed to fetch base branch');
-      }
-      const normalized = normalizeBaseRef(res.baseRef);
-      if (normalized) {
-        setBaseBranch(normalized);
-        if (project.gitInfo) {
-          project.gitInfo.baseRef = normalized;
-        }
-        setBranchOptions((prev) => {
-          if (prev.some((opt) => opt.value === normalized)) {
-            return prev;
-          }
-          return [{ value: normalized, label: normalized }, ...prev];
-        });
-      }
-      toast({
-        title: 'Fetched latest',
-        description: `Fetched latest ${res.baseRef}`,
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to fetch latest',
-        description: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setIsFetchingBaseBranch(false);
-    }
-  }, [project.id, project.path, toast]);
-
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
@@ -521,23 +474,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
                     <div className="flex items-center gap-2 sm:self-start">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleFetchLatest}
-                        disabled={isFetchingBaseBranch}
-                        aria-busy={isFetchingBaseBranch}
-                        className="h-8 gap-1 px-3 text-xs font-medium"
-                      >
-                        {isFetchingBaseBranch ? (
-                          <>
-                            <Loader2 className="mr-2 size-4 animate-spin" />
-                            Fetching…
-                          </>
-                        ) : (
-                          'Fetch latest'
-                        )}
-                      </Button>
                       {project.githubInfo?.connected && project.githubInfo.repository ? (
                         <Button
                           variant="outline"
