@@ -518,19 +518,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             <div className="space-y-4">
               <header className="space-y-3">
                 <div className="space-y-2">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <h1 className="cursor-help text-3xl font-semibold tracking-tight">
-                            {project.name}
-                          </h1>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-[28rem]">
-                          <p className="font-mono text-xs">{project.path}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
                     {project.githubInfo?.connected && project.githubInfo.repository ? (
                       <div className="flex items-center gap-2 sm:self-start">
                         <Button
@@ -550,17 +539,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     ) : null}
                   </div>
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                      <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
-                        {project.path}
-                      </p>
-                      {project.gitInfo.branch ? (
-                        <Badge variant="secondary" className="gap-1 font-mono">
-                          <GitBranch className="size-3" />
-                          origin/{project.gitInfo.branch}
-                        </Badge>
-                      ) : null}
-                    </div>
+                    <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
+                      {project.path}
+                    </p>
                     {onDeleteProject ? (
                       <ProjectDeleteButton
                         projectName={project.name}
