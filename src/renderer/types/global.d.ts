@@ -79,6 +79,16 @@ declare global {
         settings?: ProjectSettingsPayload;
         error?: string;
       }>;
+      fetchProjectBaseRef: (args: {
+        projectId: string;
+        projectPath: string;
+      }) => Promise<{
+        success: boolean;
+        baseRef?: string;
+        remote?: string;
+        branch?: string;
+        error?: string;
+      }>;
       getGitInfo: (projectPath: string) => Promise<{
         isGitRepo: boolean;
         remote?: string;

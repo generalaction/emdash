@@ -137,6 +137,12 @@ export class WorktreeService {
     }
   }
 
+  async fetchLatestBaseRef(projectPath: string, projectId: string): Promise<BaseRefInfo> {
+    const baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
+    const fetched = await this.fetchBaseRefWithFallback(projectPath, projectId, baseRefInfo);
+    return fetched;
+  }
+
   /**
    * List all worktrees for a project
    */

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { projectSettingsService } from '../services/ProjectSettingsService';
+import { worktreeService } from '../services/WorktreeService';
 
 type ProjectSettingsArgs = { projectId: string };
 type UpdateProjectSettingsArgs = { projectId: string; baseRef: string };
@@ -51,6 +52,40 @@ export function registerProjectSettingsIpc() {
         return { success: true, settings };
       } catch (error) {
         log.error('Failed to update project settings', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'projectSettings:fetchBaseRef',
+    async (
+      _event,
+      args:
+        | {
+            projectId: string;
+            projectPath: string;
+          }
+        | undefined
+    ) => {
+      try {
+        const projectId = args?.projectId;
+        const projectPath = args?.projectPath;
+        if (!projectId) {
+          throw new Error('projectId is required');
+        }
+        if (!projectPath) {
+          throw new Error('projectPath is required');
+        }
+        const info = await worktreeService.fetchLatestBaseRef(projectPath, projectId);
+        return {
+          success: true,
+          baseRef: info.fullRef,
+          remote: info.remote,
+          branch: info.branch,
+        };
+      } catch (error) {
+        log.error('Failed to fetch base branch', error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }

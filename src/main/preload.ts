@@ -113,6 +113,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('projectSettings:get', { projectId }),
   updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
     ipcRenderer.invoke('projectSettings:update', args),
+  fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
   getGitStatus: (workspacePath: string) => ipcRenderer.invoke('git:get-status', workspacePath),
   getFileDiff: (args: { workspacePath: string; filePath: string }) =>
