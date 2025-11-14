@@ -11,11 +11,11 @@ import { ChangesBadge } from './WorkspaceChanges';
 import { Spinner } from './ui/spinner';
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import WorkspacePorts from './WorkspacePorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import dockerLogo from '../../assets/images/docker.png';
 import {
   getContainerRunState,
@@ -24,8 +24,6 @@ import {
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import type { Project, Workspace } from '../types/app';
-
-type RemoteBranchOption = { value: string; label: string };
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -517,118 +515,76 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       <div className="flex-1 overflow-y-auto">
         <div className="container mx-auto max-w-6xl p-6">
           <div className="mx-auto w-full max-w-6xl space-y-8">
-            <div className="space-y-2">
-              <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-4">
+              <header className="space-y-3">
                 <div className="space-y-2">
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <h1 className="cursor-help text-3xl font-semibold tracking-tight">
-                          {project.name}
-                        </h1>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-[28rem]">
-                        <p className="font-mono text-xs">{project.path}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                    {project.gitInfo.branch ? (
-                      <Badge variant="secondary" className="gap-1 font-mono">
-                        <GitBranch className="size-3" />
-                        origin/{project.gitInfo.branch}
-                      </Badge>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <h1 className="cursor-help text-3xl font-semibold tracking-tight">
+                            {project.name}
+                          </h1>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[28rem]">
+                          <p className="font-mono text-xs">{project.path}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    {project.githubInfo?.connected && project.githubInfo.repository ? (
+                      <div className="flex items-center gap-2 sm:self-start">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 px-3 text-xs font-medium"
+                          onClick={() =>
+                            window.electronAPI.openExternal(
+                              `https://github.com/${project.githubInfo?.repository}`
+                            )
+                          }
+                        >
+                          View on GitHub
+                          <ArrowUpRight className="size-3" />
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
+                        {project.path}
+                      </p>
+                      {project.gitInfo.branch ? (
+                        <Badge variant="secondary" className="gap-1 font-mono">
+                          <GitBranch className="size-3" />
+                          origin/{project.gitInfo.branch}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {onDeleteProject ? (
+                      <ProjectDeleteButton
+                        projectName={project.name}
+                        onConfirm={() => onDeleteProject?.(project)}
+                        className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:text-destructive"
+                      />
                     ) : null}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 self-start">
-                  {project.githubInfo?.connected && project.githubInfo.repository ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1 px-3 text-xs font-medium"
-                      onClick={() =>
-                        window.electronAPI.openExternal(
-                          `https://github.com/${project.githubInfo?.repository}`
-                        )
-                      }
-                    >
-                      View on GitHub
-                      <ArrowUpRight className="size-3" />
-                    </Button>
-                  ) : null}
-                  {onDeleteProject ? (
-                    <ProjectDeleteButton
-                      projectName={project.name}
-                      onConfirm={() => onDeleteProject?.(project)}
-                      className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:text-destructive"
-                    />
-                  ) : null}
-                </div>
+                <BaseBranchControls
+                  baseBranch={baseBranch}
+                  branchOptions={branchOptions}
+                  isLoadingBranches={isLoadingBranches}
+                  isSavingBaseBranch={isSavingBaseBranch}
+                  branchLoadError={branchLoadError}
+                  isFetchingBaseBranch={isFetchingBaseBranch}
+                  onBaseBranchChange={handleBaseBranchChange}
+                  onFetchLatest={handleFetchLatest}
+                />
               </header>
               <Separator className="my-2" />
             </div>
 
             <div className="space-y-6">
-              <div className="rounded-xl border bg-card p-4 shadow-sm">
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Base branch for new workspaces</p>
-                      <p className="text-xs text-muted-foreground">
-                        New workspaces start from the latest code on this branch.
-                      </p>
-                    </div>
-                    <div className="flex items-center sm:self-start">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleFetchLatest}
-                        disabled={isFetchingBaseBranch}
-                        aria-busy={isFetchingBaseBranch}
-                        className="px-3 text-xs font-medium"
-                      >
-                        {isFetchingBaseBranch ? (
-                          <>
-                            <Loader2 className="mr-2 size-4 animate-spin" />
-                            Fetching…
-                          </>
-                        ) : (
-                          'Fetch latest'
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  <Select
-                    value={baseBranch}
-                    onValueChange={handleBaseBranchChange}
-                    disabled={isLoadingBranches || isSavingBaseBranch || branchOptions.length === 0}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue
-                        placeholder={
-                          isLoadingBranches
-                            ? 'Loading branches…'
-                            : branchOptions.length === 0
-                              ? 'No remote branches found'
-                              : 'Select a base branch'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {branchOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {branchLoadError ? (
-                    <p className="text-xs text-destructive">{branchLoadError}</p>
-                  ) : null}
-                </div>
-              </div>
-
               <div className="space-y-3">
                 <div className="flex items-center justify-start gap-3">
                   <h2 className="text-lg font-semibold">Workspaces</h2>
