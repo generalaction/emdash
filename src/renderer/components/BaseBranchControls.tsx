@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
+import { Switch } from './ui/switch';
 
 export type RemoteBranchOption = {
   value: string;
   label: string;
 };
+
+const isAgentBranch = (value: string) => value.includes('/agent/');
 
 interface BaseBranchControlsProps {
   baseBranch?: string;
@@ -26,6 +29,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAgentBranches, setShowAgentBranches] = useState(true);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const longestLabelLength = useMemo(
     () => branchOptions.reduce((max, option) => Math.max(max, option.label.length), 0),
@@ -43,10 +47,13 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       ? 'No remote branches found'
       : 'Select a base branch';
   const filteredOptions = useMemo(() => {
-    if (!searchTerm.trim()) return branchOptions;
+    const baseOptions = showAgentBranches
+      ? branchOptions
+      : branchOptions.filter((option) => !isAgentBranch(option.value));
+    if (!searchTerm.trim()) return baseOptions;
     const query = searchTerm.trim().toLowerCase();
-    return branchOptions.filter((option) => option.label.toLowerCase().includes(query));
-  }, [branchOptions, searchTerm]);
+    return baseOptions.filter((option) => option.label.toLowerCase().includes(query));
+  }, [branchOptions, searchTerm, showAgentBranches]);
 
   const displayedOptions = useMemo(() => {
     if (!baseBranch) return filteredOptions;
@@ -84,7 +91,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
           <SelectContent
-            className="[&>[data-radix-select-scroll-up-button]]:hidden [&>[data-radix-select-scroll-down-button]]:hidden"
+            className="[&>[data-radix-select-scroll-down-button]]:hidden [&>[data-radix-select-scroll-up-button]]:hidden"
             style={{
               minWidth: 'var(--radix-select-trigger-width)',
               width: dropdownWidth,
@@ -104,6 +111,16 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
                 className="w-full rounded-md border border-input bg-popover px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
+            <div className="flex items-center justify-between px-2 pb-2 text-xs text-muted-foreground">
+              <label className="flex items-center gap-2">
+                <Switch
+                  checked={showAgentBranches}
+                  onCheckedChange={(checked) => setShowAgentBranches(Boolean(checked))}
+                  aria-label="Toggle agent branches"
+                />
+                Show agent branches
+              </label>
+            </div>
             <ScrollArea
               className="w-full"
               style={{
@@ -119,7 +136,9 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
                     </SelectItem>
                   ))
                 ) : (
-                  <div className="px-3 py-2 text-xs text-muted-foreground">No matching branches</div>
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    No matching branches
+                  </div>
                 )}
               </div>
             </ScrollArea>
