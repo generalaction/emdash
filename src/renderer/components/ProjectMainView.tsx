@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
+import { GitBranch, Plus, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
@@ -374,6 +374,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
   const [branchLoadError, setBranchLoadError] = useState<string | null>(null);
+  const [branchReloadToken, setBranchReloadToken] = useState(0);
 
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
@@ -421,7 +422,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [project.id, project.path, project.gitInfo.baseRef, baseBranch]);
+  }, [project.id, project.path, project.gitInfo.baseRef, baseBranch, branchReloadToken]);
 
   const handleBaseBranchChange = useCallback(
     async (nextValue: string) => {

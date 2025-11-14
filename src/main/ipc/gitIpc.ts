@@ -491,6 +491,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
 
       try {
+        try {
+          await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
+        } catch (fetchError) {
+          log.warn('Failed to fetch remote before listing branches', fetchError);
+        }
+
         const { stdout } = await execAsync(
           `git for-each-ref --format="%(refname:short)" refs/remotes/${remote}`,
           { cwd: projectPath }
