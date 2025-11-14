@@ -102,6 +102,7 @@ export class WorktreeService {
 
       // Ensure codex logs are ignored in this worktree
       this.ensureCodexLogIgnored(worktreePath);
+      await this.logWorktreeSyncStatus(projectPath, worktreePath, fetchedBaseRef);
 
       const worktreeInfo: WorktreeInfo = {
         id: worktreeId,
@@ -133,7 +134,8 @@ export class WorktreeService {
       return worktreeInfo;
     } catch (error) {
       log.error('Failed to create worktree:', error);
-      throw new Error(`Failed to create worktree: ${error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message || 'Failed to create worktree');
     }
   }
 
@@ -628,6 +630,32 @@ export class WorktreeService {
         }
       } catch {}
     } catch {}
+  }
+
+  private async logWorktreeSyncStatus(
+    projectPath: string,
+    worktreePath: string,
+    baseRef: BaseRefInfo
+  ): Promise<void> {
+    try {
+      const [{ stdout: remoteOut }, { stdout: worktreeOut }] = await Promise.all([
+        execFileAsync('git', ['rev-parse', baseRef.fullRef], { cwd: projectPath }),
+        execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: worktreePath }),
+      ]);
+      const remoteSha = (remoteOut || '').trim();
+      const worktreeSha = (worktreeOut || '').trim();
+      if (!remoteSha || !worktreeSha) return;
+      if (remoteSha === worktreeSha) {
+        log.debug(`Worktree ${worktreePath} matches ${baseRef.fullRef} @ ${remoteSha}`);
+      } else {
+        log.warn(
+          `Worktree ${worktreePath} diverged from ${baseRef.fullRef} immediately after creation`,
+          { remoteSha, worktreeSha, baseRef: baseRef.fullRef }
+        );
+      }
+    } catch (error) {
+      log.debug('Unable to verify worktree head against remote', error);
+    }
   }
 
   async createWorktreeFromBranch(
