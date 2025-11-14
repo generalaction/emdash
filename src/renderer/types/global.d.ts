@@ -79,10 +79,7 @@ declare global {
         settings?: ProjectSettingsPayload;
         error?: string;
       }>;
-      fetchProjectBaseRef: (args: {
-        projectId: string;
-        projectPath: string;
-      }) => Promise<{
+      fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) => Promise<{
         success: boolean;
         baseRef?: string;
         remote?: string;
@@ -112,10 +109,7 @@ declare global {
         }>;
         error?: string;
       }>;
-      listRemoteBranches: (args: {
-        projectPath: string;
-        remote?: string;
-      }) => Promise<{
+      listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;

@@ -218,10 +218,7 @@ declare global {
         behind?: number;
         error?: string;
       }>;
-      listRemoteBranches: (args: {
-        projectPath: string;
-        remote?: string;
-      }) => Promise<{
+      listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
@@ -658,10 +655,7 @@ export interface ElectronAPI {
     path?: string;
     error?: string;
   }>;
-  listRemoteBranches: (args: {
-    projectPath: string;
-    remote?: string;
-  }) => Promise<{
+  listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
     success: boolean;
     branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
     error?: string;

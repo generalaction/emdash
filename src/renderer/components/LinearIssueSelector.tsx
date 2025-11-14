@@ -228,7 +228,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
                 <SelectItem key={issue.id || issue.identifier} value={issue.identifier}>
-                  <span className="gap-2 flex min-w-0 items-center">
+                  <span className="flex min-w-0 items-center gap-2">
                     <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
                       <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
                       <span className="text-[11px] font-medium text-foreground">

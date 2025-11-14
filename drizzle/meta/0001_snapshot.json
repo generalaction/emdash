@@ -48,9 +48,7 @@
       "indexes": {
         "idx_conversations_workspace_id": {
           "name": "idx_conversations_workspace_id",
-          "columns": [
-            "workspace_id"
-          ],
+          "columns": ["workspace_id"],
           "isUnique": false
         }
       },
@@ -59,12 +57,8 @@
           "name": "conversations_workspace_id_workspaces_id_fk",
           "tableFrom": "conversations",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -123,16 +117,12 @@
       "indexes": {
         "idx_messages_conversation_id": {
           "name": "idx_messages_conversation_id",
-          "columns": [
-            "conversation_id"
-          ],
+          "columns": ["conversation_id"],
           "isUnique": false
         },
         "idx_messages_timestamp": {
           "name": "idx_messages_timestamp",
-          "columns": [
-            "timestamp"
-          ],
+          "columns": ["timestamp"],
           "isUnique": false
         }
       },
@@ -141,12 +131,8 @@
           "name": "messages_conversation_id_conversations_id_fk",
           "tableFrom": "messages",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -235,9 +221,7 @@
       "indexes": {
         "idx_projects_path": {
           "name": "idx_projects_path",
-          "columns": [
-            "path"
-          ],
+          "columns": ["path"],
           "isUnique": false
         }
       },
@@ -326,9 +310,7 @@
       "indexes": {
         "idx_workspaces_project_id": {
           "name": "idx_workspaces_project_id",
-          "columns": [
-            "project_id"
-          ],
+          "columns": ["project_id"],
           "isUnique": false
         }
       },
@@ -337,12 +319,8 @@
           "name": "workspaces_project_id_projects_id_fk",
           "tableFrom": "workspaces",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

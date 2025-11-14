@@ -452,7 +452,10 @@ export class WorktreeService {
     return { remote, branch, fullRef: `${remote}/${branch}` };
   }
 
-  private async resolveProjectBaseRef(projectPath: string, projectId: string): Promise<BaseRefInfo> {
+  private async resolveProjectBaseRef(
+    projectPath: string,
+    projectId: string
+  ): Promise<BaseRefInfo> {
     const settings = await projectSettingsService.getProjectSettings(projectId);
     if (!settings) {
       throw new Error(
@@ -491,10 +494,7 @@ export class WorktreeService {
     if (typeof error.message === 'string') parts.push(error.message);
     if (typeof error.stderr === 'string') parts.push(error.stderr);
     if (typeof error.stdout === 'string') parts.push(error.stdout);
-    return parts
-      .filter(Boolean)
-      .join(' ')
-      .trim();
+    return parts.filter(Boolean).join(' ').trim();
   }
 
   private isMissingRemoteRefError(error: any): boolean {
