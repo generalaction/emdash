@@ -518,10 +518,27 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             <div className="space-y-4">
               <header className="space-y-3">
                 <div className="space-y-2">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-                    {project.githubInfo?.connected && project.githubInfo.repository ? (
-                      <div className="flex items-center gap-2 sm:self-start">
+                    <div className="flex items-center gap-2 sm:self-start">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleFetchLatest}
+                        disabled={isFetchingBaseBranch}
+                        aria-busy={isFetchingBaseBranch}
+                        className="h-8 gap-1 px-3 text-xs font-medium"
+                      >
+                        {isFetchingBaseBranch ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Fetching…
+                          </>
+                        ) : (
+                          'Fetch latest'
+                        )}
+                      </Button>
+                      {project.githubInfo?.connected && project.githubInfo.repository ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -535,21 +552,19 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           View on GitHub
                           <ArrowUpRight className="size-3" />
                         </Button>
-                      </div>
-                    ) : null}
+                      ) : null}
+                      {onDeleteProject ? (
+                        <ProjectDeleteButton
+                          projectName={project.name}
+                          onConfirm={() => onDeleteProject?.(project)}
+                          aria-label={`Delete project ${project.name}`}
+                        />
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
-                      {project.path}
-                    </p>
-                    {onDeleteProject ? (
-                      <ProjectDeleteButton
-                        projectName={project.name}
-                        onConfirm={() => onDeleteProject?.(project)}
-                        className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:text-destructive"
-                      />
-                    ) : null}
-                  </div>
+                  <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
+                    {project.path}
+                  </p>
                 </div>
                 <BaseBranchControls
                   baseBranch={baseBranch}
@@ -557,9 +572,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   isLoadingBranches={isLoadingBranches}
                   isSavingBaseBranch={isSavingBaseBranch}
                   branchLoadError={branchLoadError}
-                  isFetchingBaseBranch={isFetchingBaseBranch}
                   onBaseBranchChange={handleBaseBranchChange}
-                  onFetchLatest={handleFetchLatest}
                 />
               </header>
               <Separator className="my-2" />
