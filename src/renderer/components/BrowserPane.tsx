@@ -348,6 +348,17 @@ const BrowserPane: React.FC<{
 
   const { goBack, goForward, reload } = useBrowser();
 
+  const handleClose = React.useCallback(() => {
+    try {
+      const id = (workspaceId || '').trim();
+      if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
+    } catch {}
+    try { (window as any).electronAPI?.browserHide?.(); } catch {}
+    try { clearUrl(); } catch {}
+    setFailed(false);
+    close();
+  }, [workspaceId, clearUrl, close]);
+
   return (
     <div
       className={cn(
@@ -445,7 +456,7 @@ const BrowserPane: React.FC<{
           </button> */}
           <button
             className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
-            onClick={close}
+            onClick={handleClose}
             title="Close"
             aria-label="Close"
           >
