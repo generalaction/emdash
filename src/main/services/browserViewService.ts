@@ -35,7 +35,12 @@ class BrowserViewService {
     } catch {}
     if (url) {
       try {
-        v.webContents.loadURL(url);
+        const current = (() => {
+          try { return v.webContents.getURL(); } catch { return ''; }
+        })();
+        if (!current || current !== url) {
+          v.webContents.loadURL(url);
+        }
       } catch {}
     }
     try {

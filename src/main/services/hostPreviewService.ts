@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
+import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import { log } from '../lib/logger';
@@ -86,11 +87,35 @@ class HostPreviewService extends EventEmitter {
     }
   }
 
-  start(
+  private async pickAvailablePort(preferred: number[], host = '127.0.0.1'): Promise<number> {
+    const tryPort = (port: number) =>
+      new Promise<boolean>((resolve) => {
+        const server = net.createServer();
+        server.once('error', () => resolve(false));
+        server.listen(port, host, () => {
+          try { server.close(() => resolve(true)); } catch { resolve(false); }
+        });
+      });
+    for (const p of preferred) {
+      if (await tryPort(p)) return p;
+    }
+    const ephemeral = await new Promise<number>((resolve) => {
+      const server = net.createServer();
+      server.listen(0, host, () => {
+        const addr = server.address();
+        const port = typeof addr === 'object' && addr ? addr.port : 0;
+        try { server.close(() => resolve(port || 5173)); } catch { resolve(5173); }
+      });
+      server.once('error', () => resolve(5173));
+    });
+    return ephemeral || 5173;
+  }
+
+  async start(
     workspaceId: string,
     workspacePath: string,
     opts?: { script?: string; parentProjectPath?: string }
-  ): { ok: boolean; error?: string } {
+  ): Promise<{ ok: boolean; error?: string }> {
     if (this.procs.has(workspaceId)) return { ok: true };
     const cwd = path.resolve(workspacePath);
     const pm = detectPackageManager(cwd);
@@ -140,38 +165,132 @@ class HostPreviewService extends EventEmitter {
       } catch {}
     }
     const cmd = pm;
-    const args = pm === 'npm' ? ['run', script] : [script];
-    const env = { ...process.env };
-    // Prefer a non-conflicting default dev port (5173) to avoid clashing with the app's own port (often 3000)
-    if (!env.PORT) env.PORT = String(5173);
-    if (!env.VITE_PORT) env.VITE_PORT = env.PORT;
-    // Prevent frameworks from auto-opening external browsers
-    if (!env.BROWSER) env.BROWSER = 'none';
+    let args: string[] = pm === 'npm' ? ['run', script] : [script];
+    const env = { ...process.env } as Record<string, string>;
+
+    // Auto-install if package.json exists and node_modules is missing
     try {
-      const child = spawn(cmd, args, { cwd, env, shell: true });
-      log.info?.('[hostPreview] start', { workspaceId, cwd, pm, cmd, args, script });
-      this.procs.set(workspaceId, child);
-      const onData = (buf: Buffer) => {
-        const line = buf.toString();
-        const url = normalizeUrl(line);
-        if (url) {
-          const evt: HostPreviewEvent = { type: 'url', workspaceId, url };
-          this.emit('event', evt);
-        }
-      };
-      child.stdout.on('data', onData);
-      child.stderr.on('data', onData);
-      child.on('exit', () => {
-        this.procs.delete(workspaceId);
-        try {
-          this.emit('event', { type: 'exit', workspaceId } as HostPreviewEvent);
-        } catch {}
-      });
-      return { ok: true };
-    } catch (e: any) {
-      log.error('[hostPreview] failed to start', e);
-      return { ok: false, error: e?.message || String(e) };
+      const hasPkg = fs.existsSync(pkgPath);
+      const hasNm = fs.existsSync(path.join(cwd, 'node_modules'));
+      if (hasPkg && !hasNm) {
+        const hasLock = fs.existsSync(path.join(cwd, 'package-lock.json'));
+        const installArgs = pm === 'npm' ? (hasLock ? ['ci'] : ['install']) : ['install'];
+        const inst = spawn(pm, installArgs, { cwd, shell: true, env: { ...process.env, BROWSER: 'none' } });
+        this.emit('event', { type: 'setup', workspaceId, status: 'starting' } as HostPreviewEvent);
+        const onData = (buf: Buffer) => {
+          try { this.emit('event', { type: 'setup', workspaceId, status: 'line', line: buf.toString() } as HostPreviewEvent); } catch {}
+        };
+        inst.stdout.on('data', onData);
+        inst.stderr.on('data', onData);
+        await new Promise<void>((resolve, reject) => {
+          inst.on('exit', (code) => { code === 0 ? resolve() : reject(new Error(`install exited with ${code}`)); });
+          inst.on('error', reject);
+        });
+        this.emit('event', { type: 'setup', workspaceId, status: 'done' } as HostPreviewEvent);
+      }
+    } catch {}
+
+    // Choose a free port (avoid 3000)
+    const preferred = [5173, 5174, 3001, 3002, 8080, 4200, 5500, 7000];
+    let forcedPort = await this.pickAvailablePort(preferred);
+    if (!env.PORT) env.PORT = String(forcedPort);
+    if (!env.VITE_PORT) env.VITE_PORT = env.PORT;
+    if (!env.BROWSER) env.BROWSER = 'none';
+
+    // Add CLI flags for common frameworks based on scripts and dependencies
+    try {
+      const raw = fs.readFileSync(pkgPath, 'utf8');
+      const pkg = JSON.parse(raw);
+      const scripts = (pkg && pkg.scripts) || {};
+      const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) } as Record<string, string>;
+      const scriptCmd = String(scripts[script] || '').toLowerCase();
+      const looksLikeNext = scriptCmd.includes('next') || 'next' in deps;
+      const looksLikeVite = scriptCmd.includes('vite') || 'vite' in deps;
+      const looksLikeWebpack = scriptCmd.includes('webpack-dev-server') || 'webpack-dev-server' in deps;
+      const looksLikeAngular = /(^|\s)ng(\s|$)/.test(scriptCmd) || scriptCmd.includes('angular') || '@angular/cli' in deps;
+      const extra: string[] = [];
+      if (looksLikeNext) extra.push('-p', String(forcedPort));
+      else if (looksLikeVite || looksLikeWebpack || looksLikeAngular) extra.push('--port', String(forcedPort));
+      if (extra.length) {
+        if (pm === 'npm') args.push('--', ...extra); else args.push(...extra);
+      }
+      log.info?.('[hostPreview] start', { workspaceId, cwd, pm, cmd, args, script, port: forcedPort });
+    } catch {
+      log.info?.('[hostPreview] start', { workspaceId, cwd, pm, cmd, args, script, port: forcedPort });
     }
+
+    const tryStart = async (maxRetries = 3): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const child = spawn(cmd, args, { cwd, env, shell: true });
+        this.procs.set(workspaceId, child);
+
+        let urlEmitted = false;
+        let sawAddrInUse = false;
+        const startedAt = Date.now();
+
+        const emitSetupLine = (line: string) => {
+          try { this.emit('event', { type: 'setup', workspaceId, status: 'line', line } as HostPreviewEvent); } catch {}
+        };
+        const onData = (buf: Buffer) => {
+          const line = buf.toString();
+          emitSetupLine(line);
+          if (/EADDRINUSE|address\s+already\s+in\s+use/i.test(line)) sawAddrInUse = true;
+          const url = normalizeUrl(line);
+          if (url && !urlEmitted) {
+            urlEmitted = true;
+            try { this.emit('event', { type: 'url', workspaceId, url } as HostPreviewEvent); } catch {}
+          }
+        };
+        child.stdout.on('data', onData);
+        child.stderr.on('data', onData);
+
+        // Probe periodically; if reachable and not emitted from logs, synthesize URL
+        const host = 'localhost';
+        const probeInterval = setInterval(() => {
+          if (urlEmitted) return;
+          const socket = net.createConnection({ host, port: Number(env.PORT) || forcedPort }, () => {
+            try { socket.destroy(); } catch {}
+            if (!urlEmitted) {
+              urlEmitted = true;
+              try { this.emit('event', { type: 'url', workspaceId, url: `http://localhost:${Number(env.PORT) || forcedPort}` } as HostPreviewEvent); } catch {}
+            }
+          });
+          socket.on('error', () => { try { socket.destroy(); } catch {}; });
+        }, 800);
+
+        child.on('exit', async () => {
+          clearInterval(probeInterval);
+          this.procs.delete(workspaceId);
+          const runtimeMs = Date.now() - startedAt;
+          const quickFail = runtimeMs < 4000; // exited very quickly
+          if (!urlEmitted && (sawAddrInUse || quickFail) && maxRetries > 0) {
+            // pick next free port and retry
+            const exclude = new Set<number>([Number(env.PORT) || forcedPort]);
+            const nextList = preferred.filter((p) => !exclude.has(p));
+            forcedPort = await this.pickAvailablePort(nextList.length ? nextList : preferred);
+            env.PORT = String(forcedPort);
+            env.VITE_PORT = env.PORT;
+            // rewrite CLI flags
+            const idx = args.lastIndexOf('-p');
+            const idxPort = args.lastIndexOf('--port');
+            if (idx >= 0 && idx + 1 < args.length) args[idx + 1] = String(forcedPort);
+            else if (idxPort >= 0 && idxPort + 1 < args.length) args[idxPort + 1] = String(forcedPort);
+            else if (pm === 'npm') args.push('--', '-p', String(forcedPort));
+            else args.push('-p', String(forcedPort));
+            log.info?.('[hostPreview] retry on new port', { workspaceId, port: forcedPort, retriesLeft: maxRetries - 1 });
+            await tryStart(maxRetries - 1);
+            return;
+          }
+          try { this.emit('event', { type: 'exit', workspaceId } as HostPreviewEvent); } catch {}
+        });
+        return { ok: true };
+      } catch (e: any) {
+        log.error('[hostPreview] failed to start', e);
+        return { ok: false, error: e?.message || String(e) };
+      }
+    };
+
+    return await tryStart(3);
   }
 
   stop(workspaceId: string): { ok: boolean } {
