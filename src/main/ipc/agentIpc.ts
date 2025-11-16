@@ -1,6 +1,39 @@
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow, Notification } from 'electron';
 import { agentService } from '../services/AgentService';
 import { codexService } from '../services/CodexService';
+import { getAppSettings } from '../settings';
+
+/**
+ * Show a system notification for agent task completion.
+ * Only shows if: notifications are enabled, supported, and app is not focused.
+ */
+function showCompletionNotification(providerName: string) {
+  try {
+    const settings = getAppSettings();
+
+    // Check if notifications are enabled in settings
+    if (!settings.notifications?.enabled) return;
+
+    // Check platform support
+    if (!Notification.isSupported()) return;
+
+    // Don't notify if any window is focused (user can already see completion)
+    const windows = BrowserWindow.getAllWindows();
+    const anyFocused = windows.some((w) => w.isFocused());
+    if (anyFocused) return;
+
+    // Show notification
+    const notification = new Notification({
+      title: `${providerName} Task Complete`,
+      body: 'Your agent has finished working',
+      silent: !settings.notifications?.sound,
+    });
+    notification.show();
+  } catch (error) {
+    // Silently fail - notifications are not critical
+    console.error('Failed to show notification:', error);
+  }
+}
 
 export function registerAgentIpc() {
   // Installation check
@@ -85,6 +118,7 @@ export function registerAgentIpc() {
     windows.forEach((w) =>
       w.webContents.send('agent:stream-complete', { providerId: 'codex', ...data })
     );
+    showCompletionNotification('Codex');
   });
 
   // Forward AgentService events (Claude et al.)
@@ -103,5 +137,7 @@ export function registerAgentIpc() {
   agentService.on('agent:complete', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((w) => w.webContents.send('agent:stream-complete', data));
+    const providerName = data.providerId === 'claude' ? 'Claude' : 'Agent';
+    showCompletionNotification(providerName);
   });
 }
