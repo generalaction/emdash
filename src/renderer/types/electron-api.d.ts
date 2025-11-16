@@ -23,6 +23,8 @@ declare global {
         settings?: {
           repository: { branchTemplate: string; pushOnCreate: boolean };
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
+          browserPreview?: { enabled: boolean; engine: 'chromium' };
+          notifications?: { enabled: boolean; sound: boolean };
         };
         error?: string;
       }>;
@@ -30,12 +32,16 @@ declare global {
         settings: Partial<{
           repository: { branchTemplate?: string; pushOnCreate?: boolean };
           projectPrep: { autoInstallOnOpenInEditor?: boolean };
+          browserPreview: { enabled?: boolean; engine?: 'chromium' };
+          notifications: { enabled?: boolean; sound?: boolean };
         }>
       ) => Promise<{
         success: boolean;
         settings?: {
           repository: { branchTemplate: string; pushOnCreate: boolean };
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
+          browserPreview?: { enabled: boolean; engine: 'chromium' };
+          notifications?: { enabled: boolean; sound: boolean };
         };
         error?: string;
       }>;

@@ -16,6 +16,10 @@ export interface AppSettings {
     enabled: boolean;
     engine: 'chromium';
   };
+  notifications?: {
+    enabled: boolean;
+    sound: boolean;
+  };
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -29,6 +33,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   browserPreview: {
     enabled: true,
     engine: 'chromium',
+  },
+  notifications: {
+    enabled: true,
+    sound: true,
   },
 };
 
@@ -111,6 +119,10 @@ function normalizeSettings(input: AppSettings): AppSettings {
       enabled: DEFAULT_SETTINGS.browserPreview!.enabled,
       engine: DEFAULT_SETTINGS.browserPreview!.engine,
     },
+    notifications: {
+      enabled: DEFAULT_SETTINGS.notifications!.enabled,
+      sound: DEFAULT_SETTINGS.notifications!.sound,
+    },
   };
 
   // Repository
@@ -134,6 +146,12 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.browserPreview = {
     enabled: Boolean(bp?.enabled ?? DEFAULT_SETTINGS.browserPreview!.enabled),
     engine: 'chromium',
+  };
+
+  const notif = (input as any)?.notifications || {};
+  out.notifications = {
+    enabled: Boolean(notif?.enabled ?? DEFAULT_SETTINGS.notifications!.enabled),
+    sound: Boolean(notif?.sound ?? DEFAULT_SETTINGS.notifications!.sound),
   };
   return out;
 }
