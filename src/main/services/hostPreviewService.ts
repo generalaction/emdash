@@ -93,7 +93,11 @@ class HostPreviewService extends EventEmitter {
         const server = net.createServer();
         server.once('error', () => resolve(false));
         server.listen(port, host, () => {
-          try { server.close(() => resolve(true)); } catch { resolve(false); }
+          try {
+            server.close(() => resolve(true));
+          } catch {
+            resolve(false);
+          }
         });
       });
     for (const p of preferred) {
@@ -104,7 +108,11 @@ class HostPreviewService extends EventEmitter {
       server.listen(0, host, () => {
         const addr = server.address();
         const port = typeof addr === 'object' && addr ? addr.port : 0;
-        try { server.close(() => resolve(port || 5173)); } catch { resolve(5173); }
+        try {
+          server.close(() => resolve(port || 5173));
+        } catch {
+          resolve(5173);
+        }
       });
       server.once('error', () => resolve(5173));
     });
@@ -175,15 +183,28 @@ class HostPreviewService extends EventEmitter {
       if (hasPkg && !hasNm) {
         const hasLock = fs.existsSync(path.join(cwd, 'package-lock.json'));
         const installArgs = pm === 'npm' ? (hasLock ? ['ci'] : ['install']) : ['install'];
-        const inst = spawn(pm, installArgs, { cwd, shell: true, env: { ...process.env, BROWSER: 'none' } });
+        const inst = spawn(pm, installArgs, {
+          cwd,
+          shell: true,
+          env: { ...process.env, BROWSER: 'none' },
+        });
         this.emit('event', { type: 'setup', workspaceId, status: 'starting' } as HostPreviewEvent);
         const onData = (buf: Buffer) => {
-          try { this.emit('event', { type: 'setup', workspaceId, status: 'line', line: buf.toString() } as HostPreviewEvent); } catch {}
+          try {
+            this.emit('event', {
+              type: 'setup',
+              workspaceId,
+              status: 'line',
+              line: buf.toString(),
+            } as HostPreviewEvent);
+          } catch {}
         };
         inst.stdout.on('data', onData);
         inst.stderr.on('data', onData);
         await new Promise<void>((resolve, reject) => {
-          inst.on('exit', (code) => { code === 0 ? resolve() : reject(new Error(`install exited with ${code}`)); });
+          inst.on('exit', (code) => {
+            code === 0 ? resolve() : reject(new Error(`install exited with ${code}`));
+          });
           inst.on('error', reject);
         });
         this.emit('event', { type: 'setup', workspaceId, status: 'done' } as HostPreviewEvent);
@@ -202,21 +223,44 @@ class HostPreviewService extends EventEmitter {
       const raw = fs.readFileSync(pkgPath, 'utf8');
       const pkg = JSON.parse(raw);
       const scripts = (pkg && pkg.scripts) || {};
-      const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) } as Record<string, string>;
+      const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) } as Record<
+        string,
+        string
+      >;
       const scriptCmd = String(scripts[script] || '').toLowerCase();
       const looksLikeNext = scriptCmd.includes('next') || 'next' in deps;
       const looksLikeVite = scriptCmd.includes('vite') || 'vite' in deps;
-      const looksLikeWebpack = scriptCmd.includes('webpack-dev-server') || 'webpack-dev-server' in deps;
-      const looksLikeAngular = /(^|\s)ng(\s|$)/.test(scriptCmd) || scriptCmd.includes('angular') || '@angular/cli' in deps;
+      const looksLikeWebpack =
+        scriptCmd.includes('webpack-dev-server') || 'webpack-dev-server' in deps;
+      const looksLikeAngular =
+        /(^|\s)ng(\s|$)/.test(scriptCmd) || scriptCmd.includes('angular') || '@angular/cli' in deps;
       const extra: string[] = [];
       if (looksLikeNext) extra.push('-p', String(forcedPort));
-      else if (looksLikeVite || looksLikeWebpack || looksLikeAngular) extra.push('--port', String(forcedPort));
+      else if (looksLikeVite || looksLikeWebpack || looksLikeAngular)
+        extra.push('--port', String(forcedPort));
       if (extra.length) {
-        if (pm === 'npm') args.push('--', ...extra); else args.push(...extra);
+        if (pm === 'npm') args.push('--', ...extra);
+        else args.push(...extra);
       }
-      log.info?.('[hostPreview] start', { workspaceId, cwd, pm, cmd, args, script, port: forcedPort });
+      log.info?.('[hostPreview] start', {
+        workspaceId,
+        cwd,
+        pm,
+        cmd,
+        args,
+        script,
+        port: forcedPort,
+      });
     } catch {
-      log.info?.('[hostPreview] start', { workspaceId, cwd, pm, cmd, args, script, port: forcedPort });
+      log.info?.('[hostPreview] start', {
+        workspaceId,
+        cwd,
+        pm,
+        cmd,
+        args,
+        script,
+        port: forcedPort,
+      });
     }
 
     const tryStart = async (maxRetries = 3): Promise<{ ok: boolean; error?: string }> => {
@@ -229,7 +273,14 @@ class HostPreviewService extends EventEmitter {
         const startedAt = Date.now();
 
         const emitSetupLine = (line: string) => {
-          try { this.emit('event', { type: 'setup', workspaceId, status: 'line', line } as HostPreviewEvent); } catch {}
+          try {
+            this.emit('event', {
+              type: 'setup',
+              workspaceId,
+              status: 'line',
+              line,
+            } as HostPreviewEvent);
+          } catch {}
         };
         const onData = (buf: Buffer) => {
           const line = buf.toString();
@@ -238,7 +289,9 @@ class HostPreviewService extends EventEmitter {
           const url = normalizeUrl(line);
           if (url && !urlEmitted) {
             urlEmitted = true;
-            try { this.emit('event', { type: 'url', workspaceId, url } as HostPreviewEvent); } catch {}
+            try {
+              this.emit('event', { type: 'url', workspaceId, url } as HostPreviewEvent);
+            } catch {}
           }
         };
         child.stdout.on('data', onData);
@@ -248,14 +301,29 @@ class HostPreviewService extends EventEmitter {
         const host = 'localhost';
         const probeInterval = setInterval(() => {
           if (urlEmitted) return;
-          const socket = net.createConnection({ host, port: Number(env.PORT) || forcedPort }, () => {
-            try { socket.destroy(); } catch {}
-            if (!urlEmitted) {
-              urlEmitted = true;
-              try { this.emit('event', { type: 'url', workspaceId, url: `http://localhost:${Number(env.PORT) || forcedPort}` } as HostPreviewEvent); } catch {}
+          const socket = net.createConnection(
+            { host, port: Number(env.PORT) || forcedPort },
+            () => {
+              try {
+                socket.destroy();
+              } catch {}
+              if (!urlEmitted) {
+                urlEmitted = true;
+                try {
+                  this.emit('event', {
+                    type: 'url',
+                    workspaceId,
+                    url: `http://localhost:${Number(env.PORT) || forcedPort}`,
+                  } as HostPreviewEvent);
+                } catch {}
+              }
             }
+          );
+          socket.on('error', () => {
+            try {
+              socket.destroy();
+            } catch {}
           });
-          socket.on('error', () => { try { socket.destroy(); } catch {}; });
         }, 800);
 
         child.on('exit', async () => {
@@ -274,14 +342,21 @@ class HostPreviewService extends EventEmitter {
             const idx = args.lastIndexOf('-p');
             const idxPort = args.lastIndexOf('--port');
             if (idx >= 0 && idx + 1 < args.length) args[idx + 1] = String(forcedPort);
-            else if (idxPort >= 0 && idxPort + 1 < args.length) args[idxPort + 1] = String(forcedPort);
+            else if (idxPort >= 0 && idxPort + 1 < args.length)
+              args[idxPort + 1] = String(forcedPort);
             else if (pm === 'npm') args.push('--', '-p', String(forcedPort));
             else args.push('-p', String(forcedPort));
-            log.info?.('[hostPreview] retry on new port', { workspaceId, port: forcedPort, retriesLeft: maxRetries - 1 });
+            log.info?.('[hostPreview] retry on new port', {
+              workspaceId,
+              port: forcedPort,
+              retriesLeft: maxRetries - 1,
+            });
             await tryStart(maxRetries - 1);
             return;
           }
-          try { this.emit('event', { type: 'exit', workspaceId } as HostPreviewEvent); } catch {}
+          try {
+            this.emit('event', { type: 'exit', workspaceId } as HostPreviewEvent);
+          } catch {}
         });
         return { ok: true };
       } catch (e: any) {

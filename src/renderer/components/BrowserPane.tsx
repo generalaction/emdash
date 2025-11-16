@@ -168,7 +168,11 @@ const BrowserPane: React.FC<{
         let ok = false;
         while (!cancelled && Date.now() < deadline) {
           try {
-            const res = await (window as any).electronAPI?.netProbePorts?.(host, [port], PROBE_TIMEOUT_MS);
+            const res = await (window as any).electronAPI?.netProbePorts?.(
+              host,
+              [port],
+              PROBE_TIMEOUT_MS
+            );
             ok = !!(res && Array.isArray(res.reachable) && res.reachable.length > 0);
             if (ok) break;
           } catch {}
@@ -182,7 +186,9 @@ const BrowserPane: React.FC<{
         hideSpinner();
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [url, showSpinner, hideSpinner]);
 
   const handleRetry = React.useCallback(() => {
@@ -353,8 +359,12 @@ const BrowserPane: React.FC<{
       const id = (workspaceId || '').trim();
       if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
     } catch {}
-    try { (window as any).electronAPI?.browserHide?.(); } catch {}
-    try { clearUrl(); } catch {}
+    try {
+      (window as any).electronAPI?.browserHide?.();
+    } catch {}
+    try {
+      clearUrl();
+    } catch {}
     setFailed(false);
     close();
   }, [workspaceId, clearUrl, close]);

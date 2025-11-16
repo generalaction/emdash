@@ -25,7 +25,9 @@ export function registerGitIpc() {
       '/usr/bin/git',
     ].filter(Boolean) as string[];
     for (const p of candidates) {
-      try { if (p && fs.existsSync(p)) return p; } catch {}
+      try {
+        if (p && fs.existsSync(p)) return p;
+      } catch {}
     }
     // Last resort: try /usr/bin/env git
     return 'git';
@@ -439,11 +441,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: workspacePath });
 
       // Current branch
-      const { stdout: currentBranchOut } = await execFileAsync(
-        GIT,
-        ['branch', '--show-current'],
-        { cwd: workspacePath }
-      );
+      const { stdout: currentBranchOut } = await execFileAsync(GIT, ['branch', '--show-current'], {
+        cwd: workspacePath,
+      });
       const branch = (currentBranchOut || '').trim();
 
       // Determine default branch

@@ -36,7 +36,11 @@ class BrowserViewService {
     if (url) {
       try {
         const current = (() => {
-          try { return v.webContents.getURL(); } catch { return ''; }
+          try {
+            return v.webContents.getURL();
+          } catch {
+            return '';
+          }
         })();
         if (!current || current !== url) {
           v.webContents.loadURL(url);
