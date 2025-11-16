@@ -16,7 +16,7 @@
     "package:linux": "npm run build && electron-builder --linux --publish never",
     "package:win": "npm run build && electron-builder --win --publish never",
     "postinstall": "electron-rebuild",
-    "rebuild": "npx electron-rebuild",
+    "rebuild": "electron-rebuild -f -v 30.5.1",
     "clean": "rm -rf node_modules dist",
     "reset": "npm run clean && npm install",
     "lint": "eslint . --ext .ts,.tsx",
@@ -123,7 +123,8 @@
     "asarUnpack": [
       "node_modules/sqlite3/**",
       "node_modules/node-pty/**",
-      "node_modules/keytar/**"
+      "node_modules/keytar/**",
+      "**/*.node"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
