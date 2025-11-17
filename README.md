@@ -57,7 +57,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
 </details>
 
-# Integrations
+# Providers
 
 <img width="4856" height="1000" alt="integration_banner" src="https://github.com/user-attachments/assets/894c3db8-3be5-4730-ae7d-197958b0a044" />
 
