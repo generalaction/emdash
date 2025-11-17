@@ -487,9 +487,7 @@ const BrowserPane: React.FC<{
                 <Spinner size="md" />
                 <div className="leading-tight">
                   <div className="font-medium text-foreground">Loading preview…</div>
-                  <div className="text-xs text-muted-foreground/80">
-                    Starting dev server
-                  </div>
+                  <div className="text-xs text-muted-foreground/80">Starting dev server</div>
                 </div>
               </div>
             </div>
