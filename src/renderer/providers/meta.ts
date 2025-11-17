@@ -11,7 +11,8 @@ export type UiProvider =
   | 'charm'
   | 'auggie'
   | 'goose'
-  | 'kimi';
+  | 'kimi'
+  | 'kiro';
 
 export type ProviderMeta = {
   label: string;
@@ -170,5 +171,14 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     planActivate: undefined,
     idlePatterns: [/Ready|Awaiting|Press Enter|Next command|\/help|\/setup/i],
     busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|Kimi CLI/i],
+  },
+  kiro: {
+    label: 'Kiro (AWS)',
+    icon: '../../assets/images/kiro.png',
+    terminalOnly: true,
+    cli: 'kiro-cli',
+    helpUrl: 'https://kiro.dev/docs/cli/',
+    idlePatterns: [/Ready|Awaiting|Press Enter|Next command|Kiro CLI/i],
+    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|Kiro CLI/i],
   },
 };

@@ -27,6 +27,7 @@ export interface WorkspaceMetadata {
       | 'auggie'
       | 'goose'
       | 'kimi'
+      | 'kiro'
     >;
     variants: Array<{
       id: string; // stable variant id within this workspace
@@ -43,7 +44,8 @@ export interface WorkspaceMetadata {
         | 'charm'
         | 'auggie'
         | 'goose'
-        | 'kimi';
+        | 'kimi'
+        | 'kiro';
       name: string; // worktree display name, e.g. workspaceName-providerSlug
       branch: string;
       path: string; // filesystem path of the worktree
@@ -63,6 +65,7 @@ export interface WorkspaceMetadata {
       | 'auggie'
       | 'goose'
       | 'kimi'
+      | 'kiro'
       | null;
   } | null;
 }

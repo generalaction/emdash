@@ -14,6 +14,7 @@ import charmLogo from '../../assets/images/charm.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import kiroLogo from '../../assets/images/kiro.png';
 
 interface CliProvidersListProps {
   providers: CliProviderStatus[];
@@ -89,6 +90,12 @@ export const BASE_CLI_PROVIDERS: CliProviderStatus[] = [
     status: 'missing',
     docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
   },
+  {
+    id: 'kiro',
+    name: 'Kiro',
+    status: 'missing',
+    docUrl: 'https://kiro.dev/docs/cli/',
+  },
 ];
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -104,6 +111,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
   auggie: augmentLogo,
   qwen: qwenLogo,
   kimi: kimiLogo,
+  kiro: kiroLogo,
 };
 
 const renderProviderRow = (provider: CliProviderStatus) => {

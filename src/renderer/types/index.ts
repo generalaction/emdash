@@ -58,7 +58,8 @@ export type Provider =
   | 'charm'
   | 'auggie'
   | 'goose'
-  | 'kimi';
+  | 'kimi'
+  | 'kiro';
 
 // Keyboard shortcuts types
 export type {

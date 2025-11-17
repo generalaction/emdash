@@ -118,6 +118,13 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     args: ['--help'],
     docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
   },
+  {
+    id: 'kiro',
+    name: 'Kiro (AWS)',
+    commands: ['kiro-cli', 'kiro'],
+    args: ['--version'],
+    docUrl: 'https://kiro.dev/docs/cli/',
+  },
 ];
 
 class ConnectionsService {

@@ -13,6 +13,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import kiroLogo from '../../assets/images/kiro.png';
 
 type ProviderInfo = { name: string; logo: string; alt: string; invertInDark?: boolean };
 
@@ -30,6 +31,7 @@ const providerConfig: Record<Provider, ProviderInfo> = {
   auggie: { name: 'Auggie', logo: augmentLogo, alt: 'Auggie CLI' },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
+  kiro: { name: 'Kiro', logo: kiroLogo, alt: 'Kiro CLI' },
 };
 
 interface MultiProviderSelectorProps {

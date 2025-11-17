@@ -155,6 +155,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
           'charm',
           'auggie',
           'kimi',
+          'kiro',
         ];
         if (locked && (validProviders as string[]).includes(locked)) {
           setProvider(locked as Provider);
@@ -183,6 +184,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         provider !== 'droid' &&
         provider !== 'gemini' &&
         provider !== 'cursor' &&
+        provider !== 'kiro' &&
         activeStream.messages &&
         activeStream.messages.some((m) => m.sender === 'user');
       const droidLocked = provider === 'droid' && hasDroidActivity;

@@ -15,6 +15,7 @@ import { Badge } from './ui/badge';
 import type { UiProvider } from '@/providers/meta';
 import { type Provider } from '../types';
 import openaiLogo from '../../assets/images/openai.png';
+import kiroLogo from '../../assets/images/kiro.png';
 import claudeLogo from '../../assets/images/claude.png';
 import factoryLogo from '../../assets/images/factorydroid.png';
 import geminiLogo from '../../assets/images/gemini.png';
@@ -112,6 +113,12 @@ const providerConfig = {
     name: 'Kimi',
     logo: kimiLogo,
     alt: 'Kimi CLI',
+    invertInDark: false,
+  },
+  kiro: {
+    name: 'Kiro',
+    logo: kiroLogo,
+    alt: 'Kiro CLI',
     invertInDark: false,
   },
 } as const;

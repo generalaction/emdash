@@ -439,16 +439,6 @@ const BrowserPane: React.FC<{
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
-          {/* <button
-            className="inline-flex h-6 items-center gap-1 rounded border border-border px-2 text-xs hover:bg-muted"
-            title="Open DevTools"
-            onClick={() => {
-              const el = webviewRef.current as any;
-              try { el?.openDevTools?.(); } catch {}
-            }}
-          >
-            <Bug className="h-3.5 w-3.5" />
-          </button> */}
           <button
             className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
             onClick={handleClose}
