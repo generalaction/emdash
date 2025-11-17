@@ -1,9 +1,19 @@
-import { BrowserWindow, WebContentsView, app } from 'electron';
+import { BrowserWindow, WebContentsView } from 'electron';
 import { getMainWindow } from '../app/window';
 
 class BrowserViewService {
   private view: WebContentsView | null = null;
   private visible = false;
+  private emitToRenderers(evt: any) {
+    try {
+      const wins = BrowserWindow.getAllWindows();
+      for (const w of wins) {
+        try {
+          w.webContents.send('browser:view:event', evt);
+        } catch {}
+      }
+    } catch {}
+  }
 
   ensureView(win?: BrowserWindow): WebContentsView | null {
     const w = win || getMainWindow() || undefined;
@@ -18,6 +28,17 @@ class BrowserViewService {
       w.contentView.addChildView(this.view);
       try {
         this.view.webContents.setWindowOpenHandler?.(() => ({ action: 'deny' }) as any);
+      } catch {}
+      try {
+        this.view.webContents.on('did-finish-load', () =>
+          this.emitToRenderers({ type: 'did-finish-load' })
+        );
+        this.view.webContents.on('did-fail-load', (_ev, errorCode, errorDescription) =>
+          this.emitToRenderers({ type: 'did-fail-load', errorCode, errorDescription })
+        );
+        this.view.webContents.on('did-start-navigation', (_ev, url) =>
+          this.emitToRenderers({ type: 'did-start-navigation', url })
+        );
       } catch {}
       this.visible = true;
     }
@@ -98,6 +119,12 @@ class BrowserViewService {
   reload() {
     try {
       this.view?.webContents.reload();
+    } catch {}
+  }
+
+  openDevTools() {
+    try {
+      this.view?.webContents.openDevTools({ mode: 'detach' });
     } catch {}
   }
 
