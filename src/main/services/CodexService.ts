@@ -212,11 +212,9 @@ export class CodexService extends EventEmitter {
     try {
       await execAsync('codex --version');
       this.isCodexInstalled = true;
-      log.info('Codex CLI is installed');
       return true;
     } catch (error) {
       this.isCodexInstalled = false;
-      log.info('Codex CLI is not installed');
       return false;
     }
   }

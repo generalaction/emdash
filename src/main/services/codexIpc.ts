@@ -156,6 +156,4 @@ export function setupCodexIpc() {
       window.webContents.send('codex:stream-complete', data);
     });
   });
-
-  log.info('✅ Codex IPC handlers registered');
 }
