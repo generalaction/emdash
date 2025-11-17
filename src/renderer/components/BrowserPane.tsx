@@ -5,10 +5,6 @@ import {
   ArrowLeft,
   ArrowRight,
   ExternalLink,
-  Bug,
-  Info,
-  Wrench,
-  Play,
 } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
@@ -79,7 +75,6 @@ const BrowserPane: React.FC<{
     if (typeof url === 'string') setAddress(url);
   }, [url]);
 
-  // We removed inline inputs; advanced preview settings can move to Settings later.
   // Stop the previous workspace server only when switching workspaces
   const prevWorkspaceIdRef = React.useRef<string | null>(null);
   React.useEffect(() => {
@@ -369,6 +364,8 @@ const BrowserPane: React.FC<{
     close();
   }, [workspaceId, clearUrl, close]);
 
+  const isDev = typeof window !== 'undefined' && String(window.location.port || '') === '3000';
+
   return (
     <div
       className={cn(
@@ -503,93 +500,24 @@ const BrowserPane: React.FC<{
                 <div className="leading-tight">
                   <div className="font-medium text-foreground">Loading preview…</div>
                   <div className="text-xs text-muted-foreground/80">
-                    Starting or connecting to your dev server
+                    Starting dev server
                   </div>
                 </div>
               </div>
             </div>
           ) : null}
           {!busy && url && failed ? (
-            <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
-              <div className="w-full max-w-xl rounded-xl border border-border/70 bg-background/95 p-4 text-sm text-muted-foreground shadow-sm">
-                <div className="flex items-start gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/70 bg-muted/50">
-                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                  </span>
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">Preview not reachable</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      We couldn’t connect to{' '}
-                      <span className="font-mono text-foreground/80">{url}</span>. This often means
-                      dependencies aren’t installed or the dev server hasn’t started yet.
-                    </div>
+            isDev ? (
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-[1px]">
+                  <Spinner size="md" />
+                  <div className="leading-tight">
+                    <div className="font-medium text-foreground">Loading preview…</div>
+                    <div className="text-xs text-muted-foreground/80">Starting dev server</div>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50 disabled:opacity-60"
-                    onClick={handleInstall}
-                    disabled={!workspaceId || !workspacePath || actionBusy === 'start'}
-                  >
-                    {actionBusy === 'install' ? (
-                      <Spinner size="sm" />
-                    ) : (
-                      <Wrench className="h-3.5 w-3.5" />
-                    )}
-                    Install dependencies
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50 disabled:opacity-60"
-                    onClick={handleStart}
-                    disabled={!workspaceId || !workspacePath || actionBusy === 'install'}
-                  >
-                    {actionBusy === 'start' ? (
-                      <Spinner size="sm" />
-                    ) : (
-                      <Play className="h-3.5 w-3.5" />
-                    )}
-                    Start dev server
-                  </button>
-                  <span className="mx-1 h-5 w-px bg-border/70" />
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50"
-                    onClick={handleRetry}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Retry
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50"
-                    onClick={() => url && (window as any).electronAPI?.openExternal?.(url)}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Open in browser
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50"
-                    onClick={() => (window as any).electronAPI?.browserOpenDevTools?.()}
-                  >
-                    <Bug className="h-3.5 w-3.5" />
-                    Open DevTools
-                  </button>
-                </div>
-                {lines.length ? (
-                  <div className="mt-3 rounded-md border border-dashed border-border/70 bg-muted/40 p-2">
-                    <div className="text-[11px] leading-snug text-muted-foreground">
-                      <span className="font-medium text-foreground">Last setup log</span>
-                      <div className="mt-1 font-mono text-[11px] text-foreground/80">
-                        {lines[lines.length - 1]}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
-            </div>
+            ) : null
           ) : null}
         </div>
       </div>
