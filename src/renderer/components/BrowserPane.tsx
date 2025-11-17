@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  X,
-  RefreshCw,
-  ArrowLeft,
-  ArrowRight,
-  ExternalLink,
-} from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
 import { Spinner } from './ui/spinner';
@@ -33,7 +27,7 @@ const BrowserPane: React.FC<{
     hideSpinner,
   } = useBrowser();
   const [address, setAddress] = React.useState<string>('');
-  const [loading] = React.useState<boolean>(false);
+  // const [loading] = React.useState<boolean>(false);
   const [canBack] = React.useState(false);
   const [canFwd] = React.useState(false);
   const webviewRef = React.useRef<Electron.WebviewTag | null>(null);
@@ -347,7 +341,7 @@ const BrowserPane: React.FC<{
     };
   }, [setWidthPct]);
 
-  const { goBack, goForward, reload } = useBrowser();
+  const { goBack, goForward } = useBrowser();
 
   const handleClose = React.useCallback(() => {
     try {
@@ -405,13 +399,7 @@ const BrowserPane: React.FC<{
           >
             <ArrowRight className="h-4 w-4" />
           </button>
-          <button
-            className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
-            onClick={() => reload()}
-            title="Reload"
-          >
-            <RefreshCw className={cn('h-4 w-4', loading ? 'animate-spin' : '')} />
-          </button>
+          {/* Reload removed: dev servers auto-refresh (HMR) */}
           <form
             className="mx-2 flex min-w-0 flex-1"
             onSubmit={(e) => {
