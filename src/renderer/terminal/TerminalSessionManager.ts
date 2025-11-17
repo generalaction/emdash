@@ -284,6 +284,15 @@ export class TerminalSessionManager {
           this.ptyStarted = true;
           this.sendSizeIfStarted();
           this.emitReady();
+          try {
+            const offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
+              if (payload?.id === id) {
+                this.ptyStarted = true;
+                this.sendSizeIfStarted();
+              }
+            });
+            if (offStarted) this.disposables.push(offStarted);
+          } catch {}
         } else {
           const message = result?.error || 'Failed to start PTY';
           log.warn('terminalSession:ptyStartFailed', { id, error: message });
@@ -318,16 +327,6 @@ export class TerminalSessionManager {
     });
 
     this.disposables.push(offData, offExit);
-
-    try {
-      const offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
-        if (payload?.id === id) {
-          this.ptyStarted = true;
-          this.sendSizeIfStarted();
-        }
-      });
-      if (offStarted) this.disposables.push(offStarted);
-    } catch {}
   }
 
   private async restoreSnapshot(): Promise<void> {

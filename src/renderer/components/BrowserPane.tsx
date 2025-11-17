@@ -152,42 +152,44 @@ const BrowserPane: React.FC<{
     };
   }, [workspaceId, navigate, showSpinner, hideSpinner]);
 
-  // When URL changes, keep spinner until the URL responds at least once
+  // When URL changes, verify reachability (TCP probe) with a generous grace window
   React.useEffect(() => {
     let cancelled = false;
     const u = (url || '').trim();
     if (!u) return;
-    // Kick a lightweight readiness probe to avoid white screen with no feedback
     (async () => {
-      const deadline = Date.now() + SPINNER_MAX_MS; // cap spinner
-      const tryOnce = async () => {
-        try {
-          const c = new AbortController();
-          const t = setTimeout(() => c.abort(), PROBE_TIMEOUT_MS);
-          await fetch(u, { mode: 'no-cors', signal: c.signal });
-          clearTimeout(t);
-          return true;
-        } catch {
-          return false;
+      try {
+        const parsed = new URL(u);
+        const host = parsed.hostname || 'localhost';
+        const port = Number(parsed.port || 0);
+        if (!port) return;
+        showSpinner();
+        const deadline = Date.now() + SPINNER_MAX_MS; // ~15s grace for compilers (e.g., Next initial build)
+        let ok = false;
+        while (!cancelled && Date.now() < deadline) {
+          try {
+            const res = await (window as any).electronAPI?.netProbePorts?.(
+              host,
+              [port],
+              PROBE_TIMEOUT_MS
+            );
+            ok = !!(res && Array.isArray(res.reachable) && res.reachable.length > 0);
+            if (ok) break;
+          } catch {}
+          await new Promise((r) => setTimeout(r, 500));
         }
-      };
-      // If already busy=false (e.g., manual set), don’t force it back on
-      showSpinner();
-      let ok = false;
-      while (!cancelled && Date.now() < deadline) {
-        ok = await tryOnce();
-        if (ok) break;
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      if (!cancelled) {
+        if (!cancelled) {
+          hideSpinner();
+          setFailed(!ok);
+        }
+      } catch {
         hideSpinner();
-        setFailed(!ok);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [url, showSpinner, hideSpinner, retryTick]);
+  }, [url, showSpinner, hideSpinner]);
 
   const handleRetry = React.useCallback(() => {
     if (!url) return;
@@ -352,6 +354,21 @@ const BrowserPane: React.FC<{
 
   const { goBack, goForward, reload } = useBrowser();
 
+  const handleClose = React.useCallback(() => {
+    try {
+      const id = (workspaceId || '').trim();
+      if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
+    } catch {}
+    try {
+      (window as any).electronAPI?.browserHide?.();
+    } catch {}
+    try {
+      clearUrl();
+    } catch {}
+    setFailed(false);
+    close();
+  }, [workspaceId, clearUrl, close]);
+
   return (
     <div
       className={cn(
@@ -449,7 +466,7 @@ const BrowserPane: React.FC<{
           </button> */}
           <button
             className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
-            onClick={close}
+            onClick={handleClose}
             title="Close"
             aria-label="Close"
           >

@@ -396,6 +396,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   browserGoBack: () => ipcRenderer.invoke('browser:view:goBack'),
   browserGoForward: () => ipcRenderer.invoke('browser:view:goForward'),
   browserReload: () => ipcRenderer.invoke('browser:view:reload'),
+  browserOpenDevTools: () => ipcRenderer.invoke('browser:view:openDevTools'),
+  onBrowserViewEvent: (listener: (data: any) => void) => {
+    const channel = 'browser:view:event';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
+  // Lightweight TCP probe for localhost ports to avoid noisy fetches
+  netProbePorts: (host: string, ports: number[], timeoutMs?: number) =>
+    ipcRenderer.invoke('net:probePorts', host, ports, timeoutMs),
 });
 
 // Type definitions for the exposed API
@@ -763,6 +774,15 @@ export interface ElectronAPI {
   browserGoBack: () => Promise<{ ok: boolean }>;
   browserGoForward: () => Promise<{ ok: boolean }>;
   browserReload: () => Promise<{ ok: boolean }>;
+  browserOpenDevTools: () => Promise<{ ok: boolean }>;
+  onBrowserViewEvent: (listener: (data: any) => void) => () => void;
+
+  // TCP probe (no HTTP requests)
+  netProbePorts: (
+    host: string,
+    ports: number[],
+    timeoutMs?: number
+  ) => Promise<{ reachable: number[] }>;
 }
 
 declare global {
