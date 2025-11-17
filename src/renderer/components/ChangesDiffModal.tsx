@@ -304,7 +304,6 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                               }
                             }
                             if (e.key === 'Escape') {
-                              // Exit edit mode (prompt if dirty)
                               if (
                                 !dirty ||
                                 window.confirm('Discard unsaved changes and exit edit?')

@@ -6,6 +6,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { ProviderInfoCard } from './ProviderInfoCard';
 import type { UiProvider } from '@/providers/meta';
 import openaiLogo from '../../assets/images/openai.png';
+import kiroLogo from '../../assets/images/kiro.png';
 import claudeLogo from '../../assets/images/claude.png';
 import factoryLogo from '../../assets/images/factorydroid.png';
 import geminiLogo from '../../assets/images/gemini.png';
@@ -35,6 +36,7 @@ const providerConfig: Record<Provider, ProviderInfo> = {
   auggie: { name: 'Auggie', logo: augmentLogo, alt: 'Auggie CLI', invertInDark: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
+  kiro: { name: 'Kiro', logo: kiroLogo, alt: 'Kiro CLI' },
 };
 
 interface Props {

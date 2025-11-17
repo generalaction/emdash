@@ -186,8 +186,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     });
   }
 
-  const linkButtonRef = useRef<HTMLButtonElement>(null);
-
   const getPlaceholder = () => {
     if (provider === 'codex' && !isCodexInstalled) {
       return 'Codex CLI not installed...';

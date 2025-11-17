@@ -5,6 +5,7 @@ import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import openaiLogo from '../../assets/images/openai.png';
+import kiroLogo from '../../assets/images/kiro.png';
 import linearLogo from '../../assets/images/linear.png';
 import githubLogo from '../../assets/images/github.png';
 import jiraLogo from '../../assets/images/jira.png';
@@ -57,6 +58,7 @@ export const ProviderBar: React.FC<Props> = ({
     auggie: { name: 'Auggie', logo: augmentLogo },
     goose: { name: 'Goose', logo: gooseLogo },
     kimi: { name: 'Kimi', logo: kimiLogo },
+    kiro: { name: 'Kiro', logo: kiroLogo },
   };
   const cfg = map[provider] ?? { name: provider, logo: '' };
   return (
