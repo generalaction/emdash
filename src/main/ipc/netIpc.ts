@@ -5,14 +5,17 @@ function probePort(host: string, port: number, timeoutMs = 800): Promise<boolean
   return new Promise((resolve) => {
     let done = false;
     const socket = net.createConnection({ host, port });
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      try {
-        socket.destroy();
-      } catch {}
-      resolve(false);
-    }, Math.max(1, timeoutMs));
+    const timer = setTimeout(
+      () => {
+        if (done) return;
+        done = true;
+        try {
+          socket.destroy();
+        } catch {}
+        resolve(false);
+      },
+      Math.max(1, timeoutMs)
+    );
     socket.once('connect', () => {
       if (done) return;
       done = true;
@@ -48,4 +51,3 @@ export function registerNetIpc() {
     }
   );
 }
-
