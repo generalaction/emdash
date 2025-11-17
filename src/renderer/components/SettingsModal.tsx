@@ -10,6 +10,7 @@ import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
 import TelemetryCard from './TelemetryCard';
 import ThemeCard from './ThemeCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
+import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
 import { CliProviderStatus } from '../types/connections';
@@ -109,6 +110,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         description: '',
         sections: [
           { title: 'Privacy & Telemetry', render: () => <TelemetryCard /> },
+          { title: 'Notifications', render: () => <NotificationSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
           { title: 'Theme', render: () => <ThemeCard /> },
