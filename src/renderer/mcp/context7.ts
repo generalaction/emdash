@@ -224,7 +224,7 @@ export const CONTEXT7_INTEGRATION: Context7IntegrationMeta = {
   id: 'context7',
   label: 'Context7 MCP',
   docsUrl: 'https://github.com/upstash/context7',
-  defaultInvocation: 'use context7',
+  defaultInvocation: 'use context7 for looking up library docs',
   byProvider: {
     codex: {
       setup: [SNIPPETS.codexTomlRemote, SNIPPETS.codexTomlLocal],
