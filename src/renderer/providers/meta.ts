@@ -12,7 +12,8 @@ export type UiProvider =
   | 'auggie'
   | 'goose'
   | 'kimi'
-  | 'kiro';
+  | 'kiro'
+  | 'rovo';
 
 export type ProviderMeta = {
   label: string;
@@ -23,6 +24,10 @@ export type ProviderMeta = {
   idlePatterns?: RegExp[];
   busyPatterns?: RegExp[];
   planActivate?: string; // optional provider-specific activation for plan mode
+  // Optional command to auto-run in the provider's terminal session
+  // once the PTY is ready (used when the provider is launched via a
+  // general-purpose shell rather than a dedicated CLI binary).
+  autoStartCommand?: string;
 };
 
 export const providerMeta: Record<UiProvider, ProviderMeta> = {
@@ -180,5 +185,14 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     helpUrl: 'https://kiro.dev/docs/cli/',
     idlePatterns: [/Ready|Awaiting|Press Enter|Next command|Kiro CLI/i],
     busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|Kiro CLI/i],
+  },
+  rovo: {
+    label: 'Rovo Dev',
+    icon: '../../assets/images/atlassian.png',
+    terminalOnly: true,
+    helpUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+    autoStartCommand: 'acli rovodev run',
+    idlePatterns: [/Ready|Awaiting|Press Enter|Next command|rovodev/i],
+    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|rovodev/i],
   },
 };

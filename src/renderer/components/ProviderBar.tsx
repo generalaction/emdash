@@ -23,6 +23,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import atlassianLogo from '../../assets/images/atlassian.png';
 import PlanModeToggle from './PlanModeToggle';
 import context7Logo from '../../assets/images/context7.png';
 import Context7Tooltip from './Context7Tooltip';
@@ -122,6 +123,7 @@ export const ProviderBar: React.FC<Props> = ({
     goose: { name: 'Goose', logo: gooseLogo },
     kimi: { name: 'Kimi', logo: kimiLogo },
     kiro: { name: 'Kiro', logo: kiroLogo },
+    rovo: { name: 'Rovo Dev', logo: atlassianLogo },
   };
   const cfg = map[provider] ?? { name: provider, logo: '' };
   return (

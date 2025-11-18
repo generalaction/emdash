@@ -125,6 +125,13 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     args: ['--version'],
     docUrl: 'https://kiro.dev/docs/cli/',
   },
+  {
+    id: 'rovo',
+    name: 'Rovo Dev (Atlassian)',
+    commands: ['rovodev', 'acli'],
+    args: ['--version'],
+    docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+  },
 ];
 
 class ConnectionsService {

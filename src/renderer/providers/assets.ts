@@ -12,6 +12,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import atlassianLogo from '../../assets/images/atlassian.png';
 // Temporary fallback logo until kiro.png is added
 import type { UiProvider } from './meta';
 
@@ -32,4 +33,5 @@ export const providerAssets: Record<UiProvider, ProviderAsset> = {
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Moonshot AI', logo: kimiLogo, alt: 'Kimi CLI' },
   kiro: { name: 'Amazon Web Services', logo: kiroLogo, alt: 'Kiro CLI' },
+  rovo: { name: 'Atlassian', logo: atlassianLogo, alt: 'Rovo Dev CLI' },
 };
