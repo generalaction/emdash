@@ -4,7 +4,7 @@ import { dirname, join } from 'path';
 
 export interface RepositorySettings {
   branchTemplate: string; // e.g., 'agent/{slug}-{timestamp}'
-  pushOnCreate: boolean; // default true
+  pushOnCreate: boolean;
 }
 
 export interface AppSettings {
@@ -19,6 +19,12 @@ export interface AppSettings {
   notifications?: {
     enabled: boolean;
     sound: boolean;
+  };
+  mcp?: {
+    context7?: {
+      enabled: boolean;
+      installHintsDismissed?: Record<string, boolean>;
+    };
   };
 }
 
@@ -37,6 +43,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   notifications: {
     enabled: true,
     sound: true,
+  },
+  mcp: {
+    context7: {
+      enabled: false,
+      installHintsDismissed: {},
+    },
   },
 };
 
@@ -98,9 +110,7 @@ export function persistSettings(settings: AppSettings) {
     const dir = dirname(file);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(file, JSON.stringify(settings, null, 2), 'utf8');
-  } catch {
-    // Ignore write errors; settings are best-effort
-  }
+  } catch {}
 }
 
 /**
@@ -122,6 +132,12 @@ function normalizeSettings(input: AppSettings): AppSettings {
     notifications: {
       enabled: DEFAULT_SETTINGS.notifications!.enabled,
       sound: DEFAULT_SETTINGS.notifications!.sound,
+    },
+    mcp: {
+      context7: {
+        enabled: DEFAULT_SETTINGS.mcp!.context7!.enabled,
+        installHintsDismissed: {},
+      },
     },
   };
 
@@ -152,6 +168,19 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.notifications = {
     enabled: Boolean(notif?.enabled ?? DEFAULT_SETTINGS.notifications!.enabled),
     sound: Boolean(notif?.sound ?? DEFAULT_SETTINGS.notifications!.sound),
+  };
+
+  // MCP
+  const mcp = (input as any)?.mcp || {};
+  const c7 = mcp?.context7 || {};
+  out.mcp = {
+    context7: {
+      enabled: Boolean(c7?.enabled ?? DEFAULT_SETTINGS.mcp!.context7!.enabled),
+      installHintsDismissed:
+        c7?.installHintsDismissed && typeof c7.installHintsDismissed === 'object'
+          ? { ...c7.installHintsDismissed }
+          : {},
+    },
   };
   return out;
 }

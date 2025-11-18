@@ -24,9 +24,14 @@ import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import PlanModeToggle from './PlanModeToggle';
+import context7Logo from '../../assets/images/context7.png';
+import Context7Tooltip from './Context7Tooltip';
+import { providerMeta } from '../providers/meta';
+import { getContext7InvocationForProvider } from '../mcp/context7';
 
 type Props = {
   provider: Provider;
+  workspaceId: string;
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
@@ -37,6 +42,7 @@ type Props = {
 
 export const ProviderBar: React.FC<Props> = ({
   provider,
+  workspaceId,
   linearIssue,
   githubIssue,
   jiraIssue,
@@ -44,6 +50,63 @@ export const ProviderBar: React.FC<Props> = ({
   onPlanModeChange,
   onApprovePlan,
 }) => {
+  const [c7Enabled, setC7Enabled] = React.useState<boolean>(false); // global setting
+  const [c7Busy, setC7Busy] = React.useState<boolean>(false);
+  const [c7WorkspaceEnabled, setC7WorkspaceEnabled] = React.useState<boolean>(false); // per workspace visual enable
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await (window as any).electronAPI?.getSettings?.();
+        if (!cancelled && res?.success) {
+          setC7Enabled(Boolean(res.settings?.mcp?.context7?.enabled));
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Per-workspace default OFF
+  React.useEffect(() => {
+    try {
+      const key = `c7:ws:${workspaceId}`;
+      setC7WorkspaceEnabled(localStorage.getItem(key) === '1');
+    } catch {
+      setC7WorkspaceEnabled(false);
+    }
+  }, [workspaceId]);
+
+  const handleContext7Click = async () => {
+    setC7Busy(true);
+    try {
+      if (!c7Enabled) return;
+
+      if (!c7WorkspaceEnabled) {
+        // Enable for this workspace and send invocation once
+        try {
+          localStorage.setItem(`c7:ws:${workspaceId}`, '1');
+        } catch {}
+        setC7WorkspaceEnabled(true);
+
+        const isTerminal = providerMeta[provider]?.terminalOnly === true;
+        if (!isTerminal) return;
+        const phrase = getContext7InvocationForProvider(provider) || 'use context7';
+        const ptyId = `${provider}-main-${workspaceId}`;
+        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: `${phrase}\n` });
+      } else {
+        try {
+          localStorage.removeItem(`c7:ws:${workspaceId}`);
+        } catch {}
+        setC7WorkspaceEnabled(false);
+      }
+    } finally {
+      setC7Busy(false);
+    }
+  };
+
   const map: Record<Provider, { name: string; logo: string }> = {
     qwen: { name: 'Qwen Code', logo: qwenLogo },
     codex: { name: 'Codex', logo: openaiLogo },
@@ -317,6 +380,49 @@ export const ProviderBar: React.FC<Props> = ({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={handleContext7Click}
+                      disabled={c7Busy || !c7Enabled}
+                      className={[
+                        'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs',
+                        c7WorkspaceEnabled
+                          ? 'border-emerald-500/50 bg-emerald-500/10 text-foreground'
+                          : 'border-gray-200 bg-gray-100 text-foreground dark:border-gray-700 dark:bg-gray-700',
+                      ].join(' ')}
+                      title={
+                        c7Enabled
+                          ? c7WorkspaceEnabled
+                            ? 'Disable Context7 for this workspace'
+                            : 'Enable for this workspace & send to terminal'
+                          : 'Enable Context7 in Settings → MCP to use here'
+                      }
+                    >
+                      {context7Logo ? (
+                        <img
+                          src={context7Logo}
+                          alt="Context7"
+                          className="h-3.5 w-3.5 flex-shrink-0 rounded-[3px] object-contain"
+                        />
+                      ) : (
+                        <span
+                          className="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-black text-[9px] font-semibold text-white dark:bg-white dark:text-black"
+                          aria-hidden
+                        >
+                          C7
+                        </span>
+                      )}
+                      <span className="font-medium">Context7 MCP</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-sm text-xs">
+                    <Context7Tooltip provider={provider} enabled={c7WorkspaceEnabled} />
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
