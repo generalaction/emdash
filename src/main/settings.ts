@@ -110,8 +110,7 @@ export function persistSettings(settings: AppSettings) {
     const dir = dirname(file);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(file, JSON.stringify(settings, null, 2), 'utf8');
-  } catch {
-  }
+  } catch {}
 }
 
 /**
@@ -178,7 +177,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
     context7: {
       enabled: Boolean(c7?.enabled ?? DEFAULT_SETTINGS.mcp!.context7!.enabled),
       installHintsDismissed:
-        (c7?.installHintsDismissed && typeof c7.installHintsDismissed === 'object')
+        c7?.installHintsDismissed && typeof c7.installHintsDismissed === 'object'
           ? { ...c7.installHintsDismissed }
           : {},
     },

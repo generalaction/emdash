@@ -76,7 +76,8 @@ http_headers = { "CONTEXT7_API_KEY" = "YOUR_API_KEY" }`,
   ampRemote: {
     label: 'Amp – Remote (HTTP)',
     language: 'bash' as const,
-    content: 'amp mcp add context7 --header "CONTEXT7_API_KEY=YOUR_API_KEY" https://mcp.context7.com/mcp',
+    content:
+      'amp mcp add context7 --header "CONTEXT7_API_KEY=YOUR_API_KEY" https://mcp.context7.com/mcp',
   },
   ampNoKey: {
     label: 'Amp – Remote (No API key)',
@@ -168,12 +169,14 @@ http_headers = { "CONTEXT7_API_KEY" = "YOUR_API_KEY" }`,
   droidRemote: {
     label: 'Factory Droid – Remote (HTTP)',
     language: 'bash' as const,
-    content: 'droid mcp add context7 https://mcp.context7.com/mcp --type http --header "CONTEXT7_API_KEY: YOUR_API_KEY"',
+    content:
+      'droid mcp add context7 https://mcp.context7.com/mcp --type http --header "CONTEXT7_API_KEY: YOUR_API_KEY"',
   },
   droidLocal: {
     label: 'Factory Droid – Local (npx)',
     language: 'bash' as const,
-    content: 'droid mcp add context7 "npx -y @upstash/context7-mcp" --env CONTEXT7_API_KEY=YOUR_API_KEY',
+    content:
+      'droid mcp add context7 "npx -y @upstash/context7-mcp" --env CONTEXT7_API_KEY=YOUR_API_KEY',
   },
   zedLocal: {
     label: 'Zed – Local (npx)',
@@ -216,7 +219,8 @@ http_headers = { "CONTEXT7_API_KEY" = "YOUR_API_KEY" }`,
   genericRemote: {
     label: 'Generic – Remote (HTTP)',
     language: 'text' as const,
-    content: 'URL: https://mcp.context7.com/mcp (set CONTEXT7_API_KEY header if available) – see docs',
+    content:
+      'URL: https://mcp.context7.com/mcp (set CONTEXT7_API_KEY header if available) – see docs',
   },
 };
 
@@ -280,4 +284,3 @@ export function getContext7SnippetsForProvider(provider: Provider): Context7Setu
   const cfg = CONTEXT7_INTEGRATION.byProvider[provider];
   return cfg?.setup?.length ? cfg.setup : [SNIPPETS.genericRemote];
 }
-

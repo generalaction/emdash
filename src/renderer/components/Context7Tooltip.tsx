@@ -10,24 +10,19 @@ type Props = {
 };
 
 const Context7Tooltip: React.FC<Props> = ({ enabled }) => {
-
   return (
     <div className="max-w-sm text-xs">
       <div className="flex items-center gap-2">
-        <img
-          src={context7Logo}
-          alt="Context7"
-          className="h-4 w-4 rounded-[3px] object-contain"
-        />
+        <img src={context7Logo} alt="Context7" className="h-4 w-4 rounded-[3px] object-contain" />
         <div className="font-medium">Context7 MCP</div>
       </div>
       <div className="mt-2 border-t border-border/60" />
-      <div className="text-muted-foreground mt-2">
+      <div className="mt-2 text-muted-foreground">
         Context7 lets coding agents fetch up‑to‑date, indexed library docs on demand, improving
         accuracy and reducing hallucinations.
       </div>
       <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <span className='opacity-80 rounded-md border px-1.5 py-0.5 text-[10px] bg-muted/40'>
+        <span className="rounded-md border bg-muted/40 px-1.5 py-0.5 text-[10px] opacity-80">
           Requires setup in your used agent CLIs. Once configured, Emdash auto‑invokes Context7 in
           prompts.
         </span>
@@ -49,7 +44,9 @@ const Context7Tooltip: React.FC<Props> = ({ enabled }) => {
           </div>
           <button
             type="button"
-            onClick={() => (window as any).electronAPI?.openExternal?.(CONTEXT7_INTEGRATION.docsUrl)}
+            onClick={() =>
+              (window as any).electronAPI?.openExternal?.(CONTEXT7_INTEGRATION.docsUrl)
+            }
             className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
           >
             Open Context7 docs ↗

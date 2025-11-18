@@ -354,7 +354,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     initializeCodex();
   }, [workspace.id, workspace.path, workspace.name, toast]);
 
-
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
     if (provider === 'claude' && isClaudeInstalled === false) {

@@ -214,9 +214,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
             <div className="flex items-start justify-between px-6 pb-2 pt-6">
               <div className="flex flex-col gap-1">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
-                {blurb ? (
-                  <p className="text-xs text-muted-foreground max-w-md">{blurb}</p>
-                ) : null}
+                {blurb ? <p className="max-w-md text-xs text-muted-foreground">{blurb}</p> : null}
               </div>
               <Button
                 type="button"

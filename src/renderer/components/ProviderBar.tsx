@@ -82,7 +82,7 @@ export const ProviderBar: React.FC<Props> = ({
   const handleContext7Click = async () => {
     setC7Busy(true);
     try {
-      if (!c7Enabled) return; 
+      if (!c7Enabled) return;
 
       if (!c7WorkspaceEnabled) {
         // Enable for this workspace and send invocation once

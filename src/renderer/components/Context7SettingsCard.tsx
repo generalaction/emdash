@@ -45,12 +45,12 @@ const Context7SettingsCard: React.FC = () => {
             className="mt-0.5 h-6 w-6 rounded-sm border border-border/50 object-contain"
           />
           <div className="space-y-1 text-xs text-muted-foreground">
-          <p>
-            Enable {CONTEXT7_INTEGRATION.label} to enrich prompts with up‑to‑date library docs.
-          </p>
-          <p>
-            Recommended: add a rule in your client to auto‑invoke Context7 for code questions.
-          </p>
+            <p>
+              Enable {CONTEXT7_INTEGRATION.label} to enrich prompts with up‑to‑date library docs.
+            </p>
+            <p>
+              Recommended: add a rule in your client to auto‑invoke Context7 for code questions.
+            </p>
           </div>
         </div>
         <Switch
@@ -79,7 +79,7 @@ const Context7SettingsCard: React.FC = () => {
           type="button"
           variant="link"
           size="sm"
-          className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:underline hover:text-foreground"
+          className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
           onClick={() => window.electronAPI.openExternal(CONTEXT7_INTEGRATION.docsUrl)}
         >
           Docs ↗
@@ -88,7 +88,7 @@ const Context7SettingsCard: React.FC = () => {
           type="button"
           variant="link"
           size="sm"
-          className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:underline hover:text-foreground"
+          className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
           onClick={() => setShowMcpFeedback(true)}
         >
           Suggest an MCP ↗
@@ -102,7 +102,6 @@ const Context7SettingsCard: React.FC = () => {
           blurb="Which MCP would you like Emdash to support next? Include the MCP name, link, and why it helps your workflow."
         />
       ) : null}
-
     </div>
   );
 };
