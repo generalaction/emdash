@@ -17,6 +17,10 @@ jobs:
           extra_nix_config: experimental-features = nix-command flakes
 
       - name: Prefetch npm deps (report hash)
+        env:
+          npm_config_platform: linux
+          npm_config_arch: x64
+          npm_config_build_from_source: true
         run: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
 
       - name: Build flake package
