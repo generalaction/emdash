@@ -104,7 +104,7 @@ EOF
                 description = "Emdash – multi-agent orchestration desktop app";
                 homepage = "https://emdash.sh";
                 license = lib.licenses.mit;
-                platforms = [ lib.systems.examples.x86_64-linux ];
+                platforms = [ lib.systems.examples."x86_64-linux" ];
               };
             }
           else
