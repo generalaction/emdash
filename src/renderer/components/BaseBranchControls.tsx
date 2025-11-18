@@ -140,7 +140,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       </div>
       {branchLoadError ? <p className="text-xs text-destructive">{branchLoadError}</p> : null}
       <p className="text-xs text-muted-foreground">
-        New workspaces start from the latest code on this branch.
+        New task runs start from the latest code on this branch.
       </p>
     </div>
   );

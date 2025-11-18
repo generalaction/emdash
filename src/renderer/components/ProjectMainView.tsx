@@ -448,7 +448,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         });
         toast({
           title: 'Base branch updated',
-          description: `New workspaces will start from ${trimmed}.`,
+          description: `New task runs will start from ${trimmed}.`,
         });
       } catch (error) {
         setBaseBranch(previous);
