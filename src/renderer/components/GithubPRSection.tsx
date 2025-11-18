@@ -235,7 +235,7 @@ const GithubPRSection: React.FC<Props> = ({ projectId, projectPath, onOpenWorksp
                       size="sm"
                       onClick={() => handleCreateWorkspace(pr)}
                     >
-                      Create workspace
+                      Create Task
                     </Button>
                     <Button
                       type="button"

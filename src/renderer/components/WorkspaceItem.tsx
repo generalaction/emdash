@@ -46,10 +46,8 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         )}
         <span className="block truncate text-xs font-medium text-foreground">{workspace.name}</span>
         {workspace.agentId && <Bot className="h-3 w-3 flex-shrink-0 text-purple-500" />}
-        {/* No left-side delete icon; only show next to status badge on the right */}
       </div>
       <div className="relative flex flex-shrink-0 items-center pl-6">
-        {/* Delete button overlays to the left of the badge, no layout shift */}
         {showDelete && onDelete ? (
           <WorkspaceDeleteButton
             workspaceName={workspace.name}
@@ -62,11 +60,10 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
               }
             }}
             isDeleting={isDeleting}
-            aria-label={`Delete workspace ${workspace.name}`}
+            aria-label={`Delete Task ${workspace.name}`}
             className="absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-destructive focus:opacity-100 focus-visible:opacity-100 group-hover/workspace:opacity-100"
           />
         ) : null}
-        {/* Badge area remains stable */}
         <div aria-hidden={isLoading ? 'true' : 'false'}>
           {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
             <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />

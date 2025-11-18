@@ -319,7 +319,7 @@ function WorkspaceRow({
               }
             }}
             isDeleting={isDeleting}
-            aria-label={`Delete workspace ${ws.name}`}
+            aria-label={`Delete task ${ws.name}`}
             className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0"
           />
         </div>
@@ -401,7 +401,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           <div className="max-w-4xl space-y-6">
             <div className="space-y-3">
               <div className="flex items-center justify-start gap-3">
-                <h2 className="text-lg font-semibold">Workspaces</h2>
+                <h2 className="text-lg font-semibold">Tasks</h2>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -417,7 +417,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   ) : (
                     <>
                       <Plus className="mr-2 size-4" />
-                      Create workspace
+                      Create Task
                     </>
                   )}
                 </Button>
@@ -437,10 +437,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             {(!project.workspaces || project.workspaces.length === 0) && (
               <Alert>
-                <AlertTitle>What’s a workspace?</AlertTitle>
+                <AlertTitle>What’s a task?</AlertTitle>
                 <AlertDescription className="flex items-center justify-between gap-4">
                   <p className="text-sm text-muted-foreground">
-                    Each workspace is an isolated copy and branch of your repo (Git-tracked files
+                    Each task runs in an isolated copy and branch of your repo (Git-tracked files
                     only).
                   </p>
                 </AlertDescription>
