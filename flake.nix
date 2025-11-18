@@ -31,7 +31,7 @@
             pkgs.libsecret
             pkgs.sqlite
             pkgs.zlib
-            pkgs.utempter
+            pkgs.libutempter
             pkgs.patchelf
           ];
         cleanSrc = lib.cleanSource ./.;
@@ -54,7 +54,7 @@
                 pkgs.libsecret
                 pkgs.sqlite
                 pkgs.zlib
-                pkgs.utempter
+                pkgs.libutempter
               ];
               env = {
                 HOME = "$TMPDIR/emdash-home";
