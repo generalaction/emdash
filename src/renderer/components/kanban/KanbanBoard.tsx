@@ -233,7 +233,6 @@ const KanbanBoard: React.FC<{
     };
   }, [project.id, project.workspaces?.length]);
 
-  // Promote any workspace that is ahead of the default branch (has commits) to "Ready for review"
   React.useEffect(() => {
     let cancelled = false;
     const wsList = project.workspaces || [];
