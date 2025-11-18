@@ -1,7 +1,10 @@
-name: Nix flake smoke test
+name: Nix Check
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - nixdistribution
 
 jobs:
   nix-test:
