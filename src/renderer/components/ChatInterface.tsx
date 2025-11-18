@@ -108,7 +108,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     workspaceId: workspace.id,
     workspacePath: workspace.path,
   });
-  
+
   useEffect(() => {
     const meta = providerMeta[provider];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;

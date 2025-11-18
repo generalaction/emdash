@@ -130,8 +130,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     name: 'Rovo Dev (Atlassian)',
     commands: ['rovodev', 'acli'],
     args: ['--version'],
-    docUrl:
-      'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+    docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
   },
 ];
 

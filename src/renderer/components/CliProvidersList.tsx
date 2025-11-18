@@ -101,8 +101,7 @@ export const BASE_CLI_PROVIDERS: CliProviderStatus[] = [
     id: 'rovo',
     name: 'Rovo Dev (Atlassian)',
     status: 'missing',
-    docUrl:
-      'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+    docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
   },
 ];
 
@@ -120,7 +119,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
   qwen: qwenLogo,
   kimi: kimiLogo,
   kiro: kiroLogo,
-   rovo: atlassianLogo,
+  rovo: atlassianLogo,
 };
 
 const renderProviderRow = (provider: CliProviderStatus) => {

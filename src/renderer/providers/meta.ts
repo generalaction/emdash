@@ -190,8 +190,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     label: 'Rovo Dev',
     icon: '../../assets/images/atlassian.png',
     terminalOnly: true,
-    helpUrl:
-      'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+    helpUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
     autoStartCommand: 'acli rovodev run',
     idlePatterns: [/Ready|Awaiting|Press Enter|Next command|rovodev/i],
     busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|rovodev/i],
