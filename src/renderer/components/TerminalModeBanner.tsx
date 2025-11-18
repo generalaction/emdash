@@ -9,8 +9,9 @@ type Props = {
 export const TerminalModeBanner: React.FC<Props> = ({ provider, onOpenExternal }) => {
   const meta = providerMeta[provider];
   const helpUrl = meta?.helpUrl;
+  const baseLabel = meta?.label || 'this provider';
 
-  const text = `Interact with ${meta?.label || 'this provider'} in the terminal below. To install and get started, see the docs:`;
+  const text = `Interact with ${baseLabel} in the terminal below. To install and get started, see the docs:`;
 
   return (
     <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">

@@ -96,6 +96,12 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
       'Kiro CLI by Amazon Web Services — interactive, terminal-first AI development assistant with MCP integrations and workflow automation.',
     installCommand: 'curl -fsSL https://cli.kiro.dev/install | bash',
   },
+  rovo: {
+    title: 'Rovo Dev',
+    description:
+      "Atlassian's Rovo Dev CLI brings an AI assistant to your terminal, integrated with Jira, Confluence, and Bitbucket via the Atlassian Command Line Interface (ACLI).",
+    installCommand: 'acli rovodev auth login',
+  },
 };
 
 type Props = {

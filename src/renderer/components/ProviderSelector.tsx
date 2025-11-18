@@ -28,6 +28,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import atlassianLogo from '../../assets/images/atlassian.png';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -119,6 +120,12 @@ const providerConfig = {
     name: 'Kiro',
     logo: kiroLogo,
     alt: 'Kiro CLI',
+    invertInDark: false,
+  },
+  rovo: {
+    name: 'Rovo Dev',
+    logo: atlassianLogo,
+    alt: 'Rovo Dev CLI',
     invertInDark: false,
   },
 } as const;

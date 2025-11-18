@@ -108,6 +108,46 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     workspaceId: workspace.id,
     workspacePath: workspace.path,
   });
+  
+  useEffect(() => {
+    const meta = providerMeta[provider];
+    if (!meta?.terminalOnly || !meta.autoStartCommand) return;
+
+    const ptyId = `${provider}-main-${workspace.id}`;
+    const onceKey = `cli:autoStart:${ptyId}`;
+    try {
+      if (localStorage.getItem(onceKey) === '1') return;
+    } catch {}
+
+    const send = () => {
+      try {
+        (window as any).electronAPI?.ptyInput?.({
+          id: ptyId,
+          data: `${meta.autoStartCommand}\n`,
+        });
+        try {
+          localStorage.setItem(onceKey, '1');
+        } catch {}
+      } catch {}
+    };
+
+    const api: any = (window as any).electronAPI;
+    let off: (() => void) | null = null;
+    try {
+      off = api?.onPtyStarted?.((info: { id: string }) => {
+        if (info?.id === ptyId) send();
+      });
+    } catch {}
+
+    const t = setTimeout(send, 1200);
+
+    return () => {
+      try {
+        off?.();
+      } catch {}
+      clearTimeout(t);
+    };
+  }, [provider, workspace.id]);
 
   useEffect(() => {
     initializedConversationRef.current = null;
@@ -156,6 +196,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
           'auggie',
           'kimi',
           'kiro',
+          'rovo',
         ];
         if (locked && (validProviders as string[]).includes(locked)) {
           setProvider(locked as Provider);
@@ -206,7 +247,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     hasCursorActivity,
   ]);
 
-  // Check Claude Code installation when selected
   useEffect(() => {
     let cancelled = false;
     if (provider !== 'claude') {

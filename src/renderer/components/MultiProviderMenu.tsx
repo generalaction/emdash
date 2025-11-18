@@ -19,6 +19,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import atlassianLogo from '../../assets/images/atlassian.png';
 
 type ProviderInfo = { name: string; logo: string; alt: string; invertInDark?: boolean };
 
@@ -37,6 +38,7 @@ const providerConfig: Record<Provider, ProviderInfo> = {
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
   kiro: { name: 'Kiro', logo: kiroLogo, alt: 'Kiro CLI' },
+  rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev CLI' },
 };
 
 interface Props {
