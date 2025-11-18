@@ -34,9 +34,3 @@ jobs:
           name: nix-emdash-share
           path: result/share/emdash
           if-no-files-found: ignore
-
-      - name: Debug with tmate
-        if: ${{ always() }}
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true
