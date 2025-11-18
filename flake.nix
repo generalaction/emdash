@@ -42,7 +42,7 @@
               version = "0.3.29";
               src = cleanSrc;
               inherit nodejs;
-              npmDepsHash = lib.fakeSha256;
+              npmDepsHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
               npmBuildScript = "package:linux";
               nativeBuildInputs =
                 sharedEnv
