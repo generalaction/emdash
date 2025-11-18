@@ -319,7 +319,7 @@ const KanbanBoard: React.FC<{
                 <div className="flex flex-1 items-center justify-center">
                   <Button variant="secondary" size="sm" onClick={onCreateWorkspace}>
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Create workspace
+                    Create Task
                   </Button>
                 </div>
               </div>

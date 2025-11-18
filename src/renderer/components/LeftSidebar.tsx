@@ -292,10 +292,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   onCreateWorkspaceForProject?.(typedProject);
                                 }}
                                 disabled={isCreatingWorkspace}
-                                aria-label={`Add workspace to ${typedProject.name}`}
+                                aria-label={`Add Task to ${typedProject.name}`}
                               >
                                 <Plus className="h-3 w-3 flex-shrink-0 text-gray-400" aria-hidden />
-                                <span className="truncate">Add workspace</span>
+                                <span className="truncate">Add Task</span>
                               </button>
                             </div>
                           </CollapsibleContent>

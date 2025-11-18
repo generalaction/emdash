@@ -13,7 +13,7 @@ const DEFAULTS: RepoSettings = {
 };
 
 const PLACEHOLDER_HELP =
-  'Use {slug} for the workspace name and {timestamp} for epoch milliseconds.';
+  'Use {slug} for the task name and {timestamp} for epoch milliseconds.';
 
 const RepositorySettingsCard: React.FC = () => {
   const [settings, setSettings] = useState<RepoSettings>(DEFAULTS);
