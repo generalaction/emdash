@@ -16,6 +16,9 @@ jobs:
         with:
           extra_nix_config: experimental-features = nix-command flakes
 
+      - name: Prefetch npm deps (report hash)
+        run: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
+
       - name: Build flake package
         run: nix build .#packages.x86_64-linux.emdash --print-out-paths > nix-path.txt
 
