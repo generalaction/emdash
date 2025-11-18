@@ -28,7 +28,7 @@
             pkgs.libiconv
           ]
           ++ lib.optionals pkgs.stdenv.isLinux [
-            pkgs.gnome.libsecret
+            pkgs.libsecret
             pkgs.sqlite
             pkgs.zlib
             pkgs.utempter
@@ -51,7 +51,7 @@
                   pkgs.rpm
                 ];
               buildInputs = [
-                pkgs.gnome.libsecret
+                pkgs.libsecret
                 pkgs.sqlite
                 pkgs.zlib
                 pkgs.utempter
