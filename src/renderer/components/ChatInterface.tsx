@@ -109,6 +109,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     workspacePath: workspace.path,
   });
 
+  // Context7 auto-invoke hook removed: manual invoke via ProviderBar instead.
+
   useEffect(() => {
     initializedConversationRef.current = null;
     setCliStartFailed(false);
@@ -266,7 +268,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
 
     initializedConversationRef.current = convoId;
 
-    // Check if we need to add a welcome message
     // This runs when messages are loaded but could be empty or contain initial prompt
     const checkForWelcomeMessage = async () => {
       if (codexStream.messages.length === 0) {
@@ -353,8 +354,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     initializeCodex();
   }, [workspace.id, workspace.path, workspace.name, toast]);
 
-  // Basic Claude installer check (optional UX). We'll rely on user to install as needed.
-  // We still gate sending by agentCreated (workspace+conversation ready).
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
@@ -379,11 +378,13 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         const key = `planPreambleSent:${workspace.id}:${activeConversationId}`;
         const sent = localStorage.getItem(key) === '1';
         if (!sent) {
-          wirePrefix = `${PLAN_CHAT_PREAMBLE}\n\n`;
+          wirePrefix += `${PLAN_CHAT_PREAMBLE}\n\n`;
           localStorage.setItem(key, '1');
         }
       } catch {}
     }
+
+    // Context7 MCP is terminal-only. No chat wire-prefix injection.
 
     const attachmentsSection = await buildAttachmentsSection(workspace.path, inputValue, {
       maxFiles: 6,
@@ -414,22 +415,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     setImageAttachments([]);
   };
 
-  const handleCancelStream = async () => {
-    if (!codexStream.isStreaming && !claudeStream.isStreaming) return;
-    const result = provider === 'codex' ? await codexStream.cancel() : await claudeStream.cancel();
-    if (!result.success) {
-      toast({
-        title: 'Cancel Failed',
-        description: 'Unable to stop Codex stream. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const streamingOutputForList =
     activeStream.isStreaming || activeStream.streamingOutput ? activeStream.streamingOutput : null;
-  // Allow switching providers freely while in Droid mode
-  const providerLocked = lockedProvider !== null;
 
   const isTerminal = providerMeta[provider]?.terminalOnly === true;
 
@@ -438,7 +425,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const md = workspace.metadata || null;
     const p = (md?.initialPrompt || '').trim();
     if (p) return p;
-    const parts: string[] = [];
     const issue = md?.linearIssue;
     if (issue) {
       const parts: string[] = [];
@@ -642,7 +628,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                   Ports
                 </button>
               ) : null}
-              {/* Quick Preview removed from here to keep browser decoupled from containerization */}
               {state.previewUrl ? (
                 <>
                   <button
@@ -853,6 +838,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       {isTerminal ? (
         <ProviderBar
           provider={provider}
+          workspaceId={workspace.id}
           linearIssue={workspace.metadata?.linearIssue || null}
           githubIssue={workspace.metadata?.githubIssue || null}
           jiraIssue={workspace.metadata?.jiraIssue || null}

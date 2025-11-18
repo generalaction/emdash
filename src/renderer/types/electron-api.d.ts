@@ -25,6 +25,12 @@ declare global {
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
           browserPreview?: { enabled: boolean; engine: 'chromium' };
           notifications?: { enabled: boolean; sound: boolean };
+          mcp?: {
+            context7?: {
+              enabled: boolean;
+              installHintsDismissed?: Record<string, boolean>;
+            };
+          };
         };
         error?: string;
       }>;
@@ -34,6 +40,12 @@ declare global {
           projectPrep: { autoInstallOnOpenInEditor?: boolean };
           browserPreview: { enabled?: boolean; engine?: 'chromium' };
           notifications: { enabled?: boolean; sound?: boolean };
+          mcp: {
+            context7?: {
+              enabled?: boolean;
+              installHintsDismissed?: Record<string, boolean>;
+            };
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -42,6 +54,12 @@ declare global {
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
           browserPreview?: { enabled: boolean; engine: 'chromium' };
           notifications?: { enabled: boolean; sound: boolean };
+          mcp?: {
+            context7?: {
+              enabled: boolean;
+              installHintsDismissed?: Record<string, boolean>;
+            };
+          };
         };
         error?: string;
       }>;

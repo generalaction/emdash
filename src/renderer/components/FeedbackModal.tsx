@@ -18,9 +18,10 @@ interface FeedbackModalProps {
     html_url?: string;
     email?: string;
   } | null;
+  blurb?: string;
 }
 
-const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUser }) => {
+const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUser, blurb }) => {
   const shouldReduceMotion = useReducedMotion();
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -171,7 +172,6 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
         setErrorMessage(null);
       }
     }
-    // Reset input so the same file can be selected again if needed
     event.target.value = '';
   };
 
@@ -212,7 +212,12 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
             className="w-full max-w-lg transform-gpu rounded-xl border border-gray-200 bg-white shadow-2xl outline-none will-change-transform dark:border-gray-700 dark:bg-gray-900"
           >
             <div className="flex items-start justify-between px-6 pb-2 pt-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
+              <div className="flex flex-col gap-1">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
+                {blurb ? (
+                  <p className="text-xs text-muted-foreground max-w-md">{blurb}</p>
+                ) : null}
+              </div>
               <Button
                 type="button"
                 variant="ghost"
