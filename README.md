@@ -63,7 +63,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 ### Supported CLI Providers
 
-Emdash currently integrates with twelve CLI providers and are adding new providers regularly. If you miss one, let us know or create a PR. 
+Emdash currently supports fifteen CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR. 
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
@@ -79,6 +79,9 @@ Emdash currently integrates with twelve CLI providers and are adding new provide
 | [Goose](https://github.com/block/goose) | ✅ Supported | `curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash` |
 | [OpenCode](https://opencode.ai/docs/) | ✅ Supported | `npm install -g opencode-ai` |
 | [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code` |
+| [Kimi](https://www.kimi.com/coding/docs/en/kimi-cli.html) | ✅ Supported | `uv tool install --python 3.13 kimi-cli` |
+| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | `curl -fsSL https://cli.kiro.dev/install | bash` |
+| [Rovo Dev (Atlassian)](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | `acli rovodev auth login` |
 
 ### Issues
 
