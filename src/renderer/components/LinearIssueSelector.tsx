@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Search } from 'lucide-react';
 import linearLogo from '../../assets/images/linear.png';
 import { type LinearIssueSummary } from '../types/linear';
@@ -210,7 +210,29 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
         disabled={isDisabled}
       >
         <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
-          <SelectValue placeholder={issuePlaceholder} />
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
+            {selectedIssue ? (
+              <>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
+                  <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
+                  <span className="text-[11px] font-medium text-foreground">
+                    {selectedIssue.identifier}
+                  </span>
+                </span>
+                {selectedIssue.title ? (
+                  <>
+                    <span className="shrink-0 text-foreground">-</span>
+                    <span className="truncate text-muted-foreground">{selectedIssue.title}</span>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 shrink-0 dark:invert" />
+                <span className="truncate text-muted-foreground">{issuePlaceholder}</span>
+              </>
+            )}
+          </div>
         </SelectTrigger>
         <SelectContent side="top" className="z-[120]">
           <div className="relative px-3 py-2">
