@@ -1,4 +1,3 @@
-import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { useToast } from '@/hooks/use-toast';
 

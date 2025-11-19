@@ -17,7 +17,6 @@ function getStoredTheme(): Theme {
       return stored;
     }
   } catch {
-    // Ignore localStorage errors
   }
   return 'system';
 }

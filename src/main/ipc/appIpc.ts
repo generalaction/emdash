@@ -6,7 +6,6 @@ import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
 
 export function registerAppIpc() {
-  // Open external links in default browser
   ipcMain.handle('app:openExternal', async (_event, url: string) => {
     try {
       if (!url || typeof url !== 'string') throw new Error('Invalid URL');
@@ -17,7 +16,6 @@ export function registerAppIpc() {
     }
   });
 
-  // Open a filesystem path in a specific application (Finder/Cursor/VS Code/Terminal)
   ipcMain.handle(
     'app:openIn',
     async (
@@ -48,8 +46,6 @@ export function registerAppIpc() {
               command = `command -v cursor >/dev/null 2>&1 && cursor ${quoted(target)} || open -a "Cursor" ${quoted(target)}`;
               break;
             case 'vscode':
-              // Try CLI first, then open by bundle id (handles non-standard app name/locations),
-              // then fall back to app name, and finally VS Code Insiders.
               command = [
                 `command -v code >/dev/null 2>&1 && code ${quoted(target)}`,
                 `open -b com.microsoft.VSCode --args ${quoted(target)}`,
@@ -71,7 +67,6 @@ export function registerAppIpc() {
               ].join(' || ');
               break;
             case 'ghostty':
-              // Prefer ghostty CLI when available; otherwise use open -a with args
               command = `command -v ghostty >/dev/null 2>&1 && ghostty --working-directory ${quoted(target)} || open -a "Ghostty" --args --working-directory ${quoted(target)}`;
               break;
             case 'zed':
@@ -84,15 +79,12 @@ export function registerAppIpc() {
               command = `explorer ${quoted(target)}`;
               break;
             case 'cursor':
-              // Cursor installer usually adds to PATH; fallback to app path is omitted
               command = `start "" cursor ${quoted(target)}`;
               break;
             case 'vscode':
-              // Try stable CLI, then Insiders CLI
               command = `start "" code ${quoted(target)} || start "" code-insiders ${quoted(target)}`;
               break;
             case 'terminal':
-              // Prefer Windows Terminal if available, fallback to cmd
               command = `wt -d ${quoted(target)} || start cmd /K "cd /d ${target}"`;
               break;
             case 'ghostty':
@@ -100,7 +92,6 @@ export function registerAppIpc() {
               return { success: false, error: `${which} is not supported on Windows` } as any;
           }
         } else {
-          // linux and others
           switch (which) {
             case 'finder':
               command = `xdg-open ${quoted(target)}`;
@@ -109,11 +100,9 @@ export function registerAppIpc() {
               command = `cursor ${quoted(target)}`;
               break;
             case 'vscode':
-              // Try stable CLI, then Insiders CLI
               command = `code ${quoted(target)} || code-insiders ${quoted(target)}`;
               break;
             case 'terminal':
-              // Try x-terminal-emulator as a generic launcher
               command = `x-terminal-emulator --working-directory=${quoted(target)} || gnome-terminal --working-directory=${quoted(target)} || konsole --workdir ${quoted(target)}`;
               break;
             case 'ghostty':
@@ -131,12 +120,10 @@ export function registerAppIpc() {
           return { success: false, error: 'Unsupported platform or app' };
         }
 
-        // Kick off background project preparation for editor IDE targets (if enabled)
         if (which === 'cursor' || which === 'vscode' || which === 'zed') {
           try {
             const settings = getAppSettings();
             if (settings?.projectPrep?.autoInstallOnOpenInEditor) {
-              // Fire-and-forget; does not block opening the editor
               void ensureProjectPrepared(target).catch(() => {});
             }
           } catch {}

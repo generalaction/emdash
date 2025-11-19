@@ -51,7 +51,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [selectedProvider, setSelectedProvider] = useState<Provider>('codex');
   const [multiEnabled, setMultiEnabled] = useState(false);
   const [selectedProviders, setSelectedProviders] = useState<Provider[]>(['codex', 'claude']);
-  const maxProviders = 4; // limit for multi-agent selection
+  const maxProviders = 4;
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,15 +66,14 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
   const normalizedExisting = existingNames.map((n) => n.toLowerCase());
 
-  // Convert input to valid task name format
   const convertToWorkspaceName = (input: string): string => {
     return input
       .trim()
       .toLowerCase()
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/[^a-z0-9-]/g, '') // Remove invalid characters
-      .replace(/-+/g, '-') // Replace multiple consecutive hyphens with single hyphen
-      .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
   };
 
   const validate = (value: string): string | null => {

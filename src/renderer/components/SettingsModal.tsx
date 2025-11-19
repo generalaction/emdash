@@ -95,7 +95,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     }
   }, []);
 
-  // Auto-load CLI providers once when connections tab is first accessed
   useEffect(() => {
     if (isOpen && activeTab === 'connections' && !hasLoadedCli && !cliLoading) {
       fetchCliProviders();

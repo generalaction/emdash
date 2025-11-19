@@ -51,7 +51,6 @@ export function registerDatabaseIpc() {
     }
   });
 
-  // Conversation management
   ipcMain.handle('db:saveConversation', async (_, conversation: any) => {
     try {
       await databaseService.saveConversation(conversation);

@@ -31,7 +31,6 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   const [searchResults, setSearchResults] = useState<LinearIssueSummary[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const isMountedRef = useRef(true);
-  // Only render a subset of issues initially; load more on scroll
   const [visibleCount, setVisibleCount] = useState(10);
 
   const canListLinear = typeof window !== 'undefined' && !!window.electronAPI?.linearInitialFetch;

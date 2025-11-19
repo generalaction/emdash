@@ -189,7 +189,6 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
   );
 };
 
-// Tooltip wrapper matching the single-select ProviderSelector behavior
 const MultiTooltipRow: React.FC<{ id: Provider; children: React.ReactElement }> = ({
   id,
   children,

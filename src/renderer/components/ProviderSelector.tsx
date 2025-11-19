@@ -240,7 +240,6 @@ const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = (
 
 export default ProviderSelector;
 
-// Routing row with custom tooltip content
 export const RoutingTooltipRow: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const [open, setOpen] = useState(false);
   return (

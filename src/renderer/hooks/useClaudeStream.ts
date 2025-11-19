@@ -78,7 +78,6 @@ const useClaudeStream = (options?: Options | null): Result => {
       const convoId = conversationIdRef.current;
       if (!convoId) return { success: false, error: 'conversation-unavailable' };
 
-      // Save user message
       const userMessage: Message = {
         id: Date.now().toString(),
         content: text,
@@ -195,7 +194,6 @@ const useClaudeStream = (options?: Options | null): Result => {
     const offErr = window.electronAPI.onAgentStreamError((data: any) => {
       if (data.providerId !== 'claude') return;
       if (data.workspaceId !== wid) return;
-      // Keep streaming but note error in console
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { log } = require('../lib/logger');

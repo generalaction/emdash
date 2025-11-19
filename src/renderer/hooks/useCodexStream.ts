@@ -116,11 +116,9 @@ const useCodexStream = (options?: UseCodexStreamOptions | null): UseCodexStreamR
   useEffect(() => {
     if (!isStreaming) {
       clearTimer();
-      // do not reset seconds here; preserve elapsed across view switches
       return;
     }
 
-    // start ticking from whatever the current seconds value is
     timerRef.current = setInterval(() => {
       setSeconds((prev) => prev + 1);
     }, 1000);
@@ -161,11 +159,9 @@ const useCodexStream = (options?: UseCodexStreamOptions | null): UseCodexStreamR
         conversationId: conversationIdRef.current,
       };
 
-      // Guard: don't show raw stream until Codex has emitted a thinking/codex marker
       const buf = streamBufferRef.current || '';
       const hasMarker = /\[[0-9]{4}-[0-9]{2}-[0-9]{2}T[^\]]+\]\s*(thinking|codex)/i.test(buf);
       if (!hasMarker) {
-        // keep streaming area blank to avoid flashing user prompt/tools output
         setStreamingOutput('');
         setAwaitingThinking(true);
         return;
@@ -375,12 +371,9 @@ const useCodexStream = (options?: UseCodexStreamOptions | null): UseCodexStreamR
 
         setMessages(loadedMessages);
 
-        // If a stream is currently running for this workspace, seed the UI
-        // with the current streaming tail so switching views doesn't lose context.
         try {
           const tailRes = await window.electronAPI.codexGetStreamTail(workspaceId);
           if (tailRes?.success && typeof tailRes.tail === 'string' && tailRes.tail.trim()) {
-            // Seed buffer and mark as streaming
             streamBufferRef.current = tailRes.tail;
             setStreamingOutput(tailRes.tail);
             if (tailRes.startedAt) {
