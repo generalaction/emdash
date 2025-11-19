@@ -3,15 +3,17 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
-import { X, Settings2, Cable, RefreshCw, GitBranch } from 'lucide-react';
+import { X, Settings2, Cable, RefreshCw, GitBranch, Puzzle } from 'lucide-react';
 import VersionCard from './VersionCard';
 import IntegrationsCard from './IntegrationsCard';
 import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
 import TelemetryCard from './TelemetryCard';
 import ThemeCard from './ThemeCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
+import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
+import Context7SettingsCard from './Context7SettingsCard';
 import { CliProviderStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
@@ -40,7 +42,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general' | 'repository' | 'connections';
+type SettingsTab = 'general' | 'repository' | 'connections' | 'mcp';
 
 interface SettingsSection {
   title: string;
@@ -49,7 +51,7 @@ interface SettingsSection {
   render?: () => React.ReactNode;
 }
 
-const ORDERED_TABS: SettingsTab[] = ['general', 'repository', 'connections'];
+const ORDERED_TABS: SettingsTab[] = ['general', 'repository', 'mcp', 'connections'];
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -109,6 +111,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         description: '',
         sections: [
           { title: 'Privacy & Telemetry', render: () => <TelemetryCard /> },
+          { title: 'Notifications', render: () => <NotificationSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
           { title: 'Theme', render: () => <ThemeCard /> },
@@ -150,6 +153,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             ),
           },
         ],
+      },
+      mcp: {
+        icon: Puzzle,
+        label: 'MCP',
+        title: 'Model Context Protocol (MCP)',
+        sections: [{ title: 'MCP Tools', render: () => <Context7SettingsCard /> }],
       },
     } as const;
   }, [cliProviders, cliLoading, cliError, fetchCliProviders]);
@@ -255,11 +264,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 <header className="flex items-center justify-between border-b border-border/60 px-6 py-4">
                   <div>
                     <h2 className="text-lg font-semibold">{activeTabDetails.title}</h2>
-                    {activeTabDetails.description.trim() && (
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {activeTabDetails.description}
-                      </p>
-                    )}
                   </div>
                   <Button
                     type="button"

@@ -8,6 +8,7 @@ import { Badge } from './ui/badge';
 import type { UiProvider } from '@/providers/meta';
 import { type Provider } from '../types';
 import openaiLogo from '../../assets/images/openai.png';
+import kiroLogo from '../../assets/images/kiro.png';
 import claudeLogo from '../../assets/images/claude.png';
 import factoryLogo from '../../assets/images/factorydroid.png';
 import geminiLogo from '../../assets/images/gemini.png';
@@ -20,6 +21,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import atlassianLogo from '../../assets/images/atlassian.png';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -105,6 +107,18 @@ const providerConfig = {
     name: 'Kimi',
     logo: kimiLogo,
     alt: 'Kimi CLI',
+    invertInDark: false,
+  },
+  kiro: {
+    name: 'Kiro',
+    logo: kiroLogo,
+    alt: 'Kiro CLI',
+    invertInDark: false,
+  },
+  rovo: {
+    name: 'Rovo Dev',
+    logo: atlassianLogo,
+    alt: 'Rovo Dev CLI',
     invertInDark: false,
   },
 } as const;

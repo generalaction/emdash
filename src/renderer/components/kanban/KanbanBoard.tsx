@@ -233,7 +233,6 @@ const KanbanBoard: React.FC<{
     };
   }, [project.id, project.workspaces?.length]);
 
-  // Promote any workspace that is ahead of the default branch (has commits) to "Ready for review"
   React.useEffect(() => {
     let cancelled = false;
     const wsList = project.workspaces || [];
@@ -319,7 +318,7 @@ const KanbanBoard: React.FC<{
                 <div className="flex flex-1 items-center justify-center">
                   <Button variant="secondary" size="sm" onClick={onCreateWorkspace}>
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Create workspace
+                    Create Task
                   </Button>
                 </div>
               </div>

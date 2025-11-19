@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.3.29",
+  "version": "0.3.30",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "scripts": {
@@ -16,7 +16,7 @@
     "package:linux": "npm run build && electron-builder --linux --publish never",
     "package:win": "npm run build && electron-builder --win --publish never",
     "postinstall": "electron-rebuild",
-    "rebuild": "npx electron-rebuild",
+    "rebuild": "electron-rebuild -f -v 30.5.1",
     "clean": "rm -rf node_modules dist",
     "reset": "npm run clean && npm install",
     "lint": "eslint . --ext .ts,.tsx",
@@ -90,7 +90,7 @@
     "keytar": "^7.9.0",
     "lucide-react": "^0.294.0",
     "motion": "^12.23.12",
-    "node-pty": "^1.1.0-beta34",
+    "node-pty": "1.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
@@ -124,7 +124,8 @@
     "asarUnpack": [
       "node_modules/sqlite3/**",
       "node_modules/node-pty/**",
-      "node_modules/keytar/**"
+      "node_modules/keytar/**",
+      "**/*.node"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
@@ -183,6 +184,7 @@
           ]
         }
       ]
-    }
+    },
+    "npmRebuild": false
   }
 }

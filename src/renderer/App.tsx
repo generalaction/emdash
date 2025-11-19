@@ -53,6 +53,8 @@ const TERMINAL_PROVIDER_IDS = [
   'charm',
   'auggie',
   'kimi',
+  'kiro',
+  'rovo',
 ] as const;
 
 const RightSidebarBridge: React.FC<{

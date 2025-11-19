@@ -105,6 +105,22 @@ export function classifyActivity(
     if (/Ready|Awaiting|Press Enter|Next command|\/help|\/setup/i.test(text)) return 'idle';
   }
 
+  if (p === 'kiro') {
+    if (/Kiro CLI|Thinking\.{0,3}/i.test(text)) return 'busy';
+    if (/esc\s*to\s*(cancel|interrupt)/i.test(text)) return 'busy';
+    if (/Running|Working|Executing|Generating|Applying|Planning|Analyzing/i.test(text))
+      return 'busy';
+    if (/Ready|Awaiting|Press Enter|Next command|Kiro CLI/i.test(text)) return 'idle';
+  }
+
+  if (p === 'rovo') {
+    if (/rovodev/i.test(text) && /auth|run|session|connecting/i.test(text)) return 'busy';
+    if (/Thinking\.{0,3}/i.test(text)) return 'busy';
+    if (/Running|Working|Executing|Generating|Applying|Planning|Analyzing/i.test(text))
+      return 'busy';
+    if (/Ready|Awaiting|Press Enter|Next command|rovodev/i.test(text)) return 'idle';
+  }
+
   // Generic signals
   if (/esc\s*to\s*(cancel|interrupt)/i.test(text)) return 'busy';
   if (/(^|\b)(Generating|Working|Executing|Running|Applying|Thinking)(\b|\.)/i.test(text))

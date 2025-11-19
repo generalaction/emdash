@@ -186,8 +186,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     });
   }
 
-  const linkButtonRef = useRef<HTMLButtonElement>(null);
-
   const getPlaceholder = () => {
     if (provider === 'codex' && !isCodexInstalled) {
       return 'Codex CLI not installed...';
@@ -203,6 +201,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (provider === 'copilot') return 'Copilot CLI runs in the terminal above.';
     if (provider === 'amp') return 'Amp CLI runs in the terminal above.';
     if (provider === 'opencode') return 'OpenCode CLI runs in the terminal above.';
+    if (provider === 'rovo') return 'Rovo Dev (Atlassian) runs in the terminal above.';
     return 'Tell Codex what to do...';
   };
 
@@ -223,7 +222,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     provider === 'copilot' ||
     provider === 'amp' ||
     provider === 'opencode' ||
-    provider === 'kimi'
+    provider === 'kimi' ||
+    provider === 'rovo'
       ? true
       : isLoading
         ? baseDisabled

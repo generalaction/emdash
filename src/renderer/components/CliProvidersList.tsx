@@ -14,6 +14,8 @@ import charmLogo from '../../assets/images/charm.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import kiroLogo from '../../assets/images/kiro.png';
+import atlassianLogo from '../../assets/images/atlassian.png';
 
 interface CliProvidersListProps {
   providers: CliProviderStatus[];
@@ -89,6 +91,18 @@ export const BASE_CLI_PROVIDERS: CliProviderStatus[] = [
     status: 'missing',
     docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
   },
+  {
+    id: 'kiro',
+    name: 'Kiro',
+    status: 'missing',
+    docUrl: 'https://kiro.dev/docs/cli/',
+  },
+  {
+    id: 'rovo',
+    name: 'Rovo Dev (Atlassian)',
+    status: 'missing',
+    docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+  },
 ];
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -104,6 +118,8 @@ const PROVIDER_LOGOS: Record<string, string> = {
   auggie: augmentLogo,
   qwen: qwenLogo,
   kimi: kimiLogo,
+  kiro: kiroLogo,
+  rovo: atlassianLogo,
 };
 
 const renderProviderRow = (provider: CliProviderStatus) => {

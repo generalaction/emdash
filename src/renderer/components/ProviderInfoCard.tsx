@@ -90,6 +90,18 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     installCommand: 'uv tool install --python 3.13 kimi-cli',
     hostingNote: 'macOS/Linux only; first run on macOS may take ~10s due to security checks.',
   },
+  kiro: {
+    title: 'Kiro',
+    description:
+      'Kiro CLI by Amazon Web Services — interactive, terminal-first AI development assistant with MCP integrations and workflow automation.',
+    installCommand: 'curl -fsSL https://cli.kiro.dev/install | bash',
+  },
+  rovo: {
+    title: 'Rovo Dev',
+    description:
+      "Atlassian's Rovo Dev CLI brings an AI assistant to your terminal, integrated with Jira, Confluence, and Bitbucket via the Atlassian Command Line Interface (ACLI).",
+    installCommand: 'acli rovodev auth login',
+  },
 };
 
 type Props = {

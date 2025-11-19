@@ -118,6 +118,20 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     args: ['--help'],
     docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
   },
+  {
+    id: 'kiro',
+    name: 'Kiro (AWS)',
+    commands: ['kiro-cli', 'kiro'],
+    args: ['--version'],
+    docUrl: 'https://kiro.dev/docs/cli/',
+  },
+  {
+    id: 'rovo',
+    name: 'Rovo Dev (Atlassian)',
+    commands: ['rovodev', 'acli'],
+    args: ['--version'],
+    docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+  },
 ];
 
 class ConnectionsService {

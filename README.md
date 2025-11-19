@@ -57,7 +57,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
 </details>
 
-# Integrations
+# Providers
 
 <img width="4856" height="1000" alt="integration_banner" src="https://github.com/user-attachments/assets/894c3db8-3be5-4730-ae7d-197958b0a044" />
 
@@ -89,6 +89,43 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 | [Linear](https://linear.app) | ✅ Supported | Connect with a Linear API key. |
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
 | [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
+
+# Context7 MCP (Optional)
+
+Context7 is an MCP (Model Context Protocol) server that gives coding agents access to up‑to‑date, indexed documentation for many libraries. When configured in your agent, Emdash can auto‑invoke Context7 so the agent fetches relevant docs on demand.
+
+What Emdash does
+- Global toggle: Settings → MCP → “Enable Context7 MCP.”
+- Per‑workspace enable: the Context7 button in the ProviderBar is off by default in a new workspace. First click enables it for that workspace and sends “use context7” to the terminal. Clicking again disables it for that workspace (no command is sent on disable).
+- ProviderBar: the Context7 button shows status, a short explanation, and a link to docs.
+
+What you still need to do
+- Configure your coding agent to connect to Context7 MCP (Codex, Claude Code, Cursor, etc.). Emdash does not modify your agent’s config.
+- Docs: https://github.com/upstash/context7
+
+Quick example: Codex CLI (macOS/Linux)
+- Remote (recommended): add to `~/.codex/config.toml`
+
+```toml
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+http_headers = { "CONTEXT7_API_KEY" = "YOUR_API_KEY" }
+```
+
+- Local (stdio via npx):
+
+```toml
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp", "--api-key", "YOUR_API_KEY"]
+startup_timeout_sec = 20
+```
+
+Verify Context7 (optional)
+
+```bash
+npx -y @modelcontextprotocol/inspector npx @upstash/context7-mcp
+```
 
 # Demo
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Separator } from './ui/separator';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -235,7 +235,7 @@ const GithubPRSection: React.FC<Props> = ({ projectId, projectPath, onOpenWorksp
                       size="sm"
                       onClick={() => handleCreateWorkspace(pr)}
                     >
-                      Create workspace
+                      Create Task
                     </Button>
                     <Button
                       type="button"

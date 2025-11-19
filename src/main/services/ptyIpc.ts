@@ -21,6 +21,9 @@ export function registerPtyIpc(): void {
         rows?: number;
       }
     ) => {
+      if (process.env.EMDASH_DISABLE_PTY === '1') {
+        return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
+      }
       try {
         const { id, cwd, shell, env, cols, rows } = args;
         // Reuse existing PTY if present; otherwise create new
