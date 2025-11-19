@@ -566,7 +566,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   <AlertTitle>What’s a workspace?</AlertTitle>
                   <AlertDescription className="flex items-center justify-between gap-4">
                     <p className="text-sm text-muted-foreground">
-                      Each workspace is an isolated copy and branch of your repo (Git-tracked files only).
+                      Each workspace is an isolated copy and branch of your repo (Git-tracked files
+                      only).
                     </p>
                   </AlertDescription>
                 </Alert>
@@ -580,4 +581,3 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 };
 
 export default ProjectMainView;
-
