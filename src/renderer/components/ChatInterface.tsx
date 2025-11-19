@@ -511,7 +511,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const ports = state.ports ?? [];
     const containerActive =
       state.status === 'starting' || state.status === 'building' || state.status === 'ready';
-    if (!containerActive) return null; 
+    if (!containerActive) return null;
 
     const norm = (s: string) => s.toLowerCase();
     const sorted = [...ports].sort((a, b) => {
