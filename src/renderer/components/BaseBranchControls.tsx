@@ -40,7 +40,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
     []
   );
   const placeholder = isLoadingBranches
-    ? 'Loading branches…'
+    ? 'Search branches'
     : branchOptions.length === 0
       ? 'No remote branches found'
       : 'Select a base branch';
@@ -84,7 +84,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <p className="text-xs font-medium text-foreground">Base branch</p>
         <Select
-          value={baseBranch}
+          value={branchOptions.length === 0 ? undefined : baseBranch}
           onValueChange={onBaseBranchChange}
           disabled={isLoadingBranches || isSavingBaseBranch || branchOptions.length === 0}
           open={open}
