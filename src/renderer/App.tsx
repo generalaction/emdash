@@ -150,6 +150,33 @@ const AppContent: React.FC = () => {
     [platform]
   );
 
+  const computeBaseRef = useCallback(
+    (baseRef?: string | null, remote?: string | null, branch?: string | null) => {
+      const remoteName = (() => {
+        const trimmed = (remote ?? '').trim();
+        if (!trimmed) return 'origin';
+        if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) return trimmed;
+        return 'origin';
+      })();
+      const normalize = (value?: string | null): string | undefined => {
+        if (!value) return undefined;
+        const trimmed = value.trim();
+        if (!trimmed || trimmed.includes('://')) return undefined;
+        if (trimmed.includes('/')) {
+          const [head, ...rest] = trimmed.split('/');
+          const branchPart = rest.join('/').replace(/^\/+/, '');
+          if (head && branchPart) return `${head}/${branchPart}`;
+          if (!head && branchPart) return `${remoteName}/${branchPart}`;
+          return undefined;
+        }
+        const suffix = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+        return `${remoteName}/${suffix}`;
+      };
+      return normalize(baseRef) ?? normalize(branch) ?? `${remoteName}/main`;
+    },
+    []
+  );
+
   const getProjectRepoKey = useCallback(
     (project: Pick<Project, 'path' | 'repoKey'>) =>
       project.repoKey ?? normalizePathForComparison(project.path),
@@ -461,6 +488,7 @@ const AppContent: React.FC = () => {
               isGitRepo: true,
               remote: gitInfo.remote || undefined,
               branch: gitInfo.branch || undefined,
+              baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
             },
             workspaces: [],
           };

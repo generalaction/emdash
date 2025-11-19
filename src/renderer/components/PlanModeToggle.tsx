@@ -3,8 +3,8 @@ import { ListChecks } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
 type Props = {
-  value?: boolean; // controlled state
-  defaultValue?: boolean; // uncontrolled initial state
+  value?: boolean;
+  defaultValue?: boolean;
   onChange?: (next: boolean) => void;
   className?: string;
   label?: string;

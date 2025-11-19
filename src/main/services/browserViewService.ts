@@ -71,7 +71,6 @@ class BrowserViewService {
     try {
       v.webContents.focus();
     } catch {}
-    // Nudge paint on some platforms: re-apply bounds on next tick
     try {
       setTimeout(() => {
         try {
@@ -85,7 +84,6 @@ class BrowserViewService {
   hide() {
     if (!this.view) return;
     try {
-      // Move offscreen instead of removing to keep state
       this.view.setBounds({ x: -10000, y: -10000, width: 1, height: 1 });
     } catch {}
     this.visible = false;

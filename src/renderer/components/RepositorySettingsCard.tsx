@@ -61,7 +61,6 @@ const RepositorySettingsCard: React.FC = () => {
   );
 
   const example = useMemo(() => {
-    // lightweight preview using fake slug and timestamp
     const tpl = settings.branchTemplate || DEFAULTS.branchTemplate;
     const now = Date.now();
     return tpl.replace(/\{slug\}/g, 'my-feature').replace(/\{timestamp\}/g, String(now));

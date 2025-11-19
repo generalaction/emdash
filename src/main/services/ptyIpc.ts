@@ -26,7 +26,6 @@ export function registerPtyIpc(): void {
       }
       try {
         const { id, cwd, shell, env, cols, rows } = args;
-        // Reuse existing PTY if present; otherwise create new
         const existing = getPty(id);
         const proc = existing ?? startPty({ id, cwd, shell, env, cols, rows });
         const envKeys = env ? Object.keys(env) : [];

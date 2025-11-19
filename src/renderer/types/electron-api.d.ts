@@ -1,6 +1,15 @@
 // Updated for Codex integration
 import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
 
+type ProjectSettingsPayload = {
+  projectId: string;
+  name: string;
+  path: string;
+  gitRemote?: string;
+  gitBranch?: string;
+  baseRef?: string;
+};
+
 export {};
 
 declare global {
@@ -130,10 +139,24 @@ declare global {
         path?: string;
         error?: string;
       }>;
+      getProjectSettings: (projectId: string) => Promise<{
+        success: boolean;
+        settings?: ProjectSettingsPayload;
+        error?: string;
+      }>;
+      updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+        success: boolean;
+        settings?: ProjectSettingsPayload;
+        error?: string;
+      }>;
       getGitInfo: (projectPath: string) => Promise<{
         isGitRepo: boolean;
         remote?: string;
         branch?: string;
+        baseRef?: string;
+        upstream?: string;
+        aheadCount?: number;
+        behindCount?: number;
         path?: string;
         rootPath?: string;
         error?: string;
@@ -217,6 +240,11 @@ declare global {
         defaultBranch?: string;
         ahead?: number;
         behind?: number;
+        error?: string;
+      }>;
+      listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
+        success: boolean;
+        branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
       }>;
       loadContainerConfig: (workspacePath: string) => Promise<
@@ -630,11 +658,30 @@ export interface ElectronAPI {
     path?: string;
     error?: string;
   }>;
+  getProjectSettings: (projectId: string) => Promise<{
+    success: boolean;
+    settings?: ProjectSettingsPayload;
+    error?: string;
+  }>;
+  updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+    success: boolean;
+    settings?: ProjectSettingsPayload;
+    error?: string;
+  }>;
   getGitInfo: (projectPath: string) => Promise<{
     isGitRepo: boolean;
     remote?: string;
     branch?: string;
+    baseRef?: string;
+    upstream?: string;
+    aheadCount?: number;
+    behindCount?: number;
     path?: string;
+    error?: string;
+  }>;
+  listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
+    success: boolean;
+    branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
     error?: string;
   }>;
   createPullRequest: (args: {

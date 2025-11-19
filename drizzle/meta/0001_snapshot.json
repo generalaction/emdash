@@ -1,8 +1,8 @@
 {
-  "version": "6",
+  "version": "7",
   "dialect": "sqlite",
-  "id": "b932945e-f26a-4c07-9c63-08179d95d5bc",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "ec5ad35e-22ec-4c0b-9d48-cfb1033d9d93",
+  "prevId": "b932945e-f26a-4c07-9c63-08179d95d5bc",
   "tables": {
     "conversations": {
       "name": "conversations",
@@ -209,6 +209,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "CURRENT_TIMESTAMP"
+        },
+        "base_ref": {
+          "name": "base_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {

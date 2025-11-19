@@ -30,7 +30,6 @@ type Variant = {
 
 const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   const { effectiveTheme } = useTheme();
-  const { toast } = useToast();
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const multi = workspace.metadata?.multiAgent;

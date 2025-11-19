@@ -109,6 +109,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Project management
   openProject: () => ipcRenderer.invoke('project:open'),
+  getProjectSettings: (projectId: string) =>
+    ipcRenderer.invoke('projectSettings:get', { projectId }),
+  updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
+    ipcRenderer.invoke('projectSettings:update', args),
+  fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
   getGitStatus: (workspacePath: string) => ipcRenderer.invoke('git:get-status', workspacePath),
   getFileDiff: (args: { workspacePath: string; filePath: string }) =>
@@ -136,6 +142,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrStatus: (args: { workspacePath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
   getBranchStatus: (args: { workspacePath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
+  listRemoteBranches: (args: { projectPath: string; remote?: string }) =>
+    ipcRenderer.invoke('git:list-remote-branches', args),
   loadContainerConfig: (workspacePath: string) =>
     ipcRenderer.invoke('container:load-config', { workspacePath }),
   startContainerRun: (args: {
@@ -479,6 +487,10 @@ export interface ElectronAPI {
     isGitRepo: boolean;
     remote?: string;
     branch?: string;
+    baseRef?: string;
+    upstream?: string;
+    aheadCount?: number;
+    behindCount?: number;
     path?: string;
     rootPath?: string;
     error?: string;

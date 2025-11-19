@@ -4,6 +4,9 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { projectSettingsService } from './ProjectSettingsService';
+
+type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 
 const execFileAsync = promisify(execFile);
 
@@ -75,10 +78,17 @@ export class WorktreeService {
         fs.mkdirSync(worktreesDir, { recursive: true });
       }
 
+      const baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
+      const fetchedBaseRef = await this.fetchBaseRefWithFallback(
+        projectPath,
+        projectId,
+        baseRefInfo
+      );
+
       // Create the worktree
       const { stdout, stderr } = await execFileAsync(
         'git',
-        ['worktree', 'add', '-b', branchName, worktreePath],
+        ['worktree', 'add', '-b', branchName, worktreePath, fetchedBaseRef.fullRef],
         { cwd: projectPath }
       );
 
@@ -92,6 +102,7 @@ export class WorktreeService {
 
       // Ensure codex logs are ignored in this worktree
       this.ensureCodexLogIgnored(worktreePath);
+      await this.logWorktreeSyncStatus(projectPath, worktreePath, fetchedBaseRef);
 
       const worktreeInfo: WorktreeInfo = {
         id: worktreeId,
@@ -123,8 +134,15 @@ export class WorktreeService {
       return worktreeInfo;
     } catch (error) {
       log.error('Failed to create worktree:', error);
-      throw new Error(`Failed to create worktree: ${error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message || 'Failed to create worktree');
     }
+  }
+
+  async fetchLatestBaseRef(projectPath: string, projectId: string): Promise<BaseRefInfo> {
+    const baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
+    const fetched = await this.fetchBaseRefWithFallback(projectPath, projectId, baseRefInfo);
+    return fetched;
   }
 
   /**
@@ -336,6 +354,32 @@ export class WorktreeService {
             console.warn(`Failed to delete branch ${branchToDelete}:`, branchError);
           }
         }
+
+        let remoteAlias = 'origin';
+        let remoteBranchName = branchToDelete;
+        if (branchToDelete.startsWith('origin/')) {
+          remoteBranchName = branchToDelete.replace(/^origin\//, '');
+        }
+        try {
+          await execFileAsync('git', ['push', remoteAlias, '--delete', remoteBranchName], {
+            cwd: projectPath,
+          });
+          log.info(`Deleted remote branch ${remoteAlias}/${remoteBranchName}`);
+        } catch (remoteError: any) {
+          const msg = String(remoteError?.stderr || remoteError?.message || remoteError);
+          if (
+            /remote ref does not exist/i.test(msg) ||
+            /unknown revision/i.test(msg) ||
+            /not found/i.test(msg)
+          ) {
+            log.info(`Remote branch ${remoteAlias}/${remoteBranchName} already absent`);
+          } else {
+            log.warn(
+              `Failed to delete remote branch ${remoteAlias}/${remoteBranchName}:`,
+              remoteError
+            );
+          }
+        }
       }
 
       if (worktree) {
@@ -420,6 +464,127 @@ export class WorktreeService {
     }
   }
 
+  private parseBaseRef(ref?: string | null): BaseRefInfo | null {
+    if (!ref) return null;
+    const cleaned = ref
+      .trim()
+      .replace(/^refs\/remotes\//, '')
+      .replace(/^remotes\//, '');
+    if (!cleaned) return null;
+    const [remote, ...rest] = cleaned.split('/');
+    if (!remote || rest.length === 0) return null;
+    const branch = rest.join('/');
+    if (!branch) return null;
+    return { remote, branch, fullRef: `${remote}/${branch}` };
+  }
+
+  private async resolveProjectBaseRef(
+    projectPath: string,
+    projectId: string
+  ): Promise<BaseRefInfo> {
+    const settings = await projectSettingsService.getProjectSettings(projectId);
+    if (!settings) {
+      throw new Error(
+        'Project settings not found. Please re-open the project in emdash and try again.'
+      );
+    }
+
+    const parsed = this.parseBaseRef(settings.baseRef);
+    if (parsed) {
+      return parsed;
+    }
+
+    const fallbackRemote = 'origin';
+    const fallbackBranch =
+      settings.gitBranch?.trim() && !settings.gitBranch.includes(' ')
+        ? settings.gitBranch.trim()
+        : await this.getDefaultBranch(projectPath);
+    const branch = fallbackBranch || 'main';
+    return {
+      remote: fallbackRemote,
+      branch,
+      fullRef: `${fallbackRemote}/${branch}`,
+    };
+  }
+
+  private async buildDefaultBaseRef(projectPath: string): Promise<BaseRefInfo> {
+    const remote = 'origin';
+    const branch = await this.getDefaultBranch(projectPath);
+    const cleanBranch = branch?.trim() || 'main';
+    return { remote, branch: cleanBranch, fullRef: `${remote}/${cleanBranch}` };
+  }
+
+  private extractErrorMessage(error: any): string {
+    if (!error) return '';
+    const parts: Array<string | undefined> = [];
+    if (typeof error.message === 'string') parts.push(error.message);
+    if (typeof error.stderr === 'string') parts.push(error.stderr);
+    if (typeof error.stdout === 'string') parts.push(error.stdout);
+    return parts.filter(Boolean).join(' ').trim();
+  }
+
+  private isMissingRemoteRefError(error: any): boolean {
+    const msg = this.extractErrorMessage(error).toLowerCase();
+    if (!msg) return false;
+    return (
+      msg.includes("couldn't find remote ref") ||
+      msg.includes('could not find remote ref') ||
+      msg.includes('remote ref does not exist') ||
+      msg.includes('fatal: the remote end hung up unexpectedly') ||
+      msg.includes('no such ref was fetched')
+    );
+  }
+
+  private async fetchBaseRefWithFallback(
+    projectPath: string,
+    projectId: string,
+    target: BaseRefInfo
+  ): Promise<BaseRefInfo> {
+    try {
+      await execFileAsync('git', ['fetch', target.remote, target.branch], {
+        cwd: projectPath,
+      });
+      log.info(`Fetched latest ${target.fullRef} for worktree creation`);
+      return target;
+    } catch (error) {
+      log.warn(`Failed to fetch ${target.fullRef}`, error);
+      if (!this.isMissingRemoteRefError(error)) {
+        const message = this.extractErrorMessage(error) || 'Unknown git fetch error';
+        throw new Error(`Failed to fetch ${target.fullRef}: ${message}`);
+      }
+
+      // Attempt fallback to default branch
+      const fallback = await this.buildDefaultBaseRef(projectPath);
+      if (fallback.fullRef === target.fullRef) {
+        const message = this.extractErrorMessage(error) || 'Unknown git fetch error';
+        throw new Error(`Failed to fetch ${target.fullRef}: ${message}`);
+      }
+
+      try {
+        await execFileAsync('git', ['fetch', fallback.remote, fallback.branch], {
+          cwd: projectPath,
+        });
+        log.info(`Fetched fallback ${fallback.fullRef} after missing base ref`);
+
+        try {
+          await projectSettingsService.updateProjectSettings(projectId, {
+            baseRef: fallback.fullRef,
+          });
+          log.info(`Updated project ${projectId} baseRef to fallback ${fallback.fullRef}`);
+        } catch (persistError) {
+          log.warn('Failed to persist fallback baseRef', persistError);
+        }
+
+        return fallback;
+      } catch (fallbackError) {
+        const msg = this.extractErrorMessage(fallbackError) || 'Unknown git fetch error';
+        throw new Error(
+          `Failed to fetch base branch. Tried ${target.fullRef} and ${fallback.fullRef}. ${msg} Please verify the branch exists on the remote.`
+        );
+      }
+    }
+  }
+
   /**
    * Merge worktree changes back to main branch
    */
@@ -491,6 +656,32 @@ export class WorktreeService {
         }
       } catch {}
     } catch {}
+  }
+
+  private async logWorktreeSyncStatus(
+    projectPath: string,
+    worktreePath: string,
+    baseRef: BaseRefInfo
+  ): Promise<void> {
+    try {
+      const [{ stdout: remoteOut }, { stdout: worktreeOut }] = await Promise.all([
+        execFileAsync('git', ['rev-parse', baseRef.fullRef], { cwd: projectPath }),
+        execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: worktreePath }),
+      ]);
+      const remoteSha = (remoteOut || '').trim();
+      const worktreeSha = (worktreeOut || '').trim();
+      if (!remoteSha || !worktreeSha) return;
+      if (remoteSha === worktreeSha) {
+        log.debug(`Worktree ${worktreePath} matches ${baseRef.fullRef} @ ${remoteSha}`);
+      } else {
+        log.warn(
+          `Worktree ${worktreePath} diverged from ${baseRef.fullRef} immediately after creation`,
+          { remoteSha, worktreeSha, baseRef: baseRef.fullRef }
+        );
+      }
+    } catch (error) {
+      log.debug('Unable to verify worktree head against remote', error);
+    }
   }
 
   async createWorktreeFromBranch(

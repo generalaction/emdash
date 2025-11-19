@@ -18,7 +18,6 @@ export interface Context7IntegrationMeta {
   label: string;
   docsUrl: string;
   defaultInvocation: string;
-  // Provider-specific installation snippets and optional invocation overrides
   byProvider: Partial<Record<Context7ProviderId, Context7ProviderConfig>>;
 }
 

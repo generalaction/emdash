@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown } from 'lucide-react';
+import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from './ui/breadcrumb';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -12,6 +11,7 @@ import { ChangesBadge } from './WorkspaceChanges';
 import { Spinner } from './ui/spinner';
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import WorkspacePorts from './WorkspacePorts';
@@ -24,6 +24,12 @@ import {
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import type { Project, Workspace } from '../types/app';
+
+const normalizeBaseRef = (ref?: string | null): string | undefined => {
+  if (!ref) return undefined;
+  const trimmed = ref.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
 
 function WorkspaceRow({
   ws,
@@ -84,7 +90,6 @@ function WorkspaceRow({
     };
   }, [ws.path]);
 
-  // Auto-expand when we transition to ready and have ports
   useEffect(() => {
     if (isReady && (containerState?.ports?.length ?? 0) > 0) {
       setExpanded(true);
@@ -319,7 +324,7 @@ function WorkspaceRow({
               }
             }}
             isDeleting={isDeleting}
-            aria-label={`Delete task ${ws.name}`}
+            aria-label={`Delete workspace ${ws.name}`}
             className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0"
           />
         </div>
@@ -360,92 +365,214 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   isCreatingWorkspace = false,
   onDeleteProject,
 }) => {
+  const { toast } = useToast();
+  const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
+    normalizeBaseRef(project.gitInfo.baseRef)
+  );
+  const [branchOptions, setBranchOptions] = useState<RemoteBranchOption[]>([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+  const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
+  const [branchLoadError, setBranchLoadError] = useState<string | null>(null);
+  const [branchReloadToken, setBranchReloadToken] = useState(0);
+
+  useEffect(() => {
+    setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
+  }, [project.id, project.gitInfo.baseRef]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBranches = async () => {
+      if (!project.path) return;
+      setIsLoadingBranches(true);
+      setBranchLoadError(null);
+      try {
+        const res = await window.electronAPI.listRemoteBranches({ projectPath: project.path });
+        if (!res?.success) {
+          throw new Error(res?.error || 'Failed to load remote branches');
+        }
+
+        const options =
+          res.branches?.map((item) => ({
+            value: item.label,
+            label: item.label,
+          })) ?? [];
+
+        const current = baseBranch ?? normalizeBaseRef(project.gitInfo.baseRef);
+        const withCurrent =
+          current && !options.some((opt) => opt.value === current)
+            ? [{ value: current, label: current }, ...options]
+            : options;
+
+        if (!cancelled) {
+          setBranchOptions(withCurrent);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBranchLoadError(error instanceof Error ? error.message : String(error));
+          setBranchOptions((prev) => {
+            if (prev.length > 0) return prev;
+            return baseBranch ? [{ value: baseBranch, label: baseBranch }] : [];
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingBranches(false);
+        }
+      }
+    };
+
+    loadBranches();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, project.path, project.gitInfo.baseRef, baseBranch, branchReloadToken]);
+
+  const handleBaseBranchChange = useCallback(
+    async (nextValue: string) => {
+      const trimmed = normalizeBaseRef(nextValue);
+      if (!trimmed || trimmed === baseBranch) return;
+      const previous = baseBranch;
+      setBaseBranch(trimmed);
+      setIsSavingBaseBranch(true);
+      try {
+        const res = await window.electronAPI.updateProjectSettings({
+          projectId: project.id,
+          baseRef: trimmed,
+        });
+        if (!res?.success) {
+          throw new Error(res?.error || 'Failed to update base branch');
+        }
+        if (project.gitInfo) {
+          project.gitInfo.baseRef = trimmed;
+        }
+        setBranchOptions((prev) => {
+          if (prev.some((opt) => opt.value === trimmed)) return prev;
+          return [{ value: trimmed, label: trimmed }, ...prev];
+        });
+        toast({
+          title: 'Base branch updated',
+          description: `New task runs will start from ${trimmed}.`,
+        });
+      } catch (error) {
+        setBaseBranch(previous);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to update base branch',
+          description: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setIsSavingBaseBranch(false);
+      }
+    },
+    [baseBranch, project.id, toast]
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
-        <div className="container mx-auto max-w-6xl space-y-8 p-6">
-          <div className="mb-8 space-y-2">
-            <header className="flex items-start justify-between">
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-
-                <Breadcrumb className="text-muted-foreground">
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbLink className="text-muted-foreground">
-                        {project.path}
-                      </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    {project.gitInfo.branch && (
-                      <BreadcrumbItem>
-                        <Badge variant="secondary" className="gap-1">
-                          <GitBranch className="size-3" />
-                          origin/{project.gitInfo.branch}
-                        </Badge>
-                      </BreadcrumbItem>
-                    )}
-                  </BreadcrumbList>
-                </Breadcrumb>
-              </div>
-              {onDeleteProject ? (
-                <ProjectDeleteButton
-                  projectName={project.name}
-                  onConfirm={() => onDeleteProject?.(project)}
-                  className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:text-destructive"
+        <div className="container mx-auto max-w-6xl p-6">
+          <div className="mx-auto w-full max-w-6xl space-y-8">
+            <div className="space-y-4">
+              <header className="space-y-3">
+                <div className="space-y-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+                    <div className="flex items-center gap-2 sm:self-start">
+                      {project.githubInfo?.connected && project.githubInfo.repository ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 px-3 text-xs font-medium"
+                          onClick={() =>
+                            window.electronAPI.openExternal(
+                              `https://github.com/${project.githubInfo?.repository}`
+                            )
+                          }
+                        >
+                          View on GitHub
+                          <ArrowUpRight className="size-3" />
+                        </Button>
+                      ) : null}
+                      {onDeleteProject ? (
+                        <ProjectDeleteButton
+                          projectName={project.name}
+                          onConfirm={() => onDeleteProject?.(project)}
+                          aria-label={`Delete project ${project.name}`}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                  <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
+                    {project.path}
+                  </p>
+                </div>
+                <BaseBranchControls
+                  baseBranch={baseBranch}
+                  branchOptions={branchOptions}
+                  isLoadingBranches={isLoadingBranches}
+                  isSavingBaseBranch={isSavingBaseBranch}
+                  branchLoadError={branchLoadError}
+                  onBaseBranchChange={handleBaseBranchChange}
+                  onOpenChange={(isOpen) => {
+                    if (isOpen) {
+                      setBranchReloadToken((token) => token + 1);
+                    }
+                  }}
                 />
-              ) : null}
-            </header>
-            <Separator className="my-2" />
-          </div>
-
-          <div className="max-w-4xl space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-start gap-3">
-                <h2 className="text-lg font-semibold">Tasks</h2>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onCreateWorkspace}
-                  disabled={isCreatingWorkspace}
-                  aria-busy={isCreatingWorkspace}
-                >
-                  {isCreatingWorkspace ? (
-                    <>
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                      Creating…
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="mr-2 size-4" />
-                      Create Task
-                    </>
-                  )}
-                </Button>
-              </div>
-              <div className="flex flex-col gap-3">
-                {(project.workspaces ?? []).map((ws) => (
-                  <WorkspaceRow
-                    key={ws.id}
-                    ws={ws}
-                    active={activeWorkspace?.id === ws.id}
-                    onClick={() => onSelectWorkspace(ws)}
-                    onDelete={() => onDeleteWorkspace(project, ws)}
-                  />
-                ))}
-              </div>
+              </header>
+              <Separator className="my-2" />
             </div>
 
-            {(!project.workspaces || project.workspaces.length === 0) && (
-              <Alert>
-                <AlertTitle>What’s a task?</AlertTitle>
-                <AlertDescription className="flex items-center justify-between gap-4">
-                  <p className="text-sm text-muted-foreground">
-                    Each task runs in an isolated copy and branch of your repo (Git-tracked files
-                    only).
-                  </p>
-                </AlertDescription>
-              </Alert>
-            )}
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-start gap-3">
+                  <h2 className="text-lg font-semibold">Workspaces</h2>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={onCreateWorkspace}
+                    disabled={isCreatingWorkspace}
+                    aria-busy={isCreatingWorkspace}
+                  >
+                    {isCreatingWorkspace ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Creating…
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 size-4" />
+                        Create workspace
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {(project.workspaces ?? []).map((ws) => (
+                    <WorkspaceRow
+                      key={ws.id}
+                      ws={ws}
+                      active={activeWorkspace?.id === ws.id}
+                      onClick={() => onSelectWorkspace(ws)}
+                      onDelete={() => onDeleteWorkspace(project, ws)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {(!project.workspaces || project.workspaces.length === 0) && (
+                <Alert>
+                  <AlertTitle>What’s a workspace?</AlertTitle>
+                  <AlertDescription className="flex items-center justify-between gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Each workspace is an isolated copy and branch of your repo (Git-tracked files
+                      only).
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
           </div>
         </div>
       </div>

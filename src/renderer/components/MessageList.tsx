@@ -4,7 +4,6 @@ import type { Message } from '../types/chat';
 import { parseCodexOutput, parseCodexStream } from '../lib/codexParse';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning';
 import { Response } from '@/components/ai-elements/response';
-import { CodeBlock, CodeBlockCopyButton } from '@/components/ai-elements/code-block';
 import StreamingAction from './StreamingAction';
 import { Badge } from '@/components/ui/badge';
 import FileTypeIcon from '@/components/ui/file-type-icon';
@@ -13,12 +12,6 @@ import ThinkingDots from '@/components/ai-elements/thinking-dots';
 function basename(p: string): string {
   const b = p.split('/').pop() || p;
   return b;
-}
-function extname(p: string): string {
-  const b = basename(p);
-  const i = b.lastIndexOf('.');
-  if (i <= 0) return '';
-  return b.slice(i + 1).toUpperCase();
 }
 
 interface MessageListProps {

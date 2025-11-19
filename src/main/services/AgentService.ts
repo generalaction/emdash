@@ -176,14 +176,12 @@ export class AgentService extends EventEmitter {
       }
 
       if (!usedSdk) {
-        // CLI fallback with streaming JSON and safe edit tools
         const args = [
           '-p',
           message,
           '--verbose',
           '--output-format',
           'stream-json',
-          // Some CLI versions do not support --include-partial-messages; omit for compatibility.
           '--permission-mode',
           'acceptEdits',
           '--allowedTools',

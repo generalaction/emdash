@@ -80,7 +80,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   const runCommand = useCallback(
     (command: () => void) => {
       handleClose();
-      // Small delay to ensure modal closes before action
       setTimeout(() => command(), 50);
     },
     [handleClose]

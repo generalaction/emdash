@@ -16,9 +16,7 @@ import { usePlanMode } from '@/hooks/usePlanMode';
 import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
 import { log } from '@/lib/logger';
 import { logPlanEvent } from '@/lib/planLogs';
-import { PLAN_CHAT_PREAMBLE } from '@/lib/planRules';
 import { type Provider } from '../types';
-import { buildAttachmentsSection, buildImageAttachmentsSection } from '../lib/attachments';
 import { Workspace, Message } from '../types/chat';
 import {
   getContainerRunState,
@@ -52,8 +50,6 @@ interface Props {
 const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, initialProvider }) => {
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
-  const [inputValue, setInputValue] = useState('');
-  const [imageAttachments, setImageAttachments] = useState<string[]>([]);
   const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
   const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
   const [claudeInstructions, setClaudeInstructions] = useState<string | null>(null);
@@ -108,8 +104,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     workspaceId: workspace.id,
     workspacePath: workspace.path,
   });
-
-  // Context7 auto-invoke hook removed: manual invoke via ProviderBar instead.
 
   useEffect(() => {
     const meta = providerMeta[provider];
@@ -167,7 +161,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
 
   // On workspace change, restore last-selected provider (including Droid).
   // If a locked provider exists (including Droid), prefer locked.
-  // If initialProvider is provided, use it as the highest priority.
   useEffect(() => {
     try {
       const lastKey = `provider:last:${workspace.id}`;
@@ -180,7 +173,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       setHasGeminiActivity(locked === 'gemini');
       setHasCursorActivity(locked === 'cursor');
       setHasCopilotActivity(locked === 'copilot');
-      // Priority: initialProvider > locked > last > default
       if (initialProvider) {
         setProvider(initialProvider);
       } else {
@@ -394,66 +386,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     initializeCodex();
   }, [workspace.id, workspace.path, workspace.name, toast]);
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
-    if (provider === 'claude' && isClaudeInstalled === false) {
-      toast({
-        title: 'Claude Code not installed',
-        description: 'Install Claude Code CLI and login first. See instructions below.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const activeConversationId =
-      provider === 'codex' ? codexStream.conversationId : claudeStream.conversationId;
-    if (!activeConversationId) return;
-
-    // Prepare optional wire-only preamble (not shown in UI)
-    let wirePrefix = '';
-    const messageWithContext = inputValue;
-    if (planEnabled) {
-      try {
-        const key = `planPreambleSent:${workspace.id}:${activeConversationId}`;
-        const sent = localStorage.getItem(key) === '1';
-        if (!sent) {
-          wirePrefix += `${PLAN_CHAT_PREAMBLE}\n\n`;
-          localStorage.setItem(key, '1');
-        }
-      } catch {}
-    }
-
-    // Context7 MCP is terminal-only. No chat wire-prefix injection.
-
-    const attachmentsSection = await buildAttachmentsSection(workspace.path, inputValue, {
-      maxFiles: 6,
-      maxBytesPerFile: 200 * 1024,
-    });
-    const imageSection = buildImageAttachmentsSection(workspace.path, imageAttachments);
-
-    const result =
-      provider === 'codex'
-        ? await codexStream.send(messageWithContext, attachmentsSection + imageSection, wirePrefix)
-        : await claudeStream.send(
-            messageWithContext,
-            attachmentsSection + imageSection,
-            wirePrefix
-          );
-    if (!result.success) {
-      if (result.error && result.error !== 'stream-in-progress') {
-        toast({
-          title: 'Communication Error',
-          description: 'Failed to start Codex stream. Please try again.',
-          variant: 'destructive',
-        });
-      }
-      return;
-    }
-
-    setInputValue('');
-    setImageAttachments([]);
-  };
-
   const streamingOutputForList =
     activeStream.isStreaming || activeStream.streamingOutput ? activeStream.streamingOutput : null;
 
@@ -579,7 +511,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const ports = state.ports ?? [];
     const containerActive =
       state.status === 'starting' || state.status === 'building' || state.status === 'ready';
-    if (!containerActive) return null; // Hide bar in chat when not active
+    if (!containerActive) return null;
 
     const norm = (s: string) => s.toLowerCase();
     const sorted = [...ports].sort((a, b) => {
