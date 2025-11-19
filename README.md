@@ -90,43 +90,6 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
 | [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
 
-# Context7 MCP (Optional)
-
-Context7 is an MCP (Model Context Protocol) server that gives coding agents access to up‑to‑date, indexed documentation for many libraries. When configured in your agent, Emdash can auto‑invoke Context7 so the agent fetches relevant docs on demand.
-
-What Emdash does
-- Global toggle: Settings → MCP → “Enable Context7 MCP.”
-- Per‑workspace enable: the Context7 button in the ProviderBar is off by default in a new workspace. First click enables it for that workspace and sends “use context7” to the terminal. Clicking again disables it for that workspace (no command is sent on disable).
-- ProviderBar: the Context7 button shows status, a short explanation, and a link to docs.
-
-What you still need to do
-- Configure your coding agent to connect to Context7 MCP (Codex, Claude Code, Cursor, etc.). Emdash does not modify your agent’s config.
-- Docs: https://github.com/upstash/context7
-
-Quick example: Codex CLI (macOS/Linux)
-- Remote (recommended): add to `~/.codex/config.toml`
-
-```toml
-[mcp_servers.context7]
-url = "https://mcp.context7.com/mcp"
-http_headers = { "CONTEXT7_API_KEY" = "YOUR_API_KEY" }
-```
-
-- Local (stdio via npx):
-
-```toml
-[mcp_servers.context7]
-command = "npx"
-args = ["-y", "@upstash/context7-mcp", "--api-key", "YOUR_API_KEY"]
-startup_timeout_sec = 20
-```
-
-Verify Context7 (optional)
-
-```bash
-npx -y @modelcontextprotocol/inspector npx @upstash/context7-mcp
-```
-
 # Demo
 
 #### Add an agents.md file
