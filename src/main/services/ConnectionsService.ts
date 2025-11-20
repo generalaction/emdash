@@ -11,6 +11,7 @@ export interface CliProviderStatus {
   message?: string | null;
   docUrl?: string | null;
   command?: string | null;
+  installCommand?: string | null;
 }
 
 interface CliDefinition {
@@ -19,6 +20,7 @@ interface CliDefinition {
   commands: string[];
   args?: string[];
   docUrl?: string;
+  installCommand?: string;
   statusResolver?: (result: CommandResult) => CliStatusCode;
   messageResolver?: (result: CommandResult) => string | null;
 }
@@ -40,6 +42,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['codex'],
     args: ['--version'],
     docUrl: 'https://github.com/openai/codex',
+    installCommand: 'npm install -g @openai/codex',
   },
   {
     id: 'claude',
@@ -47,6 +50,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['claude'],
     args: ['--version'],
     docUrl: 'https://docs.anthropic.com/claude/docs/claude-code',
+    installCommand: 'npm install -g @anthropic-ai/claude-code',
   },
   {
     id: 'cursor',
@@ -54,6 +58,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['cursor-agent', 'cursor'],
     args: ['--version'],
     docUrl: 'https://cursor.sh',
+    installCommand: 'curl https://cursor.com/install -fsS | bash',
   },
   {
     id: 'gemini',
@@ -61,6 +66,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['gemini'],
     args: ['--version'],
     docUrl: 'https://github.com/google-gemini/gemini-cli',
+    installCommand: 'npm install -g @google/gemini-cli',
   },
   {
     id: 'qwen',
@@ -68,6 +74,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['qwen'],
     args: ['--version'],
     docUrl: 'https://github.com/QwenLM/qwen-code',
+    installCommand: 'npm install -g @qwen-code/qwen-code',
   },
   {
     id: 'droid',
@@ -75,6 +82,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['droid'],
     args: ['--version'],
     docUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
+    installCommand: 'curl -fsSL https://app.factory.ai/cli | sh',
   },
   {
     id: 'amp',
@@ -82,6 +90,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['amp'],
     args: ['--version'],
     docUrl: 'https://ampcode.com/manual#install',
+    installCommand: 'npm install -g @sourcegraph/amp@latest',
   },
   {
     id: 'opencode',
@@ -89,6 +98,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['opencode'],
     args: ['--version'],
     docUrl: 'https://opencode.ai/docs/cli/',
+    installCommand: 'npm install -g opencode-ai',
   },
   {
     id: 'copilot',
@@ -96,6 +106,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['copilot'],
     args: ['--version'],
     docUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
+    installCommand: 'npm install -g @github/copilot',
   },
   {
     id: 'charm',
@@ -103,6 +114,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['crush'],
     args: ['--version'],
     docUrl: 'https://github.com/charmbracelet/crush',
+    installCommand: 'npm install -g @charmland/crush',
   },
   {
     id: 'auggie',
@@ -110,6 +122,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['auggie'],
     args: ['--version'],
     docUrl: 'https://docs.augmentcode.com/cli/overview',
+    installCommand: 'npm install -g @augmentcode/auggie',
   },
   {
     id: 'kimi',
@@ -117,6 +130,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['kimi'],
     args: ['--help'],
     docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
+    installCommand: 'uv tool install --python 3.13 kimi-cli',
   },
   {
     id: 'kiro',
@@ -124,6 +138,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['kiro-cli', 'kiro'],
     args: ['--version'],
     docUrl: 'https://kiro.dev/docs/cli/',
+    installCommand: 'curl -fsSL https://cli.kiro.dev/install | bash',
   },
   {
     id: 'rovo',
@@ -131,6 +146,7 @@ const CLI_DEFINITIONS: CliDefinition[] = [
     commands: ['rovodev', 'acli'],
     args: ['--version'],
     docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+    installCommand: 'acli rovodev auth login',
   },
 ];
 
@@ -156,6 +172,7 @@ class ConnectionsService {
       message,
       docUrl: def.docUrl ?? null,
       command: commandResult.command,
+      installCommand: def.installCommand ?? null,
     };
   }
 

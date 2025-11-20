@@ -476,6 +476,7 @@ declare global {
           message?: string | null;
           docUrl?: string | null;
           command?: string | null;
+          installCommand?: string | null;
         }>;
         error?: string;
       }>;
@@ -715,6 +716,7 @@ export interface ElectronAPI {
       message?: string | null;
       docUrl?: string | null;
       command?: string | null;
+      installCommand?: string | null;
     }>;
     error?: string;
   }>;

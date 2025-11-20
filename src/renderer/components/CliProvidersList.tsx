@@ -24,84 +24,103 @@ interface CliProvidersListProps {
 }
 
 export const BASE_CLI_PROVIDERS: CliProviderStatus[] = [
-  { id: 'codex', name: 'Codex', status: 'missing', docUrl: 'https://github.com/openai/codex' },
+  {
+    id: 'codex',
+    name: 'Codex',
+    status: 'missing',
+    docUrl: 'https://github.com/openai/codex',
+    installCommand: 'npm install -g @openai/codex',
+  },
   {
     id: 'claude',
     name: 'Claude Code',
     status: 'missing',
     docUrl: 'https://docs.anthropic.com/claude/docs/claude-code',
+    installCommand: 'npm install -g @anthropic-ai/claude-code',
   },
   {
     id: 'cursor',
     name: 'Cursor',
     status: 'missing',
     docUrl: 'https://cursor.sh',
+    installCommand: 'curl https://cursor.com/install -fsS | bash',
   },
   {
     id: 'gemini',
     name: 'Gemini',
     status: 'missing',
     docUrl: 'https://github.com/google-gemini/gemini-cli',
+    installCommand: 'npm install -g @google/gemini-cli',
   },
   {
     id: 'droid',
     name: 'Droid',
     status: 'missing',
     docUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
+    installCommand: 'curl -fsSL https://app.factory.ai/cli | sh',
   },
   {
     id: 'amp',
     name: 'Amp',
     status: 'missing',
     docUrl: 'https://ampcode.com/manual#install',
+    installCommand: 'npm install -g @sourcegraph/amp@latest',
   },
   {
     id: 'opencode',
     name: 'OpenCode',
     status: 'missing',
     docUrl: 'https://opencode.ai/docs/cli/',
+    installCommand: 'npm install -g opencode-ai',
   },
   {
     id: 'copilot',
     name: 'GitHub Copilot',
     status: 'missing',
     docUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
+    installCommand: 'npm install -g @github/copilot',
   },
   {
     id: 'charm',
     name: 'Charm',
     status: 'missing',
     docUrl: 'https://github.com/charmbracelet/crush',
+    installCommand: 'npm install -g @charmland/crush',
   },
   {
     id: 'auggie',
     name: 'Auggie',
     status: 'missing',
     docUrl: 'https://docs.augmentcode.com/cli/overview',
+    installCommand: 'npm install -g @augmentcode/auggie',
   },
   {
     id: 'qwen',
     name: 'Qwen Code',
     status: 'missing',
     docUrl: 'https://github.com/QwenLM/qwen-code',
+    installCommand: 'npm install -g @qwen-code/qwen-code',
   },
   {
     id: 'kimi',
     name: 'Kimi',
     status: 'missing',
     docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
+    installCommand: 'uv tool install --python 3.13 kimi-cli',
   },
   {
     id: 'kiro',
     name: 'Kiro',
     status: 'missing',
     docUrl: 'https://kiro.dev/docs/cli/',
+    installCommand: 'curl -fsSL https://cli.kiro.dev/install | bash',
   },
   {
     id: 'rovo',
     name: 'Rovo Dev (Atlassian)',
     status: 'missing',
     docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+    installCommand: 'acli rovodev auth login',
   },
 ];
 
@@ -154,6 +173,7 @@ const renderProviderRow = (provider: CliProviderStatus) => {
       status={provider.status}
       statusLabel={statusLabel}
       showStatusPill={false}
+      installCommand={provider.installCommand}
       middle={
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           <span className={`h-1.5 w-1.5 rounded-full ${indicatorClass}`} />
