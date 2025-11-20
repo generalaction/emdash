@@ -7,6 +7,7 @@ export interface WorkspaceMetadata {
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
   initialPrompt?: string | null;
+  autoApprove?: boolean | null;
   // When present, this workspace is a multi-agent workspace orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;

@@ -23,6 +23,7 @@ declare global {
         env?: Record<string, string>;
         cols?: number;
         rows?: number;
+        autoApprove?: boolean;
       }) => Promise<{ ok: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows: number }) => void;
@@ -47,6 +48,7 @@ declare global {
         projectPath: string;
         workspaceName: string;
         projectId: string;
+        autoApprove?: boolean;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
         projectPath: string;

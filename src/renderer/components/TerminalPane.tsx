@@ -15,6 +15,7 @@ type Props = {
   themeOverride?: any;
   contentFilter?: string;
   keepAlive?: boolean;
+  autoApprove?: boolean;
   onActivity?: () => void;
   onStartError?: (message: string) => void;
   onStartSuccess?: () => void;
@@ -33,6 +34,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
   themeOverride,
   contentFilter,
   keepAlive = true,
+  autoApprove,
   onActivity,
   onStartError,
   onStartSuccess,
@@ -62,6 +64,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
       env,
       initialSize: { cols, rows },
       theme,
+      autoApprove,
     });
     sessionRef.current = session;
 
@@ -89,7 +92,20 @@ const TerminalPaneComponent: React.FC<Props> = ({
       exitCleanupRef.current = null;
       terminalSessionRegistry.detach(id);
     };
-  }, [id, cwd, shell, env, cols, rows, theme, onActivity, onStartError, onStartSuccess, onExit]);
+  }, [
+    id,
+    cwd,
+    shell,
+    env,
+    cols,
+    rows,
+    theme,
+    autoApprove,
+    onActivity,
+    onStartError,
+    onStartSuccess,
+    onExit,
+  ]);
 
   useEffect(() => {
     return () => {
