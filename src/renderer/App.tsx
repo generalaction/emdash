@@ -451,9 +451,7 @@ const AppContent: React.FC = () => {
       const gitInfo = await window.electronAPI.getGitInfo(path);
       const canonicalPath = gitInfo.rootPath || gitInfo.path || path;
       const repoKey = normalizePathForComparison(canonicalPath);
-      const existingProject = projects.find(
-        (project) => getProjectRepoKey(project) === repoKey
-      );
+      const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
 
       if (existingProject) {
         activateProjectView(existingProject);
@@ -475,8 +473,7 @@ const AppContent: React.FC = () => {
 
       const remoteUrl = gitInfo.remote || '';
       const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-      const projectName =
-        canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+      const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
       const baseProject: Project = {
         id: Date.now().toString(),
@@ -1254,7 +1251,12 @@ const AppContent: React.FC = () => {
                 <FolderOpen className="mr-2 h-5 w-5" />
                 Open Project
               </Button>
-              <Button onClick={() => setShowCloneModal(true)} size="lg" variant="secondary" className="min-w-[200px]">
+              <Button
+                onClick={() => setShowCloneModal(true)}
+                size="lg"
+                variant="secondary"
+                className="min-w-[200px]"
+              >
                 <Download className="mr-2 h-5 w-5" />
                 Clone Repository
               </Button>
@@ -1327,7 +1329,12 @@ const AppContent: React.FC = () => {
               <FolderOpen className="mr-2 h-5 w-5" />
               Open Project
             </Button>
-            <Button onClick={() => setShowCloneModal(true)} size="lg" variant="secondary" className="min-w-[200px]">
+            <Button
+              onClick={() => setShowCloneModal(true)}
+              size="lg"
+              variant="secondary"
+              className="min-w-[200px]"
+            >
               <Download className="mr-2 h-5 w-5" />
               Clone Repository
             </Button>

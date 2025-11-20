@@ -428,9 +428,7 @@ export interface ElectronAPI {
   getPlatform: () => Promise<string>;
   // Path and Dialog helpers
   getPath: (name: string) => Promise<string | null>;
-  showOpenDialog: (
-    options: Electron.OpenDialogOptions
-  ) => Promise<Electron.OpenDialogReturnValue>;
+  showOpenDialog: (options: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;

@@ -56,7 +56,7 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
   // Auto-populate destination when URL changes
   useEffect(() => {
     if (!repoUrl || !defaultBasePath) return;
-    
+
     // Extract repo name from URL
     // e.g. https://github.com/owner/repo.git -> repo
     try {
@@ -66,9 +66,9 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
         // Only update if destination is empty or looks like an auto-generated path
         const isWin = destinationPath.includes('\\');
         const sep = isWin ? '\\' : '/';
-        
+
         if (!destinationPath || destinationPath.startsWith(defaultBasePath)) {
-           setDestinationPath(`${defaultBasePath}${sep}${repoName}`);
+          setDestinationPath(`${defaultBasePath}${sep}${repoName}`);
         }
       }
     } catch {}
@@ -114,10 +114,10 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
         title: 'Select Destination Folder',
         defaultPath: defaultBasePath,
       });
-      
+
       if (!result.canceled && result.filePaths.length > 0) {
         const selectedPath = result.filePaths[0];
-        // If the selected path doesn't end with the repo name, append it? 
+        // If the selected path doesn't end with the repo name, append it?
         // Actually, standard behavior is usually "select parent folder", but users might select the *target* folder.
         // Let's assume user selects the PARENT folder, so we append repo name.
         // BUT, showOpenDialog with 'createDirectory' allows them to create the target folder.
@@ -210,7 +210,7 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
                   <div>
                     <label
                       htmlFor="repo-url"
-                      className="block text-sm font-medium text-foreground mb-1.5"
+                      className="mb-1.5 block text-sm font-medium text-foreground"
                     >
                       Repository URL
                     </label>
@@ -226,7 +226,7 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
                       className="w-full"
                       autoFocus
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
                       Supports URLs with or without .git extension
                     </p>
                   </div>
@@ -234,7 +234,7 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
                   <div>
                     <label
                       htmlFor="destination-path"
-                      className="block text-sm font-medium text-foreground mb-1.5"
+                      className="mb-1.5 block text-sm font-medium text-foreground"
                     >
                       Destination Path
                     </label>
@@ -282,17 +282,17 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
                           onClick={() => setIsEditingPath(true)}
                           title="Edit destination path"
                         >
-                          <span className="font-mono text-muted-foreground truncate text-left">
+                          <span className="truncate text-left font-mono text-muted-foreground">
                             {destinationPath || 'No path selected'}
                           </span>
-                          <Edit2 className="h-3.5 w-3.5 text-muted-foreground opacity-70 ml-2 flex-shrink-0" />
+                          <Edit2 className="ml-2 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground opacity-70" />
                         </button>
                       )}
                     </div>
                   </div>
 
                   {error && (
-                    <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+                    <p className="rounded-md bg-destructive/10 p-2 text-sm text-destructive">
                       {error}
                     </p>
                   )}
