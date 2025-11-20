@@ -379,12 +379,12 @@ const BrowserPane: React.FC<{
 
   // Ensure URL is loaded when it changes and view is open
   const lastUrlRef = React.useRef<string | null>(null);
-  const lastWorkspaceIdRef = React.useRef<string | null>(null);
+  const lastWorkspaceIdRef = React.useRef<string | null | undefined>(null);
   React.useEffect(() => {
     // CRITICAL: Reset URL ref when workspaceId changes to force reload
     if (workspaceId !== lastWorkspaceIdRef.current) {
       lastUrlRef.current = null;
-      lastWorkspaceIdRef.current = workspaceId;
+      lastWorkspaceIdRef.current = workspaceId || null;
     }
     
     if (isOpen && url && !overlayActive && !overlayRaised && workspaceId) {
