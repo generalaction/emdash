@@ -156,15 +156,6 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       </div>
 
       <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
-        <div className="min-w-0">{middle ?? defaultMiddle}</div>
-        {showStatusPill ? (
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASSES[resolvedStatus] ?? STATUS_CLASSES.disconnected}`}
-          >
-            {resolvedStatusLabel}
-          </span>
-        ) : null}
-
         {showInstallCopy ? (
           <TooltipProvider>
             <Tooltip delayDuration={150}>
@@ -174,7 +165,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
                   onClick={() => {
                     void handleCopyInstall();
                   }}
-                  className={`${ICON_BUTTON} opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100`}
+                  className={ICON_BUTTON}
                   aria-label={copied ? 'Command copied' : `Copy install command for ${name}`}
                 >
                   <CopyIcon className="h-4 w-4" aria-hidden="true" />
@@ -190,6 +181,15 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+        ) : null}
+
+        <div className="min-w-0">{middle ?? defaultMiddle}</div>
+        {showStatusPill ? (
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASSES[resolvedStatus] ?? STATUS_CLASSES.disconnected}`}
+          >
+            {resolvedStatusLabel}
+          </span>
         ) : null}
 
         {rightExtra}
