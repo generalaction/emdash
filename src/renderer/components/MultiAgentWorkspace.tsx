@@ -306,6 +306,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     id={`${v.provider}-main-${workspace.id}`}
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
+                    autoApprove={workspace.metadata?.autoApprove ?? false}
                     keepAlive
                     variant={isDark ? 'dark' : 'light'}
                     className="h-full w-full"

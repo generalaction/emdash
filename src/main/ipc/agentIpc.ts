@@ -70,6 +70,7 @@ export function registerAgentIpc() {
         worktreePath: string;
         message: string;
         conversationId?: string;
+        autoApprove?: boolean;
       }
     ) => {
       try {

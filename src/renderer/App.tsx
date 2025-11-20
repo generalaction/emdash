@@ -577,7 +577,8 @@ const AppContent: React.FC = () => {
     linkedLinearIssue: LinearIssueSummary | null = null,
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
-    multiAgent: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null = null
+    multiAgent: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null = null,
+    autoApprove?: boolean
   ) => {
     if (!selectedProject) return;
 
@@ -678,12 +679,13 @@ const AppContent: React.FC = () => {
       }
 
       const workspaceMetadata: WorkspaceMetadata | null =
-        linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt
+        linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
           ? {
               linearIssue: linkedLinearIssue ?? null,
               jiraIssue: linkedJiraIssue ?? null,
               githubIssue: linkedGithubIssue ?? null,
               initialPrompt: preparedPrompt ?? null,
+              autoApprove: autoApprove ?? null,
             }
           : null;
 
@@ -709,6 +711,7 @@ const AppContent: React.FC = () => {
             projectPath: selectedProject.path,
             workspaceName: vtName,
             projectId: selectedProject.id,
+            autoApprove,
           });
           if (!wtRes?.success || !wtRes.worktree) {
             throw new Error(wtRes?.error || `Failed to create worktree for ${prov}`);
@@ -763,6 +766,7 @@ const AppContent: React.FC = () => {
           projectPath: selectedProject.path,
           workspaceName,
           projectId: selectedProject.id,
+          autoApprove,
         });
 
         if (!worktreeResult.success) {

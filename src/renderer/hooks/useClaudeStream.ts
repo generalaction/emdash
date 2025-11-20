@@ -8,6 +8,7 @@ declare const window: Window & {
 interface Options {
   workspaceId: string;
   workspacePath: string;
+  autoApprove?: boolean;
 }
 
 interface Result {
@@ -52,8 +53,12 @@ const useClaudeStream = (options?: Options | null): Result => {
 
   const normalized = useMemo(() => {
     if (!options) return null;
-    return { workspaceId: options.workspaceId, workspacePath: options.workspacePath };
-  }, [options?.workspaceId, options?.workspacePath]);
+    return {
+      workspaceId: options.workspaceId,
+      workspacePath: options.workspacePath,
+      autoApprove: options.autoApprove
+    };
+  }, [options?.workspaceId, options?.workspacePath, options?.autoApprove]);
 
   useEffect(() => {
     return () => {
@@ -106,6 +111,7 @@ const useClaudeStream = (options?: Options | null): Result => {
           worktreePath: normalized.workspacePath,
           message: `${wirePrefix || ''}${text}${attachments ?? ''}`,
           conversationId: convoId,
+          autoApprove: normalized.autoApprove,
         });
         return { success: true };
       } catch (e: any) {

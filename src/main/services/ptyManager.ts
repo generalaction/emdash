@@ -2,6 +2,18 @@ import os from 'os';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 
+// Provider auto-approve flags mapping
+// Maps CLI executable name to its auto-approve flag
+const AUTO_APPROVE_FLAGS: Record<string, string> = {
+  'claude': '--dangerously-skip-permissions',
+  'codex': '--full-auto',
+  'qwen': '--yolo',
+  'opencode': '-p',
+  'gemini': '--yolomode',
+  'cursor-agent': '-p',
+  'acli': '--yolo', // Rovo Dev uses 'acli rovodev run --yolo'
+};
+
 type PtyRecord = {
   id: string;
   proc: IPty;
@@ -24,11 +36,12 @@ export function startPty(options: {
   env?: NodeJS.ProcessEnv;
   cols?: number;
   rows?: number;
+  autoApprove?: boolean;
 }): IPty {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
-  const { id, cwd, shell, env, cols = 80, rows = 24 } = options;
+  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove } = options;
 
   let useShell = shell || getDefaultShell();
   const useCwd = cwd || process.cwd() || os.homedir();
@@ -97,7 +110,25 @@ export function startPty(options: {
       if (base === 'zsh') args.push('-il');
       else if (base === 'bash') args.push('--noprofile', '--norc', '-i');
       else if (base === 'fish' || base === 'sh') args.push('-i');
-      if (/^(codex|claude)$/i.test(base)) args.length = 0;
+
+      // Check if this is a known AI coding assistant CLI
+      const baseLower = base.toLowerCase();
+      const autoApproveFlag = AUTO_APPROVE_FLAGS[baseLower];
+
+      if (autoApproveFlag) {
+        args.length = 0;
+        const willAddFlag = autoApprove === true;
+        log.debug('ptyManager:providerCheck', {
+          id,
+          base,
+          autoApprove,
+          autoApproveFlag,
+          willAddFlag,
+        });
+        if (willAddFlag) {
+          args.push(autoApproveFlag);
+        }
+      }
     } catch {}
   }
 
@@ -110,6 +141,7 @@ export function startPty(options: {
       cwd: useCwd,
       env: useEnv,
     });
+    log.debug('ptyManager:spawned', { id, shell: useShell, args, cwd: useCwd });
   } catch (err: any) {
     try {
       const fallbackShell = getDefaultShell();
