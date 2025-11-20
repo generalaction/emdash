@@ -56,7 +56,7 @@ const useClaudeStream = (options?: Options | null): Result => {
     return {
       workspaceId: options.workspaceId,
       workspacePath: options.workspacePath,
-      autoApprove: options.autoApprove
+      autoApprove: options.autoApprove,
     };
   }, [options?.workspaceId, options?.workspacePath, options?.autoApprove]);
 

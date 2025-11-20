@@ -20,7 +20,10 @@ const AutoApproveIndicator: React.FC<Props> = ({ enabled, className = '' }) => {
               (className ? ' ' + className : '')
             }
           >
-            <ShieldCheck className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" aria-hidden="true" />
+            <ShieldCheck
+              className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400"
+              aria-hidden="true"
+            />
             <span className="font-medium">Auto-approve</span>
           </div>
         </TooltipTrigger>
@@ -28,7 +31,8 @@ const AutoApproveIndicator: React.FC<Props> = ({ enabled, className = '' }) => {
           <div>
             <span className="block font-medium">Auto-approve Enabled</span>
             <span className="block">
-              File operations are automatically approved without prompting. This workspace was created with --dangerously-skip-permissions mode.
+              File operations are automatically approved without prompting. This workspace was
+              created with --dangerously-skip-permissions mode.
             </span>
           </div>
         </TooltipContent>

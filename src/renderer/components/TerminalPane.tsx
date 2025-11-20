@@ -92,7 +92,20 @@ const TerminalPaneComponent: React.FC<Props> = ({
       exitCleanupRef.current = null;
       terminalSessionRegistry.detach(id);
     };
-  }, [id, cwd, shell, env, cols, rows, theme, autoApprove, onActivity, onStartError, onStartSuccess, onExit]);
+  }, [
+    id,
+    cwd,
+    shell,
+    env,
+    cols,
+    rows,
+    theme,
+    autoApprove,
+    onActivity,
+    onStartError,
+    onStartSuccess,
+    onExit,
+  ]);
 
   useEffect(() => {
     return () => {

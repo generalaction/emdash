@@ -84,7 +84,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       ? {
           workspaceId: workspace.id,
           workspacePath: workspace.path,
-          autoApprove: workspace.metadata?.autoApprove ?? false
+          autoApprove: workspace.metadata?.autoApprove ?? false,
         }
       : null
   );

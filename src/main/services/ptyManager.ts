@@ -5,13 +5,13 @@ import { log } from '../lib/logger';
 // Provider auto-approve flags mapping
 // Maps CLI executable name to its auto-approve flag
 const AUTO_APPROVE_FLAGS: Record<string, string> = {
-  'claude': '--dangerously-skip-permissions',
-  'codex': '--full-auto',
-  'qwen': '--yolo',
-  'opencode': '-p',
-  'gemini': '--yolomode',
+  claude: '--dangerously-skip-permissions',
+  codex: '--full-auto',
+  qwen: '--yolo',
+  opencode: '-p',
+  gemini: '--yolomode',
   'cursor-agent': '-p',
-  'acli': '--yolo', // Rovo Dev uses 'acli rovodev run --yolo'
+  acli: '--yolo', // Rovo Dev uses 'acli rovodev run --yolo'
 };
 
 type PtyRecord = {
