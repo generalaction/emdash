@@ -42,8 +42,6 @@ const VersionCard: React.FC = () => {
     };
   }, []);
 
-  // no-op local effects
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
@@ -151,9 +149,7 @@ const VersionCard: React.FC = () => {
           : null}
       </div>
 
-      {/* Notify user on manual check when already up to date */}
       {(() => {
-        // Effect-like block: react hooks must be top-level; use a nested IIFE to keep file tidy
         // eslint-disable-next-line react-hooks/rules-of-hooks
         useEffect(() => {
           if (update.status === 'not-available' && userInitiatedRef.current) {

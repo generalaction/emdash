@@ -77,11 +77,11 @@ const HowToUseEmdash: React.FC<HowToUseEmdashProps> = ({ defaultOpen = false, cl
             <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm bg-background text-[10px] font-semibold text-muted-foreground">
               2
             </span>
-            <span className="text-xs font-medium text-foreground">Create a workspace</span>
+            <span className="text-xs font-medium text-foreground">Create a task</span>
           </div>
           <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-            A workspace is an isolated git worktree where agents focus on a task. It keeps changes
-            clean and scoped, so you can run several in parallel.
+            Each task runs in an isolated git worktree where agents focus on a single goal. It keeps
+            changes clean and scoped, so you can run several in parallel.
           </p>
         </div>
 

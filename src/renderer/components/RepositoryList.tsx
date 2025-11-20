@@ -45,7 +45,6 @@ const RepositoryList: React.FC<RepositoryListProps> = ({
   };
 
   const getRepositoryIcon = (repo: Repository) => {
-    // Simple icon based on repository name or language
     const firstLetter = repo.name.charAt(0).toUpperCase();
     return (
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
@@ -88,7 +87,6 @@ const RepositoryList: React.FC<RepositoryListProps> = ({
                   )}
                 </div>
 
-                {/* Date */}
                 <div className="flex items-center space-x-1 text-sm text-gray-500 dark:text-gray-400">
                   <Calendar className="h-4 w-4" />
                   <span>{formatDate(repo.updated_at)}</span>

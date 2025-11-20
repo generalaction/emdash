@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { promisify } from 'util';
 import {
   getStatus as gitGetStatus,
@@ -10,8 +12,27 @@ import {
 } from '../services/GitService';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export function registerGitIpc() {
+  function resolveGitBin(): string {
+    // Allow override via env
+    const fromEnv = (process.env.GIT_PATH || '').trim();
+    const candidates = [
+      fromEnv,
+      '/opt/homebrew/bin/git',
+      '/usr/local/bin/git',
+      '/usr/bin/git',
+    ].filter(Boolean) as string[];
+    for (const p of candidates) {
+      try {
+        if (p && fs.existsSync(p)) return p;
+      } catch {}
+    }
+    // Last resort: try /usr/bin/env git
+    return 'git';
+  }
+  const GIT = resolveGitBin();
   // Git: Status (moved from Codex IPC)
   ipcMain.handle('git:get-status', async (_, workspacePath: string) => {
     try {
@@ -416,11 +437,11 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   ipcMain.handle('git:get-branch-status', async (_, args: { workspacePath: string }) => {
     const { workspacePath } = args || ({} as { workspacePath: string });
     try {
-      // Ensure repo
-      await execAsync('git rev-parse --is-inside-work-tree', { cwd: workspacePath });
+      // Ensure repo (avoid /bin/sh by using execFile)
+      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: workspacePath });
 
       // Current branch
-      const { stdout: currentBranchOut } = await execAsync('git branch --show-current', {
+      const { stdout: currentBranchOut } = await execFileAsync(GIT, ['branch', '--show-current'], {
         cwd: workspacePath,
       });
       const branch = (currentBranchOut || '').trim();
@@ -428,20 +449,24 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       // Determine default branch
       let defaultBranch = 'main';
       try {
-        const { stdout } = await execAsync(
-          'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
+        const { stdout } = await execFileAsync(
+          'gh',
+          ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'],
           { cwd: workspacePath }
         );
         const db = (stdout || '').trim();
         if (db) defaultBranch = db;
       } catch {
         try {
-          const { stdout } = await execAsync(
-            'git remote show origin | sed -n "/HEAD branch/s/.*: //p"',
+          // Use symbolic-ref to resolve origin/HEAD then take the last path part
+          const { stdout } = await execFileAsync(
+            GIT,
+            ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
             { cwd: workspacePath }
           );
-          const db2 = (stdout || '').trim();
-          if (db2) defaultBranch = db2;
+          const line = (stdout || '').trim();
+          const last = line.split('/').pop();
+          if (last) defaultBranch = last;
         } catch {}
       }
 
@@ -450,8 +475,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       let behind = 0;
       try {
         // Try explicit compare with origin/default...HEAD
-        const { stdout } = await execAsync(
-          `git rev-list --left-right --count origin/${defaultBranch}...HEAD`,
+        const { stdout } = await execFileAsync(
+          GIT,
+          ['rev-list', '--left-right', '--count', `origin/${defaultBranch}...HEAD`],
           { cwd: workspacePath }
         );
         const parts = (stdout || '').trim().split(/\s+/);
@@ -461,7 +487,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
       } catch {
         try {
-          const { stdout } = await execAsync('git status -sb', { cwd: workspacePath });
+          const { stdout } = await execFileAsync(GIT, ['status', '-sb'], { cwd: workspacePath });
           const line = (stdout || '').split(/\n/)[0] || '';
           const m = line.match(/ahead\s+(\d+)/i);
           const n = line.match(/behind\s+(\d+)/i);
@@ -476,4 +502,54 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       return { success: false, error: error as string };
     }
   });
+
+  ipcMain.handle(
+    'git:list-remote-branches',
+    async (_, args: { projectPath: string; remote?: string }) => {
+      const { projectPath, remote = 'origin' } = args || ({} as { projectPath: string });
+      if (!projectPath) {
+        return { success: false, error: 'projectPath is required' };
+      }
+      try {
+        await execAsync('git rev-parse --is-inside-work-tree', { cwd: projectPath });
+      } catch {
+        return { success: false, error: 'Not a git repository' };
+      }
+
+      try {
+        try {
+          await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
+        } catch (fetchError) {
+          log.warn('Failed to fetch remote before listing branches', fetchError);
+        }
+
+        const { stdout } = await execAsync(
+          `git for-each-ref --format="%(refname:short)" refs/remotes/${remote}`,
+          { cwd: projectPath }
+        );
+
+        const branches =
+          stdout
+            ?.split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+            .filter((line) => !line.endsWith('/HEAD'))
+            .map((ref) => {
+              const [remoteAlias, ...rest] = ref.split('/');
+              const branch = rest.join('/') || ref;
+              return {
+                ref,
+                remote: remoteAlias || remote,
+                branch,
+                label: `${remoteAlias || remote}/${branch}`,
+              };
+            }) ?? [];
+
+        return { success: true, branches };
+      } catch (error) {
+        log.error('Failed to list remote branches:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
 }

@@ -16,9 +16,7 @@ function getStoredTheme(): Theme {
     if (stored === 'light' || stored === 'dark' || stored === 'system') {
       return stored;
     }
-  } catch {
-    // Ignore localStorage errors
-  }
+  } catch {}
   return 'system';
 }
 

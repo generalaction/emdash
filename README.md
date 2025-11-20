@@ -12,7 +12,7 @@
 [![Release](https://img.shields.io/github/v/release/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
 [![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
 <br>
-[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/UmTn6Nb7)
+[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/f2fv7YxuR2)
 [![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
 <br />
@@ -57,13 +57,13 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
 </details>
 
-# Integrations
+# Providers
 
 <img width="4856" height="1000" alt="integration_banner" src="https://github.com/user-attachments/assets/894c3db8-3be5-4730-ae7d-197958b0a044" />
 
 ### Supported CLI Providers
 
-Emdash currently integrates with twelve CLI providers and are adding new providers regularly. If you miss one, let us know or create a PR. 
+Emdash currently supports fifteen CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR. 
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
@@ -79,6 +79,9 @@ Emdash currently integrates with twelve CLI providers and are adding new provide
 | [Goose](https://github.com/block/goose) | ✅ Supported | `curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash` |
 | [OpenCode](https://opencode.ai/docs/) | ✅ Supported | `npm install -g opencode-ai` |
 | [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code` |
+| [Kimi](https://www.kimi.com/coding/docs/en/kimi-cli.html) | ✅ Supported | `uv tool install --python 3.13 kimi-cli` |
+| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | `curl -fsSL https://cli.kiro.dev/install | bash` |
+| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | `acli rovodev auth login` |
 
 ### Issues
 
@@ -105,7 +108,7 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 
 # Contributing
 
-Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/UmTn6Nb7) to discuss.
+Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/f2fv7YxuR2) to discuss.
 
 # FAQ
 

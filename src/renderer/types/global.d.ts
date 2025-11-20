@@ -1,5 +1,14 @@
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 
+type ProjectSettingsPayload = {
+  projectId: string;
+  name: string;
+  path: string;
+  gitRemote?: string;
+  gitBranch?: string;
+  baseRef?: string;
+};
+
 // Global type declarations for Electron API
 declare global {
   interface Window {
@@ -60,10 +69,31 @@ declare global {
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeGetAll: () => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
       openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;
+      getProjectSettings: (projectId: string) => Promise<{
+        success: boolean;
+        settings?: ProjectSettingsPayload;
+        error?: string;
+      }>;
+      updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+        success: boolean;
+        settings?: ProjectSettingsPayload;
+        error?: string;
+      }>;
+      fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) => Promise<{
+        success: boolean;
+        baseRef?: string;
+        remote?: string;
+        branch?: string;
+        error?: string;
+      }>;
       getGitInfo: (projectPath: string) => Promise<{
         isGitRepo: boolean;
         remote?: string;
         branch?: string;
+        baseRef?: string;
+        upstream?: string;
+        aheadCount?: number;
+        behindCount?: number;
         path?: string;
         rootPath?: string;
         error?: string;
@@ -77,6 +107,11 @@ declare global {
           deletions: number;
           diff?: string;
         }>;
+        error?: string;
+      }>;
+      listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
+        success: boolean;
+        branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
       }>;
       connectToGitHub: (

@@ -43,6 +43,36 @@ body {
   background: #777;
 }
 
+/* Visible scrollbar styling specifically for Select dropdown viewport */
+.emd-select-viewport {
+  position: relative;
+  scrollbar-gutter: stable; /* reserve space so layout doesn't jump */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(128, 128, 128, 0.5) transparent;
+}
+.emd-select-viewport::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  background: rgba(128, 128, 128, 0.15);
+  border-radius: 6px;
+  pointer-events: none; /* hint only */
+}
+.emd-select-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+.emd-select-viewport::-webkit-scrollbar-track {
+  background: rgba(128, 128, 128, 0.15);
+  border-radius: 6px;
+}
+.emd-select-viewport::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 128, 128, 0.5);
+  border-radius: 6px;
+}
+
 /* Utility classes */
 .flex {
   display: flex;

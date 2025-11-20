@@ -75,7 +75,6 @@ const WorkspacePorts: React.FC<Props> = ({
         try {
           const api: any = (window as any).electronAPI;
           if (!api?.resolveServiceIcon) return;
-          // Allow network fetch in production to populate cache/offline use
           const res = await api.resolveServiceIcon({
             service: name,
             allowNetwork: true,
@@ -93,7 +92,6 @@ const WorkspacePorts: React.FC<Props> = ({
     if (src) {
       return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
     }
-    // Generic, vendor-agnostic heuristics by port
     const webPorts = new Set([80, 443, 3000, 5173, 8080, 8000]);
     const dbPorts = new Set([5432, 3306, 27017, 1433, 1521]);
     if (webPorts.has(port)) return <Globe className="h-3.5 w-3.5" aria-hidden="true" />;

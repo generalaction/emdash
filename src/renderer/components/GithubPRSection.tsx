@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Separator } from './ui/separator';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -21,8 +21,8 @@ interface Props {
 type RepoChoice = {
   owner: string;
   name: string;
-  fullName: string; // owner/name
-  url: string; // https url
+  fullName: string;
+  url: string;
 };
 
 type PullRequest = {
@@ -38,7 +38,6 @@ type PullRequest = {
 function parseRepoInput(input: string): RepoChoice | null {
   const s = input.trim();
   if (!s) return null;
-  // Accept URL like https://github.com/owner/repo or ssh
   const urlMatch = s.match(/github\.com[/:]([^/]+)\/([^/#\s]+)(?:\.git)?/i);
   if (urlMatch) {
     const owner = urlMatch[1];
@@ -50,7 +49,6 @@ function parseRepoInput(input: string): RepoChoice | null {
       url: `https://github.com/${owner}/${name}.git`,
     };
   }
-  // Accept owner/repo
   const simple = s.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/);
   if (simple) {
     const owner = simple[1];
@@ -235,7 +233,7 @@ const GithubPRSection: React.FC<Props> = ({ projectId, projectPath, onOpenWorksp
                       size="sm"
                       onClick={() => handleCreateWorkspace(pr)}
                     >
-                      Create workspace
+                      Create Task
                     </Button>
                     <Button
                       type="button"

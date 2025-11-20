@@ -29,6 +29,9 @@ export const ProjectDeleteButton: React.FC<Props> = ({
   'aria-label': ariaLabel = 'Delete project',
   isDeleting = false,
 }) => {
+  const buttonClasses =
+    className ||
+    'inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-800';
   return (
     <AlertDialog>
       <TooltipProvider delayDuration={200}>
@@ -37,10 +40,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
             <AlertDialogTrigger asChild>
               <button
                 type="button"
-                className={
-                  className ||
-                  'inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0'
-                }
+                className={buttonClasses}
                 title="Delete project"
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}

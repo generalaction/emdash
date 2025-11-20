@@ -1,9 +1,19 @@
-import { BrowserWindow, WebContentsView, app } from 'electron';
+import { BrowserWindow, WebContentsView } from 'electron';
 import { getMainWindow } from '../app/window';
 
 class BrowserViewService {
   private view: WebContentsView | null = null;
   private visible = false;
+  private emitToRenderers(evt: any) {
+    try {
+      const wins = BrowserWindow.getAllWindows();
+      for (const w of wins) {
+        try {
+          w.webContents.send('browser:view:event', evt);
+        } catch {}
+      }
+    } catch {}
+  }
 
   ensureView(win?: BrowserWindow): WebContentsView | null {
     const w = win || getMainWindow() || undefined;
@@ -18,6 +28,17 @@ class BrowserViewService {
       w.contentView.addChildView(this.view);
       try {
         this.view.webContents.setWindowOpenHandler?.(() => ({ action: 'deny' }) as any);
+      } catch {}
+      try {
+        this.view.webContents.on('did-finish-load', () =>
+          this.emitToRenderers({ type: 'did-finish-load' })
+        );
+        this.view.webContents.on('did-fail-load', (_ev, errorCode, errorDescription) =>
+          this.emitToRenderers({ type: 'did-fail-load', errorCode, errorDescription })
+        );
+        this.view.webContents.on('did-start-navigation', (_ev, url) =>
+          this.emitToRenderers({ type: 'did-start-navigation', url })
+        );
       } catch {}
       this.visible = true;
     }
@@ -35,13 +56,21 @@ class BrowserViewService {
     } catch {}
     if (url) {
       try {
-        v.webContents.loadURL(url);
+        const current = (() => {
+          try {
+            return v.webContents.getURL();
+          } catch {
+            return '';
+          }
+        })();
+        if (!current || current !== url) {
+          v.webContents.loadURL(url);
+        }
       } catch {}
     }
     try {
       v.webContents.focus();
     } catch {}
-    // Nudge paint on some platforms: re-apply bounds on next tick
     try {
       setTimeout(() => {
         try {
@@ -55,7 +84,6 @@ class BrowserViewService {
   hide() {
     if (!this.view) return;
     try {
-      // Move offscreen instead of removing to keep state
       this.view.setBounds({ x: -10000, y: -10000, width: 1, height: 1 });
     } catch {}
     this.visible = false;
@@ -89,6 +117,12 @@ class BrowserViewService {
   reload() {
     try {
       this.view?.webContents.reload();
+    } catch {}
+  }
+
+  openDevTools() {
+    try {
+      this.view?.webContents.openDevTools({ mode: 'detach' });
     } catch {}
   }
 

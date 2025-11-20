@@ -11,7 +11,6 @@ const RequirementsNotice: React.FC<Props> = ({
   showGithubRequirement,
   needsGhInstall,
   needsGhAuth,
-  showAgentRequirement,
 }) => {
   return (
     <div className="mx-auto max-w-2xl space-y-4 text-sm text-gray-500">

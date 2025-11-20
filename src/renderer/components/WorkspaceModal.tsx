@@ -51,7 +51,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [selectedProvider, setSelectedProvider] = useState<Provider>('codex');
   const [multiEnabled, setMultiEnabled] = useState(false);
   const [selectedProviders, setSelectedProviders] = useState<Provider[]>(['codex', 'claude']);
-  const maxProviders = 4; // limit for multi-agent selection
+  const maxProviders = 4;
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,29 +66,28 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
   const normalizedExisting = existingNames.map((n) => n.toLowerCase());
 
-  // Convert input to valid workspace name format
   const convertToWorkspaceName = (input: string): string => {
     return input
       .trim()
       .toLowerCase()
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/[^a-z0-9-]/g, '') // Remove invalid characters
-      .replace(/-+/g, '-') // Replace multiple consecutive hyphens with single hyphen
-      .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
   };
 
   const validate = (value: string): string | null => {
     const name = value.trim();
-    if (!name) return 'Please enter a workspace name.';
+    if (!name) return 'Please enter a Task name.';
 
     const convertedName = convertToWorkspaceName(name);
-    if (!convertedName) return 'Please enter a valid workspace name.';
+    if (!convertedName) return 'Please enter a valid Task name.';
 
     if (normalizedExisting.includes(convertedName)) {
-      return 'A workspace with this name already exists.';
+      return 'A Task with this name already exists.';
     }
     if (convertedName.length > 64) {
-      return 'Name is too long (max 64 characters).';
+      return 'Task name is too long (max 64 characters).';
     }
     return null;
   };
@@ -160,7 +159,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 <X className="h-4 w-4" />
               </Button>
               <CardHeader className="space-y-1 pb-2 pr-12">
-                <CardTitle className="text-lg">New Workspace</CardTitle>
+                <CardTitle className="text-lg">New Task</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
                   {projectName} • from origin/{defaultBranch}
                 </CardDescription>

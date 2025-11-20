@@ -1,5 +1,5 @@
 export const PROBE_TIMEOUT_MS = 900;
-export const SPINNER_MAX_MS = 15000;
+export const SPINNER_MAX_MS = 30000;
 export const FALLBACK_DELAY_MS = 5000;
 
 export async function isReachable(

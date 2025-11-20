@@ -125,6 +125,8 @@ class ActivityStore {
         'amp',
         'opencode',
         'kimi',
+        'kiro',
+        'rovo',
       ];
       for (const prov of providers) {
         const ptyId = `${prov}-main-${wsId}`;

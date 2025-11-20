@@ -26,7 +26,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   workspaceName,
   onConfirm,
   className,
-  'aria-label': ariaLabel = 'Delete workspace',
+  'aria-label': ariaLabel = 'Delete Task',
   isDeleting = false,
 }) => {
   return (
@@ -41,7 +41,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                   className ||
                   'inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-800'
                 }
-                title="Delete workspace"
+                title="Delete Task"
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}
                 disabled={isDeleting}
@@ -56,13 +56,13 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
             </AlertDialogTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
-            Delete workspace
+            Delete Task
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <AlertDialogContent onClick={(e) => e.stopPropagation()} className="space-y-4">
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+          <AlertDialogTitle>Delete Task?</AlertDialogTitle>
           <AlertDialogDescription>
             {`This will remove the worktree for "${workspaceName}" and delete its branch.`}
           </AlertDialogDescription>

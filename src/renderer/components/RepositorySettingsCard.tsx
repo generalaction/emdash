@@ -12,8 +12,7 @@ const DEFAULTS: RepoSettings = {
   pushOnCreate: true,
 };
 
-const PLACEHOLDER_HELP =
-  'Use {slug} for the workspace name and {timestamp} for epoch milliseconds.';
+const PLACEHOLDER_HELP = 'Use {slug} for the task name and {timestamp} for epoch milliseconds.';
 
 const RepositorySettingsCard: React.FC = () => {
   const [settings, setSettings] = useState<RepoSettings>(DEFAULTS);
@@ -62,7 +61,6 @@ const RepositorySettingsCard: React.FC = () => {
   );
 
   const example = useMemo(() => {
-    // lightweight preview using fake slug and timestamp
     const tpl = settings.branchTemplate || DEFAULTS.branchTemplate;
     const now = Date.now();
     return tpl.replace(/\{slug\}/g, 'my-feature').replace(/\{timestamp\}/g, String(now));

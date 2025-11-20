@@ -14,7 +14,7 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Home, ChevronDown, Plus } from 'lucide-react';
+import { Home, ChevronDown, Plus, FolderOpen } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
@@ -292,10 +292,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   onCreateWorkspaceForProject?.(typedProject);
                                 }}
                                 disabled={isCreatingWorkspace}
-                                aria-label={`Add workspace to ${typedProject.name}`}
+                                aria-label={`Add Task to ${typedProject.name}`}
                               >
                                 <Plus className="h-3 w-3 flex-shrink-0 text-gray-400" aria-hidden />
-                                <span className="truncate">Add workspace</span>
+                                <span className="truncate">Add Task</span>
                               </button>
                             </div>
                           </CollapsibleContent>
@@ -307,6 +307,28 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
+          {projects.length > 0 && onOpenProject && (
+            <SidebarGroup className="mt-2">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-1 w-full justify-start"
+                        onClick={onOpenProject}
+                      >
+                        <FolderOpen className="mr-2 h-4 w-4" />
+                        <span className="text-sm font-medium">Add Project</span>
+                      </Button>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
         </SidebarContent>
         <SidebarFooter className="border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
           <SidebarMenu className="w-full">

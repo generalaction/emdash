@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-// Lightweight flip/replace animation for the latest action line.
-// Uses Web Animations via the browser; no external deps required.
 export const StreamingAction: React.FC<{
   text: string;
   className?: string;
@@ -20,7 +18,6 @@ export const StreamingAction: React.FC<{
       return;
     }
 
-    // Animate out the current line
     const out = el.animate(
       [
         { transform: 'perspective(600px) rotateX(0deg)', opacity: 1 },
@@ -31,7 +28,6 @@ export const StreamingAction: React.FC<{
     out.onfinish = () => {
       setDisplay(text);
       setDots(1);
-      // Next tick, animate in the new line
       requestAnimationFrame(() => {
         const el2 = ref.current;
         if (!el2) return;
@@ -46,7 +42,6 @@ export const StreamingAction: React.FC<{
     };
   }, [text, display]);
 
-  // Animated ellipsis 1..2..3..1.. while streaming
   useEffect(() => {
     const id = window.setInterval(
       () => {

@@ -21,9 +21,11 @@ export function registerPtyIpc(): void {
         rows?: number;
       }
     ) => {
+      if (process.env.EMDASH_DISABLE_PTY === '1') {
+        return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
+      }
       try {
         const { id, cwd, shell, env, cols, rows } = args;
-        // Reuse existing PTY if present; otherwise create new
         const existing = getPty(id);
         const proc = existing ?? startPty({ id, cwd, shell, env, cols, rows });
         const envKeys = env ? Object.keys(env) : [];

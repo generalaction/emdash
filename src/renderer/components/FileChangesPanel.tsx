@@ -224,7 +224,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
       <div className="bg-gray-50 px-3 py-2 dark:bg-gray-900">
         {hasChanges ? (
           <div className="space-y-3">
-            {/* File count and stats */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium text-gray-900 dark:text-gray-100">

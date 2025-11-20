@@ -109,6 +109,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Project management
   openProject: () => ipcRenderer.invoke('project:open'),
+  getProjectSettings: (projectId: string) =>
+    ipcRenderer.invoke('projectSettings:get', { projectId }),
+  updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
+    ipcRenderer.invoke('projectSettings:update', args),
+  fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
   getGitStatus: (workspacePath: string) => ipcRenderer.invoke('git:get-status', workspacePath),
   getFileDiff: (args: { workspacePath: string; filePath: string }) =>
@@ -136,6 +142,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrStatus: (args: { workspacePath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
   getBranchStatus: (args: { workspacePath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
+  listRemoteBranches: (args: { projectPath: string; remote?: string }) =>
+    ipcRenderer.invoke('git:list-remote-branches', args),
   loadContainerConfig: (workspacePath: string) =>
     ipcRenderer.invoke('container:load-config', { workspacePath }),
   startContainerRun: (args: {
@@ -396,6 +404,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   browserGoBack: () => ipcRenderer.invoke('browser:view:goBack'),
   browserGoForward: () => ipcRenderer.invoke('browser:view:goForward'),
   browserReload: () => ipcRenderer.invoke('browser:view:reload'),
+  browserOpenDevTools: () => ipcRenderer.invoke('browser:view:openDevTools'),
+  onBrowserViewEvent: (listener: (data: any) => void) => {
+    const channel = 'browser:view:event';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
+  // Lightweight TCP probe for localhost ports to avoid noisy fetches
+  netProbePorts: (host: string, ports: number[], timeoutMs?: number) =>
+    ipcRenderer.invoke('net:probePorts', host, ports, timeoutMs),
 });
 
 // Type definitions for the exposed API
@@ -468,6 +487,10 @@ export interface ElectronAPI {
     isGitRepo: boolean;
     remote?: string;
     branch?: string;
+    baseRef?: string;
+    upstream?: string;
+    aheadCount?: number;
+    behindCount?: number;
     path?: string;
     rootPath?: string;
     error?: string;
@@ -763,6 +786,15 @@ export interface ElectronAPI {
   browserGoBack: () => Promise<{ ok: boolean }>;
   browserGoForward: () => Promise<{ ok: boolean }>;
   browserReload: () => Promise<{ ok: boolean }>;
+  browserOpenDevTools: () => Promise<{ ok: boolean }>;
+  onBrowserViewEvent: (listener: (data: any) => void) => () => void;
+
+  // TCP probe (no HTTP requests)
+  netProbePorts: (
+    host: string,
+    ports: number[],
+    timeoutMs?: number
+  ) => Promise<{ reachable: number[] }>;
 }
 
 declare global {

@@ -1,6 +1,15 @@
 // Updated for Codex integration
 import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
 
+type ProjectSettingsPayload = {
+  projectId: string;
+  name: string;
+  path: string;
+  gitRemote?: string;
+  gitBranch?: string;
+  baseRef?: string;
+};
+
 export {};
 
 declare global {
@@ -23,6 +32,14 @@ declare global {
         settings?: {
           repository: { branchTemplate: string; pushOnCreate: boolean };
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
+          browserPreview?: { enabled: boolean; engine: 'chromium' };
+          notifications?: { enabled: boolean; sound: boolean };
+          mcp?: {
+            context7?: {
+              enabled: boolean;
+              installHintsDismissed?: Record<string, boolean>;
+            };
+          };
         };
         error?: string;
       }>;
@@ -30,12 +47,28 @@ declare global {
         settings: Partial<{
           repository: { branchTemplate?: string; pushOnCreate?: boolean };
           projectPrep: { autoInstallOnOpenInEditor?: boolean };
+          browserPreview: { enabled?: boolean; engine?: 'chromium' };
+          notifications: { enabled?: boolean; sound?: boolean };
+          mcp: {
+            context7?: {
+              enabled?: boolean;
+              installHintsDismissed?: Record<string, boolean>;
+            };
+          };
         }>
       ) => Promise<{
         success: boolean;
         settings?: {
           repository: { branchTemplate: string; pushOnCreate: boolean };
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
+          browserPreview?: { enabled: boolean; engine: 'chromium' };
+          notifications?: { enabled: boolean; sound: boolean };
+          mcp?: {
+            context7?: {
+              enabled: boolean;
+              installHintsDismissed?: Record<string, boolean>;
+            };
+          };
         };
         error?: string;
       }>;
@@ -106,10 +139,24 @@ declare global {
         path?: string;
         error?: string;
       }>;
+      getProjectSettings: (projectId: string) => Promise<{
+        success: boolean;
+        settings?: ProjectSettingsPayload;
+        error?: string;
+      }>;
+      updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+        success: boolean;
+        settings?: ProjectSettingsPayload;
+        error?: string;
+      }>;
       getGitInfo: (projectPath: string) => Promise<{
         isGitRepo: boolean;
         remote?: string;
         branch?: string;
+        baseRef?: string;
+        upstream?: string;
+        aheadCount?: number;
+        behindCount?: number;
         path?: string;
         rootPath?: string;
         error?: string;
@@ -193,6 +240,11 @@ declare global {
         defaultBranch?: string;
         ahead?: number;
         behind?: number;
+        error?: string;
+      }>;
+      listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
+        success: boolean;
+        branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
       }>;
       loadContainerConfig: (workspacePath: string) => Promise<
@@ -606,11 +658,30 @@ export interface ElectronAPI {
     path?: string;
     error?: string;
   }>;
+  getProjectSettings: (projectId: string) => Promise<{
+    success: boolean;
+    settings?: ProjectSettingsPayload;
+    error?: string;
+  }>;
+  updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+    success: boolean;
+    settings?: ProjectSettingsPayload;
+    error?: string;
+  }>;
   getGitInfo: (projectPath: string) => Promise<{
     isGitRepo: boolean;
     remote?: string;
     branch?: string;
+    baseRef?: string;
+    upstream?: string;
+    aheadCount?: number;
+    behindCount?: number;
     path?: string;
+    error?: string;
+  }>;
+  listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
+    success: boolean;
+    branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
     error?: string;
   }>;
   createPullRequest: (args: {

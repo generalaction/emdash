@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  SelectItemText,
-} from './ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { ProviderInfoCard } from './ProviderInfoCard';
 import RoutingInfoCard from './RoutingInfoCard';
@@ -15,6 +8,7 @@ import { Badge } from './ui/badge';
 import type { UiProvider } from '@/providers/meta';
 import { type Provider } from '../types';
 import openaiLogo from '../../assets/images/openai.png';
+import kiroLogo from '../../assets/images/kiro.png';
 import claudeLogo from '../../assets/images/claude.png';
 import factoryLogo from '../../assets/images/factorydroid.png';
 import geminiLogo from '../../assets/images/gemini.png';
@@ -27,6 +21,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import atlassianLogo from '../../assets/images/atlassian.png';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -114,6 +109,18 @@ const providerConfig = {
     alt: 'Kimi CLI',
     invertInDark: false,
   },
+  kiro: {
+    name: 'Kiro',
+    logo: kiroLogo,
+    alt: 'Kiro CLI',
+    invertInDark: false,
+  },
+  rovo: {
+    name: 'Rovo Dev',
+    logo: atlassianLogo,
+    alt: 'Rovo Dev CLI',
+    invertInDark: false,
+  },
 } as const;
 
 export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
@@ -122,8 +129,6 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
   disabled = false,
   className = '',
 }) => {
-  const currentProvider = providerConfig[value];
-
   return (
     <div className={`relative block w-[12rem] min-w-0 ${className}`}>
       <Select
@@ -145,14 +150,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                     disabled ? 'cursor-not-allowed opacity-60' : ''
                   }`}
                 >
-                  <div className="flex w-full min-w-0 items-center gap-2 overflow-hidden">
-                    <img
-                      src={currentProvider.logo}
-                      alt={currentProvider.alt}
-                      className={`h-4 w-4 shrink-0 rounded-sm ${currentProvider.invertInDark ? 'dark:invert' : ''}`}
-                    />
-                    <SelectValue placeholder="Select provider" />
-                  </div>
+                  <SelectValue placeholder="Select provider" />
                 </SelectTrigger>
               </TooltipTrigger>
               <TooltipContent>
@@ -162,17 +160,10 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
           </TooltipProvider>
         ) : (
           <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
-            <div className="flex w-full min-w-0 items-center gap-2 overflow-hidden">
-              <img
-                src={currentProvider.logo}
-                alt={currentProvider.alt}
-                className={`h-4 w-4 shrink-0 rounded-sm ${currentProvider.invertInDark ? 'dark:invert' : ''}`}
-              />
-              <SelectValue placeholder="Select provider" />
-            </div>
+            <SelectValue placeholder="Select provider" />
           </SelectTrigger>
         )}
-        <SelectContent side="top">
+        <SelectContent side="top" className="z-[120]">
           <TooltipProvider delayDuration={150}>
             {Object.entries(providerConfig).map(([key, config]) => (
               <TooltipRow key={key} id={key as UiProvider}>
@@ -183,7 +174,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                       alt={config.alt}
                       className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
                     />
-                    <SelectItemText>{config.name}</SelectItemText>
+                    <span>{config.name}</span>
                   </div>
                 </SelectItem>
               </TooltipRow>
@@ -202,9 +193,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                     aria-disabled
                   >
                     <Workflow className="h-4 w-4 text-foreground/70" aria-hidden="true" />
-                    <SelectItemText>
-                      <span className="mr-2">Routing</span>
-                    </SelectItemText>
+                    <span className="mr-2">Routing</span>
                     <Badge className="ml-1" style={{ fontSize: '10px' }}>
                       Soon
                     </Badge>
@@ -251,7 +240,6 @@ const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = (
 
 export default ProviderSelector;
 
-// Routing row with custom tooltip content
 export const RoutingTooltipRow: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const [open, setOpen] = useState(false);
   return (

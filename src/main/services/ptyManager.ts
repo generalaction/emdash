@@ -25,6 +25,9 @@ export function startPty(options: {
   cols?: number;
   rows?: number;
 }): IPty {
+  if (process.env.EMDASH_DISABLE_PTY === '1') {
+    throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+  }
   const { id, cwd, shell, env, cols = 80, rows = 24 } = options;
 
   let useShell = shell || getDefaultShell();
@@ -79,7 +82,12 @@ export function startPty(options: {
 
   // Lazy load native module at call time to prevent startup crashes
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pty: typeof import('node-pty') = require('node-pty');
+  let pty: typeof import('node-pty');
+  try {
+    pty = require('node-pty');
+  } catch (e: any) {
+    throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
+  }
 
   // Provide sensible defaults for interactive shells so they render prompts
   const args: string[] = [];
@@ -93,13 +101,29 @@ export function startPty(options: {
     } catch {}
   }
 
-  const proc = pty.spawn(useShell, args, {
-    name: 'xterm-256color',
-    cols,
-    rows,
-    cwd: useCwd,
-    env: useEnv,
-  });
+  let proc: IPty;
+  try {
+    proc = pty.spawn(useShell, args, {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd: useCwd,
+      env: useEnv,
+    });
+  } catch (err: any) {
+    try {
+      const fallbackShell = getDefaultShell();
+      proc = pty.spawn(fallbackShell, [], {
+        name: 'xterm-256color',
+        cols,
+        rows,
+        cwd: useCwd,
+        env: useEnv,
+      });
+    } catch (err2: any) {
+      throw new Error(`PTY spawn failed: ${err2?.message || err?.message || String(err2 || err)}`);
+    }
+  }
 
   const rec: PtyRecord = { id, proc };
   ptys.set(id, rec);

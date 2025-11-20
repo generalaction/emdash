@@ -16,9 +16,7 @@ import { usePlanMode } from '@/hooks/usePlanMode';
 import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
 import { log } from '@/lib/logger';
 import { logPlanEvent } from '@/lib/planLogs';
-import { PLAN_CHAT_PREAMBLE } from '@/lib/planRules';
 import { type Provider } from '../types';
-import { buildAttachmentsSection, buildImageAttachmentsSection } from '../lib/attachments';
 import { Workspace, Message } from '../types/chat';
 import {
   getContainerRunState,
@@ -52,8 +50,6 @@ interface Props {
 const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, initialProvider }) => {
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
-  const [inputValue, setInputValue] = useState('');
-  const [imageAttachments, setImageAttachments] = useState<string[]>([]);
   const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
   const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
   const [claudeInstructions, setClaudeInstructions] = useState<string | null>(null);
@@ -110,6 +106,46 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   });
 
   useEffect(() => {
+    const meta = providerMeta[provider];
+    if (!meta?.terminalOnly || !meta.autoStartCommand) return;
+
+    const ptyId = `${provider}-main-${workspace.id}`;
+    const onceKey = `cli:autoStart:${ptyId}`;
+    try {
+      if (localStorage.getItem(onceKey) === '1') return;
+    } catch {}
+
+    const send = () => {
+      try {
+        (window as any).electronAPI?.ptyInput?.({
+          id: ptyId,
+          data: `${meta.autoStartCommand}\n`,
+        });
+        try {
+          localStorage.setItem(onceKey, '1');
+        } catch {}
+      } catch {}
+    };
+
+    const api: any = (window as any).electronAPI;
+    let off: (() => void) | null = null;
+    try {
+      off = api?.onPtyStarted?.((info: { id: string }) => {
+        if (info?.id === ptyId) send();
+      });
+    } catch {}
+
+    const t = setTimeout(send, 1200);
+
+    return () => {
+      try {
+        off?.();
+      } catch {}
+      clearTimeout(t);
+    };
+  }, [provider, workspace.id]);
+
+  useEffect(() => {
     initializedConversationRef.current = null;
     setCliStartFailed(false);
     setContainerState(getContainerRunState(workspace.id));
@@ -125,7 +161,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
 
   // On workspace change, restore last-selected provider (including Droid).
   // If a locked provider exists (including Droid), prefer locked.
-  // If initialProvider is provided, use it as the highest priority.
   useEffect(() => {
     try {
       const lastKey = `provider:last:${workspace.id}`;
@@ -138,7 +173,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       setHasGeminiActivity(locked === 'gemini');
       setHasCursorActivity(locked === 'cursor');
       setHasCopilotActivity(locked === 'copilot');
-      // Priority: initialProvider > locked > last > default
       if (initialProvider) {
         setProvider(initialProvider);
       } else {
@@ -155,6 +189,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
           'charm',
           'auggie',
           'kimi',
+          'kiro',
+          'rovo',
         ];
         if (locked && (validProviders as string[]).includes(locked)) {
           setProvider(locked as Provider);
@@ -183,6 +219,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
         provider !== 'droid' &&
         provider !== 'gemini' &&
         provider !== 'cursor' &&
+        provider !== 'kiro' &&
         activeStream.messages &&
         activeStream.messages.some((m) => m.sender === 'user');
       const droidLocked = provider === 'droid' && hasDroidActivity;
@@ -204,7 +241,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     hasCursorActivity,
   ]);
 
-  // Check Claude Code installation when selected
   useEffect(() => {
     let cancelled = false;
     if (provider !== 'claude') {
@@ -264,7 +300,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
 
     initializedConversationRef.current = convoId;
 
-    // Check if we need to add a welcome message
     // This runs when messages are loaded but could be empty or contain initial prompt
     const checkForWelcomeMessage = async () => {
       if (codexStream.messages.length === 0) {
@@ -351,83 +386,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     initializeCodex();
   }, [workspace.id, workspace.path, workspace.name, toast]);
 
-  // Basic Claude installer check (optional UX). We'll rely on user to install as needed.
-  // We still gate sending by agentCreated (workspace+conversation ready).
-
-  const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
-    if (provider === 'claude' && isClaudeInstalled === false) {
-      toast({
-        title: 'Claude Code not installed',
-        description: 'Install Claude Code CLI and login first. See instructions below.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const activeConversationId =
-      provider === 'codex' ? codexStream.conversationId : claudeStream.conversationId;
-    if (!activeConversationId) return;
-
-    // Prepare optional wire-only preamble (not shown in UI)
-    let wirePrefix = '';
-    const messageWithContext = inputValue;
-    if (planEnabled) {
-      try {
-        const key = `planPreambleSent:${workspace.id}:${activeConversationId}`;
-        const sent = localStorage.getItem(key) === '1';
-        if (!sent) {
-          wirePrefix = `${PLAN_CHAT_PREAMBLE}\n\n`;
-          localStorage.setItem(key, '1');
-        }
-      } catch {}
-    }
-
-    const attachmentsSection = await buildAttachmentsSection(workspace.path, inputValue, {
-      maxFiles: 6,
-      maxBytesPerFile: 200 * 1024,
-    });
-    const imageSection = buildImageAttachmentsSection(workspace.path, imageAttachments);
-
-    const result =
-      provider === 'codex'
-        ? await codexStream.send(messageWithContext, attachmentsSection + imageSection, wirePrefix)
-        : await claudeStream.send(
-            messageWithContext,
-            attachmentsSection + imageSection,
-            wirePrefix
-          );
-    if (!result.success) {
-      if (result.error && result.error !== 'stream-in-progress') {
-        toast({
-          title: 'Communication Error',
-          description: 'Failed to start Codex stream. Please try again.',
-          variant: 'destructive',
-        });
-      }
-      return;
-    }
-
-    setInputValue('');
-    setImageAttachments([]);
-  };
-
-  const handleCancelStream = async () => {
-    if (!codexStream.isStreaming && !claudeStream.isStreaming) return;
-    const result = provider === 'codex' ? await codexStream.cancel() : await claudeStream.cancel();
-    if (!result.success) {
-      toast({
-        title: 'Cancel Failed',
-        description: 'Unable to stop Codex stream. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const streamingOutputForList =
     activeStream.isStreaming || activeStream.streamingOutput ? activeStream.streamingOutput : null;
-  // Allow switching providers freely while in Droid mode
-  const providerLocked = lockedProvider !== null;
 
   const isTerminal = providerMeta[provider]?.terminalOnly === true;
 
@@ -436,7 +396,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const md = workspace.metadata || null;
     const p = (md?.initialPrompt || '').trim();
     if (p) return p;
-    const parts: string[] = [];
     const issue = md?.linearIssue;
     if (issue) {
       const parts: string[] = [];
@@ -552,7 +511,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const ports = state.ports ?? [];
     const containerActive =
       state.status === 'starting' || state.status === 'building' || state.status === 'ready';
-    if (!containerActive) return null; // Hide bar in chat when not active
+    if (!containerActive) return null;
 
     const norm = (s: string) => s.toLowerCase();
     const sorted = [...ports].sort((a, b) => {
@@ -640,7 +599,6 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                   Ports
                 </button>
               ) : null}
-              {/* Quick Preview removed from here to keep browser decoupled from containerization */}
               {state.previewUrl ? (
                 <>
                   <button
@@ -851,6 +809,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       {isTerminal ? (
         <ProviderBar
           provider={provider}
+          workspaceId={workspace.id}
           linearIssue={workspace.metadata?.linearIssue || null}
           githubIssue={workspace.metadata?.githubIssue || null}
           jiraIssue={workspace.metadata?.jiraIssue || null}

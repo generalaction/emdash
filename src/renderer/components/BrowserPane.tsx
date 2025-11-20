@@ -1,15 +1,5 @@
 import React from 'react';
-import {
-  X,
-  RefreshCw,
-  ArrowLeft,
-  ArrowRight,
-  ExternalLink,
-  Bug,
-  Info,
-  Wrench,
-  Play,
-} from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
 import { Spinner } from './ui/spinner';
@@ -37,7 +27,7 @@ const BrowserPane: React.FC<{
     hideSpinner,
   } = useBrowser();
   const [address, setAddress] = React.useState<string>('');
-  const [loading] = React.useState<boolean>(false);
+  // const [loading] = React.useState<boolean>(false);
   const [canBack] = React.useState(false);
   const [canFwd] = React.useState(false);
   const webviewRef = React.useRef<Electron.WebviewTag | null>(null);
@@ -79,7 +69,6 @@ const BrowserPane: React.FC<{
     if (typeof url === 'string') setAddress(url);
   }, [url]);
 
-  // We removed inline inputs; advanced preview settings can move to Settings later.
   // Stop the previous workspace server only when switching workspaces
   const prevWorkspaceIdRef = React.useRef<string | null>(null);
   React.useEffect(() => {
@@ -152,42 +141,44 @@ const BrowserPane: React.FC<{
     };
   }, [workspaceId, navigate, showSpinner, hideSpinner]);
 
-  // When URL changes, keep spinner until the URL responds at least once
+  // When URL changes, verify reachability (TCP probe) with a generous grace window
   React.useEffect(() => {
     let cancelled = false;
     const u = (url || '').trim();
     if (!u) return;
-    // Kick a lightweight readiness probe to avoid white screen with no feedback
     (async () => {
-      const deadline = Date.now() + SPINNER_MAX_MS; // cap spinner
-      const tryOnce = async () => {
-        try {
-          const c = new AbortController();
-          const t = setTimeout(() => c.abort(), PROBE_TIMEOUT_MS);
-          await fetch(u, { mode: 'no-cors', signal: c.signal });
-          clearTimeout(t);
-          return true;
-        } catch {
-          return false;
+      try {
+        const parsed = new URL(u);
+        const host = parsed.hostname || 'localhost';
+        const port = Number(parsed.port || 0);
+        if (!port) return;
+        showSpinner();
+        const deadline = Date.now() + SPINNER_MAX_MS; // ~15s grace for compilers (e.g., Next initial build)
+        let ok = false;
+        while (!cancelled && Date.now() < deadline) {
+          try {
+            const res = await (window as any).electronAPI?.netProbePorts?.(
+              host,
+              [port],
+              PROBE_TIMEOUT_MS
+            );
+            ok = !!(res && Array.isArray(res.reachable) && res.reachable.length > 0);
+            if (ok) break;
+          } catch {}
+          await new Promise((r) => setTimeout(r, 500));
         }
-      };
-      // If already busy=false (e.g., manual set), don’t force it back on
-      showSpinner();
-      let ok = false;
-      while (!cancelled && Date.now() < deadline) {
-        ok = await tryOnce();
-        if (ok) break;
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      if (!cancelled) {
+        if (!cancelled) {
+          hideSpinner();
+          setFailed(!ok);
+        }
+      } catch {
         hideSpinner();
-        setFailed(!ok);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [url, showSpinner, hideSpinner, retryTick]);
+  }, [url, showSpinner, hideSpinner]);
 
   const handleRetry = React.useCallback(() => {
     if (!url) return;
@@ -350,7 +341,24 @@ const BrowserPane: React.FC<{
     };
   }, [setWidthPct]);
 
-  const { goBack, goForward, reload } = useBrowser();
+  const { goBack, goForward } = useBrowser();
+
+  const handleClose = React.useCallback(() => {
+    try {
+      const id = (workspaceId || '').trim();
+      if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
+    } catch {}
+    try {
+      (window as any).electronAPI?.browserHide?.();
+    } catch {}
+    try {
+      clearUrl();
+    } catch {}
+    setFailed(false);
+    close();
+  }, [workspaceId, clearUrl, close]);
+
+  const isDev = typeof window !== 'undefined' && String(window.location.port || '') === '3000';
 
   return (
     <div
@@ -391,13 +399,7 @@ const BrowserPane: React.FC<{
           >
             <ArrowRight className="h-4 w-4" />
           </button>
-          <button
-            className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
-            onClick={() => reload()}
-            title="Reload"
-          >
-            <RefreshCw className={cn('h-4 w-4', loading ? 'animate-spin' : '')} />
-          </button>
+          {/* Reload removed: dev servers auto-refresh (HMR) */}
           <form
             className="mx-2 flex min-w-0 flex-1"
             onSubmit={(e) => {
@@ -437,19 +439,9 @@ const BrowserPane: React.FC<{
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
-          {/* <button
-            className="inline-flex h-6 items-center gap-1 rounded border border-border px-2 text-xs hover:bg-muted"
-            title="Open DevTools"
-            onClick={() => {
-              const el = webviewRef.current as any;
-              try { el?.openDevTools?.(); } catch {}
-            }}
-          >
-            <Bug className="h-3.5 w-3.5" />
-          </button> */}
           <button
             className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
-            onClick={close}
+            onClick={handleClose}
             title="Close"
             aria-label="Close"
           >
@@ -485,94 +477,23 @@ const BrowserPane: React.FC<{
                 <Spinner size="md" />
                 <div className="leading-tight">
                   <div className="font-medium text-foreground">Loading preview…</div>
-                  <div className="text-xs text-muted-foreground/80">
-                    Starting or connecting to your dev server
-                  </div>
+                  <div className="text-xs text-muted-foreground/80">Starting dev server</div>
                 </div>
               </div>
             </div>
           ) : null}
           {!busy && url && failed ? (
-            <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
-              <div className="w-full max-w-xl rounded-xl border border-border/70 bg-background/95 p-4 text-sm text-muted-foreground shadow-sm">
-                <div className="flex items-start gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/70 bg-muted/50">
-                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                  </span>
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">Preview not reachable</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      We couldn’t connect to{' '}
-                      <span className="font-mono text-foreground/80">{url}</span>. This often means
-                      dependencies aren’t installed or the dev server hasn’t started yet.
-                    </div>
+            isDev ? (
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-[1px]">
+                  <Spinner size="md" />
+                  <div className="leading-tight">
+                    <div className="font-medium text-foreground">Loading preview…</div>
+                    <div className="text-xs text-muted-foreground/80">Starting dev server</div>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50 disabled:opacity-60"
-                    onClick={handleInstall}
-                    disabled={!workspaceId || !workspacePath || actionBusy === 'start'}
-                  >
-                    {actionBusy === 'install' ? (
-                      <Spinner size="sm" />
-                    ) : (
-                      <Wrench className="h-3.5 w-3.5" />
-                    )}
-                    Install dependencies
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50 disabled:opacity-60"
-                    onClick={handleStart}
-                    disabled={!workspaceId || !workspacePath || actionBusy === 'install'}
-                  >
-                    {actionBusy === 'start' ? (
-                      <Spinner size="sm" />
-                    ) : (
-                      <Play className="h-3.5 w-3.5" />
-                    )}
-                    Start dev server
-                  </button>
-                  <span className="mx-1 h-5 w-px bg-border/70" />
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50"
-                    onClick={handleRetry}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Retry
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50"
-                    onClick={() => url && (window as any).electronAPI?.openExternal?.(url)}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Open in browser
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/50"
-                    onClick={() => (window as any).electronAPI?.browserOpenDevTools?.()}
-                  >
-                    <Bug className="h-3.5 w-3.5" />
-                    Open DevTools
-                  </button>
-                </div>
-                {lines.length ? (
-                  <div className="mt-3 rounded-md border border-dashed border-border/70 bg-muted/40 p-2">
-                    <div className="text-[11px] leading-snug text-muted-foreground">
-                      <span className="font-medium text-foreground">Last setup log</span>
-                      <div className="mt-1 font-mono text-[11px] text-foreground/80">
-                        {lines[lines.length - 1]}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
-            </div>
+            ) : null
           ) : null}
         </div>
       </div>

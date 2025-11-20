@@ -38,4 +38,8 @@ export function registerBrowserIpc() {
     browserViewService.reload();
     return { ok: true };
   });
+  ipcMain.handle('browser:view:openDevTools', () => {
+    browserViewService.openDevTools();
+    return { ok: true };
+  });
 }
