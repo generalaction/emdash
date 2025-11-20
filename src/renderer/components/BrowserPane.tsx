@@ -157,7 +157,6 @@ const BrowserPane: React.FC<{
   }, [workspaceId, navigate, showSpinner, hideSpinner]);
 
   // When URL changes, verify reachability (TCP probe) with a generous grace window
-  // Note: Spinner is already shown by the event handler, so we don't show it again here
   React.useEffect(() => {
     let cancelled = false;
     const u = (url || '').trim();
@@ -219,38 +218,6 @@ const BrowserPane: React.FC<{
     } catch {}
     setRetryTick((n) => n + 1);
   }, [url, showSpinner]);
-
-  const handleInstall = React.useCallback(async () => {
-    const id = (workspaceId || '').trim();
-    const wp = (workspacePath || '').trim();
-    if (!id || !wp) return;
-    setActionBusy('install');
-    showSpinner();
-    try {
-      await (window as any).electronAPI?.hostPreviewSetup?.({ workspaceId: id, workspacePath: wp });
-      // Success: unlock actions; spinner remains until URL reachable or user retries
-      setActionBusy(null);
-    } catch {
-      setActionBusy(null);
-      hideSpinner();
-    }
-  }, [workspaceId, workspacePath, showSpinner, hideSpinner]);
-
-  const handleStart = React.useCallback(async () => {
-    const id = (workspaceId || '').trim();
-    const wp = (workspacePath || '').trim();
-    if (!id || !wp) return;
-    setActionBusy('start');
-    showSpinner();
-    try {
-      await (window as any).electronAPI?.hostPreviewStart?.({ workspaceId: id, workspacePath: wp });
-      // Success: unlock actions; spinner remains until URL reachable or user retries
-      setActionBusy(null);
-    } catch {
-      setActionBusy(null);
-      hideSpinner();
-    }
-  }, [workspaceId, workspacePath, showSpinner, hideSpinner]);
 
   // Switch to main-managed Browser (WebContentsView): report bounds + drive navigation via preload.
   const containerRef = React.useRef<HTMLDivElement | null>(null);
