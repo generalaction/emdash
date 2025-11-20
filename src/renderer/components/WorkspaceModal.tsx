@@ -10,6 +10,7 @@ import { X, GitBranch } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { type Provider } from '../types';
 import { Separator } from './ui/separator';
+import { providerMeta } from '../providers/meta';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { LinearIssueSelector } from './LinearIssueSelector';
@@ -30,7 +31,8 @@ interface WorkspaceModalProps {
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null,
-    multiAgent?: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null
+    multiAgent?: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null,
+    autoApprove?: boolean
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -62,6 +64,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
+  const [autoApprove, setAutoApprove] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
   const normalizedExisting = existingNames.map((n) => n.toLowerCase());
@@ -192,7 +195,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 providers: selectedProviders.slice(0, maxProviders),
                                 maxProviders,
                               }
-                            : null
+                            : null,
+                          showAdvanced ? autoApprove : false
                         );
                         setWorkspaceName('');
                         setInitialPrompt('');
@@ -201,6 +205,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         setMultiEnabled(false);
                         setSelectedLinearIssue(null);
                         setSelectedGithubIssue(null);
+                        setAutoApprove(false);
                         setShowAdvanced(false);
                         setError(null);
                         onClose();
@@ -316,6 +321,36 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               </label>
                             </div>
                           </div>
+                          {(() => {
+                            const currentProvider = multiEnabled
+                              ? selectedProviders[0]
+                              : selectedProvider;
+                            const meta = providerMeta[currentProvider];
+                            const hasAutoApprove = meta?.autoApproveFlag;
+
+                            if (!hasAutoApprove) return null;
+
+                            return (
+                              <div className="flex items-center gap-4">
+                                <label className="w-32 shrink-0 text-sm font-medium text-foreground">
+                                  Auto-approve
+                                </label>
+                                <div className="min-w-0 flex-1">
+                                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={autoApprove}
+                                      onChange={(e) => setAutoApprove(e.target.checked)}
+                                      className="h-4 w-4"
+                                    />
+                                    <span className="text-muted-foreground">
+                                      Bypass permission prompts for file operations
+                                    </span>
+                                  </label>
+                                </div>
+                              </div>
+                            );
+                          })()}
                           <div className="flex items-start gap-4">
                             <label
                               htmlFor="linear-issue"

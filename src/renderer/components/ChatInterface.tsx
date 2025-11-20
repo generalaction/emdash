@@ -81,7 +81,11 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
 
   const claudeStream = useClaudeStream(
     provider === 'claude' && !providerMeta.claude.terminalOnly
-      ? { workspaceId: workspace.id, workspacePath: workspace.path }
+      ? {
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+          autoApprove: workspace.metadata?.autoApprove ?? false
+        }
       : null
   );
   const activeStream = provider === 'codex' ? codexStream : claudeStream;
@@ -730,6 +734,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
                 id={`${provider}-main-${workspace.id}`}
                 cwd={workspace.path}
                 shell={providerMeta[provider].cli}
+                autoApprove={workspace.metadata?.autoApprove ?? false}
                 env={
                   planEnabled
                     ? {
@@ -815,6 +820,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
           jiraIssue={workspace.metadata?.jiraIssue || null}
           planModeEnabled={planEnabled}
           onPlanModeChange={setPlanEnabled}
+          autoApprove={workspace.metadata?.autoApprove ?? false}
           onApprovePlan={async () => {
             try {
               await logPlanEvent(workspace.path, 'Plan approved via UI; exiting Plan Mode');
