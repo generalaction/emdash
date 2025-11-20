@@ -59,6 +59,7 @@ interface LeftSidebarProps {
   isCreatingWorkspace?: boolean;
   onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
+  isHomeView?: boolean;
 }
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -79,6 +80,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   isCreatingWorkspace,
   onDeleteWorkspace,
   onDeleteProject,
+  isHomeView,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
@@ -134,7 +136,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isHomeView}
+                  >
                     <Button
                       variant="ghost"
                       onClick={onGoHome}

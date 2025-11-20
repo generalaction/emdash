@@ -1389,6 +1389,7 @@ const AppContent: React.FC = () => {
                     isCreatingWorkspace={isCreatingWorkspace}
                     onDeleteWorkspace={handleDeleteWorkspace}
                     onDeleteProject={handleDeleteProject}
+                    isHomeView={showHomeView}
                   />
                 </ResizablePanel>
                 <ResizableHandle
