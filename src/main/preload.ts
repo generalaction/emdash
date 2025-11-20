@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     env?: Record<string, string>;
     cols?: number;
     rows?: number;
+    autoApprove?: boolean;
   }) => ipcRenderer.invoke('pty:start', opts),
   ptyInput: (args: { id: string; data: string }) => ipcRenderer.send('pty:input', args),
   ptyResize: (args: { id: string; cols: number; rows: number }) =>
@@ -80,8 +81,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
 
   // Worktree management
-  worktreeCreate: (args: { projectPath: string; workspaceName: string; projectId: string }) =>
-    ipcRenderer.invoke('worktree:create', args),
+  worktreeCreate: (args: {
+    projectPath: string;
+    workspaceName: string;
+    projectId: string;
+    autoApprove?: boolean;
+  }) => ipcRenderer.invoke('worktree:create', args),
   worktreeList: (args: { projectPath: string }) => ipcRenderer.invoke('worktree:list', args),
   worktreeRemove: (args: {
     projectPath: string;
@@ -437,6 +442,7 @@ export interface ElectronAPI {
     env?: Record<string, string>;
     cols?: number;
     rows?: number;
+    autoApprove?: boolean;
   }) => Promise<{ ok: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows: number }) => void;
@@ -461,6 +467,7 @@ export interface ElectronAPI {
     projectPath: string;
     workspaceName: string;
     projectId: string;
+    autoApprove?: boolean;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
     projectPath: string;
