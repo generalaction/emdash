@@ -138,7 +138,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    isActive={isHomeView}
+                    className={isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}
                   >
                     <Button
                       variant="ghost"
