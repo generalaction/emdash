@@ -169,7 +169,7 @@ class BrowserViewService {
     } catch {}
   }
 
-  loadURL(url: string) {
+  loadURL(url: string, forceReload = false) {
     // Don't load empty or invalid URLs
     if (!url || typeof url !== 'string' || url.trim() === '') {
       return;
@@ -187,8 +187,8 @@ class BrowserViewService {
           return '';
         }
       })();
-      // Only load if URL is different
-      if (!current || normalizeUrl(current) !== normalizeUrl(url)) {
+      // Load if URL is different or if forceReload is true
+      if (forceReload || !current || normalizeUrl(current) !== normalizeUrl(url)) {
         // Ensure view is visible before loading
         const win = getMainWindow();
         if (win && this.visible) {

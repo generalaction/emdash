@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
 import { Spinner } from './ui/spinner';
@@ -62,6 +62,7 @@ const BrowserPane: React.FC<{
   }, [url]);
 
   const prevWorkspaceIdRef = React.useRef<string | null>(null);
+  const lastWorkspaceUrlRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     const prev = prevWorkspaceIdRef.current;
     const cur = (workspaceId || '').trim() || null;
@@ -72,6 +73,8 @@ const BrowserPane: React.FC<{
         (window as any).electronAPI?.browserClear?.();
         (window as any).electronAPI?.browserHide?.();
         setRunning(prev, false);
+        // Reset workspace URL tracking to force reload
+        lastWorkspaceUrlRef.current = null;
       } catch {}
     }
     
@@ -308,14 +311,25 @@ const BrowserPane: React.FC<{
     if (workspaceId !== lastWorkspaceIdRef.current) {
       lastUrlRef.current = null;
       lastWorkspaceIdRef.current = workspaceId || null;
+      lastWorkspaceUrlRef.current = null;
     }
     
     if (isOpen && url && !overlayActive && !overlayRaised && workspaceId) {
-      if (lastUrlRef.current !== url) {
+      const workspaceUrlKey = `${workspaceId}:${url}`;
+      // Force reload if workspace changed or URL changed
+      const isWorkspaceChange = lastWorkspaceUrlRef.current === null;
+      if (lastWorkspaceUrlRef.current !== workspaceUrlKey || lastUrlRef.current !== url) {
         lastUrlRef.current = url;
+        lastWorkspaceUrlRef.current = workspaceUrlKey;
+        
+        try {
+          (window as any).electronAPI?.browserClear?.();
+        } catch {}
+        
         const timeoutId = setTimeout(() => {
           try {
-            (window as any).electronAPI?.browserLoadURL?.(url);
+            // Force reload when workspace changes to ensure fresh content
+            (window as any).electronAPI?.browserLoadURL?.(url, isWorkspaceChange);
           } catch {}
         }, URL_LOAD_DELAY_MS);
         return () => clearTimeout(timeoutId);
@@ -377,6 +391,19 @@ const BrowserPane: React.FC<{
 
   const { goBack, goForward } = useBrowser();
 
+  const handleRefresh = React.useCallback(() => {
+    if (!url) return;
+    try {
+      // Clear and reload to force fresh content
+      (window as any).electronAPI?.browserClear?.();
+      setTimeout(() => {
+        try {
+          (window as any).electronAPI?.browserLoadURL?.(url, true);
+        } catch {}
+      }, 100);
+    } catch {}
+  }, [url]);
+
   const handleClose = React.useCallback(() => {
     try {
       const id = (workspaceId || '').trim();
@@ -433,6 +460,16 @@ const BrowserPane: React.FC<{
           >
             <ArrowRight className="h-4 w-4" />
           </button>
+          {url && (
+            <button
+              className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+              onClick={handleRefresh}
+              title="Refresh"
+              aria-label="Refresh"
+            >
+              <RotateCw className="h-4 w-4" />
+            </button>
+          )}
           <form
             className="mx-2 flex min-w-0 flex-1"
             onSubmit={(e) => {
