@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
-import { X, FolderOpen, Github } from 'lucide-react';
+import { X, FolderOpen, Github, Edit2 } from 'lucide-react';
 import { Separator } from './ui/separator';
 
 interface CloneRepoModalProps {
@@ -20,8 +20,10 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
   const [isCloning, setIsCloning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const [isEditingPath, setIsEditingPath] = useState(false);
   const shouldReduceMotion = useReducedMotion();
   const [defaultBasePath, setDefaultBasePath] = useState<string>('');
+  const previousIsOpen = useRef(false);
 
   useEffect(() => {
     const loadDefaultPath = async () => {
@@ -47,6 +49,7 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
       setError(null);
       setTouched(false);
       setIsCloning(false);
+      setIsEditingPath(false);
     }
   }, [isOpen]);
 
@@ -77,6 +80,32 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
       setDestinationPath(defaultBasePath);
     }
   }, [defaultBasePath]);
+
+  // Ensure default path is restored when the modal first opens
+  useEffect(() => {
+    if (isOpen && !previousIsOpen.current && defaultBasePath && !destinationPath) {
+      setDestinationPath(defaultBasePath);
+    }
+    previousIsOpen.current = isOpen;
+  }, [isOpen, defaultBasePath, destinationPath]);
+
+  // Keep validation errors in sync once the user has interacted
+  useEffect(() => {
+    if (touched) {
+      setError(validate());
+    }
+  }, [repoUrl, destinationPath, touched]);
+
+  const applyDefaultIfEmpty = () => {
+    if (!destinationPath.trim() && defaultBasePath) {
+      setDestinationPath(defaultBasePath);
+    }
+  };
+
+  const exitEditingPath = () => {
+    setIsEditingPath(false);
+    applyDefaultIfEmpty();
+  };
 
   const handleBrowse = async () => {
     try {
@@ -190,7 +219,7 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
                       value={repoUrl}
                       onChange={(e) => {
                         setRepoUrl(e.target.value);
-                        if (touched) setError(validate());
+                        setError(null);
                       }}
                       onBlur={() => setTouched(true)}
                       placeholder="https://github.com/username/repo.git"
@@ -209,20 +238,56 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
                     >
                       Destination Path
                     </label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="destination-path"
-                        value={destinationPath}
-                        onChange={(e) => {
-                          setDestinationPath(e.target.value);
-                          if (touched) setError(validate());
-                        }}
-                        placeholder="/path/to/destination"
-                        className="flex-1"
-                      />
-                      <Button type="button" variant="outline" onClick={handleBrowse} title="Browse">
-                        <FolderOpen className="h-4 w-4" />
-                      </Button>
+                    <div className="flex flex-col gap-2">
+                      {isEditingPath ? (
+                        <div
+                          className="flex gap-2"
+                          onBlur={(e) => {
+                            const relatedTarget = e.relatedTarget as Node | null;
+                            if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+                              exitEditingPath();
+                            }
+                          }}
+                        >
+                          <Input
+                            id="destination-path"
+                            value={destinationPath}
+                            onChange={(e) => {
+                              setDestinationPath(e.target.value);
+                              setError(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                exitEditingPath();
+                              }
+                            }}
+                            placeholder="/path/to/destination"
+                            className="flex-1"
+                            autoFocus
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleBrowse}
+                            title="Browse"
+                          >
+                            <FolderOpen className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between rounded-md border border-input bg-muted/50 px-3 py-2 text-sm transition-colors hover:bg-muted/70"
+                          onClick={() => setIsEditingPath(true)}
+                          title="Edit destination path"
+                        >
+                          <span className="font-mono text-muted-foreground truncate text-left">
+                            {destinationPath || 'No path selected'}
+                          </span>
+                          <Edit2 className="h-3.5 w-3.5 text-muted-foreground opacity-70 ml-2 flex-shrink-0" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
