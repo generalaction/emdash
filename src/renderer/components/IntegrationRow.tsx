@@ -1,11 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from './ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type IntegrationStatus =
   | 'connected'
@@ -174,7 +169,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
               <TooltipContent side="top">
                 <div className="max-w-[240px] space-y-1">
                   <div className="text-xs font-medium text-foreground">Copy install command</div>
-                  <code className="block truncate text-[11px] font-mono text-muted-foreground">
+                  <code className="block truncate font-mono text-[11px] text-muted-foreground">
                     {installCommand}
                   </code>
                 </div>
