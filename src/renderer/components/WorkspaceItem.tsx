@@ -1,5 +1,6 @@
 import React from 'react';
-import { GitBranch, Bot } from 'lucide-react';
+import { GitBranch } from 'lucide-react';
+// import { Bot } from 'lucide-react'; // Commented out - Bot icon removed per user request
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import { useWorkspaceChanges } from '../hooks/useWorkspaceChanges';
 import { ChangesBadge } from './WorkspaceChanges';
@@ -39,13 +40,16 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   return (
     <div className="flex min-w-0 items-center justify-between">
       <div className="flex min-w-0 flex-1 items-center gap-2 py-1">
-        {isRunning || workspace.status === 'running' || workspace.agentId ? (
+        {/* Only show spinner when actually running, not just because agentId exists */}
+        {isRunning || workspace.status === 'running' ? (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         ) : (
           <GitBranch className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
         <span className="block truncate text-xs font-medium text-foreground">{workspace.name}</span>
+        {/* Bot icon commented out per user request
         {workspace.agentId && <Bot className="h-3 w-3 flex-shrink-0 text-purple-500" />}
+        */}
       </div>
       <div className="relative flex flex-shrink-0 items-center pl-6">
         {showDelete && onDelete ? (

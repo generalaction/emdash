@@ -742,12 +742,14 @@ const AppContent: React.FC = () => {
           branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
           path: variants[0]?.path || selectedProject.path,
           status: 'idle',
+          agentId: selectedProvider || undefined, // Save the selected provider as agentId for multi-agent workspaces
           metadata: multiMeta,
         } as Workspace;
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
           projectId: selectedProject.id,
+          agentId: selectedProvider || undefined, // Ensure agentId is saved
           metadata: multiMeta,
         });
         if (!saveResult?.success) {
@@ -777,12 +779,14 @@ const AppContent: React.FC = () => {
           branch: worktree.branch,
           path: worktree.path,
           status: 'idle',
+          agentId: selectedProvider || undefined, // Save the selected provider as agentId
           metadata: workspaceMetadata,
         };
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
           projectId: selectedProject.id,
+          agentId: selectedProvider || undefined, // Ensure agentId is saved
           metadata: workspaceMetadata,
         });
         if (!saveResult?.success) {
@@ -968,7 +972,10 @@ const AppContent: React.FC = () => {
         if ((newWorkspace.metadata as any)?.multiAgent?.enabled) {
           setActiveWorkspaceProvider(null);
         } else {
-          setActiveWorkspaceProvider(selectedProvider || 'codex');
+          // Use the saved agentId from the workspace, which should match selectedProvider
+          setActiveWorkspaceProvider(
+            (newWorkspace.agentId as Provider) || selectedProvider || 'codex'
+          );
         }
       }
     } catch (error) {
@@ -997,7 +1004,14 @@ const AppContent: React.FC = () => {
 
   const handleSelectWorkspace = (workspace: Workspace) => {
     setActiveWorkspace(workspace);
-    setActiveWorkspaceProvider(null);
+    // Load provider from workspace.agentId if it exists, otherwise default to null
+    // This ensures the selected provider persists across app restarts
+    if ((workspace.metadata as any)?.multiAgent?.enabled) {
+      setActiveWorkspaceProvider(null);
+    } else {
+      // Use agentId from workspace if available, otherwise fall back to 'codex' for backwards compatibility
+      setActiveWorkspaceProvider((workspace.agentId as Provider) || 'codex');
+    }
   };
 
   const handleStartCreateWorkspaceFromSidebar = useCallback(

@@ -464,7 +464,10 @@ export class WorktreeService {
     }
   }
 
-  private parseBaseRef(ref?: string | null): BaseRefInfo | null {
+  private async parseBaseRef(
+    ref?: string | null,
+    projectPath?: string
+  ): Promise<BaseRefInfo | null> {
     if (!ref) return null;
     const cleaned = ref
       .trim()
@@ -475,6 +478,22 @@ export class WorktreeService {
     if (!remote || rest.length === 0) return null;
     const branch = rest.join('/');
     if (!branch) return null;
+
+    // If projectPath is provided, verify that 'remote' is actually a valid git remote
+    // If not, treat the entire string as a local branch name
+    if (projectPath) {
+      try {
+        const { stdout } = await execFileAsync('git', ['remote'], { cwd: projectPath });
+        const remotes = (stdout || '').trim().split('\n').filter(Boolean);
+        if (!remotes.includes(remote)) {
+          // 'remote' is not a valid git remote, treat entire string as local branch
+          return null;
+        }
+      } catch {
+        // If we can't check remotes, fall back to original behavior
+      }
+    }
+
     return { remote, branch, fullRef: `${remote}/${branch}` };
   }
 
@@ -489,9 +508,33 @@ export class WorktreeService {
       );
     }
 
-    const parsed = this.parseBaseRef(settings.baseRef);
+    const parsed = await this.parseBaseRef(settings.baseRef, projectPath);
     if (parsed) {
       return parsed;
+    }
+
+    // If parseBaseRef returned null, it might be a local branch name
+    // Check if the baseRef exists as a local branch
+    if (settings.baseRef) {
+      try {
+        const { stdout } = await execFileAsync(
+          'git',
+          ['rev-parse', '--verify', `refs/heads/${settings.baseRef}`],
+          { cwd: projectPath }
+        );
+        if (stdout?.trim()) {
+          // It's a valid local branch, use it directly without remote
+          // For local branches, we'll use 'origin' as remote and the branch name
+          const fallbackRemote = 'origin';
+          return {
+            remote: fallbackRemote,
+            branch: settings.baseRef,
+            fullRef: `${fallbackRemote}/${settings.baseRef}`,
+          };
+        }
+      } catch {
+        // Not a local branch, continue to fallback
+      }
     }
 
     const fallbackRemote = 'origin';

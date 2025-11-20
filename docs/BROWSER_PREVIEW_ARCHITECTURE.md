@@ -1,0 +1,447 @@
+# In-App Browser Preview Architecture & Reliability Analysis
+
+## Overview
+The in-app browser preview feature allows users to preview their development servers (Node.js projects) directly within the Electron app using a native Chromium WebContentsView. The feature automatically detects and starts dev servers, probes for URLs, and displays them in a resizable pane.
+
+---
+
+## Component Architecture
+
+### 1. Main Process Components
+
+#### `hostPreviewService.ts` (Main Service)
+**Purpose**: Manages dev server lifecycle (install, start, stop)
+
+**Key Responsibilities**:
+- Detects package manager (npm/yarn/pnpm)
+- Auto-installs dependencies if `node_modules` missing
+- Starts dev server with appropriate script (`dev`, `start`, `serve`, `preview`)
+- Port detection and selection (prefers 5173, 5174, 3001, 3002, etc.)
+- URL extraction from stdout/stderr via regex
+- Port probing fallback (TCP connection test every 800ms)
+- Retry logic on port conflicts (up to 3 retries)
+- Process management and cleanup
+
+**Event Types Emitted**:
+- `setup`: Installation progress (`starting`, `line`, `done`, `error`)
+- `url`: When a valid URL is detected
+- `exit`: When dev server process exits
+
+**Potential Issues**:
+- ⚠️ **Race condition**: URL can be emitted before server is actually ready (probe happens every 800ms but server might need more time)
+- ⚠️ **Port conflict retry**: May cause multiple rapid URL emissions if retrying
+- ⚠️ **No debouncing**: Multiple URL emissions possible if regex matches multiple times
+- ⚠️ **Probe interval**: Fixed 800ms interval might miss quick server startups or cause delays
+
+#### `browserViewService.ts` (Browser View Manager)
+**Purpose**: Manages Electron WebContentsView lifecycle
+
+**Key Responsibilities**:
+- Creates singleton WebContentsView instance
+- Manages visibility (show/hide via bounds)
+- Handles navigation (loadURL)
+- Browser controls (back, forward, reload, devtools)
+- Event forwarding to renderer (`did-finish-load`, `did-fail-load`, `did-start-navigation`)
+
+**Potential Issues**:
+- ⚠️ **URL comparison race**: Checks `current !== url` but URL might change during load
+- ⚠️ **Bounds timing**: setTimeout(16ms) for bounds update might cause flashing
+- ⚠️ **No loading state**: Doesn't track if view is actually loading
+- ⚠️ **Background throttling**: Disabled but might cause rendering issues
+
+#### IPC Handlers
+- `hostPreviewIpc.ts`: Bridges renderer ↔ hostPreviewService
+- `browserIpc.ts`: Bridges renderer ↔ browserViewService
+- `netIpc.ts`: TCP port probing for reachability checks
+
+---
+
+### 2. Renderer Process Components
+
+#### `BrowserProvider.tsx` (State Management)
+**Purpose**: React context for browser pane state
+
+**State**:
+- `isOpen`: Pane visibility
+- `url`: Current URL
+- `widthPct`: Pane width (5-96%)
+- `busy`: Loading/spinner state
+
+**Methods**:
+- `open(url)`, `close()`, `toggle(url)`
+- `navigate(url)`: Updates URL and calls IPC
+- `showSpinner()`, `hideSpinner()`
+
+**Potential Issues**:
+- ⚠️ **State sync**: URL state might get out of sync with actual WebContentsView
+- ⚠️ **No URL validation**: Navigate accepts any string
+- ⚠️ **Spinner management**: Multiple components can call show/hide independently
+
+#### `BrowserPane.tsx` (UI Component)
+**Purpose**: Main UI for browser preview pane
+
+**Key Features**:
+- Resizable pane (drag handle on left edge)
+- Address bar with quick URLs
+- Loading spinner overlay
+- Error/retry UI
+- Bounds calculation and IPC communication
+
+**Critical Logic**:
+
+1. **URL Reachability Probe** (lines 145-181):
+   - When URL changes, probes TCP port every 500ms
+   - Timeout: `SPINNER_MAX_MS` (30 seconds)
+   - Sets `failed` state if unreachable
+   - **Issue**: Shows spinner during entire probe period, even if server is ready
+
+2. **Host Preview Event Listener** (lines 96-142):
+   - Listens for `setup`, `url`, `exit` events
+   - On `url` event: calls `navigate()` and `showSpinner()`
+   - **Issue**: Spinner shown immediately, but probe happens separately → double spinner logic
+
+3. **Browser View Visibility** (lines 238-284):
+   - Hides view if `!isOpen`, `overlayActive`, `overlayRaised`, or `!url`
+   - Shows view with computed bounds when conditions met
+   - **Issue**: Multiple hide/show calls can cause flashing
+
+4. **Workspace Switching** (lines 73-94):
+   - Stops all preview servers except current
+   - Clears URL and hides spinner
+   - **Issue**: Race condition if URL arrives after clear
+
+**Potential Issues**:
+- ⚠️ **Multiple spinner triggers**: `showSpinner()` called in multiple places without coordination
+- ⚠️ **Flashing**: Hide/show logic can cause rapid visibility toggles
+- ⚠️ **Failed state**: Only shown in dev mode (line 486), production shows nothing
+- ⚠️ **Loading overlay**: Shows "Loading preview…" even when URL is set but probe hasn't completed
+- ⚠️ **Race condition**: URL can arrive before workspace switch cleanup completes
+
+#### `BrowserToggleButton.tsx` (Trigger Component)
+**Purpose**: Button to open browser pane and auto-start preview
+
+**Key Logic**:
+
+1. **Auto-open on URL event** (lines 51-85):
+   - Listens for `url` events
+   - Opens browser pane automatically
+   - **Issue**: Can open before URL is actually ready
+
+2. **Click Handler** (lines 87-157):
+   - Shows spinner immediately
+   - Toggles pane open
+   - Checks last URL and reachability
+   - Auto-runs setup/start if needed
+   - Fallback probe after 5 seconds
+   - **Issue**: Multiple async operations without proper coordination
+
+**Potential Issues**:
+- ⚠️ **Premature opening**: Opens pane before URL is ready
+- ⚠️ **Multiple fallbacks**: Last URL check + auto-start + fallback probe can conflict
+- ⚠️ **Spinner timeout**: Hardcoded `SPINNER_MAX_MS` timeout might clear spinner too early
+
+#### Supporting Libraries
+
+**`previewStorage.ts`**:
+- localStorage for last URL, running state, installed state
+- **Issue**: No validation, can store invalid URLs
+
+**`previewNetwork.ts`**:
+- `isReachable()`: Fetch-based check (no-cors)
+- `isAppPort()`: Port conflict detection
+- Constants: `PROBE_TIMEOUT_MS=900ms`, `SPINNER_MAX_MS=30000ms`, `FALLBACK_DELAY_MS=5000ms`
+- **Issue**: Fetch-based probe can fail due to CORS even if server is up
+
+**`probePreview.ts`**:
+- Unused? (only `probeLocalUrls` function)
+
+**`quickPreview.ts`**:
+- Container-based preview (different flow, not used for host preview)
+
+---
+
+## Data Flow
+
+### Startup Flow (User clicks browser button)
+
+```
+1. BrowserToggleButton.handleClick()
+   ├─> browser.showSpinner()
+   ├─> browser.toggle() → BrowserPane opens
+   ├─> Check last URL (if reachable, navigate)
+   ├─> Check if install needed → hostPreviewSetup()
+   ├─> Check if running → hostPreviewStart()
+   └─> Fallback probe after 5s
+
+2. hostPreviewService.start()
+   ├─> Auto-install if needed (emits setup events)
+   ├─> Spawn dev server process
+   ├─> Parse stdout/stderr for URLs (regex)
+   ├─> Emit 'url' event when found
+   └─> Fallback probe every 800ms
+
+3. BrowserPane receives 'url' event
+   ├─> navigate(url) → BrowserProvider
+   ├─> showSpinner()
+   ├─> BrowserProvider.navigate() → IPC browserLoadURL()
+   └─> browserViewService.loadURL()
+
+4. BrowserPane URL change effect
+   ├─> showSpinner()
+   ├─> Start TCP probe loop (every 500ms)
+   ├─> Check reachability via netProbePorts()
+   └─> hideSpinner() when reachable or timeout
+
+5. BrowserPane visibility effect
+   ├─> Compute bounds
+   ├─> Call browserShow(bounds, url)
+   └─> browserViewService.show() → WebContentsView visible
+```
+
+### Issues in Flow
+
+1. **Double Spinner Logic**:
+   - Spinner shown in step 3 (`showSpinner()`)
+   - Spinner shown again in step 4 (`showSpinner()`)
+   - Two separate mechanisms trying to manage same state
+
+2. **Race Conditions**:
+   - URL event can arrive before workspace switch cleanup
+   - URL can be emitted before server is actually ready
+   - Multiple URL emissions possible (regex matches, retries)
+
+3. **Flashing**:
+   - BrowserPane visibility effect runs on every URL/bounds change
+   - Multiple `browserHide()` calls can cause rapid show/hide
+   - Bounds recalculation on resize can trigger hide/show
+
+4. **Loading State Confusion**:
+   - `busy` state managed by BrowserProvider
+   - `failed` state managed by BrowserPane
+   - Loading overlay shown when `busy || !url`
+   - But URL might be set while probe is still running
+
+---
+
+## Identified Reliability Issues
+
+### Critical Issues
+
+1. **Flashing/Visual Glitches**
+   - **Root Cause**: Multiple hide/show calls in BrowserPane visibility effect
+   - **Location**: `BrowserPane.tsx:238-284`
+   - **Symptoms**: Browser view flashes on/off during startup
+   - **Fix Needed**: Debounce visibility changes, single source of truth for visibility
+
+2. **Buggy Loading View**
+   - **Root Cause**: Loading overlay shown when `busy || !url`, but URL might be set while probe is running
+   - **Location**: `BrowserPane.tsx:474-484`
+   - **Symptoms**: "Loading preview…" shown even when URL is ready but probe hasn't completed
+   - **Fix Needed**: Separate "loading" from "probing" state, show content when URL is set even if probe pending
+
+3. **Race Condition: URL Before Ready**
+   - **Root Cause**: URL emitted from stdout parsing before server is actually ready
+   - **Location**: `hostPreviewService.ts:289-295` (regex match) vs `302-327` (probe)
+   - **Symptoms**: Browser tries to load URL that isn't ready yet
+   - **Fix Needed**: Always probe before emitting URL, or emit URL only after probe succeeds
+
+4. **Double Spinner Logic**
+   - **Root Cause**: Spinner shown in event handler AND probe effect
+   - **Location**: `BrowserPane.tsx:123` (event) + `155` (probe)
+   - **Symptoms**: Spinner state inconsistent, might hide too early
+   - **Fix Needed**: Single spinner management, clear state machine
+
+### Medium Issues
+
+5. **Port Conflict Retry Causes Multiple URLs**
+   - **Root Cause**: Retry logic can emit multiple URLs as it tries different ports
+   - **Location**: `hostPreviewService.ts:334-354`
+   - **Symptoms**: Browser might navigate multiple times rapidly
+   - **Fix Needed**: Only emit URL once per workspace, or debounce URL emissions
+
+6. **Workspace Switch Race**
+   - **Root Cause**: URL event can arrive after workspace switch but before cleanup
+   - **Location**: `BrowserPane.tsx:73-94` (cleanup) vs `96-142` (event listener)
+   - **Symptoms**: Wrong workspace URL shown briefly
+   - **Fix Needed**: Ignore events for previous workspace ID
+
+7. **Failed State Only in Dev**
+   - **Root Cause**: Failed UI only renders when `isDev === true`
+   - **Location**: `BrowserPane.tsx:485-497`
+   - **Symptoms**: No error feedback in production
+   - **Fix Needed**: Show error state in all environments
+
+8. **No URL Validation**
+   - **Root Cause**: Navigate accepts any string, no validation
+   - **Location**: `BrowserProvider.tsx:35-50`
+   - **Symptoms**: Invalid URLs can cause errors
+   - **Fix Needed**: Validate URLs before navigation
+
+### Low Priority Issues
+
+9. **Probe Timeout Too Long**
+   - **Location**: `previewNetwork.ts:SPINNER_MAX_MS = 30000`
+   - **Issue**: 30 second timeout is very long, user might think it's broken
+   - **Fix**: Reduce to 10-15 seconds, show better progress
+
+10. **No Loading Progress**
+    - **Issue**: Spinner shows "Loading preview…" but no indication of what's happening
+    - **Fix**: Show setup/start progress from event lines
+
+11. **Bounds Recalculation on Every Render**
+    - **Location**: `BrowserPane.tsx:226-236`
+    - **Issue**: `computeBounds` called frequently, might cause performance issues
+    - **Fix**: Memoize or throttle bounds calculation
+
+---
+
+## Recommended Fix Strategy
+
+### Phase 1: Critical Reliability Fixes ✅ COMPLETED
+
+1. **Unify Spinner State Management** ✅
+   - Fixed duplicate `showSpinner()` calls in BrowserPane
+   - Spinner now shown only in event handler, not in probe effect
+   - Probe effect runs in background without managing spinner state
+
+2. **Fix URL Emission Timing** ✅
+   - URLs are now probed before emission in `hostPreviewService.ts`
+   - Added `probeAndEmitUrl()` helper that verifies server is reachable via TCP before emitting
+   - Prevents browser from trying to load URLs before server is ready
+
+3. **Fix Visibility Flashing** ✅
+   - Added debounced visibility changes (50ms delay for hide operations)
+   - Single source of truth: `shouldShow` computed once per effect
+   - Prevents rapid hide/show calls during startup
+
+4. **Fix Loading View Logic** ✅
+   - Loading overlay now shows only when: `(busy && !url) || actionBusy`
+   - Browser view shows when URL is set, even if probe is pending
+   - Separated "server starting" (actionBusy) from "page loading" (busy)
+   - Error state now shows in production with retry button
+
+### Phase 2: State Machine Refinement ✅ COMPLETED
+
+5. **Workspace Event Filtering** ✅
+   - Already implemented: events filtered by `workspaceId` check in BrowserPane
+   - State cleared immediately on workspace switch
+
+6. **Error Handling** ✅
+   - Error state now shows in production (not just dev mode)
+   - Shows clear error message: "Preview unavailable - Server at {url} is not reachable"
+   - Retry button added for failed states
+
+### Phase 3: UX Improvements
+
+7. **Progress Indicators**
+   - Show setup/start progress from event lines
+   - Progress bar for long operations
+   - Estimated time remaining
+
+8. **URL Validation**
+   - Validate URLs before navigation
+   - Show error for invalid URLs
+   - Auto-correct common mistakes (missing http://)
+
+---
+
+## Component Interaction Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Renderer Process                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  BrowserToggleButton                                         │
+│    ├─> onClick → browser.toggle()                           │
+│    ├─> onHostPreviewEvent → browser.open(url)              │
+│    └─> hostPreviewStart()                                    │
+│                                                              │
+│  BrowserPane                                                 │
+│    ├─> onHostPreviewEvent → navigate(url)                  │
+│    ├─> URL change → TCP probe → hideSpinner()             │
+│    ├─> Visibility effect → browserShow/hide()             │
+│    └─> Bounds calculation → browserSetBounds()             │
+│                                                              │
+│  BrowserProvider (Context)                                  │
+│    ├─> State: isOpen, url, busy, widthPct                  │
+│    ├─> navigate() → IPC browserLoadURL()                   │
+│    └─> showSpinner/hideSpinner()                            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+                            ↕ IPC
+┌─────────────────────────────────────────────────────────────┐
+│                    Main Process                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  hostPreviewService                                          │
+│    ├─> start() → spawn dev server                          │
+│    ├─> Parse stdout → emit 'url' event                     │
+│    ├─> Probe fallback → emit 'url' event                   │
+│    └─> EventEmitter → IPC forward                           │
+│                                                              │
+│  browserViewService                                          │
+│    ├─> show(bounds, url) → WebContentsView visible         │
+│    ├─> loadURL(url) → WebContentsView.loadURL()            │
+│    └─> Events → IPC forward                                │
+│                                                              │
+│  IPC Handlers                                                │
+│    ├─> hostPreviewIpc → hostPreviewService                 │
+│    ├─> browserIpc → browserViewService                     │
+│    └─> netIpc → TCP port probe                             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Testing Checklist
+
+- [ ] Browser pane opens without flashing
+- [ ] Loading spinner shows only when appropriate
+- [ ] URL loads correctly when server is ready
+- [ ] No duplicate URL navigations
+- [ ] Workspace switching clears state correctly
+- [ ] Port conflicts handled gracefully
+- [ ] Error states shown in production
+- [ ] Bounds recalculation doesn't cause flashing
+- [ ] Overlay (settings/modal) hides browser correctly
+- [ ] Dev server restart updates URL correctly
+
+---
+
+## Files Modified
+
+### Critical Fixes ✅ COMPLETED
+1. ✅ `src/renderer/components/BrowserPane.tsx` - Fixed spinner logic, visibility flashing, loading view
+   - Removed duplicate spinner calls in probe effect
+   - Added debounced visibility changes (50ms)
+   - Fixed loading overlay logic to show browser when URL is set
+   - Added error state UI with retry button (works in production)
+
+2. ✅ `src/main/services/hostPreviewService.ts` - Fixed URL emission timing
+   - Added `probeAndEmitUrl()` helper that probes before emitting
+   - URLs only emitted after TCP connection succeeds
+   - Prevents race condition where browser loads URL before server is ready
+
+### Remaining Improvements (Optional)
+3. `src/renderer/providers/BrowserProvider.tsx` - Add URL validation, improve state management
+
+### Medium Priority
+4. `src/renderer/lib/previewNetwork.ts` - Adjust timeouts, improve probe logic
+5. `src/renderer/components/titlebar/BrowserToggleButton.tsx` - Fix premature opening
+
+### Low Priority
+6. `src/main/services/browserViewService.ts` - Improve bounds handling
+7. `src/renderer/lib/previewStorage.ts` - Add URL validation
+
+---
+
+## Notes
+
+- The feature uses Electron's `WebContentsView` (not `<webview>` tag) for better performance
+- Port detection uses regex on stdout/stderr + TCP probe fallback
+- Multiple package managers supported (npm/yarn/pnpm)
+- Auto-installation of dependencies if `node_modules` missing
+- Port conflict retry logic (up to 3 retries with different ports)
+- localStorage used for persistence (last URL, running state, installed state)
