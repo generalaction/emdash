@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:getAppVersion'),
   getElectronVersion: () => ipcRenderer.invoke('app:getElectronVersion'),
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
+  // Path and Dialog helpers
+  getPath: (name: string) => ipcRenderer.invoke('app:getPath', name),
+  showOpenDialog: (options: Electron.OpenDialogOptions) =>
+    ipcRenderer.invoke('app:showOpenDialog', options),
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
@@ -422,6 +426,11 @@ export interface ElectronAPI {
   // App info
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
+  // Path and Dialog helpers
+  getPath: (name: string) => Promise<string | null>;
+  showOpenDialog: (
+    options: Electron.OpenDialogOptions
+  ) => Promise<Electron.OpenDialogReturnValue>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;

@@ -1,4 +1,4 @@
-import { app, ipcMain, shell } from 'electron';
+import { app, ipcMain, shell, dialog } from 'electron';
 import { exec } from 'child_process';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -183,4 +183,20 @@ export function registerAppIpc() {
   });
   ipcMain.handle('app:getElectronVersion', () => process.versions.electron);
   ipcMain.handle('app:getPlatform', () => process.platform);
+
+  // Path and Dialog helpers
+  ipcMain.handle('app:getPath', (_, name: any) => {
+    try {
+      return app.getPath(name);
+    } catch (error) {
+      return null;
+    }
+  });
+
+  ipcMain.handle('app:showOpenDialog', async (_, options: Electron.OpenDialogOptions) => {
+    const { getMainWindow } = await import('../app/window');
+    const win = getMainWindow();
+    if (!win) return { canceled: true, filePaths: [] };
+    return dialog.showOpenDialog(win, options);
+  });
 }
