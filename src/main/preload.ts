@@ -400,7 +400,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   browserHide: () => ipcRenderer.invoke('browser:view:hide'),
   browserSetBounds: (bounds: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.invoke('browser:view:setBounds', bounds),
-  browserLoadURL: (url: string, forceReload?: boolean) => ipcRenderer.invoke('browser:view:loadURL', url, forceReload),
+  browserLoadURL: (url: string, forceReload?: boolean) =>
+    ipcRenderer.invoke('browser:view:loadURL', url, forceReload),
   browserGoBack: () => ipcRenderer.invoke('browser:view:goBack'),
   browserGoForward: () => ipcRenderer.invoke('browser:view:goForward'),
   browserReload: () => ipcRenderer.invoke('browser:view:reload'),

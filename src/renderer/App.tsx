@@ -973,7 +973,9 @@ const AppContent: React.FC = () => {
           setActiveWorkspaceProvider(null);
         } else {
           // Use the saved agentId from the workspace, which should match selectedProvider
-          setActiveWorkspaceProvider((newWorkspace.agentId as Provider) || selectedProvider || 'codex');
+          setActiveWorkspaceProvider(
+            (newWorkspace.agentId as Provider) || selectedProvider || 'codex'
+          );
         }
       }
     } catch (error) {

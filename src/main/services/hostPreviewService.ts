@@ -126,7 +126,7 @@ class HostPreviewService extends EventEmitter {
     opts?: { script?: string; parentProjectPath?: string }
   ): Promise<{ ok: boolean; error?: string }> {
     const cwd = path.resolve(workspacePath);
-    
+
     // Log the resolved path to help debug worktree issues
     log.info?.('[hostPreview] start', {
       workspaceId,
@@ -135,11 +135,11 @@ class HostPreviewService extends EventEmitter {
       cwdExists: fs.existsSync(cwd),
       hasPackageJson: fs.existsSync(path.join(cwd, 'package.json')),
     });
-    
+
     // Check if process already exists for this workspaceId
     const existingProc = this.procs.get(workspaceId);
     const existingCwd = this.procCwds.get(workspaceId);
-    
+
     // If process exists, verify it's running from the correct directory
     if (existingProc) {
       // Check if process is still running
@@ -172,7 +172,7 @@ class HostPreviewService extends EventEmitter {
         this.procCwds.delete(workspaceId);
       }
     }
-    
+
     const pm = detectPackageManager(cwd);
     // Preflight: if the workspace lacks node_modules but the parent has it, try linking
     try {
@@ -331,7 +331,7 @@ class HostPreviewService extends EventEmitter {
             } as HostPreviewEvent);
           } catch {}
         };
-        
+
         // Helper to probe and emit URL only when server is actually reachable
         const probeAndEmitUrl = async (urlToProbe: string) => {
           if (urlEmitted) return;
@@ -340,7 +340,7 @@ class HostPreviewService extends EventEmitter {
             const host = parsed.hostname || 'localhost';
             const port = Number(parsed.port || 0);
             if (!port) return;
-            
+
             // Quick TCP probe to verify server is ready
             const socket = net.createConnection({ host, port }, () => {
               try {
@@ -349,7 +349,11 @@ class HostPreviewService extends EventEmitter {
               if (!urlEmitted) {
                 urlEmitted = true;
                 try {
-                  this.emit('event', { type: 'url', workspaceId, url: urlToProbe } as HostPreviewEvent);
+                  this.emit('event', {
+                    type: 'url',
+                    workspaceId,
+                    url: urlToProbe,
+                  } as HostPreviewEvent);
                 } catch {}
               }
             });

@@ -17,7 +17,11 @@ const PROBE_RETRY_DELAY_MS = 500;
 const MAX_LOG_LINES = 8;
 const WIDTH_PCT_MIN = 5;
 const WIDTH_PCT_MAX = 96;
-const DEFAULT_PREVIEW_URLS = ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080']; 
+const DEFAULT_PREVIEW_URLS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
 
 const BrowserPane: React.FC<{
   workspaceId?: string | null;
@@ -66,7 +70,7 @@ const BrowserPane: React.FC<{
   React.useEffect(() => {
     const prev = prevWorkspaceIdRef.current;
     const cur = (workspaceId || '').trim() || null;
-    
+
     if (prev && cur && prev !== cur) {
       try {
         // Clear and hide browser view immediately when switching worktrees
@@ -77,12 +81,12 @@ const BrowserPane: React.FC<{
         lastWorkspaceUrlRef.current = null;
       } catch {}
     }
-    
+
     try {
       // Stop all other preview servers except the new current (if any)
       (window as any).electronAPI?.hostPreviewStopAll?.(cur || '');
     } catch {}
-    
+
     if (prev !== cur) {
       try {
         clearUrl();
@@ -91,7 +95,7 @@ const BrowserPane: React.FC<{
         setLines([]);
       } catch {}
     }
-    
+
     prevWorkspaceIdRef.current = cur;
   }, [workspaceId, clearUrl, hideSpinner]);
 
@@ -210,8 +214,13 @@ const BrowserPane: React.FC<{
     const h = Math.max(1, Math.round(rect.height));
     return { x, y, width: w, height: h };
   }, []);
-  
-  const lastBoundsRef = React.useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  const lastBoundsRef = React.useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const hasBoundsChanged = React.useCallback(
     (newBounds: { x: number; y: number; width: number; height: number }) => {
@@ -313,7 +322,7 @@ const BrowserPane: React.FC<{
       lastWorkspaceIdRef.current = workspaceId || null;
       lastWorkspaceUrlRef.current = null;
     }
-    
+
     if (isOpen && url && !overlayActive && !overlayRaised && workspaceId) {
       const workspaceUrlKey = `${workspaceId}:${url}`;
       // Force reload if workspace changed or URL changed
@@ -321,11 +330,11 @@ const BrowserPane: React.FC<{
       if (lastWorkspaceUrlRef.current !== workspaceUrlKey || lastUrlRef.current !== url) {
         lastUrlRef.current = url;
         lastWorkspaceUrlRef.current = workspaceUrlKey;
-        
+
         try {
           (window as any).electronAPI?.browserClear?.();
         } catch {}
-        
+
         const timeoutId = setTimeout(() => {
           try {
             // Force reload when workspace changes to ensure fresh content
@@ -441,7 +450,7 @@ const BrowserPane: React.FC<{
           zIndex: 10,
         }}
       >
-        <div className="flex items-center gap-1 border-b border-border bg-gray-50 px-2 dark:bg-gray-900 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-1 border-b border-border bg-gray-50 px-2 dark:bg-gray-900">
           <button
             className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
             onClick={() => goBack()}
@@ -517,7 +526,7 @@ const BrowserPane: React.FC<{
           </button>
         </div>
         {!busy && url && lines.length > 0 && (
-          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs flex-shrink-0">
+          <div className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
             <span className="font-medium">Workspace Preview</span>
             <div className="ml-auto inline-flex items-center gap-2 text-muted-foreground">
               {lines.length ? (
@@ -553,9 +562,9 @@ const BrowserPane: React.FC<{
           {url && failed && !busy ? (
             <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-[1px]">
               <div className="flex flex-col items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm">
-                <div className="leading-tight text-center">
+                <div className="text-center leading-tight">
                   <div className="font-medium text-foreground">Preview unavailable</div>
-                  <div className="text-xs text-muted-foreground/80 mt-1">
+                  <div className="mt-1 text-xs text-muted-foreground/80">
                     Server at {url} is not reachable
                   </div>
                 </div>

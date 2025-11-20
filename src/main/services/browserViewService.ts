@@ -67,26 +67,26 @@ class BrowserViewService {
   show(bounds: Electron.Rectangle, url?: string) {
     const win = getMainWindow() || undefined;
     if (!win) return;
-    
+
     const v = this.ensureView(win);
     if (!v) return;
-    
+
     // Ensure bounds are valid (width and height must be > 0)
     if (bounds.width <= 0 || bounds.height <= 0) {
       return;
     }
-    
+
     // Bring view to front to ensure it renders above other content
     this.bringToFront(win);
-    
+
     // Set bounds first to ensure view is positioned correctly
     v.setBounds(bounds);
-    
+
     try {
       // Keep rendering even when not focused/visible previously
       v.webContents.setBackgroundThrottling?.(false as any);
     } catch {}
-    
+
     // Load URL immediately when provided
     if (url) {
       try {
@@ -101,7 +101,7 @@ class BrowserViewService {
         const normalizeUrl = (u: string) => u.replace(/\/$/, '').toLowerCase();
         const normalizedCurrent = current ? normalizeUrl(current) : '';
         const normalizedUrl = normalizeUrl(url);
-        
+
         if (!current || normalizedCurrent !== normalizedUrl) {
           // Load URL immediately - don't delay
           try {
@@ -117,12 +117,12 @@ class BrowserViewService {
         }
       } catch {}
     }
-    
+
     // Ensure view is visible and focused
     try {
       v.webContents.focus();
     } catch {}
-    
+
     // Force bounds update after a short delay to ensure view is positioned correctly
     // This helps with timing issues where the container might not be fully laid out yet
     try {
@@ -150,7 +150,7 @@ class BrowserViewService {
         } catch {}
       }, 50);
     } catch {}
-    
+
     this.visible = true;
   }
 
@@ -174,7 +174,7 @@ class BrowserViewService {
     if (!url || typeof url !== 'string' || url.trim() === '') {
       return;
     }
-    
+
     const v = this.ensureView();
     if (!v) return;
     try {

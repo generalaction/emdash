@@ -464,7 +464,10 @@ export class WorktreeService {
     }
   }
 
-  private async parseBaseRef(ref?: string | null, projectPath?: string): Promise<BaseRefInfo | null> {
+  private async parseBaseRef(
+    ref?: string | null,
+    projectPath?: string
+  ): Promise<BaseRefInfo | null> {
     if (!ref) return null;
     const cleaned = ref
       .trim()
@@ -475,7 +478,7 @@ export class WorktreeService {
     if (!remote || rest.length === 0) return null;
     const branch = rest.join('/');
     if (!branch) return null;
-    
+
     // If projectPath is provided, verify that 'remote' is actually a valid git remote
     // If not, treat the entire string as a local branch name
     if (projectPath) {
@@ -490,7 +493,7 @@ export class WorktreeService {
         // If we can't check remotes, fall back to original behavior
       }
     }
-    
+
     return { remote, branch, fullRef: `${remote}/${branch}` };
   }
 
