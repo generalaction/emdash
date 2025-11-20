@@ -26,12 +26,12 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
   useEffect(() => {
     const loadDefaultPath = async () => {
       try {
-        const documentsPath = await window.electronAPI.getPath('documents');
-        if (documentsPath) {
-          // Default to ~/Documents/GitHub if possible, or just Documents
+        const homePath = await window.electronAPI.getPath('home');
+        if (homePath) {
+          // Default to ~/Emdash
           const isWin = (await window.electronAPI.getPlatform()) === 'win32';
           const sep = isWin ? '\\' : '/';
-          setDefaultBasePath(`${documentsPath}${sep}GitHub`);
+          setDefaultBasePath(`${homePath}${sep}Emdash`);
         }
       } catch (err) {
         console.error('Failed to get default path', err);
@@ -70,6 +70,13 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
       }
     } catch {}
   }, [repoUrl, defaultBasePath]);
+
+  // Update destinationPath with defaultBasePath if it's empty and defaultBasePath is loaded
+  useEffect(() => {
+    if (defaultBasePath && !destinationPath) {
+      setDestinationPath(defaultBasePath);
+    }
+  }, [defaultBasePath]);
 
   const handleBrowse = async () => {
     try {
