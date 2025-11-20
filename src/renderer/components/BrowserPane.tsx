@@ -74,24 +74,34 @@ const BrowserPane: React.FC<{
   React.useEffect(() => {
     const prev = prevWorkspaceIdRef.current;
     const cur = (workspaceId || '').trim() || null;
+    
+    // If workspace changed, hide browser view and clear everything
+    if (prev && cur && prev !== cur) {
+      try {
+        // Clear and hide browser view immediately when switching worktrees
+        (window as any).electronAPI?.browserClear?.();
+        (window as any).electronAPI?.browserHide?.();
+        setRunning(prev, false);
+      } catch {}
+    }
+    
     try {
       // Stop all other preview servers except the new current (if any)
       (window as any).electronAPI?.hostPreviewStopAll?.(cur || '');
     } catch {}
-    if (prev && cur && prev !== cur) {
+    
+    // Always clear URL and reset state when workspace changes
+    if (prev !== cur) {
       try {
-        setRunning(prev, false);
+        clearUrl();
+        hideSpinner();
+        setFailed(false);
+        setLines([]); // Clear log lines when switching worktrees
       } catch {}
     }
-    try {
-      clearUrl();
-    } catch {}
-    try {
-      hideSpinner();
-    } catch {}
-    setFailed(false);
+    
     prevWorkspaceIdRef.current = cur;
-  }, [workspaceId]);
+  }, [workspaceId, clearUrl, hideSpinner]);
 
   React.useEffect(() => {
     const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
@@ -116,6 +126,11 @@ const BrowserPane: React.FC<{
           }
         }
         if (data.type === 'url' && data.url) {
+          // CRITICAL: Only process URL events for the current workspaceId
+          // This ensures we don't load URLs from other worktrees
+          if (!workspaceId || data.workspaceId !== workspaceId) {
+            return;
+          }
           setFailed(false);
           const appPort = Number(window.location.port || 0);
           if (isAppPort(String(data.url), appPort)) return;
@@ -142,18 +157,26 @@ const BrowserPane: React.FC<{
   }, [workspaceId, navigate, showSpinner, hideSpinner]);
 
   // When URL changes, verify reachability (TCP probe) with a generous grace window
+  // Note: Spinner is already shown by the event handler, so we don't show it again here
   React.useEffect(() => {
     let cancelled = false;
     const u = (url || '').trim();
-    if (!u) return;
+    if (!u) {
+      setFailed(false);
+      return;
+    }
     (async () => {
       try {
         const parsed = new URL(u);
         const host = parsed.hostname || 'localhost';
         const port = Number(parsed.port || 0);
-        if (!port) return;
-        showSpinner();
-        const deadline = Date.now() + SPINNER_MAX_MS; // ~15s grace for compilers (e.g., Next initial build)
+        if (!port) {
+          setFailed(false);
+          return;
+        }
+        // Don't show spinner here - it's already shown by the event handler
+        // This probe runs in the background to verify reachability
+        const deadline = Date.now() + SPINNER_MAX_MS; // ~30s grace for compilers (e.g., Next initial build)
         let ok = false;
         while (!cancelled && Date.now() < deadline) {
           try {
@@ -168,11 +191,19 @@ const BrowserPane: React.FC<{
           await new Promise((r) => setTimeout(r, 500));
         }
         if (!cancelled) {
-          hideSpinner();
-          setFailed(!ok);
+          // Only hide spinner if probe succeeded or failed after deadline
+          // If probe succeeded quickly, the browser view should already be loading
+          if (ok) {
+            hideSpinner();
+          } else {
+            // Server not reachable after deadline - keep spinner for user feedback
+            setFailed(true);
+          }
         }
       } catch {
-        hideSpinner();
+        if (!cancelled) {
+          setFailed(true);
+        }
       }
     })();
     return () => {
@@ -231,48 +262,106 @@ const BrowserPane: React.FC<{
     const x = Math.round(rect.left + HANDLE_PX);
     const y = Math.round(rect.top);
     const w = Math.max(1, Math.round(rect.width - HANDLE_PX));
-    const h = Math.round(rect.height);
+    const h = Math.max(1, Math.round(rect.height)); // Ensure height is at least 1
     return { x, y, width: w, height: h };
   }, []);
+  
+  // Store last bounds to prevent unnecessary updates
+  const lastBoundsRef = React.useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  // Debounce visibility changes to prevent flashing
+  const visibilityTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   React.useEffect(() => {
-    if (!isOpen) {
-      try {
-        (window as any).electronAPI?.browserHide?.();
-      } catch {}
+    // Clear any pending visibility change
+    if (visibilityTimeoutRef.current) {
+      clearTimeout(visibilityTimeoutRef.current);
+      visibilityTimeoutRef.current = null;
+    }
+
+    // Determine if browser should be visible
+    // CRITICAL: Only show if we have a valid URL and the pane is open
+    const shouldShow = isOpen && !overlayActive && !overlayRaised && !!url && !!workspaceId;
+
+    // Debounce hide operations to prevent rapid flashing
+    if (!shouldShow) {
+      visibilityTimeoutRef.current = setTimeout(() => {
+        try {
+          (window as any).electronAPI?.browserHide?.();
+          lastBoundsRef.current = null; // Reset bounds when hiding
+        } catch {}
+        visibilityTimeoutRef.current = null;
+      }, 50); // Small delay to batch rapid hide calls
       return;
     }
-    if (overlayActive || overlayRaised) {
-      try {
-        (window as any).electronAPI?.browserHide?.();
-      } catch {}
-      return;
-    }
-    // If no URL yet, keep the native preview view hidden to avoid showing stale content
-    if (!url) {
-      try {
-        (window as any).electronAPI?.browserHide?.();
-      } catch {}
-      return;
-    }
-    const bounds = computeBounds();
-    if (bounds) {
-      try {
-        (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
-      } catch {}
-    }
+
+    // Show when conditions are met - use requestAnimationFrame to ensure container is laid out
+    requestAnimationFrame(() => {
+      const bounds = computeBounds();
+      if (bounds && bounds.width > 0 && bounds.height > 0) {
+        // Only update if bounds changed significantly (more than 2px difference)
+        // This prevents unnecessary updates from minor layout shifts when logs appear
+        const THRESHOLD = 2;
+        const boundsChanged = !lastBoundsRef.current ||
+          Math.abs(lastBoundsRef.current.x - bounds.x) > THRESHOLD ||
+          Math.abs(lastBoundsRef.current.y - bounds.y) > THRESHOLD ||
+          Math.abs(lastBoundsRef.current.width - bounds.width) > THRESHOLD ||
+          Math.abs(lastBoundsRef.current.height - bounds.height) > THRESHOLD;
+        
+        if (boundsChanged) {
+          lastBoundsRef.current = bounds;
+          try {
+            // Ensure bounds are valid and view is shown
+            (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
+            // Force a bounds update after a short delay to ensure view is positioned correctly
+            setTimeout(() => {
+              const b = computeBounds();
+              if (b && b.width > 0 && b.height > 0) {
+                // Only update if bounds changed significantly
+                if (!lastBoundsRef.current ||
+                    Math.abs(lastBoundsRef.current.x - b.x) > THRESHOLD ||
+                    Math.abs(lastBoundsRef.current.y - b.y) > THRESHOLD ||
+                    Math.abs(lastBoundsRef.current.width - b.width) > THRESHOLD ||
+                    Math.abs(lastBoundsRef.current.height - b.height) > THRESHOLD) {
+                  lastBoundsRef.current = b;
+                  try {
+                    (window as any).electronAPI?.browserSetBounds?.(b);
+                  } catch {}
+                }
+              }
+            }, 100);
+          } catch {}
+        }
+        // Don't reload URL if bounds haven't changed - the view is already showing the correct content
+      }
+    });
+
     const onResize = () => {
       const b = computeBounds();
-      if (b)
-        try {
-          (window as any).electronAPI?.browserSetBounds?.(b);
-        } catch {}
+      if (b && shouldShow && b.width > 0 && b.height > 0) {
+        // Only update if bounds changed significantly (more than 2px difference)
+        const THRESHOLD = 2;
+        if (!lastBoundsRef.current ||
+            Math.abs(lastBoundsRef.current.x - b.x) > THRESHOLD ||
+            Math.abs(lastBoundsRef.current.y - b.y) > THRESHOLD ||
+            Math.abs(lastBoundsRef.current.width - b.width) > THRESHOLD ||
+            Math.abs(lastBoundsRef.current.height - b.height) > THRESHOLD) {
+          lastBoundsRef.current = b;
+          try {
+            (window as any).electronAPI?.browserSetBounds?.(b);
+          } catch {}
+        }
+      }
     };
     window.addEventListener('resize', onResize);
     const RO = (window as any).ResizeObserver;
     const ro = RO ? new RO(() => onResize()) : null;
     if (ro && containerRef.current) ro.observe(containerRef.current);
+
     return () => {
+      if (visibilityTimeoutRef.current) {
+        clearTimeout(visibilityTimeoutRef.current);
+        visibilityTimeoutRef.current = null;
+      }
       try {
         (window as any).electronAPI?.browserHide?.();
       } catch {}
@@ -287,6 +376,31 @@ const BrowserPane: React.FC<{
   React.useEffect(() => {
     if (isOpen && !url) setAddress('');
   }, [isOpen, url]);
+
+  // Ensure URL is loaded when it changes and view is open
+  const lastUrlRef = React.useRef<string | null>(null);
+  const lastWorkspaceIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    // CRITICAL: Reset URL ref when workspaceId changes to force reload
+    if (workspaceId !== lastWorkspaceIdRef.current) {
+      lastUrlRef.current = null;
+      lastWorkspaceIdRef.current = workspaceId;
+    }
+    
+    if (isOpen && url && !overlayActive && !overlayRaised && workspaceId) {
+      // Only load if URL actually changed or workspace changed
+      if (lastUrlRef.current !== url) {
+        lastUrlRef.current = url;
+        // Small delay to ensure view is ready
+        const timeoutId = setTimeout(() => {
+          try {
+            (window as any).electronAPI?.browserLoadURL?.(url);
+          } catch {}
+        }, 50);
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [isOpen, url, overlayActive, overlayRaised, workspaceId]);
 
   // Drag-resize from the left edge
   React.useEffect(() => {
@@ -377,12 +491,12 @@ const BrowserPane: React.FC<{
           transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 220ms cubic-bezier(0.22,1,0.36,1), opacity 220ms',
           opacity: isOpen ? 1 : 0,
-          display: 'grid',
-          gridTemplateRows: '36px 1fr',
+          display: 'flex',
+          flexDirection: 'column',
           zIndex: 10,
         }}
       >
-        <div className="flex items-center gap-1 border-b border-border bg-gray-50 px-2 dark:bg-gray-900">
+        <div className="flex items-center gap-1 border-b border-border bg-gray-50 px-2 dark:bg-gray-900 flex-shrink-0">
           <button
             className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
             onClick={() => goBack()}
@@ -449,7 +563,7 @@ const BrowserPane: React.FC<{
           </button>
         </div>
         {!busy && url && lines.length > 0 && (
-          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
+          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs flex-shrink-0">
             <span className="font-medium">Workspace Preview</span>
             <div className="ml-auto inline-flex items-center gap-2 text-muted-foreground">
               {lines.length ? (
@@ -459,41 +573,54 @@ const BrowserPane: React.FC<{
           </div>
         )}
 
-        <div className="relative min-h-0">
+        <div className="relative min-h-0 flex-1" style={{ minHeight: 0 }}>
           <div
             id="emdash-browser-drag"
             className="absolute left-0 top-0 z-[200] h-full w-[6px] cursor-col-resize hover:bg-border/60"
           />
-          <div ref={containerRef} className="h-full w-full" />
+          <div ref={containerRef} className="h-full w-full bg-white dark:bg-gray-950" />
           {dragging ? (
             <div
               className="absolute inset-0 z-[180] cursor-col-resize"
               style={{ background: 'transparent' }}
             />
           ) : null}
-          {busy || !url ? (
+          {/* Show loading overlay only when busy AND no URL yet, or when action is busy (install/start) */}
+          {(busy && !url) || actionBusy ? (
             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
               <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-[1px]">
                 <Spinner size="md" />
                 <div className="leading-tight">
                   <div className="font-medium text-foreground">Loading preview…</div>
-                  <div className="text-xs text-muted-foreground/80">Starting dev server</div>
+                  <div className="text-xs text-muted-foreground/80">
+                    {actionBusy === 'install'
+                      ? 'Installing dependencies'
+                      : actionBusy === 'start'
+                        ? 'Starting dev server'
+                        : 'Starting dev server'}
+                  </div>
                 </div>
               </div>
             </div>
           ) : null}
-          {!busy && url && failed ? (
-            isDev ? (
-              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-[1px]">
-                  <Spinner size="md" />
-                  <div className="leading-tight">
-                    <div className="font-medium text-foreground">Loading preview…</div>
-                    <div className="text-xs text-muted-foreground/80">Starting dev server</div>
+          {/* Show error state when URL is set but server is unreachable */}
+          {url && failed && !busy && !actionBusy ? (
+            <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm">
+                <div className="leading-tight text-center">
+                  <div className="font-medium text-foreground">Preview unavailable</div>
+                  <div className="text-xs text-muted-foreground/80 mt-1">
+                    Server at {url} is not reachable
                   </div>
                 </div>
+                <button
+                  onClick={handleRetry}
+                  className="mt-2 rounded border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+                >
+                  Retry
+                </button>
               </div>
-            ) : null
+            </div>
           ) : null}
         </div>
       </div>

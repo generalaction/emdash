@@ -42,4 +42,8 @@ export function registerBrowserIpc() {
     browserViewService.openDevTools();
     return { ok: true };
   });
+  ipcMain.handle('browser:view:clear', () => {
+    browserViewService.clear();
+    return { ok: true };
+  });
 }

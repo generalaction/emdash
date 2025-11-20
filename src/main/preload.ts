@@ -405,6 +405,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   browserGoForward: () => ipcRenderer.invoke('browser:view:goForward'),
   browserReload: () => ipcRenderer.invoke('browser:view:reload'),
   browserOpenDevTools: () => ipcRenderer.invoke('browser:view:openDevTools'),
+  browserClear: () => ipcRenderer.invoke('browser:view:clear'),
   onBrowserViewEvent: (listener: (data: any) => void) => {
     const channel = 'browser:view:event';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);

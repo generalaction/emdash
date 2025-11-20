@@ -311,7 +311,9 @@ function WorkspaceRow({
                   : String(pr.state).toLowerCase()}
             </span>
           ) : null}
+          {/* Agent badge commented out per user request
           {ws.agentId && <Badge variant="outline">agent</Badge>}
+          */}
 
           <WorkspaceDeleteButton
             workspaceName={ws.name}
