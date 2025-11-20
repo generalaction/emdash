@@ -352,7 +352,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                       href="https://simonwillison.net/2025/Oct/22/living-dangerously-with-claude/"
                                       target="_blank"
                                       rel="noreferrer noopener"
-                                      className="inline-flex items-center gap-1 ml-1 text-foreground underline"
+                                      className="ml-1 inline-flex items-center gap-1 text-foreground underline"
                                     >
                                       Explanation
                                       <ExternalLink className="h-3 w-3" aria-hidden="true" />
