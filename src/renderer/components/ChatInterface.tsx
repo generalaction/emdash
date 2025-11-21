@@ -5,7 +5,7 @@ import ContainerStatusBadge from './ContainerStatusBadge';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
-import { InstallBanner, getInstallCommandForProvider } from './InstallBanner';
+import InstallBanner from './InstallBanner';
 import { providerMeta } from '../providers/meta';
 import ProviderBar from './ProviderBar';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
@@ -22,6 +22,7 @@ import {
 } from '@/lib/containerRuns';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
+import { getInstallCommandForProvider } from '@shared/providers/registry';
 
 declare const window: Window & {
   electronAPI: {

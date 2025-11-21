@@ -1,28 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Play } from 'lucide-react';
 import { providerMeta, type UiProvider } from '../providers/meta';
-
-const INSTALL_COMMANDS: Partial<Record<UiProvider, string>> = {
-  codex: 'npm install -g @openai/codex',
-  claude: 'npm install -g @anthropic-ai/claude-code',
-  qwen: 'npm install -g @qwen-code/qwen-code',
-  droid: 'curl -fsSL https://app.factory.ai/cli | sh',
-  gemini: 'npm install -g @google/gemini-cli',
-  cursor: 'curl https://cursor.com/install -fsS | bash',
-  copilot: 'npm install -g @github/copilot',
-  amp: 'npm install -g @sourcegraph/amp@latest',
-  opencode: 'npm install -g opencode-ai',
-  charm: 'npm install -g @charmland/crush',
-  auggie: 'npm install -g @augmentcode/auggie',
-  goose:
-    'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
-  kimi: 'uv tool install --python 3.13 kimi-cli',
-  kiro: 'curl -fsSL https://cli.kiro.dev/install | bash',
-  rovo: 'acli rovodev auth login',
-};
-
-export const getInstallCommandForProvider = (provider: UiProvider): string | null =>
-  INSTALL_COMMANDS[provider] ?? null;
+import { getInstallCommandForProvider } from '@shared/providers/registry';
 
 type Props = {
   provider: UiProvider;

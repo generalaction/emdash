@@ -1,19 +1,6 @@
-export type UiProvider =
-  | 'codex'
-  | 'claude'
-  | 'qwen'
-  | 'droid'
-  | 'gemini'
-  | 'cursor'
-  | 'copilot'
-  | 'amp'
-  | 'opencode'
-  | 'charm'
-  | 'auggie'
-  | 'goose'
-  | 'kimi'
-  | 'kiro'
-  | 'rovo';
+import type { ProviderId } from '@shared/providers/registry';
+
+export type UiProvider = ProviderId;
 
 export type ProviderMeta = {
   label: string;

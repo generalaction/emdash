@@ -1,6 +1,11 @@
 import { spawn, execFileSync } from 'child_process';
 import { BrowserWindow } from 'electron';
 import { providerStatusCache, type ProviderStatus } from './providerStatusCache';
+import {
+  PROVIDERS,
+  listDetectableProviders,
+  type ProviderDefinition,
+} from '@shared/providers/registry';
 
 export type CliStatusCode = 'connected' | 'missing' | 'needs_key' | 'error';
 
@@ -15,16 +20,12 @@ export interface CliProviderStatus {
   installCommand?: string | null;
 }
 
-interface CliDefinition {
-  id: string;
-  name: string;
+type CliDefinition = ProviderDefinition & {
   commands: string[];
-  args?: string[];
-  docUrl?: string;
-  installCommand?: string;
+  args: string[];
   statusResolver?: (result: CommandResult) => CliStatusCode;
   messageResolver?: (result: CommandResult) => string | null;
-}
+};
 
 interface CommandResult {
   command: string;
@@ -37,120 +38,15 @@ interface CommandResult {
   resolvedPath: string | null;
 }
 
-export const CLI_DEFINITIONS: CliDefinition[] = [
-  {
-    id: 'codex',
-    name: 'Codex',
-    commands: ['codex'],
-    args: ['--version'],
-    docUrl: 'https://github.com/openai/codex',
-    installCommand: 'npm install -g @openai/codex',
-  },
-  {
-    id: 'claude',
-    name: 'Claude Code',
-    commands: ['claude'],
-    args: ['--version'],
-    docUrl: 'https://docs.anthropic.com/claude/docs/claude-code',
-    installCommand: 'npm install -g @anthropic-ai/claude-code',
-  },
-  {
-    id: 'cursor',
-    name: 'Cursor',
-    commands: ['cursor-agent', 'cursor'],
-    args: ['--version'],
-    docUrl: 'https://cursor.sh',
-    installCommand: 'curl https://cursor.com/install -fsS | bash',
-  },
-  {
-    id: 'gemini',
-    name: 'Gemini',
-    commands: ['gemini'],
-    args: ['--version'],
-    docUrl: 'https://github.com/google-gemini/gemini-cli',
-    installCommand: 'npm install -g @google/gemini-cli',
-  },
-  {
-    id: 'qwen',
-    name: 'Qwen Code',
-    commands: ['qwen'],
-    args: ['--version'],
-    docUrl: 'https://github.com/QwenLM/qwen-code',
-    installCommand: 'npm install -g @qwen-code/qwen-code',
-  },
-  {
-    id: 'droid',
-    name: 'Droid',
-    commands: ['droid'],
-    args: ['--version'],
-    docUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
-    installCommand: 'curl -fsSL https://app.factory.ai/cli | sh',
-  },
-  {
-    id: 'amp',
-    name: 'Amp',
-    commands: ['amp'],
-    args: ['--version'],
-    docUrl: 'https://ampcode.com/manual#install',
-    installCommand: 'npm install -g @sourcegraph/amp@latest',
-  },
-  {
-    id: 'opencode',
-    name: 'OpenCode',
-    commands: ['opencode'],
-    args: ['--version'],
-    docUrl: 'https://opencode.ai/docs/cli/',
-    installCommand: 'npm install -g opencode-ai',
-  },
-  {
-    id: 'copilot',
-    name: 'GitHub Copilot',
-    commands: ['copilot'],
-    args: ['--version'],
-    docUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
-    installCommand: 'npm install -g @github/copilot',
-  },
-  {
-    id: 'charm',
-    name: 'Charm',
-    commands: ['crush'],
-    args: ['--version'],
-    docUrl: 'https://github.com/charmbracelet/crush',
-    installCommand: 'npm install -g @charmland/crush',
-  },
-  {
-    id: 'auggie',
-    name: 'Auggie',
-    commands: ['auggie'],
-    args: ['--version'],
-    docUrl: 'https://docs.augmentcode.com/cli/overview',
-    installCommand: 'npm install -g @augmentcode/auggie',
-  },
-  {
-    id: 'kimi',
-    name: 'Kimi',
-    commands: ['kimi'],
-    args: ['--help'],
-    docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
-    installCommand: 'uv tool install --python 3.13 kimi-cli',
-  },
-  {
-    id: 'kiro',
-    name: 'Kiro (AWS)',
-    commands: ['kiro-cli', 'kiro'],
-    args: ['--version'],
-    docUrl: 'https://kiro.dev/docs/cli/',
-    installCommand: 'curl -fsSL https://cli.kiro.dev/install | bash',
-  },
-  {
-    id: 'rovo',
-    name: 'Rovo Dev (Atlassian)',
-    commands: ['rovodev', 'acli'],
-    args: ['--version'],
-    docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
-    installCommand: 'acli rovodev auth login',
-  },
-];
+export const CLI_DEFINITIONS: CliDefinition[] = listDetectableProviders().map((provider) => ({
+  id: provider.id,
+  name: provider.name,
+  commands: provider.commands ?? [],
+  args: provider.versionArgs ?? ['--version'],
+  docUrl: provider.docUrl,
+  installCommand: provider.installCommand,
+  detectable: provider.detectable,
+}));
 
 class ConnectionsService {
   private initialized = false;
