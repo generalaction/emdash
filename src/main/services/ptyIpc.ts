@@ -142,12 +142,10 @@ export function registerPtyIpc(): void {
   });
 }
 
-function parseProviderPty(id: string):
-  | {
-      providerId: ProviderId;
-      workspaceId: string;
-    }
-  | null {
+function parseProviderPty(id: string): {
+  providerId: ProviderId;
+  workspaceId: string;
+} | null {
   // Chat terminals are named `${provider}-main-${workspaceId}`
   const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
   if (!match) return null;
