@@ -121,7 +121,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: 'goose',
     name: 'Goose',
     docUrl: 'https://block.github.io/goose/docs/quickstart/',
-    installCommand: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+    installCommand:
+      'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
     detectable: false,
   },
   {
