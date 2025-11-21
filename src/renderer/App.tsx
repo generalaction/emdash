@@ -436,10 +436,7 @@ const AppContent: React.FC = () => {
               | undefined) ?? (await window.electronAPI.getProviderStatuses?.());
           if (statusResponse?.success && statusResponse.statuses) {
             providerInstalls = Object.fromEntries(
-              Object.entries(statusResponse.statuses).map(([id, s]) => [
-                id,
-                s?.installed === true,
-              ])
+              Object.entries(statusResponse.statuses).map(([id, s]) => [id, s?.installed === true])
             );
           }
         } catch {
