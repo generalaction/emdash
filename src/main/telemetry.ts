@@ -45,6 +45,7 @@ let host: string | undefined;
 let instanceId: string | undefined;
 let installSource: string | undefined;
 let userOptOut: boolean | undefined; // persisted user setting
+let sessionRecordingOptIn = false; // persisted user setting
 let sessionStartMs: number = Date.now();
 
 const libName = 'emdash';
@@ -62,7 +63,11 @@ function getInstanceIdPath(): string {
   return join(dir, 'telemetry.json');
 }
 
-function loadOrCreateState(): { instanceId: string; enabledOverride?: boolean } {
+function loadOrCreateState(): {
+  instanceId: string;
+  enabledOverride?: boolean;
+  sessionRecordingOptIn?: boolean;
+} {
   try {
     const file = getInstanceIdPath();
     if (existsSync(file)) {
@@ -71,7 +76,11 @@ function loadOrCreateState(): { instanceId: string; enabledOverride?: boolean } 
       if (parsed && typeof parsed.instanceId === 'string' && parsed.instanceId.length > 0) {
         const enabledOverride =
           typeof parsed.enabled === 'boolean' ? (parsed.enabled as boolean) : undefined;
-        return { instanceId: parsed.instanceId as string, enabledOverride };
+        const sessionRecordingOptIn =
+          typeof parsed.sessionRecordingOptIn === 'boolean'
+            ? (parsed.sessionRecordingOptIn as boolean)
+            : undefined;
+        return { instanceId: parsed.instanceId as string, enabledOverride, sessionRecordingOptIn };
       }
     }
   } catch {
@@ -257,6 +266,7 @@ export function init(options?: InitOptions) {
   // If enabledOverride is explicitly false, user opted out; otherwise leave undefined
   userOptOut =
     typeof state.enabledOverride === 'boolean' ? state.enabledOverride === false : undefined;
+  sessionRecordingOptIn = state.sessionRecordingOptIn === true;
 
   // Fire lifecycle start
   void posthogCapture('app_started');
@@ -285,6 +295,7 @@ export function getTelemetryStatus() {
     envDisabled: !enabled,
     userOptOut: userOptOut === true,
     hasKeyAndHost: !!apiKey && !!host,
+    sessionRecordingOptIn,
   };
 }
 
@@ -310,7 +321,32 @@ export function setTelemetryEnabledViaUser(enabledFlag: boolean) {
   }
 }
 
-function persistState(state: { instanceId: string; enabledOverride?: boolean }) {
+export function setSessionRecordingOptIn(optIn: boolean) {
+  sessionRecordingOptIn = Boolean(optIn);
+  try {
+    const file = getInstanceIdPath();
+    let state: any = {};
+    if (existsSync(file)) {
+      try {
+        state = JSON.parse(readFileSync(file, 'utf8')) || {};
+      } catch {
+        state = {};
+      }
+    }
+    state.instanceId = instanceId || state.instanceId || cryptoRandomId();
+    state.sessionRecordingOptIn = sessionRecordingOptIn;
+    state.updatedAt = new Date().toISOString();
+    writeFileSync(file, JSON.stringify(state, null, 2), 'utf8');
+  } catch {
+    // ignore
+  }
+}
+
+function persistState(state: {
+  instanceId: string;
+  enabledOverride?: boolean;
+  sessionRecordingOptIn?: boolean;
+}) {
   try {
     const existing = existsSync(getInstanceIdPath())
       ? JSON.parse(readFileSync(getInstanceIdPath(), 'utf8'))
@@ -320,6 +356,10 @@ function persistState(state: { instanceId: string; enabledOverride?: boolean }) 
       instanceId: state.instanceId,
       enabled:
         typeof state.enabledOverride === 'boolean' ? state.enabledOverride : existing.enabled,
+      sessionRecordingOptIn:
+        typeof state.sessionRecordingOptIn === 'boolean'
+          ? state.sessionRecordingOptIn
+          : existing.sessionRecordingOptIn,
       createdAt: existing.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
