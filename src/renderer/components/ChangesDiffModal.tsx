@@ -7,6 +7,7 @@ import { type FileChange } from '../hooks/useFileChanges';
 import { useToast } from '../hooks/use-toast';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { getLanguageFromPath } from '../lib/languageUtils';
 
 interface ChangesDiffModalProps {
   open: boolean;
@@ -16,58 +17,6 @@ interface ChangesDiffModalProps {
   initialFile?: string;
   onRefreshChanges?: () => Promise<void> | void;
 }
-
-// Detect language from file extension
-const getLanguageFromPath = (path: string): string => {
-  const ext = path.split('.').pop()?.toLowerCase() || '';
-  const langMap: Record<string, string> = {
-    js: 'javascript',
-    jsx: 'jsx',
-    ts: 'typescript',
-    tsx: 'tsx',
-    py: 'python',
-    java: 'java',
-    c: 'c',
-    cpp: 'cpp',
-    cc: 'cpp',
-    h: 'c',
-    hpp: 'cpp',
-    cs: 'csharp',
-    go: 'go',
-    rs: 'rust',
-    rb: 'ruby',
-    php: 'php',
-    swift: 'swift',
-    kt: 'kotlin',
-    scala: 'scala',
-    sh: 'bash',
-    bash: 'bash',
-    zsh: 'bash',
-    fish: 'bash',
-    yml: 'yaml',
-    yaml: 'yaml',
-    json: 'json',
-    xml: 'xml',
-    html: 'html',
-    css: 'css',
-    scss: 'scss',
-    sass: 'sass',
-    less: 'less',
-    sql: 'sql',
-    md: 'markdown',
-    markdown: 'markdown',
-    vue: 'vue',
-    svelte: 'svelte',
-    dart: 'dart',
-    lua: 'lua',
-    perl: 'perl',
-    r: 'r',
-    matlab: 'matlab',
-    dockerfile: 'dockerfile',
-    makefile: 'makefile',
-  };
-  return langMap[ext] || 'text';
-};
 
 // Component for rendering a single line with syntax highlighting
 const HighlightedLine: React.FC<{
