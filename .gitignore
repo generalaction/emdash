@@ -55,7 +55,6 @@ jspm_packages/
 Thumbs.db
 
 # AI assistant instructions
-CLAUDE.md
 .notes/
 
 # Local generated worktrees for perf experiments

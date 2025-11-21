@@ -322,6 +322,7 @@ declare global {
           envDisabled: boolean;
           userOptOut: boolean;
           hasKeyAndHost: boolean;
+          sessionRecordingOptIn?: boolean;
         };
         error?: string;
       }>;
@@ -332,6 +333,18 @@ declare global {
           envDisabled: boolean;
           userOptOut: boolean;
           hasKeyAndHost: boolean;
+          sessionRecordingOptIn?: boolean;
+        };
+        error?: string;
+      }>;
+      setSessionRecordingOptIn: (enabled: boolean) => Promise<{
+        success: boolean;
+        status?: {
+          enabled: boolean;
+          envDisabled: boolean;
+          userOptOut: boolean;
+          hasKeyAndHost: boolean;
+          sessionRecordingOptIn?: boolean;
         };
         error?: string;
       }>;
@@ -657,6 +670,7 @@ export interface ElectronAPI {
       envDisabled: boolean;
       userOptOut: boolean;
       hasKeyAndHost: boolean;
+      sessionRecordingOptIn?: boolean;
     };
     error?: string;
   }>;
@@ -667,6 +681,18 @@ export interface ElectronAPI {
       envDisabled: boolean;
       userOptOut: boolean;
       hasKeyAndHost: boolean;
+      sessionRecordingOptIn?: boolean;
+    };
+    error?: string;
+  }>;
+  setSessionRecordingOptIn: (enabled: boolean) => Promise<{
+    success: boolean;
+    status?: {
+      enabled: boolean;
+      envDisabled: boolean;
+      userOptOut: boolean;
+      hasKeyAndHost: boolean;
+      sessionRecordingOptIn?: boolean;
     };
     error?: string;
   }>;

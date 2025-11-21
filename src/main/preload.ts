@@ -169,6 +169,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('telemetry:capture', { event, properties }),
   getTelemetryStatus: () => ipcRenderer.invoke('telemetry:get-status'),
   setTelemetryEnabled: (enabled: boolean) => ipcRenderer.invoke('telemetry:set-enabled', enabled),
+  setSessionRecordingOptIn: (enabled: boolean) =>
+    ipcRenderer.invoke('telemetry:set-session-recording', enabled),
   connectToGitHub: (projectPath: string) => ipcRenderer.invoke('github:connect', projectPath),
   onRunEvent: (callback: (event: any) => void) => {
     ipcRenderer.on('run:event', (_, event) => callback(event));
@@ -321,6 +323,29 @@ export interface ElectronAPI {
   quitAndInstallUpdate: () => Promise<{ success: boolean; error?: string }>;
   openLatestDownload: () => Promise<{ success: boolean; error?: string }>;
   onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
+
+  // Telemetry (minimal, anonymous)
+  captureTelemetry: (
+    event: 'feature_used' | 'error',
+    properties?: Record<string, any>
+  ) => Promise<{ success: boolean; error?: string; disabled?: boolean }>;
+  getTelemetryStatus: () => Promise<{
+    success: boolean;
+    status?: {
+      enabled: boolean;
+      envDisabled: boolean;
+      userOptOut: boolean;
+      hasKeyAndHost: boolean;
+      sessionRecordingOptIn: boolean;
+    };
+    error?: string;
+  }>;
+  setTelemetryEnabled: (
+    enabled: boolean
+  ) => Promise<{ success: boolean; status?: any; error?: string }>;
+  setSessionRecordingOptIn: (
+    enabled: boolean
+  ) => Promise<{ success: boolean; status?: any; error?: string }>;
 
   // PTY management
   ptyStart: (opts: {

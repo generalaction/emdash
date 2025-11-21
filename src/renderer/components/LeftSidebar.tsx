@@ -59,6 +59,7 @@ interface LeftSidebarProps {
   isCreatingWorkspace?: boolean;
   onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
+  isHomeView?: boolean;
 }
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -79,6 +80,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   isCreatingWorkspace,
   onDeleteWorkspace,
   onDeleteProject,
+  isHomeView,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
@@ -134,7 +136,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton
+                    asChild
+                    className={isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}
+                  >
                     <Button
                       variant="ghost"
                       onClick={onGoHome}
@@ -199,10 +204,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     const typedProject = project as Project;
                     const isDeletingProject = deletingProjectId === typedProject.id;
                     const showProjectDelete = Boolean(onDeleteProject);
+                    const isProjectActive = selectedProject?.id === typedProject.id;
                     return (
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
-                          <div className="group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground">
+                          <div
+                            className={`group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
+                              isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
+                            }`}
+                          >
                             <button
                               type="button"
                               className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
