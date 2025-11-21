@@ -25,6 +25,7 @@ import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import PlanModeToggle from './PlanModeToggle';
+import AutoApproveIndicator from './AutoApproveIndicator';
 import context7Logo from '../../assets/images/context7.png';
 import Context7Tooltip from './Context7Tooltip';
 import { providerMeta } from '../providers/meta';
@@ -39,6 +40,7 @@ type Props = {
   planModeEnabled?: boolean;
   onPlanModeChange?: (next: boolean) => void;
   onApprovePlan?: () => void;
+  autoApprove?: boolean;
 };
 
 export const ProviderBar: React.FC<Props> = ({
@@ -50,6 +52,7 @@ export const ProviderBar: React.FC<Props> = ({
   planModeEnabled,
   onPlanModeChange,
   onApprovePlan,
+  autoApprove,
 }) => {
   const [c7Enabled, setC7Enabled] = React.useState<boolean>(false); // global setting
   const [c7Busy, setC7Busy] = React.useState<boolean>(false);
@@ -359,6 +362,7 @@ export const ProviderBar: React.FC<Props> = ({
                 </TooltipProvider>
               ) : null}
               <PlanModeToggle value={!!planModeEnabled} onChange={onPlanModeChange} />
+              <AutoApproveIndicator enabled={!!autoApprove} />
               {planModeEnabled ? (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>

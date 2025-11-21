@@ -28,6 +28,8 @@ export type ProviderMeta = {
   // once the PTY is ready (used when the provider is launched via a
   // general-purpose shell rather than a dedicated CLI binary).
   autoStartCommand?: string;
+  // Optional flag to bypass permission prompts when auto-approve is enabled
+  autoApproveFlag?: string;
 };
 
 export const providerMeta: Record<UiProvider, ProviderMeta> = {
@@ -46,6 +48,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     terminalOnly: true,
     cli: 'qwen',
     helpUrl: 'https://github.com/QwenLM/qwen-code',
+    autoApproveFlag: '--yolo',
     idlePatterns: [/Ready|Awaiting|Press Enter|Next command/i],
     busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning/i],
   },
@@ -64,6 +67,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     terminalOnly: true,
     cli: 'opencode',
     helpUrl: 'https://opencode.ai/docs/cli/',
+    autoApproveFlag: '-p',
     idlePatterns: [/Ready|Awaiting|Press Enter|Next command/i],
     busyPatterns: [/Thinking\.{0,3}/i, /waiting\s+for\s+response/i, /esc\s*to\s*cancel/i],
   },
@@ -82,6 +86,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     terminalOnly: true,
     cli: 'codex',
     helpUrl: 'https://developers.openai.com/codex/quickstart',
+    autoApproveFlag: '--full-auto',
     idlePatterns: [
       /Ready|Awaiting input|Press Enter/i,
       /\b\/(status|approvals|model)\b/i,
@@ -101,6 +106,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     cli: 'claude',
     helpUrl: 'https://docs.claude.com/en/docs/claude-code/quickstart',
     planActivate: '/plan',
+    autoApproveFlag: '--dangerously-skip-permissions',
     idlePatterns: [/Ready|Awaiting|Next command|Use \/login/i],
     busyPatterns: [
       /esc\s*to\s*interrupt/i,
@@ -126,6 +132,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     terminalOnly: true,
     cli: 'gemini',
     helpUrl: 'https://github.com/google-gemini/gemini-cli',
+    autoApproveFlag: '--yolomode',
     idlePatterns: [/Ready|Awaiting|Press Enter/i],
     busyPatterns: [
       /esc\s*to\s*cancel/i,
@@ -140,6 +147,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     terminalOnly: true,
     cli: 'cursor-agent',
     helpUrl: 'https://cursor.com/install',
+    autoApproveFlag: '-p',
     idlePatterns: [/Add a follow-up/i, /Auto\s*[\r\n]+\s*\/\s*commands/i],
     busyPatterns: [/^.*?Generating\.?/im, /\bWorking\b|\bExecuting\b|\bRunning\b/i],
   },
@@ -192,6 +200,7 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     terminalOnly: true,
     helpUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
     autoStartCommand: 'acli rovodev run',
+    autoApproveFlag: '--yolo',
     idlePatterns: [/Ready|Awaiting|Press Enter|Next command|rovodev/i],
     busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|rovodev/i],
   },

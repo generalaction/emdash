@@ -6,10 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch } from 'lucide-react';
+import { X, GitBranch, ExternalLink } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { type Provider } from '../types';
 import { Separator } from './ui/separator';
+import { providerMeta } from '../providers/meta';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { LinearIssueSelector } from './LinearIssueSelector';
@@ -30,7 +31,8 @@ interface WorkspaceModalProps {
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null,
-    multiAgent?: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null
+    multiAgent?: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null,
+    autoApprove?: boolean
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -62,6 +64,11 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
+  const [autoApprove, setAutoApprove] = useState(false);
+  const activeProviders = multiEnabled ? selectedProviders : [selectedProvider];
+  const hasAutoApproveSupport =
+    activeProviders.length > 0 &&
+    activeProviders.every((providerId) => !!providerMeta[providerId]?.autoApproveFlag);
   const shouldReduceMotion = useReducedMotion();
 
   const normalizedExisting = existingNames.map((n) => n.toLowerCase());
@@ -121,6 +128,12 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       cancel = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasAutoApproveSupport && autoApprove) {
+      setAutoApprove(false);
+    }
+  }, [hasAutoApproveSupport, autoApprove]);
 
   return createPortal(
     <AnimatePresence>
@@ -192,7 +205,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 providers: selectedProviders.slice(0, maxProviders),
                                 maxProviders,
                               }
-                            : null
+                            : null,
+                          showAdvanced ? autoApprove : false
                         );
                         setWorkspaceName('');
                         setInitialPrompt('');
@@ -201,6 +215,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         setMultiEnabled(false);
                         setSelectedLinearIssue(null);
                         setSelectedGithubIssue(null);
+                        setAutoApprove(false);
                         setShowAdvanced(false);
                         setError(null);
                         onClose();
@@ -316,6 +331,37 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               </label>
                             </div>
                           </div>
+                          {hasAutoApproveSupport ? (
+                            <div className="flex items-center gap-4">
+                              <label className="w-32 shrink-0 text-sm font-medium text-foreground">
+                                Auto-approve
+                              </label>
+                              <div className="min-w-0 flex-1">
+                                <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
+                                  <input
+                                    type="checkbox"
+                                    checked={autoApprove}
+                                    onChange={(e) => setAutoApprove(e.target.checked)}
+                                    className="mt-[1px] h-4 w-4 shrink-0"
+                                  />
+                                  <div className="space-y-1">
+                                    <span className="text-muted-foreground">
+                                      Bypass permission prompts for file operations
+                                    </span>
+                                    <a
+                                      href="https://simonwillison.net/2025/Oct/22/living-dangerously-with-claude/"
+                                      target="_blank"
+                                      rel="noreferrer noopener"
+                                      className="ml-1 inline-flex items-center gap-1 text-foreground underline"
+                                    >
+                                      Explanation
+                                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                                    </a>
+                                  </div>
+                                </label>
+                              </div>
+                            </div>
+                          ) : null}
                           <div className="flex items-start gap-4">
                             <label
                               htmlFor="linear-issue"

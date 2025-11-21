@@ -16,6 +16,7 @@ export interface AgentStartOptions {
   worktreePath: string;
   message: string;
   conversationId?: string;
+  autoApprove?: boolean;
 }
 
 export class AgentService extends EventEmitter {
@@ -65,7 +66,7 @@ export class AgentService extends EventEmitter {
   }
 
   async startStream(opts: AgentStartOptions): Promise<void> {
-    const { providerId, workspaceId, worktreePath, message, conversationId } = opts;
+    const { providerId, workspaceId, worktreePath, message, conversationId, autoApprove } = opts;
 
     // Notify renderers that a stream is starting for this workspace
     try {
@@ -127,7 +128,7 @@ export class AgentService extends EventEmitter {
                 options: {
                   cwd: worktreePath,
                   includePartialMessages: true,
-                  permissionMode: 'acceptEdits',
+                  permissionMode: autoApprove ? 'dangerouslySkipAll' : 'acceptEdits',
                   allowedTools: ['Edit', 'MultiEdit', 'Write', 'Read'],
                   abortController,
                 },
@@ -183,7 +184,7 @@ export class AgentService extends EventEmitter {
           '--output-format',
           'stream-json',
           '--permission-mode',
-          'acceptEdits',
+          autoApprove ? 'dangerouslySkipAll' : 'acceptEdits',
           '--allowedTools',
           'Edit',
           '--allowedTools',

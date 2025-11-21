@@ -19,15 +19,16 @@ export function registerPtyIpc(): void {
         env?: Record<string, string>;
         cols?: number;
         rows?: number;
+        autoApprove?: boolean;
       }
     ) => {
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
       try {
-        const { id, cwd, shell, env, cols, rows } = args;
+        const { id, cwd, shell, env, cols, rows, autoApprove } = args;
         const existing = getPty(id);
-        const proc = existing ?? startPty({ id, cwd, shell, env, cols, rows });
+        const proc = existing ?? startPty({ id, cwd, shell, env, cols, rows, autoApprove });
         const envKeys = env ? Object.keys(env) : [];
         const planEnv = env && (env.EMDASH_PLAN_MODE || env.EMDASH_PLAN_FILE) ? true : false;
         log.debug('pty:start OK', {
@@ -36,6 +37,7 @@ export function registerPtyIpc(): void {
           shell,
           cols,
           rows,
+          autoApprove,
           reused: !!existing,
           envKeys,
           planEnv,
