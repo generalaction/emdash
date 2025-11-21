@@ -445,10 +445,18 @@ export interface ElectronAPI {
   ) => Promise<{ success: boolean; error?: string; disabled?: boolean }>;
   getTelemetryStatus: () => Promise<{
     success: boolean;
-    status?: { enabled: boolean; envDisabled: boolean; userOptOut: boolean; hasKeyAndHost: boolean; sessionRecordingOptIn: boolean };
+    status?: {
+      enabled: boolean;
+      envDisabled: boolean;
+      userOptOut: boolean;
+      hasKeyAndHost: boolean;
+      sessionRecordingOptIn: boolean;
+    };
     error?: string;
   }>;
-  setTelemetryEnabled: (enabled: boolean) => Promise<{ success: boolean; status?: any; error?: string }>;
+  setTelemetryEnabled: (
+    enabled: boolean
+  ) => Promise<{ success: boolean; status?: any; error?: string }>;
   setSessionRecordingOptIn: (
     enabled: boolean
   ) => Promise<{ success: boolean; status?: any; error?: string }>;
