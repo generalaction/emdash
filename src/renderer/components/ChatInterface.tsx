@@ -273,11 +273,6 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     (async () => {
       try {
-        if (provider !== 'claude')
-          await (window as any).electronAPI.agentStopStream?.({
-            providerId: 'claude',
-            workspaceId: workspace.id,
-          });
       } catch {}
     })();
   }, [provider, workspace.id]);
@@ -598,7 +593,7 @@ const ChatInterface: React.FC<Props> = ({
                   />
                 );
               }
-              if (provider !== 'codex' && provider !== 'claude' && cliStartFailed) {
+              if (cliStartFailed) {
                 return (
                   <InstallBanner
                     provider={provider as any}
