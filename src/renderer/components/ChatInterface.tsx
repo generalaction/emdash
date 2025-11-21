@@ -5,7 +5,7 @@ import ContainerStatusBadge from './ContainerStatusBadge';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
-import { TerminalModeBanner } from './TerminalModeBanner';
+import { TerminalModeBanner, getInstallCommandForProvider } from './TerminalModeBanner';
 import { providerMeta } from '../providers/meta';
 import ProviderBar from './ProviderBar';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
@@ -567,14 +567,7 @@ const ChatInterface: React.FC<Props> = ({
                 return (
                   <TerminalModeBanner
                     provider={provider as any}
-                    onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                  />
-                );
-              }
-              if (isProviderInstalled === false) {
-                return (
-                  <TerminalModeBanner
-                    provider={provider as any}
+                    installCommand={getInstallCommandForProvider(provider as any)}
                     onOpenExternal={(url) => window.electronAPI.openExternal(url)}
                   />
                 );
