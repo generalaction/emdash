@@ -5,7 +5,7 @@ import ContainerStatusBadge from './ContainerStatusBadge';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
-import { TerminalModeBanner, getInstallCommandForProvider } from './TerminalModeBanner';
+import { InstallBanner, getInstallCommandForProvider } from './InstallBanner';
 import { providerMeta } from '../providers/meta';
 import ProviderBar from './ProviderBar';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
@@ -605,7 +605,7 @@ const ChatInterface: React.FC<Props> = ({
             {(() => {
               if (isProviderInstalled === false) {
                 return (
-                  <TerminalModeBanner
+                  <InstallBanner
                     provider={provider as any}
                     terminalId={terminalId}
                     installCommand={getInstallCommandForProvider(provider as any)}
@@ -616,7 +616,7 @@ const ChatInterface: React.FC<Props> = ({
               }
               if (provider !== 'codex' && provider !== 'claude' && cliStartFailed) {
                 return (
-                  <TerminalModeBanner
+                  <InstallBanner
                     provider={provider as any}
                     terminalId={terminalId}
                     onRunInstall={runInstallCommand}

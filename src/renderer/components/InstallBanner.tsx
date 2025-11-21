@@ -32,7 +32,7 @@ type Props = {
   onRunInstall?: (command: string) => void;
 };
 
-export const TerminalModeBanner: React.FC<Props> = ({
+export const InstallBanner: React.FC<Props> = ({
   provider,
   onOpenExternal,
   installCommand,
@@ -150,4 +150,4 @@ export const TerminalModeBanner: React.FC<Props> = ({
   );
 };
 
-export default TerminalModeBanner;
+export default InstallBanner;
