@@ -33,7 +33,10 @@ type TelemetryEvent =
   // Aggregates (privacy-safe)
   | 'workspace_snapshot'
   // Session summary (duration only)
-  | 'app_session';
+  | 'app_session'
+  // Agent usage (provider-level only)
+  | 'agent_run_start'
+  | 'agent_run_finish';
 
 interface InitOptions {
   installSource?: string;
@@ -135,6 +138,9 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     // explicitly allow only these keys to avoid PII
     'feature',
     'type',
+    'provider',
+    'outcome',
+    'duration_ms',
     // session
     'session_duration_ms',
     // aggregates (counts + buckets only)
@@ -161,6 +167,8 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
   };
 
   const BUCKETS = new Set(['0', '1-2', '3-5', '6-10', '>10']);
+  const PROVIDERS = new Set(['codex', 'claude']);
+  const OUTCOMES = new Set(['ok', 'error']);
 
   // Event-specific constraints
   switch (event) {
@@ -180,6 +188,23 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
       }
       // strip any other keys
       for (const k of Object.keys(p)) if (k !== 'session_duration_ms') delete p[k];
+      break;
+    case 'agent_run_start':
+      if (!p.provider || !PROVIDERS.has(String(p.provider))) delete p.provider;
+      // strip everything else
+      for (const k of Object.keys(p)) if (k !== 'provider') delete p[k];
+      break;
+    case 'agent_run_finish':
+      if (!p.provider || !PROVIDERS.has(String(p.provider))) delete p.provider;
+      if (!p.outcome || !OUTCOMES.has(String(p.outcome))) delete p.outcome;
+      if (p.duration_ms != null) {
+        const v = clampInt(p.duration_ms, 0, 1000 * 60 * 60 * 24);
+        if (v == null) delete p.duration_ms;
+        else p.duration_ms = v;
+      }
+      for (const k of Object.keys(p)) {
+        if (k !== 'provider' && k !== 'outcome' && k !== 'duration_ms') delete p[k];
+      }
       break;
     case 'workspace_snapshot':
       // Allow only counts and very coarse buckets
