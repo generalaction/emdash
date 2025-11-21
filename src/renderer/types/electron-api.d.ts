@@ -482,6 +482,17 @@ declare global {
         }>;
         error?: string;
       }>;
+      getProviderStatuses?: () => Promise<{
+        success: boolean;
+        statuses?: Record<
+          string,
+          { installed: boolean; path?: string | null; version?: string | null; lastChecked: number }
+        >;
+        error?: string;
+      }>;
+      onProviderStatusUpdated?: (
+        listener: (data: { providerId: string; status: any }) => void
+      ) => () => void;
 
       // Database operations
       getProjects: () => Promise<any[]>;
@@ -724,6 +735,17 @@ export interface ElectronAPI {
     }>;
     error?: string;
   }>;
+  getProviderStatuses?: () => Promise<{
+    success: boolean;
+    statuses?: Record<
+      string,
+      { installed: boolean; path?: string | null; version?: string | null; lastChecked: number }
+    >;
+    error?: string;
+  }>;
+  onProviderStatusUpdated?: (
+    listener: (data: { providerId: string; status: any }) => void
+  ) => () => void;
   // Telemetry
   captureTelemetry: (
     event: 'feature_used' | 'error',

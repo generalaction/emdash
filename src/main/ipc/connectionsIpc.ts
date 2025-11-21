@@ -13,4 +13,16 @@ export function registerConnectionsIpc() {
       };
     }
   });
+
+  ipcMain.handle('providers:getStatuses', async () => {
+    try {
+      const statuses = connectionsService.getCachedProviderStatuses();
+      return { success: true, statuses };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  });
 }

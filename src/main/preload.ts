@@ -219,6 +219,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   jiraSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
   getCliProviders: () => ipcRenderer.invoke('connections:getCliProviders'),
+  getProviderStatuses: () => ipcRenderer.invoke('providers:getStatuses'),
   // Database methods
   getProjects: () => ipcRenderer.invoke('db:getProjects'),
   saveProject: (project: any) => ipcRenderer.invoke('db:saveProject', project),
@@ -271,6 +272,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => void
   ) => {
     const channel = 'plan:event';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
+  onProviderStatusUpdated: (
+    listener: (data: { providerId: string; status: any }) => void
+  ) => {
+    const channel = 'provider:status-updated';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);

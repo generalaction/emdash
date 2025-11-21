@@ -54,6 +54,9 @@ const ChatInterface: React.FC<Props> = ({
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
   const [isProviderInstalled, setIsProviderInstalled] = useState<boolean | null>(null);
+  const [providerStatuses, setProviderStatuses] = useState<
+    Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
+  >({});
   const [provider, setProvider] = useState<Provider>(initialProvider || 'codex');
   const browser = useBrowser();
   const [cliStartFailed, setCliStartFailed] = useState(false);
@@ -220,69 +223,60 @@ const ChatInterface: React.FC<Props> = ({
   }, [provider, workspace.id]);
 
   useEffect(() => {
+    const installed = providerStatuses[provider]?.installed === true;
+    setIsProviderInstalled(installed);
+  }, [provider, providerStatuses]);
+
+  useEffect(() => {
     let cancelled = false;
-    setIsProviderInstalled(null);
+    const api: any = (window as any).electronAPI;
 
-    const check = async () => {
+    const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
+      if (!statuses) return;
+      setProviderStatuses(statuses);
+      if (cancelled) return;
+      const installed = statuses?.[provider]?.installed === true;
+      setIsProviderInstalled(installed);
+    };
+
+    const load = async () => {
+      if (!api?.getProviderStatuses) {
+        setIsProviderInstalled(false);
+        return;
+      }
       try {
-        if (provider === 'codex') {
-          const res = await window.electronAPI.codexCheckInstallation();
-          if (cancelled) return;
-          const installed = !!res?.isInstalled && res.success;
-          setIsProviderInstalled(installed);
-          if (res?.success && res.isInstalled) {
-            const agentResult = await window.electronAPI.codexCreateAgent(
-              workspace.id,
-              workspace.path
-            );
-            if (agentResult.success) {
-              const { log } = await import('../lib/logger');
-              log.info('Codex agent created for workspace:', workspace.name);
-            } else {
-              console.error('Failed to create Codex agent:', agentResult.error);
-              toast({
-                title: 'Error',
-                description: 'Failed to create Codex agent. Please try again.',
-                variant: 'destructive',
-              });
-            }
-          }
-          return;
+        const res = await api.getProviderStatuses();
+        if (cancelled) return;
+        if (res?.success) {
+          applyStatuses(res.statuses ?? {});
+        } else {
+          setIsProviderInstalled(false);
         }
-
-        if (provider === 'claude') {
-          const res = await (window as any).electronAPI.agentCheckInstallation?.('claude');
-          if (cancelled) return;
-          setIsProviderInstalled(res?.success ? !!res.isInstalled : false);
-          return;
-        }
-
-        if (window.electronAPI.getCliProviders) {
-          const res = await window.electronAPI.getCliProviders();
-          if (cancelled) return;
-          if (res?.success && Array.isArray(res.providers)) {
-            const match = res.providers.find((p: any) => p.id === provider);
-            if (match) {
-              setIsProviderInstalled(match.status === 'connected');
-              return;
-            }
-          }
-        }
-
-        // Fallback: assume not installed if we can't confirm
-        if (!cancelled) setIsProviderInstalled(false);
       } catch (error) {
         if (!cancelled) setIsProviderInstalled(false);
-        console.error('Provider install check failed', error);
+        console.error('Provider status load failed', error);
       }
     };
 
-    void check();
+    const off =
+      api?.onProviderStatusUpdated?.((payload: { providerId: string; status: any }) => {
+        if (!payload?.providerId) return;
+        setProviderStatuses((prev) => {
+          const next = { ...prev, [payload.providerId]: payload.status };
+          return next;
+        });
+        if (payload.providerId === provider) {
+          setIsProviderInstalled(payload.status?.installed === true);
+        }
+      }) || null;
+
+    void load();
 
     return () => {
       cancelled = true;
+      off?.();
     };
-  }, [provider, workspace.id, workspace.path, workspace.name, toast]);
+  }, [provider, workspace.id]);
 
   // When switching providers, ensure other streams are stopped
   useEffect(() => {
@@ -413,6 +407,32 @@ const ChatInterface: React.FC<Props> = ({
       off?.();
     };
   }, [workspace.id]);
+
+  useEffect(() => {
+    if (provider !== 'codex') return;
+    if (!isProviderInstalled) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await window.electronAPI.codexCreateAgent(workspace.id, workspace.path);
+        if (cancelled) return;
+        if (!res.success) {
+          console.error('Failed to create Codex agent:', res.error);
+          toast({
+            title: 'Error',
+            description: 'Failed to create Codex agent. Please try again.',
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Failed to create Codex agent:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [provider, isProviderInstalled, workspace.id, workspace.path, toast]);
 
   const containerStatusNode = useMemo(() => {
     const state = containerState;
@@ -603,7 +623,7 @@ const ChatInterface: React.FC<Props> = ({
         <div className="px-6 pt-4">
           <div className="mx-auto max-w-4xl space-y-2">
             {(() => {
-              if (isProviderInstalled === false) {
+              if (isProviderInstalled !== true) {
                 return (
                   <InstallBanner
                     provider={provider as any}

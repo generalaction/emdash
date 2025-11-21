@@ -1,5 +1,7 @@
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
+import { BrowserWindow } from 'electron';
 import { codexService } from './CodexService';
+import { providerStatusCache, type ProviderStatus } from './providerStatusCache';
 
 export type CliStatusCode = 'connected' | 'missing' | 'needs_key' | 'error';
 
@@ -33,9 +35,10 @@ interface CommandResult {
   stderr: string;
   status: number | null;
   version: string | null;
+  resolvedPath: string | null;
 }
 
-const CLI_DEFINITIONS: CliDefinition[] = [
+export const CLI_DEFINITIONS: CliDefinition[] = [
   {
     id: 'codex',
     name: 'Codex',
@@ -151,6 +154,32 @@ const CLI_DEFINITIONS: CliDefinition[] = [
 ];
 
 class ConnectionsService {
+  private initialized = false;
+
+  async initProviderStatusCache() {
+    if (this.initialized) return;
+    this.initialized = true;
+    await providerStatusCache.load();
+    for (const def of CLI_DEFINITIONS) {
+      const entry = providerStatusCache.get(def.id);
+      if (!entry || typeof entry.installed !== 'boolean') {
+        void this.checkProvider(def.id, 'bootstrap');
+      }
+    }
+  }
+
+  getCachedProviderStatuses(): Record<string, ProviderStatus> {
+    return providerStatusCache.getAll();
+  }
+
+  async checkProvider(providerId: string, _reason: 'bootstrap' | 'manual' = 'manual') {
+    const def = CLI_DEFINITIONS.find((d) => d.id === providerId);
+    if (!def) return;
+    const commandResult = await this.tryCommands(def);
+    const statusCode = await this.resolveStatus(def, commandResult);
+    this.cacheStatus(def.id, commandResult, statusCode);
+  }
+
   async getCliProviders(): Promise<CliProviderStatus[]> {
     // Run all checks in parallel for better performance
     const results = await Promise.all(
@@ -163,6 +192,7 @@ class ConnectionsService {
     const commandResult = await this.tryCommands(def);
     const status = await this.resolveStatus(def, commandResult);
     const message = this.resolveMessage(def, commandResult, status);
+    this.cacheStatus(def.id, commandResult, status);
 
     return {
       id: def.id,
@@ -249,6 +279,7 @@ class ConnectionsService {
   }
 
   private async runCommand(command: string, args: string[]): Promise<CommandResult> {
+    const resolvedPath = this.resolveCommandPath(command);
     return new Promise((resolve) => {
       try {
         const child = spawn(command, args);
@@ -281,6 +312,7 @@ class ConnectionsService {
             stderr: stderr || '',
             status: null,
             version: null,
+            resolvedPath,
           });
         });
 
@@ -298,6 +330,7 @@ class ConnectionsService {
             stderr,
             status: code,
             version,
+            resolvedPath,
           });
         });
       } catch (error) {
@@ -309,6 +342,7 @@ class ConnectionsService {
           stderr: '',
           status: null,
           version: null,
+          resolvedPath,
         });
       }
     });
@@ -318,6 +352,40 @@ class ConnectionsService {
     if (!output) return null;
     const matches = output.match(/\d+\.\d+(\.\d+)?/);
     return matches ? matches[0] : null;
+  }
+
+  private resolveCommandPath(command: string): string | null {
+    const resolver = process.platform === 'win32' ? 'where' : 'which';
+    try {
+      const result = execFileSync(resolver, [command], { encoding: 'utf8' });
+      const lines = result.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      return lines[0] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private cacheStatus(providerId: string, result: CommandResult, statusCode: CliStatusCode) {
+    const installed = statusCode === 'connected';
+    const status: ProviderStatus = {
+      installed,
+      path: result.resolvedPath,
+      version: result.version,
+      lastChecked: Date.now(),
+    };
+    providerStatusCache.set(providerId, status);
+    this.emitStatusUpdate(providerId, status);
+  }
+
+  private emitStatusUpdate(providerId: string, status: ProviderStatus) {
+    const payload = { providerId, status };
+    BrowserWindow.getAllWindows().forEach((win) => {
+      try {
+        win.webContents.send('provider:status-updated', payload);
+      } catch {
+        // ignore send errors
+      }
+    });
   }
 }
 

@@ -59,6 +59,7 @@ import { createMainWindow } from './app/window';
 import { registerAppLifecycle } from './app/lifecycle';
 import { registerAllIpc } from './ipc';
 import { databaseService } from './services/DatabaseService';
+import { connectionsService } from './services/ConnectionsService';
 import * as telemetry from './telemetry';
 
 // App bootstrap
@@ -96,6 +97,12 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   registerAllIpc();
+  // Warm provider installation cache
+  try {
+    await connectionsService.initProviderStatusCache();
+  } catch {
+    // best-effort; ignore failures
+  }
 
   // Create main window
   createMainWindow();
