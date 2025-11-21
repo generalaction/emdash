@@ -267,64 +267,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
-  // Generic agent integration (multi-provider)
-  agentCheckInstallation: (providerId: 'codex' | 'claude') =>
-    ipcRenderer.invoke('agent:check-installation', providerId),
-  agentGetInstallationInstructions: (providerId: 'codex' | 'claude') =>
-    ipcRenderer.invoke('agent:get-installation-instructions', providerId),
-  agentSendMessageStream: (args: {
-    providerId: 'codex' | 'claude';
-    workspaceId: string;
-    worktreePath: string;
-    message: string;
-    conversationId?: string;
-  }) => ipcRenderer.invoke('agent:send-message-stream', args),
-  agentStopStream: (args: { providerId: 'codex' | 'claude'; workspaceId: string }) =>
-    ipcRenderer.invoke('agent:stop-stream', args),
-  onAgentStreamOutput: (
-    listener: (data: {
-      providerId: 'codex' | 'claude';
-      workspaceId: string;
-      output?: string;
-      error?: string;
-      agentId?: string;
-      conversationId?: string;
-    }) => void
-  ) => {
-    const channel = 'agent:stream-output';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onAgentStreamStart: (
-    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string }) => void
-  ) => {
-    const channel = 'agent:stream-start';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onAgentStreamError: (
-    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string; error: string }) => void
-  ) => {
-    const channel = 'agent:stream-error';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onAgentStreamComplete: (
-    listener: (data: {
-      providerId: 'codex' | 'claude';
-      workspaceId: string;
-      exitCode: number;
-    }) => void
-  ) => {
-    const channel = 'agent:stream-complete';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-
   // Host preview (non-container)
   hostPreviewStart: (args: {
     workspaceId: string;
@@ -601,47 +543,6 @@ export interface ElectronAPI {
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
   deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
-
-  // Generic agent integration
-  agentCheckInstallation: (
-    providerId: 'codex' | 'claude'
-  ) => Promise<{ success: boolean; isInstalled?: boolean; error?: string }>;
-  agentGetInstallationInstructions: (
-    providerId: 'codex' | 'claude'
-  ) => Promise<{ success: boolean; instructions?: string; error?: string }>;
-  agentSendMessageStream: (args: {
-    providerId: 'codex' | 'claude';
-    workspaceId: string;
-    worktreePath: string;
-    message: string;
-    conversationId?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-  agentStopStream: (args: {
-    providerId: 'codex' | 'claude';
-    workspaceId: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-  onAgentStreamOutput: (
-    listener: (data: {
-      providerId: 'codex' | 'claude';
-      workspaceId: string;
-      output?: string;
-      agentId?: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-  onAgentStreamStart: (
-    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string }) => void
-  ) => () => void;
-  onAgentStreamError: (
-    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string; error: string }) => void
-  ) => () => void;
-  onAgentStreamComplete: (
-    listener: (data: {
-      providerId: 'codex' | 'claude';
-      workspaceId: string;
-      exitCode: number;
-    }) => void
-  ) => () => void;
 
   // Host preview (non-container)
   hostPreviewStart: (args: {

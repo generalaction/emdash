@@ -518,28 +518,6 @@ declare global {
         options?: { reset?: boolean }
       ) => Promise<{ success: boolean; error?: string }>;
 
-      // Generic agent integration (multi-provider)
-      agentCheckInstallation: (providerId: 'codex' | 'claude') => Promise<{
-        success: boolean;
-        isInstalled?: boolean;
-        error?: string;
-      }>;
-      agentGetInstallationInstructions: (providerId: 'codex' | 'claude') => Promise<{
-        success: boolean;
-        instructions?: string;
-        error?: string;
-      }>;
-      agentSendMessageStream: (args: {
-        providerId: 'codex' | 'claude';
-        workspaceId: string;
-        worktreePath: string;
-        message: string;
-        conversationId?: string;
-      }) => Promise<{ success: boolean; error?: string }>;
-      agentStopStream: (args: { providerId: 'codex' | 'claude'; workspaceId: string }) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
     };
   }
 }

@@ -120,13 +120,14 @@ const AppContent: React.FC = () => {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [activeWorkspaceProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
-  const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
-  const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
+  const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const showGithubRequirement = !ghInstalled || !isAuthenticated;
-  // Show agent requirements block if none of the supported CLIs are detected locally.
-  const showAgentRequirement = isCodexInstalled === false && isClaudeInstalled === false;
+  // Show agent requirements block if we have status data and none of the CLI providers are detected locally.
+  const showAgentRequirement =
+    Object.keys(installedProviders).length > 0 &&
+    Object.values(installedProviders).every((v) => v === false);
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -420,43 +421,22 @@ const AppContent: React.FC = () => {
         const ordered = applyProjectOrder(projectsWithWorkspaces);
         setProjects(ordered);
 
-        let codexInstalled: boolean | null = null;
-        let claudeInstalled: boolean | null = null;
-
         // Prefer cached provider status (populated in the background)
+        let providerInstalls: Record<string, boolean> = {};
         try {
           const statuses =
             (await (window as any).electronAPI.getProviderStatuses?.()) ??
             (await window.electronAPI.getProviderStatuses?.());
           if (statuses?.success && statuses.statuses) {
-            codexInstalled = statuses.statuses.codex?.installed === true;
-            claudeInstalled = statuses.statuses.claude?.installed === true;
+            providerInstalls = Object.fromEntries(
+              Object.entries(statuses.statuses).map(([id, s]) => [id, s?.installed === true])
+            );
           }
         } catch {
           // ignore and fall back to direct checks
         }
 
-        // Fallback checks via AgentService (covers CLI presence)
-        if (codexInstalled === null) {
-          try {
-            const res = await (window as any).electronAPI.agentCheckInstallation?.('codex');
-            codexInstalled = !!res?.isInstalled;
-          } catch {
-            codexInstalled = false;
-          }
-        }
-
-        if (claudeInstalled === null) {
-          try {
-            const res = await (window as any).electronAPI.agentCheckInstallation?.('claude');
-            claudeInstalled = !!res?.isInstalled;
-          } catch {
-            claudeInstalled = false;
-          }
-        }
-
-        setIsCodexInstalled(codexInstalled);
-        setIsClaudeInstalled(claudeInstalled);
+        setInstalledProviders(providerInstalls);
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to load app data:', error as any);
