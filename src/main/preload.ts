@@ -260,9 +260,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
-  onProviderStatusUpdated: (
-    listener: (data: { providerId: string; status: any }) => void
-  ) => {
+  onProviderStatusUpdated: (listener: (data: { providerId: string; status: any }) => void) => {
     const channel = 'provider:status-updated';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
     ipcRenderer.on(channel, wrapped);

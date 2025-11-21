@@ -1,6 +1,5 @@
 import { spawn, execFileSync } from 'child_process';
 import { BrowserWindow } from 'electron';
-import { codexService } from './CodexService';
 import { providerStatusCache, type ProviderStatus } from './providerStatusCache';
 
 export type CliStatusCode = 'connected' | 'missing' | 'needs_key' | 'error';
@@ -207,15 +206,6 @@ class ConnectionsService {
   }
 
   private async resolveStatus(def: CliDefinition, result: CommandResult): Promise<CliStatusCode> {
-    if (def.id === 'codex') {
-      try {
-        const installed = await codexService.getInstallationStatus();
-        return installed ? 'connected' : 'missing';
-      } catch {
-        return result.success ? 'connected' : 'missing';
-      }
-    }
-
     if (def.statusResolver) {
       return def.statusResolver(result);
     }
@@ -358,7 +348,10 @@ class ConnectionsService {
     const resolver = process.platform === 'win32' ? 'where' : 'which';
     try {
       const result = execFileSync(resolver, [command], { encoding: 'utf8' });
-      const lines = result.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const lines = result
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
       return lines[0] ?? null;
     } catch {
       return null;

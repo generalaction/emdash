@@ -540,7 +540,6 @@ declare global {
         success: boolean;
         error?: string;
       }>;
-
     };
   }
 }
@@ -853,6 +852,5 @@ export interface ElectronAPI {
     content: string,
     options?: { reset?: boolean }
   ) => Promise<{ success: boolean; error?: string }>;
-
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
