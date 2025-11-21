@@ -956,7 +956,7 @@ const AppContent: React.FC = () => {
             project.id === selectedProject.id
               ? {
                   ...project,
-                  workspaces: [...(project.workspaces || []), newWorkspace],
+                  workspaces: [newWorkspace, ...(project.workspaces || [])],
                 }
               : project
           )
@@ -966,7 +966,7 @@ const AppContent: React.FC = () => {
           prev
             ? {
                 ...prev,
-                workspaces: [...(prev.workspaces || []), newWorkspace],
+                workspaces: [newWorkspace, ...(prev.workspaces || [])],
               }
             : null
         );
