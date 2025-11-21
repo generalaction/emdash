@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import { PROVIDER_IDS, type ProviderId } from '../shared/providers/registry';
 // Optional build-time defaults for distribution bundles
 // Resolve robustly across dev and packaged layouts.
 let appConfig: { posthogHost?: string; posthogKey?: string } = {};
@@ -167,8 +168,10 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
   };
 
   const BUCKETS = new Set(['0', '1-2', '3-5', '6-10', '>10']);
-  const PROVIDERS = new Set(['codex', 'claude']);
+  const PROVIDERS = new Set<ProviderId>(PROVIDER_IDS);
   const OUTCOMES = new Set(['ok', 'error']);
+  const isProviderId = (val: any): val is ProviderId =>
+    typeof val === 'string' && PROVIDERS.has(val as ProviderId);
 
   // Event-specific constraints
   switch (event) {
@@ -190,12 +193,12 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
       for (const k of Object.keys(p)) if (k !== 'session_duration_ms') delete p[k];
       break;
     case 'agent_run_start':
-      if (!p.provider || !PROVIDERS.has(String(p.provider))) delete p.provider;
+      if (!isProviderId(p.provider)) delete p.provider;
       // strip everything else
       for (const k of Object.keys(p)) if (k !== 'provider') delete p[k];
       break;
     case 'agent_run_finish':
-      if (!p.provider || !PROVIDERS.has(String(p.provider))) delete p.provider;
+      if (!isProviderId(p.provider)) delete p.provider;
       if (!p.outcome || !OUTCOMES.has(String(p.outcome))) delete p.outcome;
       if (p.duration_ms != null) {
         const v = clampInt(p.duration_ms, 0, 1000 * 60 * 60 * 24);
