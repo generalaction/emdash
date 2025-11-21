@@ -3,20 +3,7 @@ import { Sparkles } from 'lucide-react';
 import IntegrationRow from './IntegrationRow';
 import { CliProviderStatus } from '../types/connections';
 import { PROVIDERS } from '@shared/providers/registry';
-import codexLogo from '../../assets/images/openai.png';
-import claudeLogo from '../../assets/images/claude.png';
-import droidLogo from '../../assets/images/factorydroid.png';
-import geminiLogo from '../../assets/images/gemini.png';
-import cursorLogo from '../../assets/images/cursorlogo.png';
-import copilotLogo from '../../assets/images/ghcopilot.png';
-import ampLogo from '../../assets/images/ampcode.png';
-import opencodeLogo from '../../assets/images/opencode.png';
-import charmLogo from '../../assets/images/charm.png';
-import augmentLogo from '../../assets/images/augmentcode.png';
-import qwenLogo from '../../assets/images/qwen.png';
-import kimiLogo from '../../assets/images/kimi.png';
-import kiroLogo from '../../assets/images/kiro.png';
-import atlassianLogo from '../../assets/images/atlassian.png';
+import { providerAssets } from '@/providers/assets';
 
 interface CliProvidersListProps {
   providers: CliProviderStatus[];
@@ -34,25 +21,8 @@ export const BASE_CLI_PROVIDERS: CliProviderStatus[] = PROVIDERS.filter(
   installCommand: provider.installCommand ?? null,
 }));
 
-const PROVIDER_LOGOS: Record<string, string> = {
-  codex: codexLogo,
-  claude: claudeLogo,
-  droid: droidLogo,
-  gemini: geminiLogo,
-  cursor: cursorLogo,
-  copilot: copilotLogo,
-  amp: ampLogo,
-  opencode: opencodeLogo,
-  charm: charmLogo,
-  auggie: augmentLogo,
-  qwen: qwenLogo,
-  kimi: kimiLogo,
-  kiro: kiroLogo,
-  rovo: atlassianLogo,
-};
-
 const renderProviderRow = (provider: CliProviderStatus) => {
-  const logo = PROVIDER_LOGOS[provider.id];
+  const logo = providerAssets[provider.id as keyof typeof providerAssets]?.logo;
 
   const handleNameClick =
     provider.docUrl && window?.electronAPI?.openExternal
