@@ -179,30 +179,11 @@ class ConnectionsService {
     this.cacheStatus(def.id, commandResult, statusCode);
   }
 
-  async getCliProviders(): Promise<CliProviderStatus[]> {
-    // Run all checks in parallel for better performance
-    const results = await Promise.all(
-      CLI_DEFINITIONS.map((definition) => this.buildStatus(definition))
+  async refreshAllProviderStatuses(): Promise<Record<string, ProviderStatus>> {
+    await Promise.all(
+      CLI_DEFINITIONS.map((definition) => this.checkProvider(definition.id, 'manual'))
     );
-    return results;
-  }
-
-  private async buildStatus(def: CliDefinition): Promise<CliProviderStatus> {
-    const commandResult = await this.tryCommands(def);
-    const status = await this.resolveStatus(def, commandResult);
-    const message = this.resolveMessage(def, commandResult, status);
-    this.cacheStatus(def.id, commandResult, status);
-
-    return {
-      id: def.id,
-      name: def.name,
-      status,
-      version: commandResult.version,
-      message,
-      docUrl: def.docUrl ?? null,
-      command: commandResult.command,
-      installCommand: def.installCommand ?? null,
-    };
+    return this.getCachedProviderStatuses();
   }
 
   private async resolveStatus(def: CliDefinition, result: CommandResult): Promise<CliStatusCode> {

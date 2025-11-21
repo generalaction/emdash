@@ -2,20 +2,11 @@ import { ipcMain } from 'electron';
 import { connectionsService } from '../services/ConnectionsService';
 
 export function registerConnectionsIpc() {
-  ipcMain.handle('connections:getCliProviders', async () => {
+  ipcMain.handle('providers:getStatuses', async (_event, opts?: { refresh?: boolean }) => {
     try {
-      const providers = await connectionsService.getCliProviders();
-      return { success: true, providers };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
-
-  ipcMain.handle('providers:getStatuses', async () => {
-    try {
+      if (opts?.refresh) {
+        await connectionsService.refreshAllProviderStatuses();
+      }
       const statuses = connectionsService.getCachedProviderStatuses();
       return { success: true, statuses };
     } catch (error) {

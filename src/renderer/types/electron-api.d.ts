@@ -468,21 +468,7 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
-      getCliProviders?: () => Promise<{
-        success: boolean;
-        providers?: Array<{
-          id: string;
-          name: string;
-          status: 'connected' | 'missing' | 'needs_key' | 'error';
-          version?: string | null;
-          message?: string | null;
-          docUrl?: string | null;
-          command?: string | null;
-          installCommand?: string | null;
-        }>;
-        error?: string;
-      }>;
-      getProviderStatuses?: () => Promise<{
+      getProviderStatuses?: (opts?: { refresh?: boolean }) => Promise<{
         success: boolean;
         statuses?: Record<
           string,
@@ -649,21 +635,7 @@ export interface ElectronAPI {
     branch?: string;
     error?: string;
   }>;
-  getCliProviders?: () => Promise<{
-    success: boolean;
-    providers?: Array<{
-      id: string;
-      name: string;
-      status: 'connected' | 'missing' | 'needs_key' | 'error';
-      version?: string | null;
-      message?: string | null;
-      docUrl?: string | null;
-      command?: string | null;
-      installCommand?: string | null;
-    }>;
-    error?: string;
-  }>;
-  getProviderStatuses?: () => Promise<{
+  getProviderStatuses?: (opts?: { refresh?: boolean }) => Promise<{
     success: boolean;
     statuses?: Record<
       string,
