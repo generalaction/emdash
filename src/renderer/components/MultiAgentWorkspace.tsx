@@ -128,36 +128,6 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     return null;
   }, [workspace.metadata]);
 
-  // Ensure Codex agents are created per-variant for streaming orchestration
-  const agentIdsRef = useRef<string[]>([]);
-  const variantsKey = useMemo(
-    () => variants.map((v) => `${v.provider}:${v.path}`).join('|'),
-    [variants]
-  );
-  useEffect(() => {
-    const currentAgentIds: string[] = [];
-    (async () => {
-      for (const v of variants) {
-        if (v.provider === 'codex') {
-          try {
-            const agentId = `${workspace.id}::${v.provider}`;
-            await (window as any).electronAPI.codexCreateAgent?.(agentId, v.path);
-            currentAgentIds.push(agentId);
-            agentIdsRef.current.push(agentId);
-          } catch {}
-        }
-      }
-    })();
-    return () => {
-      for (const agentId of agentIdsRef.current) {
-        try {
-          (window as any).electronAPI.codexRemoveAgent?.(agentId);
-        } catch {}
-      }
-      agentIdsRef.current = [];
-    };
-  }, [workspace.id, variantsKey]);
-
   // Robust prompt injection modeled after useInitialPromptInjection, without one-shot gating
   const injectPrompt = async (ptyId: string, provider: Provider, text: string) => {
     const trimmed = (text || '').trim();

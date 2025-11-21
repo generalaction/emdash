@@ -75,6 +75,14 @@ export class AgentService extends EventEmitter {
 
     // If codex, delegate to codexService (and events are bridged in agent IPC setup)
     if (providerId === 'codex') {
+      try {
+        const existing = codexService.getAgentStatus(workspaceId);
+        if (!existing) {
+          await codexService.createAgent(workspaceId, worktreePath);
+        }
+      } catch {
+        // If creation fails, let sendMessageStream surface the error
+      }
       await codexService.sendMessageStream(workspaceId, message, conversationId);
       return;
     }
