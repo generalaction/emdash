@@ -14,7 +14,8 @@ const INSTALL_COMMANDS: Partial<Record<UiProvider, string>> = {
   opencode: 'npm install -g opencode-ai',
   charm: 'npm install -g @charmland/crush',
   auggie: 'npm install -g @augmentcode/auggie',
-  goose: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+  goose:
+    'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
   kimi: 'uv tool install --python 3.13 kimi-cli',
   kiro: 'curl -fsSL https://cli.kiro.dev/install | bash',
   rovo: 'acli rovodev auth login',
@@ -108,14 +109,12 @@ export const TerminalModeBanner: React.FC<Props> = ({
             )}{' '}
             isn’t installed.
           </span>{' '}
-          <span className="font-normal text-foreground">
-            Run this in the terminal to use it:
-          </span>
+          <span className="font-normal text-foreground">Run this in the terminal to use it:</span>
         </div>
 
         {command ? (
           <div className="flex flex-wrap items-center gap-1.5">
-            <code className="inline-flex h-7 items-center rounded bg-gray-200 px-2 text-xs font-mono leading-none">
+            <code className="inline-flex h-7 items-center rounded bg-gray-200 px-2 font-mono text-xs leading-none">
               {command}
             </code>
             <button
