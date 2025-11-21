@@ -424,12 +424,22 @@ const AppContent: React.FC = () => {
         // Prefer cached provider status (populated in the background)
         let providerInstalls: Record<string, boolean> = {};
         try {
-          const statuses =
-            (await (window as any).electronAPI.getProviderStatuses?.()) ??
-            (await window.electronAPI.getProviderStatuses?.());
-          if (statuses?.success && statuses.statuses) {
+          type ProviderStatusEntry = {
+            installed: boolean;
+            path?: string | null;
+            version?: string | null;
+            lastChecked: number;
+          };
+          const statusResponse =
+            ((await (window as any).electronAPI.getProviderStatuses?.()) as
+              | { success?: boolean; statuses?: Record<string, ProviderStatusEntry> }
+              | undefined) ?? (await window.electronAPI.getProviderStatuses?.());
+          if (statusResponse?.success && statusResponse.statuses) {
             providerInstalls = Object.fromEntries(
-              Object.entries(statuses.statuses).map(([id, s]) => [id, s?.installed === true])
+              Object.entries(statusResponse.statuses).map(([id, s]) => [
+                id,
+                s?.installed === true,
+              ])
             );
           }
         } catch {
