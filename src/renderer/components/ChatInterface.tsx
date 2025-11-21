@@ -25,15 +25,6 @@ import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 
 declare const window: Window & {
   electronAPI: {
-    codexCheckInstallation: () => Promise<{
-      success: boolean;
-      isInstalled?: boolean;
-      error?: string;
-    }>;
-    codexCreateAgent: (
-      workspaceId: string,
-      worktreePath: string
-    ) => Promise<{ success: boolean; agent?: any; error?: string }>;
     saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
   };
 };
@@ -282,7 +273,6 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     (async () => {
       try {
-        if (provider !== 'codex') await (window as any).electronAPI.codexStopStream?.(workspace.id);
         if (provider !== 'claude')
           await (window as any).electronAPI.agentStopStream?.({
             providerId: 'claude',
@@ -407,32 +397,6 @@ const ChatInterface: React.FC<Props> = ({
       off?.();
     };
   }, [workspace.id]);
-
-  useEffect(() => {
-    if (provider !== 'codex') return;
-    if (!isProviderInstalled) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await window.electronAPI.codexCreateAgent(workspace.id, workspace.path);
-        if (cancelled) return;
-        if (!res.success) {
-          console.error('Failed to create Codex agent:', res.error);
-          toast({
-            title: 'Error',
-            description: 'Failed to create Codex agent. Please try again.',
-            variant: 'destructive',
-          });
-        }
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Failed to create Codex agent:', error);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [provider, isProviderInstalled, workspace.id, workspace.path, toast]);
 
   const containerStatusNode = useMemo(() => {
     const state = containerState;
