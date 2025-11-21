@@ -56,10 +56,8 @@ class ConnectionsService {
     this.initialized = true;
     await providerStatusCache.load();
     for (const def of CLI_DEFINITIONS) {
-      const entry = providerStatusCache.get(def.id);
-      if (!entry || typeof entry.installed !== 'boolean') {
-        void this.checkProvider(def.id, 'bootstrap');
-      }
+      // Always recheck on app start so stale cache entries get refreshed
+      void this.checkProvider(def.id, 'bootstrap');
     }
   }
 
