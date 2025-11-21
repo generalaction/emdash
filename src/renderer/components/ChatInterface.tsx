@@ -52,8 +52,7 @@ const ChatInterface: React.FC<Props> = ({
 }) => {
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
-  const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
-  const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
+  const [isProviderInstalled, setIsProviderInstalled] = useState<boolean | null>(null);
   const [provider, setProvider] = useState<Provider>(initialProvider || 'codex');
   const browser = useBrowser();
   const [cliStartFailed, setCliStartFailed] = useState(false);
@@ -124,6 +123,7 @@ const ChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     setCliStartFailed(false);
+    setIsProviderInstalled(null);
     setContainerState(getContainerRunState(workspace.id));
   }, [workspace.id]);
 
@@ -181,50 +181,16 @@ const ChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false;
-    if (provider !== 'claude') {
-      setIsClaudeInstalled(null);
-      return;
-    }
-    (async () => {
-      try {
-        const res = await (window as any).electronAPI.agentCheckInstallation?.('claude');
-        if (cancelled) return;
-        if (res?.success) {
-          setIsClaudeInstalled(!!res.isInstalled);
-        } else {
-          setIsClaudeInstalled(false);
-        }
-      } catch {
-        setIsClaudeInstalled(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [provider, workspace.id]);
+    setIsProviderInstalled(null);
 
-  // When switching providers, ensure other streams are stopped
-  useEffect(() => {
-    (async () => {
+    const check = async () => {
       try {
-        if (provider !== 'codex') await (window as any).electronAPI.codexStopStream?.(workspace.id);
-        if (provider !== 'claude')
-          await (window as any).electronAPI.agentStopStream?.({
-            providerId: 'claude',
-            workspaceId: workspace.id,
-          });
-      } catch {}
-    })();
-  }, [provider, workspace.id]);
-
-  useEffect(() => {
-    const initializeCodex = async () => {
-      try {
-        const installResult = await window.electronAPI.codexCheckInstallation();
-        if (installResult.success) {
-          setIsCodexInstalled(installResult.isInstalled ?? false);
-
-          if (installResult.isInstalled) {
+        if (provider === 'codex') {
+          const res = await window.electronAPI.codexCheckInstallation();
+          if (cancelled) return;
+          const installed = !!res?.isInstalled && res.success;
+          setIsProviderInstalled(installed);
+          if (res?.success && res.isInstalled) {
             const agentResult = await window.electronAPI.codexCreateAgent(
               workspace.id,
               workspace.path
@@ -241,16 +207,56 @@ const ChatInterface: React.FC<Props> = ({
               });
             }
           }
-        } else {
-          console.error('Failed to check Codex installation:', installResult.error);
+          return;
         }
+
+        if (provider === 'claude') {
+          const res = await (window as any).electronAPI.agentCheckInstallation?.('claude');
+          if (cancelled) return;
+          setIsProviderInstalled(res?.success ? !!res.isInstalled : false);
+          return;
+        }
+
+        if (window.electronAPI.getCliProviders) {
+          const res = await window.electronAPI.getCliProviders();
+          if (cancelled) return;
+          if (res?.success && Array.isArray(res.providers)) {
+            const match = res.providers.find((p: any) => p.id === provider);
+            if (match) {
+              setIsProviderInstalled(match.status === 'connected');
+              return;
+            }
+          }
+        }
+
+        // Fallback: assume not installed if we can't confirm
+        if (!cancelled) setIsProviderInstalled(false);
       } catch (error) {
-        console.error('Error initializing Codex:', error);
+        if (!cancelled) setIsProviderInstalled(false);
+        console.error('Provider install check failed', error);
       }
     };
 
-    initializeCodex();
-  }, [workspace.id, workspace.path, workspace.name, toast]);
+    void check();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [provider, workspace.id, workspace.path, workspace.name, toast]);
+
+  // When switching providers, ensure other streams are stopped
+  useEffect(() => {
+    (async () => {
+      try {
+        if (provider !== 'codex') await (window as any).electronAPI.codexStopStream?.(workspace.id);
+        if (provider !== 'claude')
+          await (window as any).electronAPI.agentStopStream?.({
+            providerId: 'claude',
+            workspaceId: workspace.id,
+          });
+      } catch {}
+    })();
+  }, [provider, workspace.id]);
 
   const isTerminal = providerMeta[provider]?.terminalOnly === true;
 
@@ -557,7 +563,7 @@ const ChatInterface: React.FC<Props> = ({
         <div className="px-6 pt-4">
           <div className="mx-auto max-w-4xl space-y-2">
             {(() => {
-              if (provider === 'codex' && isCodexInstalled === false) {
+              if (isProviderInstalled === false) {
                 return (
                   <TerminalModeBanner
                     provider={provider as any}
@@ -565,7 +571,7 @@ const ChatInterface: React.FC<Props> = ({
                   />
                 );
               }
-              if (provider === 'claude' && isClaudeInstalled === false) {
+              if (isProviderInstalled === false) {
                 return (
                   <TerminalModeBanner
                     provider={provider as any}
