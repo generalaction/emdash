@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowUpRight, Check, Copy, Play } from 'lucide-react';
 import { providerMeta, type UiProvider } from '../providers/meta';
 
 const INSTALL_COMMANDS: Partial<Record<UiProvider, string>> = {
@@ -43,6 +44,8 @@ export const TerminalModeBanner: React.FC<Props> = ({
 
   const command = installCommand || getInstallCommandForProvider(provider);
   const canRunInstall = Boolean(command && (onRunInstall || terminalId));
+  const [copied, setCopied] = useState(false);
+  const copyResetRef = useRef<number | null>(null);
 
   const handleRunInstall = () => {
     if (!command) return;
@@ -58,40 +61,91 @@ export const TerminalModeBanner: React.FC<Props> = ({
     }
   };
 
+  const handleCopy = async () => {
+    if (!command) return;
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      if (copyResetRef.current) {
+        window.clearTimeout(copyResetRef.current);
+      }
+      copyResetRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyResetRef.current = null;
+      }, 1800);
+    } catch (error) {
+      console.error('Failed to copy install command', error);
+      setCopied(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (copyResetRef.current) {
+        window.clearTimeout(copyResetRef.current);
+        copyResetRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-      <div className="whitespace-pre-wrap">
+      <div className="space-y-2">
         <div className="text-foreground" aria-label={`${baseLabel} status`}>
-          {helpUrl ? (
-            <button
-              type="button"
-              onClick={() => onOpenExternal(helpUrl)}
-              className="underline underline-offset-2 hover:text-foreground/80"
-            >
-              {baseLabel}
-            </button>
-          ) : (
-            baseLabel
-          )}{' '}
-          isn’t installed.{' '}
-          {command ? (
-            <>
-              Run <code className="mx-1 rounded bg-gray-200 px-1 py-0.5 text-xs">{command}</code> to
-              use it.
-            </>
-          ) : (
-            'Install the CLI to use it.'
-          )}
-          {canRunInstall ? (
-            <button
-              type="button"
-              onClick={handleRunInstall}
-              className="ml-2 inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-xs font-medium text-foreground shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
-            >
-              Run in terminal
-            </button>
-          ) : null}
+          <span className="font-normal">
+            {helpUrl ? (
+              <button
+                type="button"
+                onClick={() => onOpenExternal(helpUrl)}
+                className="inline-flex items-center gap-1 text-foreground hover:text-foreground/80"
+              >
+                {baseLabel}
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            ) : (
+              baseLabel
+            )}{' '}
+            isn’t installed.
+          </span>{' '}
+          <span className="font-normal text-foreground">
+            Run this in the terminal to use it:
+          </span>
         </div>
+
+        {command ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <code className="inline-flex h-7 items-center rounded bg-gray-200 px-2 text-xs font-mono leading-none">
+              {command}
+            </code>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:text-foreground"
+              aria-label="Copy install command"
+              title={copied ? 'Copied' : 'Copy command'}
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </button>
+            {canRunInstall ? (
+              <button
+                type="button"
+                onClick={handleRunInstall}
+                className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:text-foreground"
+                aria-label="Run in terminal"
+                title="Run in terminal"
+              >
+                <Play className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="text-foreground">Install the CLI to use it.</div>
+        )}
       </div>
     </div>
   );
