@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Play } from 'lucide-react';
 import { providerMeta, type UiProvider } from '../providers/meta';
-import { getInstallCommandForProvider } from '@shared/providers/registry';
+import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
 
 type Props = {
   provider: UiProvider;
@@ -19,7 +19,7 @@ export const InstallBanner: React.FC<Props> = ({
   onRunInstall,
 }) => {
   const meta = providerMeta[provider];
-  const helpUrl = meta?.helpUrl;
+  const helpUrl = getDocUrlForProvider(provider) ?? null;
   const baseLabel = meta?.label || 'this provider';
 
   const command = installCommand || getInstallCommandForProvider(provider);

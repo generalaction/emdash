@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { type UiProvider, providerMeta } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
-import { getInstallCommandForProvider } from '@shared/providers/registry';
+import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
 
 export type ProviderInfo = {
   title: string;
@@ -155,10 +155,10 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
       {info.description ? (
         <p className="mb-2 text-xs text-muted-foreground">{info.description}</p>
       ) : null}
-      {providerMeta[id]?.helpUrl ? (
+      {getDocUrlForProvider(id) ? (
         <div className="mb-2">
           <a
-            href={providerMeta[id].helpUrl}
+            href={getDocUrlForProvider(id) ?? ''}
             target="_blank"
             rel="noreferrer noopener"
             className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-foreground hover:underline"
