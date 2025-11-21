@@ -503,7 +503,6 @@ declare global {
         content: string,
         options?: { reset?: boolean }
       ) => Promise<{ success: boolean; error?: string }>;
-
     };
   }
 }

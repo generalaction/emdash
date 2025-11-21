@@ -125,13 +125,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     };
 
     const off =
-      window?.electronAPI?.onProviderStatusUpdated?.((payload: {
-        providerId: string;
-        status: CachedProviderStatus;
-      }) => {
-        if (!payload?.providerId || !payload.status) return;
-        applyCachedStatuses({ [payload.providerId]: payload.status });
-      }) ?? null;
+      window?.electronAPI?.onProviderStatusUpdated?.(
+        (payload: { providerId: string; status: CachedProviderStatus }) => {
+          if (!payload?.providerId || !payload.status) return;
+          applyCachedStatuses({ [payload.providerId]: payload.status });
+        }
+      ) ?? null;
 
     void loadCachedStatuses();
 
