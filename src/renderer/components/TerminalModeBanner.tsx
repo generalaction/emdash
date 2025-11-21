@@ -26,14 +26,37 @@ type Props = {
   provider: UiProvider;
   onOpenExternal: (url: string) => void;
   installCommand?: string | null;
+  terminalId?: string;
+  onRunInstall?: (command: string) => void;
 };
 
-export const TerminalModeBanner: React.FC<Props> = ({ provider, onOpenExternal, installCommand }) => {
+export const TerminalModeBanner: React.FC<Props> = ({
+  provider,
+  onOpenExternal,
+  installCommand,
+  terminalId,
+  onRunInstall,
+}) => {
   const meta = providerMeta[provider];
   const helpUrl = meta?.helpUrl;
   const baseLabel = meta?.label || 'this provider';
 
   const command = installCommand || getInstallCommandForProvider(provider);
+  const canRunInstall = Boolean(command && (onRunInstall || terminalId));
+
+  const handleRunInstall = () => {
+    if (!command) return;
+    if (onRunInstall) {
+      onRunInstall(command);
+      return;
+    }
+    if (!terminalId) return;
+    try {
+      window.electronAPI?.ptyInput?.({ id: terminalId, data: `${command}\n` });
+    } catch (error) {
+      console.error('Failed to run install command', error);
+    }
+  };
 
   return (
     <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
@@ -59,6 +82,15 @@ export const TerminalModeBanner: React.FC<Props> = ({ provider, onOpenExternal, 
           ) : (
             'Install the CLI to use it.'
           )}
+          {canRunInstall ? (
+            <button
+              type="button"
+              onClick={handleRunInstall}
+              className="ml-2 inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-xs font-medium text-foreground shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
+            >
+              Run in terminal
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

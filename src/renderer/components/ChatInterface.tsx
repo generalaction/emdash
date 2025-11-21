@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { ExternalLink, Globe, Database, Server, ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -21,6 +21,7 @@ import {
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import { useBrowser } from '@/providers/BrowserProvider';
+import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 
 declare const window: Window & {
   electronAPI: {
@@ -60,7 +61,9 @@ const ChatInterface: React.FC<Props> = ({
     getContainerRunState(workspace.id)
   );
   const reduceMotion = useReducedMotion();
+  const terminalId = useMemo(() => `${provider}-main-${workspace.id}`, [provider, workspace.id]);
   const [portsExpanded, setPortsExpanded] = useState(false);
+  const { activeTerminalId } = useWorkspaceTerminals(workspace.id, workspace.path);
 
   // Unified Plan Mode (per workspace)
   const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(
@@ -85,8 +88,7 @@ const ChatInterface: React.FC<Props> = ({
     const meta = providerMeta[provider];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;
 
-    const ptyId = `${provider}-main-${workspace.id}`;
-    const onceKey = `cli:autoStart:${ptyId}`;
+    const onceKey = `cli:autoStart:${terminalId}`;
     try {
       if (localStorage.getItem(onceKey) === '1') return;
     } catch {}
@@ -94,7 +96,7 @@ const ChatInterface: React.FC<Props> = ({
     const send = () => {
       try {
         (window as any).electronAPI?.ptyInput?.({
-          id: ptyId,
+          id: terminalId,
           data: `${meta.autoStartCommand}\n`,
         });
         try {
@@ -107,7 +109,7 @@ const ChatInterface: React.FC<Props> = ({
     let off: (() => void) | null = null;
     try {
       off = api?.onPtyStarted?.((info: { id: string }) => {
-        if (info?.id === ptyId) send();
+        if (info?.id === terminalId) send();
       });
     } catch {}
 
@@ -119,13 +121,51 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
       clearTimeout(t);
     };
-  }, [provider, workspace.id]);
+  }, [provider, terminalId]);
 
   useEffect(() => {
     setCliStartFailed(false);
     setIsProviderInstalled(null);
     setContainerState(getContainerRunState(workspace.id));
   }, [workspace.id]);
+
+  const runInstallCommand = useCallback(
+    (cmd: string) => {
+      const api: any = (window as any).electronAPI;
+      const targetId = activeTerminalId;
+      if (!targetId) return;
+
+      const send = () => {
+        try {
+          api?.ptyInput?.({ id: targetId, data: `${cmd}\n` });
+          return true;
+        } catch (error) {
+          console.error('Failed to run install command', error);
+          return false;
+        }
+      };
+
+      // Best effort immediate send
+      const ok = send();
+
+      // Listen for PTY start in case the terminal was still spinning up
+      const off = api?.onPtyStarted?.((info: { id: string }) => {
+        if (info?.id !== targetId) return;
+        send();
+        try {
+          off?.();
+        } catch {}
+      });
+
+      // If immediate send worked, remove listener
+      if (ok) {
+        try {
+          off?.();
+        } catch {}
+      }
+    },
+    [activeTerminalId]
+  );
 
   // Auto-expand/collapse ports in chat view based on container activity
   useEffect(() => {
@@ -567,7 +607,9 @@ const ChatInterface: React.FC<Props> = ({
                 return (
                   <TerminalModeBanner
                     provider={provider as any}
+                    terminalId={terminalId}
                     installCommand={getInstallCommandForProvider(provider as any)}
+                    onRunInstall={runInstallCommand}
                     onOpenExternal={(url) => window.electronAPI.openExternal(url)}
                   />
                 );
@@ -576,6 +618,8 @@ const ChatInterface: React.FC<Props> = ({
                 return (
                   <TerminalModeBanner
                     provider={provider as any}
+                    terminalId={terminalId}
+                    onRunInstall={runInstallCommand}
                     onOpenExternal={(url) => window.electronAPI.openExternal(url)}
                   />
                 );
@@ -592,7 +636,7 @@ const ChatInterface: React.FC<Props> = ({
             }`}
           >
             <TerminalPane
-              id={`${provider}-main-${workspace.id}`}
+              id={terminalId}
               cwd={workspace.path}
               shell={providerMeta[provider].cli}
               env={
@@ -612,7 +656,9 @@ const ChatInterface: React.FC<Props> = ({
               onStartError={() => {
                 setCliStartFailed(true);
               }}
-              onStartSuccess={() => setCliStartFailed(false)}
+              onStartSuccess={() => {
+                setCliStartFailed(false);
+              }}
               variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
               themeOverride={
                 provider === 'charm'
