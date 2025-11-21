@@ -53,15 +53,16 @@ const HighlightedLine: React.FC<{
   // For empty lines, just render a space
   if (lineContent.trim() === '' && lineContent === '') {
     return (
-      <div className={`px-3 py-0.5 font-mono text-[12px] leading-5 ${bgClass}`}>
-        {'\u00A0'}
-      </div>
+      <div className={`px-3 py-0.5 font-mono text-[12px] leading-5 ${bgClass}`}>{'\u00A0'}</div>
     );
   }
 
   return (
     <div className={`relative ${bgClass} overflow-x-auto`} data-diff-syntax-highlight>
-      <div ref={lineRef} className="px-3 py-0.5 [&_pre]:!bg-transparent [&_code]:!bg-transparent [&_span]:!bg-transparent">
+      <div
+        ref={lineRef}
+        className="px-3 py-0.5 [&_code]:!bg-transparent [&_pre]:!bg-transparent [&_span]:!bg-transparent"
+      >
         <SyntaxHighlighter
           language={language}
           style={isDark ? oneDark : oneLight}
@@ -103,41 +104,41 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   const { toast } = useToast();
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [isDark, setIsDark] = useState(false);
-  
+
   // Detect if dark mode is active (reactive)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const checkDarkMode = () => {
       setIsDark(
         document.documentElement.classList.contains('dark') ||
-        window.matchMedia('(prefers-color-scheme: dark)').matches
+          window.matchMedia('(prefers-color-scheme: dark)').matches
       );
     };
-    
+
     checkDarkMode();
-    
+
     // Watch for theme changes
     const observer = new MutationObserver(checkDarkMode);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['class'],
     });
-    
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     mediaQuery.addEventListener('change', checkDarkMode);
-    
+
     return () => {
       observer.disconnect();
       mediaQuery.removeEventListener('change', checkDarkMode);
     };
   }, []);
-  
+
   // Get language for current file
   const language = useMemo(() => {
     return selected ? getLanguageFromPath(selected) : 'text';
   }, [selected]);
-  
+
   // Reset expanded sections when file changes
   useEffect(() => {
     setExpandedSections(new Set());
@@ -150,7 +151,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   const [dirty, setDirty] = useState<boolean>(false);
   const [eol, setEol] = useState<'\n' | '\r\n'>('\n');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  
+
   // Ref for syntax highlight container in edit mode
   const highlightRef = useRef<HTMLDivElement>(null);
 
@@ -214,8 +215,15 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   };
 
   // Group lines into sections with collapsible context
-  type DiffSection = 
-    | { type: 'context'; startIdx: number; endIdx: number; startLine: number; endLine: number; lines: DiffLine[] }
+  type DiffSection =
+    | {
+        type: 'context';
+        startIdx: number;
+        endIdx: number;
+        startLine: number;
+        endLine: number;
+        lines: DiffLine[];
+      }
     | { type: 'diff'; lines: Array<{ left?: DiffLine; right?: DiffLine }> };
 
   const sections = useMemo(() => {
@@ -255,7 +263,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
     // Convert linear diff into rows for side-by-side and group context
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
-      
+
       if (l.type === 'context') {
         // If we have accumulated diff lines, flush them first
         flushDiff();
@@ -270,7 +278,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
       } else {
         // If we have accumulated context lines, flush them
         flushContext();
-        
+
         // Process diff lines
         if (l.type === 'del') {
           currentDiff.push({ left: l });
@@ -296,14 +304,13 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
     return result;
   }, [lines]);
 
-
   // Add global styles to override syntax highlighter backgrounds and text shadows
   useEffect(() => {
     if (!open) return;
-    
+
     const styleId = 'diff-syntax-highlighter-override';
     if (document.getElementById(styleId)) return;
-    
+
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
@@ -316,7 +323,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
       }
     `;
     document.head.appendChild(style);
-    
+
     return () => {
       const existingStyle = document.getElementById(styleId);
       if (existingStyle) {
@@ -410,7 +417,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                             if (!res?.success) throw new Error(res?.error || 'Write failed');
                             setDirty(false);
                             setRefreshKey((k) => k + 1);
-                            setIsEditing(false); 
+                            setIsEditing(false);
                             toast({ title: 'Saved', description: selected });
                             if (onRefreshChanges) await onRefreshChanges();
                           } catch (e: any) {
@@ -459,10 +466,11 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                         if (section.type === 'context') {
                           const isExpanded = expandedSections.has(sectionIdx);
                           const lineCount = section.lines.length;
-                          const lineRange = section.startLine === section.endLine 
-                            ? `${section.startLine}` 
-                            : `${section.startLine}-${section.endLine}`;
-                          
+                          const lineRange =
+                            section.startLine === section.endLine
+                              ? `${section.startLine}`
+                              : `${section.startLine}-${section.endLine}`;
+
                           return (
                             <div key={`context-l-${sectionIdx}`}>
                               <button
@@ -485,7 +493,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                                     <ChevronRight className="h-3.5 w-3.5" />
                                   )}
                                   <span>
-                                    {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) - Lines {lineRange}
+                                    {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) - Lines{' '}
+                                    {lineRange}
                                   </span>
                                 </div>
                               </button>
@@ -519,17 +528,18 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                         }
                       })}
                     </div>
-                    
+
                     <div className="bg-white dark:bg-gray-900">
                       {!isEditing ? (
                         sections.map((section, sectionIdx) => {
                           if (section.type === 'context') {
                             const isExpanded = expandedSections.has(sectionIdx);
                             const lineCount = section.lines.length;
-                            const lineRange = section.startLine === section.endLine 
-                              ? `${section.startLine}` 
-                              : `${section.startLine}-${section.endLine}`;
-                            
+                            const lineRange =
+                              section.startLine === section.endLine
+                                ? `${section.startLine}`
+                                : `${section.startLine}-${section.endLine}`;
+
                             return (
                               <div key={`context-r-${sectionIdx}`}>
                                 {/* Collapsible header */}
@@ -553,7 +563,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                                       <ChevronRight className="h-3.5 w-3.5" />
                                     )}
                                     <span>
-                                      {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) - Lines {lineRange}
+                                      {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) - Lines{' '}
+                                      {lineRange}
                                     </span>
                                   </div>
                                 </button>
@@ -593,9 +604,9 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                         </div>
                       ) : (
                         <div className="relative h-full w-full overflow-hidden">
-                          <div 
+                          <div
                             ref={highlightRef}
-                            className="absolute inset-0 overflow-auto p-3 pointer-events-none" 
+                            className="pointer-events-none absolute inset-0 overflow-auto p-3"
                             data-diff-syntax-highlight
                           >
                             <SyntaxHighlighter
@@ -608,7 +619,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                                 backgroundColor: 'transparent',
                                 fontSize: '12px',
                                 lineHeight: '1.25rem',
-                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                fontFamily:
+                                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                                 textShadow: 'none',
                               }}
                               PreTag="div"
@@ -622,7 +634,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                           {/* Editable textarea overlay */}
                           <textarea
                             ref={textareaRef}
-                            className="relative h-full w-full resize-none bg-transparent p-3 font-mono text-[12px] leading-5 text-transparent caret-gray-900 dark:caret-gray-100 outline-none border-0"
+                            className="relative h-full w-full resize-none border-0 bg-transparent p-3 font-mono text-[12px] leading-5 text-transparent caret-gray-900 outline-none dark:caret-gray-100"
                             style={{
                               color: 'transparent',
                               WebkitTextFillColor: 'transparent',
@@ -649,7 +661,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                                   if (!res?.success) throw new Error(res?.error || 'Write failed');
                                   setDirty(false);
                                   setRefreshKey((k) => k + 1);
-                                  setIsEditing(false); 
+                                  setIsEditing(false);
                                   toast({ title: 'Saved', description: selected! });
                                   if (onRefreshChanges) await onRefreshChanges();
                                 } catch (err: any) {
