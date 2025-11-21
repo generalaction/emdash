@@ -221,6 +221,7 @@ const ChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false;
+    let missingCheckRequested = false;
     const api: any = (window as any).electronAPI;
 
     const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
@@ -229,6 +230,22 @@ const ChatInterface: React.FC<Props> = ({
       if (cancelled) return;
       const installed = statuses?.[provider]?.installed === true;
       setIsProviderInstalled(installed);
+    };
+
+    const maybeRefreshMissing = async (statuses?: Record<string, any> | undefined | null) => {
+      if (cancelled || missingCheckRequested) return;
+      if (!api?.getProviderStatuses) return;
+      if (statuses && statuses[provider]) return;
+      missingCheckRequested = true;
+      try {
+        const refreshed = await api.getProviderStatuses({ refresh: true });
+        if (cancelled) return;
+        if (refreshed?.success) {
+          applyStatuses(refreshed.statuses ?? {});
+        }
+      } catch (error) {
+        console.error('Provider status refresh failed', error);
+      }
     };
 
     const load = async () => {
@@ -241,6 +258,7 @@ const ChatInterface: React.FC<Props> = ({
         if (cancelled) return;
         if (res?.success) {
           applyStatuses(res.statuses ?? {});
+          void maybeRefreshMissing(res.statuses);
         } else {
           setIsProviderInstalled(false);
         }
