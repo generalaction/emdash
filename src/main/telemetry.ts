@@ -33,7 +33,10 @@ type TelemetryEvent =
   // Aggregates (privacy-safe)
   | 'workspace_snapshot'
   // Session summary (duration only)
-  | 'app_session';
+  | 'app_session'
+  // Agent usage (provider-level only)
+  | 'agent_run_start'
+  | 'agent_run_finish';
 
 interface InitOptions {
   installSource?: string;
@@ -45,6 +48,7 @@ let host: string | undefined;
 let instanceId: string | undefined;
 let installSource: string | undefined;
 let userOptOut: boolean | undefined; // persisted user setting
+let sessionRecordingOptIn = false; // persisted user setting
 let sessionStartMs: number = Date.now();
 
 const libName = 'emdash';
@@ -62,7 +66,11 @@ function getInstanceIdPath(): string {
   return join(dir, 'telemetry.json');
 }
 
-function loadOrCreateState(): { instanceId: string; enabledOverride?: boolean } {
+function loadOrCreateState(): {
+  instanceId: string;
+  enabledOverride?: boolean;
+  sessionRecordingOptIn?: boolean;
+} {
   try {
     const file = getInstanceIdPath();
     if (existsSync(file)) {
@@ -71,7 +79,11 @@ function loadOrCreateState(): { instanceId: string; enabledOverride?: boolean } 
       if (parsed && typeof parsed.instanceId === 'string' && parsed.instanceId.length > 0) {
         const enabledOverride =
           typeof parsed.enabled === 'boolean' ? (parsed.enabled as boolean) : undefined;
-        return { instanceId: parsed.instanceId as string, enabledOverride };
+        const sessionRecordingOptIn =
+          typeof parsed.sessionRecordingOptIn === 'boolean'
+            ? (parsed.sessionRecordingOptIn as boolean)
+            : undefined;
+        return { instanceId: parsed.instanceId as string, enabledOverride, sessionRecordingOptIn };
       }
     }
   } catch {
@@ -126,6 +138,9 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     // explicitly allow only these keys to avoid PII
     'feature',
     'type',
+    'provider',
+    'outcome',
+    'duration_ms',
     // session
     'session_duration_ms',
     // aggregates (counts + buckets only)
@@ -152,6 +167,8 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
   };
 
   const BUCKETS = new Set(['0', '1-2', '3-5', '6-10', '>10']);
+  const PROVIDERS = new Set(['codex', 'claude']);
+  const OUTCOMES = new Set(['ok', 'error']);
 
   // Event-specific constraints
   switch (event) {
@@ -171,6 +188,23 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
       }
       // strip any other keys
       for (const k of Object.keys(p)) if (k !== 'session_duration_ms') delete p[k];
+      break;
+    case 'agent_run_start':
+      if (!p.provider || !PROVIDERS.has(String(p.provider))) delete p.provider;
+      // strip everything else
+      for (const k of Object.keys(p)) if (k !== 'provider') delete p[k];
+      break;
+    case 'agent_run_finish':
+      if (!p.provider || !PROVIDERS.has(String(p.provider))) delete p.provider;
+      if (!p.outcome || !OUTCOMES.has(String(p.outcome))) delete p.outcome;
+      if (p.duration_ms != null) {
+        const v = clampInt(p.duration_ms, 0, 1000 * 60 * 60 * 24);
+        if (v == null) delete p.duration_ms;
+        else p.duration_ms = v;
+      }
+      for (const k of Object.keys(p)) {
+        if (k !== 'provider' && k !== 'outcome' && k !== 'duration_ms') delete p[k];
+      }
       break;
     case 'workspace_snapshot':
       // Allow only counts and very coarse buckets
@@ -257,6 +291,7 @@ export function init(options?: InitOptions) {
   // If enabledOverride is explicitly false, user opted out; otherwise leave undefined
   userOptOut =
     typeof state.enabledOverride === 'boolean' ? state.enabledOverride === false : undefined;
+  sessionRecordingOptIn = state.sessionRecordingOptIn === true;
 
   // Fire lifecycle start
   void posthogCapture('app_started');
@@ -285,6 +320,7 @@ export function getTelemetryStatus() {
     envDisabled: !enabled,
     userOptOut: userOptOut === true,
     hasKeyAndHost: !!apiKey && !!host,
+    sessionRecordingOptIn,
   };
 }
 
@@ -310,7 +346,32 @@ export function setTelemetryEnabledViaUser(enabledFlag: boolean) {
   }
 }
 
-function persistState(state: { instanceId: string; enabledOverride?: boolean }) {
+export function setSessionRecordingOptIn(optIn: boolean) {
+  sessionRecordingOptIn = Boolean(optIn);
+  try {
+    const file = getInstanceIdPath();
+    let state: any = {};
+    if (existsSync(file)) {
+      try {
+        state = JSON.parse(readFileSync(file, 'utf8')) || {};
+      } catch {
+        state = {};
+      }
+    }
+    state.instanceId = instanceId || state.instanceId || cryptoRandomId();
+    state.sessionRecordingOptIn = sessionRecordingOptIn;
+    state.updatedAt = new Date().toISOString();
+    writeFileSync(file, JSON.stringify(state, null, 2), 'utf8');
+  } catch {
+    // ignore
+  }
+}
+
+function persistState(state: {
+  instanceId: string;
+  enabledOverride?: boolean;
+  sessionRecordingOptIn?: boolean;
+}) {
   try {
     const existing = existsSync(getInstanceIdPath())
       ? JSON.parse(readFileSync(getInstanceIdPath(), 'utf8'))
@@ -320,6 +381,10 @@ function persistState(state: { instanceId: string; enabledOverride?: boolean }) 
       instanceId: state.instanceId,
       enabled:
         typeof state.enabledOverride === 'boolean' ? state.enabledOverride : existing.enabled,
+      sessionRecordingOptIn:
+        typeof state.sessionRecordingOptIn === 'boolean'
+          ? state.sessionRecordingOptIn
+          : existing.sessionRecordingOptIn,
       createdAt: existing.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

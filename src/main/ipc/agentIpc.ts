@@ -1,7 +1,8 @@
 import { ipcMain, BrowserWindow, Notification } from 'electron';
-import { agentService } from '../services/AgentService';
+import { agentService, type ProviderId } from '../services/AgentService';
 import { codexService } from '../services/CodexService';
 import { getAppSettings } from '../settings';
+import * as telemetry from '../telemetry';
 
 /**
  * Show a system notification for agent task completion.
@@ -101,6 +102,7 @@ export function registerAgentIpc() {
     windows.forEach((w) =>
       w.webContents.send('agent:stream-start', { providerId: 'codex', ...data })
     );
+    markAgentStart('codex', data?.workspaceId);
   });
   codexService.on('codex:output', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
@@ -113,6 +115,7 @@ export function registerAgentIpc() {
     windows.forEach((w) =>
       w.webContents.send('agent:stream-error', { providerId: 'codex', ...data })
     );
+    markAgentFinish('codex', data?.workspaceId, 'error');
   });
   codexService.on('codex:complete', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
@@ -120,6 +123,7 @@ export function registerAgentIpc() {
       w.webContents.send('agent:stream-complete', { providerId: 'codex', ...data })
     );
     showCompletionNotification('Codex');
+    markAgentFinish('codex', data?.workspaceId, 'ok');
   });
 
   // Forward AgentService events (Claude et al.)
@@ -130,15 +134,48 @@ export function registerAgentIpc() {
   agentService.on('agent:start', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((w) => w.webContents.send('agent:stream-start', data));
+    markAgentStart(data?.providerId as ProviderId | undefined, data?.workspaceId);
   });
   agentService.on('agent:error', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((w) => w.webContents.send('agent:stream-error', data));
+    markAgentFinish(data?.providerId as ProviderId | undefined, data?.workspaceId, 'error');
   });
   agentService.on('agent:complete', (data: any) => {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((w) => w.webContents.send('agent:stream-complete', data));
     const providerName = data.providerId === 'claude' ? 'Claude' : 'Agent';
     showCompletionNotification(providerName);
+    markAgentFinish(data?.providerId as ProviderId | undefined, data?.workspaceId, 'ok');
+  });
+}
+
+const agentRunTimers = new Map<string, number>();
+
+function agentKey(providerId?: ProviderId, workspaceId?: string) {
+  if (!providerId || !workspaceId) return null;
+  return `${providerId}:${workspaceId}`;
+}
+
+function markAgentStart(providerId?: ProviderId, workspaceId?: string) {
+  const key = agentKey(providerId, workspaceId);
+  if (!key) return;
+  agentRunTimers.set(key, Date.now());
+  telemetry.capture('agent_run_start', { provider: providerId });
+}
+
+function markAgentFinish(
+  providerId: ProviderId | undefined,
+  workspaceId: string | undefined,
+  outcome: 'ok' | 'error'
+) {
+  const key = agentKey(providerId, workspaceId);
+  const started = key ? agentRunTimers.get(key) : undefined;
+  if (key) agentRunTimers.delete(key);
+  const duration = started ? Math.max(0, Date.now() - started) : undefined;
+  telemetry.capture('agent_run_finish', {
+    provider: providerId,
+    outcome,
+    duration_ms: duration,
   });
 }
