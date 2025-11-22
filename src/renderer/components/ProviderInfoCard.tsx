@@ -92,6 +92,11 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     description:
       'Cline CLI runs AI coding agents directly in your terminal. Supports multiple model providers, runs multiple instances simultaneously for parallel development, and integrates into existing shell workflows.',
   },
+  codebuff: {
+    title: 'Codebuff',
+    description:
+      'Codebuff is an AI coding agent that helps you with coding tasks. Install globally and start using it in your project directory to get AI-powered coding assistance.',
+  },
 };
 
 type Props = {

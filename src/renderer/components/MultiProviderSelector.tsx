@@ -16,6 +16,7 @@ import kimiLogo from '../../assets/images/kimi.png';
 import kiroLogo from '../../assets/images/kiro.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
+import codebuffLogo from '../../assets/images/codebuff.png';
 
 type ProviderInfo = { name: string; logo: string; alt: string; invertInDark?: boolean };
 
@@ -36,6 +37,7 @@ const providerConfig: Record<Provider, ProviderInfo> = {
   kiro: { name: 'Kiro', logo: kiroLogo, alt: 'Kiro CLI' },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev CLI' },
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
+  codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
 };
 
 interface MultiProviderSelectorProps {
