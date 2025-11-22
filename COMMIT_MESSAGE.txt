@@ -1,0 +1,16 @@
+feat: add Cline CLI as a new AI coding agent provider
+
+Add Cline CLI support to Emdash, enabling users to use Cline as an AI
+coding agent provider alongside existing providers like Codex, Claude Code,
+and others.
+
+Changes:
+- Add 'cline' to provider registry with installation command and docs URL
+- Configure Cline provider metadata (CLI command, icon, terminal-only)
+- Add Cline logo asset and provider configuration to all selector components
+- Update type definitions to include Cline in multi-agent workspace types
+- Use 'help' subcommand for version detection (Cline doesn't support --version)
+
+Cline CLI runs AI coding agents directly in the terminal and supports
+multiple model providers (Anthropic, OpenAI, OpenRouter, etc.), making
+it a flexible addition to the available provider options.

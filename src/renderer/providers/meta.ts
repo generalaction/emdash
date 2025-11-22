@@ -119,4 +119,10 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     autoStartCommand: 'acli rovodev run',
     autoApproveFlag: '--yolo',
   },
+  cline: {
+    label: reg('cline')?.name ?? 'Cline',
+    icon: '../../assets/images/cline.png',
+    terminalOnly: true,
+    cli: 'cline',
+  },
 };

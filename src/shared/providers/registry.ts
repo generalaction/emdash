@@ -14,6 +14,7 @@ export const PROVIDER_IDS = [
   'kimi',
   'kiro',
   'rovo',
+  'cline',
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -148,6 +149,14 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'acli rovodev auth login',
     commands: ['rovodev', 'acli'],
     versionArgs: ['--version'],
+  },
+  {
+    id: 'cline',
+    name: 'Cline',
+    docUrl: 'https://docs.cline.bot/cline-cli/overview',
+    installCommand: 'npm install -g cline',
+    commands: ['cline'],
+    versionArgs: ['help'],
   },
 ];
 

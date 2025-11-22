@@ -15,6 +15,7 @@ import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import kiroLogo from '../../assets/images/kiro.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
+import clineLogo from '../../assets/images/cline.png';
 
 type ProviderInfo = { name: string; logo: string; alt: string; invertInDark?: boolean };
 
@@ -34,6 +35,7 @@ const providerConfig: Record<Provider, ProviderInfo> = {
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
   kiro: { name: 'Kiro', logo: kiroLogo, alt: 'Kiro CLI' },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev CLI' },
+  cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
 };
 
 interface MultiProviderSelectorProps {
