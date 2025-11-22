@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
+import { log } from '../lib/logger';
 
 export interface ProviderStatus {
   installed: boolean;
@@ -67,12 +68,18 @@ export class ProviderStatusCache {
       const payload = JSON.stringify(this.cache, null, 2);
       this.persistPromise = fs
         .writeFile(this.filePath as string, payload, 'utf8')
-        .catch(() => {})
+        .catch((error) => {
+          log.warn('providerStatusCache:persist failed', {
+            filePath: this.filePath,
+            error: error?.message || String(error),
+          });
+        })
         .finally(() => {
           this.persistPromise = null;
-          if (this.pendingPersist) {
-            this.pendingPersist = false;
-            write();
+          const shouldRetry = this.pendingPersist;
+          this.pendingPersist = false;
+          if (shouldRetry) {
+            setTimeout(() => this.persist(), 250);
           }
         });
     };

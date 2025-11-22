@@ -182,7 +182,9 @@ function maybeMarkProviderFinish(
   providerPtyTimers.delete(key);
 
   const duration = started ? Math.max(0, Date.now() - started) : undefined;
-  const outcome = exitCode === 0 ? 'ok' : 'error';
+  const wasSignaled = signal !== undefined && signal !== null;
+  const outcome =
+    typeof exitCode === 'number' && exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
 
   telemetry.capture('agent_run_finish', {
     provider: parsed.providerId,

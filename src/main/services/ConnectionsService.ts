@@ -59,6 +59,16 @@ export const CLI_DEFINITIONS: CliDefinition[] = listDetectableProviders().map((p
 class ConnectionsService {
   private initialized = false;
   private timeoutRetryPending = new Set<string>();
+  private timeoutRetryTimers = new Map<string, NodeJS.Timeout>();
+
+  private clearTimeoutRetry(providerId: string) {
+    const pendingTimer = this.timeoutRetryTimers.get(providerId);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      this.timeoutRetryTimers.delete(providerId);
+    }
+    this.timeoutRetryPending.delete(providerId);
+  }
 
   async initProviderStatusCache() {
     if (this.initialized) return;
@@ -81,6 +91,12 @@ class ConnectionsService {
   ) {
     const def = CLI_DEFINITIONS.find((d) => d.id === providerId);
     if (!def) return;
+
+    if (reason !== 'timeout-retry' && this.timeoutRetryPending.has(providerId)) {
+      // Cancel any pending timeout-based retry when a fresh check is requested.
+      this.clearTimeoutRetry(providerId);
+    }
+
     const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const commandResult = await this.tryCommands(def, timeoutMs);
     const statusCode = await this.resolveStatus(def, commandResult);
@@ -112,12 +128,14 @@ class ConnectionsService {
       this.timeoutRetryPending.add(providerId);
       const retryDelayMs = 1500;
       const retryTimeoutMs = Math.max(timeoutMs * 2, 12000);
-      setTimeout(() => {
+      const retryTimer = setTimeout(() => {
+        this.timeoutRetryTimers.delete(providerId);
         void this.checkProvider(providerId, 'timeout-retry', {
           timeoutMs: retryTimeoutMs,
           allowRetry: false,
         }).finally(() => this.timeoutRetryPending.delete(providerId));
       }, retryDelayMs);
+      this.timeoutRetryTimers.set(providerId, retryTimer);
     }
   }
 

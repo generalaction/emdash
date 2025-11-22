@@ -50,6 +50,7 @@ const ChatInterface: React.FC<Props> = ({
     Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
   >({});
   const [provider, setProvider] = useState<Provider>(initialProvider || 'codex');
+  const currentProviderStatus = providerStatuses[provider];
   const browser = useBrowser();
   const [cliStartFailed, setCliStartFailed] = useState(false);
   const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
@@ -215,9 +216,9 @@ const ChatInterface: React.FC<Props> = ({
   }, [provider, workspace.id]);
 
   useEffect(() => {
-    const installed = providerStatuses[provider]?.installed === true;
+    const installed = currentProviderStatus?.installed === true;
     setIsProviderInstalled(installed);
-  }, [provider, providerStatuses]);
+  }, [provider, currentProviderStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -296,7 +297,7 @@ const ChatInterface: React.FC<Props> = ({
       setIsProviderInstalled(false);
       return;
     }
-    if (providerStatuses[provider]) {
+    if (currentProviderStatus) {
       return;
     }
 
@@ -324,7 +325,7 @@ const ChatInterface: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [provider, providerStatuses, setProviderStatuses]);
+  }, [provider, currentProviderStatus]);
 
   // When switching providers, ensure other streams are stopped
   useEffect(() => {
