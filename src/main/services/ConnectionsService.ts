@@ -101,24 +101,27 @@ class ConnectionsService {
     const commandResult = await this.tryCommands(def, timeoutMs);
     const statusCode = await this.resolveStatus(def, commandResult);
     this.cacheStatus(def.id, commandResult, statusCode);
-    log.info('provider:check', {
-      providerId: def.id,
-      status: statusCode,
-      command: commandResult.command,
-      resolvedPath: commandResult.resolvedPath,
-      success: commandResult.success,
-      version: commandResult.version,
-      exitStatus: commandResult.status,
-      stderr: commandResult.stderr ? truncate(commandResult.stderr) : null,
-      stdout: commandResult.stdout ? truncate(commandResult.stdout) : null,
-      error: commandResult.error
-        ? String(commandResult.error?.message || commandResult.error)
-        : null,
-      pathEnvContainsNvm: process.env.PATH?.includes('.nvm/versions'),
-      timedOut: commandResult.timedOut === true,
-      timeoutMs,
-      reason,
-    });
+    // Only log errors or failed checks to reduce noise
+    if (statusCode !== 'connected' || commandResult.error) {
+      log.debug('provider:check', {
+        providerId: def.id,
+        status: statusCode,
+        command: commandResult.command,
+        resolvedPath: commandResult.resolvedPath,
+        success: commandResult.success,
+        version: commandResult.version,
+        exitStatus: commandResult.status,
+        stderr: commandResult.stderr ? truncate(commandResult.stderr) : null,
+        stdout: commandResult.stdout ? truncate(commandResult.stdout) : null,
+        error: commandResult.error
+          ? String(commandResult.error?.message || commandResult.error)
+          : null,
+        pathEnvContainsNvm: process.env.PATH?.includes('.nvm/versions'),
+        timedOut: commandResult.timedOut === true,
+        timeoutMs,
+        reason,
+      });
+    }
 
     const shouldRetryTimeout =
       commandResult.timedOut &&

@@ -40,16 +40,12 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   return (
     <div className="flex min-w-0 items-center justify-between">
       <div className="flex min-w-0 flex-1 items-center gap-2 py-1">
-        {/* Only show spinner when actually running, not just because agentId exists */}
         {isRunning || workspace.status === 'running' ? (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         ) : (
           <GitBranch className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
         <span className="block truncate text-xs font-medium text-foreground">{workspace.name}</span>
-        {/* Bot icon commented out per user request
-        {workspace.agentId && <Bot className="h-3 w-3 flex-shrink-0 text-purple-500" />}
-        */}
       </div>
       <div className="relative flex flex-shrink-0 items-center pl-6">
         {showDelete && onDelete ? (
@@ -65,7 +61,9 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             }}
             isDeleting={isDeleting}
             aria-label={`Delete Task ${workspace.name}`}
-            className="absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-destructive focus:opacity-100 focus-visible:opacity-100 group-hover/workspace:opacity-100"
+            className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 ${
+              isDeleting ? 'opacity-100' : 'opacity-0 group-hover/workspace:opacity-100'
+            }`}
           />
         ) : null}
         <div aria-hidden={isLoading ? 'true' : 'false'}>

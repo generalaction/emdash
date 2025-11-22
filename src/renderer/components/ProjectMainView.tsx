@@ -309,7 +309,7 @@ function WorkspaceRow({
             }}
             isDeleting={isDeleting}
             aria-label={`Delete workspace ${ws.name}`}
-            className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0"
+            className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
           />
         </div>
       </div>
