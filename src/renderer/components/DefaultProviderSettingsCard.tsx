@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ProviderSelector } from './ProviderSelector';
 import type { Provider } from '../types';
-import { PROVIDER_IDS } from '@shared/providers/registry';
+import { isValidProviderId } from '@shared/providers/registry';
 
 const DEFAULT_PROVIDER: Provider = 'codex';
 
@@ -14,13 +14,10 @@ const DefaultProviderSettingsCard: React.FC = () => {
     try {
       const res = await window.electronAPI.getSettings();
       if (res?.success && res.settings?.defaultProvider) {
-        const provider = res.settings.defaultProvider as Provider;
-        // Validate provider is valid
-        if (PROVIDER_IDS.includes(provider as any)) {
-          setDefaultProvider(provider);
-        } else {
-          setDefaultProvider(DEFAULT_PROVIDER);
-        }
+        const provider = res.settings.defaultProvider;
+        setDefaultProvider(
+          isValidProviderId(provider) ? (provider as Provider) : DEFAULT_PROVIDER
+        );
       } else {
         setDefaultProvider(DEFAULT_PROVIDER);
       }

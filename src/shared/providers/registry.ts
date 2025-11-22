@@ -172,6 +172,15 @@ export function getInstallCommandForProvider(id: ProviderId): string | null {
   return PROVIDER_MAP.get(id)?.installCommand ?? null;
 }
 
+/**
+ * Validates if a string is a valid provider ID.
+ * @param value - The value to validate
+ * @returns true if the value is a valid provider ID, false otherwise
+ */
+export function isValidProviderId(value: unknown): value is ProviderId {
+  return typeof value === 'string' && PROVIDER_IDS.includes(value as ProviderId);
+}
+
 export function getDocUrlForProvider(id: ProviderId): string | null {
   return PROVIDER_MAP.get(id)?.docUrl ?? null;
 }

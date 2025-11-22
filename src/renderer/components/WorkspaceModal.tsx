@@ -11,9 +11,11 @@ import { ProviderSelector } from './ProviderSelector';
 import { type Provider } from '../types';
 import { Separator } from './ui/separator';
 import { providerMeta } from '../providers/meta';
-import { PROVIDER_IDS } from '@shared/providers/registry';
+import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
+
+const DEFAULT_PROVIDER: Provider = 'codex';
 import { LinearIssueSelector } from './LinearIssueSelector';
 import { GitHubIssueSelector } from './GitHubIssueSelector';
 import JiraIssueSelector from './JiraIssueSelector';
@@ -51,10 +53,14 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   projectPath,
 }) => {
   const [workspaceName, setWorkspaceName] = useState('');
-  const [defaultProviderFromSettings, setDefaultProviderFromSettings] = useState<Provider>('codex');
-  const [selectedProvider, setSelectedProvider] = useState<Provider>('codex');
+  const [defaultProviderFromSettings, setDefaultProviderFromSettings] =
+    useState<Provider>(DEFAULT_PROVIDER);
+  const [selectedProvider, setSelectedProvider] = useState<Provider>(DEFAULT_PROVIDER);
   const [multiEnabled, setMultiEnabled] = useState(false);
-  const [selectedProviders, setSelectedProviders] = useState<Provider[]>(['codex', 'claude']);
+  const [selectedProviders, setSelectedProviders] = useState<Provider[]>([
+    DEFAULT_PROVIDER,
+    'claude',
+  ]);
   const maxProviders = 4;
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -122,26 +128,23 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       try {
         const res = await window.electronAPI.getSettings();
         if (cancel) return;
-        let provider: Provider = 'codex';
-        if (res?.success && res.settings?.defaultProvider) {
-          const settingsProvider = res.settings.defaultProvider as Provider;
-          if (PROVIDER_IDS.includes(settingsProvider as any)) {
-            provider = settingsProvider;
-          }
-        }
+        const settingsProvider = res?.success ? res.settings?.defaultProvider : undefined;
+        const provider: Provider = isValidProviderId(settingsProvider)
+          ? (settingsProvider as Provider)
+          : DEFAULT_PROVIDER;
         setDefaultProviderFromSettings(provider);
         setSelectedProvider(provider);
-        // Also update multi-provider default - replace 'codex' with the default provider
+        // Also update multi-provider default - replace default provider in the list
         setSelectedProviders((prev) => {
           const newProviders = [...prev];
-          const codexIndex = newProviders.indexOf('codex');
-          if (codexIndex !== -1) {
-            newProviders[codexIndex] = provider;
+          const defaultIndex = newProviders.indexOf(DEFAULT_PROVIDER);
+          if (defaultIndex !== -1) {
+            newProviders[defaultIndex] = provider;
           }
           return newProviders;
         });
       } catch {
-        // Ignore errors, use default 'codex'
+        // Ignore errors, use default provider
       }
     })();
     return () => {
