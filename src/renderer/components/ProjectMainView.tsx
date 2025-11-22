@@ -23,6 +23,7 @@ import {
   subscribeToWorkspaceRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
+import { activityStore } from '../lib/activityStore';
 import type { Project, Workspace } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -100,28 +101,9 @@ function WorkspaceRow({
   }, [isReady, containerActive, containerState?.ports?.length]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const status = await (window as any).electronAPI.codexGetAgentStatus(ws.id);
-        if (status?.success && status.agent) {
-          setIsRunning(status.agent.status === 'running');
-        }
-      } catch {}
-    })();
-
-    const offOut = (window as any).electronAPI.onCodexStreamOutput((data: any) => {
-      if (data.workspaceId === ws.id) setIsRunning(true);
-    });
-    const offComplete = (window as any).electronAPI.onCodexStreamComplete((data: any) => {
-      if (data.workspaceId === ws.id) setIsRunning(false);
-    });
-    const offErr = (window as any).electronAPI.onCodexStreamError((data: any) => {
-      if (data.workspaceId === ws.id) setIsRunning(false);
-    });
+    const off = activityStore.subscribe(ws.id, (busy) => setIsRunning(busy));
     return () => {
-      offOut?.();
-      offComplete?.();
-      offErr?.();
+      off?.();
     };
   }, [ws.id]);
 

@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useToast } from './use-toast';
 import githubLogo from '../../assets/images/github.png';
-import { generatePrTitleWithClaude } from '../lib/prTitle';
-
 type CreatePROptions = {
   workspacePath: string;
   commitMessage?: string;
@@ -44,18 +42,10 @@ export function useCreatePR() {
         return { success: false, error: 'Electron bridge unavailable' } as any;
       }
 
-      // Generate a PR title with Claude if none provided
-      let finalPrOptions = prOptions || {};
-      if (!finalPrOptions.title) {
-        try {
-          const generated = await generatePrTitleWithClaude(workspacePath);
-          if (generated) {
-            finalPrOptions = { ...finalPrOptions, title: generated };
-          }
-        } catch {
-          // ignore and fallback to default flow
-        }
-      }
+      const inferredTitle =
+        prOptions?.title || workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
+
+      let finalPrOptions = { ...(prOptions || {}), title: inferredTitle };
 
       const commitRes = await api.gitCommitAndPush({
         workspacePath,

@@ -220,7 +220,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   jiraInitialFetch: (limit?: number) => ipcRenderer.invoke('jira:initialFetch', limit),
   jiraSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
-  getCliProviders: () => ipcRenderer.invoke('connections:getCliProviders'),
+  getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
+    ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   // Database methods
   getProjects: () => ipcRenderer.invoke('db:getProjects'),
   saveProject: (project: any) => ipcRenderer.invoke('db:saveProject', project),
@@ -243,23 +244,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>
     ipcRenderer.invoke('debug:append-log', filePath, content, options ?? {}),
 
-  // Codex integration
-  codexCheckInstallation: () => ipcRenderer.invoke('codex:check-installation'),
-  codexCreateAgent: (workspaceId: string, worktreePath: string) =>
-    ipcRenderer.invoke('codex:create-agent', workspaceId, worktreePath),
-  codexSendMessage: (workspaceId: string, message: string) =>
-    ipcRenderer.invoke('codex:send-message', workspaceId, message),
-  codexSendMessageStream: (workspaceId: string, message: string, conversationId?: string) =>
-    ipcRenderer.invoke('codex:send-message-stream', workspaceId, message, conversationId),
-  codexStopStream: (workspaceId: string) => ipcRenderer.invoke('codex:stop-stream', workspaceId),
-  codexGetStreamTail: (workspaceId: string) =>
-    ipcRenderer.invoke('codex:get-stream-tail', workspaceId),
-  codexGetAgentStatus: (workspaceId: string) =>
-    ipcRenderer.invoke('codex:get-agent-status', workspaceId),
-  codexGetAllAgents: () => ipcRenderer.invoke('codex:get-all-agents'),
-  codexRemoveAgent: (workspaceId: string) => ipcRenderer.invoke('codex:remove-agent', workspaceId),
-  codexGetInstallationInstructions: () => ipcRenderer.invoke('codex:get-installation-instructions'),
-
   // PlanMode strict lock
   planApplyLock: (workspacePath: string) => ipcRenderer.invoke('plan:lock', workspacePath),
   planReleaseLock: (workspacePath: string) => ipcRenderer.invoke('plan:unlock', workspacePath),
@@ -278,106 +262,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
-  // Streaming event listeners
-  onCodexStreamOutput: (
-    listener: (data: {
-      workspaceId: string;
-      output: string;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => {
-    const wrapped = (
-      _: Electron.IpcRendererEvent,
-      data: { workspaceId: string; output: string; agentId: string; conversationId?: string }
-    ) => listener(data);
-    ipcRenderer.on('codex:stream-output', wrapped);
-    return () => ipcRenderer.removeListener('codex:stream-output', wrapped);
-  },
-  onCodexStreamError: (
-    listener: (data: {
-      workspaceId: string;
-      error: string;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => {
-    const wrapped = (
-      _: Electron.IpcRendererEvent,
-      data: { workspaceId: string; error: string; agentId: string; conversationId?: string }
-    ) => listener(data);
-    ipcRenderer.on('codex:stream-error', wrapped);
-    return () => ipcRenderer.removeListener('codex:stream-error', wrapped);
-  },
-  onCodexStreamComplete: (
-    listener: (data: {
-      workspaceId: string;
-      exitCode: number;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => {
-    const wrapped = (
-      _: Electron.IpcRendererEvent,
-      data: { workspaceId: string; exitCode: number; agentId: string; conversationId?: string }
-    ) => listener(data);
-    ipcRenderer.on('codex:stream-complete', wrapped);
-    return () => ipcRenderer.removeListener('codex:stream-complete', wrapped);
-  },
-
-  // Generic agent integration (multi-provider)
-  agentCheckInstallation: (providerId: 'codex' | 'claude') =>
-    ipcRenderer.invoke('agent:check-installation', providerId),
-  agentGetInstallationInstructions: (providerId: 'codex' | 'claude') =>
-    ipcRenderer.invoke('agent:get-installation-instructions', providerId),
-  agentSendMessageStream: (args: {
-    providerId: 'codex' | 'claude';
-    workspaceId: string;
-    worktreePath: string;
-    message: string;
-    conversationId?: string;
-  }) => ipcRenderer.invoke('agent:send-message-stream', args),
-  agentStopStream: (args: { providerId: 'codex' | 'claude'; workspaceId: string }) =>
-    ipcRenderer.invoke('agent:stop-stream', args),
-  onAgentStreamOutput: (
-    listener: (data: {
-      providerId: 'codex' | 'claude';
-      workspaceId: string;
-      output?: string;
-      error?: string;
-      agentId?: string;
-      conversationId?: string;
-    }) => void
-  ) => {
-    const channel = 'agent:stream-output';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onAgentStreamStart: (
-    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string }) => void
-  ) => {
-    const channel = 'agent:stream-start';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onAgentStreamError: (
-    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string; error: string }) => void
-  ) => {
-    const channel = 'agent:stream-error';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onAgentStreamComplete: (
-    listener: (data: {
-      providerId: 'codex' | 'claude';
-      workspaceId: string;
-      exitCode: number;
-    }) => void
-  ) => {
-    const channel = 'agent:stream-complete';
+  onProviderStatusUpdated: (listener: (data: { providerId: string; status: any }) => void) => {
+    const channel = 'provider:status-updated';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
@@ -682,111 +568,6 @@ export interface ElectronAPI {
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
   deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
-
-  // Codex integration
-  codexCheckInstallation: () => Promise<{
-    success: boolean;
-    isInstalled?: boolean;
-    error?: string;
-  }>;
-  codexCreateAgent: (
-    workspaceId: string,
-    worktreePath: string
-  ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-  codexSendMessage: (
-    workspaceId: string,
-    message: string
-  ) => Promise<{ success: boolean; response?: any; error?: string }>;
-  codexSendMessageStream: (
-    workspaceId: string,
-    message: string,
-    conversationId?: string
-  ) => Promise<{ success: boolean; error?: string }>;
-  codexStopStream: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; stopped?: boolean; error?: string }>;
-  codexGetStreamTail: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; tail?: string; startedAt?: string; error?: string }>;
-  codexGetAgentStatus: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-  codexGetAllAgents: () => Promise<{ success: boolean; agents?: any[]; error?: string }>;
-  codexRemoveAgent: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; removed?: boolean; error?: string }>;
-  codexGetInstallationInstructions: () => Promise<{
-    success: boolean;
-    instructions?: string;
-    error?: string;
-  }>;
-
-  // Streaming event listeners
-  onCodexStreamOutput: (
-    listener: (data: {
-      workspaceId: string;
-      output: string;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-  onCodexStreamError: (
-    listener: (data: {
-      workspaceId: string;
-      error: string;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-  onCodexStreamComplete: (
-    listener: (data: {
-      workspaceId: string;
-      exitCode: number;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-
-  // Generic agent integration
-  agentCheckInstallation: (
-    providerId: 'codex' | 'claude'
-  ) => Promise<{ success: boolean; isInstalled?: boolean; error?: string }>;
-  agentGetInstallationInstructions: (
-    providerId: 'codex' | 'claude'
-  ) => Promise<{ success: boolean; instructions?: string; error?: string }>;
-  agentSendMessageStream: (args: {
-    providerId: 'codex' | 'claude';
-    workspaceId: string;
-    worktreePath: string;
-    message: string;
-    conversationId?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-  agentStopStream: (args: {
-    providerId: 'codex' | 'claude';
-    workspaceId: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-  onAgentStreamOutput: (
-    listener: (data: {
-      providerId: 'codex' | 'claude';
-      workspaceId: string;
-      output?: string;
-      agentId?: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-  onAgentStreamStart: (
-    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string }) => void
-  ) => () => void;
-  onAgentStreamError: (
-    listener: (data: { providerId: 'codex' | 'claude'; workspaceId: string; error: string }) => void
-  ) => () => void;
-  onAgentStreamComplete: (
-    listener: (data: {
-      providerId: 'codex' | 'claude';
-      workspaceId: string;
-      exitCode: number;
-    }) => void
-  ) => () => void;
 
   // Host preview (non-container)
   hostPreviewStart: (args: {

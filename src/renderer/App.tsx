@@ -120,13 +120,14 @@ const AppContent: React.FC = () => {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [activeWorkspaceProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
-  const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
-  const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
+  const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const showGithubRequirement = !ghInstalled || !isAuthenticated;
-  // Show agent requirements block if none of the supported CLIs are detected locally.
-  const showAgentRequirement = isCodexInstalled === false && isClaudeInstalled === false;
+  // Show agent requirements block if we have status data and none of the CLI providers are detected locally.
+  const showAgentRequirement =
+    Object.keys(installedProviders).length > 0 &&
+    Object.values(installedProviders).every((v) => v === false);
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -420,20 +421,29 @@ const AppContent: React.FC = () => {
         const ordered = applyProjectOrder(projectsWithWorkspaces);
         setProjects(ordered);
 
-        const codexStatus = await window.electronAPI.codexCheckInstallation();
-        if (codexStatus.success) {
-          setIsCodexInstalled(codexStatus.isInstalled ?? false);
-        } else {
-          setIsCodexInstalled(false);
-          console.error('Failed to check Codex CLI installation:', codexStatus.error);
+        // Prefer cached provider status (populated in the background)
+        let providerInstalls: Record<string, boolean> = {};
+        try {
+          type ProviderStatusEntry = {
+            installed: boolean;
+            path?: string | null;
+            version?: string | null;
+            lastChecked: number;
+          };
+          const statusResponse =
+            ((await (window as any).electronAPI.getProviderStatuses?.()) as
+              | { success?: boolean; statuses?: Record<string, ProviderStatusEntry> }
+              | undefined) ?? (await window.electronAPI.getProviderStatuses?.());
+          if (statusResponse?.success && statusResponse.statuses) {
+            providerInstalls = Object.fromEntries(
+              Object.entries(statusResponse.statuses).map(([id, s]) => [id, s?.installed === true])
+            );
+          }
+        } catch {
+          // ignore and fall back to direct checks
         }
 
-        try {
-          const claude = await (window as any).electronAPI.agentCheckInstallation?.('claude');
-          setIsClaudeInstalled(!!claude?.isInstalled);
-        } catch {
-          setIsClaudeInstalled(false);
-        }
+        setInstalledProviders(providerInstalls);
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to load app data:', error as any);
@@ -1055,19 +1065,6 @@ const AppContent: React.FC = () => {
           } catch {}
         }
       } catch {}
-      try {
-        if (workspace.agentId) {
-          const agentRemoval = await window.electronAPI.codexRemoveAgent(workspace.id);
-          if (!agentRemoval.success) {
-            const { log } = await import('./lib/logger');
-            log.warn('codexRemoveAgent reported failure:', agentRemoval.error);
-          }
-        }
-      } catch (agentError) {
-        const { log } = await import('./lib/logger');
-        log.warn('Failed to remove agent before deleting workspace:', agentError as any);
-      }
-
       const sessionIds = [
         `workspace-${workspace.id}`,
         ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${workspace.id}`),

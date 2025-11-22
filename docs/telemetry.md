@@ -26,9 +26,9 @@ Events (and allowed properties)
 - `error`
   - Allowed props: `type` (string)
 - `agent_run_start`
-  - Allowed props: `provider` (`codex` | `claude`)
+  - Allowed props: `provider` (CLI provider id; see `src/shared/providers/registry.ts`)
 - `agent_run_finish`
-  - Allowed props: `provider` (`codex` | `claude`), `outcome` (`ok` | `error`), `duration_ms` (clamped; no content)
+  - Allowed props: `provider` (CLI provider id), `outcome` (`ok` | `error`), `duration_ms` (clamped; no content)
 
 Data not collected
 - No code, file paths, repository names, prompts, environment variables, or PII are sent.
@@ -49,5 +49,6 @@ Renderer events (maintainers)
 - End-users do not need to take any action; telemetry remains optional and can be disabled as described above.
 
 Agent/provider usage
-- Coarse metadata only: provider id (`codex`/`claude`), start/end markers, outcome, and duration. No prompts, messages, file paths, workspace IDs, or other content are sent.
+- Coarse metadata only: provider id, start/end markers, outcome, and duration. No prompts, messages, file paths, workspace IDs, or other content are sent.
+- Events now originate from PTY lifecycle for CLI providers (`{provider}-main-{workspace}` terminals). No stream content is inspected.
 - Uses the same anonymous `distinct_id`, honors the telemetry toggle, and remains off in builds without PostHog keys.

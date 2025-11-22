@@ -37,6 +37,37 @@ const mergeCliProviders = (incoming: CliProviderStatus[]): CliProviderStatus[] =
   return Array.from(mergedMap.values());
 };
 
+type CachedProviderStatus = {
+  installed: boolean;
+  path?: string | null;
+  version?: string | null;
+  lastChecked?: number;
+};
+
+const mapProviderStatusesToCli = (
+  statuses: Record<string, CachedProviderStatus | undefined>
+): CliProviderStatus[] => {
+  return Object.entries(statuses).reduce<CliProviderStatus[]>((acc, [providerId, status]) => {
+    if (!status) return acc;
+    const base = BASE_CLI_PROVIDERS.find((provider) => provider.id === providerId);
+    acc.push({
+      ...(base ?? {
+        id: providerId,
+        name: providerId,
+        status: 'missing' as const,
+        docUrl: null,
+        installCommand: null,
+      }),
+      id: providerId,
+      name: base?.name ?? providerId,
+      status: status.installed ? 'connected' : 'missing',
+      version: status.version ?? null,
+      command: status.path ?? null,
+    });
+    return acc;
+  }, []);
+};
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -60,7 +91,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   );
   const [cliError, setCliError] = useState<string | null>(null);
   const [cliLoading, setCliLoading] = useState<boolean>(false);
-  const [hasLoadedCli, setHasLoadedCli] = useState<boolean>(false);
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -69,10 +99,51 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const applyCachedStatuses = (statuses: Record<string, CachedProviderStatus> | undefined) => {
+      if (!statuses) return;
+      const providers = mapProviderStatusesToCli(statuses);
+      if (!providers.length) return;
+      setCliProviders((prev) => mergeCliProviders([...prev, ...providers]));
+    };
+
+    const loadCachedStatuses = async () => {
+      if (!window?.electronAPI?.getProviderStatuses) return;
+      try {
+        const result = await window.electronAPI.getProviderStatuses();
+        if (cancelled) return;
+        if (result?.success && result.statuses) {
+          applyCachedStatuses(result.statuses);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load cached CLI provider statuses:', error);
+        }
+      }
+    };
+
+    const off =
+      window?.electronAPI?.onProviderStatusUpdated?.(
+        (payload: { providerId: string; status: CachedProviderStatus }) => {
+          if (!payload?.providerId || !payload.status) return;
+          applyCachedStatuses({ [payload.providerId]: payload.status });
+        }
+      ) ?? null;
+
+    void loadCachedStatuses();
+
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }, []);
+
   const fetchCliProviders = useCallback(async () => {
-    if (!window?.electronAPI?.getCliProviders) {
+    if (!window?.electronAPI?.getProviderStatuses) {
       setCliProviders(createDefaultCliProviders());
-      setCliError('CLI detection is unavailable in this build.');
+      setCliError('Provider status detection is unavailable in this build.');
       return;
     }
 
@@ -80,10 +151,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     setCliError(null);
 
     try {
-      const result = await window.electronAPI.getCliProviders();
-      if (result?.success && Array.isArray(result.providers)) {
-        setCliProviders(mergeCliProviders(result.providers));
-        setHasLoadedCli(true);
+      const result = await window.electronAPI.getProviderStatuses({ refresh: true });
+      if (result?.success && result.statuses) {
+        const providers = mapProviderStatusesToCli(result.statuses);
+        setCliProviders((prev) => mergeCliProviders([...prev, ...providers]));
       } else {
         setCliError(result?.error || 'Failed to detect CLI providers.');
       }
@@ -94,12 +165,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       setCliLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    if (isOpen && activeTab === 'connections' && !hasLoadedCli && !cliLoading) {
-      fetchCliProviders();
-    }
-  }, [isOpen, activeTab, hasLoadedCli, cliLoading, fetchCliProviders]);
 
   const tabDetails = useMemo(() => {
     return {

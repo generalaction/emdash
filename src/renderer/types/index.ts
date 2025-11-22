@@ -1,3 +1,5 @@
+import type { ProviderId } from '@shared/providers/registry';
+
 export interface Repo {
   id: string;
   path: string;
@@ -45,22 +47,7 @@ export interface Workspace {
   repos: Repo[];
 }
 
-export type Provider =
-  | 'codex'
-  | 'claude'
-  | 'qwen'
-  | 'droid'
-  | 'gemini'
-  | 'cursor'
-  | 'copilot'
-  | 'amp'
-  | 'opencode'
-  | 'charm'
-  | 'auggie'
-  | 'goose'
-  | 'kimi'
-  | 'kiro'
-  | 'rovo';
+export type Provider = ProviderId;
 
 // Keyboard shortcuts types
 export type {

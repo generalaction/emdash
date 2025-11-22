@@ -80,30 +80,6 @@ const KanbanBoard: React.FC<{
       offs.push(un);
     }
 
-    // Global: when an agent stream completes for one of our workspaces, move to Done
-    try {
-      const offAgentDone = (window as any).electronAPI.onAgentStreamComplete?.(
-        (data: { providerId: 'codex' | 'claude'; workspaceId: string; exitCode: number }) => {
-          const wid = String(data?.workspaceId || '');
-          if (!wsIds.has(wid)) return;
-          // Only auto-complete if not currently busy according to the shared activity store
-          let currentlyBusy = false;
-          const un = activityStore.subscribe(wid, (b) => {
-            currentlyBusy = b;
-          });
-          un?.();
-          if (currentlyBusy) return;
-          setStatusMap((prev) => {
-            const cur = prev[wid] || 'todo';
-            if (cur !== 'in-progress') return prev;
-            setStatus(wid, 'done');
-            return { ...prev, [wid]: 'done' };
-          });
-        }
-      );
-      if (offAgentDone) offs.push(offAgentDone);
-    } catch {}
-
     // Per-ws: when the PTY exits and workspace is not busy anymore, move to Done
     for (const ws of wsList) {
       try {

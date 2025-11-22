@@ -481,19 +481,21 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
-      getCliProviders?: () => Promise<{
+      getProviderStatuses?: (opts?: {
+        refresh?: boolean;
+        providers?: string[];
+        providerId?: string;
+      }) => Promise<{
         success: boolean;
-        providers?: Array<{
-          id: string;
-          name: string;
-          status: 'connected' | 'missing' | 'needs_key' | 'error';
-          version?: string | null;
-          message?: string | null;
-          docUrl?: string | null;
-          command?: string | null;
-        }>;
+        statuses?: Record<
+          string,
+          { installed: boolean; path?: string | null; version?: string | null; lastChecked: number }
+        >;
         error?: string;
       }>;
+      onProviderStatusUpdated?: (
+        listener: (data: { providerId: string; status: any }) => void
+      ) => () => void;
 
       // Database operations
       getProjects: () => Promise<any[]>;
@@ -518,79 +520,6 @@ declare global {
         content: string,
         options?: { reset?: boolean }
       ) => Promise<{ success: boolean; error?: string }>;
-
-      // Codex
-      codexCheckInstallation: () => Promise<{
-        success: boolean;
-        isInstalled?: boolean;
-        error?: string;
-      }>;
-      codexCreateAgent: (
-        workspaceId: string,
-        worktreePath: string
-      ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-      codexSendMessage: (
-        workspaceId: string,
-        message: string
-      ) => Promise<{ success: boolean; response?: any; error?: string }>;
-      codexSendMessageStream: (
-        workspaceId: string,
-        message: string,
-        conversationId?: string
-      ) => Promise<{ success: boolean; error?: string }>;
-      codexStopStream: (
-        workspaceId: string
-      ) => Promise<{ success: boolean; stopped?: boolean; error?: string }>;
-      codexGetAgentStatus: (
-        workspaceId: string
-      ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-      codexGetAllAgents: () => Promise<{
-        success: boolean;
-        agents?: any[];
-        error?: string;
-      }>;
-      codexRemoveAgent: (
-        workspaceId: string
-      ) => Promise<{ success: boolean; removed?: boolean; error?: string }>;
-      codexGetInstallationInstructions: () => Promise<{
-        success: boolean;
-        instructions?: string;
-        error?: string;
-      }>;
-
-      // Generic agent integration (multi-provider)
-      agentCheckInstallation: (providerId: 'codex' | 'claude') => Promise<{
-        success: boolean;
-        isInstalled?: boolean;
-        error?: string;
-      }>;
-      agentGetInstallationInstructions: (providerId: 'codex' | 'claude') => Promise<{
-        success: boolean;
-        instructions?: string;
-        error?: string;
-      }>;
-      agentSendMessageStream: (args: {
-        providerId: 'codex' | 'claude';
-        workspaceId: string;
-        worktreePath: string;
-        message: string;
-        conversationId?: string;
-      }) => Promise<{ success: boolean; error?: string }>;
-      agentStopStream: (args: { providerId: 'codex' | 'claude'; workspaceId: string }) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-
-      // Streaming event listeners
-      onCodexStreamOutput: (
-        listener: (data: { workspaceId: string; output: string; agentId: string }) => void
-      ) => () => void;
-      onCodexStreamError: (
-        listener: (data: { workspaceId: string; error: string; agentId: string }) => void
-      ) => () => void;
-      onCodexStreamComplete: (
-        listener: (data: { workspaceId: string; exitCode: number; agentId: string }) => void
-      ) => () => void;
     };
   }
 }
@@ -722,19 +651,21 @@ export interface ElectronAPI {
     branch?: string;
     error?: string;
   }>;
-  getCliProviders?: () => Promise<{
+  getProviderStatuses?: (opts?: {
+    refresh?: boolean;
+    providers?: string[];
+    providerId?: string;
+  }) => Promise<{
     success: boolean;
-    providers?: Array<{
-      id: string;
-      name: string;
-      status: 'connected' | 'missing' | 'needs_key' | 'error';
-      version?: string | null;
-      message?: string | null;
-      docUrl?: string | null;
-      command?: string | null;
-    }>;
+    statuses?: Record<
+      string,
+      { installed: boolean; path?: string | null; version?: string | null; lastChecked: number }
+    >;
     error?: string;
   }>;
+  onProviderStatusUpdated?: (
+    listener: (data: { providerId: string; status: any }) => void
+  ) => () => void;
   // Telemetry
   captureTelemetry: (
     event: 'feature_used' | 'error',
@@ -904,76 +835,5 @@ export interface ElectronAPI {
     content: string,
     options?: { reset?: boolean }
   ) => Promise<{ success: boolean; error?: string }>;
-
-  // Codex
-  codexCheckInstallation: () => Promise<{
-    success: boolean;
-    isInstalled?: boolean;
-    error?: string;
-  }>;
-  codexCreateAgent: (
-    workspaceId: string,
-    worktreePath: string
-  ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-  codexSendMessage: (
-    workspaceId: string,
-    message: string
-  ) => Promise<{ success: boolean; response?: any; error?: string }>;
-  codexSendMessageStream: (
-    workspaceId: string,
-    message: string,
-    conversationId?: string
-  ) => Promise<{ success: boolean; error?: string }>;
-  codexStopStream: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; stopped?: boolean; error?: string }>;
-  codexGetStreamTail: (workspaceId: string) => Promise<{
-    success: boolean;
-    tail?: string;
-    startedAt?: string;
-    error?: string;
-  }>;
-  codexGetAgentStatus: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-  codexGetAllAgents: () => Promise<{
-    success: boolean;
-    agents?: any[];
-    error?: string;
-  }>;
-  codexRemoveAgent: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; removed?: boolean; error?: string }>;
-  codexGetInstallationInstructions: () => Promise<{
-    success: boolean;
-    instructions?: string;
-    error?: string;
-  }>;
-
-  // Streaming event listeners
-  onCodexStreamOutput: (
-    listener: (data: {
-      workspaceId: string;
-      output: string;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-  onCodexStreamError: (
-    listener: (data: {
-      workspaceId: string;
-      error: string;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-  onCodexStreamComplete: (
-    listener: (data: {
-      workspaceId: string;
-      exitCode: number;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
