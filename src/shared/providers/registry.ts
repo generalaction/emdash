@@ -15,6 +15,7 @@ export const PROVIDER_IDS = [
   'kiro',
   'rovo',
   'cline',
+  'codebuff',
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -157,6 +158,14 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g cline',
     commands: ['cline'],
     versionArgs: ['help'],
+  },
+  {
+    id: 'codebuff',
+    name: 'Codebuff',
+    docUrl: 'https://www.codebuff.com/docs/help/getting-started',
+    installCommand: 'npm install -g codebuff',
+    commands: ['codebuff'],
+    versionArgs: ['--version'],
   },
 ];
 

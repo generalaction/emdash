@@ -23,6 +23,7 @@ import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
+import codebuffLogo from '../../assets/images/codebuff.png';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -126,6 +127,12 @@ const providerConfig = {
     name: 'Cline',
     logo: clineLogo,
     alt: 'Cline CLI',
+    invertInDark: false,
+  },
+  codebuff: {
+    name: 'Codebuff',
+    logo: codebuffLogo,
+    alt: 'Codebuff CLI',
     invertInDark: false,
   },
 } as const;

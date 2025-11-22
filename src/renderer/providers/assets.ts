@@ -14,7 +14,7 @@ import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
-// Temporary fallback logo until kiro.png is added
+import codebuffLogo from '../../assets/images/codebuff.png';
 import type { UiProvider } from './meta';
 
 export type ProviderAsset = { logo: string; alt: string; invertInDark?: boolean; name: string };
@@ -36,4 +36,5 @@ export const providerAssets: Record<UiProvider, ProviderAsset> = {
   kiro: { name: 'Amazon Web Services', logo: kiroLogo, alt: 'Kiro CLI' },
   rovo: { name: 'Atlassian', logo: atlassianLogo, alt: 'Rovo Dev CLI' },
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
+  codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
 };

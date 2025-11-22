@@ -498,7 +498,6 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                                   </span>
                                 </div>
                               </button>
-                              {/* Context lines */}
                               {isExpanded &&
                                 section.lines.map((l, idx) => (
                                   <HighlightedLine
@@ -542,7 +541,6 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
                             return (
                               <div key={`context-r-${sectionIdx}`}>
-                                {/* Collapsible header */}
                                 <button
                                   onClick={() => {
                                     const newExpanded = new Set(expandedSections);
@@ -568,7 +566,6 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                                     </span>
                                   </div>
                                 </button>
-                                {/* Context lines */}
                                 {isExpanded &&
                                   section.lines.map((l, idx) => (
                                     <HighlightedLine

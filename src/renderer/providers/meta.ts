@@ -125,4 +125,10 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = {
     terminalOnly: true,
     cli: 'cline',
   },
+  codebuff: {
+    label: reg('codebuff')?.name ?? 'Codebuff',
+    icon: '../../assets/images/codebuff.png',
+    terminalOnly: true,
+    cli: 'codebuff',
+  },
 };

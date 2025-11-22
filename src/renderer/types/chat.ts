@@ -31,6 +31,7 @@ export interface WorkspaceMetadata {
       | 'kiro'
       | 'rovo'
       | 'cline'
+      | 'codebuff'
     >;
     variants: Array<{
       id: string;
@@ -50,7 +51,8 @@ export interface WorkspaceMetadata {
         | 'kimi'
         | 'kiro'
         | 'rovo'
-        | 'cline';
+        | 'cline'
+        | 'codebuff';
       name: string; // worktree display name, e.g. workspaceName-providerSlug
       branch: string;
       path: string; // filesystem path of the worktree
@@ -73,6 +75,7 @@ export interface WorkspaceMetadata {
       | 'kiro'
       | 'rovo'
       | 'cline'
+      | 'codebuff'
       | null;
   } | null;
 }
