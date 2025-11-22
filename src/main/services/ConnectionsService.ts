@@ -95,7 +95,9 @@ class ConnectionsService {
       exitStatus: commandResult.status,
       stderr: commandResult.stderr ? truncate(commandResult.stderr) : null,
       stdout: commandResult.stdout ? truncate(commandResult.stdout) : null,
-      error: commandResult.error ? String(commandResult.error?.message || commandResult.error) : null,
+      error: commandResult.error
+        ? String(commandResult.error?.message || commandResult.error)
+        : null,
       pathEnvContainsNvm: process.env.PATH?.includes('.nvm/versions'),
       timedOut: commandResult.timedOut === true,
       timeoutMs,
@@ -111,12 +113,10 @@ class ConnectionsService {
       const retryDelayMs = 1500;
       const retryTimeoutMs = Math.max(timeoutMs * 2, 12000);
       setTimeout(() => {
-        void this
-          .checkProvider(providerId, 'timeout-retry', {
-            timeoutMs: retryTimeoutMs,
-            allowRetry: false,
-          })
-          .finally(() => this.timeoutRetryPending.delete(providerId));
+        void this.checkProvider(providerId, 'timeout-retry', {
+          timeoutMs: retryTimeoutMs,
+          allowRetry: false,
+        }).finally(() => this.timeoutRetryPending.delete(providerId));
       }, retryDelayMs);
     }
   }
@@ -195,10 +195,18 @@ class ConnectionsService {
     }
 
     // Return the last attempted command (or default) as missing
-    return this.runCommand(def.commands[def.commands.length - 1], def.args ?? ['--version'], timeoutMs);
+    return this.runCommand(
+      def.commands[def.commands.length - 1],
+      def.args ?? ['--version'],
+      timeoutMs
+    );
   }
 
-  private async runCommand(command: string, args: string[], timeoutMs: number): Promise<CommandResult> {
+  private async runCommand(
+    command: string,
+    args: string[],
+    timeoutMs: number
+  ): Promise<CommandResult> {
     const resolvedPath = this.resolveCommandPath(command);
     return new Promise((resolve) => {
       try {
