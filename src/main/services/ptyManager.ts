@@ -11,7 +11,7 @@ const AUTO_APPROVE_FLAGS: Record<string, string> = {
   opencode: '-p',
   gemini: '--yolomode',
   'cursor-agent': '-p',
-  acli: '--yolo', // Rovo Dev uses 'acli rovodev run --yolo'
+  acli: '--yolo', 
 };
 
 type PtyRecord = {
