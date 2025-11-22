@@ -15,9 +15,7 @@ const DefaultProviderSettingsCard: React.FC = () => {
       const res = await window.electronAPI.getSettings();
       if (res?.success && res.settings?.defaultProvider) {
         const provider = res.settings.defaultProvider;
-        setDefaultProvider(
-          isValidProviderId(provider) ? (provider as Provider) : DEFAULT_PROVIDER
-        );
+        setDefaultProvider(isValidProviderId(provider) ? (provider as Provider) : DEFAULT_PROVIDER);
       } else {
         setDefaultProvider(DEFAULT_PROVIDER);
       }
