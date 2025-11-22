@@ -40,6 +40,7 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          defaultProvider?: string;
         };
         error?: string;
       }>;
@@ -55,6 +56,7 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          defaultProvider?: string;
         }>
       ) => Promise<{
         success: boolean;
@@ -69,6 +71,7 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          defaultProvider?: string;
         };
         error?: string;
       }>;
