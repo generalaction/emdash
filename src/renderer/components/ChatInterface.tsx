@@ -238,7 +238,7 @@ const ChatInterface: React.FC<Props> = ({
       if (statuses && statuses[provider]) return;
       missingCheckRequested = true;
       try {
-        const refreshed = await api.getProviderStatuses({ refresh: true });
+        const refreshed = await api.getProviderStatuses({ refresh: true, providers: [provider] });
         if (cancelled) return;
         if (refreshed?.success) {
           applyStatuses(refreshed.statuses ?? {});
@@ -287,6 +287,44 @@ const ChatInterface: React.FC<Props> = ({
       off?.();
     };
   }, [provider, workspace.id]);
+
+  // If we don't even have a cached status entry for the current provider, pessimistically
+  // show the install banner and kick off a background refresh to populate it.
+  useEffect(() => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.getProviderStatuses) {
+      setIsProviderInstalled(false);
+      return;
+    }
+    if (providerStatuses[provider]) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsProviderInstalled(false);
+
+    (async () => {
+      try {
+        const res = await api.getProviderStatuses({ refresh: true, providers: [provider] });
+        if (cancelled) return;
+        if (res?.success) {
+          const statuses = res.statuses ?? {};
+          setProviderStatuses(statuses);
+          const installed = statuses?.[provider]?.installed === true;
+          setIsProviderInstalled(installed);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setIsProviderInstalled(false);
+        }
+        console.error('Provider status refresh (missing entry) failed', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [provider, providerStatuses, setProviderStatuses]);
 
   // When switching providers, ensure other streams are stopped
   useEffect(() => {

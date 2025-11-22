@@ -481,7 +481,11 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
-      getProviderStatuses?: (opts?: { refresh?: boolean }) => Promise<{
+      getProviderStatuses?: (opts?: {
+        refresh?: boolean;
+        providers?: string[];
+        providerId?: string;
+      }) => Promise<{
         success: boolean;
         statuses?: Record<
           string,
@@ -647,7 +651,11 @@ export interface ElectronAPI {
     branch?: string;
     error?: string;
   }>;
-  getProviderStatuses?: (opts?: { refresh?: boolean }) => Promise<{
+  getProviderStatuses?: (opts?: {
+    refresh?: boolean;
+    providers?: string[];
+    providerId?: string;
+  }) => Promise<{
     success: boolean;
     statuses?: Record<
       string,

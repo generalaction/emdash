@@ -220,7 +220,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   jiraInitialFetch: (limit?: number) => ipcRenderer.invoke('jira:initialFetch', limit),
   jiraSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
-  getProviderStatuses: (opts?: { refresh?: boolean }) =>
+  getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   // Database methods
   getProjects: () => ipcRenderer.invoke('db:getProjects'),

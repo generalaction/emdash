@@ -6,6 +6,7 @@ import {
   listDetectableProviders,
   type ProviderDefinition,
 } from '@shared/providers/registry';
+import { log } from '../lib/logger';
 
 export type CliStatusCode = 'connected' | 'missing' | 'needs_key' | 'error';
 
@@ -36,7 +37,14 @@ interface CommandResult {
   status: number | null;
   version: string | null;
   resolvedPath: string | null;
+  timedOut?: boolean;
+  timeoutMs?: number;
 }
+
+const truncate = (input: string, max = 400): string =>
+  input && input.length > max ? `${input.slice(0, max)}…` : input;
+
+const DEFAULT_TIMEOUT_MS = 3000;
 
 export const CLI_DEFINITIONS: CliDefinition[] = listDetectableProviders().map((provider) => ({
   id: provider.id,
@@ -50,6 +58,7 @@ export const CLI_DEFINITIONS: CliDefinition[] = listDetectableProviders().map((p
 
 class ConnectionsService {
   private initialized = false;
+  private timeoutRetryPending = new Set<string>();
 
   async initProviderStatusCache() {
     if (this.initialized) return;
@@ -65,24 +74,70 @@ class ConnectionsService {
     return providerStatusCache.getAll();
   }
 
-  async checkProvider(providerId: string, _reason: 'bootstrap' | 'manual' = 'manual') {
+  async checkProvider(
+    providerId: string,
+    reason: 'bootstrap' | 'manual' | 'timeout-retry' = 'manual',
+    opts?: { timeoutMs?: number; allowRetry?: boolean }
+  ) {
     const def = CLI_DEFINITIONS.find((d) => d.id === providerId);
     if (!def) return;
-    const commandResult = await this.tryCommands(def);
+    const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const commandResult = await this.tryCommands(def, timeoutMs);
     const statusCode = await this.resolveStatus(def, commandResult);
     this.cacheStatus(def.id, commandResult, statusCode);
+    log.info('provider:check', {
+      providerId: def.id,
+      status: statusCode,
+      command: commandResult.command,
+      resolvedPath: commandResult.resolvedPath,
+      success: commandResult.success,
+      version: commandResult.version,
+      exitStatus: commandResult.status,
+      stderr: commandResult.stderr ? truncate(commandResult.stderr) : null,
+      stdout: commandResult.stdout ? truncate(commandResult.stdout) : null,
+      error: commandResult.error ? String(commandResult.error?.message || commandResult.error) : null,
+      pathEnvContainsNvm: process.env.PATH?.includes('.nvm/versions'),
+      timedOut: commandResult.timedOut === true,
+      timeoutMs,
+      reason,
+    });
+
+    const shouldRetryTimeout =
+      commandResult.timedOut &&
+      (commandResult.resolvedPath || commandResult.stdout) &&
+      opts?.allowRetry !== false;
+    if (shouldRetryTimeout && !this.timeoutRetryPending.has(providerId)) {
+      this.timeoutRetryPending.add(providerId);
+      const retryDelayMs = 1500;
+      const retryTimeoutMs = Math.max(timeoutMs * 2, 12000);
+      setTimeout(() => {
+        void this
+          .checkProvider(providerId, 'timeout-retry', {
+            timeoutMs: retryTimeoutMs,
+            allowRetry: false,
+          })
+          .finally(() => this.timeoutRetryPending.delete(providerId));
+      }, retryDelayMs);
+    }
   }
 
   async refreshAllProviderStatuses(): Promise<Record<string, ProviderStatus>> {
+    log.info('provider:refreshAll:start');
     await Promise.all(
       CLI_DEFINITIONS.map((definition) => this.checkProvider(definition.id, 'manual'))
     );
+    log.info('provider:refreshAll:done');
     return this.getCachedProviderStatuses();
   }
 
   private async resolveStatus(def: CliDefinition, result: CommandResult): Promise<CliStatusCode> {
     if (def.statusResolver) {
       return def.statusResolver(result);
+    }
+
+    if (result.timedOut && (result.resolvedPath || result.stdout)) {
+      // CLI responded or was found, but took too long (e.g., self-updating). Treat as present.
+      return 'connected';
     }
 
     if (result.success) {
@@ -126,9 +181,9 @@ class ConnectionsService {
     return null;
   }
 
-  private async tryCommands(def: CliDefinition): Promise<CommandResult> {
+  private async tryCommands(def: CliDefinition, timeoutMs: number): Promise<CommandResult> {
     for (const command of def.commands) {
-      const result = await this.runCommand(command, def.args ?? ['--version']);
+      const result = await this.runCommand(command, def.args ?? ['--version'], timeoutMs);
       if (result.success) {
         return result;
       }
@@ -140,10 +195,10 @@ class ConnectionsService {
     }
 
     // Return the last attempted command (or default) as missing
-    return this.runCommand(def.commands[def.commands.length - 1], def.args ?? ['--version']);
+    return this.runCommand(def.commands[def.commands.length - 1], def.args ?? ['--version'], timeoutMs);
   }
 
-  private async runCommand(command: string, args: string[]): Promise<CommandResult> {
+  private async runCommand(command: string, args: string[], timeoutMs: number): Promise<CommandResult> {
     const resolvedPath = this.resolveCommandPath(command);
     return new Promise((resolve) => {
       try {
@@ -153,11 +208,11 @@ class ConnectionsService {
         let stderr = '';
         let didTimeout = false;
 
-        // timeout for version checks
+        // timeout for version checks (some CLIs can start slowly)
         const timeoutId = setTimeout(() => {
           didTimeout = true;
           child.kill();
-        }, 2000);
+        }, timeoutMs);
 
         child.stdout?.on('data', (data) => {
           stdout += data.toString();
@@ -178,6 +233,8 @@ class ConnectionsService {
             status: null,
             version: null,
             resolvedPath,
+            timedOut: didTimeout,
+            timeoutMs,
           });
         });
 
@@ -196,6 +253,8 @@ class ConnectionsService {
             status: code,
             version,
             resolvedPath,
+            timedOut: didTimeout,
+            timeoutMs,
           });
         });
       } catch (error) {
@@ -208,6 +267,8 @@ class ConnectionsService {
           status: null,
           version: null,
           resolvedPath,
+          timedOut: false,
+          timeoutMs,
         });
       }
     });
