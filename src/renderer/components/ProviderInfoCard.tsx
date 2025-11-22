@@ -87,6 +87,11 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     description:
       "Atlassian's Rovo Dev CLI brings an AI assistant to your terminal, integrated with Jira, Confluence, and Bitbucket via the Atlassian Command Line Interface (ACLI).",
   },
+  cline: {
+    title: 'Cline',
+    description:
+      'Cline CLI runs AI coding agents directly in your terminal. Supports multiple model providers, runs multiple instances simultaneously for parallel development, and integrates into existing shell workflows.',
+  },
 };
 
 type Props = {

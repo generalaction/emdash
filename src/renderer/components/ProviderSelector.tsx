@@ -22,6 +22,7 @@ import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
+import clineLogo from '../../assets/images/cline.png';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -119,6 +120,12 @@ const providerConfig = {
     name: 'Rovo Dev',
     logo: atlassianLogo,
     alt: 'Rovo Dev CLI',
+    invertInDark: false,
+  },
+  cline: {
+    name: 'Cline',
+    logo: clineLogo,
+    alt: 'Cline CLI',
     invertInDark: false,
   },
 } as const;
