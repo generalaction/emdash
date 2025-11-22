@@ -115,11 +115,10 @@ export function registerDatabaseIpc() {
   ipcMain.handle('db:deleteWorkspace', async (_, workspaceId: string) => {
     try {
       // Stop any running Docker container for this workspace before deletion
-      try {
-        await containerRunnerService.stopRun(workspaceId);
-      } catch (containerError) {
+      const stopResult = await containerRunnerService.stopRun(workspaceId);
+      if (!stopResult.ok) {
         // Log but don't fail workspace deletion if container stop fails
-        log.warn('Failed to stop container during workspace deletion:', containerError);
+        log.warn('Failed to stop container during workspace deletion:', stopResult.error);
       }
 
       await databaseService.deleteWorkspace(workspaceId);
