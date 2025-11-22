@@ -1,6 +1,8 @@
 import { app } from 'electron';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
+import type { ProviderId } from '@shared/providers/registry';
+import { PROVIDER_IDS } from '@shared/providers/registry';
 
 export interface RepositorySettings {
   branchTemplate: string; // e.g., 'agent/{slug}-{timestamp}'
@@ -26,6 +28,7 @@ export interface AppSettings {
       installHintsDismissed?: Record<string, boolean>;
     };
   };
+  defaultProvider?: ProviderId;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -50,6 +53,7 @@ const DEFAULT_SETTINGS: AppSettings = {
       installHintsDismissed: {},
     },
   },
+  defaultProvider: 'codex',
 };
 
 function getSettingsPath(): string {
@@ -182,5 +186,18 @@ function normalizeSettings(input: AppSettings): AppSettings {
           : {},
     },
   };
+
+  // Default provider
+  const defaultProvider = (input as any)?.defaultProvider;
+  if (
+    defaultProvider &&
+    typeof defaultProvider === 'string' &&
+    PROVIDER_IDS.includes(defaultProvider as ProviderId)
+  ) {
+    out.defaultProvider = defaultProvider as ProviderId;
+  } else {
+    out.defaultProvider = DEFAULT_SETTINGS.defaultProvider!;
+  }
+
   return out;
 }
