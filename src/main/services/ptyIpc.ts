@@ -183,8 +183,7 @@ function maybeMarkProviderFinish(
 
   const duration = started ? Math.max(0, Date.now() - started) : undefined;
   const wasSignaled = signal !== undefined && signal !== null;
-  const outcome =
-    typeof exitCode === 'number' && exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
+  const outcome = typeof exitCode === 'number' && exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
 
   telemetry.capture('agent_run_finish', {
     provider: parsed.providerId,
