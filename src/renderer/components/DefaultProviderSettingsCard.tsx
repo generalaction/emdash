@@ -35,27 +35,22 @@ const DefaultProviderSettingsCard: React.FC = () => {
     void load();
   }, [load]);
 
-  const save = useCallback(
-    async (provider: Provider) => {
-      setSaving(true);
-      try {
-        const res = await window.electronAPI.updateSettings({ defaultProvider: provider });
-        if (res?.success && res.settings?.defaultProvider) {
-          setDefaultProvider(res.settings.defaultProvider as Provider);
-        }
-      } finally {
-        setSaving(false);
+  const save = useCallback(async (provider: Provider) => {
+    setSaving(true);
+    try {
+      const res = await window.electronAPI.updateSettings({ defaultProvider: provider });
+      if (res?.success && res.settings?.defaultProvider) {
+        setDefaultProvider(res.settings.defaultProvider as Provider);
       }
-    },
-    []
-  );
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
   return (
     <div className="space-y-3">
       <div className="space-y-1 text-xs text-muted-foreground">
-        <div>
-          The provider that will be selected by default when creating a new task.
-        </div>
+        <div>The provider that will be selected by default when creating a new task.</div>
       </div>
       <div className="w-full max-w-xs">
         <ProviderSelector
