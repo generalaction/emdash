@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
@@ -14,6 +14,12 @@ import { providerMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
+import {
+  ensureUniqueWorkspaceName,
+  generateFriendlyWorkspaceName,
+  normalizeWorkspaceName,
+  MAX_WORKSPACE_NAME_LENGTH,
+} from '../lib/workspaceNames';
 
 const DEFAULT_PROVIDER: Provider = 'codex';
 import { LinearIssueSelector } from './LinearIssueSelector';
@@ -79,33 +85,25 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     activeProviders.every((providerId) => !!providerMeta[providerId]?.autoApproveFlag);
   const shouldReduceMotion = useReducedMotion();
 
-  const normalizedExisting = existingNames.map((n) => n.toLowerCase());
+  const normalizedExisting = useMemo(
+    () => existingNames.map((n) => normalizeWorkspaceName(n)).filter(Boolean),
+    [existingNames]
+  );
 
-  const convertToWorkspaceName = (input: string): string => {
-    return input
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9-]/g, '')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  };
-
-  const validate = (value: string): string | null => {
-    const name = value.trim();
-    if (!name) return 'Please enter a Task name.';
-
-    const convertedName = convertToWorkspaceName(name);
-    if (!convertedName) return 'Please enter a valid Task name.';
-
-    if (normalizedExisting.includes(convertedName)) {
-      return 'A Task with this name already exists.';
-    }
-    if (convertedName.length > 64) {
-      return 'Task name is too long (max 64 characters).';
-    }
-    return null;
-  };
+  const validate = useCallback(
+    (value: string): string | null => {
+      const normalized = normalizeWorkspaceName(value);
+      if (!normalized) return 'Please enter a Task name.';
+      if (normalizedExisting.includes(normalized)) {
+        return 'A Task with this name already exists.';
+      }
+      if (normalized.length > MAX_WORKSPACE_NAME_LENGTH) {
+        return `Task name is too long (max ${MAX_WORKSPACE_NAME_LENGTH} characters).`;
+      }
+      return null;
+    },
+    [normalizedExisting]
+  );
 
   const onChange = (val: string) => {
     if (!touched) setTouched(true);
@@ -117,8 +115,15 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     if (!isOpen) {
       setSelectedLinearIssue(null);
       setSelectedGithubIssue(null);
+      return;
     }
-  }, [isOpen]);
+    if (!workspaceName) {
+      const suggested = generateFriendlyWorkspaceName(normalizedExisting);
+      setWorkspaceName(suggested);
+      setError(validate(suggested));
+      setTouched(false);
+    }
+  }, [isOpen, normalizedExisting, validate, workspaceName]);
 
   // Load default provider from settings when modal opens
   useEffect(() => {
@@ -233,7 +238,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     (async () => {
                       try {
                         await onCreateWorkspace(
-                          convertToWorkspaceName(workspaceName),
+                          normalizeWorkspaceName(workspaceName),
                           showAdvanced ? initialPrompt.trim() || undefined : undefined,
                           selectedProvider,
                           selectedLinearIssue,
@@ -297,7 +302,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     <div className="flex items-center space-x-2 rounded-lg bg-gray-100 p-3 dark:bg-gray-700">
                       <GitBranch className="h-4 w-4 flex-shrink-0 text-gray-500" />
                       <span className="overflow-hidden break-all text-sm text-gray-600 dark:text-gray-400">
-                        {convertToWorkspaceName(workspaceName)}
+                        {normalizeWorkspaceName(workspaceName)}
                       </span>
                     </div>
                   )}
