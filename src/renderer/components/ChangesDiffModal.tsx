@@ -105,7 +105,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [isDark, setIsDark] = useState(false);
 
-  // Detect if dark mode is active (reactive)
+  // Detect if dark mode is active
   useEffect(() => {
     if (typeof window === 'undefined') return;
 

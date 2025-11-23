@@ -87,6 +87,7 @@
     "drizzle-orm": "^0.32.1",
     "electron-updater": "^6.3.9",
     "fix-path": "^4.0.0",
+    "human-id": "^4.1.2",
     "keytar": "^7.9.0",
     "lucide-react": "^0.294.0",
     "motion": "^12.23.12",
