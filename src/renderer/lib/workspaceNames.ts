@@ -1,3 +1,10 @@
+import { humanId } from 'human-id';
+
+export type WorkspaceNameGenerator = (
+  existingNames: Iterable<string>,
+  options?: { seed?: number }
+) => string;
+
 const ADJECTIVES = [
   'curious',
   'brisk',
@@ -81,11 +88,12 @@ export const ensureUniqueWorkspaceName = (
 const pick = (list: readonly string[], rnd: () => number) =>
   list[Math.floor(rnd() * list.length)] || '';
 
-export const generateFriendlyWorkspaceName = (
-  existingNames: Iterable<string> = [],
-  seed?: number
-): string => {
-  let currentSeed = seed ?? Math.random();
+const wordlistGenerator: WorkspaceNameGenerator = (existingNames, options) => {
+  const taken = new Set(
+    Array.from(existingNames || [], (n) => normalizeWorkspaceName(n)).filter(Boolean)
+  );
+
+  let currentSeed = options?.seed ?? Math.random();
   const rng = () => {
     currentSeed = (currentSeed * 9301 + 49297) % 233280;
     return currentSeed / 233280;
@@ -93,9 +101,51 @@ export const generateFriendlyWorkspaceName = (
 
   for (let i = 0; i < 8; i++) {
     const candidate = `${pick(ADJECTIVES, rng)}-${pick(NOUNS, rng)}`;
-    const unique = ensureUniqueWorkspaceName(candidate, existingNames);
-    if (unique) return unique;
+    const normalized = normalizeWorkspaceName(candidate);
+    if (normalized && !taken.has(normalized)) {
+      return candidate;
+    }
   }
 
-  return ensureUniqueWorkspaceName('workspace', existingNames);
+  return 'workspace';
+};
+
+const humanIdGenerator: WorkspaceNameGenerator = () => {
+  // human-id already filters for SFW words; leave normalization/uniqueness to the wrapper
+  return humanId({ separator: '-', capitalize: false });
+};
+
+let activeGenerator: WorkspaceNameGenerator = humanIdGenerator;
+
+export const setWorkspaceNameGenerator = (generator: WorkspaceNameGenerator | null | undefined) => {
+  activeGenerator = generator || humanIdGenerator;
+};
+
+export const generateFriendlyWorkspaceName = (
+  existingNames: Iterable<string> = [],
+  options?: { generator?: WorkspaceNameGenerator; seed?: number }
+): string => {
+  const generator = options?.generator || activeGenerator;
+  const seed = options?.seed;
+
+  const existingArray = Array.from(existingNames || []);
+
+  const runGenerator = (gen: WorkspaceNameGenerator): string => {
+    try {
+      const raw = gen(existingArray, { seed });
+      const normalized = normalizeWorkspaceName(raw);
+      if (normalized) {
+        return ensureUniqueWorkspaceName(normalized, existingArray);
+      }
+    } catch {
+      // fall through to fallback
+    }
+    const fallbackRaw = wordlistGenerator(existingArray, { seed });
+    return ensureUniqueWorkspaceName(fallbackRaw, existingArray);
+  };
+
+  const primary = runGenerator(generator);
+  if (primary) return primary;
+
+  return runGenerator(wordlistGenerator);
 };
