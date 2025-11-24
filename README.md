@@ -27,7 +27,7 @@
 
 **Run multiple coding agents in parallel—provider-agnostic, worktree-isolated, and local-first.**
 
-Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 10+ CLIs, such as Claude Code and Codex) and runs each agent in its own Git worktree to keep changes clean; when the environment matters, you can run a PR in its own Docker container. Hand off Linear, GitHub, or Jira tickets to an agent, review diffs side-by-side, and keep everything local.
+Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 15+ CLIs, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; when the environment matters, you can run a PR in its own Docker container. Hand off Linear, GitHub, or Jira tickets to an agent, review diffs side-by-side, and keep everything local.
 
 <div align="center" style="margin:24px 0;">
 
