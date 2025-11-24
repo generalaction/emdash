@@ -61,3 +61,5 @@ Thumbs.db
 worktrees/
 
 /container.md
+
+.env

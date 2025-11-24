@@ -61,6 +61,10 @@ import { registerAllIpc } from './ipc';
 import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import * as telemetry from './telemetry';
+// Load .env if present (local dev); safe no-op in production
+try {
+  require('dotenv').config();
+} catch {}
 
 // App bootstrap
 app.whenReady().then(async () => {

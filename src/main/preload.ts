@@ -171,6 +171,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTelemetryEnabled: (enabled: boolean) => ipcRenderer.invoke('telemetry:set-enabled', enabled),
   setSessionRecordingOptIn: (enabled: boolean) =>
     ipcRenderer.invoke('telemetry:set-session-recording', enabled),
+  getTelemetryClientConfig: () => ipcRenderer.invoke('telemetry:get-client-config'),
   connectToGitHub: (projectPath: string) => ipcRenderer.invoke('github:connect', projectPath),
   onRunEvent: (callback: (event: any) => void) => {
     ipcRenderer.on('run:event', (_, event) => callback(event));

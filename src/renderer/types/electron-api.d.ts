@@ -351,6 +351,17 @@ declare global {
         };
         error?: string;
       }>;
+      getTelemetryClientConfig: () => Promise<{
+        success: boolean;
+        config?: {
+          enabled: boolean;
+          host?: string;
+          apiKey?: string;
+          distinctId?: string;
+          sessionRecordingOptIn?: boolean;
+        };
+        error?: string;
+      }>;
 
       // Filesystem helpers
       fsList: (
@@ -703,6 +714,17 @@ export interface ElectronAPI {
       envDisabled: boolean;
       userOptOut: boolean;
       hasKeyAndHost: boolean;
+      sessionRecordingOptIn?: boolean;
+    };
+    error?: string;
+  }>;
+  getTelemetryClientConfig: () => Promise<{
+    success: boolean;
+    config?: {
+      enabled: boolean;
+      host?: string;
+      apiKey?: string;
+      distinctId?: string;
       sessionRecordingOptIn?: boolean;
     };
     error?: string;

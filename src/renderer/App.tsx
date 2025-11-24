@@ -39,6 +39,7 @@ import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
+import { syncSessionRecordingFromMain } from './lib/sessionRecording';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -452,6 +453,10 @@ const AppContent: React.FC = () => {
 
     loadAppData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    void syncSessionRecordingFromMain();
   }, []);
 
   const handleOpenProject = async () => {
