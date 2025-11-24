@@ -56,9 +56,9 @@ export const ProviderBar: React.FC<Props> = ({
   onApprovePlan,
   autoApprove,
 }) => {
-  const [c7Enabled, setC7Enabled] = React.useState<boolean>(false); // global setting
+  const [c7Enabled, setC7Enabled] = React.useState<boolean>(false);
   const [c7Busy, setC7Busy] = React.useState<boolean>(false);
-  const [c7WorkspaceEnabled, setC7WorkspaceEnabled] = React.useState<boolean>(false); // per workspace visual enable
+  const [c7WorkspaceEnabled, setC7WorkspaceEnabled] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     let cancelled = false;

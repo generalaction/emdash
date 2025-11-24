@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { type UiProvider, providerMeta } from '@/providers/meta';
+import { type UiProvider } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';

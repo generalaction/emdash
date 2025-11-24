@@ -1,4 +1,4 @@
-import { getDocUrlForProvider, getProvider, type ProviderId } from '@shared/providers/registry';
+import { getProvider, type ProviderId } from '@shared/providers/registry';
 
 export type UiProvider = ProviderId;
 
@@ -16,7 +16,6 @@ export type ProviderMeta = {
   autoApproveFlag?: string;
 };
 
-const FALLBACK_LABEL = 'Provider';
 const reg = (id: UiProvider) => getProvider(id);
 
 export const providerMeta: Record<UiProvider, ProviderMeta> = {

@@ -21,7 +21,6 @@ interface Props {
 }
 
 const BrowserToggleButton: React.FC<Props> = ({
-  defaultUrl,
   workspaceId,
   workspacePath,
   parentProjectPath,

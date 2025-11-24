@@ -628,7 +628,6 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                               {editorValue || ' '}
                             </SyntaxHighlighter>
                           </div>
-                          {/* Editable textarea overlay */}
                           <textarea
                             ref={textareaRef}
                             className="relative h-full w-full resize-none border-0 bg-transparent p-3 font-mono text-[12px] leading-5 text-transparent caret-gray-900 outline-none dark:caret-gray-100"

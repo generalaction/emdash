@@ -8,7 +8,6 @@ import { TerminalPane } from './TerminalPane';
 import { providerMeta } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
-import { useToast } from '@/hooks/use-toast';
 import { classifyActivity } from '@/lib/activityClassifier';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';

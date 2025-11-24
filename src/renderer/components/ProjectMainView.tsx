@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
-import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';

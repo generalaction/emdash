@@ -15,7 +15,6 @@ import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import {
-  ensureUniqueWorkspaceName,
   generateFriendlyWorkspaceName,
   normalizeWorkspaceName,
   MAX_WORKSPACE_NAME_LENGTH,
