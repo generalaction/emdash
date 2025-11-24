@@ -3,13 +3,14 @@ Telemetry
 Overview
 - Emdash collects anonymous usage telemetry to improve the app.
 - Telemetry defaults to enabled and can be disabled via `TELEMETRY_ENABLED=false`.
-- Data is sent to PostHog using explicit, allowlisted events only. There is no autocapture or session recording enabled in the app.
+- Data is sent to PostHog using explicit, allowlisted events only. Autocapture is disabled. Session recording is OFF by default and requires an explicit user opt-in plus PostHog keys/host.
 
 Environment variables (users)
 - `TELEMETRY_ENABLED` (default: `true`): set to `false` to disable.
+- `POSTHOG_PROJECT_API_KEY`, `POSTHOG_HOST` (optional): only needed to test telemetry/session recording locally; otherwise official builds inject these via CI.
 
 Maintainers
-- Official builds inject the PostHog host and project key via CI. Local development does not send telemetry unless credentials are added explicitly for testing.
+- Official builds inject the PostHog host and project key via CI (into `dist/main/appConfig.json`). Local development does not send telemetry unless credentials are added explicitly for testing (e.g., `.env` or shell env vars).
 - Optional: `INSTALL_SOURCE` can label the distribution channel (e.g., `dmg`, `dev`).
 
 Events (and allowed properties)
@@ -32,7 +33,7 @@ Events (and allowed properties)
 
 Data not collected
 - No code, file paths, repository names, prompts, environment variables, or PII are sent.
-- Session recording is disabled; autocapture is disabled. We do not send user text input, file paths, or command contents.
+- Session recording is opt-in only and masked; autocapture is disabled. We do not send user text input, file paths, or command contents.
 - No geo/referrer enrichment is added; we do not attach IP-derived location data.
 
 Distinct ID
@@ -47,6 +48,12 @@ Renderer events (maintainers)
 - The renderer may request sending `feature_used` or `error` events via a constrained IPC channel handled in the main process.
 - Only allowlisted properties are forwarded; everything else is dropped by the sanitizer in the main process.
 - End-users do not need to take any action; telemetry remains optional and can be disabled as described above.
+
+Session recording (opt-in)
+- Off by default. Requires both: (a) telemetry enabled, (b) PostHog host/key present, and (c) user toggles “Session recording” on in Settings.
+- Masking defaults: all text, inputs, and images are masked; use the `emdash-sensitive` CSS class to block additional regions. Autocapture and pageview capture remain off.
+- Starts/stops dynamically in the renderer; disabling telemetry or removing keys stops recording. Opt-in state is persisted in `${appData}/telemetry.json`.
+- Uses the same anonymous `distinct_id` and never identifies users.
 
 Agent/provider usage
 - Coarse metadata only: provider id, start/end markers, outcome, and duration. No prompts, messages, file paths, workspace IDs, or other content are sent.
