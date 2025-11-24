@@ -95,7 +95,9 @@ const TelemetryCard: React.FC = () => {
       </div>
       <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/40 p-3">
         <div className="space-y-1 text-xs text-muted-foreground">
-          <p className="text-xs text-muted-foreground">Optional session data capture (fully masked, anonymous).</p>
+          <p className="text-xs text-muted-foreground">
+            Optional session data capture (fully masked, anonymous).
+          </p>
         </div>
         <div className="flex flex-col items-end gap-1">
           <Switch
