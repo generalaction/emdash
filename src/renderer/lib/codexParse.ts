@@ -1,9 +1,3 @@
-// Parse Codex CLI style output into reasoning + final response parts
-// Heuristics based on timestamped markers like:
-// [2025-09-17T22:13:26] thinking
-// ...reasoning markdown...
-// [2025-09-17T22:13:28] codex
-// ...final message...
 
 export interface ParsedCodexOutput {
   reasoning?: string;

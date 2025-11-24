@@ -14,7 +14,6 @@ export type GitChange = {
 };
 
 export async function getStatus(workspacePath: string): Promise<GitChange[]> {
-  // Return empty if not a git repo
   try {
     await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
       cwd: workspacePath,

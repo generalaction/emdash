@@ -4,7 +4,7 @@ import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
 import { Button } from '../ui/button';
 import { Inbox, Plus } from 'lucide-react';
-import { getAll, getStatus, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
+import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import {
   subscribeDerivedStatus,
   watchWorkspacePty,

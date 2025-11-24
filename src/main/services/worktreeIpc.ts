@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { worktreeService, WorktreeInfo } from './WorktreeService';
+import { worktreeService } from './WorktreeService';
 
 export function registerWorktreeIpc(): void {
   // Create a new worktree

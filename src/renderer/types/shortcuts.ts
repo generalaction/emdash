@@ -1,7 +1,3 @@
-/**
- * Keyboard shortcuts types
- */
-
 export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
 
 export interface ShortcutConfig {

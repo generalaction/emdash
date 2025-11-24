@@ -3,7 +3,7 @@ import React from 'react';
 type BrowserController = {
   isOpen: boolean;
   url: string | null;
-  widthPct: number; // 10..90
+  widthPct: number; 
   busy: boolean;
   open: (url?: string) => void;
   close: () => void;

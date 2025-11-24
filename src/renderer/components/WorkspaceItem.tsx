@@ -1,6 +1,5 @@
 import React from 'react';
 import { GitBranch } from 'lucide-react';
-// import { Bot } from 'lucide-react'; // Commented out - Bot icon removed per user request
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import { useWorkspaceChanges } from '../hooks/useWorkspaceChanges';
 import { ChangesBadge } from './WorkspaceChanges';

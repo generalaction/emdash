@@ -1,12 +1,6 @@
 import { useEffect } from 'react';
 import type { ShortcutConfig, GlobalShortcutHandlers, ShortcutMapping } from '../types/shortcuts';
 
-/**
- * ==============================================================================
- * SHORTCUTS CONFIGURATION (Single Source of Truth)
- * ==============================================================================
- */
-
 export const APP_SHORTCUTS = {
   // Command Palette
   COMMAND_PALETTE: {

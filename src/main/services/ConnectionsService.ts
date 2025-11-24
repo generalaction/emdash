@@ -2,7 +2,6 @@ import { spawn, execFileSync } from 'child_process';
 import { BrowserWindow } from 'electron';
 import { providerStatusCache, type ProviderStatus } from './providerStatusCache';
 import {
-  PROVIDERS,
   listDetectableProviders,
   type ProviderDefinition,
 } from '@shared/providers/registry';
