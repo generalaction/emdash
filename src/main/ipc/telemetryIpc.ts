@@ -5,6 +5,7 @@ import {
   getTelemetryStatus,
   setTelemetryEnabledViaUser,
   setSessionRecordingOptIn,
+  getTelemetryClientConfig,
 } from '../telemetry';
 
 export function registerTelemetryIpc() {
@@ -46,6 +47,14 @@ export function registerTelemetryIpc() {
       return { success: true, status: getTelemetryStatus() };
     } catch (e: any) {
       return { success: false, error: e?.message || 'update_failed' };
+    }
+  });
+
+  ipcMain.handle('telemetry:get-client-config', async () => {
+    try {
+      return { success: true, config: getTelemetryClientConfig() };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'config_failed' };
     }
   });
 }

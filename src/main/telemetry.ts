@@ -405,3 +405,13 @@ function normalizeHost(h: string | undefined): string | undefined {
   }
   return s.replace(/\/+$/, '');
 }
+
+export function getTelemetryClientConfig() {
+  return {
+    enabled: isEnabled(),
+    host,
+    apiKey,
+    distinctId: instanceId,
+    sessionRecordingOptIn,
+  };
+}
