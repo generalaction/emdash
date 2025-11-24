@@ -510,7 +510,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             <div className="space-y-6">
               <div className="space-y-3">
                 <div className="flex items-center justify-start gap-3">
-                  <h2 className="text-lg font-semibold">Workspaces</h2>
+                  <h2 className="text-lg font-semibold">Tasks</h2>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -526,7 +526,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     ) : (
                       <>
                         <Plus className="mr-2 size-4" />
-                        Create workspace
+                        Create Task
                       </>
                     )}
                   </Button>
