@@ -19,6 +19,11 @@ declare global {
       getAppVersion: () => Promise<string>;
       getElectronVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
+      // Path and Dialog helpers
+      getPath: (name: string) => Promise<string | null>;
+      showOpenDialog: (
+        options: Electron.OpenDialogOptions
+      ) => Promise<Electron.OpenDialogReturnValue>;
       // Updater
       checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -532,6 +537,9 @@ export interface ElectronAPI {
   // App info
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
+  // Path and Dialog helpers
+  getPath: (name: string) => Promise<string | null>;
+  showOpenDialog: (options: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
