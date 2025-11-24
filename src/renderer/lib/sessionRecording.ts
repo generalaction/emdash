@@ -70,13 +70,7 @@ export async function syncSessionRecordingFromMain(): Promise<void> {
   try {
     const res = await (window as any).electronAPI.getTelemetryClientConfig();
     const cfg = res?.config;
-    if (
-      res?.success &&
-      cfg?.enabled &&
-      cfg.sessionRecordingOptIn &&
-      cfg.host &&
-      cfg.apiKey
-    ) {
+    if (res?.success && cfg?.enabled && cfg.sessionRecordingOptIn && cfg.host && cfg.apiKey) {
       await enableSessionRecording({
         apiKey: cfg.apiKey,
         host: cfg.host,

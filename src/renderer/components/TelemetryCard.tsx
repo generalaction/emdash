@@ -16,8 +16,12 @@ const TelemetryCard: React.FC = () => {
     try {
       const res = await window.electronAPI.getTelemetryStatus();
       if (res.success && res.status) {
-        const { envDisabled: envOff, userOptOut, hasKeyAndHost, sessionRecordingOptIn } =
-          res.status;
+        const {
+          envDisabled: envOff,
+          userOptOut,
+          hasKeyAndHost,
+          sessionRecordingOptIn,
+        } = res.status;
         setEnvDisabled(Boolean(envOff));
         setHasKeyAndHost(Boolean(hasKeyAndHost));
         // Preference is enabled if env allows and user hasn't opted out.
