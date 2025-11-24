@@ -122,7 +122,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setError(validate(suggested));
       setTouched(false);
     }
-  }, [isOpen, normalizedExisting, validate, workspaceName]);
+  }, [isOpen, normalizedExisting, validate]);
 
   // Load default provider from settings when modal opens
   useEffect(() => {
