@@ -105,7 +105,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   );
 
   const onChange = (val: string) => {
-    if (!touched) setTouched(true);
     setWorkspaceName(val);
     setError(validate(val));
   };
@@ -285,16 +284,11 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       onChange={(e) => onChange(e.target.value)}
                       onBlur={() => setTouched(true)}
                       placeholder="e.g. refactorApiRoutes"
-                      className="w-full"
+                      className={`w-full ${touched && error ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
                       aria-invalid={touched && !!error}
                       aria-describedby="workspace-name-error"
                       autoFocus
                     />
-                    {touched && error && (
-                      <p id="workspace-name-error" className="mt-2 text-sm text-destructive">
-                        {error}
-                      </p>
-                    )}
                   </div>
 
                   {workspaceName && (
