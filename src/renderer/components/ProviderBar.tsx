@@ -58,7 +58,7 @@ export const ProviderBar: React.FC<Props> = ({
 }) => {
   const [c7Enabled, setC7Enabled] = React.useState<boolean>(false);
   const [c7Busy, setC7Busy] = React.useState<boolean>(false);
-  const [c7WorkspaceEnabled, setC7WorkspaceEnabled] = React.useState<boolean>(false); 
+  const [c7WorkspaceEnabled, setC7WorkspaceEnabled] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     let cancelled = false;

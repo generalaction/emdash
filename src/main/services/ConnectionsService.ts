@@ -1,10 +1,7 @@
 import { spawn, execFileSync } from 'child_process';
 import { BrowserWindow } from 'electron';
 import { providerStatusCache, type ProviderStatus } from './providerStatusCache';
-import {
-  listDetectableProviders,
-  type ProviderDefinition,
-} from '@shared/providers/registry';
+import { listDetectableProviders, type ProviderDefinition } from '@shared/providers/registry';
 import { log } from '../lib/logger';
 
 export type CliStatusCode = 'connected' | 'missing' | 'needs_key' | 'error';
