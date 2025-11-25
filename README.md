@@ -18,7 +18,7 @@
 <br />
 
   <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/media/downloadformacos.png" alt="Download app for macOS" height="40">
+    <img src="./docs/public/media/downloadformacos.png" alt="Download app for macOS" height="40">
   </a>
 
 </div>
