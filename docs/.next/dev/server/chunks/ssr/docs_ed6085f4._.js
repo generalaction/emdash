@@ -4207,31 +4207,31 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$node_modules$2f$fuma
 ;
 ;
 const create = (0, __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$node_modules$2f$fumadocs$2d$mdx$2f$dist$2f$chunk$2d$5OBUOALK$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["server"])({
-    "doc": {
-        "passthroughs": [
-            "extractedReferences"
+    doc: {
+        passthroughs: [
+            'extractedReferences'
         ]
     }
 });
-const docs = await create.docs("docs", "content/docs", {
-    "meta.json": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$meta$2e$json$2e$json$3f$collection$3d$docs__$28$json$29$__["default"],
-    "features/meta.json": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$meta$2e$json$2e$json$3f$collection$3d$docs__$28$json$29$__["default"],
-    "security/meta.json": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$security$2f$meta$2e$json$2e$json$3f$collection$3d$docs__$28$json$29$__["default"],
-    "get-started/meta.json": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$meta$2e$json$2e$json$3f$collection$3d$docs__$28$json$29$__["default"]
+const docs = await create.docs('docs', 'content/docs', {
+    'meta.json': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$meta$2e$json$2e$json$3f$collection$3d$docs__$28$json$29$__["default"],
+    'features/meta.json': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$meta$2e$json$2e$json$3f$collection$3d$docs__$28$json$29$__["default"],
+    'security/meta.json': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$security$2f$meta$2e$json$2e$json$3f$collection$3d$docs__$28$json$29$__["default"],
+    'get-started/meta.json': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$meta$2e$json$2e$json$3f$collection$3d$docs__$28$json$29$__["default"]
 }, {
-    "index.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$index$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "contributing/how-to-contribute.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$contributing$2f$how$2d$to$2d$contribute$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "features/best-of-n.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$best$2d$of$2d$n$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "features/containerization.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$containerization$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "features/diff-view.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$diff$2d$view$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "features/kanban-view.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$kanban$2d$view$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "features/parallel-agents.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$parallel$2d$agents$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "features/provider-agnostic.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$provider$2d$agnostic$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "get-started/index.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$index$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "get-started/installation.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$installation$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "get-started/pass-an-issue.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$pass$2d$an$2d$issue$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "get-started/tasks.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$tasks$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
-    "security/telemetry.mdx": __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$security$2f$telemetry$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__
+    'index.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$index$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'contributing/how-to-contribute.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$contributing$2f$how$2d$to$2d$contribute$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'features/best-of-n.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$best$2d$of$2d$n$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'features/containerization.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$containerization$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'features/diff-view.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$diff$2d$view$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'features/kanban-view.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$kanban$2d$view$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'features/parallel-agents.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$parallel$2d$agents$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'features/provider-agnostic.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$features$2f$provider$2d$agnostic$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'get-started/index.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$index$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'get-started/installation.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$installation$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'get-started/pass-an-issue.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$pass$2d$an$2d$issue$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'get-started/tasks.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$get$2d$started$2f$tasks$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__,
+    'security/telemetry.mdx': __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$content$2f$docs$2f$security$2f$telemetry$2e$mdx$2e$js$3f$collection$3d$docs__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__
 });
 __turbopack_async_result__();
 } catch(e) { __turbopack_async_result__(e); } }, true);}),

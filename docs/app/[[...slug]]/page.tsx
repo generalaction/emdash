@@ -1,19 +1,10 @@
 import { source } from '@/lib/source';
-import {
-  DocsPage,
-  DocsBody,
-  DocsDescription,
-  DocsTitle,
-} from 'fumadocs-ui/page';
+import { DocsPage, DocsBody, DocsDescription, DocsTitle } from 'fumadocs-ui/page';
 import { notFound } from 'next/navigation';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { Metadata } from 'next';
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ slug?: string[] }>;
-}) {
+export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params;
   const page = source.getPage(slug);
 

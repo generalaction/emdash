@@ -63,14 +63,14 @@ async function Page({ params }) {
                 children: page.data.title
             }, void 0, false, {
                 fileName: "[project]/docs/app/[[...slug]]/page.tsx",
-                lineNumber: 28,
+                lineNumber: 19,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$node_modules$2f$fumadocs$2d$ui$2f$dist$2f$page$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["DocsDescription"], {
                 children: page.data.description
             }, void 0, false, {
                 fileName: "[project]/docs/app/[[...slug]]/page.tsx",
-                lineNumber: 29,
+                lineNumber: 20,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$docs$2f$node_modules$2f$fumadocs$2d$ui$2f$dist$2f$page$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["DocsBody"], {
@@ -80,18 +80,18 @@ async function Page({ params }) {
                     }
                 }, void 0, false, {
                     fileName: "[project]/docs/app/[[...slug]]/page.tsx",
-                    lineNumber: 31,
+                    lineNumber: 22,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/docs/app/[[...slug]]/page.tsx",
-                lineNumber: 30,
+                lineNumber: 21,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/docs/app/[[...slug]]/page.tsx",
-        lineNumber: 27,
+        lineNumber: 18,
         columnNumber: 5
     }, this);
 }
