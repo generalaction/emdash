@@ -4,12 +4,7 @@ import { source } from '@/lib/source';
 import type * as PageTree from 'fumadocs-core/page-tree';
 import { useMemo } from 'react';
 import browserCollections from 'fumadocs-mdx:collections/browser';
-import {
-  DocsBody,
-  DocsDescription,
-  DocsPage,
-  DocsTitle,
-} from 'fumadocs-ui/page';
+import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import { baseOptions } from '@/lib/layout.shared';
 
@@ -49,10 +44,7 @@ const clientLoader = browserCollections.docs.createClientLoader({
 function Page() {
   const data = Route.useLoaderData();
   const Content = clientLoader.getComponent(data.path);
-  const tree = useMemo(
-    () => transformPageTree(data.tree as PageTree.Folder),
-    [data.tree],
-  );
+  const tree = useMemo(() => transformPageTree(data.tree as PageTree.Folder), [data.tree]);
 
   return (
     <DocsLayout {...baseOptions()} tree={tree}>
