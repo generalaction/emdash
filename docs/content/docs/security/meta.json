@@ -1,6 +1,4 @@
 {
   "title": "Security",
-  "pages": [
-    "telemetry"
-  ]
+  "pages": ["telemetry"]
 }

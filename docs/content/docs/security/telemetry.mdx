@@ -41,6 +41,7 @@ We only collect **anonymous, aggregated usage data** to understand how Emdash is
 #### App Lifecycle Events
 
 **`app_started`** (automatically on app launch)
+
 - `app_version` - Emdash version number
 - `electron_version` - Electron runtime version
 - `platform` - Operating system (macOS, Windows, Linux)
@@ -49,31 +50,38 @@ We only collect **anonymous, aggregated usage data** to understand how Emdash is
 - `install_source` - Distribution channel (dmg, dev, etc.)
 
 **`app_closed`** (automatically on app quit)
+
 - Same properties as `app_started`
 
 **`app_session`** (on quit; duration only)
+
 - `session_duration_ms` - How long the app was open
 
 #### Usage Events
 
 **`workspace_snapshot`** (early in app lifecycle)
+
 - `project_count` - Total number of projects
 - `project_count_bucket` - Coarse bucket (e.g., "1-5", "6-10")
 - `workspace_count` - Total number of workspaces
 - `workspace_count_bucket` - Coarse bucket
 
 **`feature_used`**
+
 - `feature` - Name of the feature (string)
 
 **`error`**
+
 - `type` - Error category (string, no stack traces or details)
 
 #### Agent Events
 
 **`agent_run_start`**
+
 - `provider` - CLI provider ID (e.g., "claude-code", "codex")
 
 **`agent_run_finish`**
+
 - `provider` - CLI provider ID
 - `outcome` - Result: `ok` or `error` (no details)
 - `duration_ms` - How long the agent ran (clamped, no content)
@@ -95,12 +103,14 @@ We take privacy seriously. The following data is **never** collected:
 ### Agent Usage Privacy
 
 When tracking agent usage, we only collect:
+
 - Provider name (e.g., "claude-code")
 - Start/finish timestamps
 - Success or failure outcome
 - Duration
 
 We **do not** collect:
+
 - Prompts or messages
 - Code changes
 - File paths
@@ -119,6 +129,7 @@ We **do not** collect:
 ### Data Sanitization
 
 All telemetry data passes through a **sanitizer** that:
+
 - Only allows explicitly allowlisted properties
 - Drops any unexpected or sensitive data
 - Enforces data types and formats
@@ -135,15 +146,18 @@ All telemetry data passes through a **sanitizer** that:
 ### Environment Variables
 
 **For Users:**
+
 - `TELEMETRY_ENABLED` (default: `true`) - Set to `false` to disable
 
 **For Maintainers:**
+
 - `INSTALL_SOURCE` - Labels distribution channel (e.g., `dmg`, `dev`)
 - PostHog credentials are injected via CI for official builds
 
 ### Renderer Process Events
 
 The renderer may request sending `feature_used` or `error` events via IPC:
+
 - Constrained IPC channel handled in main process
 - Only allowlisted properties are forwarded
 - Everything else is dropped by the sanitizer
@@ -151,6 +165,7 @@ The renderer may request sending `feature_used` or `error` events via IPC:
 ### Adding New Events
 
 If you're contributing and want to add telemetry events:
+
 1. Only track coarse, anonymous metrics
 2. Add event to allowlist in telemetry service
 3. Document in this file
