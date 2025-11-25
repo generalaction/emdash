@@ -48,7 +48,7 @@ let apiKey: string | undefined;
 let host: string | undefined;
 let instanceId: string | undefined;
 let installSource: string | undefined;
-let userOptOut: boolean | undefined; 
+let userOptOut: boolean | undefined;
 let onboardingSeen: boolean = false;
 let sessionStartMs: number = Date.now();
 
@@ -382,7 +382,11 @@ function normalizeHost(h: string | undefined): string | undefined {
 export function setOnboardingSeen(flag: boolean) {
   onboardingSeen = Boolean(flag);
   try {
-    persistState({ instanceId: instanceId || cryptoRandomId(), onboardingSeen, enabledOverride: userOptOut === undefined ? undefined : !userOptOut });
+    persistState({
+      instanceId: instanceId || cryptoRandomId(),
+      onboardingSeen,
+      enabledOverride: userOptOut === undefined ? undefined : !userOptOut,
+    });
   } catch {
     // ignore
   }

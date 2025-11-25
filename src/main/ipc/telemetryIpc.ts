@@ -48,5 +48,4 @@ export function registerTelemetryIpc() {
       return { success: false, error: e?.message || 'update_failed' };
     }
   });
-
 }
