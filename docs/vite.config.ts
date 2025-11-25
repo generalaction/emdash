@@ -17,7 +17,8 @@ export default defineConfig({
     }),
     tanstackStart({
       prerender: {
-        enabled: false,
+        enabled: true,
+        crawlLinks: true,
       },
     }),
     react(),
