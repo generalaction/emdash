@@ -182,6 +182,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
           { title: 'Theme', render: () => <ThemeCard /> },
           { title: 'Version', render: () => <VersionCard /> },
+          {
+            title: 'How to use Emdash',
+            render: () => (
+              <div className="flex items-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto px-0 text-xs"
+                  onClick={() =>
+                    window.electronAPI.openExternal(
+                      'https://x.com/rabanspiegel/status/1991220598538924097?s=20'
+                    )
+                  }
+                >
+                  Watch the demo ↗
+                </Button>
+              </div>
+            ),
+          },
         ],
       },
       repository: {
