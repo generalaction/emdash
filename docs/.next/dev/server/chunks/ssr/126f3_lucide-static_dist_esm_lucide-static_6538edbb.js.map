@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"file":"turbopack:///[project]/docs/node_modules/lucide-static/dist/esm/lucide-static.js","sources":[],"sourcesContent":[],"names":[],"mappings":""}}]
-}
