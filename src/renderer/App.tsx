@@ -1481,10 +1481,7 @@ const AppContent: React.FC = () => {
               existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
               projectPath={selectedProject?.path}
             />
-            <FirstLaunchModal
-              open={showFirstLaunchModal}
-              onClose={markFirstLaunchSeen}
-            />
+            <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}

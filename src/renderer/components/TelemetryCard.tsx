@@ -4,13 +4,8 @@ import { Button } from './ui/button';
 import { useTelemetryConsent } from '../hooks/useTelemetryConsent';
 
 const TelemetryCard: React.FC = () => {
-  const {
-    prefEnabled,
-    envDisabled,
-    hasKeyAndHost,
-    loading,
-    setTelemetryEnabled,
-  } = useTelemetryConsent();
+  const { prefEnabled, envDisabled, hasKeyAndHost, loading, setTelemetryEnabled } =
+    useTelemetryConsent();
 
   return (
     <div className="grid gap-3">

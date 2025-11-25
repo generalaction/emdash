@@ -22,11 +22,7 @@ export function useTelemetryConsent() {
     try {
       const res = await window.electronAPI.getTelemetryStatus?.();
       if (res?.success && res.status) {
-        const {
-          envDisabled: envOff,
-          userOptOut,
-          hasKeyAndHost,
-        } = res.status;
+        const { envDisabled: envOff, userOptOut, hasKeyAndHost } = res.status;
         setState({
           prefEnabled: !Boolean(envOff) && userOptOut !== true,
           envDisabled: Boolean(envOff),

@@ -13,12 +13,7 @@ const X_URL = 'https://x.com/rabanspiegel/status/1991220598538924097?s=20';
 const YOUTUBE_EMBED_URL = 'https://www.youtube.com/embed/M22jhPRXASk?si=sYXqj0E8xwuyMXUT';
 
 const FirstLaunchModal: React.FC<FirstLaunchModalProps> = ({ open, onClose }) => {
-  const {
-    prefEnabled,
-    envDisabled,
-    loading,
-    setTelemetryEnabled,
-  } = useTelemetryConsent();
+  const { prefEnabled, envDisabled, loading, setTelemetryEnabled } = useTelemetryConsent();
 
   useEffect(() => {
     if (!open) return;
@@ -34,7 +29,7 @@ const FirstLaunchModal: React.FC<FirstLaunchModalProps> = ({ open, onClose }) =>
           Welcome to Emdash
         </AlertDialogTitle>
         <div className="space-y-4">
-          <div className="relative overflow-hidden rounded-xl border border-border/80 bg-black shadow-lg">
+          <div className="relative overflow-hidden rounded-lg border border-border/80 bg-black shadow-lg">
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-amber-500/10" />
             <div className="relative aspect-video">
               <iframe
