@@ -169,9 +169,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('telemetry:capture', { event, properties }),
   getTelemetryStatus: () => ipcRenderer.invoke('telemetry:get-status'),
   setTelemetryEnabled: (enabled: boolean) => ipcRenderer.invoke('telemetry:set-enabled', enabled),
-  setSessionRecordingOptIn: (enabled: boolean) =>
-    ipcRenderer.invoke('telemetry:set-session-recording', enabled),
-  getTelemetryClientConfig: () => ipcRenderer.invoke('telemetry:get-client-config'),
+  setOnboardingSeen: (flag: boolean) => ipcRenderer.invoke('telemetry:set-onboarding-seen', flag),
   connectToGitHub: (projectPath: string) => ipcRenderer.invoke('github:connect', projectPath),
   onRunEvent: (callback: (event: any) => void) => {
     ipcRenderer.on('run:event', (_, event) => callback(event));
@@ -337,14 +335,10 @@ export interface ElectronAPI {
       envDisabled: boolean;
       userOptOut: boolean;
       hasKeyAndHost: boolean;
-      sessionRecordingOptIn: boolean;
     };
     error?: string;
   }>;
   setTelemetryEnabled: (
-    enabled: boolean
-  ) => Promise<{ success: boolean; status?: any; error?: string }>;
-  setSessionRecordingOptIn: (
     enabled: boolean
   ) => Promise<{ success: boolean; status?: any; error?: string }>;
 

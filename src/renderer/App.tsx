@@ -30,6 +30,7 @@ import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
+import FirstLaunchModal from './components/FirstLaunchModal';
 import type { Project, Workspace } from './types/app';
 import type { WorkspaceMetadata as ChatWorkspaceMetadata } from './types/chat';
 import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
@@ -39,7 +40,6 @@ import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
-import { syncSessionRecordingFromMain } from './lib/sessionRecording';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -86,6 +86,7 @@ const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
 const DEFAULT_PANEL_LAYOUT: [number, number, number] = [20, 60, 20];
 const LEFT_SIDEBAR_MIN_SIZE = 16;
 const LEFT_SIDEBAR_MAX_SIZE = 30;
+const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 const RIGHT_SIDEBAR_MIN_SIZE = 16;
 const RIGHT_SIDEBAR_MAX_SIZE = 30;
 const clampLeftSidebarSize = (value: number) =>
@@ -124,6 +125,7 @@ const AppContent: React.FC = () => {
   const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
+  const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
   const showGithubRequirement = !ghInstalled || !isAuthenticated;
   // Show agent requirements block if we have status data and none of the CLI providers are detected locally.
   const showAgentRequirement =
@@ -341,6 +343,41 @@ const AppContent: React.FC = () => {
     setShowCommandPalette(false);
   }, []);
 
+  const markFirstLaunchSeen = useCallback(() => {
+    try {
+      localStorage.setItem(FIRST_LAUNCH_KEY, '1');
+    } catch {
+      // ignore
+    }
+    try {
+      void window.electronAPI.setOnboardingSeen?.(true);
+    } catch {
+      // ignore
+    }
+    setShowFirstLaunchModal(false);
+  }, []);
+
+  useEffect(() => {
+    const check = async () => {
+      let seenLocal = false;
+      try {
+        seenLocal = localStorage.getItem(FIRST_LAUNCH_KEY) === '1';
+      } catch {
+        // ignore
+      }
+      if (seenLocal) return;
+
+      try {
+        const res = await window.electronAPI.getTelemetryStatus?.();
+        if (res?.success && res.status?.onboardingSeen) return;
+      } catch {
+        // ignore
+      }
+      setShowFirstLaunchModal(true);
+    };
+    void check();
+  }, []);
+
   useEffect(() => {
     const rightPanel = rightSidebarPanelRef.current;
     if (rightPanel) {
@@ -453,10 +490,6 @@ const AppContent: React.FC = () => {
 
     loadAppData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    void syncSessionRecordingFromMain();
   }, []);
 
   const handleOpenProject = async () => {
@@ -760,14 +793,14 @@ const AppContent: React.FC = () => {
           branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
           path: variants[0]?.path || selectedProject.path,
           status: 'idle',
-          agentId: selectedProvider || undefined, // Save the selected provider as agentId for multi-agent workspaces
+          agentId: selectedProvider || undefined,
           metadata: multiMeta,
         } as Workspace;
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
           projectId: selectedProject.id,
-          agentId: selectedProvider || undefined, // Ensure agentId is saved
+          agentId: selectedProvider || undefined,
           metadata: multiMeta,
         });
         if (!saveResult?.success) {
@@ -805,7 +838,7 @@ const AppContent: React.FC = () => {
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
           projectId: selectedProject.id,
-          agentId: selectedProvider || undefined, // Ensure agentId is saved
+          agentId: selectedProvider || undefined,
           metadata: workspaceMetadata,
         });
         if (!saveResult?.success) {
@@ -1334,7 +1367,6 @@ const AppContent: React.FC = () => {
         className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
         style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
       >
-        {/** Kanban view state **/}
         {(() => {
           // Track Kanban locally in this component scope
           return null;
@@ -1464,11 +1496,14 @@ const AppContent: React.FC = () => {
               existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
               projectPath={selectedProject?.path}
             />
+            <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}
               workspacePath={activeWorkspace?.path || null}
-              overlayActive={showSettings || showCommandPalette || showWorkspaceModal}
+              overlayActive={
+                showSettings || showCommandPalette || showWorkspaceModal || showFirstLaunchModal
+              }
             />
           </RightSidebarProvider>
         </SidebarProvider>

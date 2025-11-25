@@ -4,8 +4,7 @@ import {
   isTelemetryEnabled,
   getTelemetryStatus,
   setTelemetryEnabledViaUser,
-  setSessionRecordingOptIn,
-  getTelemetryClientConfig,
+  setOnboardingSeen,
 } from '../telemetry';
 
 export function registerTelemetryIpc() {
@@ -41,20 +40,12 @@ export function registerTelemetryIpc() {
     }
   });
 
-  ipcMain.handle('telemetry:set-session-recording', async (_event, enabled: boolean) => {
+  ipcMain.handle('telemetry:set-onboarding-seen', async (_event, flag: boolean) => {
     try {
-      setSessionRecordingOptIn(Boolean(enabled));
+      setOnboardingSeen(Boolean(flag));
       return { success: true, status: getTelemetryStatus() };
     } catch (e: any) {
       return { success: false, error: e?.message || 'update_failed' };
-    }
-  });
-
-  ipcMain.handle('telemetry:get-client-config', async () => {
-    try {
-      return { success: true, config: getTelemetryClientConfig() };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'config_failed' };
     }
   });
 }

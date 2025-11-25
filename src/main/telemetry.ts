@@ -48,8 +48,8 @@ let apiKey: string | undefined;
 let host: string | undefined;
 let instanceId: string | undefined;
 let installSource: string | undefined;
-let userOptOut: boolean | undefined; // persisted user setting
-let sessionRecordingOptIn = false; // persisted user setting
+let userOptOut: boolean | undefined;
+let onboardingSeen: boolean = false;
 let sessionStartMs: number = Date.now();
 
 const libName = 'emdash';
@@ -70,7 +70,7 @@ function getInstanceIdPath(): string {
 function loadOrCreateState(): {
   instanceId: string;
   enabledOverride?: boolean;
-  sessionRecordingOptIn?: boolean;
+  onboardingSeen?: boolean;
 } {
   try {
     const file = getInstanceIdPath();
@@ -80,11 +80,9 @@ function loadOrCreateState(): {
       if (parsed && typeof parsed.instanceId === 'string' && parsed.instanceId.length > 0) {
         const enabledOverride =
           typeof parsed.enabled === 'boolean' ? (parsed.enabled as boolean) : undefined;
-        const sessionRecordingOptIn =
-          typeof parsed.sessionRecordingOptIn === 'boolean'
-            ? (parsed.sessionRecordingOptIn as boolean)
-            : undefined;
-        return { instanceId: parsed.instanceId as string, enabledOverride, sessionRecordingOptIn };
+        const onboardingSeen =
+          typeof parsed.onboardingSeen === 'boolean' ? (parsed.onboardingSeen as boolean) : false;
+        return { instanceId: parsed.instanceId as string, enabledOverride, onboardingSeen };
       }
     }
   } catch {
@@ -142,9 +140,7 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     'provider',
     'outcome',
     'duration_ms',
-    // session
     'session_duration_ms',
-    // aggregates (counts + buckets only)
     'workspace_count',
     'workspace_count_bucket',
     'project_count',
@@ -294,7 +290,7 @@ export function init(options?: InitOptions) {
   // If enabledOverride is explicitly false, user opted out; otherwise leave undefined
   userOptOut =
     typeof state.enabledOverride === 'boolean' ? state.enabledOverride === false : undefined;
-  sessionRecordingOptIn = state.sessionRecordingOptIn === true;
+  onboardingSeen = state.onboardingSeen === true;
 
   // Fire lifecycle start
   void posthogCapture('app_started');
@@ -323,7 +319,7 @@ export function getTelemetryStatus() {
     envDisabled: !enabled,
     userOptOut: userOptOut === true,
     hasKeyAndHost: !!apiKey && !!host,
-    sessionRecordingOptIn,
+    onboardingSeen,
   };
 }
 
@@ -349,31 +345,10 @@ export function setTelemetryEnabledViaUser(enabledFlag: boolean) {
   }
 }
 
-export function setSessionRecordingOptIn(optIn: boolean) {
-  sessionRecordingOptIn = Boolean(optIn);
-  try {
-    const file = getInstanceIdPath();
-    let state: any = {};
-    if (existsSync(file)) {
-      try {
-        state = JSON.parse(readFileSync(file, 'utf8')) || {};
-      } catch {
-        state = {};
-      }
-    }
-    state.instanceId = instanceId || state.instanceId || cryptoRandomId();
-    state.sessionRecordingOptIn = sessionRecordingOptIn;
-    state.updatedAt = new Date().toISOString();
-    writeFileSync(file, JSON.stringify(state, null, 2), 'utf8');
-  } catch {
-    // ignore
-  }
-}
-
 function persistState(state: {
   instanceId: string;
   enabledOverride?: boolean;
-  sessionRecordingOptIn?: boolean;
+  onboardingSeen?: boolean;
 }) {
   try {
     const existing = existsSync(getInstanceIdPath())
@@ -384,10 +359,8 @@ function persistState(state: {
       instanceId: state.instanceId,
       enabled:
         typeof state.enabledOverride === 'boolean' ? state.enabledOverride : existing.enabled,
-      sessionRecordingOptIn:
-        typeof state.sessionRecordingOptIn === 'boolean'
-          ? state.sessionRecordingOptIn
-          : existing.sessionRecordingOptIn,
+      onboardingSeen:
+        typeof state.onboardingSeen === 'boolean' ? state.onboardingSeen : existing.onboardingSeen,
       createdAt: existing.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -406,12 +379,15 @@ function normalizeHost(h: string | undefined): string | undefined {
   return s.replace(/\/+$/, '');
 }
 
-export function getTelemetryClientConfig() {
-  return {
-    enabled: isEnabled(),
-    host,
-    apiKey,
-    distinctId: instanceId,
-    sessionRecordingOptIn,
-  };
+export function setOnboardingSeen(flag: boolean) {
+  onboardingSeen = Boolean(flag);
+  try {
+    persistState({
+      instanceId: instanceId || cryptoRandomId(),
+      onboardingSeen,
+      enabledOverride: userOptOut === undefined ? undefined : !userOptOut,
+    });
+  } catch {
+    // ignore
+  }
 }
