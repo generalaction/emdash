@@ -349,18 +349,33 @@ const AppContent: React.FC = () => {
     } catch {
       // ignore
     }
+    try {
+      void window.electronAPI.setOnboardingSeen?.(true);
+    } catch {
+      // ignore
+    }
     setShowFirstLaunchModal(false);
   }, []);
 
   useEffect(() => {
-    try {
-      const seen = localStorage.getItem(FIRST_LAUNCH_KEY);
-      if (!seen) {
-        setShowFirstLaunchModal(true);
+    const check = async () => {
+      let seenLocal = false;
+      try {
+        seenLocal = localStorage.getItem(FIRST_LAUNCH_KEY) === '1';
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
+      if (seenLocal) return;
+
+      try {
+        const res = await window.electronAPI.getTelemetryStatus?.();
+        if (res?.success && res.status?.onboardingSeen) return;
+      } catch {
+        // ignore
+      }
+      setShowFirstLaunchModal(true);
+    };
+    void check();
   }, []);
 
   useEffect(() => {
