@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -194,9 +195,7 @@ function WorkspaceRow({
   const previewService = containerState?.previewService;
 
   const handleRowClick = () => {
-    if (isSelectMode && onToggleSelect) {
-      onToggleSelect();
-    } else {
+    if (!isSelectMode) {
       onClick();
     }
   };
@@ -206,7 +205,6 @@ function WorkspaceRow({
       className={[
         'overflow-hidden rounded-xl border bg-background',
         active && !isSelectMode ? 'border-primary' : 'border-border',
-        isSelected ? 'bg-muted/50' : '',
       ].join(' ')}
     >
       <div
@@ -321,7 +319,14 @@ function WorkspaceRow({
           {ws.agentId && <Badge variant="outline">agent</Badge>}
           */}
 
-          {!isSelectMode && (
+          {isSelectMode ? (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect?.()}
+              aria-label={`Select ${ws.name}`}
+              className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:bg-muted-foreground data-[state=checked]:border-muted-foreground"
+            />
+          ) : (
             <WorkspaceDeleteButton
               workspaceName={ws.name}
               onConfirm={async () => {
