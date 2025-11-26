@@ -18,7 +18,7 @@ interface Workspace {
 
 interface WorkspaceItemProps {
   workspace: Workspace;
-  onDelete?: () => void | Promise<void>;
+  onDelete?: () => void | Promise<void | boolean>;
   showDelete?: boolean;
 }
 

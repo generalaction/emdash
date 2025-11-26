@@ -54,7 +54,7 @@ function WorkspaceRow({
   ws: Workspace;
   active: boolean;
   onClick: () => void;
-  onDelete: () => void | Promise<void>;
+  onDelete: () => void | Promise<void | boolean>;
   isSelectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -370,7 +370,7 @@ interface ProjectMainViewProps {
     project: Project,
     workspace: Workspace,
     options?: { silent?: boolean }
-  ) => void | Promise<void>;
+  ) => void | Promise<void | boolean>;
   isCreatingWorkspace?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
 }
@@ -430,8 +430,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     const deletedNames: string[] = [];
     for (const ws of toDelete) {
       try {
-        await onDeleteWorkspace(project, ws, { silent: true });
-        deletedNames.push(ws.name);
+        const result = await onDeleteWorkspace(project, ws, { silent: true });
+        if (result !== false) {
+          deletedNames.push(ws.name);
+        }
       } catch {
         // Continue deleting remaining workspaces
       }

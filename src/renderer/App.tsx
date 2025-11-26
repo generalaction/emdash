@@ -1099,17 +1099,17 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleDeleteWorkspace = (
+  const handleDeleteWorkspace = async (
     targetProject: Project,
     workspace: Workspace,
     options?: { silent?: boolean }
-  ) => {
+  ): Promise<boolean> => {
     if (deletingWorkspaceIdsRef.current.has(workspace.id)) {
       toast({
         title: 'Deletion in progress',
         description: `"${workspace.name}" is already being removed.`,
       });
-      return;
+      return false;
     }
 
     const wasActive = activeWorkspace?.id === workspace.id;
@@ -1117,7 +1117,7 @@ const AppContent: React.FC = () => {
     deletingWorkspaceIdsRef.current.add(workspace.id);
     removeWorkspaceFromState(targetProject.id, workspace.id, wasActive);
 
-    const runDeletion = async () => {
+    const runDeletion = async (): Promise<boolean> => {
       try {
         try {
           // Clear initial prompt sent flags (legacy and per-provider) if present
@@ -1193,6 +1193,7 @@ const AppContent: React.FC = () => {
             description: workspace.name,
           });
         }
+        return true;
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to delete workspace:', error as any);
@@ -1252,12 +1253,13 @@ const AppContent: React.FC = () => {
             handleSelectWorkspace(workspaceSnapshot);
           }
         }
+        return false;
       } finally {
         deletingWorkspaceIdsRef.current.delete(workspace.id);
       }
     };
 
-    void runDeletion();
+    return runDeletion();
   };
 
   const handleReorderProjects = (sourceId: string, targetId: string) => {

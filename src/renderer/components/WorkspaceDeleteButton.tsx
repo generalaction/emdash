@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   workspaceName: string;
-  onConfirm: () => void | Promise<void>;
+  onConfirm: () => void | Promise<void | boolean>;
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
