@@ -24,7 +24,6 @@ import { type Provider } from './types';
 import { type LinearIssueSummary } from './types/linear';
 import { type GitHubIssueSummary } from './types/github';
 import { type JiraIssueSummary } from './types/jira';
-import HowToUseMdash from './components/HowToUseEmdash';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
@@ -131,6 +130,7 @@ const AppContent: React.FC = () => {
   const showAgentRequirement =
     Object.keys(installedProviders).length > 0 &&
     Object.values(installedProviders).every((v) => v === false);
+  const deletingWorkspaceIdsRef = useRef<Set<string>>(new Set());
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -1075,103 +1075,183 @@ const AppContent: React.FC = () => {
     [activateProjectView, projects]
   );
 
-  const handleDeleteWorkspace = async (targetProject: Project, workspace: Workspace) => {
-    try {
+  const removeWorkspaceFromState = (projectId: string, workspaceId: string, wasActive: boolean) => {
+    const filterWorkspaces = (list?: Workspace[]) =>
+      (list || []).filter((w) => w.id !== workspaceId);
+
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === projectId
+          ? { ...project, workspaces: filterWorkspaces(project.workspaces) }
+          : project
+      )
+    );
+
+    setSelectedProject((prev) =>
+      prev && prev.id === projectId
+        ? { ...prev, workspaces: filterWorkspaces(prev.workspaces) }
+        : prev
+    );
+
+    if (wasActive) {
+      setActiveWorkspace(null);
+      setActiveWorkspaceProvider(null);
+    }
+  };
+
+  const handleDeleteWorkspace = (targetProject: Project, workspace: Workspace) => {
+    if (deletingWorkspaceIdsRef.current.has(workspace.id)) {
+      toast({
+        title: 'Deletion in progress',
+        description: `"${workspace.name}" is already being removed.`,
+      });
+      return;
+    }
+
+    const wasActive = activeWorkspace?.id === workspace.id;
+    const workspaceSnapshot = { ...workspace };
+    deletingWorkspaceIdsRef.current.add(workspace.id);
+    removeWorkspaceFromState(targetProject.id, workspace.id, wasActive);
+
+    const runDeletion = async () => {
       try {
-        // Clear initial prompt sent flags (legacy and per-provider) if present
-        const { initialPromptSentKey } = await import('./lib/keys');
         try {
-          // Legacy key (no provider)
-          const legacy = initialPromptSentKey(workspace.id);
-          localStorage.removeItem(legacy);
+          // Clear initial prompt sent flags (legacy and per-provider) if present
+          const { initialPromptSentKey } = await import('./lib/keys');
+          try {
+            // Legacy key (no provider)
+            const legacy = initialPromptSentKey(workspace.id);
+            localStorage.removeItem(legacy);
+          } catch {}
+          try {
+            // Provider-scoped keys
+            for (const p of TERMINAL_PROVIDER_IDS) {
+              const k = initialPromptSentKey(workspace.id, p);
+              localStorage.removeItem(k);
+            }
+          } catch {}
         } catch {}
         try {
-          // Provider-scoped keys
-          for (const p of TERMINAL_PROVIDER_IDS) {
-            const k = initialPromptSentKey(workspace.id, p);
-            localStorage.removeItem(k);
+          window.electronAPI.ptyKill?.(`workspace-${workspace.id}`);
+        } catch {}
+        try {
+          for (const provider of TERMINAL_PROVIDER_IDS) {
+            try {
+              window.electronAPI.ptyKill?.(`${provider}-main-${workspace.id}`);
+            } catch {}
           }
         } catch {}
-      } catch {}
-      try {
-        window.electronAPI.ptyKill?.(`workspace-${workspace.id}`);
-      } catch {}
-      try {
-        for (const provider of TERMINAL_PROVIDER_IDS) {
-          try {
-            window.electronAPI.ptyKill?.(`${provider}-main-${workspace.id}`);
-          } catch {}
+        const sessionIds = [
+          `workspace-${workspace.id}`,
+          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${workspace.id}`),
+        ];
+
+        await Promise.allSettled(
+          sessionIds.map(async (sessionId) => {
+            try {
+              terminalSessionRegistry.dispose(sessionId);
+            } catch {}
+            try {
+              await window.electronAPI.ptyClearSnapshot({ id: sessionId });
+            } catch {}
+          })
+        );
+
+        const [removeResult, deleteResult] = await Promise.allSettled([
+          window.electronAPI.worktreeRemove({
+            projectPath: targetProject.path,
+            worktreeId: workspace.id,
+            worktreePath: workspace.path,
+            branch: workspace.branch,
+          }),
+          window.electronAPI.deleteWorkspace(workspace.id),
+        ]);
+
+        if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
+          const errorMsg =
+            removeResult.status === 'fulfilled'
+              ? removeResult.value?.error || 'Failed to remove worktree'
+              : removeResult.reason?.message || String(removeResult.reason);
+          throw new Error(errorMsg);
         }
-      } catch {}
-      const sessionIds = [
-        `workspace-${workspace.id}`,
-        ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${workspace.id}`),
-      ];
 
-      for (const sessionId of sessionIds) {
+        if (deleteResult.status !== 'fulfilled' || !deleteResult.value?.success) {
+          const errorMsg =
+            deleteResult.status === 'fulfilled'
+              ? deleteResult.value?.error || 'Failed to delete workspace'
+              : deleteResult.reason?.message || String(deleteResult.reason);
+          throw new Error(errorMsg);
+        }
+
+        toast({
+          title: 'Workspace deleted',
+          description: `"${workspace.name}" was removed.`,
+        });
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to delete workspace:', error as any);
+        toast({
+          title: 'Error',
+          description:
+            error instanceof Error
+              ? error.message
+              : 'Could not delete workspace. Check the console for details.',
+          variant: 'destructive',
+        });
+
         try {
-          terminalSessionRegistry.dispose(sessionId);
-        } catch {}
-        try {
-          await window.electronAPI.ptyClearSnapshot({ id: sessionId });
-        } catch {}
-      }
+          const refreshedWorkspaces = await window.electronAPI.getWorkspaces(targetProject.id);
+          setProjects((prev) =>
+            prev.map((project) =>
+              project.id === targetProject.id
+                ? { ...project, workspaces: refreshedWorkspaces }
+                : project
+            )
+          );
+          setSelectedProject((prev) =>
+            prev && prev.id === targetProject.id
+              ? { ...prev, workspaces: refreshedWorkspaces }
+              : prev
+          );
 
-      const removeResult = await window.electronAPI.worktreeRemove({
-        projectPath: targetProject.path,
-        worktreeId: workspace.id,
-        worktreePath: workspace.path,
-        branch: workspace.branch,
-      });
-      if (!removeResult.success) {
-        throw new Error(removeResult.error || 'Failed to remove worktree');
-      }
-
-      const result = await window.electronAPI.deleteWorkspace(workspace.id);
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete workspace');
-      }
-
-      setProjects((prev) =>
-        prev.map((project) =>
-          project.id === targetProject.id
-            ? {
-                ...project,
-                workspaces: (project.workspaces || []).filter((w) => w.id !== workspace.id),
-              }
-            : project
-        )
-      );
-
-      setSelectedProject((prev) =>
-        prev && prev.id === targetProject.id
-          ? {
-              ...prev,
-              workspaces: (prev.workspaces || []).filter((w) => w.id !== workspace.id),
+          if (wasActive) {
+            const restored = refreshedWorkspaces.find((w) => w.id === workspace.id);
+            if (restored) {
+              handleSelectWorkspace(restored);
             }
-          : prev
-      );
+          }
+        } catch (refreshError) {
+          log.error('Failed to refresh workspaces after delete failure:', refreshError as any);
 
-      if (activeWorkspace?.id === workspace.id) {
-        setActiveWorkspace(null);
+          setProjects((prev) =>
+            prev.map((project) => {
+              if (project.id !== targetProject.id) return project;
+              const existing = project.workspaces || [];
+              const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
+              return alreadyPresent
+                ? project
+                : { ...project, workspaces: [...existing, workspaceSnapshot] };
+            })
+          );
+          setSelectedProject((prev) => {
+            if (!prev || prev.id !== targetProject.id) return prev;
+            const existing = prev.workspaces || [];
+            const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
+            return alreadyPresent
+              ? prev
+              : { ...prev, workspaces: [...existing, workspaceSnapshot] };
+          });
+
+          if (wasActive) {
+            handleSelectWorkspace(workspaceSnapshot);
+          }
+        }
+      } finally {
+        deletingWorkspaceIdsRef.current.delete(workspace.id);
       }
+    };
 
-      toast({
-        title: 'Workspace deleted',
-        description: `"${workspace.name}" was removed.`,
-      });
-    } catch (error) {
-      const { log } = await import('./lib/logger');
-      log.error('Failed to delete workspace:', error as any);
-      toast({
-        title: 'Error',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'Could not delete workspace. Check the console for details.',
-        variant: 'destructive',
-      });
-    }
+    void runDeletion();
   };
 
   const handleReorderProjects = (sourceId: string, targetId: string) => {
@@ -1285,8 +1365,6 @@ const AppContent: React.FC = () => {
                 Open Project
               </Button>
             </div>
-
-            <HowToUseMdash className="mt-4" />
           </div>
         </div>
       );
@@ -1354,8 +1432,6 @@ const AppContent: React.FC = () => {
               Open Project
             </Button>
           </div>
-
-          <HowToUseMdash className="mt-2" />
         </div>
       </div>
     );
