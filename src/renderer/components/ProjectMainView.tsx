@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
+import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight, Check } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -10,6 +10,17 @@ import { ChangesBadge } from './WorkspaceChanges';
 import { Spinner } from './ui/spinner';
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
+import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -36,11 +47,17 @@ function WorkspaceRow({
   active,
   onClick,
   onDelete,
+  isSelectMode,
+  isSelected,
+  onToggleSelect,
 }: {
   ws: Workspace;
   active: boolean;
   onClick: () => void;
   onDelete: () => void | Promise<void>;
+  isSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
@@ -177,15 +194,24 @@ function WorkspaceRow({
   const previewUrl = containerState?.previewUrl;
   const previewService = containerState?.previewService;
 
+  const handleRowClick = () => {
+    if (isSelectMode && onToggleSelect) {
+      onToggleSelect();
+    } else {
+      onClick();
+    }
+  };
+
   return (
     <div
       className={[
         'overflow-hidden rounded-xl border border-border bg-background',
-        active ? 'ring-2 ring-primary' : '',
+        active && !isSelectMode ? 'ring-2 ring-primary' : '',
+        isSelected ? 'ring-2 ring-primary bg-primary/5' : '',
       ].join(' ')}
     >
       <div
-        onClick={onClick}
+        onClick={handleRowClick}
         role="button"
         tabIndex={0}
         className={[
@@ -194,7 +220,17 @@ function WorkspaceRow({
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         ].join(' ')}
       >
-        <div className="min-w-0">
+        {isSelectMode && (
+          <div className="flex shrink-0 items-center pt-0.5">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect?.()}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              aria-label={`Select ${ws.name}`}
+            />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
           <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             {isRunning || ws.status === 'running' ? <Spinner size="sm" className="size-3" /> : null}
@@ -296,20 +332,22 @@ function WorkspaceRow({
           {ws.agentId && <Badge variant="outline">agent</Badge>}
           */}
 
-          <WorkspaceDeleteButton
-            workspaceName={ws.name}
-            onConfirm={async () => {
-              try {
-                setIsDeleting(true);
-                await onDelete();
-              } finally {
-                setIsDeleting(false);
-              }
-            }}
-            isDeleting={isDeleting}
-            aria-label={`Delete workspace ${ws.name}`}
-            className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
-          />
+          {!isSelectMode && (
+            <WorkspaceDeleteButton
+              workspaceName={ws.name}
+              onConfirm={async () => {
+                try {
+                  setIsDeleting(true);
+                  await onDelete();
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+              isDeleting={isDeleting}
+              aria-label={`Delete workspace ${ws.name}`}
+              className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
+            />
+          )}
         </div>
       </div>
 
@@ -357,6 +395,59 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
   const [branchLoadError, setBranchLoadError] = useState<string | null>(null);
   const [branchReloadToken, setBranchReloadToken] = useState(0);
+
+  // Multi-select state
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const workspaces = project.workspaces ?? [];
+  const selectedCount = selectedIds.size;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    const toDelete = workspaces.filter((ws) => selectedIds.has(ws.id));
+    if (toDelete.length === 0) return;
+
+    setIsDeleting(true);
+    setShowDeleteDialog(false);
+
+    let successCount = 0;
+    for (const ws of toDelete) {
+      try {
+        await onDeleteWorkspace(project, ws);
+        successCount++;
+      } catch {
+        // Continue deleting remaining workspaces
+      }
+    }
+
+    setIsDeleting(false);
+    exitSelectMode();
+
+    if (successCount > 0) {
+      toast({
+        title: `Deleted ${successCount} task${successCount > 1 ? 's' : ''}`,
+      });
+    }
+  };
 
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
@@ -509,33 +600,50 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             <div className="space-y-6">
               <div className="space-y-3">
-                <div className="flex items-center justify-start gap-3">
-                  <h2 className="text-lg font-semibold">Tasks</h2>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={onCreateWorkspace}
-                    disabled={isCreatingWorkspace}
-                    aria-busy={isCreatingWorkspace}
-                  >
-                    {isCreatingWorkspace ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        Creating…
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="mr-2 size-4" />
-                        Create Task
-                      </>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-semibold">Tasks</h2>
+                    {!isSelectMode && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={onCreateWorkspace}
+                        disabled={isCreatingWorkspace}
+                        aria-busy={isCreatingWorkspace}
+                      >
+                        {isCreatingWorkspace ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Creating…
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 size-4" />
+                            Create Task
+                          </>
+                        )}
+                      </Button>
                     )}
-                  </Button>
+                  </div>
+                  {workspaces.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
+                      className="text-muted-foreground"
+                    >
+                      {isSelectMode ? 'Cancel' : 'Select'}
+                    </Button>
+                  )}
                 </div>
                 <div className="flex flex-col gap-3">
-                  {(project.workspaces ?? []).map((ws) => (
+                  {workspaces.map((ws) => (
                     <WorkspaceRow
                       key={ws.id}
                       ws={ws}
+                      isSelectMode={isSelectMode}
+                      isSelected={selectedIds.has(ws.id)}
+                      onToggleSelect={() => toggleSelect(ws.id)}
                       active={activeWorkspace?.id === ws.id}
                       onClick={() => onSelectWorkspace(ws)}
                       onDelete={() => onDeleteWorkspace(project, ws)}
@@ -546,7 +654,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
               {(!project.workspaces || project.workspaces.length === 0) && (
                 <Alert>
-                  <AlertTitle>What’s a workspace?</AlertTitle>
+                  <AlertTitle>What's a workspace?</AlertTitle>
                   <AlertDescription className="flex items-center justify-between gap-4">
                     <p className="text-sm text-muted-foreground">
                       Each workspace is an isolated copy and branch of your repo (Git-tracked files
@@ -559,6 +667,70 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Bottom action bar for multi-select */}
+      {isSelectMode && selectedCount > 0 && (
+        <div className="border-t border-border bg-background px-6 py-3">
+          <div className="container mx-auto flex max-w-6xl items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              {selectedCount} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Deleting…
+                  </>
+                ) : (
+                  `Delete ${selectedCount}`
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk delete confirmation dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedCount} task{selectedCount > 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>This will permanently delete the following tasks and their worktrees:</p>
+                <ul className="max-h-40 space-y-1 overflow-y-auto text-sm">
+                  {workspaces
+                    .filter((ws) => selectedIds.has(ws.id))
+                    .map((ws) => (
+                      <li key={ws.id} className="flex items-center gap-2">
+                        <Check className="size-3 text-muted-foreground" />
+                        {ws.name}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleBulkDelete}
+            >
+              Delete {selectedCount} task{selectedCount > 1 ? 's' : ''}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
