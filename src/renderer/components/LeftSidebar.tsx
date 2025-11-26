@@ -132,7 +132,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     <div className="relative h-full">
       <Sidebar className="lg:border-r-0">
         <SidebarContent>
-          <SidebarGroup className="mb-2">
+          <SidebarGroup className="mb-3">
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
