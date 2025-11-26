@@ -205,9 +205,9 @@ function WorkspaceRow({
   return (
     <div
       className={[
-        'overflow-hidden rounded-xl border border-border bg-background',
-        active && !isSelectMode ? 'ring-2 ring-primary' : '',
-        isSelected ? 'ring-2 ring-primary bg-primary/5' : '',
+        'overflow-hidden rounded-xl border bg-background',
+        active && !isSelectMode ? 'border-primary' : 'border-border',
+        isSelected ? 'bg-muted/50' : '',
       ].join(' ')}
     >
       <div
@@ -640,7 +640,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                               Deleting…
                             </>
                           ) : (
-                            `Delete ${selectedCount}`
+                            'Delete'
                           )}
                         </Button>
                       )}
