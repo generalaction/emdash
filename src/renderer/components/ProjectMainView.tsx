@@ -702,9 +702,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete selected tasks?</AlertDialogTitle>
+            <AlertDialogTitle>Delete tasks?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete all selected tasks and their worktrees.
+              This will permanently delete the selected tasks and their worktrees.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
