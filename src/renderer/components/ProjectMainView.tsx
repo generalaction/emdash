@@ -361,7 +361,11 @@ interface ProjectMainViewProps {
   onCreateWorkspace: () => void;
   activeWorkspace: Workspace | null;
   onSelectWorkspace: (workspace: Workspace) => void;
-  onDeleteWorkspace: (project: Project, workspace: Workspace) => void | Promise<void>;
+  onDeleteWorkspace: (
+    project: Project,
+    workspace: Workspace,
+    options?: { silent?: boolean }
+  ) => void | Promise<void>;
   isCreatingWorkspace?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
 }
@@ -418,11 +422,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     setIsDeleting(true);
     setShowDeleteDialog(false);
 
-    let successCount = 0;
+    const deletedNames: string[] = [];
     for (const ws of toDelete) {
       try {
-        await onDeleteWorkspace(project, ws);
-        successCount++;
+        await onDeleteWorkspace(project, ws, { silent: true });
+        deletedNames.push(ws.name);
       } catch {
         // Continue deleting remaining workspaces
       }
@@ -431,9 +435,15 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     setIsDeleting(false);
     exitSelectMode();
 
-    if (successCount > 0) {
+    if (deletedNames.length > 0) {
+      const maxNames = 3;
+      const displayNames = deletedNames.slice(0, maxNames).join(', ');
+      const remaining = deletedNames.length - maxNames;
+
       toast({
-        title: `Deleted ${successCount} task${successCount > 1 ? 's' : ''}`,
+        title: deletedNames.length === 1 ? 'Task deleted' : 'Tasks deleted',
+        description:
+          remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
       });
     }
   };

@@ -1099,7 +1099,11 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleDeleteWorkspace = (targetProject: Project, workspace: Workspace) => {
+  const handleDeleteWorkspace = (
+    targetProject: Project,
+    workspace: Workspace,
+    options?: { silent?: boolean }
+  ) => {
     if (deletingWorkspaceIdsRef.current.has(workspace.id)) {
       toast({
         title: 'Deletion in progress',
@@ -1183,10 +1187,12 @@ const AppContent: React.FC = () => {
           throw new Error(errorMsg);
         }
 
-        toast({
-          title: 'Workspace deleted',
-          description: `"${workspace.name}" was removed.`,
-        });
+        if (!options?.silent) {
+          toast({
+            title: 'Task deleted',
+            description: workspace.name,
+          });
+        }
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to delete workspace:', error as any);
