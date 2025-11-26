@@ -611,6 +611,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       <Button
                         variant="secondary"
                         size="sm"
+                        className="h-8 px-3 text-xs font-medium"
                         onClick={onCreateWorkspace}
                         disabled={isCreatingWorkspace}
                         aria-busy={isCreatingWorkspace}
@@ -635,6 +636,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         <Button
                           variant="destructive"
                           size="sm"
+                          className="h-8 px-3 text-xs font-medium"
                           onClick={() => setShowDeleteDialog(true)}
                           disabled={isDeleting}
                         >
@@ -652,7 +654,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                        className="text-muted-foreground"
+                        className="h-8 px-3 text-xs font-medium text-muted-foreground"
                       >
                         {isSelectMode ? 'Cancel' : 'Select'}
                       </Button>
