@@ -626,14 +626,33 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     )}
                   </div>
                   {workspaces.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                      className="text-muted-foreground"
-                    >
-                      {isSelectMode ? 'Cancel' : 'Select'}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {isSelectMode && selectedCount > 0 && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setShowDeleteDialog(true)}
+                          disabled={isDeleting}
+                        >
+                          {isDeleting ? (
+                            <>
+                              <Loader2 className="mr-2 size-4 animate-spin" />
+                              Deleting…
+                            </>
+                          ) : (
+                            `Delete ${selectedCount}`
+                          )}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
+                        className="text-muted-foreground"
+                      >
+                        {isSelectMode ? 'Cancel' : 'Select'}
+                      </Button>
+                    </div>
                   )}
                 </div>
                 <div className="flex flex-col gap-3">
@@ -667,37 +686,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Bottom action bar for multi-select */}
-      {isSelectMode && selectedCount > 0 && (
-        <div className="border-t border-border bg-background px-6 py-3">
-          <div className="container mx-auto flex max-w-6xl items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              {selectedCount} selected
-            </span>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={exitSelectMode}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setShowDeleteDialog(true)}
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    Deleting…
-                  </>
-                ) : (
-                  `Delete ${selectedCount}`
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Bulk delete confirmation dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
