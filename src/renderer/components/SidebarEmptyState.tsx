@@ -8,18 +8,11 @@ type Props = {
   description?: string;
   actionLabel?: string;
   onAction?: () => void;
-  className?: string;
 };
 
-const SidebarEmptyState: React.FC<Props> = ({
-  title,
-  description,
-  actionLabel,
-  onAction,
-  className,
-}) => {
+const SidebarEmptyState: React.FC<Props> = ({ title, description, actionLabel, onAction }) => {
   return (
-    <div className={['px-2 py-2 sm:px-3', className].filter(Boolean).join(' ')}>
+    <div>
       <Card className="bg-muted/20">
         <CardHeader className="py-3 sm:py-4">
           <CardTitle className="text-base leading-tight">{title}</CardTitle>
