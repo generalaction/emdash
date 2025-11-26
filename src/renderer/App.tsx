@@ -1075,21 +1075,22 @@ const AppContent: React.FC = () => {
     [activateProjectView, projects]
   );
 
-  const removeWorkspaceFromState = (
-    projectId: string,
-    workspaceId: string,
-    wasActive: boolean
-  ) => {
-    const filterWorkspaces = (list?: Workspace[]) => (list || []).filter((w) => w.id !== workspaceId);
+  const removeWorkspaceFromState = (projectId: string, workspaceId: string, wasActive: boolean) => {
+    const filterWorkspaces = (list?: Workspace[]) =>
+      (list || []).filter((w) => w.id !== workspaceId);
 
     setProjects((prev) =>
       prev.map((project) =>
-        project.id === projectId ? { ...project, workspaces: filterWorkspaces(project.workspaces) } : project
+        project.id === projectId
+          ? { ...project, workspaces: filterWorkspaces(project.workspaces) }
+          : project
       )
     );
 
     setSelectedProject((prev) =>
-      prev && prev.id === projectId ? { ...prev, workspaces: filterWorkspaces(prev.workspaces) } : prev
+      prev && prev.id === projectId
+        ? { ...prev, workspaces: filterWorkspaces(prev.workspaces) }
+        : prev
     );
 
     if (wasActive) {
@@ -1202,11 +1203,15 @@ const AppContent: React.FC = () => {
           const refreshedWorkspaces = await window.electronAPI.getWorkspaces(targetProject.id);
           setProjects((prev) =>
             prev.map((project) =>
-              project.id === targetProject.id ? { ...project, workspaces: refreshedWorkspaces } : project
+              project.id === targetProject.id
+                ? { ...project, workspaces: refreshedWorkspaces }
+                : project
             )
           );
           setSelectedProject((prev) =>
-            prev && prev.id === targetProject.id ? { ...prev, workspaces: refreshedWorkspaces } : prev
+            prev && prev.id === targetProject.id
+              ? { ...prev, workspaces: refreshedWorkspaces }
+              : prev
           );
 
           if (wasActive) {
@@ -1360,7 +1365,6 @@ const AppContent: React.FC = () => {
                 Open Project
               </Button>
             </div>
-
           </div>
         </div>
       );
@@ -1428,7 +1432,6 @@ const AppContent: React.FC = () => {
               Open Project
             </Button>
           </div>
-
         </div>
       </div>
     );
