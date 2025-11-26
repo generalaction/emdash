@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   workspaceName: string;
-  onConfirm: () => void | Promise<void>;
+  onConfirm: () => void | Promise<void | boolean>;
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
@@ -66,9 +66,9 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
       </TooltipProvider>
       <AlertDialogContent onClick={(e) => e.stopPropagation()} className="space-y-4">
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Task?</AlertDialogTitle>
+          <AlertDialogTitle>Delete task?</AlertDialogTitle>
           <AlertDialogDescription>
-            {`This will remove the worktree for "${workspaceName}" and delete its branch.`}
+            This will permanently delete this task and its worktree.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
