@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight, Check } from 'lucide-react';
+import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -691,30 +691,18 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedCount} task{selectedCount > 1 ? 's' : ''}?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <p>This will permanently delete the following tasks and their worktrees:</p>
-                <ul className="max-h-40 space-y-1 overflow-y-auto text-sm">
-                  {workspaces
-                    .filter((ws) => selectedIds.has(ws.id))
-                    .map((ws) => (
-                      <li key={ws.id} className="flex items-center gap-2">
-                        <Check className="size-3 text-muted-foreground" />
-                        {ws.name}
-                      </li>
-                    ))}
-                </ul>
-              </div>
+            <AlertDialogTitle>Delete selected tasks?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all selected tasks and their worktrees.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive px-4 text-destructive-foreground hover:bg-destructive/90"
               onClick={handleBulkDelete}
             >
-              Delete {selectedCount} task{selectedCount > 1 ? 's' : ''}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
