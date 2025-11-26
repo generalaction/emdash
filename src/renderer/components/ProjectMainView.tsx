@@ -324,7 +324,7 @@ function WorkspaceRow({
               checked={isSelected}
               onCheckedChange={() => onToggleSelect?.()}
               aria-label={`Select ${ws.name}`}
-              className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:bg-muted-foreground data-[state=checked]:border-muted-foreground"
+              className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
             />
           ) : (
             <WorkspaceDeleteButton
@@ -447,8 +447,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
       toast({
         title: deletedNames.length === 1 ? 'Task deleted' : 'Tasks deleted',
-        description:
-          remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
+        description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
       });
     }
   };
