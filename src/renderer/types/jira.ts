@@ -14,7 +14,7 @@ export interface JiraStatusRef {
 
 export interface JiraIssueSummary {
   id: string;
-  key: string; // e.g., ABC-123
+  key: string;
   summary: string;
   description?: string | null;
   url?: string | null;
