@@ -453,6 +453,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     }
   };
 
+  // Reset select mode when project changes
+  useEffect(() => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  }, [project.id]);
+
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
   }, [project.id, project.gitInfo.baseRef]);
