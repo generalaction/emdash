@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { X, GitBranch, ExternalLink } from 'lucide-react';
@@ -272,12 +273,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   className="space-y-4"
                 >
                   <div>
-                    <label
-                      htmlFor="workspace-name"
-                      className="block text-sm font-medium text-foreground"
-                    >
+                    <Label htmlFor="workspace-name" className="mb-2 block">
                       Task name
-                    </label>
+                    </Label>
                     <Input
                       id="workspace-name"
                       value={workspaceName}
@@ -301,12 +299,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   )}
 
                   <div className="flex items-center gap-4">
-                    <label
-                      htmlFor="provider-selector"
-                      className="w-32 shrink-0 text-sm font-medium text-foreground"
-                    >
+                    <Label htmlFor="provider-selector" className="w-32 shrink-0">
                       AI provider
-                    </label>
+                    </Label>
                     <div className="min-w-0 flex-1">
                       {!multiEnabled ? (
                         <ProviderSelector
@@ -352,9 +347,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
                         <div className="flex flex-col gap-4">
                           <div className="flex items-center gap-4">
-                            <label className="w-32 shrink-0 text-sm font-medium text-foreground">
-                              Multiple agents
-                            </label>
+                            <Label className="w-32 shrink-0">Multiple agents</Label>
                             <div className="min-w-0 flex-1">
                               <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
                                 <input
@@ -371,9 +364,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           </div>
                           {hasAutoApproveSupport ? (
                             <div className="flex items-center gap-4">
-                              <label className="w-32 shrink-0 text-sm font-medium text-foreground">
-                                Auto-approve
-                              </label>
+                              <Label className="w-32 shrink-0">Auto-approve</Label>
                               <div className="min-w-0 flex-1">
                                 <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
                                   <input
@@ -401,12 +392,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             </div>
                           ) : null}
                           <div className="flex items-start gap-4">
-                            <label
-                              htmlFor="linear-issue"
-                              className="w-32 shrink-0 pt-2 text-sm font-medium text-foreground"
-                            >
+                            <Label htmlFor="linear-issue" className="w-32 shrink-0 pt-2">
                               Linear issue
-                            </label>
+                            </Label>
                             <div className="min-w-0 flex-1">
                               <LinearIssueSelector
                                 selectedIssue={selectedLinearIssue}
@@ -424,12 +412,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             </div>
                           </div>
                           <div className="flex items-start gap-4">
-                            <label
-                              htmlFor="github-issue"
-                              className="w-32 shrink-0 pt-2 text-sm font-medium text-foreground"
-                            >
+                            <Label htmlFor="github-issue" className="w-32 shrink-0 pt-2">
                               GitHub issue
-                            </label>
+                            </Label>
                             <div className="min-w-0 flex-1">
                               <GitHubIssueSelector
                                 projectPath={projectPath || ''}
@@ -448,12 +433,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             </div>
                           </div>
                           <div className="flex items-start gap-4">
-                            <label
-                              htmlFor="jira-issue"
-                              className="w-32 shrink-0 pt-2 text-sm font-medium text-foreground"
-                            >
+                            <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
                               Jira issue
-                            </label>
+                            </Label>
                             <div className="min-w-0 flex-1">
                               {isJiraConnected ? (
                                 <JiraIssueSelector
@@ -487,12 +469,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           </div>
                         </div>
                         <div className="flex items-start gap-4">
-                          <label
-                            htmlFor="initial-prompt"
-                            className="w-32 shrink-0 text-sm font-medium text-foreground"
-                          >
+                          <Label htmlFor="initial-prompt" className="w-32 shrink-0">
                             Initial prompt
-                          </label>
+                          </Label>
                           <div className="min-w-0 flex-1">
                             <textarea
                               id="initial-prompt"
