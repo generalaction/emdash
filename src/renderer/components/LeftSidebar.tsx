@@ -57,10 +57,7 @@ interface LeftSidebarProps {
   }) => void;
   onCreateWorkspaceForProject?: (project: Project) => void;
   isCreatingWorkspace?: boolean;
-  onDeleteWorkspace?: (
-    project: Project,
-    workspace: Workspace
-  ) => void | Promise<void | boolean>;
+  onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void | boolean>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   isHomeView?: boolean;
 }
