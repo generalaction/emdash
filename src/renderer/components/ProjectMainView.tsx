@@ -656,10 +656,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         </Button>
                       )}
                       <Button
-                        variant="ghost"
+                        variant="secondary"
                         size="sm"
                         onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                        className="h-8 px-3 text-xs font-medium text-muted-foreground"
+                        className="h-8 px-3 text-xs font-medium"
                       >
                         {isSelectMode ? 'Cancel' : 'Select'}
                       </Button>
