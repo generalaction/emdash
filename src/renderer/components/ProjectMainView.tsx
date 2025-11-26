@@ -20,7 +20,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -220,16 +219,6 @@ function WorkspaceRow({
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         ].join(' ')}
       >
-        {isSelectMode && (
-          <div className="flex shrink-0 items-center pt-0.5">
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={() => onToggleSelect?.()}
-              onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              aria-label={`Select ${ws.name}`}
-            />
-          </div>
-        )}
         <div className="min-w-0 flex-1">
           <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
