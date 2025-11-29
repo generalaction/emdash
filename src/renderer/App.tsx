@@ -746,7 +746,7 @@ const AppContent: React.FC = () => {
       const useMulti =
         !!multiAgent?.enabled &&
         Array.isArray(multiAgent?.providers) &&
-        multiAgent!.providers.length >= 2;
+        (multiAgent!.providers.length >= 2 || (multiAgent?.runsPerProvider ?? 1) > 1);
       let newWorkspace: Workspace;
       if (useMulti) {
         const providers = multiAgent!.providers.slice(0, multiAgent?.maxProviders || 4);
