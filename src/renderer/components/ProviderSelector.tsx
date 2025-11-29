@@ -7,23 +7,7 @@ import { Workflow } from 'lucide-react';
 import { Badge } from './ui/badge';
 import type { UiProvider } from '@/providers/meta';
 import { type Provider } from '../types';
-import openaiLogo from '../../assets/images/openai.png';
-import kiroLogo from '../../assets/images/kiro.png';
-import claudeLogo from '../../assets/images/claude.png';
-import factoryLogo from '../../assets/images/factorydroid.png';
-import geminiLogo from '../../assets/images/gemini.png';
-import cursorLogo from '../../assets/images/cursorlogo.png';
-import copilotLogo from '../../assets/images/ghcopilot.png';
-import ampLogo from '../../assets/images/ampcode.png';
-import opencodeLogo from '../../assets/images/opencode.png';
-import charmLogo from '../../assets/images/charm.png';
-import qwenLogo from '../../assets/images/qwen.png';
-import augmentLogo from '../../assets/images/augmentcode.png';
-import gooseLogo from '../../assets/images/goose.png';
-import kimiLogo from '../../assets/images/kimi.png';
-import atlassianLogo from '../../assets/images/atlassian.png';
-import clineLogo from '../../assets/images/cline.png';
-import codebuffLogo from '../../assets/images/codebuff.png';
+import { providerConfig } from '../lib/providerConfig';
 
 interface ProviderSelectorProps {
   value: Provider;
@@ -31,111 +15,6 @@ interface ProviderSelectorProps {
   disabled?: boolean;
   className?: string;
 }
-
-const providerConfig = {
-  codex: {
-    name: 'Codex',
-    logo: openaiLogo,
-    alt: 'Codex',
-    invertInDark: true,
-  },
-  qwen: {
-    name: 'Qwen Code',
-    logo: qwenLogo,
-    alt: 'Qwen Code CLI',
-    invertInDark: false,
-  },
-  claude: {
-    name: 'Claude Code',
-    logo: claudeLogo,
-    alt: 'Claude Code',
-    invertInDark: false,
-  },
-  droid: {
-    name: 'Droid',
-    logo: factoryLogo,
-    alt: 'Factory Droid',
-    invertInDark: true,
-  },
-  gemini: {
-    name: 'Gemini',
-    logo: geminiLogo,
-    alt: 'Gemini CLI',
-    invertInDark: false,
-  },
-  cursor: {
-    name: 'Cursor',
-    logo: cursorLogo,
-    alt: 'Cursor CLI',
-    invertInDark: true,
-  },
-  copilot: {
-    name: 'Copilot',
-    logo: copilotLogo,
-    alt: 'GitHub Copilot CLI',
-    invertInDark: true,
-  },
-  amp: {
-    name: 'Amp',
-    logo: ampLogo,
-    alt: 'Amp Code',
-    invertInDark: false,
-  },
-  opencode: {
-    name: 'OpenCode',
-    logo: opencodeLogo,
-    alt: 'OpenCode',
-    invertInDark: true,
-  },
-  charm: {
-    name: 'Charm',
-    logo: charmLogo,
-    alt: 'Charm',
-    invertInDark: false,
-  },
-  auggie: {
-    name: 'Auggie',
-    logo: augmentLogo,
-    alt: 'Auggie CLI',
-    invertInDark: true,
-  },
-  goose: {
-    name: 'Goose',
-    logo: gooseLogo,
-    alt: 'Goose CLI',
-    invertInDark: false,
-  },
-  kimi: {
-    name: 'Kimi',
-    logo: kimiLogo,
-    alt: 'Kimi CLI',
-    invertInDark: false,
-  },
-  kiro: {
-    name: 'Kiro',
-    logo: kiroLogo,
-    alt: 'Kiro CLI',
-    invertInDark: false,
-  },
-  rovo: {
-    name: 'Rovo Dev',
-    logo: atlassianLogo,
-    alt: 'Rovo Dev CLI',
-    invertInDark: false,
-  },
-  cline: {
-    name: 'Cline',
-    logo: clineLogo,
-    alt: 'Cline CLI',
-    invertInDark: false,
-  },
-  codebuff: {
-    name: 'Codebuff',
-    logo: codebuffLogo,
-    alt: 'Codebuff CLI',
-    invertInDark: false,
-  },
-} as const;
 
 export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
   value,
