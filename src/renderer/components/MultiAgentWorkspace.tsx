@@ -293,7 +293,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                   }`}
                 >
                   <TerminalPane
-                    id={`${v.provider}-main-${workspace.id}`}
+                    id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
                     autoApprove={workspace.metadata?.autoApprove ?? false}
