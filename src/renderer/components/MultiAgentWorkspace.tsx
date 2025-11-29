@@ -206,7 +206,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     // Send concurrently via PTY injection for all providers (Codex/Claude included)
     const tasks: Promise<any>[] = [];
     variants.forEach((v) => {
-      const termId = `${v.provider}-main-${workspace.id}`;
+      const termId = `${v.worktreeId}-main`;
       tasks.push(injectPrompt(termId, v.provider, msg));
     });
     await Promise.all(tasks);
