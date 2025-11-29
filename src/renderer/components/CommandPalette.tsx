@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Command } from 'cmdk';
@@ -76,6 +76,23 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     setSearch(''); // Reset search on close
     onClose();
   }, [onClose]);
+
+  // Window-level capture handler to intercept Escape before xterm processes it
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscapeCapture = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        handleClose();
+      }
+    };
+
+    // Use capture phase at window level to intercept before xterm
+    window.addEventListener('keydown', handleEscapeCapture, true);
+    return () => window.removeEventListener('keydown', handleEscapeCapture, true);
+  }, [isOpen, handleClose]);
 
   const runCommand = useCallback(
     (command: () => void) => {
@@ -255,6 +272,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         >
           <motion.div
             onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
             initial={shouldReduceMotion ? false : { opacity: 0, y: -8, scale: 0.995 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={
