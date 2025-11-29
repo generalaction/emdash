@@ -625,7 +625,12 @@ const AppContent: React.FC = () => {
     linkedLinearIssue: LinearIssueSummary | null = null,
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
-    multiAgent: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null = null,
+    multiAgent: {
+      enabled: boolean;
+      providers: Provider[];
+      maxProviders?: number;
+      runsPerProvider?: number;
+    } | null = null,
     autoApprove?: boolean
   ) => {
     if (!selectedProject) return;
@@ -745,6 +750,7 @@ const AppContent: React.FC = () => {
       let newWorkspace: Workspace;
       if (useMulti) {
         const providers = multiAgent!.providers.slice(0, multiAgent?.maxProviders || 4);
+        const runsPerProvider = multiAgent?.runsPerProvider || 1;
         const variants: Array<{
           id: string;
           provider: Provider;
@@ -753,26 +759,32 @@ const AppContent: React.FC = () => {
           path: string;
           worktreeId: string;
         }> = [];
-        for (const prov of providers) {
-          const vtName = `${workspaceName}-${prov.toLowerCase()}`;
-          const wtRes = await window.electronAPI.worktreeCreate({
-            projectPath: selectedProject.path,
-            workspaceName: vtName,
-            projectId: selectedProject.id,
-            autoApprove,
-          });
-          if (!wtRes?.success || !wtRes.worktree) {
-            throw new Error(wtRes?.error || `Failed to create worktree for ${prov}`);
+        for (const provider of providers) {
+          for (let instanceIdx = 1; instanceIdx <= runsPerProvider; instanceIdx++) {
+            const instanceSuffix = runsPerProvider > 1 ? `-${instanceIdx}` : '';
+            const variantName = `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`;
+            const worktreeResult = await window.electronAPI.worktreeCreate({
+              projectPath: selectedProject.path,
+              workspaceName: variantName,
+              projectId: selectedProject.id,
+              autoApprove,
+            });
+            if (!worktreeResult?.success || !worktreeResult.worktree) {
+              throw new Error(
+                worktreeResult?.error ||
+                  `Failed to create worktree for ${provider}${instanceSuffix}`
+              );
+            }
+            const worktree = worktreeResult.worktree;
+            variants.push({
+              id: `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`,
+              provider: provider,
+              name: variantName,
+              branch: worktree.branch,
+              path: worktree.path,
+              worktreeId: worktree.id,
+            });
           }
-          const wt = wtRes.worktree;
-          variants.push({
-            id: `${workspaceName}-${prov.toLowerCase()}`,
-            provider: prov,
-            name: vtName,
-            branch: wt.branch,
-            path: wt.path,
-            worktreeId: wt.id,
-          });
         }
 
         const multiMeta: WorkspaceMetadata = {
@@ -780,6 +792,7 @@ const AppContent: React.FC = () => {
           multiAgent: {
             enabled: true,
             maxProviders: multiAgent?.maxProviders || 4,
+            runsPerProvider,
             providers,
             variants,
             selectedProvider: null,

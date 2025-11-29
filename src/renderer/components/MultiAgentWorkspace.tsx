@@ -34,6 +34,27 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   const multi = workspace.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
 
+  // Helper to generate display label with instance number if needed
+  const getVariantDisplayLabel = (variant: Variant): string => {
+    const meta = providerMeta[variant.provider];
+    const baseName = meta?.label || variant.provider;
+
+    // Count how many variants use this provider
+    const providerVariants = variants.filter(v => v.provider === variant.provider);
+
+    // If only one instance of this provider, just show base name
+    if (providerVariants.length === 1) {
+      return baseName;
+    }
+
+    // Multiple instances: extract instance number from variant name
+    // variant.name format: "workspace-provider-1", "workspace-provider-2", etc.
+    const match = variant.name.match(/-(\d+)$/);
+    const instanceNum = match ? match[1] : String(providerVariants.indexOf(variant) + 1);
+
+    return `${baseName} #${instanceNum}`;
+  };
+
   // Build initial issue context (feature parity with single-agent ChatInterface)
   const initialInjection: string | null = useMemo(() => {
     const md: any = workspace.metadata || null;
@@ -253,7 +274,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                                   className={`h-4 w-4 shrink-0 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
                                 />
                               ) : null}
-                              <span>{meta?.label || asset?.name || variant.provider}</span>
+                              <span>{getVariantDisplayLabel(variant)}</span>
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>

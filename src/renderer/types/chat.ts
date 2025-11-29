@@ -14,6 +14,8 @@ export interface WorkspaceMetadata {
     enabled: boolean;
     // Max panes allowed when the workspace was created (UI hint)
     maxProviders?: number;
+    // Number of runs per provider for best-of-N comparison
+    runsPerProvider?: number;
     // Selected providers to run in parallel (ids match Provider type)
     providers: ProviderId[];
     variants: Array<{
