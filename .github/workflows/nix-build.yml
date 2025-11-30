@@ -1,15 +1,13 @@
-name: Nix Check
+name: Nix Build
 
 on:
   workflow_dispatch: {}
   push:
-    branches:
-      - nixdistribution
     tags:
       - 'v*'
 
 jobs:
-  nix-test:
+  nix-build:
     runs-on: ubuntu-latest
 
     steps:
