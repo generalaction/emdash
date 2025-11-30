@@ -143,7 +143,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       try {
         // First, try to load last used preferences
         const savedPrefs = loadWorkspaceModalPreferences();
-        
+
         // Load default provider from settings as fallback
         const res = await window.electronAPI.getSettings();
         if (cancel) return;
@@ -213,7 +213,12 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   // Save preferences when provider selection changes
   useEffect(() => {
     if (!isOpen) return;
-    saveWorkspaceModalPreferences(selectedProvider, selectedProviders, multiEnabled, runsPerProvider);
+    saveWorkspaceModalPreferences(
+      selectedProvider,
+      selectedProviders,
+      multiEnabled,
+      runsPerProvider
+    );
   }, [isOpen, selectedProvider, selectedProviders, multiEnabled, runsPerProvider]);
 
   // When multi-enabled toggles, restore appropriate selection from saved preferences
@@ -317,7 +322,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           multiEnabled,
                           runsPerProvider
                         );
-                        
+
                         setWorkspaceName('');
                         setInitialPrompt('');
                         setSelectedProvider(defaultProviderFromSettings);
