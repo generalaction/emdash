@@ -157,7 +157,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     const send = () => {
       if (sent) return;
       try {
-        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: trimmed + '\r' });
+        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: trimmed + '\n' });
         sent = true;
       } catch {}
     };
