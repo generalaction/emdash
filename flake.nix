@@ -92,7 +92,8 @@
                 npm run build
 
                 # Run electron-builder with electronDist override to avoid download
-                npx electron-builder --linux --publish never \
+                # Use --dir to only produce unpacked output (no AppImage/deb which require network)
+                npx electron-builder --linux --dir \
                   -c.electronDist=${electronDistDir} \
                   -c.electronVersion=${electronVersion}
 
