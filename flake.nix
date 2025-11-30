@@ -42,7 +42,7 @@
               version = "0.3.30";
               src = cleanSrc;
               inherit nodejs;
-              npmDepsHash = "sha256-nkrk7yCq4R8tUasCTgiI9tAORBHV/E9v7CcRJpsbPOo=";
+              npmDepsHash = "sha256-mNXxTDOoyiWDVieuqRGSPx3AS+9O2Q9e1MY8ip7B8UI=";
               npmBuildScript = "package:linux";
               nativeBuildInputs =
                 sharedEnv
