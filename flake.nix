@@ -17,10 +17,17 @@
         electronVersion = "30.5.1";
 
         # Pre-fetch Electron binary for Linux x64
+        # electron-builder expects zips named: electron-v${version}-linux-x64.zip
         electronLinuxZip = pkgs.fetchurl {
           url = "https://github.com/electron/electron/releases/download/v${electronVersion}/electron-v${electronVersion}-linux-x64.zip";
           sha256 = "sha256-7EcHeD056GAF9CiZ4wrlnlDdXZx/KFMe1JTrQ/I2FAM=";
         };
+
+        # Create a directory with the electron zip for electronDist
+        electronDistDir = pkgs.runCommand "electron-dist" {} ''
+          mkdir -p $out
+          cp ${electronLinuxZip} $out/electron-v${electronVersion}-linux-x64.zip
+        '';
 
         sharedEnv =
           [
@@ -53,13 +60,15 @@
               src = cleanSrc;
               inherit nodejs;
               npmDepsHash = "sha256-mNXxTDOoyiWDVieuqRGSPx3AS+9O2Q9e1MY8ip7B8UI=";
-              npmBuildScript = "package:linux";
+
+              # Don't use npmBuildScript - we'll run electron-builder manually with overrides
+              dontNpmBuild = true;
+
               nativeBuildInputs =
                 sharedEnv
                 ++ [
                   pkgs.dpkg
                   pkgs.rpm
-                  pkgs.unzip
                 ];
               buildInputs = [
                 pkgs.libsecret
@@ -69,24 +78,25 @@
               ];
               env = {
                 HOME = "$TMPDIR/emdash-home";
-                XDG_CACHE_HOME = "$TMPDIR/emdash-home/.cache";
-                ELECTRON_BUILDER_CACHE = "$TMPDIR/emdash-home/.cache/electron-builder";
                 npm_config_build_from_source = "true";
-                npm_config_cache = "$TMPDIR/emdash-home/.npm";
                 # Skip Electron binary download during npm install
                 ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
               };
-              preBuild = ''
-                mkdir -p "$TMPDIR/emdash-home/.cache" "$TMPDIR/emdash-home/.npm"
 
-                # Populate electron-builder cache with pre-fetched Electron
-                # electron-builder looks for: ~/.cache/electron/vX.X.X/electron-vX.X.X-linux-x64.zip
-                electronCacheDir="$TMPDIR/emdash-home/.cache/electron/v${electronVersion}"
-                mkdir -p "$electronCacheDir"
-                cp ${electronLinuxZip} "$electronCacheDir/electron-v${electronVersion}-linux-x64.zip"
+              buildPhase = ''
+                runHook preBuild
 
-                echo "Electron cache populated at: $electronCacheDir"
-                ls -la "$electronCacheDir"
+                mkdir -p "$TMPDIR/emdash-home"
+
+                # Build the app (renderer + main)
+                npm run build
+
+                # Run electron-builder with electronDist override to avoid download
+                npx electron-builder --linux --publish never \
+                  -c.electronDist=${electronDistDir} \
+                  -c.electronVersion=${electronVersion}
+
+                runHook postBuild
               '';
 
               installPhase = ''
