@@ -103,7 +103,8 @@
               installPhase = ''
                 runHook preInstall
 
-                distDir="$PWD/dist"
+                # electron-builder outputs to "release" directory (configured in package.json build.directories.output)
+                distDir="$PWD/release"
                 unpackedDir="$distDir/linux-unpacked"
 
                 if [ ! -d "$unpackedDir" ]; then
