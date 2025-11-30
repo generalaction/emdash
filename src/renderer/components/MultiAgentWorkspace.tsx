@@ -40,7 +40,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     const baseName = meta?.label || variant.provider;
 
     // Count how many variants use this provider
-    const providerVariants = variants.filter(v => v.provider === variant.provider);
+    const providerVariants = variants.filter((v) => v.provider === variant.provider);
 
     // If only one instance of this provider, just show base name
     if (providerVariants.length === 1) {

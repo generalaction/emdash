@@ -44,7 +44,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
     const baseName = meta?.label || asset?.name || String(variant.provider);
 
     // Count how many variants use this provider
-    const providerVariants = variants.filter(v => v.provider === variant.provider);
+    const providerVariants = variants.filter((v) => v.provider === variant.provider);
 
     // If only one instance of this provider, just show base name
     if (providerVariants.length === 1) {
@@ -54,7 +54,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
     // Multiple instances: extract instance number from variant name
     // variant.name format: "workspace-provider-1", "workspace-provider-2", etc.
     const match = variant.name.match(/-(\d+)$/);
-    const instanceNum = match ? match[1] : String(providerVariants.findIndex(v => v.name === variant.name) + 1);
+    const instanceNum = match
+      ? match[1]
+      : String(providerVariants.findIndex((v) => v.name === variant.name) + 1);
 
     return `${baseName} #${instanceNum}`;
   };
