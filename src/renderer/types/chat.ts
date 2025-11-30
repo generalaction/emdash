@@ -1,3 +1,4 @@
+import type { ProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
@@ -14,69 +15,16 @@ export interface WorkspaceMetadata {
     // Max panes allowed when the workspace was created (UI hint)
     maxProviders?: number;
     // Selected providers to run in parallel (ids match Provider type)
-    providers: Array<
-      | 'codex'
-      | 'claude'
-      | 'qwen'
-      | 'droid'
-      | 'gemini'
-      | 'cursor'
-      | 'copilot'
-      | 'amp'
-      | 'opencode'
-      | 'charm'
-      | 'auggie'
-      | 'goose'
-      | 'kimi'
-      | 'kiro'
-      | 'rovo'
-      | 'cline'
-      | 'codebuff'
-    >;
+    providers: ProviderId[];
     variants: Array<{
       id: string;
-      provider:
-        | 'codex'
-        | 'claude'
-        | 'qwen'
-        | 'droid'
-        | 'gemini'
-        | 'cursor'
-        | 'copilot'
-        | 'amp'
-        | 'opencode'
-        | 'charm'
-        | 'auggie'
-        | 'goose'
-        | 'kimi'
-        | 'kiro'
-        | 'rovo'
-        | 'cline'
-        | 'codebuff';
+      provider: ProviderId;
       name: string; // worktree display name, e.g. workspaceName-providerSlug
       branch: string;
       path: string; // filesystem path of the worktree
       worktreeId: string; // WorktreeService id (stable hash of path)
     }>;
-    selectedProvider?:
-      | 'codex'
-      | 'claude'
-      | 'qwen'
-      | 'droid'
-      | 'gemini'
-      | 'cursor'
-      | 'copilot'
-      | 'amp'
-      | 'opencode'
-      | 'charm'
-      | 'auggie'
-      | 'goose'
-      | 'kimi'
-      | 'kiro'
-      | 'rovo'
-      | 'cline'
-      | 'codebuff'
-      | null;
+    selectedProvider?: ProviderId | null;
   } | null;
 }
 
