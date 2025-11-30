@@ -37,6 +37,30 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
     return [];
   })();
 
+  // Helper to generate display label with instance number if needed
+  const getVariantDisplayLabel = (variant: { provider: Provider; name: string }): string => {
+    const meta = providerMeta[variant.provider];
+    const asset = providerAssets[variant.provider];
+    const baseName = meta?.label || asset?.name || String(variant.provider);
+
+    // Count how many variants use this provider
+    const providerVariants = variants.filter((v) => v.provider === variant.provider);
+
+    // If only one instance of this provider, just show base name
+    if (providerVariants.length === 1) {
+      return baseName;
+    }
+
+    // Multiple instances: extract instance number from variant name
+    // variant.name format: "workspace-provider-1", "workspace-provider-2", etc.
+    const match = variant.name.match(/-(\d+)$/);
+    const instanceNum = match
+      ? match[1]
+      : String(providerVariants.findIndex((v) => v.name === variant.name) + 1);
+
+    return `${baseName} #${instanceNum}`;
+  };
+
   return (
     <aside
       data-state={collapsed ? 'collapsed' : 'open'}
@@ -76,7 +100,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                                   className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
                                 />
                               ) : null}
-                              {meta?.label || asset?.name || String(v.provider)}
+                              {getVariantDisplayLabel(v)}
                             </span>
                           );
                         })()}

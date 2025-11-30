@@ -7,10 +7,11 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch, ExternalLink } from 'lucide-react';
+import { X, GitBranch, ExternalLink, Info } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { type Provider } from '../types';
 import { Separator } from './ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { providerMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
@@ -40,7 +41,12 @@ interface WorkspaceModalProps {
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null,
-    multiAgent?: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null,
+    multiAgent?: {
+      enabled: boolean;
+      providers: Provider[];
+      maxProviders?: number;
+      runsPerProvider?: number;
+    } | null,
     autoApprove?: boolean
   ) => void;
   projectName: string;
@@ -79,6 +85,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [runsPerProvider, setRunsPerProvider] = useState(1);
   const activeProviders = multiEnabled ? selectedProviders : [selectedProvider];
   const hasAutoApproveSupport =
     activeProviders.length > 0 &&
@@ -248,6 +255,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 enabled: true,
                                 providers: selectedProviders.slice(0, maxProviders),
                                 maxProviders,
+                                runsPerProvider,
                               }
                             : null,
                           showAdvanced ? autoApprove : false
@@ -257,6 +265,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         setSelectedProvider(defaultProviderFromSettings);
                         setSelectedProviders([defaultProviderFromSettings, 'claude']);
                         setMultiEnabled(false);
+                        setRunsPerProvider(1);
                         setSelectedLinearIssue(null);
                         setSelectedGithubIssue(null);
                         setAutoApprove(false);
@@ -362,6 +371,43 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               </label>
                             </div>
                           </div>
+                          {multiEnabled && (
+                            <div className="flex items-center gap-4">
+                              <Label
+                                htmlFor="runs-per-provider"
+                                className="flex w-32 shrink-0 items-center gap-1"
+                              >
+                                Runs per provider
+                              </Label>
+                              <div className="flex min-w-0 flex-1 flex-row items-center gap-3">
+                                <Input
+                                  id="runs-per-provider"
+                                  type="number"
+                                  min="1"
+                                  max="5"
+                                  value={runsPerProvider}
+                                  onChange={(e) =>
+                                    setRunsPerProvider(
+                                      Math.max(1, Math.min(5, parseInt(e.target.value) || 1))
+                                    )
+                                  }
+                                  className="w-16"
+                                />
+                                <TooltipProvider delayDuration={150}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs">
+                                        Run each provider 1-5 times for best-of-N comparison
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                            </div>
+                          )}
                           {hasAutoApproveSupport ? (
                             <div className="flex items-center gap-4">
                               <Label className="w-32 shrink-0">Auto-approve</Label>
