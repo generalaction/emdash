@@ -12,6 +12,16 @@
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
         nodejs = pkgs.nodejs_22;
+
+        # Electron version must match package.json
+        electronVersion = "30.5.1";
+
+        # Pre-fetch Electron binary for Linux x64
+        electronLinuxZip = pkgs.fetchurl {
+          url = "https://github.com/electron/electron/releases/download/v${electronVersion}/electron-v${electronVersion}-linux-x64.zip";
+          sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # Will fail and show correct hash
+        };
+
         sharedEnv =
           [
             nodejs
@@ -49,7 +59,7 @@
                 ++ [
                   pkgs.dpkg
                   pkgs.rpm
-                  pkgs.electron
+                  pkgs.unzip
                 ];
               buildInputs = [
                 pkgs.libsecret
@@ -63,14 +73,20 @@
                 ELECTRON_BUILDER_CACHE = "$TMPDIR/emdash-home/.cache/electron-builder";
                 npm_config_build_from_source = "true";
                 npm_config_cache = "$TMPDIR/emdash-home/.npm";
-                # Skip Electron binary download during npm install - we'll use electron from nixpkgs
+                # Skip Electron binary download during npm install
                 ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
               };
               preBuild = ''
                 mkdir -p "$TMPDIR/emdash-home/.cache" "$TMPDIR/emdash-home/.npm"
 
-                # Point to the Nix-provided Electron for electron-builder
-                export ELECTRON_OVERRIDE_DIST_PATH="${pkgs.electron}/libexec/electron"
+                # Populate electron-builder cache with pre-fetched Electron
+                # electron-builder looks for: ~/.cache/electron/vX.X.X/electron-vX.X.X-linux-x64.zip
+                electronCacheDir="$TMPDIR/emdash-home/.cache/electron/v${electronVersion}"
+                mkdir -p "$electronCacheDir"
+                cp ${electronLinuxZip} "$electronCacheDir/electron-v${electronVersion}-linux-x64.zip"
+
+                echo "Electron cache populated at: $electronCacheDir"
+                ls -la "$electronCacheDir"
               '';
 
               installPhase = ''
