@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - nixdistribution
+    tags:
+      - 'v*'
 
 jobs:
   nix-test:
@@ -18,6 +20,12 @@ jobs:
         uses: cachix/install-nix-action@v27
         with:
           extra_nix_config: experimental-features = nix-command flakes
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: emdash
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Build x86_64-linux package
         run: |
