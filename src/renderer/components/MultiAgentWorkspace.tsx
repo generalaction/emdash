@@ -293,19 +293,16 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
       const ptyId = `${variant.worktreeId}-main`;
       busyState.set(variantId, variantBusy[variantId] ?? false);
 
-      const offData = (window as any).electronAPI?.onPtyData?.(
-        ptyId,
-        (chunk: string) => {
-          try {
-            const signal = classifyActivity(variant.provider, chunk || '');
-            if (signal === 'busy') setBusy(variantId, true);
-            else if (signal === 'idle') setBusy(variantId, false);
-            else armNeutral(variantId);
-          } catch {
-            // ignore classification failures
-          }
+      const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
+        try {
+          const signal = classifyActivity(variant.provider, chunk || '');
+          if (signal === 'busy') setBusy(variantId, true);
+          else if (signal === 'idle') setBusy(variantId, false);
+          else armNeutral(variantId);
+        } catch {
+          // ignore classification failures
         }
-      );
+      });
       if (offData) cleanups.push(offData);
 
       const offExit = (window as any).electronAPI?.onPtyExit?.(ptyId, () => {
@@ -392,7 +389,9 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                               {variantBusy[variant.worktreeId] ? (
                                 <Spinner
                                   size="sm"
-                                  className={isTabActive ? 'text-foreground' : 'text-muted-foreground'}
+                                  className={
+                                    isTabActive ? 'text-foreground' : 'text-muted-foreground'
+                                  }
                                 />
                               ) : null}
                             </button>
