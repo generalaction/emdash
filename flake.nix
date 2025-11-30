@@ -49,6 +49,7 @@
                 ++ [
                   pkgs.dpkg
                   pkgs.rpm
+                  pkgs.electron
                 ];
               buildInputs = [
                 pkgs.libsecret
@@ -62,9 +63,14 @@
                 ELECTRON_BUILDER_CACHE = "$TMPDIR/emdash-home/.cache/electron-builder";
                 npm_config_build_from_source = "true";
                 npm_config_cache = "$TMPDIR/emdash-home/.npm";
+                # Skip Electron binary download during npm install - we'll use electron from nixpkgs
+                ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
               };
               preBuild = ''
                 mkdir -p "$TMPDIR/emdash-home/.cache" "$TMPDIR/emdash-home/.npm"
+
+                # Point to the Nix-provided Electron for electron-builder
+                export ELECTRON_OVERRIDE_DIST_PATH="${pkgs.electron}/libexec/electron"
               '';
 
               installPhase = ''
