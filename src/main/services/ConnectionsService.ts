@@ -70,10 +70,17 @@ class ConnectionsService {
     if (this.initialized) return;
     this.initialized = true;
     await providerStatusCache.load();
-    for (const def of CLI_DEFINITIONS) {
-      // Always recheck on app start so stale cache entries get refreshed
-      void this.checkProvider(def.id, 'bootstrap');
-    }
+
+    // Check all providers and log a summary
+    await Promise.all(CLI_DEFINITIONS.map((def) => this.checkProvider(def.id, 'bootstrap')));
+
+    const statuses = providerStatusCache.getAll();
+    const connected = CLI_DEFINITIONS.filter((d) => statuses[d.id]?.installed).map((d) => d.id);
+    const notInstalled = CLI_DEFINITIONS.filter((d) => !statuses[d.id]?.installed).map((d) => d.id);
+
+    log.info(
+      `Providers: connected (${connected.join(', ') || 'none'}) | not installed (${notInstalled.join(', ') || 'none'})`
+    );
   }
 
   getCachedProviderStatuses(): Record<string, ProviderStatus> {
@@ -97,25 +104,23 @@ class ConnectionsService {
     const commandResult = await this.tryCommands(def, timeoutMs);
     const statusCode = await this.resolveStatus(def, commandResult);
     this.cacheStatus(def.id, commandResult, statusCode);
-    // Only log errors or failed checks to reduce noise
-    if (statusCode !== 'connected' || commandResult.error) {
-      log.debug('provider:check', {
+
+    // Only log verbose details for actual errors (not just "not installed")
+    const isActualError =
+      (statusCode === 'error' || statusCode === 'needs_key') && commandResult.resolvedPath !== null; // binary was found but something went wrong
+
+    if (isActualError) {
+      log.warn('provider:error', {
         providerId: def.id,
         status: statusCode,
         command: commandResult.command,
         resolvedPath: commandResult.resolvedPath,
-        success: commandResult.success,
-        version: commandResult.version,
         exitStatus: commandResult.status,
         stderr: commandResult.stderr ? truncate(commandResult.stderr) : null,
         stdout: commandResult.stdout ? truncate(commandResult.stdout) : null,
         error: commandResult.error
           ? String(commandResult.error?.message || commandResult.error)
           : null,
-        pathEnvContainsNvm: process.env.PATH?.includes('.nvm/versions'),
-        timedOut: commandResult.timedOut === true,
-        timeoutMs,
-        reason,
       });
     }
 
