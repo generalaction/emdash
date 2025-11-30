@@ -39,7 +39,7 @@
           if pkgs.stdenv.isLinux then
             pkgs.buildNpmPackage rec {
               pname = "emdash";
-              version = "0.3.29";
+              version = "0.3.30";
               src = cleanSrc;
               inherit nodejs;
               npmDepsHash = "sha256-nkrk7yCq4R8tUasCTgiI9tAORBHV/E9v7CcRJpsbPOo=";
