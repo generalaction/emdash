@@ -43,6 +43,9 @@ export interface GlobalShortcutHandlers {
   // Theme
   onToggleTheme?: () => void;
 
+  // Kanban
+  onToggleKanban?: () => void;
+
   // State checks
   isCommandPaletteOpen?: boolean;
   isSettingsOpen?: boolean;
