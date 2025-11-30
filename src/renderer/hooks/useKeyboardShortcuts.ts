@@ -41,6 +41,14 @@ export const APP_SHORTCUTS = {
     category: 'View',
   },
 
+  // Kanban
+  TOGGLE_KANBAN: {
+    key: 'p',
+    modifier: 'cmd' as const,
+    description: 'Toggle Kanban',
+    category: 'Navigation',
+  },
+
   // Modal Controls
   CLOSE_MODAL: {
     key: 'Escape',
@@ -135,6 +143,12 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       {
         config: APP_SHORTCUTS.TOGGLE_THEME,
         handler: () => handlers.onToggleTheme?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: APP_SHORTCUTS.TOGGLE_KANBAN,
+        handler: () => handlers.onToggleKanban?.(),
         priority: 'global',
         requiresClosed: true,
       },

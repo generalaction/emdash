@@ -1327,6 +1327,10 @@ const AppContent: React.FC = () => {
   };
 
   const [showKanban, setShowKanban] = useState<boolean>(false);
+  const handleToggleKanban = useCallback(() => {
+    if (!selectedProject) return;
+    setShowKanban((v) => !v);
+  }, [selectedProject]);
 
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
@@ -1480,6 +1484,7 @@ const AppContent: React.FC = () => {
               handleOpenSettings={handleOpenSettings}
               handleCloseCommandPalette={handleCloseCommandPalette}
               handleCloseSettings={handleCloseSettings}
+              handleToggleKanban={handleToggleKanban}
             />
             <RightSidebarBridge
               onCollapsedChange={handleRightSidebarCollapsedChange}
@@ -1503,7 +1508,7 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path || null}
               isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
               githubUser={user}
-              onToggleKanban={() => setShowKanban((v) => !v)}
+              onToggleKanban={handleToggleKanban}
               isKanbanOpen={Boolean(showKanban)}
               kanbanAvailable={Boolean(selectedProject)}
             />
