@@ -743,14 +743,17 @@ const AppContent: React.FC = () => {
           : null;
 
       // Multi-agent or single-agent workspace creation
+      const runsPerProvider = Math.max(1, multiAgent?.runsPerProvider || 1);
+      const providerList = Array.isArray(multiAgent?.providers)
+        ? multiAgent.providers.filter(Boolean)
+        : [];
       const useMulti =
         !!multiAgent?.enabled &&
-        Array.isArray(multiAgent?.providers) &&
-        (multiAgent!.providers.length >= 2 || (multiAgent?.runsPerProvider ?? 1) > 1);
+        providerList.length > 0 &&
+        (providerList.length >= 2 || runsPerProvider > 1);
       let newWorkspace: Workspace;
       if (useMulti) {
-        const providers = multiAgent!.providers.slice(0, multiAgent?.maxProviders || 4);
-        const runsPerProvider = multiAgent?.runsPerProvider || 1;
+        const providers = providerList.slice(0, multiAgent?.maxProviders || 4);
         const variants: Array<{
           id: string;
           provider: Provider;
