@@ -9,6 +9,8 @@ import { providerMeta } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
 import { classifyActivity } from '@/lib/activityClassifier';
+import { Spinner } from './ui/spinner';
+import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
@@ -31,6 +33,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
   const multi = workspace.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
 
@@ -214,7 +217,119 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     setPrompt('');
   };
 
-  // Prefill the top input with the prepared issue context once (user can edit before sending)
+  // Track per-variant activity so we can render a spinner on the tabs
+  useEffect(() => {
+    if (!variants.length) {
+      setVariantBusy({});
+      return;
+    }
+
+    // Keep busy state only for currently mounted variants
+    setVariantBusy((prev) => {
+      const next: Record<string, boolean> = {};
+      variants.forEach((v) => {
+        next[v.worktreeId] = prev[v.worktreeId] ?? false;
+      });
+      return next;
+    });
+
+    const timers = new Map<string, ReturnType<typeof setTimeout>>();
+    const busySince = new Map<string, number>();
+    const busyState = new Map<string, boolean>();
+
+    const publish = (variantId: string, busy: boolean) => {
+      busyState.set(variantId, busy);
+      setVariantBusy((prev) => {
+        if (prev[variantId] === busy) return prev;
+        return { ...prev, [variantId]: busy };
+      });
+    };
+
+    const clearTimer = (variantId: string) => {
+      const t = timers.get(variantId);
+      if (t) clearTimeout(t);
+      timers.delete(variantId);
+    };
+
+    const setBusy = (variantId: string, busy: boolean) => {
+      const current = busyState.get(variantId) || false;
+      if (busy) {
+        clearTimer(variantId);
+        busySince.set(variantId, Date.now());
+        if (!current) publish(variantId, true);
+        return;
+      }
+
+      const started = busySince.get(variantId) || 0;
+      const elapsed = started ? Date.now() - started : BUSY_HOLD_MS;
+      const remaining = elapsed < BUSY_HOLD_MS ? BUSY_HOLD_MS - elapsed : 0;
+
+      const clearNow = () => {
+        clearTimer(variantId);
+        busySince.delete(variantId);
+        if (busyState.get(variantId) !== false) publish(variantId, false);
+      };
+
+      if (remaining > 0) {
+        clearTimer(variantId);
+        timers.set(variantId, setTimeout(clearNow, remaining));
+      } else {
+        clearNow();
+      }
+    };
+
+    const armNeutral = (variantId: string) => {
+      if (!busyState.get(variantId)) return;
+      clearTimer(variantId);
+      timers.set(
+        variantId,
+        setTimeout(() => setBusy(variantId, false), CLEAR_BUSY_MS)
+      );
+    };
+
+    const cleanups: Array<() => void> = [];
+
+    variants.forEach((variant) => {
+      const variantId = variant.worktreeId;
+      const ptyId = `${variant.worktreeId}-main`;
+      busyState.set(variantId, variantBusy[variantId] ?? false);
+
+      const offData = (window as any).electronAPI?.onPtyData?.(
+        ptyId,
+        (chunk: string) => {
+          try {
+            const signal = classifyActivity(variant.provider, chunk || '');
+            if (signal === 'busy') setBusy(variantId, true);
+            else if (signal === 'idle') setBusy(variantId, false);
+            else armNeutral(variantId);
+          } catch {
+            // ignore classification failures
+          }
+        }
+      );
+      if (offData) cleanups.push(offData);
+
+      const offExit = (window as any).electronAPI?.onPtyExit?.(ptyId, () => {
+        setBusy(variantId, false);
+      });
+      if (offExit) cleanups.push(offExit);
+    });
+
+    return () => {
+      cleanups.forEach((off) => {
+        try {
+          off?.();
+        } catch {}
+      });
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+      busySince.clear();
+      busyState.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variants]);
+
+  // Prefill the top input with the prepared issue context once
   const prefillOnceRef = useRef(false);
   useEffect(() => {
     if (prefillOnceRef.current) return;
@@ -275,6 +390,12 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                                 />
                               ) : null}
                               <span>{getVariantDisplayLabel(variant)}</span>
+                              {variantBusy[variant.worktreeId] ? (
+                                <Spinner
+                                  size="sm"
+                                  className={isTabActive ? 'text-foreground' : 'text-muted-foreground'}
+                                />
+                              ) : null}
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>
