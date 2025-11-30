@@ -396,7 +396,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 <TooltipProvider delayDuration={150}>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground" />
+                                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <p className="text-xs">
