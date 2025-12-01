@@ -24,6 +24,7 @@ import {
 import {
   loadWorkspaceModalPreferences,
   saveWorkspaceModalPreferences,
+  resetWorkspaceModalPreferences,
 } from '../lib/workspaceModalPreferences';
 
 const DEFAULT_PROVIDER: Provider = 'claude';
@@ -141,10 +142,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     let cancel = false;
     (async () => {
       try {
-        // First, try to load last used preferences
-        const savedPrefs = loadWorkspaceModalPreferences();
-
-        // Load default provider from settings as fallback
         const res = await window.electronAPI.getSettings();
         if (cancel) return;
         const settingsProvider = res?.success ? res.settings?.defaultProvider : undefined;
@@ -153,14 +150,22 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
           : DEFAULT_PROVIDER;
         setDefaultProviderFromSettings(defaultProvider);
 
-        // If we have saved preferences, use them; otherwise use settings default
-        if (savedPrefs) {
+        const { prefs: savedPrefs, defaultMatches } =
+          loadWorkspaceModalPreferences(defaultProvider);
+
+        // If the user changed the default provider in settings, reset saved prefs
+        if (!defaultMatches) {
+          resetWorkspaceModalPreferences(defaultProvider);
+        }
+
+        // If we have saved preferences and they match the current default, use them; otherwise use settings default
+        if (savedPrefs && defaultMatches) {
           setSelectedProvider(savedPrefs.provider);
           setSelectedProviders(savedPrefs.providers);
           setMultiEnabled(savedPrefs.multiEnabled);
           setRunsPerProvider(savedPrefs.runsPerProvider);
         } else {
-          // No saved preferences, use settings default
+          // No saved preferences (or default changed), use settings default
           setSelectedProvider(defaultProvider);
           // Also update multi-provider default - replace default provider in the list
           setSelectedProviders((prev) => {
@@ -217,15 +222,25 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       selectedProvider,
       selectedProviders,
       multiEnabled,
-      runsPerProvider
+      runsPerProvider,
+      defaultProviderFromSettings
     );
-  }, [isOpen, selectedProvider, selectedProviders, multiEnabled, runsPerProvider]);
+  }, [
+    isOpen,
+    selectedProvider,
+    selectedProviders,
+    multiEnabled,
+    runsPerProvider,
+    defaultProviderFromSettings,
+  ]);
 
   // When multi-enabled toggles, restore appropriate selection from saved preferences
   useEffect(() => {
     if (!isOpen) return;
-    const savedPrefs = loadWorkspaceModalPreferences();
-    if (!savedPrefs) return;
+    const { prefs: savedPrefs, defaultMatches } = loadWorkspaceModalPreferences(
+      defaultProviderFromSettings
+    );
+    if (!savedPrefs || !defaultMatches) return;
 
     if (multiEnabled) {
       // Switching to multi-agent: restore saved multi-providers if they exist
@@ -239,7 +254,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       // Switching to single-agent: restore saved single provider
       setSelectedProvider(savedPrefs.provider);
     }
-  }, [multiEnabled, isOpen]);
+  }, [multiEnabled, isOpen, defaultProviderFromSettings]);
 
   return createPortal(
     <AnimatePresence>
@@ -320,7 +335,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           selectedProvider,
                           selectedProviders,
                           multiEnabled,
-                          runsPerProvider
+                          runsPerProvider,
+                          defaultProviderFromSettings
                         );
 
                         setWorkspaceName('');
