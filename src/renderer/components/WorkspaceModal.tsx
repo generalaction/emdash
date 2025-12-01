@@ -91,6 +91,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
   const [runsPerProvider, setRunsPerProvider] = useState(1);
+  const [prefsHydrated, setPrefsHydrated] = useState(false);
   const activeProviders = multiEnabled ? selectedProviders : [selectedProvider];
   const hasAutoApproveSupport =
     activeProviders.length > 0 &&
@@ -124,10 +125,12 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
+      setPrefsHydrated(false);
       setSelectedLinearIssue(null);
       setSelectedGithubIssue(null);
       return;
     }
+    setPrefsHydrated(false);
     if (!workspaceName) {
       const suggested = generateFriendlyWorkspaceName(normalizedExisting);
       setWorkspaceName(suggested);
@@ -185,6 +188,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         setSelectedProviders([DEFAULT_PROVIDER, 'codex']);
         setMultiEnabled(false);
         setRunsPerProvider(1);
+      } finally {
+        if (!cancel) setPrefsHydrated(true);
       }
     })();
     return () => {
@@ -217,7 +222,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
   // Save preferences when provider selection changes
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !prefsHydrated) return;
     saveWorkspaceModalPreferences(
       selectedProvider,
       selectedProviders,
@@ -232,6 +237,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     multiEnabled,
     runsPerProvider,
     defaultProviderFromSettings,
+    prefsHydrated,
   ]);
 
   // When multi-enabled toggles, restore appropriate selection from saved preferences
