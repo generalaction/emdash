@@ -64,8 +64,8 @@ export function loadWorkspaceModalPreferences(): WorkspaceModalPreferences | nul
     // If we have valid data, return it
     if (provider || providers.length > 0) {
       return {
-        provider: provider || ('codex' as Provider),
-        providers: providers.length > 0 ? providers : [provider || ('codex' as Provider), 'claude'],
+        provider: provider || ('claude' as Provider),
+        providers: providers.length > 0 ? providers : [provider || ('claude' as Provider), 'codex'],
         multiEnabled,
         runsPerProvider,
       };

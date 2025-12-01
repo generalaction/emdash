@@ -26,7 +26,7 @@ import {
   saveWorkspaceModalPreferences,
 } from '../lib/workspaceModalPreferences';
 
-const DEFAULT_PROVIDER: Provider = 'codex';
+const DEFAULT_PROVIDER: Provider = 'claude';
 import { LinearIssueSelector } from './LinearIssueSelector';
 import { GitHubIssueSelector } from './GitHubIssueSelector';
 import JiraIssueSelector from './JiraIssueSelector';
@@ -75,7 +75,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [multiEnabled, setMultiEnabled] = useState(false);
   const [selectedProviders, setSelectedProviders] = useState<Provider[]>([
     DEFAULT_PROVIDER,
-    'claude',
+    'codex',
   ]);
   const maxProviders = 4;
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -177,7 +177,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       } catch {
         // Ignore errors, use default provider
         setSelectedProvider(DEFAULT_PROVIDER);
-        setSelectedProviders([DEFAULT_PROVIDER, 'claude']);
+        setSelectedProviders([DEFAULT_PROVIDER, 'codex']);
         setMultiEnabled(false);
         setRunsPerProvider(1);
       }
@@ -326,7 +326,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         setWorkspaceName('');
                         setInitialPrompt('');
                         setSelectedProvider(defaultProviderFromSettings);
-                        setSelectedProviders([defaultProviderFromSettings, 'claude']);
+                        setSelectedProviders([defaultProviderFromSettings, 'codex']);
                         setMultiEnabled(false);
                         setRunsPerProvider(1);
                         setSelectedLinearIssue(null);

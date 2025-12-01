@@ -4,7 +4,7 @@ import { dirname, join } from 'path';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 
-const DEFAULT_PROVIDER_ID: ProviderId = 'codex';
+const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 
 export interface RepositorySettings {
   branchTemplate: string; // e.g., 'agent/{slug}-{timestamp}'
