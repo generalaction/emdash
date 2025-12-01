@@ -485,7 +485,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <p className="text-xs">
-                                        Run each provider 1-5 times for best-of-N comparison
+                                        Run each provider 1-5 times for Best of N comparison
                                       </p>
                                     </TooltipContent>
                                   </Tooltip>
@@ -564,11 +564,11 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             </div>
                           </div>
                           <div className="flex items-start gap-4">
-                            <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
-                              Jira issue
-                            </Label>
-                            <div className="min-w-0 flex-1">
-                              {isJiraConnected ? (
+                          <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
+                            Jira issue
+                          </Label>
+                          <div className="min-w-0 flex-1">
+                            {isJiraConnected ? (
                                 <JiraIssueSelector
                                   selectedIssue={selectedJiraIssue}
                                   onIssueChange={(issue) => {
@@ -583,18 +583,32 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                   className="w-full"
                                 />
                               ) : (
-                                <div className="rounded-md border border-border bg-muted/40 p-2">
-                                  <div className="flex items-center gap-2">
-                                    <Badge className="inline-flex items-center gap-1.5">
-                                      <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-                                      <span>Connect Jira</span>
-                                    </Badge>
-                                  </div>
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    Add your Jira site, email, and API token in Settings →
-                                    Integrations to browse and attach issues here.
-                                  </p>
-                                </div>
+                                <TooltipProvider delayDuration={150}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="w-full">
+                                        <JiraIssueSelector
+                                          selectedIssue={null}
+                                          onIssueChange={() => {}}
+                                          isOpen={isOpen && showAdvanced}
+                                          disabled
+                                          className="w-full"
+                                        />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" align="start" className="max-w-xs text-left">
+                                      <div className="flex items-center gap-2 pb-1">
+                                        <Badge className="inline-flex items-center gap-1.5">
+                                          <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
+                                          <span>Connect Jira</span>
+                                        </Badge>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Add your Jira site, email, and API token in Settings → Integrations to browse and attach issues here.
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
                             </div>
                           </div>
