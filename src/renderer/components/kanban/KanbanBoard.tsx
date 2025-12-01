@@ -36,7 +36,6 @@ const KanbanBoard: React.FC<{
     const offs: Array<() => void> = [];
     const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const wsList = project.workspaces || [];
-    const wsIds = new Set(wsList.map((w) => w.id));
     for (const ws of wsList) {
       // Watch PTY output to capture terminal-based providers as activity
       offs.push(watchWorkspacePty(ws.id));

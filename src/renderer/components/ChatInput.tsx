@@ -21,13 +21,12 @@ interface ChatInputProps {
   provider?: Provider;
   onProviderChange?: (p: Provider) => void;
   selectDisabled?: boolean;
-  // Image attachments (paths relative to workspace)
   imageAttachments?: string[];
   onAttachImages?: (filePaths: string[]) => void;
   onRemoveImage?: (relPath: string) => void;
 }
 
-const MAX_LOADING_SECONDS = 60 * 60; // 60 minutes
+const MAX_LOADING_SECONDS = 60 * 60;
 
 const formatLoadingTime = (seconds: number): string => {
   if (seconds <= 0) return '0s';
@@ -70,8 +69,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onRemoveImage,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
-  // Provider is controlled by parent (codex | claude | droid | gemini | cursor | copilot)
-  const shouldReduceMotion = useReducedMotion();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // File index for @ mention

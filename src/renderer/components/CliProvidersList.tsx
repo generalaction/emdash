@@ -64,7 +64,7 @@ const renderProviderRow = (provider: CliProviderStatus) => {
   );
 };
 
-const CliProvidersList: React.FC<CliProvidersListProps> = ({ providers, isLoading, error }) => {
+const CliProvidersList: React.FC<CliProvidersListProps> = ({ providers, error }) => {
   const sortedProviders = useMemo(() => {
     const source = providers.length ? providers : BASE_CLI_PROVIDERS;
     return [...source].sort((a, b) => {
