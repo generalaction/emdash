@@ -67,7 +67,7 @@ export function loadWorkspaceModalPreferences(
     let runsPerProvider = 1;
     if (lastRunsPerProvider) {
       const parsed = parseInt(lastRunsPerProvider, 10);
-      if (!isNaN(parsed) && parsed >= 1 && parsed <= 10) {
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) {
         runsPerProvider = parsed;
       }
     }

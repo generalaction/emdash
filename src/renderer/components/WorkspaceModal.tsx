@@ -166,7 +166,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
           setSelectedProvider(savedPrefs.provider);
           setSelectedProviders(savedPrefs.providers);
           setMultiEnabled(savedPrefs.multiEnabled);
-          setRunsPerProvider(savedPrefs.runsPerProvider);
+          setRunsPerProvider(Math.max(1, Math.min(5, savedPrefs.runsPerProvider)));
         } else {
           // No saved preferences (or default changed), use settings default
           setSelectedProvider(defaultProvider);
@@ -254,7 +254,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         setSelectedProviders(savedPrefs.providers);
       }
       if (savedPrefs.runsPerProvider > 0) {
-        setRunsPerProvider(savedPrefs.runsPerProvider);
+        setRunsPerProvider(Math.max(1, Math.min(5, savedPrefs.runsPerProvider)));
       }
     } else {
       // Switching to single-agent: restore saved single provider
