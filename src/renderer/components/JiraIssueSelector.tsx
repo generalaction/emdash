@@ -228,18 +228,18 @@ const JiraIssueSelector: React.FC<Props> = ({
               disabled={disabled}
               className="h-7 w-full border-none bg-transparent pl-9 pr-3 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
-        </div>
-        <Separator />
-        <div className="max-h-80 overflow-y-auto py-1" onScroll={handleScroll}>
-          <SelectItem value="__clear__">
-            <span className="text-sm text-muted-foreground">None</span>
-          </SelectItem>
-          <Separator className="my-1" />
-          {showIssues.length > 0 ? (
-            showIssues.map((issue) => (
-              <SelectItem key={issue.id || issue.key} value={issue.key}>
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
+          </div>
+          <Separator />
+          <div className="max-h-80 overflow-y-auto py-1" onScroll={handleScroll}>
+            <SelectItem value="__clear__">
+              <span className="text-sm text-muted-foreground">None</span>
+            </SelectItem>
+            <Separator className="my-1" />
+            {showIssues.length > 0 ? (
+              showIssues.map((issue) => (
+                <SelectItem key={issue.id || issue.key} value={issue.key}>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
                       <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
                       <span className="text-[11px] font-medium text-foreground">{issue.key}</span>
                     </span>
