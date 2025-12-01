@@ -27,7 +27,7 @@
 
 **Run multiple coding agents in parallel—provider-agnostic, worktree-isolated, and local-first.**
 
-Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 15+ CLIs, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; when the environment matters, you can run a PR in its own Docker container. Hand off Linear, GitHub, or Jira tickets to an agent, review diffs side-by-side, and keep everything local.
+Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 15+ CLIs, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; Hand off Linear, GitHub, or Jira tickets to an agent and review diffs side-by-side.
 
 <div align="center" style="margin:24px 0;">
 
@@ -85,7 +85,7 @@ Emdash currently supports fifteen CLI providers and we are adding new providers 
 
 ### Issues
 
-Emdash allows you to pass engineering tickets straight from your issue tracker to your coding agent at workspace creation. 
+Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your coding agent at workspace creation. 
 
 | Tool | Status | Authentication |
 | ----------- | ------ | ----------- |
@@ -101,7 +101,7 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 
 ![Parallel agents](https://www.emdash.sh/parallel_loop.gif)
 
-#### Passing a Linear ticket
+#### Pass a Linear ticket
 
 ![Passing Linear](https://www.emdash.sh/addlinearscreenshot.png)
 
