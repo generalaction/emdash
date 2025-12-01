@@ -506,7 +506,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                   />
                                   <div className="space-y-1">
                                     <span className="text-muted-foreground">
-                                      Bypass permission prompts for file operations
+                                      Skip permissions for file operations
                                     </span>
                                     <a
                                       href="https://simonwillison.net/2025/Oct/22/living-dangerously-with-claude/"
