@@ -3,7 +3,7 @@ import { ProviderSelector } from './ProviderSelector';
 import type { Provider } from '../types';
 import { isValidProviderId } from '@shared/providers/registry';
 
-const DEFAULT_PROVIDER: Provider = 'codex';
+const DEFAULT_PROVIDER: Provider = 'claude';
 
 const DefaultProviderSettingsCard: React.FC = () => {
   const [defaultProvider, setDefaultProvider] = useState<Provider>(DEFAULT_PROVIDER);
