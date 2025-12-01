@@ -1,0 +1,42 @@
+name: Nix Build
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  nix-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: emdash
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Build x86_64-linux package
+        run: |
+          set -euo pipefail
+          nix build .#packages.x86_64-linux.emdash
+          OUT=$(readlink -f result)
+          echo "Result path: $OUT"
+          echo "Contents under share/emdash:"
+          ls -R "$OUT/share/emdash" || echo "no share/emdash found"
+
+      - name: (Optional) Upload Nix artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nix-emdash-share
+          path: result/share/emdash
+          if-no-files-found: ignore
