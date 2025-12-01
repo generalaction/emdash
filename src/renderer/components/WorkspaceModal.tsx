@@ -206,7 +206,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
             }
             className="mx-4 w-full max-w-md transform-gpu will-change-transform"
           >
-            <Card className="relative w-full">
+            <Card className="relative max-h-[calc(100vh-48px)] w-full overflow-y-auto">
               <Button
                 variant="ghost"
                 size="sm"
