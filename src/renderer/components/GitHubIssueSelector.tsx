@@ -142,6 +142,10 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   );
 
   const handleIssueSelect = (value: string) => {
+    if (value === '__clear__') {
+      onIssueChange(null);
+      return;
+    }
     const num = Number(String(value).replace(/^#/, ''));
     const issue = displayIssues.find((i) => i.number === num) ?? null;
     onIssueChange(issue);
@@ -206,7 +210,11 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
           />
         </div>
         <Separator />
-        <div className="max-h-80 overflow-y-auto" onScroll={handleScroll}>
+        <div className="max-h-80 overflow-y-auto py-1" onScroll={handleScroll}>
+          <SelectItem value="__clear__">
+            <span className="text-sm text-muted-foreground">None</span>
+          </SelectItem>
+          <Separator className="my-1" />
           {showIssues.length > 0 ? (
             showIssues.map((issue) => (
               <SelectItem key={issue.number} value={`#${issue.number}`}>

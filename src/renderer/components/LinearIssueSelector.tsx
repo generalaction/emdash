@@ -170,6 +170,10 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   );
 
   const handleIssueSelect = (identifier: string) => {
+    if (identifier === '__clear__') {
+      onIssueChange(null);
+      return;
+    }
     const issue = displayIssues.find((issue) => issue.identifier === identifier) ?? null;
     onIssueChange(issue);
   };
@@ -243,14 +247,18 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
               disabled={disabled}
               className="h-7 w-full border-none bg-transparent pl-9 pr-3 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
-          </div>
-          <Separator />
-          <div className="max-h-80 overflow-y-auto" onScroll={handleScroll}>
-            {showIssues.length > 0 ? (
-              showIssues.map((issue) => (
-                <SelectItem key={issue.id || issue.identifier} value={issue.identifier}>
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
+        </div>
+        <Separator />
+        <div className="max-h-80 overflow-y-auto py-1" onScroll={handleScroll}>
+          <SelectItem value="__clear__">
+            <span className="text-sm text-muted-foreground">None</span>
+          </SelectItem>
+          <Separator className="my-1" />
+          {showIssues.length > 0 ? (
+            showIssues.map((issue) => (
+              <SelectItem key={issue.id || issue.identifier} value={issue.identifier}>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 dark:border-gray-700 dark:bg-gray-800">
                       <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
                       <span className="text-[11px] font-medium text-foreground">
                         {issue.identifier}
