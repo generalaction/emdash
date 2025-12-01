@@ -72,7 +72,8 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
 
     let nextPlacement: 'bottom' | 'top' = 'bottom';
     if (spaceAbove >= menuRect.height + padding) nextPlacement = 'top';
-    if (spaceBelow >= menuRect.height + padding && spaceBelow > spaceAbove) nextPlacement = 'bottom';
+    if (spaceBelow >= menuRect.height + padding && spaceBelow > spaceAbove)
+      nextPlacement = 'bottom';
 
     const top =
       nextPlacement === 'bottom'
@@ -162,12 +163,14 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
                   ref={menuRef}
                   role="menu"
                   className="fixed z-[9999] max-h-64 w-[var(--menu-width)] overflow-auto rounded-md border border-border bg-popover p-1 shadow-md"
-                  style={{
-                    '--menu-width': `${coords.width}px`,
-                    top: coords.top,
-                    left: coords.left,
-                    transformOrigin: placement === 'bottom' ? 'top right' : 'bottom right',
-                  } as React.CSSProperties}
+                  style={
+                    {
+                      '--menu-width': `${coords.width}px`,
+                      top: coords.top,
+                      left: coords.left,
+                      transformOrigin: placement === 'bottom' ? 'top right' : 'bottom right',
+                    } as React.CSSProperties
+                  }
                   initial={
                     shouldReduceMotion
                       ? false
@@ -198,7 +201,12 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => toggle(id)}
                           >
-                            <input type="checkbox" checked={active} readOnly className="h-3.5 w-3.5" />
+                            <input
+                              type="checkbox"
+                              checked={active}
+                              readOnly
+                              className="h-3.5 w-3.5"
+                            />
                             <img
                               src={info.logo}
                               alt={info.alt}

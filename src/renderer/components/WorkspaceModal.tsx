@@ -564,11 +564,11 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             </div>
                           </div>
                           <div className="flex items-start gap-4">
-                          <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
-                            Jira issue
-                          </Label>
-                          <div className="min-w-0 flex-1">
-                            {isJiraConnected ? (
+                            <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
+                              Jira issue
+                            </Label>
+                            <div className="min-w-0 flex-1">
+                              {isJiraConnected ? (
                                 <JiraIssueSelector
                                   selectedIssue={selectedJiraIssue}
                                   onIssueChange={(issue) => {
@@ -596,7 +596,11 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                         />
                                       </div>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" align="start" className="max-w-xs text-left">
+                                    <TooltipContent
+                                      side="top"
+                                      align="start"
+                                      className="max-w-xs text-left"
+                                    >
                                       <div className="flex items-center gap-2 pb-1">
                                         <Badge className="inline-flex items-center gap-1.5">
                                           <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
@@ -604,7 +608,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                         </Badge>
                                       </div>
                                       <p className="text-xs text-muted-foreground">
-                                        Add your Jira site, email, and API token in Settings → Integrations to browse and attach issues here.
+                                        Add your Jira site, email, and API token in Settings →
+                                        Integrations to browse and attach issues here.
                                       </p>
                                     </TooltipContent>
                                   </Tooltip>
