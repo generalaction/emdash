@@ -198,3 +198,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 >
 > Emdash itself does **not** send your code or chats to our servers. Third‑party CLIs may transmit data per their policies.
 </details>
+
+[![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
+[![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)
+
