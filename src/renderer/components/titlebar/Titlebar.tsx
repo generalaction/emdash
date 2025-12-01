@@ -41,7 +41,6 @@ const Titlebar: React.FC<TitlebarProps> = ({
   projectPath,
   isWorkspaceMultiAgent,
   onToggleKanban,
-  isKanbanOpen = false,
   kanbanAvailable = false,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
