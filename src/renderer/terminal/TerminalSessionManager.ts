@@ -208,6 +208,16 @@ export class TerminalSessionManager {
     this.container.focus();
   }
 
+  fit() {
+    if (this.disposed) return;
+    try {
+      this.fitAddon.fit();
+      this.sendSizeIfStarted();
+    } catch (error) {
+      log.warn('Terminal fit failed', { id: this.id, error });
+    }
+  }
+
   registerActivityListener(listener: () => void): () => void {
     this.activityListeners.add(listener);
     return () => {
