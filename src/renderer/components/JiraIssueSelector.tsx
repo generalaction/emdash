@@ -218,7 +218,10 @@ const JiraIssueSelector: React.FC<Props> = ({
             )}
           </div>
         </SelectTrigger>
-        <SelectContent side="top" className="z-[120]">
+        <SelectContent
+          side="top"
+          className="z-[120] min-w-[var(--radix-select-trigger-width)] max-w-[480px] w-auto"
+        >
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -230,7 +233,7 @@ const JiraIssueSelector: React.FC<Props> = ({
             />
           </div>
           <Separator />
-          <div className="max-h-80 overflow-y-auto py-1" onScroll={handleScroll}>
+          <div className="max-h-80 overflow-y-auto overflow-x-hidden py-1" onScroll={handleScroll}>
             <SelectItem value="__clear__">
               <span className="text-sm text-muted-foreground">None</span>
             </SelectItem>
