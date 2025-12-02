@@ -147,6 +147,10 @@ const JiraIssueSelector: React.FC<Props> = ({
   };
 
   const handleIssueSelect = (key: string) => {
+    if (key === '__clear__') {
+      onIssueChange(null);
+      return;
+    }
     const all = searchTerm.trim() ? searchResults : availableIssues;
     const issue = all.find((i) => i.key === key) || null;
     onIssueChange(issue);
@@ -214,7 +218,10 @@ const JiraIssueSelector: React.FC<Props> = ({
             )}
           </div>
         </SelectTrigger>
-        <SelectContent side="top" className="z-[120]">
+        <SelectContent
+          side="top"
+          className="z-[120] w-auto min-w-[var(--radix-select-trigger-width)] max-w-[480px]"
+        >
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -226,7 +233,11 @@ const JiraIssueSelector: React.FC<Props> = ({
             />
           </div>
           <Separator />
-          <div className="max-h-80 overflow-y-auto" onScroll={handleScroll}>
+          <div className="max-h-80 overflow-y-auto overflow-x-hidden py-1" onScroll={handleScroll}>
+            <SelectItem value="__clear__">
+              <span className="text-sm text-muted-foreground">None</span>
+            </SelectItem>
+            <Separator className="my-1" />
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
                 <SelectItem key={issue.id || issue.key} value={issue.key}>

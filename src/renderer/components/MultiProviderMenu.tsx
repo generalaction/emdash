@@ -1,5 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import { type Provider } from '../types';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
@@ -17,11 +18,22 @@ interface Props {
 const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, className = '' }) => {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement | null>(null);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const [placement, setPlacement] = React.useState<'bottom' | 'top'>('bottom');
+  const [coords, setCoords] = React.useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
   const shouldReduceMotion = useReducedMotion();
   React.useEffect(() => {
     function onDoc(e: MouseEvent) {
+      const target = e.target as Node | null;
       if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
+      if (target && (ref.current.contains(target) || menuRef.current?.contains(target))) {
+        return;
+      }
+      setOpen(false);
     }
     if (open) document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -51,8 +63,49 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
           .filter(Boolean)
       : [];
 
+  const updatePosition = React.useCallback(() => {
+    if (!open) return;
+    const trigger = ref.current;
+    const menu = menuRef.current;
+    if (!trigger || !menu) return;
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const padding = 8;
+    const spaceBelow = window.innerHeight - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+
+    let nextPlacement: 'bottom' | 'top' = 'bottom';
+    if (spaceAbove >= menuRect.height + padding) nextPlacement = 'top';
+    if (spaceBelow >= menuRect.height + padding && spaceBelow > spaceAbove)
+      nextPlacement = 'bottom';
+
+    const top =
+      nextPlacement === 'bottom'
+        ? triggerRect.bottom + padding
+        : triggerRect.top - menuRect.height - padding;
+
+    setPlacement(nextPlacement);
+    setCoords({ top, left: triggerRect.left, width: triggerRect.width });
+  }, [open]);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(updatePosition);
+  }, [open, value.length, updatePosition]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = () => updatePosition();
+    window.addEventListener('resize', handler);
+    window.addEventListener('scroll', handler, true);
+    return () => {
+      window.removeEventListener('resize', handler);
+      window.removeEventListener('scroll', handler, true);
+    };
+  }, [open, updatePosition]);
+
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div ref={ref} className={`relative ${className}`} style={{ zIndex: 150 }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -106,51 +159,75 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
           />
         </div>
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            role="menu"
-            className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover p-1 shadow-md"
-            style={{ transformOrigin: 'top right' }}
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={
-              shouldReduceMotion
-                ? { opacity: 1, y: 0, scale: 1 }
-                : { opacity: 0, y: 4, scale: 0.98 }
-            }
-            transition={
-              shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
-            }
-          >
-            <TooltipProvider delayDuration={150}>
-              {(Object.keys(providerConfig) as Provider[]).map((id) => {
-                const info = providerConfig[id];
-                const active = selected.has(id);
-                return (
-                  <MultiTooltipRow key={id} id={id}>
-                    <label
-                      className={`shadow-xs flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${
-                        active ? 'bg-accent/40' : ''
-                      }`}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => toggle(id)}
-                    >
-                      <input type="checkbox" checked={active} readOnly className="h-3.5 w-3.5" />
-                      <img
-                        src={info.logo}
-                        alt={info.alt}
-                        className={`h-4 w-4 rounded-sm ${info.invertInDark ? 'dark:invert' : ''}`}
-                      />
-                      <span className="truncate">{info.name}</span>
-                    </label>
-                  </MultiTooltipRow>
-                );
-              })}
-            </TooltipProvider>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {typeof document !== 'undefined'
+        ? createPortal(
+            <AnimatePresence>
+              {open && (
+                <motion.div
+                  ref={menuRef}
+                  role="menu"
+                  className="fixed z-[9999] max-h-64 w-[var(--menu-width)] overflow-auto rounded-md border border-border bg-popover p-1 shadow-md"
+                  style={
+                    {
+                      '--menu-width': `${coords.width}px`,
+                      top: coords.top,
+                      left: coords.left,
+                      transformOrigin: placement === 'bottom' ? 'top right' : 'bottom right',
+                    } as React.CSSProperties
+                  }
+                  initial={
+                    shouldReduceMotion
+                      ? false
+                      : { opacity: 0, y: placement === 'bottom' ? 6 : -6, scale: 0.98 }
+                  }
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={
+                    shouldReduceMotion
+                      ? { opacity: 1, y: 0, scale: 1 }
+                      : { opacity: 0, y: placement === 'bottom' ? 4 : -4, scale: 0.98 }
+                  }
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0 }
+                      : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
+                  }
+                >
+                  <TooltipProvider delayDuration={150}>
+                    {(Object.keys(providerConfig) as Provider[]).map((id) => {
+                      const info = providerConfig[id];
+                      const active = selected.has(id);
+                      return (
+                        <MultiTooltipRow key={id} id={id}>
+                          <label
+                            className={`shadow-xs flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${
+                              active ? 'bg-accent/40' : ''
+                            }`}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => toggle(id)}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={active}
+                              readOnly
+                              className="h-3.5 w-3.5"
+                            />
+                            <img
+                              src={info.logo}
+                              alt={info.alt}
+                              className={`h-4 w-4 rounded-sm ${info.invertInDark ? 'dark:invert' : ''}`}
+                            />
+                            <span className="truncate">{info.name}</span>
+                          </label>
+                        </MultiTooltipRow>
+                      );
+                    })}
+                  </TooltipProvider>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body
+          )
+        : null}
     </div>
   );
 };

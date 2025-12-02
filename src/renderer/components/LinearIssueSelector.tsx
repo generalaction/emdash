@@ -170,6 +170,10 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   );
 
   const handleIssueSelect = (identifier: string) => {
+    if (identifier === '__clear__') {
+      onIssueChange(null);
+      return;
+    }
     const issue = displayIssues.find((issue) => issue.identifier === identifier) ?? null;
     onIssueChange(issue);
   };
@@ -233,7 +237,10 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
             )}
           </div>
         </SelectTrigger>
-        <SelectContent side="top" className="z-[120]">
+        <SelectContent
+          side="top"
+          className="z-[120] w-auto min-w-[var(--radix-select-trigger-width)] max-w-[480px]"
+        >
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -245,7 +252,11 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
             />
           </div>
           <Separator />
-          <div className="max-h-80 overflow-y-auto" onScroll={handleScroll}>
+          <div className="max-h-80 overflow-y-auto overflow-x-hidden py-1" onScroll={handleScroll}>
+            <SelectItem value="__clear__">
+              <span className="text-sm text-muted-foreground">None</span>
+            </SelectItem>
+            <Separator className="my-1" />
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
                 <SelectItem key={issue.id || issue.identifier} value={issue.identifier}>

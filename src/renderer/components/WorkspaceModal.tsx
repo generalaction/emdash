@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch, ExternalLink, Info } from 'lucide-react';
+import { X, GitBranch, ExternalLink, Info, Settings } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { type Provider } from '../types';
 import { Separator } from './ui/separator';
@@ -422,7 +422,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   >
                     <AccordionItem value="advanced" className="border-none">
                       <AccordionTrigger
-                        className="px-0 py-1 text-sm font-medium text-muted-foreground hover:no-underline"
+                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-border bg-muted px-3 text-sm font-medium text-foreground hover:bg-muted/80 hover:no-underline [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
                         onPointerDown={(e) => {
                           // Toggle immediately on pointer down to avoid a required second click
                           // when another element inside had focus.
@@ -436,11 +436,14 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           }
                         }}
                       >
-                        Advanced options
+                        <span className="inline-flex items-center gap-2">
+                          <Settings className="h-4 w-4 text-muted-foreground" />
+                          <span>Advanced options</span>
+                        </span>
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
-                        <div className="flex flex-col gap-4">
-                          <div className="flex items-center gap-4">
+                        <div className="flex flex-col gap-4 p-2">
+                          <div className="mt-2 flex items-center gap-4">
                             <Label className="w-32 shrink-0">Multiple agents</Label>
                             <div className="min-w-0 flex-1">
                               <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
@@ -485,7 +488,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <p className="text-xs">
-                                        Run each provider 1-5 times for best-of-N comparison
+                                        Run each provider 1-5 times for Best of N comparison
                                       </p>
                                     </TooltipContent>
                                   </Tooltip>
@@ -506,7 +509,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                   />
                                   <div className="space-y-1">
                                     <span className="text-muted-foreground">
-                                      Bypass permission prompts for file operations
+                                      Skip permissions for file operations
                                     </span>
                                     <a
                                       href="https://simonwillison.net/2025/Oct/22/living-dangerously-with-claude/"
@@ -583,23 +586,42 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                   className="w-full"
                                 />
                               ) : (
-                                <div className="rounded-md border border-border bg-muted/40 p-2">
-                                  <div className="flex items-center gap-2">
-                                    <Badge className="inline-flex items-center gap-1.5">
-                                      <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-                                      <span>Connect Jira</span>
-                                    </Badge>
-                                  </div>
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    Add your Jira site, email, and API token in Settings →
-                                    Integrations to browse and attach issues here.
-                                  </p>
-                                </div>
+                                <TooltipProvider delayDuration={150}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="w-full">
+                                        <JiraIssueSelector
+                                          selectedIssue={null}
+                                          onIssueChange={() => {}}
+                                          isOpen={isOpen && showAdvanced}
+                                          disabled
+                                          className="w-full"
+                                        />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      align="start"
+                                      className="max-w-xs text-left"
+                                    >
+                                      <div className="flex items-center gap-2 pb-1">
+                                        <Badge className="inline-flex items-center gap-1.5">
+                                          <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
+                                          <span>Connect Jira</span>
+                                        </Badge>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Add your Jira site, email, and API token in Settings →
+                                        Integrations to browse and attach issues here.
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-start gap-4">
+                        <div className="flex items-start gap-4 p-2">
                           <Label htmlFor="initial-prompt" className="w-32 shrink-0">
                             Initial prompt
                           </Label>

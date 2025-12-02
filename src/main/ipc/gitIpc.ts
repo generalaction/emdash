@@ -2,7 +2,6 @@ import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { exec, execFile } from 'child_process';
 import fs from 'node:fs';
-import path from 'node:path';
 import { promisify } from 'util';
 import {
   getStatus as gitGetStatus,
