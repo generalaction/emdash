@@ -346,14 +346,14 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {variants.map((v, idx) => {
         const isDark = effectiveTheme === 'dark';
         const isActive = idx === activeTabIndex;
         return (
           <div
             key={v.worktreeId}
-            className={`flex-1 overflow-hidden ${isActive ? 'block' : 'hidden'}`}
+            className={`flex-1 overflow-hidden ${isActive ? '' : 'invisible absolute inset-0'}`}
           >
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-end gap-2 px-3 py-1.5">
