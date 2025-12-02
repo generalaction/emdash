@@ -56,10 +56,10 @@
           if pkgs.stdenv.isLinux then
             pkgs.buildNpmPackage rec {
               pname = "emdash";
-              version = "0.3.30";
+              version = "0.3.34";
               src = cleanSrc;
               inherit nodejs;
-              npmDepsHash = "sha256-mNXxTDOoyiWDVieuqRGSPx3AS+9O2Q9e1MY8ip7B8UI=";
+              npmDepsHash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
 
               # Don't use npmBuildScript - we'll run electron-builder manually with overrides
               dontNpmBuild = true;
