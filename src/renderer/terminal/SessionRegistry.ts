@@ -31,10 +31,6 @@ class SessionRegistry {
     this.sessions.get(workspaceId)?.detach();
   }
 
-  fit(workspaceId: string) {
-    this.sessions.get(workspaceId)?.fit();
-  }
-
   dispose(workspaceId: string) {
     const session = this.sessions.get(workspaceId);
     if (!session) return;

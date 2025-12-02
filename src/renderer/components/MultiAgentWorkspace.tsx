@@ -5,7 +5,6 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import OpenInMenu from './titlebar/OpenInMenu';
 import { TerminalPane } from './TerminalPane';
-import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { providerMeta } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
@@ -338,18 +337,6 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInjection]);
 
-  // Re-fit terminal when switching tabs (hidden tabs have zero dimensions)
-  useEffect(() => {
-    const activeVariant = variants[activeTabIndex];
-    if (!activeVariant) return;
-    const termId = `${activeVariant.worktreeId}-main`;
-    // Small delay to ensure the tab is visible before fitting
-    const timer = requestAnimationFrame(() => {
-      terminalSessionRegistry.fit(termId);
-    });
-    return () => cancelAnimationFrame(timer);
-  }, [activeTabIndex, variants]);
-
   if (!multi?.enabled || variants.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -359,14 +346,14 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {variants.map((v, idx) => {
         const isDark = effectiveTheme === 'dark';
         const isActive = idx === activeTabIndex;
         return (
           <div
             key={v.worktreeId}
-            className={`flex-1 overflow-hidden ${isActive ? 'block' : 'hidden'}`}
+            className={`flex-1 overflow-hidden ${isActive ? '' : 'invisible absolute inset-0'}`}
           >
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-end gap-2 px-3 py-1.5">
