@@ -102,6 +102,10 @@ class ActivityStore {
     }
   }
 
+  setWorkspaceBusy(wsId: string, busy: boolean) {
+    this.setBusy(wsId, busy, false);
+  }
+
   subscribe(wsId: string, fn: Listener) {
     this.ensureSubscribed();
     this.subscribedIds.add(wsId);
