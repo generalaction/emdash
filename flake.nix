@@ -59,7 +59,7 @@
               version = "0.3.34";
               src = cleanSrc;
               inherit nodejs;
-              npmDepsHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+              npmDepsHash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
 
               # Don't use npmBuildScript - we'll run electron-builder manually with overrides
               dontNpmBuild = true;
