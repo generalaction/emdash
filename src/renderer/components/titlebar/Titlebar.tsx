@@ -116,7 +116,10 @@ const Titlebar: React.FC<TitlebarProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs font-medium">
-                  Kanban
+                  <span className="flex items-center gap-1">
+                    <Command className="h-3 w-3" aria-hidden="true" />
+                    <span>P</span>
+                  </span>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
