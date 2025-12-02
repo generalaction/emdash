@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch, ExternalLink, Info } from 'lucide-react';
+import { X, GitBranch, ExternalLink, Info, Settings } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { type Provider } from '../types';
 import { Separator } from './ui/separator';
@@ -422,7 +422,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   >
                     <AccordionItem value="advanced" className="border-none">
                       <AccordionTrigger
-                        className="px-0 py-1 text-sm font-medium hover:no-underline"
+                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-border bg-muted px-3 text-sm font-medium text-foreground hover:no-underline hover:bg-muted/80 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
                         onPointerDown={(e) => {
                           // Toggle immediately on pointer down to avoid a required second click
                           // when another element inside had focus.
@@ -436,7 +436,10 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           }
                         }}
                       >
-                        Advanced options
+                        <span className="inline-flex items-center gap-2">
+                          <Settings className="h-4 w-4 text-muted-foreground" />
+                          <span>Advanced options</span>
+                        </span>
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
                         <div className="flex flex-col gap-4">
