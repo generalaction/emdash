@@ -28,8 +28,12 @@ const MultiProviderMenu: React.FC<Props> = ({ value, onChange, max = 4, classNam
   const shouldReduceMotion = useReducedMotion();
   React.useEffect(() => {
     function onDoc(e: MouseEvent) {
+      const target = e.target as Node | null;
       if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
+      if (target && (ref.current.contains(target) || menuRef.current?.contains(target))) {
+        return;
+      }
+      setOpen(false);
     }
     if (open) document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
