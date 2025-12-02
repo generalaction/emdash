@@ -422,7 +422,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   >
                     <AccordionItem value="advanced" className="border-none">
                       <AccordionTrigger
-                        className="px-0 py-1 text-sm font-medium text-muted-foreground hover:no-underline"
+                        className="px-0 py-1 text-sm font-medium hover:no-underline"
                         onPointerDown={(e) => {
                           // Toggle immediately on pointer down to avoid a required second click
                           // when another element inside had focus.
