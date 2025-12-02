@@ -422,7 +422,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   >
                     <AccordionItem value="advanced" className="border-none">
                       <AccordionTrigger
-                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-border bg-muted px-3 text-sm font-medium text-foreground hover:no-underline hover:bg-muted/80 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
+                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-border bg-muted px-3 text-sm font-medium text-foreground hover:bg-muted/80 hover:no-underline [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
                         onPointerDown={(e) => {
                           // Toggle immediately on pointer down to avoid a required second click
                           // when another element inside had focus.
@@ -442,8 +442,8 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         </span>
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
-                        <div className="flex flex-col gap-4">
-                          <div className="flex items-center gap-4">
+                        <div className="flex flex-col gap-4 p-2">
+                          <div className="mt-2 flex items-center gap-4">
                             <Label className="w-32 shrink-0">Multiple agents</Label>
                             <div className="min-w-0 flex-1">
                               <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
@@ -621,7 +621,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-start gap-4">
+                        <div className="flex items-start gap-4 p-2">
                           <Label htmlFor="initial-prompt" className="w-32 shrink-0">
                             Initial prompt
                           </Label>
