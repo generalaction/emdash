@@ -9,6 +9,7 @@ import { providerMeta } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
 import { classifyActivity } from '@/lib/activityClassifier';
+import { activityStore } from '@/lib/activityStore';
 import { Spinner } from './ui/spinner';
 import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
@@ -336,6 +337,12 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     prefillOnceRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInjection]);
+
+  // Sync variant busy state to activityStore for sidebar indicator
+  useEffect(() => {
+    const anyBusy = Object.values(variantBusy).some(Boolean);
+    activityStore.setWorkspaceBusy(workspace.id, anyBusy);
+  }, [variantBusy, workspace.id]);
 
   if (!multi?.enabled || variants.length === 0) {
     return (
