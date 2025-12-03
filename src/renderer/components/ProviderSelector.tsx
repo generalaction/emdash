@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectSeparator } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { ProviderInfoCard } from './ProviderInfoCard';
 import RoutingInfoCard from './RoutingInfoCard';
@@ -14,6 +14,10 @@ interface ProviderSelectorProps {
   onChange: (provider: Provider) => void;
   disabled?: boolean;
   className?: string;
+  /** Called when user selects "Remove provider" from dropdown. If undefined, option is hidden. */
+  onRemove?: () => void;
+  /** Whether the remove option should be disabled (e.g., when only 1 provider exists) */
+  removeDisabled?: boolean;
 }
 
 export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
@@ -21,15 +25,22 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
   onChange,
   disabled = false,
   className = '',
+  onRemove,
+  removeDisabled = false,
 }) => {
   return (
     <div className={`relative block w-[12rem] min-w-0 ${className}`}>
       <Select
         value={value}
         onValueChange={(v) => {
-          if (!disabled) {
-            onChange(v as Provider);
+          if (disabled) return;
+          if (v === '__remove__') {
+            if (onRemove && !removeDisabled) {
+              onRemove();
+            }
+            return;
           }
+          onChange(v as Provider);
         }}
         disabled={disabled}
       >
@@ -93,6 +104,18 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                   </div>
                 </SelectItem>
               </RoutingTooltipRow>
+            )}
+            {onRemove && (
+              <>
+                <SelectSeparator />
+                <SelectItem
+                  value="__remove__"
+                  disabled={removeDisabled}
+                  className={removeDisabled ? 'cursor-not-allowed opacity-50' : 'text-destructive focus:text-destructive'}
+                >
+                  Remove provider
+                </SelectItem>
+              </>
             )}
           </TooltipProvider>
         </SelectContent>

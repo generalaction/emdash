@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch, ExternalLink, Settings, Plus, Minus, Trash2 } from 'lucide-react';
+import { X, GitBranch, ExternalLink, Settings, Plus, Minus } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { type Provider } from '../types';
 import { type ProviderRun } from '../types/chat';
@@ -346,6 +346,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           <ProviderSelector
                             value={pr.provider}
                             onChange={(p) => updateProviderAt(index, p)}
+                            onRemove={providerRuns.length > 1 ? () => removeProviderAt(index) : undefined}
                             className="w-full"
                           />
                         </div>
@@ -385,18 +386,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               <Plus className="h-3 w-3" />
                             </Button>
                           </div>
-                        )}
-                        {providerRuns.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeProviderAt(index)}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                            aria-label={`Remove ${pr.provider}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         )}
                       </div>
                     ))}
