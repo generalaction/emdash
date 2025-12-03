@@ -353,7 +353,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           <div className="flex items-center gap-0.5">
                             <Button
                               type="button"
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => updateRunsAt(index, pr.runs - 1)}
                               disabled={pr.runs <= 1}
@@ -370,12 +370,12 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               onChange={(e) =>
                                 updateRunsAt(index, parseInt(e.target.value) || 1)
                               }
-                              className="h-7 w-10 px-1 text-center text-sm"
+                              className="h-7 w-10 px-1 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                               aria-label={`Runs for ${pr.provider}`}
                             />
                             <Button
                               type="button"
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => updateRunsAt(index, pr.runs + 1)}
                               disabled={pr.runs >= MAX_RUNS_PER_PROVIDER}
