@@ -423,6 +423,9 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
                     autoApprove={workspace.metadata?.autoApprove ?? false}
+                    initialPrompt={
+                      v.provider === 'codex' ? (initialInjection ?? undefined) : undefined
+                    }
                     keepAlive
                     variant={isDark ? 'dark' : 'light'}
                     className="h-full w-full"

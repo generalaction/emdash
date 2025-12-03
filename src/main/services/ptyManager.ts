@@ -37,11 +37,12 @@ export function startPty(options: {
   cols?: number;
   rows?: number;
   autoApprove?: boolean;
+  initialPrompt?: string;
 }): IPty {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
-  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove } = options;
+  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove, initialPrompt } = options;
 
   let useShell = shell || getDefaultShell();
   const useCwd = cwd || process.cwd() || os.homedir();
@@ -128,6 +129,15 @@ export function startPty(options: {
         if (willAddFlag) {
           args.push(autoApproveFlag);
         }
+      }
+
+      // For Codex, pass initial prompt as CLI argument (independent of autoApprove)
+      if (baseLower === 'codex' && initialPrompt?.trim()) {
+        args.push(initialPrompt.trim());
+        log.debug('ptyManager:codexInitialPrompt', {
+          id,
+          promptLength: initialPrompt.trim().length,
+        });
       }
     } catch {}
   }

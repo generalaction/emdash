@@ -16,6 +16,7 @@ type Props = {
   contentFilter?: string;
   keepAlive?: boolean;
   autoApprove?: boolean;
+  initialPrompt?: string;
   onActivity?: () => void;
   onStartError?: (message: string) => void;
   onStartSuccess?: () => void;
@@ -35,6 +36,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
   contentFilter,
   keepAlive = true,
   autoApprove,
+  initialPrompt,
   onActivity,
   onStartError,
   onStartSuccess,
@@ -65,6 +67,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
       initialSize: { cols, rows },
       theme,
       autoApprove,
+      initialPrompt,
     });
     sessionRef.current = session;
 

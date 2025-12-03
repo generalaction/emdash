@@ -707,6 +707,7 @@ const ChatInterface: React.FC<Props> = ({
                   ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
                   : undefined
               }
+              initialPrompt={provider === 'codex' ? (initialInjection ?? undefined) : undefined}
               className="h-full w-full"
             />
           </div>
