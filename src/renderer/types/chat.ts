@@ -9,6 +9,8 @@ export interface WorkspaceMetadata {
   jiraIssue?: JiraIssueSummary | null;
   initialPrompt?: string | null;
   autoApprove?: boolean | null;
+  /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
+  initialInjectionSent?: boolean | null;
   // When present, this workspace is a multi-agent workspace orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;
@@ -32,6 +34,7 @@ export interface WorkspaceMetadata {
 
 export interface Workspace {
   id: string;
+  projectId: string;
   name: string;
   branch: string;
   path: string;

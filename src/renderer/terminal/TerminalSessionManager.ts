@@ -25,6 +25,7 @@ export interface TerminalSessionOptions {
   theme: SessionTheme;
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
+  initialPrompt?: string;
 }
 
 type CleanupFn = () => void;
@@ -103,7 +104,12 @@ export class TerminalSessionManager {
     const inputDisposable = this.terminal.onData((data) => {
       this.emitActivity();
       if (!this.disposed) {
-        window.electronAPI.ptyInput({ id: this.id, data });
+        // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
+        // These are sent by xterm.js when focus changes but shouldn't go to the PTY
+        const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
+        if (filtered) {
+          window.electronAPI.ptyInput({ id: this.id, data: filtered });
+        }
       }
     });
     const resizeDisposable = this.terminal.onResize(({ cols, rows }) => {
@@ -281,7 +287,7 @@ export class TerminalSessionManager {
   }
 
   private connectPty() {
-    const { workspaceId, cwd, shell, env, initialSize, autoApprove } = this.options;
+    const { workspaceId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
     const id = workspaceId;
     void window.electronAPI
       .ptyStart({
@@ -292,6 +298,7 @@ export class TerminalSessionManager {
         cols: initialSize.cols,
         rows: initialSize.rows,
         autoApprove,
+        initialPrompt,
       })
       .then((result) => {
         if (result?.ok) {

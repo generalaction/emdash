@@ -1,133 +1,68 @@
-import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { PROVIDERS, type ProviderId } from '@shared/providers/registry';
+
+import augmentcodeIcon from '../../assets/images/augmentcode.png';
+import qwenIcon from '../../assets/images/qwen.png';
+import charmIcon from '../../assets/images/charm.png';
+import opencodeIcon from '../../assets/images/opencode.png';
+import ampcodeIcon from '../../assets/images/ampcode.png';
+import openaiIcon from '../../assets/images/openai.png';
+import claudeIcon from '../../assets/images/claude.png';
+import factorydroidIcon from '../../assets/images/factorydroid.png';
+import geminiIcon from '../../assets/images/gemini.png';
+import cursorlogoIcon from '../../assets/images/cursorlogo.png';
+import ghcopilotIcon from '../../assets/images/ghcopilot.png';
+import gooseIcon from '../../assets/images/goose.png';
+import kimiIcon from '../../assets/images/kimi.png';
+import kiroIcon from '../../assets/images/kiro.png';
+import atlassianIcon from '../../assets/images/atlassian.png';
+import clineIcon from '../../assets/images/cline.png';
+import codebuffIcon from '../../assets/images/codebuff.png';
 
 export type UiProvider = ProviderId;
+
+const ICONS: Record<string, string> = {
+  'augmentcode.png': augmentcodeIcon,
+  'qwen.png': qwenIcon,
+  'charm.png': charmIcon,
+  'opencode.png': opencodeIcon,
+  'ampcode.png': ampcodeIcon,
+  'openai.png': openaiIcon,
+  'claude.png': claudeIcon,
+  'factorydroid.png': factorydroidIcon,
+  'gemini.png': geminiIcon,
+  'cursorlogo.png': cursorlogoIcon,
+  'ghcopilot.png': ghcopilotIcon,
+  'goose.png': gooseIcon,
+  'kimi.png': kimiIcon,
+  'kiro.png': kiroIcon,
+  'atlassian.png': atlassianIcon,
+  'cline.png': clineIcon,
+  'codebuff.png': codebuffIcon,
+};
 
 export type ProviderMeta = {
   label: string;
   icon?: string;
   terminalOnly: boolean;
   cli?: string;
-  planActivate?: string; // optional provider-specific activation for plan mode
-  // Optional command to auto-run in the provider's terminal session
-  // once the PTY is ready (used when the provider is launched via a
-  // general-purpose shell rather than a dedicated CLI binary).
+  planActivate?: string;
   autoStartCommand?: string;
-  // Optional flag to bypass permission prompts when auto-approve is enabled
   autoApproveFlag?: string;
+  initialPromptFlag?: string;
 };
 
-const reg = (id: UiProvider) => getProvider(id);
-
-export const providerMeta: Record<UiProvider, ProviderMeta> = {
-  auggie: {
-    label: reg('auggie')?.name ?? 'Auggie',
-    icon: '../../assets/images/augmentcode.png',
-    terminalOnly: true,
-    cli: 'auggie',
-  },
-  qwen: {
-    label: reg('qwen')?.name ?? 'Qwen Code',
-    icon: '../../assets/images/qwen.png',
-    terminalOnly: true,
-    cli: 'qwen',
-    autoApproveFlag: '--yolo',
-  },
-  charm: {
-    label: reg('charm')?.name ?? 'Charm',
-    icon: '../../assets/images/charm.png',
-    terminalOnly: true,
-    cli: 'crush',
-  },
-  opencode: {
-    label: reg('opencode')?.name ?? 'OpenCode',
-    icon: '../../assets/images/opencode.png',
-    terminalOnly: true,
-    cli: 'opencode',
-    autoApproveFlag: '-p',
-  },
-  amp: {
-    label: reg('amp')?.name ?? 'Amp',
-    icon: '../../assets/images/ampcode.png',
-    terminalOnly: true,
-    cli: 'amp',
-  },
-  codex: {
-    label: reg('codex')?.name ?? 'Codex',
-    icon: '../../assets/images/openai.png',
-    terminalOnly: true,
-    cli: 'codex',
-    autoApproveFlag: '--full-auto',
-  },
-  claude: {
-    label: reg('claude')?.name ?? 'Claude Code',
-    icon: '../../assets/images/claude.png',
-    terminalOnly: true,
-    cli: 'claude',
-    planActivate: '/plan',
-    autoApproveFlag: '--dangerously-skip-permissions',
-  },
-  droid: {
-    label: reg('droid')?.name ?? 'Droid',
-    icon: '../../assets/images/factorydroid.png',
-    terminalOnly: true,
-    cli: 'droid',
-  },
-  gemini: {
-    label: reg('gemini')?.name ?? 'Gemini',
-    icon: '../../assets/images/gemini.png',
-    terminalOnly: true,
-    cli: 'gemini',
-    autoApproveFlag: '--yolomode',
-  },
-  cursor: {
-    label: reg('cursor')?.name ?? 'Cursor',
-    icon: '../../assets/images/cursorlogo.png',
-    terminalOnly: true,
-    cli: 'cursor-agent',
-    autoApproveFlag: '-p',
-  },
-  copilot: {
-    label: reg('copilot')?.name ?? 'Copilot',
-    icon: '../../assets/images/ghcopilot.png',
-    terminalOnly: true,
-    cli: 'copilot',
-  },
-  goose: {
-    label: reg('goose')?.name ?? 'Goose',
-    icon: '../../assets/images/goose.png',
-    terminalOnly: true,
-    cli: 'goose',
-  },
-  kimi: {
-    label: reg('kimi')?.name ?? 'Kimi',
-    icon: '../../assets/images/kimi.png',
-    terminalOnly: true,
-    cli: 'kimi',
-    planActivate: undefined,
-  },
-  kiro: {
-    label: reg('kiro')?.name ?? 'Kiro (AWS)',
-    icon: '../../assets/images/kiro.png',
-    terminalOnly: true,
-    cli: 'kiro-cli',
-  },
-  rovo: {
-    label: reg('rovo')?.name ?? 'Rovo Dev',
-    icon: '../../assets/images/atlassian.png',
-    terminalOnly: true,
-    autoStartCommand: 'acli rovodev run',
-    autoApproveFlag: '--yolo',
-  },
-  cline: {
-    label: reg('cline')?.name ?? 'Cline',
-    icon: '../../assets/images/cline.png',
-    terminalOnly: true,
-    cli: 'cline',
-  },
-  codebuff: {
-    label: reg('codebuff')?.name ?? 'Codebuff',
-    icon: '../../assets/images/codebuff.png',
-    terminalOnly: true,
-    cli: 'codebuff',
-  },
-};
+export const providerMeta: Record<UiProvider, ProviderMeta> = Object.fromEntries(
+  PROVIDERS.map((p) => [
+    p.id,
+    {
+      label: p.name,
+      icon: p.icon ? ICONS[p.icon] : undefined,
+      terminalOnly: p.terminalOnly ?? true,
+      cli: p.cli,
+      planActivate: p.planActivateCommand,
+      autoStartCommand: p.autoStartCommand,
+      autoApproveFlag: p.autoApproveFlag,
+      initialPromptFlag: p.initialPromptFlag,
+    },
+  ])
+) as Record<UiProvider, ProviderMeta>;

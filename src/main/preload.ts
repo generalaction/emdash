@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cols?: number;
     rows?: number;
     autoApprove?: boolean;
+    initialPrompt?: string;
   }) => ipcRenderer.invoke('pty:start', opts),
   ptyInput: (args: { id: string; data: string }) => ipcRenderer.send('pty:input', args),
   ptyResize: (args: { id: string; cols: number; rows: number }) =>
@@ -351,6 +352,7 @@ export interface ElectronAPI {
     cols?: number;
     rows?: number;
     autoApprove?: boolean;
+    initialPrompt?: string;
   }) => Promise<{ ok: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows: number }) => void;
