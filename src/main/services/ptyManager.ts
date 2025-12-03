@@ -131,11 +131,13 @@ export function startPty(options: {
         }
       }
 
-      // For Codex, pass initial prompt as CLI argument (independent of autoApprove)
-      if (baseLower === 'codex' && initialPrompt?.trim()) {
+      // Providers that accept initial prompt as CLI argument
+      const promptAsArgProviders = ['codex', 'claude'];
+      if (promptAsArgProviders.includes(baseLower) && initialPrompt?.trim()) {
         args.push(initialPrompt.trim());
-        log.debug('ptyManager:codexInitialPrompt', {
+        log.debug('ptyManager:initialPrompt', {
           id,
+          provider: baseLower,
           promptLength: initialPrompt.trim().length,
         });
       }
