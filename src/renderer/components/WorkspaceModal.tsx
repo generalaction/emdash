@@ -372,11 +372,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         Add provider
                       </Button>
                     )}
-                    {totalRuns > 1 && (
-                      <p className="text-xs text-muted-foreground">
-                        Total: {totalRuns} agent run{totalRuns !== 1 ? 's' : ''}
-                      </p>
-                    )}
                   </div>
 
                   <Accordion
