@@ -805,17 +805,17 @@ const AppContent: React.FC = () => {
         const groupId = `ws-${workspaceName}-${Date.now()}`;
         newWorkspace = {
           id: groupId,
+          projectId: selectedProject.id,
           name: workspaceName,
           branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
           path: variants[0]?.path || selectedProject.path,
           status: 'idle',
           agentId: selectedProvider || undefined,
           metadata: multiMeta,
-        } as Workspace;
+        };
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
-          projectId: selectedProject.id,
           agentId: selectedProvider || undefined,
           metadata: multiMeta,
         });

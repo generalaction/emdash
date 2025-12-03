@@ -104,7 +104,12 @@ export class TerminalSessionManager {
     const inputDisposable = this.terminal.onData((data) => {
       this.emitActivity();
       if (!this.disposed) {
-        window.electronAPI.ptyInput({ id: this.id, data });
+        // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
+        // These are sent by xterm.js when focus changes but shouldn't go to the PTY
+        const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
+        if (filtered) {
+          window.electronAPI.ptyInput({ id: this.id, data: filtered });
+        }
       }
     });
     const resizeDisposable = this.terminal.onResize(({ cols, rows }) => {
