@@ -708,7 +708,7 @@ const ChatInterface: React.FC<Props> = ({
                   : undefined
               }
               initialPrompt={
-                ['codex', 'claude'].includes(provider)
+                providerMeta[provider]?.initialPromptFlag !== undefined
                   ? (initialInjection ?? undefined)
                   : undefined
               }

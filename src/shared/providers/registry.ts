@@ -28,6 +28,13 @@ export type ProviderDefinition = {
   commands?: string[];
   versionArgs?: string[];
   detectable?: boolean;
+  cli?: string;
+  autoApproveFlag?: string;
+  initialPromptFlag?: string;
+  planActivateCommand?: string;
+  autoStartCommand?: string;
+  icon?: string;
+  terminalOnly?: boolean;
 };
 
 export const PROVIDERS: ProviderDefinition[] = [
@@ -38,6 +45,11 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g @openai/codex',
     commands: ['codex'],
     versionArgs: ['--version'],
+    cli: 'codex',
+    autoApproveFlag: '--full-auto',
+    initialPromptFlag: '',
+    icon: 'openai.png',
+    terminalOnly: true,
   },
   {
     id: 'claude',
@@ -46,6 +58,12 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g @anthropic-ai/claude-code',
     commands: ['claude'],
     versionArgs: ['--version'],
+    cli: 'claude',
+    autoApproveFlag: '--dangerously-skip-permissions',
+    initialPromptFlag: '',
+    planActivateCommand: '/plan',
+    icon: 'claude.png',
+    terminalOnly: true,
   },
   {
     id: 'cursor',
@@ -54,6 +72,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'curl https://cursor.com/install -fsS | bash',
     commands: ['cursor-agent', 'cursor'],
     versionArgs: ['--version'],
+    cli: 'cursor-agent',
+    autoApproveFlag: '-p',
+    icon: 'cursorlogo.png',
+    terminalOnly: true,
   },
   {
     id: 'gemini',
@@ -62,6 +84,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g @google/gemini-cli',
     commands: ['gemini'],
     versionArgs: ['--version'],
+    cli: 'gemini',
+    autoApproveFlag: '--yolomode',
+    icon: 'gemini.png',
+    terminalOnly: true,
   },
   {
     id: 'qwen',
@@ -70,6 +96,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g @qwen-code/qwen-code',
     commands: ['qwen'],
     versionArgs: ['--version'],
+    cli: 'qwen',
+    autoApproveFlag: '--yolo',
+    icon: 'qwen.png',
+    terminalOnly: true,
   },
   {
     id: 'droid',
@@ -78,6 +108,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'curl -fsSL https://app.factory.ai/cli | sh',
     commands: ['droid'],
     versionArgs: ['--version'],
+    cli: 'droid',
+    icon: 'factorydroid.png',
+    terminalOnly: true,
   },
   {
     id: 'amp',
@@ -86,6 +119,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g @sourcegraph/amp@latest',
     commands: ['amp'],
     versionArgs: ['--version'],
+    cli: 'amp',
+    icon: 'ampcode.png',
+    terminalOnly: true,
   },
   {
     id: 'opencode',
@@ -94,6 +130,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g opencode-ai',
     commands: ['opencode'],
     versionArgs: ['--version'],
+    cli: 'opencode',
+    autoApproveFlag: '-p',
+    icon: 'opencode.png',
+    terminalOnly: true,
   },
   {
     id: 'copilot',
@@ -102,6 +142,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g @github/copilot',
     commands: ['copilot'],
     versionArgs: ['--version'],
+    cli: 'copilot',
+    icon: 'ghcopilot.png',
+    terminalOnly: true,
   },
   {
     id: 'charm',
@@ -110,6 +153,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g @charmland/crush',
     commands: ['crush'],
     versionArgs: ['--version'],
+    cli: 'crush',
+    icon: 'charm.png',
+    terminalOnly: true,
   },
   {
     id: 'auggie',
@@ -118,6 +164,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g @augmentcode/auggie',
     commands: ['auggie'],
     versionArgs: ['--version'],
+    cli: 'auggie',
+    icon: 'augmentcode.png',
+    terminalOnly: true,
   },
   {
     id: 'goose',
@@ -126,6 +175,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand:
       'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
     detectable: false,
+    cli: 'goose',
+    icon: 'goose.png',
+    terminalOnly: true,
   },
   {
     id: 'kimi',
@@ -134,6 +186,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'uv tool install --python 3.13 kimi-cli',
     commands: ['kimi'],
     versionArgs: ['--help'],
+    cli: 'kimi',
+    icon: 'kimi.png',
+    terminalOnly: true,
   },
   {
     id: 'kiro',
@@ -142,6 +197,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'curl -fsSL https://cli.kiro.dev/install | bash',
     commands: ['kiro-cli', 'kiro'],
     versionArgs: ['--version'],
+    cli: 'kiro-cli',
+    icon: 'kiro.png',
+    terminalOnly: true,
   },
   {
     id: 'rovo',
@@ -150,6 +208,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'acli rovodev auth login',
     commands: ['rovodev', 'acli'],
     versionArgs: ['--version'],
+    autoApproveFlag: '--yolo',
+    autoStartCommand: 'acli rovodev run',
+    icon: 'atlassian.png',
+    terminalOnly: true,
   },
   {
     id: 'cline',
@@ -158,6 +220,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g cline',
     commands: ['cline'],
     versionArgs: ['help'],
+    cli: 'cline',
+    icon: 'cline.png',
+    terminalOnly: true,
   },
   {
     id: 'codebuff',
@@ -166,6 +231,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     installCommand: 'npm install -g codebuff',
     commands: ['codebuff'],
     versionArgs: ['--version'],
+    cli: 'codebuff',
+    icon: 'codebuff.png',
+    terminalOnly: true,
   },
 ];
 

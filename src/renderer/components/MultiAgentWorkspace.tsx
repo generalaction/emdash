@@ -424,7 +424,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     shell={providerMeta[v.provider].cli}
                     autoApprove={workspace.metadata?.autoApprove ?? false}
                     initialPrompt={
-                      ['codex', 'claude'].includes(v.provider)
+                      providerMeta[v.provider]?.initialPromptFlag !== undefined
                         ? (initialInjection ?? undefined)
                         : undefined
                     }

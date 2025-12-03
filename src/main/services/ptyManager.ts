@@ -1,18 +1,7 @@
 import os from 'os';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
-
-// Provider auto-approve flags mapping
-// Maps CLI executable name to its auto-approve flag
-const AUTO_APPROVE_FLAGS: Record<string, string> = {
-  claude: '--dangerously-skip-permissions',
-  codex: '--full-auto',
-  qwen: '--yolo',
-  opencode: '-p',
-  gemini: '--yolomode',
-  'cursor-agent': '-p',
-  acli: '--yolo',
-};
+import { PROVIDERS } from '@shared/providers/registry';
 
 type PtyRecord = {
   id: string;
@@ -112,34 +101,20 @@ export function startPty(options: {
       else if (base === 'bash') args.push('--noprofile', '--norc', '-i');
       else if (base === 'fish' || base === 'sh') args.push('-i');
 
-      // Check if this is a known AI coding assistant CLI
       const baseLower = base.toLowerCase();
-      const autoApproveFlag = AUTO_APPROVE_FLAGS[baseLower];
+      const provider = PROVIDERS.find((p) => p.cli === baseLower);
 
-      if (autoApproveFlag) {
+      if (provider) {
         args.length = 0;
-        const willAddFlag = autoApprove === true;
-        log.debug('ptyManager:providerCheck', {
-          id,
-          base,
-          autoApprove,
-          autoApproveFlag,
-          willAddFlag,
-        });
-        if (willAddFlag) {
-          args.push(autoApproveFlag);
+        if (autoApprove && provider.autoApproveFlag) {
+          args.push(provider.autoApproveFlag);
         }
-      }
-
-      // Providers that accept initial prompt as CLI argument
-      const promptAsArgProviders = ['codex', 'claude'];
-      if (promptAsArgProviders.includes(baseLower) && initialPrompt?.trim()) {
-        args.push(initialPrompt.trim());
-        log.debug('ptyManager:initialPrompt', {
-          id,
-          provider: baseLower,
-          promptLength: initialPrompt.trim().length,
-        });
+        if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
+          if (provider.initialPromptFlag) {
+            args.push(provider.initialPromptFlag);
+          }
+          args.push(initialPrompt.trim());
+        }
       }
     } catch {}
   }
