@@ -87,9 +87,9 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
         className={`flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 ${className}`}
       >
         <Bot className="mb-2 h-8 w-8 text-gray-400" />
-        <h3 className="mb-1 text-sm text-gray-600 dark:text-gray-400">No Workspace Selected</h3>
+        <h3 className="mb-1 text-sm text-gray-600 dark:text-gray-400">No Task Selected</h3>
         <p className="text-center text-xs text-gray-500 dark:text-gray-500">
-          Select a workspace to view its terminal
+          Select a task to view its terminal
         </p>
       </div>
     );

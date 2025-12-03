@@ -686,10 +686,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
               {(!project.workspaces || project.workspaces.length === 0) && (
                 <Alert>
-                  <AlertTitle>What's a workspace?</AlertTitle>
+                  <AlertTitle>What's a task?</AlertTitle>
                   <AlertDescription className="flex items-center justify-between gap-4">
                     <p className="text-sm text-muted-foreground">
-                      Each workspace is an isolated copy and branch of your repo (Git-tracked files
+                      Each task is an isolated copy and branch of your repo (Git-tracked files
                       only).
                     </p>
                   </AlertDescription>
@@ -700,7 +700,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         </div>
       </div>
 
-      {/* Bulk delete confirmation dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
