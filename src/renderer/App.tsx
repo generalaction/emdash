@@ -843,6 +843,7 @@ const AppContent: React.FC = () => {
 
         newWorkspace = {
           id: worktree.id,
+          projectId: selectedProject.id,
           name: workspaceName,
           branch: worktree.branch,
           path: worktree.path,
@@ -853,7 +854,6 @@ const AppContent: React.FC = () => {
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
-          projectId: selectedProject.id,
           agentId: selectedProvider || undefined,
           metadata: workspaceMetadata,
         });

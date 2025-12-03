@@ -424,13 +424,26 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     shell={providerMeta[v.provider].cli}
                     autoApprove={workspace.metadata?.autoApprove ?? false}
                     initialPrompt={
-                      providerMeta[v.provider]?.initialPromptFlag !== undefined
+                      providerMeta[v.provider]?.initialPromptFlag !== undefined &&
+                      !workspace.metadata?.initialInjectionSent
                         ? (initialInjection ?? undefined)
                         : undefined
                     }
                     keepAlive
                     variant={isDark ? 'dark' : 'light'}
                     className="h-full w-full"
+                    onStartSuccess={() => {
+                      // Mark initial injection as sent so it won't re-run on restart
+                      if (initialInjection && !workspace.metadata?.initialInjectionSent) {
+                        void window.electronAPI.saveWorkspace({
+                          ...workspace,
+                          metadata: {
+                            ...workspace.metadata,
+                            initialInjectionSent: true,
+                          },
+                        });
+                      }
+                    }}
                   />
                 </div>
               </div>
