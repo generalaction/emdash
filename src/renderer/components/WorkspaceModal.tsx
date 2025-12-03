@@ -341,7 +341,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       </label>
                     </div>
                     {providerRuns.map((pr, index) => (
-                      <div key={index} className="flex items-center gap-2">
+                      <div key={index} className="flex items-center gap-1.5">
                         <div className="min-w-0 flex-1">
                           <ProviderSelector
                             value={pr.provider}
@@ -351,40 +351,33 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           />
                         </div>
                         {bestOfEnabled && (
-                          <div className="flex items-center gap-0.5">
-                            <Button
+                          <div className="flex h-9 items-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-700">
+                            <button
                               type="button"
-                              variant="ghost"
-                              size="sm"
                               onClick={() => updateRunsAt(index, pr.runs - 1)}
                               disabled={pr.runs <= 1}
-                              className="h-7 w-7 p-0"
+                              className="flex h-full w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-gray-200 disabled:opacity-40 dark:hover:bg-gray-600"
                               aria-label="Decrease runs"
                             >
                               <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              min="1"
-                              max={MAX_RUNS_PER_PROVIDER}
-                              value={pr.runs}
-                              onChange={(e) =>
-                                updateRunsAt(index, parseInt(e.target.value) || 1)
-                              }
-                              className="h-7 w-10 px-1 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              aria-label={`Runs for ${pr.provider}`}
-                            />
-                            <Button
+                            </button>
+                            <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
+                            <span
+                              className="flex h-full w-8 items-center justify-center text-sm"
+                              aria-label={`${pr.runs} runs for ${pr.provider}`}
+                            >
+                              {pr.runs}
+                            </span>
+                            <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
+                            <button
                               type="button"
-                              variant="ghost"
-                              size="sm"
                               onClick={() => updateRunsAt(index, pr.runs + 1)}
                               disabled={pr.runs >= MAX_RUNS_PER_PROVIDER}
-                              className="h-7 w-7 p-0"
+                              className="flex h-full w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-gray-200 disabled:opacity-40 dark:hover:bg-gray-600"
                               aria-label="Increase runs"
                             >
                               <Plus className="h-3 w-3" />
-                            </Button>
+                            </button>
                           </div>
                         )}
                       </div>
