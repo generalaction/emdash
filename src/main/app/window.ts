@@ -7,11 +7,19 @@ import { ensureRendererServer } from './staticServer';
 let mainWindow: BrowserWindow | null = null;
 
 export function createMainWindow(): BrowserWindow {
+  // In development, resolve icon from src/assets
+  // In production (packaged), electron-builder handles the icon
+  const iconPath = isDev
+    ? join(__dirname, '..', '..', '..', 'src', 'assets', 'images', 'emdash', 'emdash_logo.png')
+    : undefined;
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 800,
+    title: 'emdash',
+    ...(iconPath && { icon: iconPath }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
