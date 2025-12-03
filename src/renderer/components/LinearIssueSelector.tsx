@@ -5,7 +5,6 @@ import { Search } from 'lucide-react';
 import linearLogo from '../../assets/images/linear.png';
 import { type LinearIssueSummary } from '../types/linear';
 import { Separator } from './ui/separator';
-import { Badge } from './ui/badge';
 import { Spinner } from './ui/spinner';
 
 interface LinearIssueSelectorProps {
