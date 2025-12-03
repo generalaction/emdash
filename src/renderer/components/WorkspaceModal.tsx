@@ -22,11 +22,6 @@ import {
   normalizeWorkspaceName,
   MAX_WORKSPACE_NAME_LENGTH,
 } from '../lib/workspaceNames';
-import {
-  loadWorkspaceModalPreferences,
-  saveWorkspaceModalPreferences,
-  resetWorkspaceModalPreferences,
-} from '../lib/workspaceModalPreferences';
 
 const DEFAULT_PROVIDER: Provider = 'claude';
 const MAX_PROVIDERS = 4;
@@ -83,7 +78,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
-  const [prefsHydrated, setPrefsHydrated] = useState(false);
 
   // Computed values
   const totalRuns = useMemo(
@@ -153,12 +147,10 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
-      setPrefsHydrated(false);
       setSelectedLinearIssue(null);
       setSelectedGithubIssue(null);
       return;
     }
-    setPrefsHydrated(false);
     if (!workspaceName) {
       const suggested = generateFriendlyWorkspaceName(normalizedExisting);
       setWorkspaceName(suggested);
@@ -167,7 +159,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     }
   }, [isOpen, normalizedExisting, validate]);
 
-  // Load default provider from settings and restore last preferences when modal opens
+  // Load default provider from settings when modal opens - always start fresh
   useEffect(() => {
     if (!isOpen) return;
     let cancel = false;
@@ -180,27 +172,11 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
           ? (settingsProvider as Provider)
           : DEFAULT_PROVIDER;
         setDefaultProviderFromSettings(defaultProvider);
-
-        const { prefs: savedPrefs, defaultMatches } =
-          loadWorkspaceModalPreferences(defaultProvider);
-
-        // If the user changed the default provider in settings, reset saved prefs
-        if (!defaultMatches) {
-          resetWorkspaceModalPreferences(defaultProvider);
-        }
-
-        // If we have saved preferences and they match the current default, use them; otherwise use settings default
-        if (savedPrefs && defaultMatches && savedPrefs.providerRuns?.length > 0) {
-          setProviderRuns(savedPrefs.providerRuns);
-        } else {
-          // No saved preferences (or default changed), use settings default
-          setProviderRuns([{ provider: defaultProvider, runs: 1 }]);
-        }
+        // Always start with a single provider row using the default
+        setProviderRuns([{ provider: defaultProvider, runs: 1 }]);
       } catch {
         // Ignore errors, use default provider
         setProviderRuns([{ provider: DEFAULT_PROVIDER, runs: 1 }]);
-      } finally {
-        if (!cancel) setPrefsHydrated(true);
       }
     })();
     return () => {
@@ -230,12 +206,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setAutoApprove(false);
     }
   }, [hasAutoApproveSupport, autoApprove]);
-
-  // Save preferences when provider selection changes
-  useEffect(() => {
-    if (!isOpen || !prefsHydrated) return;
-    saveWorkspaceModalPreferences(providerRuns, defaultProviderFromSettings);
-  }, [isOpen, providerRuns, defaultProviderFromSettings, prefsHydrated]);
 
   return createPortal(
     <AnimatePresence>
@@ -303,8 +273,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                           selectedJiraIssue,
                           showAdvanced ? autoApprove : false
                         );
-                        // Save current preferences before resetting
-                        saveWorkspaceModalPreferences(providerRuns, defaultProviderFromSettings);
 
                         setWorkspaceName('');
                         setInitialPrompt('');
