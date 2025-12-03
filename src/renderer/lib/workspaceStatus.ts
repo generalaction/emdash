@@ -1,5 +1,5 @@
 // Lightweight derived status store for workspaces based on agent activity
-// - Derives 'busy' when we receive stream output for a workspace
+// - Derives 'busy' when we receive stream output for a task (workspace)
 // - Derives 'idle' after a short inactivity window or when a 'complete' event fires
 
 type Derived = 'idle' | 'busy';
