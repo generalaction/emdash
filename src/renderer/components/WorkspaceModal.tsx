@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch, ExternalLink, Settings, Plus, Trash2 } from 'lucide-react';
+import { X, GitBranch, ExternalLink, Settings, Plus, Minus, Trash2 } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { type Provider } from '../types';
 import { type ProviderRun } from '../types/chat';
@@ -78,6 +78,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [bestOfEnabled, setBestOfEnabled] = useState(false);
 
   // Computed values
   const totalRuns = useMemo(
@@ -119,6 +120,12 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     const nextProvider = availableProviders.find((p) => !usedProviders.has(p)) || 'codex';
     setProviderRuns((prev) => [...prev, { provider: nextProvider, runs: 1 }]);
   }, [providerRuns]);
+
+  const handleBestOfToggle = useCallback((enabled: boolean) => {
+    setBestOfEnabled(enabled);
+    // Reset all runs to 1 when toggling
+    setProviderRuns((prev) => prev.map((pr) => ({ ...pr, runs: 1 })));
+  }, []);
 
   const normalizedExisting = useMemo(
     () => existingNames.map((n) => normalizeWorkspaceName(n)).filter(Boolean),
@@ -277,6 +284,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         setWorkspaceName('');
                         setInitialPrompt('');
                         setProviderRuns([{ provider: defaultProviderFromSettings, runs: 1 }]);
+                        setBestOfEnabled(false);
                         setSelectedLinearIssue(null);
                         setSelectedGithubIssue(null);
                         setAutoApprove(false);
@@ -320,7 +328,18 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
                   {/* Provider rows */}
                   <div className="space-y-2">
-                    <Label>AI Provider{providerRuns.length > 1 ? 's' : ''}</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>AI Provider{providerRuns.length > 1 ? 's' : ''}</Label>
+                      <label className="flex cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={bestOfEnabled}
+                          onChange={(e) => handleBestOfToggle(e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-muted-foreground">Best-of</span>
+                      </label>
+                    </div>
                     {providerRuns.map((pr, index) => (
                       <div key={index} className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
@@ -330,22 +349,43 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             className="w-full"
                           />
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            min="1"
-                            max={MAX_RUNS_PER_PROVIDER}
-                            value={pr.runs}
-                            onChange={(e) =>
-                              updateRunsAt(index, parseInt(e.target.value) || 1)
-                            }
-                            className="w-14 text-center"
-                            aria-label={`Runs for ${pr.provider}`}
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            run{pr.runs !== 1 ? 's' : ''}
-                          </span>
-                        </div>
+                        {bestOfEnabled && (
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateRunsAt(index, pr.runs - 1)}
+                              disabled={pr.runs <= 1}
+                              className="h-7 w-7 p-0"
+                              aria-label="Decrease runs"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min="1"
+                              max={MAX_RUNS_PER_PROVIDER}
+                              value={pr.runs}
+                              onChange={(e) =>
+                                updateRunsAt(index, parseInt(e.target.value) || 1)
+                              }
+                              className="h-7 w-10 px-1 text-center text-sm"
+                              aria-label={`Runs for ${pr.provider}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateRunsAt(index, pr.runs + 1)}
+                              disabled={pr.runs >= MAX_RUNS_PER_PROVIDER}
+                              className="h-7 w-7 p-0"
+                              aria-label="Increase runs"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
                         {providerRuns.length > 1 && (
                           <Button
                             type="button"
