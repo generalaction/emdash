@@ -239,17 +239,29 @@ export class TerminalSessionManager {
   }
 
   private applyTheme(theme: SessionTheme) {
+    const selection =
+      theme.base === 'light'
+        ? {
+            selectionBackground: 'rgba(59, 130, 246, 0.35)',
+            selectionForeground: '#0f172a',
+          }
+        : {
+            selectionBackground: 'rgba(96, 165, 250, 0.35)',
+            selectionForeground: '#f9fafb',
+          };
     const base =
       theme.base === 'light'
         ? {
             background: '#ffffff',
             foreground: '#1f2933',
             cursor: '#1f2933',
+            ...selection,
           }
         : {
             background: '#1f2937',
             foreground: '#f9fafb',
             cursor: '#f9fafb',
+            ...selection,
           };
     this.terminal.options.theme = { ...base, ...(theme.override ?? {}) };
   }
