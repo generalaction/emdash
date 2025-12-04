@@ -74,6 +74,7 @@ export class TerminalSessionManager {
       convertEol: true,
       fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       allowProposedApi: true,
+      scrollOnUserInput: false,
     });
 
     this.fitAddon = new FitAddon();
