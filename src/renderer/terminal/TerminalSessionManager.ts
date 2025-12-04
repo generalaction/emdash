@@ -147,7 +147,6 @@ export class TerminalSessionManager {
     }
 
     this.fitAddon.fit();
-    this.terminal.focus();
     this.sendSizeIfStarted();
 
     this.resizeObserver = new ResizeObserver(() => {
@@ -211,7 +210,7 @@ export class TerminalSessionManager {
   }
 
   focus() {
-    this.container.focus();
+    this.terminal.focus();
   }
 
   registerActivityListener(listener: () => void): () => void {
