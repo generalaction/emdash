@@ -225,7 +225,7 @@ const AppContent: React.FC = () => {
   const leftSidebarIsMobileRef = useRef<boolean>(false);
   const leftSidebarOpenRef = useRef<boolean>(true);
   const rightSidebarSetCollapsedRef = useRef<((next: boolean) => void) | null>(null);
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(true);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
 
   const handlePanelLayout = useCallback((sizes: number[]) => {
     if (!Array.isArray(sizes) || sizes.length < 3) {
@@ -1476,7 +1476,7 @@ const AppContent: React.FC = () => {
           return null;
         })()}
         <SidebarProvider>
-          <RightSidebarProvider defaultCollapsed>
+          <RightSidebarProvider>
             <AppKeyboardShortcuts
               showCommandPalette={showCommandPalette}
               showSettings={showSettings}
