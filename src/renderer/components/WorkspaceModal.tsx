@@ -284,7 +284,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
                   {/* Provider selector */}
                   <div className="flex items-center gap-4">
-                    <Label className="shrink-0">AI Provider{providerRuns.length > 1 ? 's' : ''}</Label>
+                    <Label className="shrink-0">AI Provider</Label>
                     <MultiProviderDropdown
                       providerRuns={providerRuns}
                       onChange={setProviderRuns}

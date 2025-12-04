@@ -31,15 +31,23 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   const selectedProviders = new Set(providerRuns.map((pr) => pr.provider));
   const totalRuns = providerRuns.reduce((sum, pr) => sum + pr.runs, 0);
 
+  // Checkbox: always add/remove (multi-select)
   const toggleProvider = (provider: Provider) => {
     if (selectedProviders.has(provider)) {
-      // Remove if more than 1 selected
       if (providerRuns.length > 1) {
         onChange(providerRuns.filter((pr) => pr.provider !== provider));
       }
-      // Can't remove last one
     } else {
-      // Add with 1 run
+      onChange([...providerRuns, { provider, runs: 1 }]);
+    }
+  };
+
+  // Row click: switch when single, add when multiple
+  const handleRowClick = (provider: Provider) => {
+    if (selectedProviders.has(provider)) return;
+    if (providerRuns.length === 1) {
+      onChange([{ provider, runs: 1 }]);
+    } else {
       onChange([...providerRuns, { provider, runs: 1 }]);
     }
   };
@@ -97,15 +105,20 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
           return (
             <div
               key={key}
-              className="flex h-8 items-center justify-between rounded-sm px-2 hover:bg-accent"
+              className="flex h-8 cursor-pointer items-center justify-between rounded-sm px-2 hover:bg-accent"
+              onClick={() => handleRowClick(provider)}
             >
-              <label className="flex flex-1 cursor-pointer items-center gap-2">
+              <div className="flex flex-1 items-center gap-2">
                 <input
                   type="checkbox"
                   checked={isSelected}
                   disabled={isLastSelected}
-                  onChange={() => toggleProvider(provider)}
-                  className="h-4 w-4"
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    toggleProvider(provider);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-4 w-4 cursor-pointer"
                 />
                 <img
                   src={config.logo}
@@ -113,7 +126,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                   className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
                 />
                 <span className="text-sm">{config.name}</span>
-              </label>
+              </div>
               {isSelected && (
                 <Select
                   value={String(getProviderRuns(provider))}
