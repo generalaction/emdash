@@ -31,6 +31,7 @@ export type ProviderDefinition = {
   cli?: string;
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
   icon?: string;
@@ -86,6 +87,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'gemini',
     autoApproveFlag: '--yolomode',
+    initialPromptFlag: '-i',
     icon: 'gemini.png',
     terminalOnly: true,
   },
@@ -165,6 +167,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['auggie'],
     versionArgs: ['--version'],
     cli: 'auggie',
+    initialPromptFlag: '',
+    // otherwise user is prompted each time before prompt is passed
+    defaultArgs: ['--allow-indexing'],
     icon: 'augmentcode.png',
     terminalOnly: true,
   },
@@ -221,6 +226,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['cline'],
     versionArgs: ['help'],
     cli: 'cline',
+    initialPromptFlag: '',
     icon: 'cline.png',
     terminalOnly: true,
   },
@@ -232,6 +238,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['codebuff'],
     versionArgs: ['--version'],
     cli: 'codebuff',
+    initialPromptFlag: '',
     icon: 'codebuff.png',
     terminalOnly: true,
   },
