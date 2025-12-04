@@ -240,12 +240,29 @@ const IntegrationsCard: React.FC = () => {
   }, [checkStatus, login]);
 
   const handleGithubInstall = useCallback(async () => {
+    setGithubError(null);
     try {
-      await window.electronAPI.openExternal('https://cli.github.com/manual/installation');
+      // Auto-install gh CLI
+      const installResult = await window.electronAPI.githubInstallCLI();
+      
+      if (!installResult.success) {
+        setGithubError(`Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`);
+        return;
+      }
+
+      // After successful install, proceed with OAuth authentication
+      await checkStatus(); // Refresh status
+      const result = await login();
+      await checkStatus();
+      
+      if (!result?.success) {
+        setGithubError(result?.error || 'Authentication failed.');
+      }
     } catch (error) {
-      console.error('Failed to open GitHub CLI install docs:', error);
+      console.error('Failed to install and connect GitHub:', error);
+      setGithubError('Installation failed. Please install gh CLI manually.');
     }
-  }, []);
+  }, [checkStatus, login]);
 
   const renderStatusIndicator = useCallback(
     (label: string, tone: 'connected' | 'inactive' = 'inactive') => {
@@ -371,10 +388,10 @@ const IntegrationsCard: React.FC = () => {
                 <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Signing in…
               </>
             ) : (
-              'Sign in'
+              'Sign in with GitHub'
             )
           ) : (
-            'Install CLI'
+            'Install & Sign in'
           )
         }
       />

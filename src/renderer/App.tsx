@@ -113,7 +113,10 @@ const AppContent: React.FC = () => {
     authenticated: isAuthenticated,
     user,
     checkStatus,
+    login: githubLogin,
   } = useGithubAuth();
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
@@ -613,6 +616,82 @@ const AppContent: React.FC = () => {
       toast({
         title: 'Failed to Open Project',
         description: 'Please check the console for details.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleGithubConnect = async () => {
+    setGithubLoading(true);
+    setGithubStatusMessage(undefined);
+
+    try {
+      // Check if gh CLI is installed
+      setGithubStatusMessage('Checking for GitHub CLI...');
+      const cliInstalled = await window.electronAPI.githubCheckCLIInstalled();
+
+      if (!cliInstalled) {
+        // Detect platform for better messaging
+        let installMessage = 'Installing GitHub CLI...';
+        if (platform === 'darwin') {
+          installMessage = 'Installing GitHub CLI via Homebrew...';
+        } else if (platform === 'linux') {
+          installMessage = 'Installing GitHub CLI via apt...';
+        } else if (platform === 'win32') {
+          installMessage = 'Installing GitHub CLI via winget...';
+        }
+
+        setGithubStatusMessage(installMessage);
+        const installResult = await window.electronAPI.githubInstallCLI();
+
+        if (!installResult.success) {
+          setGithubLoading(false);
+          setGithubStatusMessage(undefined);
+          toast({
+            title: 'Installation Failed',
+            description: `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        setGithubStatusMessage('GitHub CLI installed! Setting up connection...');
+        toast({
+          title: 'GitHub CLI Installed',
+          description: 'Now authenticating with GitHub...',
+        });
+        await checkStatus(); // Refresh status
+      }
+
+      // Proceed with OAuth authentication
+      setGithubStatusMessage('Opening browser to sign in...');
+      const result = await githubLogin();
+      
+      setGithubStatusMessage('Verifying connection...');
+      await checkStatus();
+
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+
+      if (result?.success) {
+        toast({
+          title: 'Connected to GitHub',
+          description: 'Successfully authenticated with GitHub',
+        });
+      } else {
+        toast({
+          title: 'Authentication Failed',
+          description: result?.error || 'Could not connect to GitHub',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('GitHub connection error:', error);
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+      toast({
+        title: 'Connection Failed',
+        description: 'Failed to connect to GitHub. Please try again.',
         variant: 'destructive',
       });
     }
@@ -1541,6 +1620,9 @@ const AppContent: React.FC = () => {
                     githubInstalled={ghInstalled}
                     githubAuthenticated={isAuthenticated}
                     githubUser={user}
+                    onGithubConnect={handleGithubConnect}
+                    githubLoading={githubLoading}
+                    githubStatusMessage={githubStatusMessage}
                     onSidebarContextChange={handleSidebarContextChange}
                     onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
                     isCreatingWorkspace={isCreatingWorkspace}

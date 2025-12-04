@@ -2,6 +2,7 @@ import { ipcMain, app } from 'electron';
 import { log } from '../lib/logger';
 import { GitHubService } from '../services/GitHubService';
 import { worktreeService } from '../services/WorktreeService';
+import { githubCLIInstaller } from '../services/GitHubCLIInstaller';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
@@ -299,4 +300,25 @@ export function registerGithubIpc() {
       }
     }
   );
+
+  ipcMain.handle('github:checkCLIInstalled', async () => {
+    try {
+      return await githubCLIInstaller.isInstalled();
+    } catch (error) {
+      log.error('Failed to check gh CLI installation:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('github:installCLI', async () => {
+    try {
+      return await githubCLIInstaller.install();
+    } catch (error) {
+      log.error('Failed to install gh CLI:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Installation failed',
+      };
+    }
+  });
 }

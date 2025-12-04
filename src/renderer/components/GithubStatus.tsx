@@ -1,7 +1,8 @@
 import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import { Download, Github } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Button } from './ui/button';
+import { Spinner } from './ui/spinner';
 
 type GithubUser = { login?: string; name?: string; avatar_url?: string } | null;
 
@@ -10,84 +11,102 @@ export function GithubStatus({
   authenticated,
   user,
   className = '',
+  onConnect,
+  isLoading = false,
+  statusMessage,
 }: {
   installed?: boolean;
   authenticated?: boolean;
   user?: GithubUser;
   className?: string;
+  onConnect?: () => void;
+  isLoading?: boolean;
+  statusMessage?: string;
 }) {
+  // Not installed - show install button
   if (!installed) {
     return (
-      <TooltipProvider delayDuration={250}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              className={`flex items-start space-x-2 text-xs text-gray-600 dark:text-gray-400 ${className}`}
-            >
-              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <div>
-                <p className="font-medium">Install GitHub CLI</p>
-                <p className="text-[11px] text-gray-700/80 dark:text-gray-300/80">
-                  Required for repo status and auth
-                </p>
-              </div>
+      <Button
+        onClick={onConnect}
+        disabled={isLoading}
+        variant="default"
+        size="sm"
+        className={`w-full justify-start gap-2 items-center py-2 ${className}`}
+      >
+        {isLoading ? (
+          <>
+            <Spinner size="sm" />
+            <span className="text-xs font-medium">
+              {statusMessage || 'Installing GitHub CLI...'}
+            </span>
+          </>
+        ) : (
+          <>
+            <Download className="h-4 w-4 flex-shrink-0" />
+            <div className="flex flex-col items-start gap-0.5">
+              <span className="text-xs font-medium leading-tight">Connect GitHub</span>
+              <span className="text-[10px] opacity-80 leading-tight">Install & sign in</span>
             </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>GitHub CLI not installed</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </>
+        )}
+      </Button>
     );
   }
 
+  // Not authenticated - show sign in button
   if (!authenticated) {
     return (
-      <TooltipProvider delayDuration={250}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              className={`flex items-start space-x-2 text-xs text-gray-600 dark:text-gray-300 ${className}`}
-            >
-              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <div>
-                <p className="font-medium">GitHub not authenticated</p>
-                <p className="text-[11px] text-gray-800 dark:text-gray-100">
-                  Run{' '}
-                  <code className="rounded border border-gray-200 bg-gray-100 px-1 py-0.5 text-gray-900 dark:border-white/20 dark:bg-white/10 dark:text-white">
-                    gh auth login
-                  </code>
-                </p>
-              </div>
+      <Button
+        onClick={onConnect}
+        disabled={isLoading}
+        variant="default"
+        size="sm"
+        className={`w-full justify-start gap-2 items-center py-2 ${className}`}
+      >
+        {isLoading ? (
+          <>
+            <Spinner size="sm" />
+            <span className="text-xs font-medium">
+              {statusMessage || 'Connecting to GitHub...'}
+            </span>
+          </>
+        ) : (
+          <>
+            <Github className="h-4 w-4 flex-shrink-0" />
+            <div className="flex flex-col items-start gap-0.5">
+              <span className="text-xs font-medium leading-tight">Connect GitHub</span>
+              <span className="text-[10px] opacity-80 leading-tight">Sign in with GitHub</span>
             </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Not authenticated. Run: gh auth login</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </>
+        )}
+      </Button>
     );
   }
 
+  // Authenticated - show user info
   const displayName = user?.login || user?.name || 'GitHub account';
+  const avatarUrl = (user as any)?.avatar_url as string | undefined;
+
   return (
-    <TooltipProvider delayDuration={250}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className={`flex items-center space-x-2 text-sm text-muted-foreground ${className}`}>
-            <img
-              src={githubLogo}
-              alt="GitHub"
-              className="h-4 w-4 rounded-sm object-contain dark:invert"
-            />
-            <span className="block truncate">{displayName}</span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Authenticated via GitHub CLI{displayName ? ` as ${displayName}` : ''}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <div
+      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground ${className}`}
+    >
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={displayName}
+          className="h-5 w-5 rounded-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <img
+          src={githubLogo}
+          alt="GitHub"
+          className="h-5 w-5 rounded-sm object-contain dark:invert"
+        />
+      )}
+      <span className="truncate font-medium">{displayName}</span>
+    </div>
   );
 }
 

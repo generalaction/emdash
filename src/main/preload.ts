@@ -197,6 +197,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     branchName?: string;
   }) => ipcRenderer.invoke('github:createPullRequestWorktree', args),
   githubLogout: () => ipcRenderer.invoke('github:logout'),
+  githubCheckCLIInstalled: () => ipcRenderer.invoke('github:checkCLIInstalled'),
+  githubInstallCLI: () => ipcRenderer.invoke('github:installCLI'),
   // GitHub issues
   githubIssuesList: (projectPath: string, limit?: number) =>
     ipcRenderer.invoke('github:issues:list', projectPath, limit),
@@ -541,6 +543,8 @@ export interface ElectronAPI {
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
+  githubCheckCLIInstalled: () => Promise<boolean>;
+  githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
 
   // Database methods
   getProjects: () => Promise<any[]>;

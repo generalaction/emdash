@@ -16,6 +16,8 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
   const { installed, authenticated, user, isLoading, login, logout, checkStatus } = useGithubAuth();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState<boolean>(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [cliInstalled, setCLIInstalled] = useState(true);
 
   const status: GithubConnectionStatus = useMemo(() => {
     if (!installed) {
@@ -27,6 +29,11 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
   useEffect(() => {
     onStatusChange?.(status);
   }, [status, onStatusChange]);
+
+  useEffect(() => {
+    // Check if CLI is installed on mount
+    window.electronAPI.githubCheckCLIInstalled().then(setCLIInstalled);
+  }, []);
 
   useEffect(() => {
     if (status === 'connected') {
@@ -43,11 +50,33 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
     setMessage(null);
     setIsError(false);
 
+    // Check if gh CLI is installed
+    const cliPresent = await window.electronAPI.githubCheckCLIInstalled();
+
+    if (!cliPresent) {
+      // Offer to install
+      setMessage('GitHub CLI not found. Installing...');
+      setIsInstalling(true);
+
+      const installResult = await window.electronAPI.githubInstallCLI();
+      setIsInstalling(false);
+
+      if (!installResult.success) {
+        setMessage(`Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`);
+        setIsError(true);
+        return;
+      }
+
+      setMessage('GitHub CLI installed successfully!');
+      setCLIInstalled(true);
+    }
+
+    // Proceed with OAuth authentication
     try {
-      const result = await login();
+      const result = await login(); // This now triggers OAuth flow
       await checkStatus();
       if (result?.success) {
-        setMessage(null);
+        setMessage('Successfully connected to GitHub!');
         setIsError(false);
       } else {
         setMessage(result?.error || 'Authentication failed.');
@@ -159,13 +188,13 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
               disabled={isLoading}
               aria-busy={isLoading}
             >
-              {isLoading ? (
+              {isLoading || isInstalling ? (
                 <>
                   <Spinner size="sm" className="mr-2" />
-                  Connecting…
+                  {isInstalling ? 'Installing CLI...' : 'Connecting…'}
                 </>
               ) : (
-                'Connect GitHub'
+                'Sign in with GitHub'
               )}
             </Button>
             <Button type="button" variant="outline" onClick={handleRefresh} disabled={isLoading}>
