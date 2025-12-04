@@ -1010,7 +1010,7 @@ const AppContent: React.FC = () => {
             project.id === selectedProject.id
               ? {
                   ...project,
-                  workspaces: [...(project.workspaces || []), newWorkspace],
+                  workspaces: [newWorkspace, ...(project.workspaces || [])],
                 }
               : project
           )
@@ -1020,7 +1020,7 @@ const AppContent: React.FC = () => {
           prev
             ? {
                 ...prev,
-                workspaces: [...(prev.workspaces || []), newWorkspace],
+                workspaces: [newWorkspace, ...(prev.workspaces || [])],
               }
             : null
         );
@@ -1243,7 +1243,7 @@ const AppContent: React.FC = () => {
               const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
               return alreadyPresent
                 ? project
-                : { ...project, workspaces: [...existing, workspaceSnapshot] };
+                : { ...project, workspaces: [workspaceSnapshot, ...existing] };
             })
           );
           setSelectedProject((prev) => {
@@ -1252,7 +1252,7 @@ const AppContent: React.FC = () => {
             const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
             return alreadyPresent
               ? prev
-              : { ...prev, workspaces: [...existing, workspaceSnapshot] };
+              : { ...prev, workspaces: [workspaceSnapshot, ...existing] };
           });
 
           if (wasActive) {
