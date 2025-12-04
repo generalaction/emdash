@@ -39,6 +39,7 @@ import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
+import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -117,6 +118,14 @@ const AppContent: React.FC = () => {
   } = useGithubAuth();
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
+  const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
+  const [deviceFlowData, setDeviceFlowData] = useState<{
+    deviceCode: string;
+    userCode: string;
+    verificationUri: string;
+    expiresIn: number;
+    interval: number;
+  } | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
@@ -663,25 +672,27 @@ const AppContent: React.FC = () => {
         await checkStatus(); // Refresh status
       }
 
-      // Proceed with OAuth authentication
-      setGithubStatusMessage('Opening browser to sign in...');
+      // Proceed with Device Flow authentication
+      setGithubStatusMessage('Requesting authorization code...');
       const result = await githubLogin();
-      
-      setGithubStatusMessage('Verifying connection...');
-      await checkStatus();
 
       setGithubLoading(false);
       setGithubStatusMessage(undefined);
 
-      if (result?.success) {
-        toast({
-          title: 'Connected to GitHub',
-          description: 'Successfully authenticated with GitHub',
+      if (result?.success && result.device_code && result.user_code && result.verification_uri) {
+        // Show Device Flow modal
+        setDeviceFlowData({
+          deviceCode: result.device_code,
+          userCode: result.user_code,
+          verificationUri: result.verification_uri,
+          expiresIn: result.expires_in || 900,
+          interval: result.interval || 5,
         });
+        setShowDeviceFlowModal(true);
       } else {
         toast({
           title: 'Authentication Failed',
-          description: result?.error || 'Could not connect to GitHub',
+          description: result?.error || 'Could not request device code',
           variant: 'destructive',
         });
       }
@@ -1411,6 +1422,41 @@ const AppContent: React.FC = () => {
     setShowKanban((v) => !v);
   }, [selectedProject]);
 
+  const handleDeviceFlowSuccess = useCallback(
+    async (user: any) => {
+      setShowDeviceFlowModal(false);
+      setDeviceFlowData(null);
+      
+      // Refresh status to update UI
+      await checkStatus();
+      
+      toast({
+        title: 'Connected to GitHub',
+        description: `Signed in as ${user?.login || user?.name || 'user'}`,
+      });
+    },
+    [checkStatus, toast]
+  );
+
+  const handleDeviceFlowError = useCallback(
+    (error: string) => {
+      setShowDeviceFlowModal(false);
+      setDeviceFlowData(null);
+      
+      toast({
+        title: 'Authentication Failed',
+        description: error,
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
+
+  const handleDeviceFlowClose = useCallback(() => {
+    setShowDeviceFlowModal(false);
+    setDeviceFlowData(null);
+  }, []);
+
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
       return (
@@ -1684,6 +1730,19 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
+      {deviceFlowData && (
+        <GithubDeviceFlowModal
+          open={showDeviceFlowModal}
+          onClose={handleDeviceFlowClose}
+          deviceCode={deviceFlowData.deviceCode}
+          userCode={deviceFlowData.userCode}
+          verificationUri={deviceFlowData.verificationUri}
+          expiresIn={deviceFlowData.expiresIn}
+          interval={deviceFlowData.interval}
+          onSuccess={handleDeviceFlowSuccess}
+          onError={handleDeviceFlowError}
+        />
+      )}
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}

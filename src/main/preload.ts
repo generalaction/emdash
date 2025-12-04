@@ -180,6 +180,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // GitHub integration
   githubAuth: () => ipcRenderer.invoke('github:auth'),
+  githubPollDeviceAuth: (deviceCode: string, interval: number) =>
+    ipcRenderer.invoke('github:pollDeviceAuth', deviceCode, interval),
   githubIsAuthenticated: () => ipcRenderer.invoke('github:isAuthenticated'),
   githubGetStatus: () => ipcRenderer.invoke('github:getStatus'),
   githubGetUser: () => ipcRenderer.invoke('github:getUser'),
@@ -516,7 +518,21 @@ export interface ElectronAPI {
   stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
 
   // GitHub integration
-  githubAuth: () => Promise<{ success: boolean; token?: string; user?: any; error?: string }>;
+  githubAuth: () => Promise<{
+    success: boolean;
+    token?: string;
+    user?: any;
+    device_code?: string;
+    user_code?: string;
+    verification_uri?: string;
+    expires_in?: number;
+    interval?: number;
+    error?: string;
+  }>;
+  githubPollDeviceAuth: (
+    deviceCode: string,
+    interval: number
+  ) => Promise<{ success: boolean; token?: string; user?: any; error?: string }>;
   githubIsAuthenticated: () => Promise<boolean>;
   githubGetStatus: () => Promise<{ installed: boolean; authenticated: boolean; user?: any }>;
   githubGetUser: () => Promise<any>;

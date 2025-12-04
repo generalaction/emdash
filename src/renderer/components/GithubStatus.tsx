@@ -85,26 +85,16 @@ export function GithubStatus({
 
   // Authenticated - show user info
   const displayName = user?.login || user?.name || 'GitHub account';
-  const avatarUrl = (user as any)?.avatar_url as string | undefined;
 
   return (
     <div
       className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground ${className}`}
     >
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt={displayName}
-          className="h-5 w-5 rounded-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <img
-          src={githubLogo}
-          alt="GitHub"
-          className="h-5 w-5 rounded-sm object-contain dark:invert"
-        />
-      )}
+      <img
+        src={githubLogo}
+        alt="GitHub"
+        className="h-5 w-5 rounded-sm object-contain dark:invert"
+      />
       <span className="truncate font-medium">{displayName}</span>
     </div>
   );

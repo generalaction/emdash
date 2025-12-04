@@ -61,6 +61,15 @@ export function registerGithubIpc() {
     }
   });
 
+  ipcMain.handle('github:pollDeviceAuth', async (_, deviceCode: string, interval: number) => {
+    try {
+      return await githubService.pollDeviceToken(deviceCode, interval);
+    } catch (error) {
+      log.error('GitHub device auth polling failed:', error);
+      return { success: false, error: 'Polling failed' };
+    }
+  });
+
   ipcMain.handle('github:isAuthenticated', async () => {
     try {
       return await githubService.isAuthenticated();
