@@ -364,7 +364,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                     setSelectedJiraIssue(null);
                                   }
                                 }}
-                                isOpen={isOpen && showAdvanced}
+                                isOpen={isOpen}
                                 disabled={!!selectedGithubIssue || !!selectedJiraIssue}
                                 className="w-full"
                               />
@@ -385,7 +385,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                     setSelectedJiraIssue(null);
                                   }
                                 }}
-                                isOpen={isOpen && showAdvanced}
+                                isOpen={isOpen}
                                 disabled={!!selectedJiraIssue || !!selectedLinearIssue}
                                 className="w-full"
                               />
@@ -406,7 +406,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                       setSelectedGithubIssue(null);
                                     }
                                   }}
-                                  isOpen={isOpen && showAdvanced}
+                                  isOpen={isOpen}
                                   disabled={!!selectedLinearIssue || !!selectedGithubIssue}
                                   className="w-full"
                                 />
@@ -418,7 +418,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                         <JiraIssueSelector
                                           selectedIssue={null}
                                           onIssueChange={() => {}}
-                                          isOpen={isOpen && showAdvanced}
+                                          isOpen={isOpen}
                                           disabled
                                           className="w-full"
                                         />
