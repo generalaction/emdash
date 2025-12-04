@@ -60,6 +60,10 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
     })
     .join(', ');
 
+  // Show logo only when single provider selected
+  const singleProvider = providerRuns.length === 1 ? providerRuns[0] : null;
+  const singleProviderConfig = singleProvider ? providerConfig[singleProvider.provider] : null;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -67,7 +71,16 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
           type="button"
           className={`flex h-9 w-full items-center justify-between rounded-md border-none bg-gray-100 px-3 text-sm dark:bg-gray-700 ${className}`}
         >
-          <span className="truncate">{triggerText}</span>
+          <span className="flex items-center gap-2 truncate">
+            {singleProviderConfig && (
+              <img
+                src={singleProviderConfig.logo}
+                alt={singleProviderConfig.alt}
+                className={`h-4 w-4 rounded-sm ${singleProviderConfig.invertInDark ? 'dark:invert' : ''}`}
+              />
+            )}
+            {triggerText}
+          </span>
           <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-50" />
         </button>
       </PopoverTrigger>
