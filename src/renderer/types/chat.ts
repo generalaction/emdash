@@ -3,6 +3,12 @@ import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
 
+/** Per-provider run configuration for workspace creation */
+export interface ProviderRun {
+  provider: ProviderId;
+  runs: number;
+}
+
 export interface WorkspaceMetadata {
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
@@ -16,10 +22,10 @@ export interface WorkspaceMetadata {
     enabled: boolean;
     // Max panes allowed when the workspace was created (UI hint)
     maxProviders?: number;
-    // Number of runs per provider for best-of-N comparison
-    runsPerProvider?: number;
-    // Selected providers to run in parallel (ids match Provider type)
-    providers: ProviderId[];
+    // Per-provider run configuration
+    providerRuns?: ProviderRun[];
+    // Legacy list of provider ids before providerRuns existed (for backward compatibility)
+    providers?: ProviderId[];
     variants: Array<{
       id: string;
       provider: ProviderId;
