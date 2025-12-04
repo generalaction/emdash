@@ -116,10 +116,13 @@ const Titlebar: React.FC<TitlebarProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs font-medium">
-                  <span className="flex items-center gap-1">
-                    <Command className="h-3 w-3" aria-hidden="true" />
-                    <span>P</span>
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span>Toggle Kanban view</span>
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <Command className="h-3 w-3" aria-hidden="true" />
+                      <span>P</span>
+                    </span>
+                  </div>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -148,11 +151,14 @@ const Titlebar: React.FC<TitlebarProps> = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs font-medium">
-                <span className="flex items-center gap-1">
-                  <Command className="h-3 w-3" aria-hidden="true" />
-                  <span>⇧</span>
-                  <span>F</span>
-                </span>
+                <div className="flex flex-col gap-1">
+                  <span>Open feedback</span>
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Command className="h-3 w-3" aria-hidden="true" />
+                    <span>⇧</span>
+                    <span>F</span>
+                  </span>
+                </div>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -174,10 +180,13 @@ const Titlebar: React.FC<TitlebarProps> = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs font-medium">
-                <span className="flex items-center gap-1">
-                  <Command className="h-3 w-3" aria-hidden="true" />
-                  <span>,</span>
-                </span>
+                <div className="flex flex-col gap-1">
+                  <span>Open settings</span>
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Command className="h-3 w-3" aria-hidden="true" />
+                    <span>,</span>
+                  </span>
+                </div>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
