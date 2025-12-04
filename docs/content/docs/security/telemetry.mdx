@@ -137,9 +137,10 @@ All telemetry data passes through a **sanitizer** that:
 
 ### Local Development
 
-- Official builds include PostHog credentials via CI
-- Local development builds **do not send telemetry** unless credentials are explicitly added for testing
-- Development mode is clearly marked in events
+- PostHog credentials are **public and safe to commit** to the repository
+- Both official builds (DMG) and developer builds (cloned repo) send telemetry by default
+- Official builds use credentials injected via CI, while developer builds use credentials from `src/main/appConfig.json`
+- Development mode is clearly marked in events via `is_dev: true` and `install_source: "dev"`
 
 ## For Developers
 
@@ -152,7 +153,10 @@ All telemetry data passes through a **sanitizer** that:
 **For Maintainers:**
 
 - `INSTALL_SOURCE` - Labels distribution channel (e.g., `dmg`, `dev`)
-- PostHog credentials are injected via CI for official builds
+- `POSTHOG_PROJECT_API_KEY` - Override PostHog API key (optional, defaults to public key in `src/main/appConfig.json`)
+- `POSTHOG_HOST` - Override PostHog host (optional, defaults to public host in `src/main/appConfig.json`)
+- PostHog credentials are public and committed to the repo in `src/main/appConfig.json`
+- CI builds can override credentials via GitHub secrets for official releases
 
 ### Renderer Process Events
 
