@@ -52,21 +52,24 @@ export function registerGithubIpc() {
     }
   });
 
+  // Start Device Flow authentication with automatic background polling
   ipcMain.handle('github:auth', async () => {
     try {
-      return await githubService.authenticate();
+      return await githubService.startDeviceFlowAuth();
     } catch (error) {
       log.error('GitHub authentication failed:', error);
       return { success: false, error: 'Authentication failed' };
     }
   });
 
-  ipcMain.handle('github:pollDeviceAuth', async (_, deviceCode: string, interval: number) => {
+  // Cancel ongoing authentication
+  ipcMain.handle('github:auth:cancel', async () => {
     try {
-      return await githubService.pollDeviceToken(deviceCode, interval);
+      githubService.cancelAuth();
+      return { success: true };
     } catch (error) {
-      log.error('GitHub device auth polling failed:', error);
-      return { success: false, error: 'Polling failed' };
+      log.error('Failed to cancel GitHub auth:', error);
+      return { success: false, error: 'Failed to cancel' };
     }
   });
 

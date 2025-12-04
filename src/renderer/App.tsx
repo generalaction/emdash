@@ -119,13 +119,6 @@ const AppContent: React.FC = () => {
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
   const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
-  const [deviceFlowData, setDeviceFlowData] = useState<{
-    deviceCode: string;
-    userCode: string;
-    verificationUri: string;
-    expiresIn: number;
-    interval: number;
-  } | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
@@ -672,27 +665,20 @@ const AppContent: React.FC = () => {
         await checkStatus(); // Refresh status
       }
 
-      // Proceed with Device Flow authentication
-      setGithubStatusMessage('Requesting authorization code...');
+      // Start Device Flow authentication (main process handles polling)
+      setGithubStatusMessage('Starting authentication...');
       const result = await githubLogin();
 
       setGithubLoading(false);
       setGithubStatusMessage(undefined);
 
-      if (result?.success && result.device_code && result.user_code && result.verification_uri) {
-        // Show Device Flow modal
-        setDeviceFlowData({
-          deviceCode: result.device_code,
-          userCode: result.user_code,
-          verificationUri: result.verification_uri,
-          expiresIn: result.expires_in || 900,
-          interval: result.interval || 5,
-        });
+      if (result?.success) {
+        // Show modal - it will receive events from main process
         setShowDeviceFlowModal(true);
       } else {
         toast({
           title: 'Authentication Failed',
-          description: result?.error || 'Could not request device code',
+          description: result?.error || 'Could not start authentication',
           variant: 'destructive',
         });
       }
@@ -1425,10 +1411,14 @@ const AppContent: React.FC = () => {
   const handleDeviceFlowSuccess = useCallback(
     async (user: any) => {
       setShowDeviceFlowModal(false);
-      setDeviceFlowData(null);
       
-      // Refresh status to update UI
+      // Refresh status immediately to update UI
       await checkStatus();
+      
+      // Also refresh again after a short delay to catch user info if it arrives quickly
+      setTimeout(async () => {
+        await checkStatus();
+      }, 500);
       
       toast({
         title: 'Connected to GitHub',
@@ -1441,7 +1431,6 @@ const AppContent: React.FC = () => {
   const handleDeviceFlowError = useCallback(
     (error: string) => {
       setShowDeviceFlowModal(false);
-      setDeviceFlowData(null);
       
       toast({
         title: 'Authentication Failed',
@@ -1454,8 +1443,30 @@ const AppContent: React.FC = () => {
 
   const handleDeviceFlowClose = useCallback(() => {
     setShowDeviceFlowModal(false);
-    setDeviceFlowData(null);
   }, []);
+
+  // Subscribe to GitHub auth events from main process
+  useEffect(() => {
+    const cleanupSuccess = window.electronAPI.onGithubAuthSuccess((data) => {
+      handleDeviceFlowSuccess(data.user);
+    });
+
+    const cleanupError = window.electronAPI.onGithubAuthError((data) => {
+      handleDeviceFlowError(data.message || data.error);
+    });
+
+    // Listen for user info update (arrives after token is stored and gh CLI is authenticated)
+    const cleanupUserUpdated = window.electronAPI.onGithubAuthUserUpdated(async () => {
+      // Refresh status when user info becomes available
+      await checkStatus();
+    });
+
+    return () => {
+      cleanupSuccess();
+      cleanupError();
+      cleanupUserUpdated();
+    };
+  }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
 
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
@@ -1730,19 +1741,12 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
-      {deviceFlowData && (
-        <GithubDeviceFlowModal
-          open={showDeviceFlowModal}
-          onClose={handleDeviceFlowClose}
-          deviceCode={deviceFlowData.deviceCode}
-          userCode={deviceFlowData.userCode}
-          verificationUri={deviceFlowData.verificationUri}
-          expiresIn={deviceFlowData.expiresIn}
-          interval={deviceFlowData.interval}
-          onSuccess={handleDeviceFlowSuccess}
-          onError={handleDeviceFlowError}
-        />
-      )}
+      <GithubDeviceFlowModal
+        open={showDeviceFlowModal}
+        onClose={handleDeviceFlowClose}
+        onSuccess={handleDeviceFlowSuccess}
+        onError={handleDeviceFlowError}
+      />
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}

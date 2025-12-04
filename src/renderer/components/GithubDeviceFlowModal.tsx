@@ -1,19 +1,14 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
-import { Check, Copy, ExternalLink, RefreshCw, AlertCircle, X } from 'lucide-react';
+import { Check, Copy, ExternalLink, AlertCircle, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
 
 interface GithubDeviceFlowModalProps {
   open: boolean;
   onClose: () => void;
-  deviceCode: string;
-  userCode: string;
-  verificationUri: string;
-  expiresIn: number;
-  interval: number;
   onSuccess?: (user: any) => void;
   onError?: (error: string) => void;
 }
@@ -21,66 +16,114 @@ interface GithubDeviceFlowModalProps {
 export function GithubDeviceFlowModal({
   open,
   onClose,
-  deviceCode,
-  userCode,
-  verificationUri,
-  expiresIn,
-  interval,
   onSuccess,
   onError,
 }: GithubDeviceFlowModalProps) {
   const { toast } = useToast();
-  const [timeRemaining, setTimeRemaining] = useState(expiresIn);
+  
+  // Presentational state - updated via IPC events from main process
+  const [userCode, setUserCode] = useState<string>('');
+  const [verificationUri, setVerificationUri] = useState<string>('');
+  const [expiresIn, setExpiresIn] = useState<number>(900);
+  const [timeRemaining, setTimeRemaining] = useState<number>(900);
   const [copied, setCopied] = useState(false);
-  const [polling, setPolling] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pollingError, setPollingError] = useState<string | null>(null);
-  const [currentInterval, setCurrentInterval] = useState(interval);
   const [user, setUser] = useState<any>(null);
   const [browserOpening, setBrowserOpening] = useState(false);
   const [browserOpenCountdown, setBrowserOpenCountdown] = useState(3);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutocopied = useRef(false);
+  const hasOpenedBrowser = useRef(false);
 
-  // Auto-copy code on mount and open browser after delay
+  // Subscribe to auth events from main process
   useEffect(() => {
-    if (open && !hasAutocopied.current) {
-      hasAutocopied.current = true;
+    if (!open) return;
+
+    // Device code received - display to user
+    const cleanupDeviceCode = window.electronAPI.onGithubAuthDeviceCode((data) => {
+      setUserCode(data.userCode);
+      setVerificationUri(data.verificationUri);
+      setExpiresIn(data.expiresIn);
+      setTimeRemaining(data.expiresIn);
       
-      // Auto-copy immediately
-      copyToClipboard(true);
+      // Auto-copy code
+      if (!hasAutocopied.current) {
+        hasAutocopied.current = true;
+        copyToClipboard(data.userCode, true);
+        
+        // Show countdown and open browser after 3 seconds
+        setBrowserOpening(true);
+        let countdown = 3;
+        const countdownTimer = setInterval(() => {
+          countdown--;
+          setBrowserOpenCountdown(countdown);
+          if (countdown <= 0) {
+            clearInterval(countdownTimer);
+          }
+        }, 1000);
+        
+        setTimeout(() => {
+          setBrowserOpening(false);
+          if (!hasOpenedBrowser.current) {
+            hasOpenedBrowser.current = true;
+            window.electronAPI.openExternal(data.verificationUri);
+          }
+        }, 3000);
+      }
+    });
+
+    // Auth successful
+    const cleanupSuccess = window.electronAPI.onGithubAuthSuccess((data) => {
+      setSuccess(true);
+      setUser(data.user);
       
-      // Show countdown
-      setBrowserOpening(true);
-      
-      // Countdown timer
-      let countdown = 3;
-      const countdownTimer = setInterval(() => {
-        countdown--;
-        setBrowserOpenCountdown(countdown);
-        if (countdown <= 0) {
-          clearInterval(countdownTimer);
-        }
-      }, 1000);
-      
-      // Wait 3 seconds before opening browser so user can see the code
+      toast({
+        title: 'Success!',
+        description: 'Connected to GitHub',
+      });
+
+      if (onSuccess) {
+        onSuccess(data.user);
+      }
+
+      // Auto-close after showing success animation
       setTimeout(() => {
-        setBrowserOpening(false);
-        window.electronAPI.openExternal(verificationUri);
-      }, 3000);
-    }
-  }, [open, verificationUri]);
+        onClose();
+      }, 1000); // 1 second is enough to see success
+    });
 
-  // Countdown timer
+    // Auth error
+    const cleanupError = window.electronAPI.onGithubAuthError((data) => {
+      setError(data.message || data.error);
+      
+      if (onError) {
+        onError(data.error);
+      }
+
+      toast({
+        title: 'Authentication Failed',
+        description: data.message || 'An error occurred',
+        variant: 'destructive',
+      });
+    });
+
+    // Cleanup listeners on unmount
+    return () => {
+      cleanupDeviceCode();
+      cleanupSuccess();
+      cleanupError();
+    };
+  }, [open, onSuccess, onError, onClose, toast]);
+
+  // Countdown timer for code expiration
   useEffect(() => {
-    if (!open || success) return;
+    if (!open || success || error) return;
 
     countdownIntervalRef.current = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
-          stopPolling();
           setError('Code expired. Please try again.');
           return 0;
         }
@@ -91,113 +134,32 @@ export function GithubDeviceFlowModal({
     return () => {
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
       }
     };
-  }, [open, success]);
+  }, [open, success, error]);
 
-  // Start polling
+  // Reset state when modal opens/closes
   useEffect(() => {
-    if (!open || success || error) return;
-
-    const startPolling = async () => {
-      setPolling(true);
-      setPollingError(null);
-
-      const poll = async () => {
-        try {
-          const result = await window.electronAPI.githubPollDeviceAuth(deviceCode, currentInterval);
-
-          if (result.success && result.token) {
-            // Success!
-            setSuccess(true);
-            setUser(result.user);
-            setPolling(false);
-            stopPolling();
-
-            toast({
-              title: 'Success!',
-              description: 'Connected to GitHub',
-            });
-
-            if (onSuccess) {
-              onSuccess(result.user);
-            }
-
-            // Auto-close after showing success for 2 seconds
-            setTimeout(() => {
-              onClose();
-            }, 2000);
-          } else if (result.error) {
-            const errorType = result.error;
-
-            if (errorType === 'authorization_pending') {
-              // Keep polling
-              return;
-            } else if (errorType === 'slow_down') {
-              // Add 5 seconds to interval
-              setCurrentInterval((prev) => prev + 5);
-              return;
-            } else if (errorType === 'expired_token') {
-              // Code expired
-              setError('Code expired. Please try again.');
-              setPolling(false);
-              stopPolling();
-              if (onError) {
-                onError('Code expired');
-              }
-            } else if (errorType === 'access_denied') {
-              // User denied
-              setError('Authorization cancelled');
-              setPolling(false);
-              stopPolling();
-              if (onError) {
-                onError('User denied');
-              }
-            } else {
-              // Unknown error
-              setPollingError(errorType);
-            }
-          }
-        } catch (err) {
-          console.error('Device Flow polling error:', err);
-          setPollingError('Network error. Retrying...');
-        }
-      };
-
-      // Initial poll
-      await poll();
-
-      // Set up interval polling
-      pollingIntervalRef.current = setInterval(poll, currentInterval * 1000);
-    };
-
-    startPolling();
-
-    return () => {
-      stopPolling();
-    };
-  }, [open, deviceCode, currentInterval, success, error]);
-
-  const stopPolling = () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
+    if (open) {
+      // Reset state for new auth flow
+      setSuccess(false);
+      setError(null);
+      setUser(null);
+      setCopied(false);
+      hasAutocopied.current = false;
+      hasOpenedBrowser.current = false;
     }
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
-  };
+  }, [open]);
 
-  const copyToClipboard = async (isAutomatic = false) => {
+  const copyToClipboard = async (code: string, isAutomatic = false) => {
     try {
-      // Try modern Clipboard API first
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(userCode);
+        await navigator.clipboard.writeText(code);
       } else {
-        // Fallback to execCommand
+        // Fallback for older browsers
         const textArea = document.createElement('textarea');
-        textArea.value = userCode;
+        textArea.value = code;
         textArea.style.position = 'fixed';
         textArea.style.left = '-999999px';
         document.body.appendChild(textArea);
@@ -229,18 +191,21 @@ export function GithubDeviceFlowModal({
   };
 
   const openGitHub = () => {
-    window.electronAPI.openExternal(verificationUri);
+    if (verificationUri) {
+      window.electronAPI.openExternal(verificationUri);
+    }
+  };
+
+  const handleClose = () => {
+    // Cancel auth flow in main process (polling continues in background)
+    window.electronAPI.githubCancelAuth();
+    onClose();
   };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleClose = () => {
-    stopPolling();
-    onClose();
   };
 
   // Keyboard shortcuts
@@ -250,7 +215,7 @@ export function GithubDeviceFlowModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
         e.preventDefault();
-        copyToClipboard();
+        copyToClipboard(userCode);
       } else if (e.key === 'Escape') {
         handleClose();
       } else if (e.key === 'Enter') {
@@ -263,7 +228,7 @@ export function GithubDeviceFlowModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open]);
+  }, [open, userCode]);
 
   if (!open) return null;
 
@@ -272,203 +237,166 @@ export function GithubDeviceFlowModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-[480px] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg overflow-hidden p-0">
-        {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </button>
+          {/* Close button */}
+          <button
+            onClick={handleClose}
+            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </button>
 
-        <div className="flex flex-col items-center px-8 py-12">
-          {/* Logo */}
-          <img src={emdashLogo} alt="emdash" className="h-8 mb-8 opacity-90" />
+          <div className="flex flex-col items-center px-8 py-12">
+            {/* Logo */}
+            <img src={emdashLogo} alt="emdash" className="h-8 mb-8 opacity-90" />
 
-          {success ? (
-            // Success State
-            <div className="flex flex-col items-center space-y-6 animate-in fade-in zoom-in duration-300">
-              <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center animate-in zoom-in duration-500">
-                <Check className="h-8 w-8 text-white" strokeWidth={3} />
-              </div>
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-semibold">Success!</h2>
-                <p className="text-sm text-muted-foreground">You're connected to GitHub</p>
-                {user && (
-                  <div className="flex items-center justify-center gap-2 mt-4">
-                    {user.avatar_url && (
-                      <img
-                        src={user.avatar_url}
-                        alt={user.login}
-                        className="w-8 h-8 rounded-full"
-                      />
-                    )}
-                    <span className="text-sm font-medium">{user.login || user.name}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : error ? (
-            // Error State
-            <div className="flex flex-col items-center space-y-6 w-full">
-              <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center">
-                <AlertCircle className="h-8 w-8 text-white" />
-              </div>
-              <div className="text-center space-y-2">
-                <h2 className="text-xl font-semibold text-red-500">Authorization Failed</h2>
-                <p className="text-sm text-muted-foreground">{error}</p>
-              </div>
-              <Button onClick={handleClose} variant="outline" className="w-full">
-                Close
-              </Button>
-            </div>
-          ) : (
-            // Waiting State
-            <div className="flex flex-col items-center space-y-6 w-full">
-              <div className="text-center space-y-2">
-                <h2 className="text-xl font-semibold">Connect to GitHub</h2>
-                <p className="text-xs text-muted-foreground">
-                  Follow these steps to authorize emdash
-                </p>
-              </div>
-
-              {/* Device Code */}
-              <div className="w-full space-y-3">
-                <div className="relative">
-                  <div
-                    className={`
-                      bg-muted/50 rounded-lg px-6 py-4 border-2 border-muted
-                      ${polling ? 'animate-pulse' : ''}
-                    `}
-                  >
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground mb-2">Your code</p>
-                      <div className="text-3xl font-mono font-bold tracking-wider select-all">
-                        {userCode}
+            {success ? (
+              // Success State
+              <div className="flex flex-col items-center space-y-6 animate-in fade-in zoom-in duration-300">
+                <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center animate-in zoom-in duration-500">
+                  <Check className="h-8 w-8 text-white" strokeWidth={3} />
+                </div>
+                <div className="text-center space-y-2">
+                  <h2 className="text-2xl font-semibold">Success!</h2>
+                  <p className="text-sm text-muted-foreground">You're connected to GitHub</p>
+                  {user && (
+                    <div className="flex items-center justify-center gap-2 mt-4">
+                      {user.avatar_url && (
+                        <img
+                          src={user.avatar_url}
+                          alt={user.name}
+                          className="w-10 h-10 rounded-full"
+                        />
+                      )}
+                      <div className="text-left">
+                        <p className="text-sm font-medium">{user.name || user.login}</p>
+                        <p className="text-xs text-muted-foreground">@{user.login}</p>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Copy Button */}
-                <Button
-                  onClick={() => copyToClipboard()}
-                  variant="outline"
-                  className="w-full"
-                  size="lg"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="h-4 w-4 mr-2 text-green-500" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy Code
-                    </>
                   )}
+                </div>
+              </div>
+            ) : error ? (
+              // Error State
+              <div className="flex flex-col items-center space-y-6 w-full">
+                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <AlertCircle className="h-8 w-8 text-red-500" />
+                </div>
+                <div className="text-center space-y-2">
+                  <h2 className="text-xl font-semibold">Authentication Failed</h2>
+                  <p className="text-sm text-muted-foreground">{error}</p>
+                </div>
+                <Button onClick={handleClose} variant="outline" className="w-full">
+                  Close
                 </Button>
               </div>
+            ) : (
+              // Waiting State
+              <div className="flex flex-col items-center space-y-6 w-full">
+                <div className="text-center space-y-2">
+                  <h2 className="text-2xl font-semibold">Connect to GitHub</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Follow these steps to authorize emdash
+                  </p>
+                </div>
 
-              {/* Instructions */}
-              <div className="w-full space-y-3 text-sm">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
-                    1
-                  </div>
-                  <div className="flex-1">
+                {/* Device Code Display */}
+                {userCode && (
+                  <>
+                    <div className="w-full bg-muted/30 rounded-lg p-6 space-y-3">
+                      <p className="text-xs text-muted-foreground text-center font-medium">Your code</p>
+                      <p className="text-4xl font-bold tracking-wider text-center font-mono select-all">
+                        {userCode}
+                      </p>
+                    </div>
+
+                    {/* Copy Button */}
+                    <Button
+                      onClick={() => copyToClipboard(userCode)}
+                      variant="outline"
+                      className="w-full"
+                      disabled={copied}
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copy Code
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+
+                {/* Instructions */}
+                <div className="w-full space-y-3 text-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
+                      1
+                    </div>
                     <p className="text-muted-foreground">
                       Paste the code in GitHub{' '}
-                      <span className="text-foreground font-medium">(already copied!)</span>
+                      <span className="font-medium text-foreground">(already copied!)</span>
                     </p>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
-                    2
-                  </div>
-                  <div className="flex-1">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
+                      2
+                    </div>
                     <p className="text-muted-foreground">Click Authorize</p>
                   </div>
                 </div>
-              </div>
 
-              {/* Status */}
-              <div className="w-full flex flex-col items-center gap-2">
-                {browserOpening ? (
-                  <div className="flex items-center gap-2 text-sm text-primary font-medium">
-                    <span>Opening GitHub in {browserOpenCountdown}...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Spinner size="sm" />
-                    <span>Waiting for authorization...</span>
+                {/* Browser Opening Countdown */}
+                {browserOpening && (
+                  <div className="w-full p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <p className="text-sm text-center text-blue-600 dark:text-blue-400">
+                      Opening GitHub in {browserOpenCountdown}s...
+                    </p>
                   </div>
                 )}
-                {pollingError && (
-                  <p className="text-xs text-yellow-500">{pollingError}</p>
+
+                {/* Status */}
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <Spinner className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Waiting for authorization...</p>
+                  {timeRemaining > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Code expires in {formatTime(timeRemaining)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Open GitHub Button */}
+                {verificationUri && !browserOpening && (
+                  <Button onClick={openGitHub} className="w-full" size="lg">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open GitHub
+                  </Button>
                 )}
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>Code expires in</span>
-                  <span
-                    className={`font-mono font-semibold ${timeRemaining < 300 ? 'text-yellow-500' : ''}`}
-                  >
-                    {formatTime(timeRemaining)}
-                  </span>
+
+                {/* Help Text */}
+                <div className="w-full pt-4 border-t">
+                  <p className="text-center text-xs text-muted-foreground">Having trouble?</p>
+                </div>
+
+                {/* Keyboard Shortcuts */}
+                <div className="text-xs text-muted-foreground text-center space-x-3">
+                  <span>⌘C to copy</span>
+                  <span>•</span>
+                  <span>⌘R to reopen</span>
+                  <span>•</span>
+                  <span>Esc to cancel</span>
                 </div>
               </div>
-
-              {/* Open GitHub Button */}
-              <Button 
-                onClick={openGitHub} 
-                className="w-full" 
-                size="lg"
-                disabled={browserOpening}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                {browserOpening ? `Opening in ${browserOpenCountdown}...` : 'Open GitHub'}
-              </Button>
-
-              {/* Troubleshooting */}
-              <div className="w-full pt-4 border-t border-border">
-                <details className="group">
-                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground flex items-center justify-center gap-1">
-                    <span>Having trouble?</span>
-                  </summary>
-                  <div className="mt-3 space-y-2">
-                    <Button
-                      onClick={() => copyToClipboard()}
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start text-xs"
-                    >
-                      <Copy className="h-3 w-3 mr-2" />
-                      Copy code again
-                    </Button>
-                    <Button
-                      onClick={openGitHub}
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start text-xs"
-                    >
-                      <RefreshCw className="h-3 w-3 mr-2" />
-                      Open GitHub again
-                    </Button>
-                  </div>
-                </details>
-              </div>
-
-              {/* Keyboard Shortcuts Helper */}
-              <div className="text-[10px] text-muted-foreground/50 text-center">
-                ⌘C to copy • ⌘R to reopen • Esc to cancel
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
   );
 }
-

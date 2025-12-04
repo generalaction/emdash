@@ -2,8 +2,9 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
-import { shell } from 'electron';
+import { shell, BrowserWindow } from 'electron';
 import { GITHUB_CONFIG } from '../config/github.config';
+import { getMainWindow } from '../app/window';
 
 const execAsync = promisify(exec);
 
@@ -74,6 +75,12 @@ export interface DeviceCodeResult {
 export class GitHubService {
   private readonly SERVICE_NAME = 'emdash-github';
   private readonly ACCOUNT_NAME = 'github-token';
+  
+  // Polling state management
+  private isPolling = false;
+  private pollingInterval: NodeJS.Timeout | null = null;
+  private currentDeviceCode: string | null = null;
+  private currentInterval = 5;
 
   /**
    * Authenticate with GitHub using Device Flow
@@ -81,6 +88,190 @@ export class GitHubService {
    */
   async authenticate(): Promise<DeviceCodeResult | AuthResult> {
     return await this.requestDeviceCode();
+  }
+
+  /**
+   * Start Device Flow authentication with automatic background polling
+   * Emits events to renderer for UI updates
+   * Returns immediately with device code info
+   */
+  async startDeviceFlowAuth(): Promise<DeviceCodeResult> {
+    // Stop any existing polling
+    this.stopPolling();
+
+    // Request device code
+    const deviceCodeResult = await this.requestDeviceCode();
+    
+    if (!deviceCodeResult.success || !deviceCodeResult.device_code) {
+      // Emit error to renderer
+      const mainWindow = getMainWindow();
+      if (mainWindow) {
+        mainWindow.webContents.send('github:auth:error', {
+          error: deviceCodeResult.error || 'Failed to request device code',
+        });
+      }
+      return deviceCodeResult;
+    }
+
+    // Store device code and interval
+    this.currentDeviceCode = deviceCodeResult.device_code;
+    this.currentInterval = deviceCodeResult.interval || 5;
+    this.isPolling = true;
+
+    // Give renderer time to mount modal and subscribe to events
+    // Then emit device code for display
+    setTimeout(() => {
+      const mainWindow = getMainWindow();
+      if (mainWindow) {
+        mainWindow.webContents.send('github:auth:device-code', {
+          userCode: deviceCodeResult.user_code,
+          verificationUri: deviceCodeResult.verification_uri,
+          expiresIn: deviceCodeResult.expires_in,
+          interval: this.currentInterval,
+        });
+      }
+    }, 100); // 100ms delay to ensure modal is mounted
+
+    // Start background polling
+    this.startBackgroundPolling(deviceCodeResult.expires_in || 900);
+
+    return deviceCodeResult;
+  }
+
+  /**
+   * Start background polling loop
+   */
+  private startBackgroundPolling(expiresIn: number): void {
+    if (!this.currentDeviceCode) return;
+
+    const startTime = Date.now();
+    const expiresAt = startTime + expiresIn * 1000;
+
+    const poll = async () => {
+      if (!this.isPolling || !this.currentDeviceCode) {
+        this.stopPolling();
+        return;
+      }
+
+      // Check if expired
+      if (Date.now() >= expiresAt) {
+        this.stopPolling();
+        const mainWindow = getMainWindow();
+        if (mainWindow) {
+          mainWindow.webContents.send('github:auth:error', {
+            error: 'expired_token',
+            message: 'Authorization code expired. Please try again.',
+          });
+        }
+        return;
+      }
+
+      try {
+        const result = await this.pollDeviceToken(this.currentDeviceCode, this.currentInterval);
+
+        if (result.success && result.token) {
+          // Success! Emit immediately
+          this.stopPolling();
+          const mainWindow = getMainWindow();
+          if (mainWindow) {
+            mainWindow.webContents.send('github:auth:success', {
+              token: result.token,
+              user: result.user || undefined,
+            });
+          }
+        } else if (result.error) {
+          const mainWindow = getMainWindow();
+          
+          if (result.error === 'authorization_pending') {
+            // Still waiting - emit polling status
+            if (mainWindow) {
+              mainWindow.webContents.send('github:auth:polling', {
+                status: 'waiting',
+              });
+            }
+          } else if (result.error === 'slow_down') {
+            // GitHub wants us to slow down
+            this.currentInterval += 5;
+            if (mainWindow) {
+              mainWindow.webContents.send('github:auth:slow-down', {
+                newInterval: this.currentInterval,
+              });
+            }
+            
+            // Restart interval with new timing
+            if (this.pollingInterval) {
+              clearInterval(this.pollingInterval);
+              this.pollingInterval = setInterval(poll, this.currentInterval * 1000);
+            }
+          } else if (result.error === 'expired_token') {
+            // Code expired
+            this.stopPolling();
+            if (mainWindow) {
+              mainWindow.webContents.send('github:auth:error', {
+                error: 'expired_token',
+                message: 'Authorization code expired. Please try again.',
+              });
+            }
+          } else if (result.error === 'access_denied') {
+            // User denied
+            this.stopPolling();
+            if (mainWindow) {
+              mainWindow.webContents.send('github:auth:error', {
+                error: 'access_denied',
+                message: 'Authorization was cancelled.',
+              });
+            }
+          } else {
+            // Unknown error
+            this.stopPolling();
+            if (mainWindow) {
+              mainWindow.webContents.send('github:auth:error', {
+                error: result.error,
+                message: `Authentication failed: ${result.error}`,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+        const mainWindow = getMainWindow();
+        if (mainWindow) {
+          mainWindow.webContents.send('github:auth:error', {
+            error: 'network_error',
+            message: 'Network error during authentication. Please try again.',
+          });
+        }
+        this.stopPolling();
+      }
+    };
+
+    // Start polling with initial interval
+    setTimeout(poll, this.currentInterval * 1000);
+    this.pollingInterval = setInterval(poll, this.currentInterval * 1000);
+  }
+
+  /**
+   * Stop the background polling
+   */
+  stopPolling(): void {
+    this.isPolling = false;
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+    this.currentDeviceCode = null;
+    this.currentInterval = 5;
+  }
+
+  /**
+   * Cancel the authentication flow
+   */
+  cancelAuth(): void {
+    this.stopPolling();
+    const mainWindow = getMainWindow();
+    if (mainWindow) {
+      mainWindow.webContents.send('github:auth:cancelled', {});
+    }
   }
 
   /**
@@ -163,19 +354,38 @@ export class GitHubService {
       };
 
       if (data.access_token) {
-        // Store token securely
-        await this.storeToken(data.access_token);
+        // Return immediately - don't block on storage/auth/user fetching
+        // This allows UI to update instantly
+        const token = data.access_token;
 
-        // Authenticate gh CLI with the token
-        await this.authenticateGHCLI(data.access_token);
+        // Do heavy operations in background
+        setImmediate(async () => {
+          try {
+            // Store token securely
+            await this.storeToken(token);
 
-        // Get user info
-        const user = await this.getUserInfo(data.access_token);
+            // Authenticate gh CLI with the token
+            await this.authenticateGHCLI(token).catch(() => {
+              // Silent fail - gh CLI might not be installed
+            });
+
+            // Get user info and send update
+            const user = await this.getUserInfo(token);
+            const mainWindow = getMainWindow();
+            if (user && mainWindow) {
+              mainWindow.webContents.send('github:auth:user-updated', {
+                user: user,
+              });
+            }
+          } catch (error) {
+            console.warn('Background auth setup failed:', error);
+          }
+        });
 
         return {
           success: true,
-          token: data.access_token,
-          user: user || undefined,
+          token: token,
+          user: undefined, // Will be sent via user-updated event
         };
       } else if (data.error) {
         // Return error to caller - they decide how to handle
@@ -202,13 +412,12 @@ export class GitHubService {
    * Authenticate gh CLI with the OAuth token
    */
   private async authenticateGHCLI(token: string): Promise<void> {
-      try {
+    try {
       // Check if gh CLI is installed first
-        await execAsync('gh --version');
+      await execAsync('gh --version');
 
       // Authenticate gh CLI with our token
       await execAsync(`echo "${token}" | gh auth login --with-token`);
-      console.log('Successfully authenticated gh CLI');
     } catch (error) {
       console.warn('Could not authenticate gh CLI (may not be installed):', error);
       // Don't throw - OAuth still succeeded even if gh CLI isn't available
@@ -231,8 +440,6 @@ export class GitHubService {
     } catch (error: any) {
       // Check if it's an auth error
       if (error.message && error.message.includes('not authenticated')) {
-        console.log('gh CLI lost authentication, re-authenticating...');
-
         // Try to re-authenticate gh CLI with stored token
         const token = await this.getStoredToken();
         if (token) {
@@ -240,10 +447,10 @@ export class GitHubService {
 
           // Retry the command
           const result = await execAsync(command, { encoding: 'utf8', ...options });
-        return {
+          return {
             stdout: String(result.stdout),
             stderr: String(result.stderr),
-        };
+          };
         }
       }
       throw error;
