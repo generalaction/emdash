@@ -7,8 +7,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch, ExternalLink, Settings, Plus, Minus } from 'lucide-react';
-import { ProviderSelector } from './ProviderSelector';
+import { X, GitBranch, ExternalLink, Settings } from 'lucide-react';
+import { MultiProviderDropdown } from './MultiProviderDropdown';
 import { type Provider } from '../types';
 import { type ProviderRun } from '../types/chat';
 import { Separator } from './ui/separator';
@@ -24,8 +24,6 @@ import {
 } from '../lib/workspaceNames';
 
 const DEFAULT_PROVIDER: Provider = 'claude';
-const MAX_PROVIDERS = 4;
-const MAX_RUNS_PER_PROVIDER = 5;
 
 import { LinearIssueSelector } from './LinearIssueSelector';
 import { GitHubIssueSelector } from './GitHubIssueSelector';
@@ -78,54 +76,13 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
-  const [bestOfEnabled, setBestOfEnabled] = useState(false);
 
   // Computed values
-  const totalRuns = useMemo(
-    () => providerRuns.reduce((sum, pr) => sum + pr.runs, 0),
-    [providerRuns]
-  );
   const activeProviders = useMemo(() => providerRuns.map((pr) => pr.provider), [providerRuns]);
   const hasAutoApproveSupport =
     activeProviders.length > 0 &&
     activeProviders.every((providerId) => !!providerMeta[providerId]?.autoApproveFlag);
   const shouldReduceMotion = useReducedMotion();
-
-  // Provider run helpers
-  const updateProviderAt = useCallback((index: number, provider: Provider) => {
-    setProviderRuns((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], provider };
-      return next;
-    });
-  }, []);
-
-  const updateRunsAt = useCallback((index: number, runs: number) => {
-    setProviderRuns((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], runs: Math.max(1, Math.min(MAX_RUNS_PER_PROVIDER, runs)) };
-      return next;
-    });
-  }, []);
-
-  const removeProviderAt = useCallback((index: number) => {
-    setProviderRuns((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const addProvider = useCallback(() => {
-    if (providerRuns.length >= MAX_PROVIDERS) return;
-    // Pick a provider not already in the list, or default to 'codex'
-    const usedProviders = new Set(providerRuns.map((pr) => pr.provider));
-    const availableProviders: Provider[] = ['claude', 'codex', 'gemini', 'goose', 'cursor'];
-    const nextProvider = availableProviders.find((p) => !usedProviders.has(p)) || 'codex';
-    setProviderRuns((prev) => [...prev, { provider: nextProvider, runs: 1 }]);
-  }, [providerRuns]);
-
-  const handleBestOfToggle = useCallback((enabled: boolean) => {
-    setBestOfEnabled(enabled);
-    // Reset all runs to 1 when toggling
-    setProviderRuns((prev) => prev.map((pr) => ({ ...pr, runs: 1 })));
-  }, []);
 
   const normalizedExisting = useMemo(
     () => existingNames.map((n) => normalizeWorkspaceName(n)).filter(Boolean),
@@ -284,7 +241,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         setWorkspaceName('');
                         setInitialPrompt('');
                         setProviderRuns([{ provider: defaultProviderFromSettings, runs: 1 }]);
-                        setBestOfEnabled(false);
                         setSelectedLinearIssue(null);
                         setSelectedGithubIssue(null);
                         setAutoApprove(false);
@@ -326,74 +282,13 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     </div>
                   )}
 
-                  {/* Provider rows */}
+                  {/* Provider selector */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>AI Provider{providerRuns.length > 1 ? 's' : ''}</Label>
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={bestOfEnabled}
-                          onChange={(e) => handleBestOfToggle(e.target.checked)}
-                          className="h-4 w-4"
-                        />
-                        <span className="text-muted-foreground">Best-of</span>
-                      </label>
-                    </div>
-                    {providerRuns.map((pr, index) => (
-                      <div key={index} className="flex items-center gap-1.5">
-                        <div className="min-w-0 flex-1">
-                          <ProviderSelector
-                            value={pr.provider}
-                            onChange={(p) => updateProviderAt(index, p)}
-                            onRemove={providerRuns.length > 1 ? () => removeProviderAt(index) : undefined}
-                            className="w-full"
-                          />
-                        </div>
-                        {bestOfEnabled && (
-                          <div className="flex h-9 items-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-700">
-                            <button
-                              type="button"
-                              onClick={() => updateRunsAt(index, pr.runs - 1)}
-                              disabled={pr.runs <= 1}
-                              className="flex h-full w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-gray-200 disabled:opacity-40 dark:hover:bg-gray-600"
-                              aria-label="Decrease runs"
-                            >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
-                            <span
-                              className="flex h-full w-8 items-center justify-center text-sm"
-                              aria-label={`${pr.runs} runs for ${pr.provider}`}
-                            >
-                              {pr.runs}
-                            </span>
-                            <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
-                            <button
-                              type="button"
-                              onClick={() => updateRunsAt(index, pr.runs + 1)}
-                              disabled={pr.runs >= MAX_RUNS_PER_PROVIDER}
-                              className="flex h-full w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-gray-200 disabled:opacity-40 dark:hover:bg-gray-600"
-                              aria-label="Increase runs"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {providerRuns.length < MAX_PROVIDERS && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addProvider}
-                        className="mt-1 w-full"
-                      >
-                        <Plus className="mr-1 h-4 w-4" />
-                        Add provider
-                      </Button>
-                    )}
+                    <Label>AI Provider{providerRuns.length > 1 ? 's' : ''}</Label>
+                    <MultiProviderDropdown
+                      providerRuns={providerRuns}
+                      onChange={setProviderRuns}
+                    />
                   </div>
 
                   <Accordion
