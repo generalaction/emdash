@@ -31,7 +31,7 @@ export function GithubStatus({
         disabled={isLoading}
         variant="default"
         size="sm"
-        className={`w-full justify-start gap-2 items-center py-2 ${className}`}
+        className={`w-full items-center justify-start gap-2 py-2 ${className}`}
       >
         {isLoading ? (
           <>
@@ -45,7 +45,7 @@ export function GithubStatus({
             <Download className="h-4 w-4 flex-shrink-0" />
             <div className="flex flex-col items-start gap-0.5">
               <span className="text-xs font-medium leading-tight">Connect GitHub</span>
-              <span className="text-[10px] opacity-80 leading-tight">Install & sign in</span>
+              <span className="text-[10px] leading-tight opacity-80">Install & sign in</span>
             </div>
           </>
         )}
@@ -61,7 +61,7 @@ export function GithubStatus({
         disabled={isLoading}
         variant="default"
         size="sm"
-        className={`w-full justify-start gap-2 items-center py-2 ${className}`}
+        className={`w-full items-center justify-start gap-2 py-2 ${className}`}
       >
         {isLoading ? (
           <>
@@ -75,7 +75,7 @@ export function GithubStatus({
             <Github className="h-4 w-4 flex-shrink-0" />
             <div className="flex flex-col items-start gap-0.5">
               <span className="text-xs font-medium leading-tight">Connect GitHub</span>
-              <span className="text-[10px] opacity-80 leading-tight">Sign in with GitHub</span>
+              <span className="text-[10px] leading-tight opacity-80">Sign in with GitHub</span>
             </div>
           </>
         )}

@@ -181,9 +181,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // GitHub integration
   githubAuth: () => ipcRenderer.invoke('github:auth'),
   githubCancelAuth: () => ipcRenderer.invoke('github:auth:cancel'),
-  
+
   // GitHub auth event listeners
-  onGithubAuthDeviceCode: (callback: (data: { userCode: string; verificationUri: string; expiresIn: number; interval: number }) => void) => {
+  onGithubAuthDeviceCode: (
+    callback: (data: {
+      userCode: string;
+      verificationUri: string;
+      expiresIn: number;
+      interval: number;
+    }) => void
+  ) => {
     const listener = (_: any, data: any) => callback(data);
     ipcRenderer.on('github:auth:device-code', listener);
     return () => ipcRenderer.removeListener('github:auth:device-code', listener);
@@ -218,7 +225,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('github:auth:user-updated', listener);
     return () => ipcRenderer.removeListener('github:auth:user-updated', listener);
   },
-  
+
   githubIsAuthenticated: () => ipcRenderer.invoke('github:isAuthenticated'),
   githubGetStatus: () => ipcRenderer.invoke('github:getStatus'),
   githubGetUser: () => ipcRenderer.invoke('github:getUser'),
@@ -565,16 +572,23 @@ export interface ElectronAPI {
     error?: string;
   }>;
   githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;
-  
+
   // GitHub auth event listeners (return cleanup function)
-  onGithubAuthDeviceCode: (callback: (data: { userCode: string; verificationUri: string; expiresIn: number; interval: number }) => void) => () => void;
+  onGithubAuthDeviceCode: (
+    callback: (data: {
+      userCode: string;
+      verificationUri: string;
+      expiresIn: number;
+      interval: number;
+    }) => void
+  ) => () => void;
   onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
   onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
   onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
   onGithubAuthError: (callback: (data: { error: string; message: string }) => void) => () => void;
   onGithubAuthCancelled: (callback: () => void) => () => void;
   onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
-  
+
   githubIsAuthenticated: () => Promise<boolean>;
   githubGetStatus: () => Promise<{ installed: boolean; authenticated: boolean; user?: any }>;
   githubGetUser: () => Promise<any>;

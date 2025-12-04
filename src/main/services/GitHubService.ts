@@ -75,7 +75,7 @@ export interface DeviceCodeResult {
 export class GitHubService {
   private readonly SERVICE_NAME = 'emdash-github';
   private readonly ACCOUNT_NAME = 'github-token';
-  
+
   // Polling state management
   private isPolling = false;
   private pollingInterval: NodeJS.Timeout | null = null;
@@ -101,7 +101,7 @@ export class GitHubService {
 
     // Request device code
     const deviceCodeResult = await this.requestDeviceCode();
-    
+
     if (!deviceCodeResult.success || !deviceCodeResult.device_code) {
       // Emit error to renderer
       const mainWindow = getMainWindow();
@@ -181,7 +181,7 @@ export class GitHubService {
           }
         } else if (result.error) {
           const mainWindow = getMainWindow();
-          
+
           if (result.error === 'authorization_pending') {
             // Still waiting - emit polling status
             if (mainWindow) {
@@ -197,7 +197,7 @@ export class GitHubService {
                 newInterval: this.currentInterval,
               });
             }
-            
+
             // Restart interval with new timing
             if (this.pollingInterval) {
               clearInterval(this.pollingInterval);
@@ -433,7 +433,7 @@ export class GitHubService {
   ): Promise<{ stdout: string; stderr: string }> {
     try {
       const result = await execAsync(command, { encoding: 'utf8', ...options });
-        return {
+      return {
         stdout: String(result.stdout),
         stderr: String(result.stderr),
       };

@@ -244,7 +244,7 @@ const IntegrationsCard: React.FC = () => {
     try {
       // Auto-install gh CLI
       const installResult = await window.electronAPI.githubInstallCLI();
-      
+
       if (!installResult.success) {
         setGithubError(`Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`);
         return;
@@ -254,7 +254,7 @@ const IntegrationsCard: React.FC = () => {
       await checkStatus(); // Refresh status
       const result = await login();
       await checkStatus();
-      
+
       if (!result?.success) {
         setGithubError(result?.error || 'Authentication failed.');
       }

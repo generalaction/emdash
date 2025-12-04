@@ -78,7 +78,17 @@ app.setName('emdash');
 
 // Set dock icon on macOS in development mode
 if (process.platform === 'darwin' && !app.isPackaged) {
-  const iconPath = join(__dirname, '..', '..', '..', 'src', 'assets', 'images', 'emdash', 'emdash_logo_transparent_dash.png');
+  const iconPath = join(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    'src',
+    'assets',
+    'images',
+    'emdash',
+    'emdash_logo_transparent_dash.png'
+  );
   try {
     app.dock.setIcon(iconPath);
   } catch (err) {

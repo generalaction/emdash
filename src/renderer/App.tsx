@@ -1411,15 +1411,15 @@ const AppContent: React.FC = () => {
   const handleDeviceFlowSuccess = useCallback(
     async (user: any) => {
       setShowDeviceFlowModal(false);
-      
+
       // Refresh status immediately to update UI
       await checkStatus();
-      
+
       // Also refresh again after a short delay to catch user info if it arrives quickly
       setTimeout(async () => {
         await checkStatus();
       }, 500);
-      
+
       toast({
         title: 'Connected to GitHub',
         description: `Signed in as ${user?.login || user?.name || 'user'}`,
@@ -1431,7 +1431,7 @@ const AppContent: React.FC = () => {
   const handleDeviceFlowError = useCallback(
     (error: string) => {
       setShowDeviceFlowModal(false);
-      
+
       toast({
         title: 'Authentication Failed',
         description: error,
@@ -1741,12 +1741,12 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
-      <GithubDeviceFlowModal
-        open={showDeviceFlowModal}
-        onClose={handleDeviceFlowClose}
-        onSuccess={handleDeviceFlowSuccess}
-        onError={handleDeviceFlowError}
-      />
+            <GithubDeviceFlowModal
+              open={showDeviceFlowModal}
+              onClose={handleDeviceFlowClose}
+              onSuccess={handleDeviceFlowSuccess}
+              onError={handleDeviceFlowError}
+            />
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}

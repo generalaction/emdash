@@ -20,7 +20,7 @@ export function GithubDeviceFlowModal({
   onError,
 }: GithubDeviceFlowModalProps) {
   const { toast } = useToast();
-  
+
   // Presentational state - updated via IPC events from main process
   const [userCode, setUserCode] = useState<string>('');
   const [verificationUri, setVerificationUri] = useState<string>('');
@@ -32,7 +32,7 @@ export function GithubDeviceFlowModal({
   const [user, setUser] = useState<any>(null);
   const [browserOpening, setBrowserOpening] = useState(false);
   const [browserOpenCountdown, setBrowserOpenCountdown] = useState(3);
-  
+
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutocopied = useRef(false);
   const hasOpenedBrowser = useRef(false);
@@ -47,12 +47,12 @@ export function GithubDeviceFlowModal({
       setVerificationUri(data.verificationUri);
       setExpiresIn(data.expiresIn);
       setTimeRemaining(data.expiresIn);
-      
+
       // Auto-copy code
       if (!hasAutocopied.current) {
         hasAutocopied.current = true;
         copyToClipboard(data.userCode, true);
-        
+
         // Show countdown and open browser after 3 seconds
         setBrowserOpening(true);
         let countdown = 3;
@@ -63,7 +63,7 @@ export function GithubDeviceFlowModal({
             clearInterval(countdownTimer);
           }
         }, 1000);
-        
+
         setTimeout(() => {
           setBrowserOpening(false);
           if (!hasOpenedBrowser.current) {
@@ -78,7 +78,7 @@ export function GithubDeviceFlowModal({
     const cleanupSuccess = window.electronAPI.onGithubAuthSuccess((data) => {
       setSuccess(true);
       setUser(data.user);
-      
+
       toast({
         title: 'Success!',
         description: 'Connected to GitHub',
@@ -97,7 +97,7 @@ export function GithubDeviceFlowModal({
     // Auth error
     const cleanupError = window.electronAPI.onGithubAuthError((data) => {
       setError(data.message || data.error);
-      
+
       if (onError) {
         onError(data.error);
       }
@@ -169,7 +169,7 @@ export function GithubDeviceFlowModal({
       }
 
       setCopied(true);
-      
+
       if (!isAutomatic) {
         toast({
           title: '✓ Code copied',
@@ -236,11 +236,11 @@ export function GithubDeviceFlowModal({
     <Dialog.Root open={open} onOpenChange={handleClose}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-[480px] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg overflow-hidden p-0">
+        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-[480px] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-hidden border bg-background p-0 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
           {/* Close button */}
           <button
             onClick={handleClose}
-            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10"
+            className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
           >
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
@@ -248,24 +248,24 @@ export function GithubDeviceFlowModal({
 
           <div className="flex flex-col items-center px-8 py-12">
             {/* Logo */}
-            <img src={emdashLogo} alt="emdash" className="h-8 mb-8 opacity-90" />
+            <img src={emdashLogo} alt="emdash" className="mb-8 h-8 opacity-90" />
 
             {success ? (
               // Success State
-              <div className="flex flex-col items-center space-y-6 animate-in fade-in zoom-in duration-300">
-                <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center animate-in zoom-in duration-500">
+              <div className="flex flex-col items-center space-y-6 duration-300 animate-in fade-in zoom-in">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 duration-500 animate-in zoom-in">
                   <Check className="h-8 w-8 text-white" strokeWidth={3} />
                 </div>
-                <div className="text-center space-y-2">
+                <div className="space-y-2 text-center">
                   <h2 className="text-2xl font-semibold">Success!</h2>
                   <p className="text-sm text-muted-foreground">You're connected to GitHub</p>
                   {user && (
-                    <div className="flex items-center justify-center gap-2 mt-4">
+                    <div className="mt-4 flex items-center justify-center gap-2">
                       {user.avatar_url && (
                         <img
                           src={user.avatar_url}
                           alt={user.name}
-                          className="w-10 h-10 rounded-full"
+                          className="h-10 w-10 rounded-full"
                         />
                       )}
                       <div className="text-left">
@@ -278,11 +278,11 @@ export function GithubDeviceFlowModal({
               </div>
             ) : error ? (
               // Error State
-              <div className="flex flex-col items-center space-y-6 w-full">
-                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+              <div className="flex w-full flex-col items-center space-y-6">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20">
                   <AlertCircle className="h-8 w-8 text-red-500" />
                 </div>
-                <div className="text-center space-y-2">
+                <div className="space-y-2 text-center">
                   <h2 className="text-xl font-semibold">Authentication Failed</h2>
                   <p className="text-sm text-muted-foreground">{error}</p>
                 </div>
@@ -292,8 +292,8 @@ export function GithubDeviceFlowModal({
               </div>
             ) : (
               // Waiting State
-              <div className="flex flex-col items-center space-y-6 w-full">
-                <div className="text-center space-y-2">
+              <div className="flex w-full flex-col items-center space-y-6">
+                <div className="space-y-2 text-center">
                   <h2 className="text-2xl font-semibold">Connect to GitHub</h2>
                   <p className="text-sm text-muted-foreground">
                     Follow these steps to authorize emdash
@@ -303,9 +303,11 @@ export function GithubDeviceFlowModal({
                 {/* Device Code Display */}
                 {userCode && (
                   <>
-                    <div className="w-full bg-muted/30 rounded-lg p-6 space-y-3">
-                      <p className="text-xs text-muted-foreground text-center font-medium">Your code</p>
-                      <p className="text-4xl font-bold tracking-wider text-center font-mono select-all">
+                    <div className="w-full space-y-3 rounded-lg bg-muted/30 p-6">
+                      <p className="text-center text-xs font-medium text-muted-foreground">
+                        Your code
+                      </p>
+                      <p className="select-all text-center font-mono text-4xl font-bold tracking-wider">
                         {userCode}
                       </p>
                     </div>
@@ -335,7 +337,7 @@ export function GithubDeviceFlowModal({
                 {/* Instructions */}
                 <div className="w-full space-y-3 text-sm">
                   <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
+                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
                       1
                     </div>
                     <p className="text-muted-foreground">
@@ -344,7 +346,7 @@ export function GithubDeviceFlowModal({
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
+                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
                       2
                     </div>
                     <p className="text-muted-foreground">Click Authorize</p>
@@ -353,8 +355,8 @@ export function GithubDeviceFlowModal({
 
                 {/* Browser Opening Countdown */}
                 {browserOpening && (
-                  <div className="w-full p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                    <p className="text-sm text-center text-blue-600 dark:text-blue-400">
+                  <div className="w-full rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
+                    <p className="text-center text-sm text-blue-600 dark:text-blue-400">
                       Opening GitHub in {browserOpenCountdown}s...
                     </p>
                   </div>
@@ -380,12 +382,12 @@ export function GithubDeviceFlowModal({
                 )}
 
                 {/* Help Text */}
-                <div className="w-full pt-4 border-t">
+                <div className="w-full border-t pt-4">
                   <p className="text-center text-xs text-muted-foreground">Having trouble?</p>
                 </div>
 
                 {/* Keyboard Shortcuts */}
-                <div className="text-xs text-muted-foreground text-center space-x-3">
+                <div className="space-x-3 text-center text-xs text-muted-foreground">
                   <span>⌘C to copy</span>
                   <span>•</span>
                   <span>⌘R to reopen</span>

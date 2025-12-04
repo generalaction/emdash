@@ -87,5 +87,3 @@ export class GitHubCLIInstaller {
 }
 
 export const githubCLIInstaller = new GitHubCLIInstaller();
-
-
