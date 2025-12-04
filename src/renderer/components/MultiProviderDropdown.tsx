@@ -11,21 +11,22 @@ const MAX_RUNS = 4;
 interface MultiProviderDropdownProps {
   providerRuns: ProviderRun[];
   onChange: (providerRuns: ProviderRun[]) => void;
+  defaultProvider?: Provider;
   className?: string;
 }
-
-// Sort providers with Claude first
-const sortedProviders = Object.entries(providerConfig).sort(([keyA], [keyB]) => {
-  if (keyA === 'claude') return -1;
-  if (keyB === 'claude') return 1;
-  return 0;
-});
 
 export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   providerRuns,
   onChange,
+  defaultProvider = 'claude',
   className = '',
 }) => {
+  // Sort providers with default provider first
+  const sortedProviders = Object.entries(providerConfig).sort(([keyA], [keyB]) => {
+    if (keyA === defaultProvider) return -1;
+    if (keyB === defaultProvider) return 1;
+    return 0;
+  });
   const [open, setOpen] = useState(false);
 
   const selectedProviders = new Set(providerRuns.map((pr) => pr.provider));
