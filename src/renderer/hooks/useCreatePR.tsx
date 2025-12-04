@@ -71,8 +71,24 @@ export function useCreatePR() {
 
       if (res?.success) {
         toast({
-          title: 'Pull request created successfully!',
-          description: 'Opening PR page...',
+          title: (
+            <span className="inline-flex items-center gap-2">
+              <img src={githubLogo} alt="GitHub" className="h-5 w-5 rounded-sm object-contain" />
+              Pull Request Created
+            </span>
+          ),
+          description: res.url ? (
+            <a
+              href={res.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cursor-pointer hover:underline"
+            >
+              {res.url}
+            </a>
+          ) : (
+            'PR created successfully.'
+          ),
         });
         try {
           await onSuccess?.();
