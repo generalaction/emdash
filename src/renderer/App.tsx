@@ -787,7 +787,6 @@ const AppContent: React.FC = () => {
             enabled: true,
             maxProviders: 4,
             providerRuns,
-            providers: providerRuns.map((pr) => pr.provider),
             variants,
             selectedProvider: null,
           },

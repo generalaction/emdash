@@ -24,10 +24,6 @@ export interface WorkspaceMetadata {
     maxProviders?: number;
     // Per-provider run configuration
     providerRuns?: ProviderRun[];
-    // Legacy: Number of runs per provider (deprecated, kept for backwards compatibility)
-    runsPerProvider?: number;
-    // Legacy: Selected providers (deprecated, kept for backwards compatibility)
-    providers: ProviderId[];
     variants: Array<{
       id: string;
       provider: ProviderId;
