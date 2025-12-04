@@ -79,7 +79,16 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   const singleProviderConfig = singleProvider ? providerConfig[singleProvider.provider] : null;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen) {
+          setHoveredProvider(null);
+          setRunsSelectOpenFor(null);
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type="button"
