@@ -35,10 +35,13 @@ const SidebarRightToggleButton: React.FC = () => {
           collisionPadding={8}
           className="text-xs font-medium"
         >
-          <span className="flex items-center gap-1">
-            <Command className="h-3 w-3" aria-hidden="true" />
-            <span>.</span>
-          </span>
+          <div className="flex flex-col gap-1">
+            <span>Toggle right sidebar</span>
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Command className="h-3 w-3" aria-hidden="true" />
+              <span>.</span>
+            </span>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
