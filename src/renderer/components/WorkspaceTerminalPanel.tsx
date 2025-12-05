@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { TerminalPane } from './TerminalPane';
 import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
@@ -29,55 +29,109 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
     closeTerminal,
   } = useWorkspaceTerminals(workspace?.id ?? null, workspace?.path);
 
-  const themeOverride = useMemo(
+  const [nativeTheme, setNativeTheme] = useState<{
+    background?: string;
+    foreground?: string;
+    cursor?: string;
+    cursorAccent?: string;
+    selectionBackground?: string;
+    black?: string;
+    red?: string;
+    green?: string;
+    yellow?: string;
+    blue?: string;
+    magenta?: string;
+    cyan?: string;
+    white?: string;
+    brightBlack?: string;
+    brightRed?: string;
+    brightGreen?: string;
+    brightYellow?: string;
+    brightBlue?: string;
+    brightMagenta?: string;
+    brightCyan?: string;
+    brightWhite?: string;
+  } | null>(null);
+
+  // Fetch native terminal theme on mount
+  useEffect(() => {
+    void (async () => {
+      try {
+        const result = await window.electronAPI.terminalGetTheme();
+        if (result?.ok && result.config?.theme) {
+          setNativeTheme(result.config.theme);
+        }
+      } catch (error) {
+        // Silently fail - fall back to default theme
+        console.warn('Failed to load native terminal theme', error);
+      }
+    })();
+  }, []);
+
+  // Default theme (VS Code inspired)
+  const defaultTheme = useMemo(
     () =>
       effectiveTheme === 'dark'
         ? {
-            background: '#1f2937',
-            foreground: '#ffffff',
-            cursor: '#ffffff',
-            selectionBackground: '#ffffff33',
-            black: '#1f2937',
-            red: '#ffffff',
-            green: '#ffffff',
-            yellow: '#ffffff',
-            blue: '#ffffff',
-            magenta: '#ffffff',
-            cyan: '#ffffff',
-            white: '#ffffff',
-            brightBlack: '#ffffff',
-            brightRed: '#ffffff',
-            brightGreen: '#ffffff',
-            brightYellow: '#ffffff',
-            brightBlue: '#ffffff',
-            brightMagenta: '#ffffff',
-            brightCyan: '#ffffff',
+            background: '#1e1e1e',
+            foreground: '#d4d4d4',
+            cursor: '#aeafad',
+            cursorAccent: '#1e1e1e',
+            selectionBackground: '#264f78',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#0dbc79',
+            yellow: '#e5e510',
+            blue: '#2472c8',
+            magenta: '#bc3fbc',
+            cyan: '#11a8cd',
+            white: '#e5e5e5',
+            brightBlack: '#666666',
+            brightRed: '#f14c4c',
+            brightGreen: '#23d18b',
+            brightYellow: '#f5f543',
+            brightBlue: '#3b8eea',
+            brightMagenta: '#d670d6',
+            brightCyan: '#29b8db',
             brightWhite: '#ffffff',
           }
         : {
             background: '#ffffff',
-            foreground: '#000000',
-            cursor: '#000000',
-            selectionBackground: '#00000033',
-            black: '#ffffff',
-            red: '#000000',
-            green: '#000000',
-            yellow: '#000000',
-            blue: '#000000',
-            magenta: '#000000',
-            cyan: '#000000',
-            white: '#000000',
-            brightBlack: '#000000',
-            brightRed: '#000000',
-            brightGreen: '#000000',
-            brightYellow: '#000000',
-            brightBlue: '#000000',
-            brightMagenta: '#000000',
-            brightCyan: '#000000',
-            brightWhite: '#000000',
+            foreground: '#1e1e1e',
+            cursor: '#1e1e1e',
+            cursorAccent: '#ffffff',
+            selectionBackground: '#add6ff',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#0dbc79',
+            yellow: '#bf8803',
+            blue: '#0451a5',
+            magenta: '#bc05bc',
+            cyan: '#0598bc',
+            white: '#e5e5e5',
+            brightBlack: '#666666',
+            brightRed: '#cd3131',
+            brightGreen: '#14ce14',
+            brightYellow: '#b5ba00',
+            brightBlue: '#0451a5',
+            brightMagenta: '#bc05bc',
+            brightCyan: '#0598bc',
+            brightWhite: '#a5a5a5',
           },
     [effectiveTheme]
   );
+
+  // Merge native theme with defaults (native theme takes precedence)
+  const themeOverride = useMemo(() => {
+    if (!nativeTheme) {
+      return defaultTheme;
+    }
+    // Merge: native theme values override defaults, but we keep defaults for missing values
+    return {
+      ...defaultTheme,
+      ...nativeTheme,
+    };
+  }, [nativeTheme, defaultTheme]);
 
   if (!workspace) {
     return (

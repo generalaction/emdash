@@ -45,7 +45,13 @@ export function startPty(options: {
 
   let useShell = shell || getDefaultShell();
   const useCwd = cwd || process.cwd() || os.homedir();
-  const useEnv = { TERM: 'xterm-256color', ...process.env, ...(env || {}) };
+  const useEnv = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    ...process.env,
+    ...(env || {}),
+  };
 
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
@@ -107,16 +113,13 @@ export function startPty(options: {
   if (process.platform !== 'win32') {
     try {
       const base = String(useShell).split('/').pop() || '';
-      if (base === 'zsh') args.push('-il');
-      else if (base === 'bash') args.push('--noprofile', '--norc', '-i');
-      else if (base === 'fish' || base === 'sh') args.push('-i');
-
+      
       // Check if this is a known AI coding assistant CLI
       const baseLower = base.toLowerCase();
       const autoApproveFlag = AUTO_APPROVE_FLAGS[baseLower];
 
       if (autoApproveFlag) {
-        args.length = 0;
+        // For agent CLIs, use auto-approve flags
         const willAddFlag = autoApprove === true;
         log.debug('ptyManager:providerCheck', {
           id,
@@ -128,6 +131,13 @@ export function startPty(options: {
         if (willAddFlag) {
           args.push(autoApproveFlag);
         }
+      } else {
+        // For normal shells, use login + interactive to load user configs
+        if (base === 'zsh') args.push('-il');
+        else if (base === 'bash') args.push('-il');
+        else if (base === 'fish') args.push('-il');
+        else if (base === 'sh') args.push('-il');
+        else args.push('-i'); // Fallback for other shells
       }
     } catch {}
   }

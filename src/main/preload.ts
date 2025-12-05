@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
   // App settings
   getSettings: () => ipcRenderer.invoke('settings:get'),

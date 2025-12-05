@@ -6,6 +6,7 @@ import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
 import { getAppSettings } from '../settings';
 import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
+import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
@@ -141,6 +142,19 @@ export function registerPtyIpc(): void {
   ipcMain.handle('pty:snapshot:clear', async (_event, args: { id: string }) => {
     await terminalSnapshotService.deleteSnapshot(args.id);
     return { ok: true };
+  });
+
+  ipcMain.handle('terminal:getTheme', async () => {
+    try {
+      const config = detectAndLoadTerminalConfig();
+      if (config) {
+        return { ok: true, config };
+      }
+      return { ok: false, error: 'No terminal configuration found' };
+    } catch (error: any) {
+      log.error('terminal:getTheme failed', { error });
+      return { ok: false, error: error?.message || String(error) };
+    }
   });
 }
 
