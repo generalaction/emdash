@@ -413,7 +413,10 @@ const BrowserPane: React.FC<{
     } catch {}
   }, [url]);
 
-  const handleClose = React.useCallback(() => {
+  const handleClose = React.useCallback(async () => {
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('browser_preview_closed');
+    });
     try {
       const id = (workspaceId || '').trim();
       if (id) (window as any).electronAPI?.hostPreviewStop?.(id);

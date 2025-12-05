@@ -25,6 +25,9 @@ const NotificationSettingsCard: React.FC = () => {
 
   const updateEnabled = async (next: boolean) => {
     setEnabled(next);
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('notification_settings_changed', { enabled: next, sound });
+    });
     try {
       await window.electronAPI.updateSettings({
         notifications: { enabled: next, sound },
@@ -36,6 +39,9 @@ const NotificationSettingsCard: React.FC = () => {
 
   const updateSound = async (next: boolean) => {
     setSound(next);
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('notification_settings_changed', { enabled, sound: next });
+    });
     try {
       await window.electronAPI.updateSettings({
         notifications: { enabled, sound: next },

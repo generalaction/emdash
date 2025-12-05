@@ -97,8 +97,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       setActiveTab('general');
+      void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('settings_tab_viewed', { tab: 'general' });
+      });
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('settings_tab_viewed', { tab: activeTab });
+      });
+    }
+  }, [activeTab, isOpen]);
 
   useEffect(() => {
     let cancelled = false;

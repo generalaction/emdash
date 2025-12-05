@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PLANNING_MD } from '@/lib/planRules';
 import { log } from '@/lib/logger';
 import { logPlanEvent } from '@/lib/planLogs';
@@ -171,6 +171,10 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
       if (enabled) {
         log.info('[plan] enabled', { workspaceId, workspacePath });
         await logPlanEvent(workspacePath, 'Plan Mode enabled');
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('plan_mode_enabled');
+        })();
         ensureGitExclude();
         await ensurePlanFile();
         try {
@@ -200,6 +204,10 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
         if (wasActive) {
           log.info('[plan] disabled', { workspaceId, workspacePath });
           await logPlanEvent(workspacePath, 'Plan Mode disabled');
+          void (async () => {
+            const { captureTelemetry } = await import('../lib/telemetryClient');
+            captureTelemetry('plan_mode_disabled');
+          })();
           try {
             const unlock = await (window as any).electronAPI.planReleaseLock(workspacePath);
             if (!unlock?.success) log.warn('[plan] failed to release lock', unlock?.error);

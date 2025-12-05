@@ -39,6 +39,7 @@ import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
+import { captureTelemetry } from './lib/telemetryClient';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -314,6 +315,10 @@ const AppContent: React.FC = () => {
   );
 
   const activateProjectView = useCallback((project: Project) => {
+    void (async () => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('project_view_opened');
+    })();
     setSelectedProject(project);
     setShowHomeView(false);
     setActiveWorkspace(null);
@@ -493,6 +498,8 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleOpenProject = async () => {
+    const { captureTelemetry } = await import('./lib/telemetryClient');
+    captureTelemetry('project_add_clicked');
     try {
       const result = await window.electronAPI.openProject();
       if (result.success && result.path) {
@@ -554,6 +561,8 @@ const AppContent: React.FC = () => {
 
               const saveResult = await window.electronAPI.saveProject(projectWithGithub);
               if (saveResult.success) {
+                const { captureTelemetry } = await import('./lib/telemetryClient');
+                captureTelemetry('project_added_success', { source: 'github' });
                 setProjects((prev) => [...prev, projectWithGithub]);
                 activateProjectView(projectWithGithub);
               } else {
@@ -584,6 +593,8 @@ const AppContent: React.FC = () => {
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
+              const { captureTelemetry } = await import('./lib/telemetryClient');
+              captureTelemetry('project_added_success', { source: 'local' });
               setProjects((prev) => [...prev, projectWithoutGithub]);
               activateProjectView(projectWithoutGithub);
             } else {
@@ -1025,6 +1036,14 @@ const AppContent: React.FC = () => {
             : null
         );
 
+        // Track workspace creation
+        const { captureTelemetry } = await import('./lib/telemetryClient');
+        const isMultiAgent = (newWorkspace.metadata as any)?.multiAgent?.enabled;
+        captureTelemetry('workspace_created', {
+          provider: isMultiAgent ? 'multi' : (newWorkspace.agentId as string) || 'codex',
+          has_initial_prompt: !!(workspaceMetadata?.initialPrompt),
+        });
+
         // Set the active workspace and its provider (none if multi-agent)
         setActiveWorkspace(newWorkspace);
         if ((newWorkspace.metadata as any)?.multiAgent?.enabled) {
@@ -1193,6 +1212,10 @@ const AppContent: React.FC = () => {
           throw new Error(errorMsg);
         }
 
+        // Track workspace deletion
+        const { captureTelemetry } = await import('./lib/telemetryClient');
+        captureTelemetry('workspace_deleted');
+
         if (!options?.silent) {
           toast({
             title: 'Task deleted',
@@ -1297,6 +1320,8 @@ const AppContent: React.FC = () => {
       const res = await window.electronAPI.deleteProject(project.id);
       if (!res?.success) throw new Error(res?.error || 'Failed to delete project');
 
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('project_deleted');
       setProjects((prev) => prev.filter((p) => p.id !== project.id));
       if (selectedProject?.id === project.id) {
         setSelectedProject(null);
@@ -1378,7 +1403,17 @@ const AppContent: React.FC = () => {
             </div>
 
             <div className="flex flex-col justify-center gap-4 sm:flex-row">
-              <Button onClick={handleOpenProject} size="lg" className="min-w-[200px]">
+              <Button
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('./lib/telemetryClient');
+                    captureTelemetry('project_open_clicked');
+                  })();
+                  handleOpenProject();
+                }}
+                size="lg"
+                className="min-w-[200px]"
+              >
                 <FolderOpen className="mr-2 h-5 w-5" />
                 Open Project
               </Button>

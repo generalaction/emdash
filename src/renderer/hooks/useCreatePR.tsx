@@ -70,6 +70,10 @@ export function useCreatePR() {
       });
 
       if (res?.success) {
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('pr_created');
+        })();
         toast({
           title: 'Pull request created successfully!',
           description: 'Opening PR page...',
@@ -80,6 +84,10 @@ export function useCreatePR() {
           // ignore onSuccess errors
         }
       } else {
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('pr_creation_failed', { error_type: res?.error || 'unknown' });
+        })();
         const details =
           res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
         toast({

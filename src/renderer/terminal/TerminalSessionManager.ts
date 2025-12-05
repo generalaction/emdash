@@ -112,6 +112,13 @@ export class TerminalSessionManager {
         // These are sent by xterm.js when focus changes but shouldn't go to the PTY
         const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
         if (filtered) {
+          // Track command execution when Enter is pressed
+          if (filtered.includes('\r') || filtered.includes('\n')) {
+            void (async () => {
+              const { captureTelemetry } = await import('../lib/telemetryClient');
+              captureTelemetry('terminal_command_executed');
+            })();
+          }
           window.electronAPI.ptyInput({ id: this.id, data: filtered });
         }
       }

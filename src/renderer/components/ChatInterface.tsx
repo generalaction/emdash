@@ -215,6 +215,18 @@ const ChatInterface: React.FC<Props> = ({
     } catch {}
   }, [provider, workspace.id]);
 
+  // Track provider switching
+  const prevProviderRef = React.useRef<Provider | null>(null);
+  useEffect(() => {
+    if (prevProviderRef.current && prevProviderRef.current !== provider) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('workspace_provider_switched', { provider });
+      })();
+    }
+    prevProviderRef.current = provider;
+  }, [provider]);
+
   useEffect(() => {
     const installed = currentProviderStatus?.installed === true;
     setIsProviderInstalled(installed);

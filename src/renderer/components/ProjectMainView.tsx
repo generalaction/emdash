@@ -150,13 +150,25 @@ function WorkspaceRow({
         mode: 'container',
       });
       if (res?.ok !== true) {
+        void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('container_connect_failed', {
+            error_type: res?.error?.code || 'unknown',
+          });
+        });
         toast({
           title: 'Failed to start container',
           description: res?.error?.message || 'Unknown error',
           variant: 'destructive',
         });
+      } else {
+        void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('container_connect_success');
+        });
       }
     } catch (error: any) {
+      void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('container_connect_failed', { error_type: 'exception' });
+      });
       toast({
         title: 'Failed to start container',
         description: error?.message || String(error),

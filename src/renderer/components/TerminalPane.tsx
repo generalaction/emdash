@@ -127,6 +127,10 @@ const TerminalPaneComponent: React.FC<Props> = ({
   }, [id, keepAlive]);
 
   const handleFocus = () => {
+    void (async () => {
+      const { captureTelemetry } = await import('../lib/telemetryClient');
+      captureTelemetry('terminal_entered');
+    })();
     sessionRef.current?.focus();
   };
 

@@ -41,12 +41,16 @@ const Titlebar: React.FC<TitlebarProps> = ({
   projectPath,
   isWorkspaceMultiAgent,
   onToggleKanban,
+  isKanbanOpen = false,
   kanbanAvailable = false,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const handleOpenFeedback = useCallback(() => {
+  const handleOpenFeedback = useCallback(async () => {
+    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('toolbar_feedback_clicked');
+    });
     setIsFeedbackOpen(true);
   }, []);
 
@@ -109,7 +113,13 @@ const Titlebar: React.FC<TitlebarProps> = ({
                     variant="ghost"
                     size="icon"
                     aria-label="Toggle Kanban view"
-                    onClick={onToggleKanban}
+                    onClick={async () => {
+                      const newState = !isKanbanOpen;
+                      void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+                        captureTelemetry('toolbar_kanban_toggled', { state: newState ? 'open' : 'closed' });
+                      });
+                      onToggleKanban?.();
+                    }}
                     className="h-8 w-8 text-muted-foreground hover:bg-background/80"
                   >
                     <KanbanSquare className="h-4 w-4" />
@@ -173,7 +183,12 @@ const Titlebar: React.FC<TitlebarProps> = ({
                   size="icon"
                   aria-label="Open settings"
                   aria-pressed={isSettingsOpen}
-                  onClick={onToggleSettings}
+                  onClick={async () => {
+                    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+                      captureTelemetry('toolbar_settings_clicked');
+                    });
+                    onToggleSettings();
+                  }}
                   className="h-8 w-8 text-muted-foreground hover:bg-background/80"
                 >
                   <SettingsIcon className="h-4 w-4" />

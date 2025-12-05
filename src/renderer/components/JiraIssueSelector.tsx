@@ -120,6 +120,13 @@ const JiraIssueSelector: React.FC<Props> = ({
       const result = await api.jiraSearchIssues(term.trim(), 20);
       if (!isMountedRef.current) return;
       setSearchResults(result?.success ? (result.issues ?? []) : []);
+      if (result?.success) {
+        // Track search
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('jira_issues_searched');
+        })();
+      }
     } catch {
       if (isMountedRef.current) setSearchResults([]);
     } finally {
@@ -153,6 +160,12 @@ const JiraIssueSelector: React.FC<Props> = ({
     }
     const all = searchTerm.trim() ? searchResults : availableIssues;
     const issue = all.find((i) => i.key === key) || null;
+    if (issue) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('jira_issue_selected');
+      })();
+    }
     onIssueChange(issue);
   };
 

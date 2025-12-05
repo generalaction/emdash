@@ -118,6 +118,11 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
       if (!isMountedRef.current) return;
       if (result?.success) {
         setSearchResults(result.issues ?? []);
+        // Track search
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('linear_issues_searched');
+        })();
       } else {
         setSearchResults([]);
       }
@@ -174,6 +179,12 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
       return;
     }
     const issue = displayIssues.find((issue) => issue.identifier === identifier) ?? null;
+    if (issue) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('linear_issue_selected');
+      })();
+    }
     onIssueChange(issue);
   };
 

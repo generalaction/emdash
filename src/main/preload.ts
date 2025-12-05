@@ -167,7 +167,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('icons:resolve-service', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   // Telemetry (minimal, anonymous)
-  captureTelemetry: (event: 'feature_used' | 'error', properties?: Record<string, any>) =>
+  captureTelemetry: (event: string, properties?: Record<string, any>) =>
     ipcRenderer.invoke('telemetry:capture', { event, properties }),
   getTelemetryStatus: () => ipcRenderer.invoke('telemetry:get-status'),
   setTelemetryEnabled: (enabled: boolean) => ipcRenderer.invoke('telemetry:set-enabled', enabled),
@@ -327,7 +327,7 @@ export interface ElectronAPI {
 
   // Telemetry (minimal, anonymous)
   captureTelemetry: (
-    event: 'feature_used' | 'error',
+    event: string,
     properties?: Record<string, any>
   ) => Promise<{ success: boolean; error?: string; disabled?: boolean }>;
   getTelemetryStatus: () => Promise<{

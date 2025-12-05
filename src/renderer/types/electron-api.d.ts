@@ -348,7 +348,7 @@ declare global {
       }>;
       // Telemetry
       captureTelemetry: (
-        event: 'feature_used' | 'error',
+        event: string,
         properties?: Record<string, any>
       ) => Promise<{ success: boolean; disabled?: boolean; error?: string }>;
       getTelemetryStatus: () => Promise<{
@@ -705,7 +705,7 @@ export interface ElectronAPI {
   ) => () => void;
   // Telemetry
   captureTelemetry: (
-    event: 'feature_used' | 'error',
+    event: string,
     properties?: Record<string, any>
   ) => Promise<{ success: boolean; disabled?: boolean; error?: string }>;
   getTelemetryStatus: () => Promise<{
