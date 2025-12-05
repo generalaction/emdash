@@ -304,16 +304,22 @@ function WorkspaceRow({
             </button>
           ) : null}
           {!isLoading && totalAdditions === 0 && totalDeletions === 0 && pr ? (
-            <span
-              className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (pr.url) window.electronAPI.openExternal(pr.url);
+              }}
+              className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               title={`${pr.title || 'Pull Request'} (#${pr.number})`}
             >
               {pr.isDraft
-                ? 'draft'
-                : String(pr.state).toLowerCase() === 'open'
-                  ? 'PR open'
-                  : String(pr.state).toLowerCase()}
-            </span>
+                ? 'Draft'
+                : String(pr.state).toUpperCase() === 'OPEN'
+                  ? 'View PR'
+                  : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+              <ArrowUpRight className="size-3" />
+            </button>
           ) : null}
           {/* Agent badge commented out per user request
           {ws.agentId && <Badge variant="outline">agent</Badge>}
@@ -686,10 +692,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
               {(!project.workspaces || project.workspaces.length === 0) && (
                 <Alert>
-                  <AlertTitle>What's a workspace?</AlertTitle>
+                  <AlertTitle>What's a task?</AlertTitle>
                   <AlertDescription className="flex items-center justify-between gap-4">
                     <p className="text-sm text-muted-foreground">
-                      Each workspace is an isolated copy and branch of your repo (Git-tracked files
+                      Each task is an isolated copy and branch of your repo (Git-tracked files
                       only).
                     </p>
                   </AlertDescription>
@@ -700,7 +706,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         </div>
       </div>
 
-      {/* Bulk delete confirmation dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>

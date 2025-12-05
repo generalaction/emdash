@@ -24,6 +24,7 @@ declare global {
         cols?: number;
         rows?: number;
         autoApprove?: boolean;
+        initialPrompt?: string;
       }) => Promise<{ ok: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows: number }) => void;

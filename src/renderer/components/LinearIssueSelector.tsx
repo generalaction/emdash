@@ -5,7 +5,6 @@ import { Search } from 'lucide-react';
 import linearLogo from '../../assets/images/linear.png';
 import { type LinearIssueSummary } from '../types/linear';
 import { Separator } from './ui/separator';
-import { Badge } from './ui/badge';
 import { Spinner } from './ui/spinner';
 
 interface LinearIssueSelectorProps {
@@ -290,19 +289,6 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
           </div>
         </SelectContent>
       </Select>
-      {issueListError ? (
-        <div className="mt-2 rounded-md border border-border bg-muted/40 p-2">
-          <div className="flex items-center gap-2">
-            <Badge className="inline-flex items-center gap-1.5">
-              <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
-              <span>Connect Linear</span>
-            </Badge>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Add your Linear API key in Settings → Integrations to browse and attach issues here.
-          </p>
-        </div>
-      ) : null}
       {issueHelperText ? (
         <p className="mt-2 text-xs text-muted-foreground">{issueHelperText}</p>
       ) : null}

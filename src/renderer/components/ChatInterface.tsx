@@ -428,11 +428,13 @@ const ChatInterface: React.FC<Props> = ({
     return null;
   }, [isTerminal, workspace.metadata]);
 
+  // Only use keystroke injection for providers WITHOUT CLI flag support
+  // Providers with initialPromptFlag use CLI arg injection via TerminalPane instead
   useInitialPromptInjection({
     workspaceId: workspace.id,
     providerId: provider,
     prompt: initialInjection,
-    enabled: isTerminal,
+    enabled: isTerminal && providerMeta[provider]?.initialPromptFlag === undefined,
   });
 
   // Ensure a provider is stored for this workspace so fallbacks can subscribe immediately
@@ -695,6 +697,16 @@ const ChatInterface: React.FC<Props> = ({
               }}
               onStartSuccess={() => {
                 setCliStartFailed(false);
+                // Mark initial injection as sent so it won't re-run on restart
+                if (initialInjection && !workspace.metadata?.initialInjectionSent) {
+                  void window.electronAPI.saveWorkspace({
+                    ...workspace,
+                    metadata: {
+                      ...workspace.metadata,
+                      initialInjectionSent: true,
+                    },
+                  });
+                }
               }}
               variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
               themeOverride={
@@ -705,6 +717,12 @@ const ChatInterface: React.FC<Props> = ({
               contentFilter={
                 provider === 'charm' && effectiveTheme !== 'dark'
                   ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
+                  : undefined
+              }
+              initialPrompt={
+                providerMeta[provider]?.initialPromptFlag !== undefined &&
+                !workspace.metadata?.initialInjectionSent
+                  ? (initialInjection ?? undefined)
                   : undefined
               }
               className="h-full w-full"

@@ -225,7 +225,7 @@ const AppContent: React.FC = () => {
   const leftSidebarIsMobileRef = useRef<boolean>(false);
   const leftSidebarOpenRef = useRef<boolean>(true);
   const rightSidebarSetCollapsedRef = useRef<((next: boolean) => void) | null>(null);
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(true);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
 
   const handlePanelLayout = useCallback((sizes: number[]) => {
     if (!Array.isArray(sizes) || sizes.length < 3) {
@@ -621,16 +621,10 @@ const AppContent: React.FC = () => {
   const handleCreateWorkspace = async (
     workspaceName: string,
     initialPrompt?: string,
-    selectedProvider?: Provider,
+    providerRuns: import('./types/chat').ProviderRun[] = [{ provider: 'claude', runs: 1 }],
     linkedLinearIssue: LinearIssueSummary | null = null,
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
-    multiAgent: {
-      enabled: boolean;
-      providers: Provider[];
-      maxProviders?: number;
-      runsPerProvider?: number;
-    } | null = null,
     autoApprove?: boolean
   ) => {
     if (!selectedProject) return;
@@ -742,18 +736,14 @@ const AppContent: React.FC = () => {
             }
           : null;
 
-      // Multi-agent or single-agent workspace creation
-      const runsPerProvider = Math.max(1, multiAgent?.runsPerProvider || 1);
-      const providerList = Array.isArray(multiAgent?.providers)
-        ? multiAgent.providers.filter(Boolean)
-        : [];
-      const useMulti =
-        !!multiAgent?.enabled &&
-        providerList.length > 0 &&
-        (providerList.length >= 2 || runsPerProvider > 1);
+      // Calculate total runs and determine if multi-agent
+      const totalRuns = providerRuns.reduce((sum, pr) => sum + pr.runs, 0);
+      const isMultiAgent = totalRuns > 1;
+      const primaryProvider = providerRuns[0]?.provider || 'claude';
+
       let newWorkspace: Workspace;
-      if (useMulti) {
-        const providers = providerList.slice(0, multiAgent?.maxProviders || 4);
+      if (isMultiAgent) {
+        // Multi-agent workspace: create worktrees for each provider×runs combo
         const variants: Array<{
           id: string;
           provider: Provider;
@@ -762,9 +752,10 @@ const AppContent: React.FC = () => {
           path: string;
           worktreeId: string;
         }> = [];
-        for (const provider of providers) {
-          for (let instanceIdx = 1; instanceIdx <= runsPerProvider; instanceIdx++) {
-            const instanceSuffix = runsPerProvider > 1 ? `-${instanceIdx}` : '';
+
+        for (const { provider, runs } of providerRuns) {
+          for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
+            const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
             const variantName = `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`;
             const worktreeResult = await window.electronAPI.worktreeCreate({
               projectPath: selectedProject.path,
@@ -794,9 +785,8 @@ const AppContent: React.FC = () => {
           ...(workspaceMetadata || {}),
           multiAgent: {
             enabled: true,
-            maxProviders: multiAgent?.maxProviders || 4,
-            runsPerProvider,
-            providers,
+            maxProviders: 4,
+            providerRuns,
             variants,
             selectedProvider: null,
           },
@@ -805,18 +795,18 @@ const AppContent: React.FC = () => {
         const groupId = `ws-${workspaceName}-${Date.now()}`;
         newWorkspace = {
           id: groupId,
+          projectId: selectedProject.id,
           name: workspaceName,
           branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
           path: variants[0]?.path || selectedProject.path,
           status: 'idle',
-          agentId: selectedProvider || undefined,
+          agentId: primaryProvider,
           metadata: multiMeta,
-        } as Workspace;
+        };
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
-          projectId: selectedProject.id,
-          agentId: selectedProvider || undefined,
+          agentId: primaryProvider,
           metadata: multiMeta,
         });
         if (!saveResult?.success) {
@@ -843,18 +833,18 @@ const AppContent: React.FC = () => {
 
         newWorkspace = {
           id: worktree.id,
+          projectId: selectedProject.id,
           name: workspaceName,
           branch: worktree.branch,
           path: worktree.path,
           status: 'idle',
-          agentId: selectedProvider || undefined, // Save the selected provider as agentId
+          agentId: primaryProvider,
           metadata: workspaceMetadata,
         };
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
-          projectId: selectedProject.id,
-          agentId: selectedProvider || undefined,
+          agentId: primaryProvider,
           metadata: workspaceMetadata,
         });
         if (!saveResult?.success) {
@@ -1020,7 +1010,7 @@ const AppContent: React.FC = () => {
             project.id === selectedProject.id
               ? {
                   ...project,
-                  workspaces: [...(project.workspaces || []), newWorkspace],
+                  workspaces: [newWorkspace, ...(project.workspaces || [])],
                 }
               : project
           )
@@ -1030,7 +1020,7 @@ const AppContent: React.FC = () => {
           prev
             ? {
                 ...prev,
-                workspaces: [...(prev.workspaces || []), newWorkspace],
+                workspaces: [newWorkspace, ...(prev.workspaces || [])],
               }
             : null
         );
@@ -1040,9 +1030,9 @@ const AppContent: React.FC = () => {
         if ((newWorkspace.metadata as any)?.multiAgent?.enabled) {
           setActiveWorkspaceProvider(null);
         } else {
-          // Use the saved agentId from the workspace, which should match selectedProvider
+          // Use the saved agentId from the workspace, which should match primaryProvider
           setActiveWorkspaceProvider(
-            (newWorkspace.agentId as Provider) || selectedProvider || 'codex'
+            (newWorkspace.agentId as Provider) || primaryProvider || 'codex'
           );
         }
       }
@@ -1253,7 +1243,7 @@ const AppContent: React.FC = () => {
               const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
               return alreadyPresent
                 ? project
-                : { ...project, workspaces: [...existing, workspaceSnapshot] };
+                : { ...project, workspaces: [workspaceSnapshot, ...existing] };
             })
           );
           setSelectedProject((prev) => {
@@ -1262,7 +1252,7 @@ const AppContent: React.FC = () => {
             const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
             return alreadyPresent
               ? prev
-              : { ...prev, workspaces: [...existing, workspaceSnapshot] };
+              : { ...prev, workspaces: [workspaceSnapshot, ...existing] };
           });
 
           if (wasActive) {
@@ -1476,7 +1466,7 @@ const AppContent: React.FC = () => {
           return null;
         })()}
         <SidebarProvider>
-          <RightSidebarProvider defaultCollapsed>
+          <RightSidebarProvider>
             <AppKeyboardShortcuts
               showCommandPalette={showCommandPalette}
               showSettings={showSettings}

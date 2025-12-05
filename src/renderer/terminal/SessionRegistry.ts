@@ -15,6 +15,7 @@ interface AttachOptions {
   initialSize: { cols: number; rows: number };
   theme: SessionTheme;
   autoApprove?: boolean;
+  initialPrompt?: string;
 }
 
 class SessionRegistry {
@@ -58,6 +59,7 @@ class SessionRegistry {
       theme: options.theme,
       telemetry: null,
       autoApprove: options.autoApprove,
+      initialPrompt: options.initialPrompt,
     };
 
     const session = new TerminalSessionManager(sessionOptions);

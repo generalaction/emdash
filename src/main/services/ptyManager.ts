@@ -1,18 +1,7 @@
 import os from 'os';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
-
-// Provider auto-approve flags mapping
-// Maps CLI executable name to its auto-approve flag
-const AUTO_APPROVE_FLAGS: Record<string, string> = {
-  claude: '--dangerously-skip-permissions',
-  codex: '--full-auto',
-  qwen: '--yolo',
-  opencode: '-p',
-  gemini: '--yolomode',
-  'cursor-agent': '-p',
-  acli: '--yolo',
-};
+import { PROVIDERS } from '@shared/providers/registry';
 
 type PtyRecord = {
   id: string;
@@ -37,11 +26,12 @@ export function startPty(options: {
   cols?: number;
   rows?: number;
   autoApprove?: boolean;
+  initialPrompt?: string;
 }): IPty {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
-  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove } = options;
+  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove, initialPrompt } = options;
 
   let useShell = shell || getDefaultShell();
   const useCwd = cwd || process.cwd() || os.homedir();
@@ -114,22 +104,19 @@ export function startPty(options: {
     try {
       const base = String(useShell).split('/').pop() || '';
       
-      // Check if this is a known AI coding assistant CLI
       const baseLower = base.toLowerCase();
-      const autoApproveFlag = AUTO_APPROVE_FLAGS[baseLower];
+      const provider = PROVIDERS.find((p) => p.cli === baseLower);
 
-      if (autoApproveFlag) {
-        // For agent CLIs, use auto-approve flags
-        const willAddFlag = autoApprove === true;
-        log.debug('ptyManager:providerCheck', {
-          id,
-          base,
-          autoApprove,
-          autoApproveFlag,
-          willAddFlag,
-        });
-        if (willAddFlag) {
-          args.push(autoApproveFlag);
+      if (provider) {
+        args.length = 0;
+        if (autoApprove && provider.autoApproveFlag) {
+          args.push(provider.autoApproveFlag);
+        }
+        if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
+          if (provider.initialPromptFlag) {
+            args.push(provider.initialPromptFlag);
+          }
+          args.push(initialPrompt.trim());
         }
       } else {
         // For normal shells, use login + interactive to load user configs

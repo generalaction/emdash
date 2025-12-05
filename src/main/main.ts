@@ -1,3 +1,13 @@
+// Load .env FIRST before any imports that might use it
+// Use explicit path to ensure .env is loaded from project root
+try {
+  const path = require('path');
+  const envPath = path.join(__dirname, '..', '..', '.env');
+  require('dotenv').config({ path: envPath });
+} catch (error) {
+  // dotenv is optional - no error if .env doesn't exist
+}
+
 import { app } from 'electron';
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
@@ -61,10 +71,30 @@ import { registerAllIpc } from './ipc';
 import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import * as telemetry from './telemetry';
-// Load .env if present (local dev); safe no-op in production
-try {
-  require('dotenv').config();
-} catch {}
+import { join } from 'path';
+
+// Set app name for macOS dock and menu bar (especially important in dev mode)
+app.setName('emdash');
+
+// Set dock icon on macOS in development mode
+if (process.platform === 'darwin' && !app.isPackaged) {
+  const iconPath = join(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    'src',
+    'assets',
+    'images',
+    'emdash',
+    'emdash_logo_transparent_dash.png'
+  );
+  try {
+    app.dock.setIcon(iconPath);
+  } catch (err) {
+    console.warn('Failed to set dock icon:', err);
+  }
+}
 
 // App bootstrap
 app.whenReady().then(async () => {

@@ -25,6 +25,7 @@ export interface TerminalSessionOptions {
   theme: SessionTheme;
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
+  initialPrompt?: string;
 }
 
 type CleanupFn = () => void;
@@ -77,6 +78,7 @@ export class TerminalSessionManager {
       lineHeight: 1.2,
       letterSpacing: 0,
       allowProposedApi: true,
+      scrollOnUserInput: false,
     });
 
     this.fitAddon = new FitAddon();
@@ -106,7 +108,12 @@ export class TerminalSessionManager {
     const inputDisposable = this.terminal.onData((data) => {
       this.emitActivity();
       if (!this.disposed) {
-        window.electronAPI.ptyInput({ id: this.id, data });
+        // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
+        // These are sent by xterm.js when focus changes but shouldn't go to the PTY
+        const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
+        if (filtered) {
+          window.electronAPI.ptyInput({ id: this.id, data: filtered });
+        }
       }
     });
     const resizeDisposable = this.terminal.onResize(({ cols, rows }) => {
@@ -144,7 +151,6 @@ export class TerminalSessionManager {
     }
 
     this.fitAddon.fit();
-    this.terminal.focus();
     this.sendSizeIfStarted();
 
     this.resizeObserver = new ResizeObserver(() => {
@@ -208,7 +214,7 @@ export class TerminalSessionManager {
   }
 
   focus() {
-    this.container.focus();
+    this.terminal.focus();
   }
 
   registerActivityListener(listener: () => void): () => void {
@@ -242,17 +248,29 @@ export class TerminalSessionManager {
   }
 
   private applyTheme(theme: SessionTheme) {
+    const selection =
+      theme.base === 'light'
+        ? {
+            selectionBackground: 'rgba(59, 130, 246, 0.35)',
+            selectionForeground: '#0f172a',
+          }
+        : {
+            selectionBackground: 'rgba(96, 165, 250, 0.35)',
+            selectionForeground: '#f9fafb',
+          };
     const base =
       theme.base === 'light'
         ? {
             background: '#ffffff',
             foreground: '#1f2933',
             cursor: '#1f2933',
+            ...selection,
           }
         : {
             background: '#1f2937',
             foreground: '#f9fafb',
             cursor: '#f9fafb',
+            ...selection,
           };
     
     // Extract font settings before applying theme (they're not part of ITheme)
@@ -289,7 +307,7 @@ export class TerminalSessionManager {
   }
 
   private connectPty() {
-    const { workspaceId, cwd, shell, env, initialSize, autoApprove } = this.options;
+    const { workspaceId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
     const id = workspaceId;
     void window.electronAPI
       .ptyStart({
@@ -300,6 +318,7 @@ export class TerminalSessionManager {
         cols: initialSize.cols,
         rows: initialSize.rows,
         autoApprove,
+        initialPrompt,
       })
       .then((result) => {
         if (result?.ok) {

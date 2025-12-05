@@ -7,9 +7,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch, ExternalLink, Info, Settings } from 'lucide-react';
-import { ProviderSelector } from './ProviderSelector';
+import { X, GitBranch, ExternalLink, Settings } from 'lucide-react';
+import { MultiProviderDropdown } from './MultiProviderDropdown';
 import { type Provider } from '../types';
+import { type ProviderRun } from '../types/chat';
 import { Separator } from './ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { providerMeta } from '../providers/meta';
@@ -21,20 +22,15 @@ import {
   normalizeWorkspaceName,
   MAX_WORKSPACE_NAME_LENGTH,
 } from '../lib/workspaceNames';
-import {
-  loadWorkspaceModalPreferences,
-  saveWorkspaceModalPreferences,
-  resetWorkspaceModalPreferences,
-} from '../lib/workspaceModalPreferences';
 
 const DEFAULT_PROVIDER: Provider = 'claude';
+
 import { LinearIssueSelector } from './LinearIssueSelector';
 import { GitHubIssueSelector } from './GitHubIssueSelector';
 import JiraIssueSelector from './JiraIssueSelector';
 import { type JiraIssueSummary } from '../types/jira';
 import { Badge } from './ui/badge';
 import jiraLogo from '../../assets/images/jira.png';
-import MultiProviderMenu from './MultiProviderMenu';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
@@ -42,16 +38,10 @@ interface WorkspaceModalProps {
   onCreateWorkspace: (
     name: string,
     initialPrompt?: string,
-    selectedProvider?: Provider,
+    providerRuns?: ProviderRun[],
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null,
-    multiAgent?: {
-      enabled: boolean;
-      providers: Provider[];
-      maxProviders?: number;
-      runsPerProvider?: number;
-    } | null,
     autoApprove?: boolean
   ) => void;
   projectName: string;
@@ -72,13 +62,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [workspaceName, setWorkspaceName] = useState('');
   const [defaultProviderFromSettings, setDefaultProviderFromSettings] =
     useState<Provider>(DEFAULT_PROVIDER);
-  const [selectedProvider, setSelectedProvider] = useState<Provider>(DEFAULT_PROVIDER);
-  const [multiEnabled, setMultiEnabled] = useState(false);
-  const [selectedProviders, setSelectedProviders] = useState<Provider[]>([
-    DEFAULT_PROVIDER,
-    'codex',
+  const [providerRuns, setProviderRuns] = useState<ProviderRun[]>([
+    { provider: DEFAULT_PROVIDER, runs: 1 },
   ]);
-  const maxProviders = 4;
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,9 +76,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
-  const [runsPerProvider, setRunsPerProvider] = useState(1);
-  const [prefsHydrated, setPrefsHydrated] = useState(false);
-  const activeProviders = multiEnabled ? selectedProviders : [selectedProvider];
+
+  // Computed values
+  const activeProviders = useMemo(() => providerRuns.map((pr) => pr.provider), [providerRuns]);
   const hasAutoApproveSupport =
     activeProviders.length > 0 &&
     activeProviders.every((providerId) => !!providerMeta[providerId]?.autoApproveFlag);
@@ -125,12 +111,10 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
-      setPrefsHydrated(false);
       setSelectedLinearIssue(null);
       setSelectedGithubIssue(null);
       return;
     }
-    setPrefsHydrated(false);
     if (!workspaceName) {
       const suggested = generateFriendlyWorkspaceName(normalizedExisting);
       setWorkspaceName(suggested);
@@ -139,7 +123,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     }
   }, [isOpen, normalizedExisting, validate]);
 
-  // Load default provider from settings and restore last preferences when modal opens
+  // Load default provider from settings when modal opens - always start fresh
   useEffect(() => {
     if (!isOpen) return;
     let cancel = false;
@@ -152,44 +136,11 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
           ? (settingsProvider as Provider)
           : DEFAULT_PROVIDER;
         setDefaultProviderFromSettings(defaultProvider);
-
-        const { prefs: savedPrefs, defaultMatches } =
-          loadWorkspaceModalPreferences(defaultProvider);
-
-        // If the user changed the default provider in settings, reset saved prefs
-        if (!defaultMatches) {
-          resetWorkspaceModalPreferences(defaultProvider);
-        }
-
-        // If we have saved preferences and they match the current default, use them; otherwise use settings default
-        if (savedPrefs && defaultMatches) {
-          setSelectedProvider(savedPrefs.provider);
-          setSelectedProviders(savedPrefs.providers);
-          setMultiEnabled(savedPrefs.multiEnabled);
-          setRunsPerProvider(Math.max(1, Math.min(5, savedPrefs.runsPerProvider)));
-        } else {
-          // No saved preferences (or default changed), use settings default
-          setSelectedProvider(defaultProvider);
-          // Also update multi-provider default - replace default provider in the list
-          setSelectedProviders((prev) => {
-            const newProviders = [...prev];
-            const defaultIndex = newProviders.indexOf(DEFAULT_PROVIDER);
-            if (defaultIndex !== -1) {
-              newProviders[defaultIndex] = defaultProvider;
-            }
-            return newProviders;
-          });
-          setMultiEnabled(false);
-          setRunsPerProvider(1);
-        }
+        // Always start with a single provider row using the default
+        setProviderRuns([{ provider: defaultProvider, runs: 1 }]);
       } catch {
         // Ignore errors, use default provider
-        setSelectedProvider(DEFAULT_PROVIDER);
-        setSelectedProviders([DEFAULT_PROVIDER, 'codex']);
-        setMultiEnabled(false);
-        setRunsPerProvider(1);
-      } finally {
-        if (!cancel) setPrefsHydrated(true);
+        setProviderRuns([{ provider: DEFAULT_PROVIDER, runs: 1 }]);
       }
     })();
     return () => {
@@ -219,48 +170,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setAutoApprove(false);
     }
   }, [hasAutoApproveSupport, autoApprove]);
-
-  // Save preferences when provider selection changes
-  useEffect(() => {
-    if (!isOpen || !prefsHydrated) return;
-    saveWorkspaceModalPreferences(
-      selectedProvider,
-      selectedProviders,
-      multiEnabled,
-      runsPerProvider,
-      defaultProviderFromSettings
-    );
-  }, [
-    isOpen,
-    selectedProvider,
-    selectedProviders,
-    multiEnabled,
-    runsPerProvider,
-    defaultProviderFromSettings,
-    prefsHydrated,
-  ]);
-
-  // When multi-enabled toggles, restore appropriate selection from saved preferences
-  useEffect(() => {
-    if (!isOpen) return;
-    const { prefs: savedPrefs, defaultMatches } = loadWorkspaceModalPreferences(
-      defaultProviderFromSettings
-    );
-    if (!savedPrefs || !defaultMatches) return;
-
-    if (multiEnabled) {
-      // Switching to multi-agent: restore saved multi-providers if they exist
-      if (savedPrefs.providers.length > 0) {
-        setSelectedProviders(savedPrefs.providers);
-      }
-      if (savedPrefs.runsPerProvider > 0) {
-        setRunsPerProvider(Math.max(1, Math.min(5, savedPrefs.runsPerProvider)));
-      }
-    } else {
-      // Switching to single-agent: restore saved single provider
-      setSelectedProvider(savedPrefs.provider);
-    }
-  }, [multiEnabled, isOpen, defaultProviderFromSettings]);
 
   return createPortal(
     <AnimatePresence>
@@ -322,35 +231,16 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                         await onCreateWorkspace(
                           normalizeWorkspaceName(workspaceName),
                           showAdvanced ? initialPrompt.trim() || undefined : undefined,
-                          selectedProvider,
+                          providerRuns,
                           selectedLinearIssue,
                           selectedGithubIssue,
                           selectedJiraIssue,
-                          multiEnabled
-                            ? {
-                                enabled: true,
-                                providers: selectedProviders.slice(0, maxProviders),
-                                maxProviders,
-                                runsPerProvider,
-                              }
-                            : null,
                           showAdvanced ? autoApprove : false
-                        );
-                        // Save current preferences before resetting
-                        saveWorkspaceModalPreferences(
-                          selectedProvider,
-                          selectedProviders,
-                          multiEnabled,
-                          runsPerProvider,
-                          defaultProviderFromSettings
                         );
 
                         setWorkspaceName('');
                         setInitialPrompt('');
-                        setSelectedProvider(defaultProviderFromSettings);
-                        setSelectedProviders([defaultProviderFromSettings, 'codex']);
-                        setMultiEnabled(false);
-                        setRunsPerProvider(1);
+                        setProviderRuns([{ provider: defaultProviderFromSettings, runs: 1 }]);
                         setSelectedLinearIssue(null);
                         setSelectedGithubIssue(null);
                         setAutoApprove(false);
@@ -392,26 +282,14 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     </div>
                   )}
 
+                  {/* Provider selector */}
                   <div className="flex items-center gap-4">
-                    <Label htmlFor="provider-selector" className="w-32 shrink-0">
-                      AI provider
-                    </Label>
-                    <div className="min-w-0 flex-1">
-                      {!multiEnabled ? (
-                        <ProviderSelector
-                          value={selectedProvider}
-                          onChange={setSelectedProvider}
-                          className="w-full"
-                        />
-                      ) : (
-                        <MultiProviderMenu
-                          value={selectedProviders}
-                          onChange={setSelectedProviders}
-                          max={maxProviders}
-                          className="w-full"
-                        />
-                      )}
-                    </div>
+                    <Label className="shrink-0">AI Provider</Label>
+                    <MultiProviderDropdown
+                      providerRuns={providerRuns}
+                      onChange={setProviderRuns}
+                      defaultProvider={defaultProviderFromSettings}
+                    />
                   </div>
 
                   <Accordion
@@ -422,7 +300,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   >
                     <AccordionItem value="advanced" className="border-none">
                       <AccordionTrigger
-                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-border bg-muted px-3 text-sm font-medium text-foreground hover:bg-muted/80 hover:no-underline [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
+                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border-none bg-gray-100 px-3 text-sm font-medium text-foreground hover:bg-gray-200 hover:no-underline dark:bg-gray-700 dark:hover:bg-gray-600 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
                         onPointerDown={(e) => {
                           // Toggle immediately on pointer down to avoid a required second click
                           // when another element inside had focus.
@@ -443,59 +321,6 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
                         <div className="flex flex-col gap-4 p-2">
-                          <div className="mt-2 flex items-center gap-4">
-                            <Label className="w-32 shrink-0">Multiple agents</Label>
-                            <div className="min-w-0 flex-1">
-                              <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={multiEnabled}
-                                  onChange={(e) => setMultiEnabled(e.target.checked)}
-                                  className="h-4 w-4"
-                                />
-                                <span className="text-muted-foreground">
-                                  Run a task across multiple agents
-                                </span>
-                              </label>
-                            </div>
-                          </div>
-                          {multiEnabled && (
-                            <div className="flex items-center gap-4">
-                              <Label
-                                htmlFor="runs-per-provider"
-                                className="flex w-32 shrink-0 items-center gap-1"
-                              >
-                                Runs per provider
-                              </Label>
-                              <div className="flex min-w-0 flex-1 flex-row items-center gap-3">
-                                <Input
-                                  id="runs-per-provider"
-                                  type="number"
-                                  min="1"
-                                  max="5"
-                                  value={runsPerProvider}
-                                  onChange={(e) =>
-                                    setRunsPerProvider(
-                                      Math.max(1, Math.min(5, parseInt(e.target.value) || 1))
-                                    )
-                                  }
-                                  className="w-16"
-                                />
-                                <TooltipProvider delayDuration={150}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p className="text-xs">
-                                        Run each provider 1-5 times for Best of N comparison
-                                      </p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            </div>
-                          )}
                           {hasAutoApproveSupport ? (
                             <div className="flex items-center gap-4">
                               <Label className="w-32 shrink-0">Auto-approve</Label>
@@ -539,7 +364,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                     setSelectedJiraIssue(null);
                                   }
                                 }}
-                                isOpen={isOpen && showAdvanced}
+                                isOpen={isOpen}
                                 disabled={!!selectedGithubIssue || !!selectedJiraIssue}
                                 className="w-full"
                               />
@@ -560,7 +385,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                     setSelectedJiraIssue(null);
                                   }
                                 }}
-                                isOpen={isOpen && showAdvanced}
+                                isOpen={isOpen}
                                 disabled={!!selectedJiraIssue || !!selectedLinearIssue}
                                 className="w-full"
                               />
@@ -581,7 +406,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                       setSelectedGithubIssue(null);
                                     }
                                   }}
-                                  isOpen={isOpen && showAdvanced}
+                                  isOpen={isOpen}
                                   disabled={!!selectedLinearIssue || !!selectedGithubIssue}
                                   className="w-full"
                                 />
@@ -593,7 +418,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                         <JiraIssueSelector
                                           selectedIssue={null}
                                           onIssueChange={() => {}}
-                                          isOpen={isOpen && showAdvanced}
+                                          isOpen={isOpen}
                                           disabled
                                           className="w-full"
                                         />

@@ -3,21 +3,29 @@ import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
 
+/** Per-provider run configuration for workspace creation */
+export interface ProviderRun {
+  provider: ProviderId;
+  runs: number;
+}
+
 export interface WorkspaceMetadata {
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
   initialPrompt?: string | null;
   autoApprove?: boolean | null;
+  /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
+  initialInjectionSent?: boolean | null;
   // When present, this workspace is a multi-agent workspace orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;
     // Max panes allowed when the workspace was created (UI hint)
     maxProviders?: number;
-    // Number of runs per provider for best-of-N comparison
-    runsPerProvider?: number;
-    // Selected providers to run in parallel (ids match Provider type)
-    providers: ProviderId[];
+    // Per-provider run configuration
+    providerRuns?: ProviderRun[];
+    // Legacy list of provider ids before providerRuns existed (for backward compatibility)
+    providers?: ProviderId[];
     variants: Array<{
       id: string;
       provider: ProviderId;
@@ -32,6 +40,7 @@ export interface WorkspaceMetadata {
 
 export interface Workspace {
   id: string;
+  projectId: string;
   name: string;
   branch: string;
   path: string;

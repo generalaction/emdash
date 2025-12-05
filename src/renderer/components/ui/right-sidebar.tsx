@@ -15,7 +15,7 @@ export interface RightSidebarProviderProps {
 
 export function RightSidebarProvider({
   children,
-  defaultCollapsed = true,
+  defaultCollapsed = false,
 }: RightSidebarProviderProps) {
   const [collapsed, setCollapsedState] = React.useState<boolean>(defaultCollapsed);
 

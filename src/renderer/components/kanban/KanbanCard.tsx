@@ -29,7 +29,9 @@ const KanbanCard: React.FC<{
 
   // Multi‑agent badges (metadata lists selected providers)
   const multi = ws.metadata?.multiAgent?.enabled ? ws.metadata?.multiAgent : null;
-  const providers = Array.isArray(multi?.providers) ? (multi!.providers as UiProvider[]) : [];
+  const providerRuns = (multi?.providerRuns?.map((pr) => pr.provider) ?? []) as UiProvider[];
+  const legacyProviders = Array.isArray(multi?.providers) ? (multi?.providers as UiProvider[]) : [];
+  const providers = Array.from(new Set([...providerRuns, ...legacyProviders]));
   const adminProvider: UiProvider | null = (multi?.selectedProvider as UiProvider) || null;
 
   const handleClick = () => onOpen?.(ws);

@@ -149,7 +149,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
               </div>
               <div className="flex flex-1 items-center justify-center px-4 text-center">
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                  Select a workspace to review file changes.
+                  Select a task to review file changes.
                 </span>
               </div>
             </div>
@@ -159,7 +159,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
               </div>
               <div className="flex flex-1 items-center justify-center px-4 text-center">
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                  Select a workspace to open its terminal.
+                  Select a task to open its terminal.
                 </span>
               </div>
             </div>

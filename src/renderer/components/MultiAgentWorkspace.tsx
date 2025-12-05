@@ -9,6 +9,7 @@ import { providerMeta } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
 import { classifyActivity } from '@/lib/activityClassifier';
+import { activityStore } from '@/lib/activityStore';
 import { Spinner } from './ui/spinner';
 import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
@@ -337,6 +338,12 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInjection]);
 
+  // Sync variant busy state to activityStore for sidebar indicator
+  useEffect(() => {
+    const anyBusy = Object.values(variantBusy).some(Boolean);
+    activityStore.setWorkspaceBusy(workspace.id, anyBusy);
+  }, [variantBusy, workspace.id]);
+
   if (!multi?.enabled || variants.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -346,14 +353,14 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {variants.map((v, idx) => {
         const isDark = effectiveTheme === 'dark';
         const isActive = idx === activeTabIndex;
         return (
           <div
             key={v.worktreeId}
-            className={`flex-1 overflow-hidden ${isActive ? 'block' : 'hidden'}`}
+            className={`flex-1 overflow-hidden ${isActive ? '' : 'invisible absolute inset-0'}`}
           >
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-end gap-2 px-3 py-1.5">
@@ -416,9 +423,35 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
                     autoApprove={workspace.metadata?.autoApprove ?? false}
+                    initialPrompt={
+                      providerMeta[v.provider]?.initialPromptFlag !== undefined &&
+                      !workspace.metadata?.initialInjectionSent
+                        ? (initialInjection ?? undefined)
+                        : undefined
+                    }
                     keepAlive
                     variant={isDark ? 'dark' : 'light'}
                     className="h-full w-full"
+                    onStartSuccess={() => {
+                      // For providers WITHOUT CLI flag support, use keystroke injection
+                      if (
+                        initialInjection &&
+                        !workspace.metadata?.initialInjectionSent &&
+                        providerMeta[v.provider]?.initialPromptFlag === undefined
+                      ) {
+                        void injectPrompt(`${v.worktreeId}-main`, v.provider, initialInjection);
+                      }
+                      // Mark initial injection as sent so it won't re-run on restart
+                      if (initialInjection && !workspace.metadata?.initialInjectionSent) {
+                        void window.electronAPI.saveWorkspace({
+                          ...workspace,
+                          metadata: {
+                            ...workspace.metadata,
+                            initialInjectionSent: true,
+                          },
+                        });
+                      }
+                    }}
                   />
                 </div>
               </div>
