@@ -103,7 +103,7 @@ export function startPty(options: {
   if (process.platform !== 'win32') {
     try {
       const base = String(useShell).split('/').pop() || '';
-      
+
       const baseLower = base.toLowerCase();
       const provider = PROVIDERS.find((p) => p.cli === baseLower);
 

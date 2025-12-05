@@ -180,7 +180,8 @@ function loadiTerm2Config(): TerminalConfig | null {
       return null;
     }
 
-    const colorPresetName = defaultProfile['Color Preset Name'] || defaultProfile['Custom Color Preset'];
+    const colorPresetName =
+      defaultProfile['Color Preset Name'] || defaultProfile['Custom Color Preset'];
     if (!colorPresetName) {
       return null;
     }
@@ -284,7 +285,8 @@ function loadiTerm2ConfigXML(plistPath: string): TerminalConfig | null {
     const xmlContent = readFileSync(plistPath, 'utf8');
     // Simple XML parsing for color values
     // This is a basic implementation - could be improved
-    const colorRegex = /<key>([^<]+)<\/key>\s*<dict>[\s\S]*?<key>Red Component<\/key>\s*<real>([\d.]+)<\/real>[\s\S]*?<key>Green Component<\/key>\s*<real>([\d.]+)<\/real>[\s\S]*?<key>Blue Component<\/key>\s*<real>([\d.]+)<\/real>/g;
+    const colorRegex =
+      /<key>([^<]+)<\/key>\s*<dict>[\s\S]*?<key>Red Component<\/key>\s*<real>([\d.]+)<\/real>[\s\S]*?<key>Green Component<\/key>\s*<real>([\d.]+)<\/real>[\s\S]*?<key>Blue Component<\/key>\s*<real>([\d.]+)<\/real>/g;
     // This is complex - for now, return null and rely on JSON conversion
     return null;
   } catch {
@@ -355,22 +357,22 @@ function loadTerminalAppConfig(): TerminalConfig | null {
 
     // Terminal.app uses similar ANSI color structure
     const colorMap: Record<string, keyof TerminalTheme> = {
-      'ANSIBlackColor': 'black',
-      'ANSIRedColor': 'red',
-      'ANSIGreenColor': 'green',
-      'ANSIYellowColor': 'yellow',
-      'ANSIBlueColor': 'blue',
-      'ANSIMagentaColor': 'magenta',
-      'ANSICyanColor': 'cyan',
-      'ANSIWhiteColor': 'white',
-      'ANSIBrightBlackColor': 'brightBlack',
-      'ANSIBrightRedColor': 'brightRed',
-      'ANSIBrightGreenColor': 'brightGreen',
-      'ANSIBrightYellowColor': 'brightYellow',
-      'ANSIBrightBlueColor': 'brightBlue',
-      'ANSIBrightMagentaColor': 'brightMagenta',
-      'ANSIBrightCyanColor': 'brightCyan',
-      'ANSIBrightWhiteColor': 'brightWhite',
+      ANSIBlackColor: 'black',
+      ANSIRedColor: 'red',
+      ANSIGreenColor: 'green',
+      ANSIYellowColor: 'yellow',
+      ANSIBlueColor: 'blue',
+      ANSIMagentaColor: 'magenta',
+      ANSICyanColor: 'cyan',
+      ANSIWhiteColor: 'white',
+      ANSIBrightBlackColor: 'brightBlack',
+      ANSIBrightRedColor: 'brightRed',
+      ANSIBrightGreenColor: 'brightGreen',
+      ANSIBrightYellowColor: 'brightYellow',
+      ANSIBrightBlueColor: 'brightBlue',
+      ANSIBrightMagentaColor: 'brightMagenta',
+      ANSIBrightCyanColor: 'brightCyan',
+      ANSIBrightWhiteColor: 'brightWhite',
     };
 
     for (const [key, themeKey] of Object.entries(colorMap)) {
@@ -456,7 +458,16 @@ function parseAlacrittyTOML(content: string): TerminalConfig | null {
 
   // Parse ANSI colors (simplified - Alacritty uses nested structure)
   const ansiColors = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
-  const brightColors = ['bright_black', 'bright_red', 'bright_green', 'bright_yellow', 'bright_blue', 'bright_magenta', 'bright_cyan', 'bright_white'];
+  const brightColors = [
+    'bright_black',
+    'bright_red',
+    'bright_green',
+    'bright_yellow',
+    'bright_blue',
+    'bright_magenta',
+    'bright_cyan',
+    'bright_white',
+  ];
 
   const colorMap: Record<string, keyof TerminalTheme> = {
     black: 'black',
@@ -568,7 +579,10 @@ function parseGhosttyConfig(content: string): TerminalConfig | null {
     }
 
     const [key, ...valueParts] = trimmed.split('=');
-    const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
+    const value = valueParts
+      .join('=')
+      .trim()
+      .replace(/^["']|["']$/g, '');
 
     switch (key.trim()) {
       case 'background':
@@ -809,4 +823,3 @@ function loadWindowsTerminalConfig(settingsPath: string): TerminalConfig | null 
     return null;
   }
 }
-

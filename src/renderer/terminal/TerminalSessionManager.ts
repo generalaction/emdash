@@ -272,17 +272,17 @@ export class TerminalSessionManager {
             cursor: '#f9fafb',
             ...selection,
           };
-    
+
     // Extract font settings before applying theme (they're not part of ITheme)
     const fontFamily = (theme.override as any)?.fontFamily;
     const fontSize = (theme.override as any)?.fontSize;
-    
+
     // Apply color theme (excluding font properties)
     const colorTheme = { ...theme.override };
     delete (colorTheme as any)?.fontFamily;
     delete (colorTheme as any)?.fontSize;
     this.terminal.options.theme = { ...base, ...colorTheme };
-    
+
     // Apply font settings separately
     if (fontFamily) {
       this.terminal.options.fontFamily = fontFamily;
