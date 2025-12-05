@@ -39,6 +39,7 @@ import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
+import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -113,7 +114,18 @@ const AppContent: React.FC = () => {
     authenticated: isAuthenticated,
     user,
     checkStatus,
+    login: githubLogin,
   } = useGithubAuth();
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
+  const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
+  const [deviceFlowData, setDeviceFlowData] = useState<{
+    deviceCode: string;
+    userCode: string;
+    verificationUri: string;
+    expiresIn: number;
+    interval: number;
+  } | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
@@ -613,6 +625,84 @@ const AppContent: React.FC = () => {
       toast({
         title: 'Failed to Open Project',
         description: 'Please check the console for details.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleGithubConnect = async () => {
+    setGithubLoading(true);
+    setGithubStatusMessage(undefined);
+
+    try {
+      // Check if gh CLI is installed
+      setGithubStatusMessage('Checking for GitHub CLI...');
+      const cliInstalled = await window.electronAPI.githubCheckCLIInstalled();
+
+      if (!cliInstalled) {
+        // Detect platform for better messaging
+        let installMessage = 'Installing GitHub CLI...';
+        if (platform === 'darwin') {
+          installMessage = 'Installing GitHub CLI via Homebrew...';
+        } else if (platform === 'linux') {
+          installMessage = 'Installing GitHub CLI via apt...';
+        } else if (platform === 'win32') {
+          installMessage = 'Installing GitHub CLI via winget...';
+        }
+
+        setGithubStatusMessage(installMessage);
+        const installResult = await window.electronAPI.githubInstallCLI();
+
+        if (!installResult.success) {
+          setGithubLoading(false);
+          setGithubStatusMessage(undefined);
+          toast({
+            title: 'Installation Failed',
+            description: `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        setGithubStatusMessage('GitHub CLI installed! Setting up connection...');
+        toast({
+          title: 'GitHub CLI Installed',
+          description: 'Now authenticating with GitHub...',
+        });
+        await checkStatus(); // Refresh status
+      }
+
+      // Proceed with Device Flow authentication
+      setGithubStatusMessage('Requesting authorization code...');
+      const result = await githubLogin();
+
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+
+      if (result?.success && result.device_code && result.user_code && result.verification_uri) {
+        // Show Device Flow modal
+        setDeviceFlowData({
+          deviceCode: result.device_code,
+          userCode: result.user_code,
+          verificationUri: result.verification_uri,
+          expiresIn: result.expires_in || 900,
+          interval: result.interval || 5,
+        });
+        setShowDeviceFlowModal(true);
+      } else {
+        toast({
+          title: 'Authentication Failed',
+          description: result?.error || 'Could not request device code',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('GitHub connection error:', error);
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+      toast({
+        title: 'Connection Failed',
+        description: 'Failed to connect to GitHub. Please try again.',
         variant: 'destructive',
       });
     }
@@ -1322,6 +1412,41 @@ const AppContent: React.FC = () => {
     setShowKanban((v) => !v);
   }, [selectedProject]);
 
+  const handleDeviceFlowSuccess = useCallback(
+    async (user: any) => {
+      setShowDeviceFlowModal(false);
+      setDeviceFlowData(null);
+      
+      // Refresh status to update UI
+      await checkStatus();
+      
+      toast({
+        title: 'Connected to GitHub',
+        description: `Signed in as ${user?.login || user?.name || 'user'}`,
+      });
+    },
+    [checkStatus, toast]
+  );
+
+  const handleDeviceFlowError = useCallback(
+    (error: string) => {
+      setShowDeviceFlowModal(false);
+      setDeviceFlowData(null);
+      
+      toast({
+        title: 'Authentication Failed',
+        description: error,
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
+
+  const handleDeviceFlowClose = useCallback(() => {
+    setShowDeviceFlowModal(false);
+    setDeviceFlowData(null);
+  }, []);
+
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
       return (
@@ -1531,6 +1656,9 @@ const AppContent: React.FC = () => {
                     githubInstalled={ghInstalled}
                     githubAuthenticated={isAuthenticated}
                     githubUser={user}
+                    onGithubConnect={handleGithubConnect}
+                    githubLoading={githubLoading}
+                    githubStatusMessage={githubStatusMessage}
                     onSidebarContextChange={handleSidebarContextChange}
                     onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
                     isCreatingWorkspace={isCreatingWorkspace}
@@ -1592,6 +1720,19 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
+      {deviceFlowData && (
+        <GithubDeviceFlowModal
+          open={showDeviceFlowModal}
+          onClose={handleDeviceFlowClose}
+          deviceCode={deviceFlowData.deviceCode}
+          userCode={deviceFlowData.userCode}
+          verificationUri={deviceFlowData.verificationUri}
+          expiresIn={deviceFlowData.expiresIn}
+          interval={deviceFlowData.interval}
+          onSuccess={handleDeviceFlowSuccess}
+          onError={handleDeviceFlowError}
+        />
+      )}
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}

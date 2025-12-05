@@ -49,19 +49,8 @@ export function useGithubAuth() {
     setIsLoading(true);
     try {
       const result = await window.electronAPI.githubAuth();
-      if (result?.success) {
-        syncCache({
-          installed: true,
-          authenticated: true,
-          user: result.user || null,
-        });
-      } else {
-        syncCache({
-          installed: cachedGithubStatus?.installed ?? true,
-          authenticated: false,
-          user: null,
-        });
-      }
+      // Device Flow returns device code info, not immediate success
+      // The modal will handle the actual authentication
       return result;
     } finally {
       setIsLoading(false);

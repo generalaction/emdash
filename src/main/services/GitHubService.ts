@@ -2,6 +2,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
+import { shell } from 'electron';
+import { GITHUB_CONFIG } from '../config/github.config';
 
 const execAsync = promisify(exec);
 
@@ -59,57 +61,192 @@ export interface AuthResult {
   error?: string;
 }
 
+export interface DeviceCodeResult {
+  success: boolean;
+  device_code?: string;
+  user_code?: string;
+  verification_uri?: string;
+  expires_in?: number;
+  interval?: number;
+  error?: string;
+}
+
 export class GitHubService {
   private readonly SERVICE_NAME = 'emdash-github';
   private readonly ACCOUNT_NAME = 'github-token';
 
   /**
-   * Authenticate with GitHub using GitHub CLI (gh)
+   * Authenticate with GitHub using Device Flow
+   * Returns device code info for the UI to display to the user
    */
-  async authenticate(): Promise<AuthResult> {
+  async authenticate(): Promise<DeviceCodeResult | AuthResult> {
+    return await this.requestDeviceCode();
+  }
+
+  /**
+   * Request a device code from GitHub for Device Flow authentication
+   */
+  async requestDeviceCode(): Promise<DeviceCodeResult> {
     try {
-      // Check if gh CLI is installed and authenticated
-      const { stdout } = await execAsync('gh auth status');
+      const response = await fetch('https://github.com/login/device/code', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: GITHUB_CONFIG.clientId,
+          scope: GITHUB_CONFIG.scopes.join(' '),
+        }),
+      });
 
-      if (stdout.includes('Logged in')) {
-        // Get token from gh CLI
-        const { stdout: token } = await execAsync('gh auth token');
-        const cleanToken = token.trim();
+      const data = (await response.json()) as {
+        device_code?: string;
+        user_code?: string;
+        verification_uri?: string;
+        expires_in?: number;
+        interval?: number;
+        error?: string;
+        error_description?: string;
+      };
 
-        if (cleanToken) {
-          // Store token securely
-          await this.storeToken(cleanToken);
-
-          // Get user info
-          const user = await this.getUserInfo(cleanToken);
-
-          return { success: true, token: cleanToken, user: user || undefined };
-        }
+      if (data.device_code && data.user_code && data.verification_uri) {
+        // Don't auto-open here - let the UI control when to open browser
+        return {
+          success: true,
+          device_code: data.device_code,
+          user_code: data.user_code,
+          verification_uri: data.verification_uri,
+          expires_in: data.expires_in || 900,
+          interval: data.interval || 5,
+        };
+      } else {
+        return {
+          success: false,
+          error: data.error_description || 'Failed to request device code',
+        };
       }
-
+    } catch (error) {
+      console.error('Device code request failed:', error);
       return {
         success: false,
-        error:
-          'GitHub CLI not authenticated.\n\nTo fix this:\n1. Open your terminal\n2. Run: gh auth login\n3. Follow the authentication steps\n4. Try again in orchbench',
+        error: 'Network error while requesting device code',
       };
-    } catch (error) {
-      console.error('GitHub authentication failed:', error);
+    }
+  }
 
-      // Check if gh CLI is installed
-      try {
-        await execAsync('gh --version');
+  /**
+   * Poll for access token using device code
+   * Should be called repeatedly until success or error
+   */
+  async pollDeviceToken(deviceCode: string, interval: number = 5): Promise<AuthResult> {
+    try {
+      const response = await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: GITHUB_CONFIG.clientId,
+          device_code: deviceCode,
+          grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+        }),
+      });
+
+      const data = (await response.json()) as {
+        access_token?: string;
+        token_type?: string;
+        scope?: string;
+        error?: string;
+        error_description?: string;
+      };
+
+      if (data.access_token) {
+        // Store token securely
+        await this.storeToken(data.access_token);
+
+        // Authenticate gh CLI with the token
+        await this.authenticateGHCLI(data.access_token);
+
+        // Get user info
+        const user = await this.getUserInfo(data.access_token);
+
         return {
-          success: false,
-          error:
-            'GitHub CLI not authenticated.\n\nTo fix this:\n1. Open your terminal\n2. Run: gh auth login\n3. Follow the authentication steps\n4. Try again in orchbench',
+          success: true,
+          token: data.access_token,
+          user: user || undefined,
         };
-      } catch {
+      } else if (data.error) {
+        // Return error to caller - they decide how to handle
         return {
           success: false,
-          error:
-            'GitHub CLI not installed.\n\nTo install GitHub CLI:\n\nOn macOS:\nbrew install gh\n\nOn Linux:\nsudo apt install gh\n\nOn Windows:\nwinget install GitHub.cli\n\nAfter installation, run: gh auth login',
+          error: data.error,
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Unknown error during token polling',
         };
       }
+    } catch (error) {
+      console.error('Token polling failed:', error);
+      return {
+        success: false,
+        error: 'Network error during token polling',
+      };
+    }
+  }
+
+  /**
+   * Authenticate gh CLI with the OAuth token
+   */
+  private async authenticateGHCLI(token: string): Promise<void> {
+      try {
+      // Check if gh CLI is installed first
+        await execAsync('gh --version');
+
+      // Authenticate gh CLI with our token
+      await execAsync(`echo "${token}" | gh auth login --with-token`);
+      console.log('Successfully authenticated gh CLI');
+    } catch (error) {
+      console.warn('Could not authenticate gh CLI (may not be installed):', error);
+      // Don't throw - OAuth still succeeded even if gh CLI isn't available
+    }
+  }
+
+  /**
+   * Execute gh command with automatic re-auth on failure
+   */
+  private async execGH(
+    command: string,
+    options?: any
+  ): Promise<{ stdout: string; stderr: string }> {
+    try {
+      const result = await execAsync(command, { encoding: 'utf8', ...options });
+        return {
+        stdout: String(result.stdout),
+        stderr: String(result.stderr),
+      };
+    } catch (error: any) {
+      // Check if it's an auth error
+      if (error.message && error.message.includes('not authenticated')) {
+        console.log('gh CLI lost authentication, re-authenticating...');
+
+        // Try to re-authenticate gh CLI with stored token
+        const token = await this.getStoredToken();
+        if (token) {
+          await this.authenticateGHCLI(token);
+
+          // Retry the command
+          const result = await execAsync(command, { encoding: 'utf8', ...options });
+        return {
+            stdout: String(result.stdout),
+            stderr: String(result.stderr),
+        };
+        }
+      }
+      throw error;
     }
   }
 
@@ -133,7 +270,7 @@ export class GitHubService {
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
     try {
       const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
-      const { stdout } = await execAsync(
+      const { stdout } = await this.execGH(
         `gh issue list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
         { cwd: projectPath }
       );
@@ -167,7 +304,7 @@ export class GitHubService {
     if (!term) return [];
     try {
       const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
-      const { stdout } = await execAsync(
+      const { stdout } = await this.execGH(
         `gh issue list --state open --search ${JSON.stringify(term)} --limit ${safeLimit} --json ${fields.join(',')}`,
         { cwd: projectPath }
       );
@@ -205,7 +342,7 @@ export class GitHubService {
         'assignees',
         'labels',
       ];
-      const { stdout } = await execAsync(
+      const { stdout } = await this.execGH(
         `gh issue view ${JSON.stringify(String(number))} --json ${fields.join(',')}`,
         { cwd: projectPath }
       );
@@ -247,14 +384,11 @@ export class GitHubService {
    */
   async isAuthenticated(): Promise<boolean> {
     try {
-      let token = await this.getStoredToken();
+      const token = await this.getStoredToken();
 
       if (!token) {
-        const authResult = await this.authenticate();
-        if (!authResult.success || !authResult.token) {
-          return false;
-        }
-        token = authResult.token;
+        // No stored token, user needs to authenticate
+        return false;
       }
 
       // Test the token by making a simple API call
@@ -272,7 +406,7 @@ export class GitHubService {
   async getUserInfo(token: string): Promise<GitHubUser | null> {
     try {
       // Use gh CLI to get user info
-      const { stdout } = await execAsync('gh api user');
+      const { stdout } = await this.execGH('gh api user');
       const userData = JSON.parse(stdout);
 
       return {
@@ -294,7 +428,7 @@ export class GitHubService {
   async getRepositories(token: string): Promise<GitHubRepo[]> {
     try {
       // Use gh CLI to get repositories with correct field names
-      const { stdout } = await execAsync(
+      const { stdout } = await this.execGH(
         'gh repo list --limit 100 --json name,nameWithOwner,description,url,defaultBranchRef,isPrivate,updatedAt,primaryLanguage,stargazerCount,forkCount'
       );
       const repos = JSON.parse(stdout);
@@ -338,7 +472,7 @@ export class GitHubService {
         'headRepositoryOwner',
         'headRepository',
       ];
-      const { stdout } = await execAsync(`gh pr list --state open --json ${fields.join(',')}`, {
+      const { stdout } = await this.execGH(`gh pr list --state open --json ${fields.join(',')}`, {
         cwd: projectPath,
       });
       const list = JSON.parse(stdout || '[]');
@@ -387,7 +521,7 @@ export class GitHubService {
     }
 
     try {
-      await execAsync(
+      await this.execGH(
         `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force`,
         { cwd: projectPath }
       );
