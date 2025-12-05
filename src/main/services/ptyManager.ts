@@ -35,7 +35,13 @@ export function startPty(options: {
 
   let useShell = shell || getDefaultShell();
   const useCwd = cwd || process.cwd() || os.homedir();
-  const useEnv = { TERM: 'xterm-256color', ...process.env, ...(env || {}) };
+  const useEnv = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    ...process.env,
+    ...(env || {}),
+  };
 
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
@@ -97,9 +103,6 @@ export function startPty(options: {
   if (process.platform !== 'win32') {
     try {
       const base = String(useShell).split('/').pop() || '';
-      if (base === 'zsh') args.push('-il');
-      else if (base === 'bash') args.push('--noprofile', '--norc', '-i');
-      else if (base === 'fish' || base === 'sh') args.push('-i');
 
       const baseLower = base.toLowerCase();
       const provider = PROVIDERS.find((p) => p.cli === baseLower);
@@ -115,6 +118,13 @@ export function startPty(options: {
           }
           args.push(initialPrompt.trim());
         }
+      } else {
+        // For normal shells, use login + interactive to load user configs
+        if (base === 'zsh') args.push('-il');
+        else if (base === 'bash') args.push('-il');
+        else if (base === 'fish') args.push('-il');
+        else if (base === 'sh') args.push('-il');
+        else args.push('-i'); // Fallback for other shells
       }
     } catch {}
   }

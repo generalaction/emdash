@@ -74,6 +74,9 @@ export class TerminalSessionManager {
       scrollback: options.scrollbackLines,
       convertEol: true,
       fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+      fontSize: 13,
+      lineHeight: 1.2,
+      letterSpacing: 0,
       allowProposedApi: true,
       scrollOnUserInput: false,
     });
@@ -269,7 +272,24 @@ export class TerminalSessionManager {
             cursor: '#f9fafb',
             ...selection,
           };
-    this.terminal.options.theme = { ...base, ...(theme.override ?? {}) };
+
+    // Extract font settings before applying theme (they're not part of ITheme)
+    const fontFamily = (theme.override as any)?.fontFamily;
+    const fontSize = (theme.override as any)?.fontSize;
+
+    // Apply color theme (excluding font properties)
+    const colorTheme = { ...theme.override };
+    delete (colorTheme as any)?.fontFamily;
+    delete (colorTheme as any)?.fontSize;
+    this.terminal.options.theme = { ...base, ...colorTheme };
+
+    // Apply font settings separately
+    if (fontFamily) {
+      this.terminal.options.fontFamily = fontFamily;
+    }
+    if (fontSize) {
+      this.terminal.options.fontSize = fontSize;
+    }
   }
 
   private startSnapshotTimer() {

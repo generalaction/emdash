@@ -87,7 +87,7 @@ const LEFT_SIDEBAR_MIN_SIZE = 16;
 const LEFT_SIDEBAR_MAX_SIZE = 30;
 const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 const RIGHT_SIDEBAR_MIN_SIZE = 16;
-const RIGHT_SIDEBAR_MAX_SIZE = 30;
+const RIGHT_SIDEBAR_MAX_SIZE = 50;
 const clampLeftSidebarSize = (value: number) =>
   Math.min(
     Math.max(Number.isFinite(value) ? value : DEFAULT_PANEL_LAYOUT[0], LEFT_SIDEBAR_MIN_SIZE),
