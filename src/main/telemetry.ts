@@ -61,7 +61,7 @@ type TelemetryEvent =
   | 'pr_viewed'
   // Linear integration
   | 'linear_connected'
-  | 'linear_disconnected' 
+  | 'linear_disconnected'
   | 'linear_issues_searched' // when creating a new task (workspace) and the Linear issue search is opened
   | 'linear_issue_selected' // when a user selects a Linear issue to create a new task (workspace) (no need to send task, just selecting issue)
   // Jira integration

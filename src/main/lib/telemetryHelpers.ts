@@ -27,4 +27,3 @@ export async function captureWithTiming<T>(
     throw error;
   }
 }
-

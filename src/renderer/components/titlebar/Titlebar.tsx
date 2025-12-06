@@ -116,7 +116,9 @@ const Titlebar: React.FC<TitlebarProps> = ({
                     onClick={async () => {
                       const newState = !isKanbanOpen;
                       void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-                        captureTelemetry('toolbar_kanban_toggled', { state: newState ? 'open' : 'closed' });
+                        captureTelemetry('toolbar_kanban_toggled', {
+                          state: newState ? 'open' : 'closed',
+                        });
                       });
                       onToggleKanban?.();
                     }}

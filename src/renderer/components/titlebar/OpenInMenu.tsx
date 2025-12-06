@@ -97,7 +97,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         onClick={async () => {
           const newState = !open;
           void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-            captureTelemetry('toolbar_open_in_menu_clicked', { state: newState ? 'open' : 'closed' });
+            captureTelemetry('toolbar_open_in_menu_clicked', {
+              state: newState ? 'open' : 'closed',
+            });
           });
           setOpen(newState);
         }}

@@ -1116,7 +1116,7 @@ const AppContent: React.FC = () => {
         const isMultiAgent = (newWorkspace.metadata as any)?.multiAgent?.enabled;
         captureTelemetry('workspace_created', {
           provider: isMultiAgent ? 'multi' : (newWorkspace.agentId as string) || 'codex',
-          has_initial_prompt: !!(workspaceMetadata?.initialPrompt),
+          has_initial_prompt: !!workspaceMetadata?.initialPrompt,
         });
 
         // Set the active workspace and its provider (none if multi-agent)
