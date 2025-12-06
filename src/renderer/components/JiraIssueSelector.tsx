@@ -184,11 +184,7 @@ const JiraIssueSelector: React.FC<Props> = ({
 
   const issuePlaceholder =
     customPlaceholder ??
-    (isLoadingIssues
-      ? 'Loading…'
-      : issueListError
-        ? 'Connect your Jira'
-        : 'Select a Jira issue');
+    (isLoadingIssues ? 'Loading…' : issueListError ? 'Connect your Jira' : 'Select a Jira issue');
 
   return (
     <div className={className}>

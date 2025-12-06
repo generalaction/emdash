@@ -91,7 +91,12 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [autoApprove, setAutoApprove] = useState(false);
 
   // GitHub connection state
-  const { installed: githubInstalled, authenticated: githubAuthenticated, login: githubLogin, isLoading: githubLoading } = useGithubAuth();
+  const {
+    installed: githubInstalled,
+    authenticated: githubAuthenticated,
+    login: githubLogin,
+    isLoading: githubLoading,
+  } = useGithubAuth();
   const isGithubConnected = githubInstalled && githubAuthenticated;
 
   // Computed values
@@ -194,7 +199,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         const res = await api.linearCheckConnection();
         if (!cancel) {
           setIsLinearConnected(!!res?.connected);
-          setLinearConnectionError(res?.connected ? null : res?.error ?? null);
+          setLinearConnectionError(res?.connected ? null : (res?.error ?? null));
         }
       } catch {
         if (!cancel) {
@@ -493,9 +498,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 }}
                                 isOpen={isOpen}
                                 disabled={
-                                  !isLinearConnected ||
-                                  !!selectedGithubIssue ||
-                                  !!selectedJiraIssue
+                                  !isLinearConnected || !!selectedGithubIssue || !!selectedJiraIssue
                                 }
                                 className="w-full"
                                 autoOpen={autoOpenLinearSelector}
@@ -564,9 +567,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 }}
                                 isOpen={isOpen}
                                 disabled={
-                                  !isGithubConnected ||
-                                  !!selectedJiraIssue ||
-                                  !!selectedLinearIssue
+                                  !isGithubConnected || !!selectedJiraIssue || !!selectedLinearIssue
                                 }
                                 className="w-full"
                                 placeholder={
@@ -612,9 +613,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                 }}
                                 isOpen={isOpen}
                                 disabled={
-                                  !isJiraConnected ||
-                                  !!selectedLinearIssue ||
-                                  !!selectedGithubIssue
+                                  !isJiraConnected || !!selectedLinearIssue || !!selectedGithubIssue
                                 }
                                 className="w-full"
                                 placeholder={
@@ -661,7 +660,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                         if (typeof u.token === 'string') setJiraToken(u.token);
                                       }}
                                       onClose={() => setJiraSetupOpen(false)}
-                                      canSubmit={!!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
+                                      canSubmit={
+                                        !!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())
+                                      }
                                       error={jiraConnectionError}
                                       onSubmit={() => void handleJiraConnect()}
                                     />

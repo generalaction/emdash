@@ -80,4 +80,3 @@ const LinearSetupForm: React.FC<Props> = ({
 };
 
 export default LinearSetupForm;
-
