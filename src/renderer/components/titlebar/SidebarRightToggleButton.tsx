@@ -10,9 +10,10 @@ const SidebarRightToggleButton: React.FC = () => {
   const label = 'Toggle right sidebar';
 
   const handleClick = async () => {
-    const newState = !collapsed;
+    const nextCollapsed = !collapsed;
+    const nextState = nextCollapsed ? 'closed' : 'open';
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('toolbar_right_sidebar_clicked', { state: newState ? 'open' : 'closed' });
+      captureTelemetry('toolbar_right_sidebar_clicked', { state: nextState });
     });
     toggle();
   };

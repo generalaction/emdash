@@ -217,6 +217,13 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     'enabled',
     'sound',
     'app',
+    'duration_ms',
+    'session_duration_ms',
+    'outcome',
+    'workspace_count',
+    'workspace_count_bucket',
+    'project_count',
+    'project_count_bucket',
   ]);
 
   if (props) {
