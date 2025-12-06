@@ -13,6 +13,9 @@ interface LinearIssueSelectorProps {
   isOpen?: boolean;
   className?: string;
   disabled?: boolean;
+  autoOpen?: boolean;
+  onAutoOpenHandled?: () => void;
+  placeholder?: string;
 }
 
 export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
@@ -21,6 +24,9 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   isOpen = false,
   className = '',
   disabled = false,
+  autoOpen = false,
+  onAutoOpenHandled,
+  placeholder: customPlaceholder,
 }) => {
   const [availableIssues, setAvailableIssues] = useState<LinearIssueSummary[]>([]);
   const [isLoadingIssues, setIsLoadingIssues] = useState(false);
@@ -31,6 +37,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const isMountedRef = useRef(true);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const canListLinear = typeof window !== 'undefined' && !!window.electronAPI?.linearInitialFetch;
   const issuesLoaded = availableIssues.length > 0;
@@ -55,6 +62,19 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
       setVisibleCount(10);
     }
   }, [isOpen, onIssueChange]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setDropdownOpen(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setDropdownOpen(true);
+      onAutoOpenHandled?.();
+    }
+  }, [autoOpen, onAutoOpenHandled]);
 
   const loadLinearIssues = useCallback(async () => {
     if (!canListLinear) {
@@ -198,11 +218,13 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
     return null;
   })();
 
-  const issuePlaceholder = isLoadingIssues
-    ? 'Loading…'
-    : issueListError
-      ? 'Connect your Linear'
-      : 'Select a Linear issue';
+  const issuePlaceholder =
+    customPlaceholder ??
+    (isLoadingIssues
+      ? 'Loading…'
+      : issueListError
+        ? 'Connect your Linear'
+        : 'Select a Linear issue');
 
   if (!canListLinear) {
     return (
@@ -221,6 +243,8 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
         value={selectedIssue?.identifier || undefined}
         onValueChange={handleIssueSelect}
         disabled={isDisabled}
+        open={dropdownOpen}
+        onOpenChange={(open) => setDropdownOpen(open)}
       >
         <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">

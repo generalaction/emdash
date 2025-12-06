@@ -50,6 +50,9 @@ interface LeftSidebarProps {
   githubInstalled?: boolean;
   githubAuthenticated?: boolean;
   githubUser?: { login?: string; name?: string; avatar_url?: string } | null;
+  onGithubConnect?: () => void;
+  githubLoading?: boolean;
+  githubStatusMessage?: string;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;
@@ -75,6 +78,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   githubInstalled = true,
   githubAuthenticated = false,
   githubUser,
+  onGithubConnect,
+  githubLoading = false,
+  githubStatusMessage,
   onSidebarContextChange,
   onCreateWorkspaceForProject,
   isCreatingWorkspace,
@@ -125,6 +131,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       installed={githubInstalled}
       authenticated={githubAuthenticated}
       user={githubUser}
+      onConnect={onGithubConnect}
+      isLoading={githubLoading}
+      statusMessage={githubStatusMessage}
     />
   );
 

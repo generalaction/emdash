@@ -39,7 +39,7 @@ import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
-import { captureTelemetry } from './lib/telemetryClient';
+import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -114,7 +114,11 @@ const AppContent: React.FC = () => {
     authenticated: isAuthenticated,
     user,
     checkStatus,
+    login: githubLogin,
   } = useGithubAuth();
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
+  const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
@@ -624,6 +628,77 @@ const AppContent: React.FC = () => {
       toast({
         title: 'Failed to Open Project',
         description: 'Please check the console for details.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleGithubConnect = async () => {
+    setGithubLoading(true);
+    setGithubStatusMessage(undefined);
+
+    try {
+      // Check if gh CLI is installed
+      setGithubStatusMessage('Checking for GitHub CLI...');
+      const cliInstalled = await window.electronAPI.githubCheckCLIInstalled();
+
+      if (!cliInstalled) {
+        // Detect platform for better messaging
+        let installMessage = 'Installing GitHub CLI...';
+        if (platform === 'darwin') {
+          installMessage = 'Installing GitHub CLI via Homebrew...';
+        } else if (platform === 'linux') {
+          installMessage = 'Installing GitHub CLI via apt...';
+        } else if (platform === 'win32') {
+          installMessage = 'Installing GitHub CLI via winget...';
+        }
+
+        setGithubStatusMessage(installMessage);
+        const installResult = await window.electronAPI.githubInstallCLI();
+
+        if (!installResult.success) {
+          setGithubLoading(false);
+          setGithubStatusMessage(undefined);
+          toast({
+            title: 'Installation Failed',
+            description: `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        setGithubStatusMessage('GitHub CLI installed! Setting up connection...');
+        toast({
+          title: 'GitHub CLI Installed',
+          description: 'Now authenticating with GitHub...',
+        });
+        await checkStatus(); // Refresh status
+      }
+
+      // Start Device Flow authentication (main process handles polling)
+      setGithubStatusMessage('Starting authentication...');
+      const result = await githubLogin();
+
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+
+      if (result?.success) {
+        // Show modal - it will receive events from main process
+        setShowDeviceFlowModal(true);
+      } else {
+        toast({
+          title: 'Authentication Failed',
+          description: result?.error || 'Could not start authentication',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('GitHub connection error:', error);
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+      toast({
+        title: 'Connection Failed',
+        description: 'Failed to connect to GitHub. Please try again.',
         variant: 'destructive',
       });
     }
@@ -1347,6 +1422,66 @@ const AppContent: React.FC = () => {
     setShowKanban((v) => !v);
   }, [selectedProject]);
 
+  const handleDeviceFlowSuccess = useCallback(
+    async (user: any) => {
+      setShowDeviceFlowModal(false);
+
+      // Refresh status immediately to update UI
+      await checkStatus();
+
+      // Also refresh again after a short delay to catch user info if it arrives quickly
+      setTimeout(async () => {
+        await checkStatus();
+      }, 500);
+
+      toast({
+        title: 'Connected to GitHub',
+        description: `Signed in as ${user?.login || user?.name || 'user'}`,
+      });
+    },
+    [checkStatus, toast]
+  );
+
+  const handleDeviceFlowError = useCallback(
+    (error: string) => {
+      setShowDeviceFlowModal(false);
+
+      toast({
+        title: 'Authentication Failed',
+        description: error,
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
+
+  const handleDeviceFlowClose = useCallback(() => {
+    setShowDeviceFlowModal(false);
+  }, []);
+
+  // Subscribe to GitHub auth events from main process
+  useEffect(() => {
+    const cleanupSuccess = window.electronAPI.onGithubAuthSuccess((data) => {
+      handleDeviceFlowSuccess(data.user);
+    });
+
+    const cleanupError = window.electronAPI.onGithubAuthError((data) => {
+      handleDeviceFlowError(data.message || data.error);
+    });
+
+    // Listen for user info update (arrives after token is stored and gh CLI is authenticated)
+    const cleanupUserUpdated = window.electronAPI.onGithubAuthUserUpdated(async () => {
+      // Refresh status when user info becomes available
+      await checkStatus();
+    });
+
+    return () => {
+      cleanupSuccess();
+      cleanupError();
+      cleanupUserUpdated();
+    };
+  }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
+
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
       return (
@@ -1566,6 +1701,9 @@ const AppContent: React.FC = () => {
                     githubInstalled={ghInstalled}
                     githubAuthenticated={isAuthenticated}
                     githubUser={user}
+                    onGithubConnect={handleGithubConnect}
+                    githubLoading={githubLoading}
+                    githubStatusMessage={githubStatusMessage}
                     onSidebarContextChange={handleSidebarContextChange}
                     onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
                     isCreatingWorkspace={isCreatingWorkspace}
@@ -1627,6 +1765,12 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
+            <GithubDeviceFlowModal
+              open={showDeviceFlowModal}
+              onClose={handleDeviceFlowClose}
+              onSuccess={handleDeviceFlowSuccess}
+              onError={handleDeviceFlowError}
+            />
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}
