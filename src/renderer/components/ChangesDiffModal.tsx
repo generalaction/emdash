@@ -107,6 +107,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   const [paneSplit, setPaneSplit] = useState(50);
   const diffContainerRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
+  const resizeRafRef = useRef<number | null>(null);
+  const latestClientXRef = useRef<number | null>(null);
 
   const updateSplitFromClientX = useCallback((clientX: number) => {
     const container = diffContainerRef.current;
@@ -119,6 +121,21 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
     const clamped = Math.min(80, Math.max(20, percent));
     setPaneSplit(clamped);
   }, []);
+
+  const scheduleSplitUpdate = useCallback(
+    (clientX: number) => {
+      latestClientXRef.current = clientX;
+      if (resizeRafRef.current !== null) return;
+
+      resizeRafRef.current = window.requestAnimationFrame(() => {
+        resizeRafRef.current = null;
+        if (latestClientXRef.current !== null) {
+          updateSplitFromClientX(latestClientXRef.current);
+        }
+      });
+    },
+    [updateSplitFromClientX]
+  );
 
   // Detect if dark mode is active
   useEffect(() => {
@@ -153,7 +170,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       if (!isResizingRef.current) return;
-      updateSplitFromClientX(event.clientX);
+      scheduleSplitUpdate(event.clientX);
     };
 
     const stopResizing = () => {
@@ -171,8 +188,13 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
       window.removeEventListener('pointerup', stopResizing);
       document.body.style.cursor = '';
       diffContainerRef.current?.classList.remove('select-none');
+      if (resizeRafRef.current !== null) {
+        window.cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
+      latestClientXRef.current = null;
     };
-  }, [updateSplitFromClientX]);
+  }, [scheduleSplitUpdate]);
 
   // Get language for current file
   const language = useMemo(() => {
@@ -500,9 +522,9 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                     Loading diff…
                   </div>
                 ) : (
-                  <div className="relative min-h-full min-w-max">
+                  <div className="relative min-h-full w-full">
                     <div
-                      className="grid min-h-full min-w-max gap-px bg-gray-200 dark:bg-gray-800"
+                      className="grid min-h-full w-full gap-px bg-gray-200 dark:bg-gray-800"
                       style={{ gridTemplateColumns: `${paneSplit}% ${100 - paneSplit}%` }}
                     >
                       <div className="bg-white dark:bg-gray-900">
@@ -698,7 +720,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                                       contentToWrite,
                                       true
                                     );
-                                    if (!res?.success) throw new Error(res?.error || 'Write failed');
+                                    if (!res?.success)
+                                      throw new Error(res?.error || 'Write failed');
                                     setDirty(false);
                                     setRefreshKey((k) => k + 1);
                                     setIsEditing(false);
@@ -728,7 +751,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       </div>
                     </div>
                     <div
-                      className="absolute top-0 bottom-0 z-10 flex items-stretch"
+                      className="absolute bottom-0 top-0 z-10 flex items-stretch"
                       style={{ left: `${paneSplit}%`, transform: 'translateX(-50%)' }}
                     >
                       <button
@@ -739,7 +762,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                           isResizingRef.current = true;
                           document.body.style.cursor = 'col-resize';
                           diffContainerRef.current?.classList.add('select-none');
-                          updateSplitFromClientX(e.clientX);
+                          scheduleSplitUpdate(e.clientX);
                         }}
                         onPointerEnter={() => {
                           document.body.style.cursor = 'col-resize';
