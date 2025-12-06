@@ -16,6 +16,7 @@ interface GitHubIssueSelectorProps {
   isOpen?: boolean;
   className?: string;
   disabled?: boolean;
+  placeholder?: string;
 }
 
 export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
@@ -25,6 +26,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   isOpen = false,
   className = '',
   disabled = false,
+  placeholder: customPlaceholder,
 }) => {
   const [availableIssues, setAvailableIssues] = useState<GitHubIssueSummary[]>([]);
   const [isLoadingIssues, setIsLoadingIssues] = useState(false);
@@ -151,11 +153,13 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
     onIssueChange(issue);
   };
 
-  const issuePlaceholder = isLoadingIssues
-    ? 'Loading…'
-    : issueListError
-      ? 'Connect your GitHub'
-      : 'Select a GitHub issue';
+  const issuePlaceholder =
+    customPlaceholder ??
+    (isLoadingIssues
+      ? 'Loading…'
+      : issueListError
+        ? 'Connect your GitHub'
+        : 'Select a GitHub issue');
 
   if (!canListGithub) {
     return (

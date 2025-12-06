@@ -14,6 +14,7 @@ interface Props {
   isOpen?: boolean;
   className?: string;
   disabled?: boolean;
+  placeholder?: string;
 }
 
 const JiraIssueSelector: React.FC<Props> = ({
@@ -22,6 +23,7 @@ const JiraIssueSelector: React.FC<Props> = ({
   isOpen = false,
   className = '',
   disabled = false,
+  placeholder: customPlaceholder,
 }) => {
   const [availableIssues, setAvailableIssues] = useState<JiraIssueSummary[]>([]);
   const [isLoadingIssues, setIsLoadingIssues] = useState(false);
@@ -180,11 +182,9 @@ const JiraIssueSelector: React.FC<Props> = ({
     );
   }
 
-  const issuePlaceholder = isLoadingIssues
-    ? 'Loading…'
-    : issueListError
-      ? 'Connect your Jira'
-      : 'Select a Jira issue';
+  const issuePlaceholder =
+    customPlaceholder ??
+    (isLoadingIssues ? 'Loading…' : issueListError ? 'Connect your Jira' : 'Select a Jira issue');
 
   return (
     <div className={className}>
