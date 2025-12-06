@@ -306,6 +306,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    void (async () => {
+                      const { captureTelemetry } = await import('../lib/telemetryClient');
+                      captureTelemetry('pr_viewed');
+                    })();
                     if (pr.url) window.electronAPI?.openExternal?.(pr.url);
                   }}
                   className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -355,6 +359,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
               change.isStaged ? 'bg-gray-50 dark:bg-gray-900/40' : ''
             }`}
             onClick={() => {
+              void (async () => {
+                const { captureTelemetry } = await import('../lib/telemetryClient');
+                captureTelemetry('changes_viewed');
+              })();
               setSelectedPath(change.path);
               setShowDiffModal(true);
             }}

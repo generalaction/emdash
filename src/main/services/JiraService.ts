@@ -58,6 +58,10 @@ export default class JiraService {
       const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE, this.ACCOUNT, token);
       this.writeCreds({ siteUrl, email });
+      // Track connection
+      void import('../telemetry').then(({ capture }) => {
+        void capture('jira_connected');
+      });
       return { success: true, displayName: me?.displayName };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };
@@ -73,6 +77,10 @@ export default class JiraService {
       try {
         if (existsSync(this.CONF_FILE)) unlinkSync(this.CONF_FILE);
       } catch {}
+      // Track disconnection
+      void import('../telemetry').then(({ capture }) => {
+        void capture('jira_disconnected');
+      });
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };

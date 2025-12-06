@@ -61,6 +61,14 @@ export function createMainWindow(): BrowserWindow {
     mainWindow?.show();
   });
 
+  // Track window focus for telemetry
+  mainWindow.on('focus', () => {
+    // Lazy import to avoid circular dependencies
+    void import('../telemetry').then(({ capture }) => {
+      void capture('app_window_focused');
+    });
+  });
+
   // Cleanup reference on close
   mainWindow.on('closed', () => {
     mainWindow = null;

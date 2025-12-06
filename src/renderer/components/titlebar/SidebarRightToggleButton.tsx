@@ -5,11 +5,16 @@ import { useRightSidebar } from '../ui/right-sidebar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip';
 
 const SidebarRightToggleButton: React.FC = () => {
-  const { toggle } = useRightSidebar();
+  const { toggle, collapsed } = useRightSidebar();
 
   const label = 'Toggle right sidebar';
 
-  const handleClick = () => {
+  const handleClick = async () => {
+    const nextCollapsed = !collapsed;
+    const nextState = nextCollapsed ? 'closed' : 'open';
+    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('toolbar_right_sidebar_clicked', { state: nextState });
+    });
     toggle();
   };
 

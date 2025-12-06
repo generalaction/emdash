@@ -174,6 +174,10 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
                     tabIndex={-1}
                     onClick={(event) => {
                       event.stopPropagation();
+                      void (async () => {
+                        const { captureTelemetry } = await import('../lib/telemetryClient');
+                        captureTelemetry('terminal_deleted');
+                      })();
                       closeTerminal(terminal.id);
                     }}
                     className="flex h-4 w-4 items-center justify-center rounded opacity-60 transition-opacity hover:bg-muted hover:opacity-100"
@@ -187,7 +191,13 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
         </div>
         <button
           type="button"
-          onClick={() => createTerminal()}
+          onClick={() => {
+            void (async () => {
+              const { captureTelemetry } = await import('../lib/telemetryClient');
+              captureTelemetry('terminal_new_terminal_created');
+            })();
+            createTerminal();
+          }}
           className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
           title="New terminal"
         >
