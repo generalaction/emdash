@@ -58,10 +58,14 @@ const HighlightedLine: React.FC<{
   }
 
   return (
-    <div className={`relative ${bgClass}`} data-diff-syntax-highlight>
+    <div
+      className={`relative ${bgClass}`}
+      data-diff-syntax-highlight
+      style={{ width: '100%', minWidth: '100%', display: 'block' }}
+    >
       <div
         ref={lineRef}
-        className="px-3 py-0.5 [&_code]:!bg-transparent [&_pre]:!bg-transparent [&_span]:!bg-transparent"
+        className="w-full px-3 py-0.5 [&_code]:!bg-transparent [&_pre]:!bg-transparent [&_span]:!bg-transparent"
       >
         <SyntaxHighlighter
           language={language}
@@ -76,6 +80,8 @@ const HighlightedLine: React.FC<{
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
             display: 'block',
             textShadow: 'none',
+            overflow: 'visible',
+            minWidth: 'max-content',
           }}
           PreTag="div"
           CodeTag="code"
@@ -516,263 +522,274 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                 </div>
               </div>
 
-              <div ref={diffContainerRef} className="relative flex-1 overflow-auto">
+              <div className="relative flex-1 overflow-y-auto">
                 {loading ? (
                   <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
                     Loading diff…
                   </div>
                 ) : (
-                  <div className="relative min-h-full w-full">
-                    <div
-                      className="grid min-h-full w-full gap-px bg-gray-200 dark:bg-gray-800"
-                      style={{ gridTemplateColumns: `${paneSplit}% ${100 - paneSplit}%` }}
-                    >
-                      <div className="bg-white dark:bg-gray-900">
-                        {sections.map((section, sectionIdx) => {
-                          if (section.type === 'context') {
-                            const isExpanded = expandedSections.has(sectionIdx);
-                            const lineCount = section.lines.length;
-                            const lineRange =
-                              section.startLine === section.endLine
-                                ? `${section.startLine}`
-                                : `${section.startLine}-${section.endLine}`;
+                  <div
+                    ref={diffContainerRef}
+                    className="relative min-h-full w-full overflow-hidden"
+                  >
+                    <div className="relative min-h-full w-full">
+                      <div
+                        className="grid min-h-full w-full gap-px bg-gray-200 dark:bg-gray-800"
+                        style={{ gridTemplateColumns: `${paneSplit}% ${100 - paneSplit}%` }}
+                      >
+                        <div className="min-w-0 overflow-x-auto bg-white dark:bg-gray-900">
+                          <div className="min-w-max">
+                            {sections.map((section, sectionIdx) => {
+                              if (section.type === 'context') {
+                                const isExpanded = expandedSections.has(sectionIdx);
+                                const lineCount = section.lines.length;
+                                const lineRange =
+                                  section.startLine === section.endLine
+                                    ? `${section.startLine}`
+                                    : `${section.startLine}-${section.endLine}`;
 
-                            return (
-                              <div key={`context-l-${sectionIdx}`}>
-                                <button
-                                  onClick={() => {
-                                    const newExpanded = new Set(expandedSections);
-                                    if (isExpanded) {
-                                      newExpanded.delete(sectionIdx);
-                                    } else {
-                                      newExpanded.add(sectionIdx);
-                                    }
-                                    setExpandedSections(newExpanded);
-                                  }}
-                                  className="w-full border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:bg-gray-800"
-                                  aria-label={`${isExpanded ? 'Collapse' : 'Expand'} context lines ${lineRange}`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {isExpanded ? (
-                                      <ChevronDown className="h-3.5 w-3.5" />
-                                    ) : (
-                                      <ChevronRight className="h-3.5 w-3.5" />
-                                    )}
-                                    <span>
-                                      {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) - Lines{' '}
-                                      {lineRange}
-                                    </span>
+                                return (
+                                  <div key={`context-l-${sectionIdx}`}>
+                                    <button
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedSections);
+                                        if (isExpanded) {
+                                          newExpanded.delete(sectionIdx);
+                                        } else {
+                                          newExpanded.add(sectionIdx);
+                                        }
+                                        setExpandedSections(newExpanded);
+                                      }}
+                                      className="w-full border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:bg-gray-800"
+                                      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} context lines ${lineRange}`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        {isExpanded ? (
+                                          <ChevronDown className="h-3.5 w-3.5" />
+                                        ) : (
+                                          <ChevronRight className="h-3.5 w-3.5" />
+                                        )}
+                                        <span>
+                                          {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) - Lines{' '}
+                                          {lineRange}
+                                        </span>
+                                      </div>
+                                    </button>
+                                    {isExpanded &&
+                                      section.lines.map((l, idx) => (
+                                        <HighlightedLine
+                                          key={`context-l-${sectionIdx}-${idx}`}
+                                          text={l.left || l.right || ''}
+                                          type="context"
+                                          language={language}
+                                          isDark={isDark}
+                                        />
+                                      ))}
                                   </div>
-                                </button>
-                                {isExpanded &&
-                                  section.lines.map((l, idx) => (
-                                    <HighlightedLine
-                                      key={`context-l-${sectionIdx}-${idx}`}
-                                      text={l.left || l.right || ''}
-                                      type="context"
-                                      language={language}
-                                      isDark={isDark}
-                                    />
-                                  ))}
-                              </div>
-                            );
-                          } else {
-                            return (
-                              <React.Fragment key={`diff-l-${sectionIdx}`}>
-                                {section.lines.map((r, idx) => (
-                                  <HighlightedLine
-                                    key={`diff-l-${sectionIdx}-${idx}`}
-                                    text={r.left?.left ?? r.left?.right ?? ''}
-                                    type={r.left?.type || 'context'}
-                                    language={language}
-                                    isDark={isDark}
-                                  />
-                                ))}
-                              </React.Fragment>
-                            );
-                          }
-                        })}
-                      </div>
-
-                      <div className="bg-white dark:bg-gray-900">
-                        {!isEditing ? (
-                          sections.map((section, sectionIdx) => {
-                            if (section.type === 'context') {
-                              const isExpanded = expandedSections.has(sectionIdx);
-                              const lineCount = section.lines.length;
-                              const lineRange =
-                                section.startLine === section.endLine
-                                  ? `${section.startLine}`
-                                  : `${section.startLine}-${section.endLine}`;
-
-                              return (
-                                <div key={`context-r-${sectionIdx}`}>
-                                  <button
-                                    onClick={() => {
-                                      const newExpanded = new Set(expandedSections);
-                                      if (isExpanded) {
-                                        newExpanded.delete(sectionIdx);
-                                      } else {
-                                        newExpanded.add(sectionIdx);
-                                      }
-                                      setExpandedSections(newExpanded);
-                                    }}
-                                    className="w-full border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:bg-gray-800"
-                                    aria-label={`${isExpanded ? 'Collapse' : 'Expand'} context lines ${lineRange}`}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      {isExpanded ? (
-                                        <ChevronDown className="h-3.5 w-3.5" />
-                                      ) : (
-                                        <ChevronRight className="h-3.5 w-3.5" />
-                                      )}
-                                      <span>
-                                        {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) - Lines{' '}
-                                        {lineRange}
-                                      </span>
-                                    </div>
-                                  </button>
-                                  {isExpanded &&
-                                    section.lines.map((l, idx) => (
+                                );
+                              } else {
+                                return (
+                                  <React.Fragment key={`diff-l-${sectionIdx}`}>
+                                    {section.lines.map((r, idx) => (
                                       <HighlightedLine
-                                        key={`context-r-${sectionIdx}-${idx}`}
-                                        text={l.right || l.left || ''}
-                                        type="context"
+                                        key={`diff-l-${sectionIdx}-${idx}`}
+                                        text={r.left?.left ?? r.left?.right ?? ''}
+                                        type={r.left?.type || 'context'}
                                         language={language}
                                         isDark={isDark}
                                       />
                                     ))}
+                                  </React.Fragment>
+                                );
+                              }
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0 overflow-x-auto bg-white dark:bg-gray-900">
+                          <div className="min-w-max">
+                            {!isEditing ? (
+                              sections.map((section, sectionIdx) => {
+                                if (section.type === 'context') {
+                                  const isExpanded = expandedSections.has(sectionIdx);
+                                  const lineCount = section.lines.length;
+                                  const lineRange =
+                                    section.startLine === section.endLine
+                                      ? `${section.startLine}`
+                                      : `${section.startLine}-${section.endLine}`;
+
+                                  return (
+                                    <div key={`context-r-${sectionIdx}`}>
+                                      <button
+                                        onClick={() => {
+                                          const newExpanded = new Set(expandedSections);
+                                          if (isExpanded) {
+                                            newExpanded.delete(sectionIdx);
+                                          } else {
+                                            newExpanded.add(sectionIdx);
+                                          }
+                                          setExpandedSections(newExpanded);
+                                        }}
+                                        className="w-full border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:bg-gray-800"
+                                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} context lines ${lineRange}`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          {isExpanded ? (
+                                            <ChevronDown className="h-3.5 w-3.5" />
+                                          ) : (
+                                            <ChevronRight className="h-3.5 w-3.5" />
+                                          )}
+                                          <span>
+                                            {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) -
+                                            Lines {lineRange}
+                                          </span>
+                                        </div>
+                                      </button>
+                                      {isExpanded &&
+                                        section.lines.map((l, idx) => (
+                                          <HighlightedLine
+                                            key={`context-r-${sectionIdx}-${idx}`}
+                                            text={l.right || l.left || ''}
+                                            type="context"
+                                            language={language}
+                                            isDark={isDark}
+                                          />
+                                        ))}
+                                    </div>
+                                  );
+                                } else {
+                                  // Diff lines
+                                  return (
+                                    <React.Fragment key={`diff-r-${sectionIdx}`}>
+                                      {section.lines.map((r, idx) => (
+                                        <HighlightedLine
+                                          key={`diff-r-${sectionIdx}-${idx}`}
+                                          text={r.right?.right ?? r.right?.left ?? ''}
+                                          type={r.right?.type || 'context'}
+                                          language={language}
+                                          isDark={isDark}
+                                        />
+                                      ))}
+                                    </React.Fragment>
+                                  );
+                                }
+                              })
+                            ) : editorLoading ? (
+                              <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
+                                Loading file…
+                              </div>
+                            ) : (
+                              <div className="relative h-full w-full overflow-hidden">
+                                <div
+                                  ref={highlightRef}
+                                  className="pointer-events-none absolute inset-0 overflow-auto p-3"
+                                  data-diff-syntax-highlight
+                                >
+                                  <SyntaxHighlighter
+                                    language={language}
+                                    style={isDark ? oneDark : oneLight}
+                                    customStyle={{
+                                      margin: 0,
+                                      padding: 0,
+                                      background: 'transparent',
+                                      backgroundColor: 'transparent',
+                                      fontSize: '12px',
+                                      lineHeight: '1.25rem',
+                                      fontFamily:
+                                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                      textShadow: 'none',
+                                    }}
+                                    PreTag="div"
+                                    CodeTag="code"
+                                    wrapLines={true}
+                                    wrapLongLines={true}
+                                  >
+                                    {editorValue || ' '}
+                                  </SyntaxHighlighter>
                                 </div>
-                              );
-                            } else {
-                              // Diff lines
-                              return (
-                                <React.Fragment key={`diff-r-${sectionIdx}`}>
-                                  {section.lines.map((r, idx) => (
-                                    <HighlightedLine
-                                      key={`diff-r-${sectionIdx}-${idx}`}
-                                      text={r.right?.right ?? r.right?.left ?? ''}
-                                      type={r.right?.type || 'context'}
-                                      language={language}
-                                      isDark={isDark}
-                                    />
-                                  ))}
-                                </React.Fragment>
-                              );
-                            }
-                          })
-                        ) : editorLoading ? (
-                          <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
-                            Loading file…
+                                <textarea
+                                  ref={textareaRef}
+                                  className="relative h-full w-full resize-none border-0 bg-transparent p-3 font-mono text-[12px] leading-5 text-transparent caret-gray-900 outline-none dark:caret-gray-100"
+                                  style={{
+                                    color: 'transparent',
+                                    WebkitTextFillColor: 'transparent',
+                                    caretColor: isDark ? '#f3f4f6' : '#111827',
+                                  }}
+                                  value={editorValue}
+                                  onChange={(e) => {
+                                    setEditorValue(e.target.value);
+                                    setDirty(true);
+                                  }}
+                                  spellCheck={false}
+                                  onKeyDown={async (e) => {
+                                    const isMeta = e.metaKey || e.ctrlKey;
+                                    if (isMeta && e.key.toLowerCase() === 's') {
+                                      e.preventDefault();
+                                      try {
+                                        const contentToWrite = editorValue.replace(/\n/g, eol);
+                                        const res = await window.electronAPI.fsWriteFile(
+                                          workspacePath,
+                                          selected!,
+                                          contentToWrite,
+                                          true
+                                        );
+                                        if (!res?.success)
+                                          throw new Error(res?.error || 'Write failed');
+                                        setDirty(false);
+                                        setRefreshKey((k) => k + 1);
+                                        setIsEditing(false);
+                                        toast({ title: 'Saved', description: selected! });
+                                        if (onRefreshChanges) await onRefreshChanges();
+                                      } catch (err: any) {
+                                        toast({
+                                          title: 'Save failed',
+                                          description: String(
+                                            err?.message || 'Unable to save file'
+                                          ),
+                                          variant: 'destructive',
+                                        });
+                                      }
+                                    }
+                                    if (e.key === 'Escape') {
+                                      if (
+                                        !dirty ||
+                                        window.confirm('Discard unsaved changes and exit edit?')
+                                      ) {
+                                        setIsEditing(false);
+                                        setDirty(false);
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <div className="relative h-full w-full overflow-hidden">
-                            <div
-                              ref={highlightRef}
-                              className="pointer-events-none absolute inset-0 overflow-auto p-3"
-                              data-diff-syntax-highlight
-                            >
-                              <SyntaxHighlighter
-                                language={language}
-                                style={isDark ? oneDark : oneLight}
-                                customStyle={{
-                                  margin: 0,
-                                  padding: 0,
-                                  background: 'transparent',
-                                  backgroundColor: 'transparent',
-                                  fontSize: '12px',
-                                  lineHeight: '1.25rem',
-                                  fontFamily:
-                                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                  textShadow: 'none',
-                                }}
-                                PreTag="div"
-                                CodeTag="code"
-                                wrapLines={true}
-                                wrapLongLines={true}
-                              >
-                                {editorValue || ' '}
-                              </SyntaxHighlighter>
-                            </div>
-                            <textarea
-                              ref={textareaRef}
-                              className="relative h-full w-full resize-none border-0 bg-transparent p-3 font-mono text-[12px] leading-5 text-transparent caret-gray-900 outline-none dark:caret-gray-100"
-                              style={{
-                                color: 'transparent',
-                                WebkitTextFillColor: 'transparent',
-                                caretColor: isDark ? '#f3f4f6' : '#111827',
-                              }}
-                              value={editorValue}
-                              onChange={(e) => {
-                                setEditorValue(e.target.value);
-                                setDirty(true);
-                              }}
-                              spellCheck={false}
-                              onKeyDown={async (e) => {
-                                const isMeta = e.metaKey || e.ctrlKey;
-                                if (isMeta && e.key.toLowerCase() === 's') {
-                                  e.preventDefault();
-                                  try {
-                                    const contentToWrite = editorValue.replace(/\n/g, eol);
-                                    const res = await window.electronAPI.fsWriteFile(
-                                      workspacePath,
-                                      selected!,
-                                      contentToWrite,
-                                      true
-                                    );
-                                    if (!res?.success)
-                                      throw new Error(res?.error || 'Write failed');
-                                    setDirty(false);
-                                    setRefreshKey((k) => k + 1);
-                                    setIsEditing(false);
-                                    toast({ title: 'Saved', description: selected! });
-                                    if (onRefreshChanges) await onRefreshChanges();
-                                  } catch (err: any) {
-                                    toast({
-                                      title: 'Save failed',
-                                      description: String(err?.message || 'Unable to save file'),
-                                      variant: 'destructive',
-                                    });
-                                  }
-                                }
-                                if (e.key === 'Escape') {
-                                  if (
-                                    !dirty ||
-                                    window.confirm('Discard unsaved changes and exit edit?')
-                                  ) {
-                                    setIsEditing(false);
-                                    setDirty(false);
-                                  }
-                                }
-                              }}
-                            />
-                          </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                    <div
-                      className="absolute bottom-0 top-0 z-10 flex items-stretch"
-                      style={{ left: `${paneSplit}%`, transform: 'translateX(-50%)' }}
-                    >
-                      <button
-                        type="button"
-                        aria-label="Resize diff panes"
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          isResizingRef.current = true;
-                          document.body.style.cursor = 'col-resize';
-                          diffContainerRef.current?.classList.add('select-none');
-                          scheduleSplitUpdate(e.clientX);
-                        }}
-                        onPointerEnter={() => {
-                          document.body.style.cursor = 'col-resize';
-                        }}
-                        onPointerLeave={() => {
-                          if (!isResizingRef.current) document.body.style.cursor = '';
-                        }}
-                        className="h-full w-8 cursor-col-resize bg-transparent"
-                        style={{ touchAction: 'none' }}
-                      />
+                      <div
+                        className="absolute bottom-0 top-0 z-10 flex items-stretch"
+                        style={{ left: `${paneSplit}%`, transform: 'translateX(-50%)' }}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Resize diff panes"
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            isResizingRef.current = true;
+                            document.body.style.cursor = 'col-resize';
+                            diffContainerRef.current?.classList.add('select-none');
+                            scheduleSplitUpdate(e.clientX);
+                          }}
+                          onPointerEnter={() => {
+                            document.body.style.cursor = 'col-resize';
+                          }}
+                          onPointerLeave={() => {
+                            if (!isResizingRef.current) document.body.style.cursor = '';
+                          }}
+                          className="h-full w-8 cursor-col-resize bg-transparent"
+                          style={{ touchAction: 'none' }}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
