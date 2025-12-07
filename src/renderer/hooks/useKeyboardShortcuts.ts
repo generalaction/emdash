@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import type { ShortcutConfig, GlobalShortcutHandlers, ShortcutMapping } from '../types/shortcuts';
+import type {
+  ShortcutConfig,
+  GlobalShortcutHandlers,
+  ShortcutMapping,
+  ShortcutModifier,
+} from '../types/shortcuts';
 
 export const APP_SHORTCUTS = {
   // Command Palette
@@ -103,6 +108,30 @@ export function hasShortcutConflict(shortcut1: ShortcutConfig, shortcut2: Shortc
   );
 }
 
+const isMacPlatform = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+function matchesModifier(modifier: ShortcutModifier | undefined, event: KeyboardEvent): boolean {
+  if (!modifier) {
+    return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
+  }
+
+  switch (modifier) {
+    case 'cmd':
+      // On macOS require the Command key; on other platforms allow Ctrl as the Command equivalent
+      return isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey;
+    case 'ctrl':
+      // Require the Control key without treating Command as equivalent
+      return event.ctrlKey && !event.metaKey;
+    case 'alt':
+    case 'option':
+      return event.altKey;
+    case 'shift':
+      return event.shiftKey;
+    default:
+      return false;
+  }
+}
+
 /**
  * ==============================================================================
  * GLOBAL SHORTCUT HOOK
@@ -168,13 +197,8 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
         if (!keyMatches) continue;
 
-        // Check modifier requirements
-        const modifierRequired =
-          shortcut.config.modifier === 'cmd' || shortcut.config.modifier === 'ctrl';
-        const hasModifier = event.metaKey || event.ctrlKey;
-
-        if (modifierRequired && !hasModifier) continue;
-        if (!modifierRequired && hasModifier) continue;
+        // Check modifier requirements precisely (e.g., Cmd ≠ Ctrl on macOS)
+        if (!matchesModifier(shortcut.config.modifier, event)) continue;
 
         // Handle priority and modal state
         const isModalOpen = handlers.isCommandPaletteOpen || handlers.isSettingsOpen;
