@@ -280,6 +280,19 @@ const KanbanBoard: React.FC<{
           title={titles[s]}
           count={byStatus[s].length}
           onDropCard={(id) => handleDrop(s, id)}
+          action={
+            s === 'todo' && onCreateWorkspace ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-md border border-border/60 bg-muted text-foreground shadow-sm hover:bg-muted/80"
+                onClick={onCreateWorkspace}
+                aria-label="Start New Task"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            ) : undefined
+          }
         >
           {byStatus[s].length === 0 ? (
             s === 'todo' && !hasAny && onCreateWorkspace ? (
@@ -291,9 +304,9 @@ const KanbanBoard: React.FC<{
                   <span className="ml-2">No items</span>
                 </div>
                 <div className="flex flex-1 items-center justify-center">
-                  <Button variant="secondary" size="sm" onClick={onCreateWorkspace}>
+                  <Button variant="default" size="sm" onClick={onCreateWorkspace}>
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Create Task
+                    Start New Task
                   </Button>
                 </div>
               </div>
@@ -306,7 +319,22 @@ const KanbanBoard: React.FC<{
               </div>
             )
           ) : (
-            byStatus[s].map((ws) => <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />)
+            <>
+              {byStatus[s].map((ws) => (
+                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />
+              ))}
+              {s === 'todo' && onCreateWorkspace ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 w-full justify-center text-xs font-medium"
+                  onClick={onCreateWorkspace}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Start New Task
+                </Button>
+              ) : null}
+            </>
           )}
         </KanbanColumn>
       ))}
