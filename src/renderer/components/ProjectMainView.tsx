@@ -617,63 +617,66 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             <div className="space-y-6">
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
                     <h2 className="text-lg font-semibold">Tasks</h2>
-                    {!isSelectMode && (
+                    <p className="text-xs text-muted-foreground">
+                      Spin up a fresh, isolated workspace for this project.
+                    </p>
+                  </div>
+                  {!isSelectMode && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="h-9 px-4 text-sm font-semibold shadow-sm"
+                      onClick={onCreateWorkspace}
+                      disabled={isCreatingWorkspace}
+                      aria-busy={isCreatingWorkspace}
+                    >
+                      {isCreatingWorkspace ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Starting…
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="mr-2 size-4" />
+                          Start New Task
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+                {workspaces.length > 0 && (
+                  <div className="flex justify-end gap-2">
+                    {isSelectMode && selectedCount > 0 && (
                       <Button
-                        variant="secondary"
+                        variant="destructive"
                         size="sm"
                         className="h-8 px-3 text-xs font-medium"
-                        onClick={onCreateWorkspace}
-                        disabled={isCreatingWorkspace}
-                        aria-busy={isCreatingWorkspace}
+                        onClick={() => setShowDeleteDialog(true)}
+                        disabled={isDeleting}
                       >
-                        {isCreatingWorkspace ? (
+                        {isDeleting ? (
                           <>
                             <Loader2 className="mr-2 size-4 animate-spin" />
-                            Creating…
+                            Deleting…
                           </>
                         ) : (
-                          <>
-                            <Plus className="mr-2 size-4" />
-                            Create Task
-                          </>
+                          'Delete'
                         )}
                       </Button>
                     )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
+                      className="h-8 px-3 text-xs font-medium"
+                    >
+                      {isSelectMode ? 'Cancel' : 'Select'}
+                    </Button>
                   </div>
-                  {workspaces.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      {isSelectMode && selectedCount > 0 && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="h-8 px-3 text-xs font-medium"
-                          onClick={() => setShowDeleteDialog(true)}
-                          disabled={isDeleting}
-                        >
-                          {isDeleting ? (
-                            <>
-                              <Loader2 className="mr-2 size-4 animate-spin" />
-                              Deleting…
-                            </>
-                          ) : (
-                            'Delete'
-                          )}
-                        </Button>
-                      )}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                        className="h-8 px-3 text-xs font-medium"
-                      >
-                        {isSelectMode ? 'Cancel' : 'Select'}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                )}
                 <div className="flex flex-col gap-3">
                   {workspaces.map((ws) => (
                     <WorkspaceRow
