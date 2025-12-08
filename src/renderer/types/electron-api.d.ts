@@ -177,6 +177,20 @@ declare global {
         path?: string;
         error?: string;
       }>;
+      cloneProject: (
+        repoUrl: string,
+        repoName?: string,
+        customDestination?: string
+      ) => Promise<{
+        success: boolean;
+        path?: string;
+        error?: string;
+      }>;
+      selectCloneDestination: () => Promise<{
+        success: boolean;
+        path?: string;
+        error?: string;
+      }>;
       getProjectSettings: (projectId: string) => Promise<{
         success: boolean;
         settings?: ProjectSettingsPayload;

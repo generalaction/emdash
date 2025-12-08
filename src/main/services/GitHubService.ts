@@ -591,11 +591,25 @@ export class GitHubService {
    */
   async isAuthenticated(): Promise<boolean> {
     try {
-      const token = await this.getStoredToken();
+      let token = await this.getStoredToken();
 
       if (!token) {
-        // No stored token, user needs to authenticate
-        return false;
+        try {
+          // Check if the user is already logged into the GitHub CLI
+          await this.execGH('gh auth status -h github.com');
+
+          const { stdout } = await this.execGH('gh auth token -h github.com');
+          const cliToken = stdout.trim();
+          if (!cliToken) {
+            return false;
+          }
+
+          await this.storeToken(cliToken);
+          token = cliToken;
+        } catch (cliError) {
+          console.warn('GitHub CLI authentication not detected:', cliError);
+          return false;
+        }
       }
 
       // Test the token by making a simple API call

@@ -6,6 +6,7 @@ import ProjectMainView from './components/ProjectMainView';
 import WorkspaceModal from './components/WorkspaceModal';
 import ChatInterface from './components/ChatInterface';
 import MultiAgentWorkspace from './components/MultiAgentWorkspace';
+import ProjectDialog from './components/ProjectDialog';
 import { Toaster } from './components/ui/toaster';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import RequirementsNotice from './components/RequirementsNotice';
@@ -122,6 +123,7 @@ const AppContent: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
+  const [showProjectDialog, setShowProjectDialog] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
@@ -504,130 +506,115 @@ const AppContent: React.FC = () => {
   const handleOpenProject = async () => {
     const { captureTelemetry } = await import('./lib/telemetryClient');
     captureTelemetry('project_add_clicked');
+    setShowProjectDialog(true);
+  };
+
+  const handleProjectAdded = async (projectPath: string) => {
     try {
-      const result = await window.electronAPI.openProject();
-      if (result.success && result.path) {
-        try {
-          const gitInfo = await window.electronAPI.getGitInfo(result.path);
-          const canonicalPath = gitInfo.rootPath || gitInfo.path || result.path;
-          const repoKey = normalizePathForComparison(canonicalPath);
-          const existingProject = projects.find(
-            (project) => getProjectRepoKey(project) === repoKey
-          );
+      const gitInfo = await window.electronAPI.getGitInfo(projectPath);
+      const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
+      const repoKey = normalizePathForComparison(canonicalPath);
+      const existingProject = projects.find(
+        (project) => getProjectRepoKey(project) === repoKey
+      );
 
-          if (existingProject) {
-            activateProjectView(existingProject);
-            toast({
-              title: 'Project already open',
-              description: `"${existingProject.name}" is already in the sidebar.`,
-            });
-            return;
-          }
+      if (existingProject) {
+        activateProjectView(existingProject);
+        toast({
+          title: 'Project already open',
+          description: `"${existingProject.name}" is already in the sidebar.`,
+        });
+        return;
+      }
 
-          if (!gitInfo.isGitRepo) {
-            toast({
-              title: 'Project Opened',
-              description: `This directory is not a Git repository. Path: ${result.path}`,
-              variant: 'destructive',
-            });
-            return;
-          }
+      if (!gitInfo.isGitRepo) {
+        toast({
+          title: 'Project Opened',
+          description: `This directory is not a Git repository. Path: ${projectPath}`,
+          variant: 'destructive',
+        });
+        return;
+      }
 
-          const remoteUrl = gitInfo.remote || '';
-          const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-          const projectName =
-            canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+      const remoteUrl = gitInfo.remote || '';
+      const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+      const projectName =
+        canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
-          const baseProject: Project = {
-            id: Date.now().toString(),
-            name: projectName,
-            path: canonicalPath,
-            repoKey,
-            gitInfo: {
-              isGitRepo: true,
-              remote: gitInfo.remote || undefined,
-              branch: gitInfo.branch || undefined,
-              baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
+      const baseProject: Project = {
+        id: Date.now().toString(),
+        name: projectName,
+        path: canonicalPath,
+        repoKey,
+        gitInfo: {
+          isGitRepo: true,
+          remote: gitInfo.remote || undefined,
+          branch: gitInfo.branch || undefined,
+          baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
+        },
+        workspaces: [],
+      };
+
+      if (isAuthenticated && isGithubRemote) {
+        const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+        if (githubInfo.success) {
+          const projectWithGithub = withRepoKey({
+            ...baseProject,
+            githubInfo: {
+              repository: githubInfo.repository || '',
+              connected: true,
             },
-            workspaces: [],
-          };
+          });
 
-          if (isAuthenticated && isGithubRemote) {
-            const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
-            if (githubInfo.success) {
-              const projectWithGithub = withRepoKey({
-                ...baseProject,
-                githubInfo: {
-                  repository: githubInfo.repository || '',
-                  connected: true,
-                },
-              });
-
-              const saveResult = await window.electronAPI.saveProject(projectWithGithub);
-              if (saveResult.success) {
-                const { captureTelemetry } = await import('./lib/telemetryClient');
-                captureTelemetry('project_added_success', { source: 'github' });
-                setProjects((prev) => [...prev, projectWithGithub]);
-                activateProjectView(projectWithGithub);
-              } else {
-                const { log } = await import('./lib/logger');
-                log.error('Failed to save project:', saveResult.error);
-              }
-            } else {
-              const updateHint =
-                platform === 'darwin'
-                  ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart emdash.'
-                  : platform === 'win32'
-                    ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart emdash.'
-                    : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart emdash.';
-              toast({
-                title: 'GitHub Connection Failed',
-                description: `Git repository detected but couldn't connect to GitHub: ${githubInfo.error}\n\n${updateHint}`,
-                variant: 'destructive',
-              });
-            }
+          const saveResult = await window.electronAPI.saveProject(projectWithGithub);
+          if (saveResult.success) {
+            const { captureTelemetry } = await import('./lib/telemetryClient');
+            captureTelemetry('project_added_success', { source: 'github' });
+            setProjects((prev) => [...prev, projectWithGithub]);
+            activateProjectView(projectWithGithub);
           } else {
-            const projectWithoutGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: isGithubRemote ? '' : '',
-                connected: false,
-              },
-            });
-
-            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
-            if (saveResult.success) {
-              const { captureTelemetry } = await import('./lib/telemetryClient');
-              captureTelemetry('project_added_success', { source: 'local' });
-              setProjects((prev) => [...prev, projectWithoutGithub]);
-              activateProjectView(projectWithoutGithub);
-            } else {
-              const { log } = await import('./lib/logger');
-              log.error('Failed to save project:', saveResult.error);
-            }
+            const { log } = await import('./lib/logger');
+            log.error('Failed to save project:', saveResult.error);
           }
-        } catch (error) {
-          const { log } = await import('./lib/logger');
-          log.error('Git detection error:', error as any);
+        } else {
+          const updateHint =
+            platform === 'darwin'
+              ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart emdash.'
+              : platform === 'win32'
+                ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart emdash.'
+                : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart emdash.';
           toast({
-            title: 'Project Opened',
-            description: `Could not detect Git information. Path: ${result.path}`,
+            title: 'GitHub Connection Failed',
+            description: `Git repository detected but couldn't connect to GitHub: ${githubInfo.error}\n\n${updateHint}`,
             variant: 'destructive',
           });
         }
-      } else if (result.error) {
-        toast({
-          title: 'Failed to Open Project',
-          description: result.error,
-          variant: 'destructive',
+      } else {
+        const projectWithoutGithub = withRepoKey({
+          ...baseProject,
+          githubInfo: {
+            repository: isGithubRemote ? '' : '',
+            connected: false,
+          },
         });
+
+        const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+        if (saveResult.success) {
+          const { captureTelemetry } = await import('./lib/telemetryClient');
+          captureTelemetry('project_added_success', { source: 'local' });
+          setProjects((prev) => [...prev, projectWithoutGithub]);
+          activateProjectView(projectWithoutGithub);
+        } else {
+          const { log } = await import('./lib/logger');
+          log.error('Failed to save project:', saveResult.error);
+        }
       }
     } catch (error) {
       const { log } = await import('./lib/logger');
-      log.error('Open project error:', error as any);
+      log.error('Git detection error:', error as any);
       toast({
-        title: 'Failed to Open Project',
-        description: 'Please check the console for details.',
+        title: 'Project Opened',
+        description: `Could not detect Git information. Path: ${projectPath}`,
         variant: 'destructive',
       });
     }
@@ -1770,6 +1757,11 @@ const AppContent: React.FC = () => {
               onClose={handleDeviceFlowClose}
               onSuccess={handleDeviceFlowSuccess}
               onError={handleDeviceFlowError}
+            />
+            <ProjectDialog
+              isOpen={showProjectDialog}
+              onClose={() => setShowProjectDialog(false)}
+              onProjectAdded={handleProjectAdded}
             />
             <Toaster />
             <BrowserPane
