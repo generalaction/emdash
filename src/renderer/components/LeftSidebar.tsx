@@ -264,6 +264,24 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                           <CollapsibleContent asChild>
                             <div className="ml-7 mt-2 min-w-0 space-y-1">
+                              <button
+                                type="button"
+                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onSelectProject && selectedProject?.id !== typedProject.id) {
+                                    onSelectProject(typedProject);
+                                  } else if (!selectedProject) {
+                                    onSelectProject?.(typedProject);
+                                  }
+                                  onCreateWorkspaceForProject?.(typedProject);
+                                }}
+                                disabled={isCreatingWorkspace}
+                                aria-label={`Add Task to ${typedProject.name}`}
+                              >
+                                <Plus className="h-3 w-3 flex-shrink-0 text-gray-400" aria-hidden />
+                                <span className="truncate">Add Task</span>
+                              </button>
                               <div className="hidden min-w-0 space-y-1 sm:block">
                                 {typedProject.workspaces?.map((workspace) => {
                                   const isActive = activeWorkspace?.id === workspace.id;
@@ -298,24 +316,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   );
                                 })}
                               </div>
-                              <button
-                                type="button"
-                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (onSelectProject && selectedProject?.id !== typedProject.id) {
-                                    onSelectProject(typedProject);
-                                  } else if (!selectedProject) {
-                                    onSelectProject?.(typedProject);
-                                  }
-                                  onCreateWorkspaceForProject?.(typedProject);
-                                }}
-                                disabled={isCreatingWorkspace}
-                                aria-label={`Add Task to ${typedProject.name}`}
-                              >
-                                <Plus className="h-3 w-3 flex-shrink-0 text-gray-400" aria-hidden />
-                                <span className="truncate">Add Task</span>
-                              </button>
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
