@@ -113,6 +113,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Project management
   openProject: () => ipcRenderer.invoke('project:open'),
+  cloneProject: (repoUrl: string, repoName?: string, customDestination?: string) =>
+    ipcRenderer.invoke('project:clone', repoUrl, repoName, customDestination),
+  selectCloneDestination: () => ipcRenderer.invoke('project:selectCloneDestination'),
   getProjectSettings: (projectId: string) =>
     ipcRenderer.invoke('projectSettings:get', { projectId }),
   updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
@@ -490,6 +493,8 @@ export interface ElectronAPI {
 
   // Project management
   openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;
+  cloneProject: (repoUrl: string, repoName?: string, customDestination?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+  selectCloneDestination: () => Promise<{ success: boolean; path?: string; error?: string }>;
   getGitInfo: (projectPath: string) => Promise<{
     isGitRepo: boolean;
     remote?: string;

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './components/ui/button';
-import { FolderOpen, Download } from 'lucide-react';
+import { FolderOpen } from 'lucide-react';
 import LeftSidebar from './components/LeftSidebar';
 import ProjectMainView from './components/ProjectMainView';
 import WorkspaceModal from './components/WorkspaceModal';
-import CloneRepoModal from './components/CloneRepoModal';
 import ChatInterface from './components/ChatInterface';
 import MultiAgentWorkspace from './components/MultiAgentWorkspace';
+import ProjectDialog from './components/ProjectDialog';
 import { Toaster } from './components/ui/toaster';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import RequirementsNotice from './components/RequirementsNotice';
@@ -25,12 +25,12 @@ import { type Provider } from './types';
 import { type LinearIssueSummary } from './types/linear';
 import { type GitHubIssueSummary } from './types/github';
 import { type JiraIssueSummary } from './types/jira';
-import HowToUseMdash from './components/HowToUseEmdash';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
+import FirstLaunchModal from './components/FirstLaunchModal';
 import type { Project, Workspace } from './types/app';
 import type { WorkspaceMetadata as ChatWorkspaceMetadata } from './types/chat';
 import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
@@ -40,6 +40,7 @@ import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
+import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -86,8 +87,9 @@ const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
 const DEFAULT_PANEL_LAYOUT: [number, number, number] = [20, 60, 20];
 const LEFT_SIDEBAR_MIN_SIZE = 16;
 const LEFT_SIDEBAR_MAX_SIZE = 30;
+const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 const RIGHT_SIDEBAR_MIN_SIZE = 16;
-const RIGHT_SIDEBAR_MAX_SIZE = 30;
+const RIGHT_SIDEBAR_MAX_SIZE = 50;
 const clampLeftSidebarSize = (value: number) =>
   Math.min(
     Math.max(Number.isFinite(value) ? value : DEFAULT_PANEL_LAYOUT[0], LEFT_SIDEBAR_MIN_SIZE),
@@ -113,22 +115,29 @@ const AppContent: React.FC = () => {
     authenticated: isAuthenticated,
     user,
     checkStatus,
+    login: githubLogin,
   } = useGithubAuth();
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
+  const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
-  const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
+  const [showProjectDialog, setShowProjectDialog] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [activeWorkspaceProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
-  const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
-  const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
+  const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
+  const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
   const showGithubRequirement = !ghInstalled || !isAuthenticated;
-  // Show agent requirements block if none of the supported CLIs are detected locally.
-  const showAgentRequirement = isCodexInstalled === false && isClaudeInstalled === false;
+  // Show agent requirements block if we have status data and none of the CLI providers are detected locally.
+  const showAgentRequirement =
+    Object.keys(installedProviders).length > 0 &&
+    Object.values(installedProviders).every((v) => v === false);
+  const deletingWorkspaceIdsRef = useRef<Set<string>>(new Set());
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -223,7 +232,7 @@ const AppContent: React.FC = () => {
   const leftSidebarIsMobileRef = useRef<boolean>(false);
   const leftSidebarOpenRef = useRef<boolean>(true);
   const rightSidebarSetCollapsedRef = useRef<((next: boolean) => void) | null>(null);
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(true);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
 
   const handlePanelLayout = useCallback((sizes: number[]) => {
     if (!Array.isArray(sizes) || sizes.length < 3) {
@@ -312,6 +321,10 @@ const AppContent: React.FC = () => {
   );
 
   const activateProjectView = useCallback((project: Project) => {
+    void (async () => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('project_view_opened');
+    })();
     setSelectedProject(project);
     setShowHomeView(false);
     setActiveWorkspace(null);
@@ -339,6 +352,41 @@ const AppContent: React.FC = () => {
 
   const handleCloseCommandPalette = useCallback(() => {
     setShowCommandPalette(false);
+  }, []);
+
+  const markFirstLaunchSeen = useCallback(() => {
+    try {
+      localStorage.setItem(FIRST_LAUNCH_KEY, '1');
+    } catch {
+      // ignore
+    }
+    try {
+      void window.electronAPI.setOnboardingSeen?.(true);
+    } catch {
+      // ignore
+    }
+    setShowFirstLaunchModal(false);
+  }, []);
+
+  useEffect(() => {
+    const check = async () => {
+      let seenLocal = false;
+      try {
+        seenLocal = localStorage.getItem(FIRST_LAUNCH_KEY) === '1';
+      } catch {
+        // ignore
+      }
+      if (seenLocal) return;
+
+      try {
+        const res = await window.electronAPI.getTelemetryStatus?.();
+        if (res?.success && res.status?.onboardingSeen) return;
+      } catch {
+        // ignore
+      }
+      setShowFirstLaunchModal(true);
+    };
+    void check();
   }, []);
 
   useEffect(() => {
@@ -422,20 +470,29 @@ const AppContent: React.FC = () => {
         const ordered = applyProjectOrder(projectsWithWorkspaces);
         setProjects(ordered);
 
-        const codexStatus = await window.electronAPI.codexCheckInstallation();
-        if (codexStatus.success) {
-          setIsCodexInstalled(codexStatus.isInstalled ?? false);
-        } else {
-          setIsCodexInstalled(false);
-          console.error('Failed to check Codex CLI installation:', codexStatus.error);
+        // Prefer cached provider status (populated in the background)
+        let providerInstalls: Record<string, boolean> = {};
+        try {
+          type ProviderStatusEntry = {
+            installed: boolean;
+            path?: string | null;
+            version?: string | null;
+            lastChecked: number;
+          };
+          const statusResponse =
+            ((await (window as any).electronAPI.getProviderStatuses?.()) as
+              | { success?: boolean; statuses?: Record<string, ProviderStatusEntry> }
+              | undefined) ?? (await window.electronAPI.getProviderStatuses?.());
+          if (statusResponse?.success && statusResponse.statuses) {
+            providerInstalls = Object.fromEntries(
+              Object.entries(statusResponse.statuses).map(([id, s]) => [id, s?.installed === true])
+            );
+          }
+        } catch {
+          // ignore and fall back to direct checks
         }
 
-        try {
-          const claude = await (window as any).electronAPI.agentCheckInstallation?.('claude');
-          setIsClaudeInstalled(!!claude?.isInstalled);
-        } catch {
-          setIsClaudeInstalled(false);
-        }
+        setInstalledProviders(providerInstalls);
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to load app data:', error as any);
@@ -446,12 +503,20 @@ const AppContent: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const processProjectPath = async (path: string) => {
+  const handleOpenProject = async () => {
+    const { captureTelemetry } = await import('./lib/telemetryClient');
+    captureTelemetry('project_add_clicked');
+    setShowProjectDialog(true);
+  };
+
+  const handleProjectAdded = async (projectPath: string) => {
     try {
-      const gitInfo = await window.electronAPI.getGitInfo(path);
-      const canonicalPath = gitInfo.rootPath || gitInfo.path || path;
+      const gitInfo = await window.electronAPI.getGitInfo(projectPath);
+      const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
       const repoKey = normalizePathForComparison(canonicalPath);
-      const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+      const existingProject = projects.find(
+        (project) => getProjectRepoKey(project) === repoKey
+      );
 
       if (existingProject) {
         activateProjectView(existingProject);
@@ -465,7 +530,7 @@ const AppContent: React.FC = () => {
       if (!gitInfo.isGitRepo) {
         toast({
           title: 'Project Opened',
-          description: `This directory is not a Git repository. Path: ${path}`,
+          description: `This directory is not a Git repository. Path: ${projectPath}`,
           variant: 'destructive',
         });
         return;
@@ -473,7 +538,8 @@ const AppContent: React.FC = () => {
 
       const remoteUrl = gitInfo.remote || '';
       const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-      const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+      const projectName =
+        canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
       const baseProject: Project = {
         id: Date.now().toString(),
@@ -502,6 +568,8 @@ const AppContent: React.FC = () => {
 
           const saveResult = await window.electronAPI.saveProject(projectWithGithub);
           if (saveResult.success) {
+            const { captureTelemetry } = await import('./lib/telemetryClient');
+            captureTelemetry('project_added_success', { source: 'github' });
             setProjects((prev) => [...prev, projectWithGithub]);
             activateProjectView(projectWithGithub);
           } else {
@@ -532,6 +600,8 @@ const AppContent: React.FC = () => {
 
         const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
         if (saveResult.success) {
+          const { captureTelemetry } = await import('./lib/telemetryClient');
+          captureTelemetry('project_added_success', { source: 'local' });
           setProjects((prev) => [...prev, projectWithoutGithub]);
           activateProjectView(projectWithoutGithub);
         } else {
@@ -544,60 +614,91 @@ const AppContent: React.FC = () => {
       log.error('Git detection error:', error as any);
       toast({
         title: 'Project Opened',
-        description: `Could not detect Git information. Path: ${path}`,
+        description: `Could not detect Git information. Path: ${projectPath}`,
         variant: 'destructive',
       });
     }
   };
 
-  const handleOpenProject = async () => {
+  const handleGithubConnect = async () => {
+    setGithubLoading(true);
+    setGithubStatusMessage(undefined);
+
     try {
-      const result = await window.electronAPI.openProject();
-      if (result.success && result.path) {
-        await processProjectPath(result.path);
-      } else if (result.error) {
+      // Check if gh CLI is installed
+      setGithubStatusMessage('Checking for GitHub CLI...');
+      const cliInstalled = await window.electronAPI.githubCheckCLIInstalled();
+
+      if (!cliInstalled) {
+        // Detect platform for better messaging
+        let installMessage = 'Installing GitHub CLI...';
+        if (platform === 'darwin') {
+          installMessage = 'Installing GitHub CLI via Homebrew...';
+        } else if (platform === 'linux') {
+          installMessage = 'Installing GitHub CLI via apt...';
+        } else if (platform === 'win32') {
+          installMessage = 'Installing GitHub CLI via winget...';
+        }
+
+        setGithubStatusMessage(installMessage);
+        const installResult = await window.electronAPI.githubInstallCLI();
+
+        if (!installResult.success) {
+          setGithubLoading(false);
+          setGithubStatusMessage(undefined);
+          toast({
+            title: 'Installation Failed',
+            description: `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        setGithubStatusMessage('GitHub CLI installed! Setting up connection...');
         toast({
-          title: 'Failed to Open Project',
-          description: result.error,
+          title: 'GitHub CLI Installed',
+          description: 'Now authenticating with GitHub...',
+        });
+        await checkStatus(); // Refresh status
+      }
+
+      // Start Device Flow authentication (main process handles polling)
+      setGithubStatusMessage('Starting authentication...');
+      const result = await githubLogin();
+
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+
+      if (result?.success) {
+        // Show modal - it will receive events from main process
+        setShowDeviceFlowModal(true);
+      } else {
+        toast({
+          title: 'Authentication Failed',
+          description: result?.error || 'Could not start authentication',
           variant: 'destructive',
         });
       }
     } catch (error) {
-      const { log } = await import('./lib/logger');
-      log.error('Open project error:', error as any);
+      console.error('GitHub connection error:', error);
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
       toast({
-        title: 'Failed to Open Project',
-        description: 'Please check the console for details.',
+        title: 'Connection Failed',
+        description: 'Failed to connect to GitHub. Please try again.',
         variant: 'destructive',
       });
-    }
-  };
-
-  const handleCloneRepo = async (repoUrl: string, destinationPath: string) => {
-    try {
-      const result = await window.electronAPI.githubCloneRepository(repoUrl, destinationPath);
-      if (result.success) {
-        toast({
-          title: 'Repository Cloned',
-          description: `Successfully cloned to ${destinationPath}`,
-        });
-        await processProjectPath(destinationPath);
-      } else {
-        throw new Error(result.error || 'Failed to clone repository');
-      }
-    } catch (error: any) {
-      throw error;
     }
   };
 
   const handleCreateWorkspace = async (
     workspaceName: string,
     initialPrompt?: string,
-    selectedProvider?: Provider,
+    providerRuns: import('./types/chat').ProviderRun[] = [{ provider: 'claude', runs: 1 }],
     linkedLinearIssue: LinearIssueSummary | null = null,
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
-    multiAgent: { enabled: boolean; providers: Provider[]; maxProviders?: number } | null = null
+    autoApprove?: boolean
   ) => {
     if (!selectedProject) return;
 
@@ -698,23 +799,24 @@ const AppContent: React.FC = () => {
       }
 
       const workspaceMetadata: WorkspaceMetadata | null =
-        linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt
+        linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
           ? {
               linearIssue: linkedLinearIssue ?? null,
               jiraIssue: linkedJiraIssue ?? null,
               githubIssue: linkedGithubIssue ?? null,
               initialPrompt: preparedPrompt ?? null,
+              autoApprove: autoApprove ?? null,
             }
           : null;
 
-      // Multi-agent or single-agent workspace creation
-      const useMulti =
-        !!multiAgent?.enabled &&
-        Array.isArray(multiAgent?.providers) &&
-        multiAgent!.providers.length >= 2;
+      // Calculate total runs and determine if multi-agent
+      const totalRuns = providerRuns.reduce((sum, pr) => sum + pr.runs, 0);
+      const isMultiAgent = totalRuns > 1;
+      const primaryProvider = providerRuns[0]?.provider || 'claude';
+
       let newWorkspace: Workspace;
-      if (useMulti) {
-        const providers = multiAgent!.providers.slice(0, multiAgent?.maxProviders || 4);
+      if (isMultiAgent) {
+        // Multi-agent workspace: create worktrees for each provider×runs combo
         const variants: Array<{
           id: string;
           provider: Provider;
@@ -723,33 +825,41 @@ const AppContent: React.FC = () => {
           path: string;
           worktreeId: string;
         }> = [];
-        for (const prov of providers) {
-          const vtName = `${workspaceName}-${prov.toLowerCase()}`;
-          const wtRes = await window.electronAPI.worktreeCreate({
-            projectPath: selectedProject.path,
-            workspaceName: vtName,
-            projectId: selectedProject.id,
-          });
-          if (!wtRes?.success || !wtRes.worktree) {
-            throw new Error(wtRes?.error || `Failed to create worktree for ${prov}`);
+
+        for (const { provider, runs } of providerRuns) {
+          for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
+            const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
+            const variantName = `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`;
+            const worktreeResult = await window.electronAPI.worktreeCreate({
+              projectPath: selectedProject.path,
+              workspaceName: variantName,
+              projectId: selectedProject.id,
+              autoApprove,
+            });
+            if (!worktreeResult?.success || !worktreeResult.worktree) {
+              throw new Error(
+                worktreeResult?.error ||
+                  `Failed to create worktree for ${provider}${instanceSuffix}`
+              );
+            }
+            const worktree = worktreeResult.worktree;
+            variants.push({
+              id: `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`,
+              provider: provider,
+              name: variantName,
+              branch: worktree.branch,
+              path: worktree.path,
+              worktreeId: worktree.id,
+            });
           }
-          const wt = wtRes.worktree;
-          variants.push({
-            id: `${workspaceName}-${prov.toLowerCase()}`,
-            provider: prov,
-            name: vtName,
-            branch: wt.branch,
-            path: wt.path,
-            worktreeId: wt.id,
-          });
         }
 
         const multiMeta: WorkspaceMetadata = {
           ...(workspaceMetadata || {}),
           multiAgent: {
             enabled: true,
-            maxProviders: multiAgent?.maxProviders || 4,
-            providers,
+            maxProviders: 4,
+            providerRuns,
             variants,
             selectedProvider: null,
           },
@@ -758,16 +868,18 @@ const AppContent: React.FC = () => {
         const groupId = `ws-${workspaceName}-${Date.now()}`;
         newWorkspace = {
           id: groupId,
+          projectId: selectedProject.id,
           name: workspaceName,
           branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
           path: variants[0]?.path || selectedProject.path,
           status: 'idle',
+          agentId: primaryProvider,
           metadata: multiMeta,
-        } as Workspace;
+        };
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
-          projectId: selectedProject.id,
+          agentId: primaryProvider,
           metadata: multiMeta,
         });
         if (!saveResult?.success) {
@@ -783,6 +895,7 @@ const AppContent: React.FC = () => {
           projectPath: selectedProject.path,
           workspaceName,
           projectId: selectedProject.id,
+          autoApprove,
         });
 
         if (!worktreeResult.success) {
@@ -793,16 +906,18 @@ const AppContent: React.FC = () => {
 
         newWorkspace = {
           id: worktree.id,
+          projectId: selectedProject.id,
           name: workspaceName,
           branch: worktree.branch,
           path: worktree.path,
           status: 'idle',
+          agentId: primaryProvider,
           metadata: workspaceMetadata,
         };
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
-          projectId: selectedProject.id,
+          agentId: primaryProvider,
           metadata: workspaceMetadata,
         });
         if (!saveResult?.success) {
@@ -968,7 +1083,7 @@ const AppContent: React.FC = () => {
             project.id === selectedProject.id
               ? {
                   ...project,
-                  workspaces: [...(project.workspaces || []), newWorkspace],
+                  workspaces: [newWorkspace, ...(project.workspaces || [])],
                 }
               : project
           )
@@ -978,17 +1093,28 @@ const AppContent: React.FC = () => {
           prev
             ? {
                 ...prev,
-                workspaces: [...(prev.workspaces || []), newWorkspace],
+                workspaces: [newWorkspace, ...(prev.workspaces || [])],
               }
             : null
         );
+
+        // Track workspace creation
+        const { captureTelemetry } = await import('./lib/telemetryClient');
+        const isMultiAgent = (newWorkspace.metadata as any)?.multiAgent?.enabled;
+        captureTelemetry('workspace_created', {
+          provider: isMultiAgent ? 'multi' : (newWorkspace.agentId as string) || 'codex',
+          has_initial_prompt: !!workspaceMetadata?.initialPrompt,
+        });
 
         // Set the active workspace and its provider (none if multi-agent)
         setActiveWorkspace(newWorkspace);
         if ((newWorkspace.metadata as any)?.multiAgent?.enabled) {
           setActiveWorkspaceProvider(null);
         } else {
-          setActiveWorkspaceProvider(selectedProvider || 'codex');
+          // Use the saved agentId from the workspace, which should match primaryProvider
+          setActiveWorkspaceProvider(
+            (newWorkspace.agentId as Provider) || primaryProvider || 'codex'
+          );
         }
       }
     } catch (error) {
@@ -1017,7 +1143,14 @@ const AppContent: React.FC = () => {
 
   const handleSelectWorkspace = (workspace: Workspace) => {
     setActiveWorkspace(workspace);
-    setActiveWorkspaceProvider(null);
+    // Load provider from workspace.agentId if it exists, otherwise default to null
+    // This ensures the selected provider persists across app restarts
+    if ((workspace.metadata as any)?.multiAgent?.enabled) {
+      setActiveWorkspaceProvider(null);
+    } else {
+      // Use agentId from workspace if available, otherwise fall back to 'codex' for backwards compatibility
+      setActiveWorkspaceProvider((workspace.agentId as Provider) || 'codex');
+    }
   };
 
   const handleStartCreateWorkspaceFromSidebar = useCallback(
@@ -1029,116 +1162,195 @@ const AppContent: React.FC = () => {
     [activateProjectView, projects]
   );
 
-  const handleDeleteWorkspace = async (targetProject: Project, workspace: Workspace) => {
-    try {
-      try {
-        // Clear initial prompt sent flags (legacy and per-provider) if present
-        const { initialPromptSentKey } = await import('./lib/keys');
-        try {
-          // Legacy key (no provider)
-          const legacy = initialPromptSentKey(workspace.id);
-          localStorage.removeItem(legacy);
-        } catch {}
-        try {
-          // Provider-scoped keys
-          for (const p of TERMINAL_PROVIDER_IDS) {
-            const k = initialPromptSentKey(workspace.id, p);
-            localStorage.removeItem(k);
-          }
-        } catch {}
-      } catch {}
-      try {
-        window.electronAPI.ptyKill?.(`workspace-${workspace.id}`);
-      } catch {}
-      try {
-        for (const provider of TERMINAL_PROVIDER_IDS) {
-          try {
-            window.electronAPI.ptyKill?.(`${provider}-main-${workspace.id}`);
-          } catch {}
-        }
-      } catch {}
-      try {
-        if (workspace.agentId) {
-          const agentRemoval = await window.electronAPI.codexRemoveAgent(workspace.id);
-          if (!agentRemoval.success) {
-            const { log } = await import('./lib/logger');
-            log.warn('codexRemoveAgent reported failure:', agentRemoval.error);
-          }
-        }
-      } catch (agentError) {
-        const { log } = await import('./lib/logger');
-        log.warn('Failed to remove agent before deleting workspace:', agentError as any);
-      }
+  const removeWorkspaceFromState = (projectId: string, workspaceId: string, wasActive: boolean) => {
+    const filterWorkspaces = (list?: Workspace[]) =>
+      (list || []).filter((w) => w.id !== workspaceId);
 
-      const sessionIds = [
-        `workspace-${workspace.id}`,
-        ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${workspace.id}`),
-      ];
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === projectId
+          ? { ...project, workspaces: filterWorkspaces(project.workspaces) }
+          : project
+      )
+    );
 
-      for (const sessionId of sessionIds) {
-        try {
-          terminalSessionRegistry.dispose(sessionId);
-        } catch {}
-        try {
-          await window.electronAPI.ptyClearSnapshot({ id: sessionId });
-        } catch {}
-      }
+    setSelectedProject((prev) =>
+      prev && prev.id === projectId
+        ? { ...prev, workspaces: filterWorkspaces(prev.workspaces) }
+        : prev
+    );
 
-      const removeResult = await window.electronAPI.worktreeRemove({
-        projectPath: targetProject.path,
-        worktreeId: workspace.id,
-        worktreePath: workspace.path,
-        branch: workspace.branch,
-      });
-      if (!removeResult.success) {
-        throw new Error(removeResult.error || 'Failed to remove worktree');
-      }
-
-      const result = await window.electronAPI.deleteWorkspace(workspace.id);
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete workspace');
-      }
-
-      setProjects((prev) =>
-        prev.map((project) =>
-          project.id === targetProject.id
-            ? {
-                ...project,
-                workspaces: (project.workspaces || []).filter((w) => w.id !== workspace.id),
-              }
-            : project
-        )
-      );
-
-      setSelectedProject((prev) =>
-        prev && prev.id === targetProject.id
-          ? {
-              ...prev,
-              workspaces: (prev.workspaces || []).filter((w) => w.id !== workspace.id),
-            }
-          : prev
-      );
-
-      if (activeWorkspace?.id === workspace.id) {
-        setActiveWorkspace(null);
-      }
-
-      toast({
-        title: 'Workspace deleted',
-        description: `"${workspace.name}" was removed.`,
-      });
-    } catch (error) {
-      const { log } = await import('./lib/logger');
-      log.error('Failed to delete workspace:', error as any);
-      toast({
-        title: 'Error',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'Could not delete workspace. Check the console for details.',
-        variant: 'destructive',
-      });
+    if (wasActive) {
+      setActiveWorkspace(null);
+      setActiveWorkspaceProvider(null);
     }
+  };
+
+  const handleDeleteWorkspace = async (
+    targetProject: Project,
+    workspace: Workspace,
+    options?: { silent?: boolean }
+  ): Promise<boolean> => {
+    if (deletingWorkspaceIdsRef.current.has(workspace.id)) {
+      toast({
+        title: 'Deletion in progress',
+        description: `"${workspace.name}" is already being removed.`,
+      });
+      return false;
+    }
+
+    const wasActive = activeWorkspace?.id === workspace.id;
+    const workspaceSnapshot = { ...workspace };
+    deletingWorkspaceIdsRef.current.add(workspace.id);
+    removeWorkspaceFromState(targetProject.id, workspace.id, wasActive);
+
+    const runDeletion = async (): Promise<boolean> => {
+      try {
+        try {
+          // Clear initial prompt sent flags (legacy and per-provider) if present
+          const { initialPromptSentKey } = await import('./lib/keys');
+          try {
+            // Legacy key (no provider)
+            const legacy = initialPromptSentKey(workspace.id);
+            localStorage.removeItem(legacy);
+          } catch {}
+          try {
+            // Provider-scoped keys
+            for (const p of TERMINAL_PROVIDER_IDS) {
+              const k = initialPromptSentKey(workspace.id, p);
+              localStorage.removeItem(k);
+            }
+          } catch {}
+        } catch {}
+        try {
+          window.electronAPI.ptyKill?.(`workspace-${workspace.id}`);
+        } catch {}
+        try {
+          for (const provider of TERMINAL_PROVIDER_IDS) {
+            try {
+              window.electronAPI.ptyKill?.(`${provider}-main-${workspace.id}`);
+            } catch {}
+          }
+        } catch {}
+        const sessionIds = [
+          `workspace-${workspace.id}`,
+          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${workspace.id}`),
+        ];
+
+        await Promise.allSettled(
+          sessionIds.map(async (sessionId) => {
+            try {
+              terminalSessionRegistry.dispose(sessionId);
+            } catch {}
+            try {
+              await window.electronAPI.ptyClearSnapshot({ id: sessionId });
+            } catch {}
+          })
+        );
+
+        const [removeResult, deleteResult] = await Promise.allSettled([
+          window.electronAPI.worktreeRemove({
+            projectPath: targetProject.path,
+            worktreeId: workspace.id,
+            worktreePath: workspace.path,
+            branch: workspace.branch,
+          }),
+          window.electronAPI.deleteWorkspace(workspace.id),
+        ]);
+
+        if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
+          const errorMsg =
+            removeResult.status === 'fulfilled'
+              ? removeResult.value?.error || 'Failed to remove worktree'
+              : removeResult.reason?.message || String(removeResult.reason);
+          throw new Error(errorMsg);
+        }
+
+        if (deleteResult.status !== 'fulfilled' || !deleteResult.value?.success) {
+          const errorMsg =
+            deleteResult.status === 'fulfilled'
+              ? deleteResult.value?.error || 'Failed to delete workspace'
+              : deleteResult.reason?.message || String(deleteResult.reason);
+          throw new Error(errorMsg);
+        }
+
+        // Track workspace deletion
+        const { captureTelemetry } = await import('./lib/telemetryClient');
+        captureTelemetry('workspace_deleted');
+
+        if (!options?.silent) {
+          toast({
+            title: 'Task deleted',
+            description: workspace.name,
+          });
+        }
+        return true;
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to delete workspace:', error as any);
+        toast({
+          title: 'Error',
+          description:
+            error instanceof Error
+              ? error.message
+              : 'Could not delete workspace. Check the console for details.',
+          variant: 'destructive',
+        });
+
+        try {
+          const refreshedWorkspaces = await window.electronAPI.getWorkspaces(targetProject.id);
+          setProjects((prev) =>
+            prev.map((project) =>
+              project.id === targetProject.id
+                ? { ...project, workspaces: refreshedWorkspaces }
+                : project
+            )
+          );
+          setSelectedProject((prev) =>
+            prev && prev.id === targetProject.id
+              ? { ...prev, workspaces: refreshedWorkspaces }
+              : prev
+          );
+
+          if (wasActive) {
+            const restored = refreshedWorkspaces.find((w) => w.id === workspace.id);
+            if (restored) {
+              handleSelectWorkspace(restored);
+            }
+          }
+        } catch (refreshError) {
+          log.error('Failed to refresh workspaces after delete failure:', refreshError as any);
+
+          setProjects((prev) =>
+            prev.map((project) => {
+              if (project.id !== targetProject.id) return project;
+              const existing = project.workspaces || [];
+              const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
+              return alreadyPresent
+                ? project
+                : { ...project, workspaces: [workspaceSnapshot, ...existing] };
+            })
+          );
+          setSelectedProject((prev) => {
+            if (!prev || prev.id !== targetProject.id) return prev;
+            const existing = prev.workspaces || [];
+            const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
+            return alreadyPresent
+              ? prev
+              : { ...prev, workspaces: [workspaceSnapshot, ...existing] };
+          });
+
+          if (wasActive) {
+            handleSelectWorkspace(workspaceSnapshot);
+          }
+        }
+        return false;
+      } finally {
+        deletingWorkspaceIdsRef.current.delete(workspace.id);
+      }
+    };
+
+    return runDeletion();
   };
 
   const handleReorderProjects = (sourceId: string, targetId: string) => {
@@ -1170,6 +1382,8 @@ const AppContent: React.FC = () => {
       const res = await window.electronAPI.deleteProject(project.id);
       if (!res?.success) throw new Error(res?.error || 'Failed to delete project');
 
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('project_deleted');
       setProjects((prev) => prev.filter((p) => p.id !== project.id));
       if (selectedProject?.id === project.id) {
         setSelectedProject(null);
@@ -1190,6 +1404,70 @@ const AppContent: React.FC = () => {
   };
 
   const [showKanban, setShowKanban] = useState<boolean>(false);
+  const handleToggleKanban = useCallback(() => {
+    if (!selectedProject) return;
+    setShowKanban((v) => !v);
+  }, [selectedProject]);
+
+  const handleDeviceFlowSuccess = useCallback(
+    async (user: any) => {
+      setShowDeviceFlowModal(false);
+
+      // Refresh status immediately to update UI
+      await checkStatus();
+
+      // Also refresh again after a short delay to catch user info if it arrives quickly
+      setTimeout(async () => {
+        await checkStatus();
+      }, 500);
+
+      toast({
+        title: 'Connected to GitHub',
+        description: `Signed in as ${user?.login || user?.name || 'user'}`,
+      });
+    },
+    [checkStatus, toast]
+  );
+
+  const handleDeviceFlowError = useCallback(
+    (error: string) => {
+      setShowDeviceFlowModal(false);
+
+      toast({
+        title: 'Authentication Failed',
+        description: error,
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
+
+  const handleDeviceFlowClose = useCallback(() => {
+    setShowDeviceFlowModal(false);
+  }, []);
+
+  // Subscribe to GitHub auth events from main process
+  useEffect(() => {
+    const cleanupSuccess = window.electronAPI.onGithubAuthSuccess((data) => {
+      handleDeviceFlowSuccess(data.user);
+    });
+
+    const cleanupError = window.electronAPI.onGithubAuthError((data) => {
+      handleDeviceFlowError(data.message || data.error);
+    });
+
+    // Listen for user info update (arrives after token is stored and gh CLI is authenticated)
+    const cleanupUserUpdated = window.electronAPI.onGithubAuthUserUpdated(async () => {
+      // Refresh status when user info becomes available
+      await checkStatus();
+    });
+
+    return () => {
+      cleanupSuccess();
+      cleanupError();
+      cleanupUserUpdated();
+    };
+  }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
 
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
@@ -1247,22 +1525,21 @@ const AppContent: React.FC = () => {
             </div>
 
             <div className="flex flex-col justify-center gap-4 sm:flex-row">
-              <Button onClick={handleOpenProject} size="lg" className="min-w-[200px]">
+              <Button
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('./lib/telemetryClient');
+                    captureTelemetry('project_open_clicked');
+                  })();
+                  handleOpenProject();
+                }}
+                size="lg"
+                className="min-w-[200px]"
+              >
                 <FolderOpen className="mr-2 h-5 w-5" />
                 Open Project
               </Button>
-              <Button
-                onClick={() => setShowCloneModal(true)}
-                size="lg"
-                variant="secondary"
-                className="min-w-[200px]"
-              >
-                <Download className="mr-2 h-5 w-5" />
-                Clone Repository
-              </Button>
             </div>
-
-            <HowToUseMdash className="mt-4" />
           </div>
         </div>
       );
@@ -1329,18 +1606,7 @@ const AppContent: React.FC = () => {
               <FolderOpen className="mr-2 h-5 w-5" />
               Open Project
             </Button>
-            <Button
-              onClick={() => setShowCloneModal(true)}
-              size="lg"
-              variant="secondary"
-              className="min-w-[200px]"
-            >
-              <Download className="mr-2 h-5 w-5" />
-              Clone Repository
-            </Button>
           </div>
-
-          <HowToUseMdash className="mt-2" />
         </div>
       </div>
     );
@@ -1352,13 +1618,12 @@ const AppContent: React.FC = () => {
         className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
         style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
       >
-        {/** Kanban view state **/}
         {(() => {
           // Track Kanban locally in this component scope
           return null;
         })()}
         <SidebarProvider>
-          <RightSidebarProvider defaultCollapsed>
+          <RightSidebarProvider>
             <AppKeyboardShortcuts
               showCommandPalette={showCommandPalette}
               showSettings={showSettings}
@@ -1366,6 +1631,7 @@ const AppContent: React.FC = () => {
               handleOpenSettings={handleOpenSettings}
               handleCloseCommandPalette={handleCloseCommandPalette}
               handleCloseSettings={handleCloseSettings}
+              handleToggleKanban={handleToggleKanban}
             />
             <RightSidebarBridge
               onCollapsedChange={handleRightSidebarCollapsedChange}
@@ -1389,7 +1655,7 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path || null}
               isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
               githubUser={user}
-              onToggleKanban={() => setShowKanban((v) => !v)}
+              onToggleKanban={handleToggleKanban}
               isKanbanOpen={Boolean(showKanban)}
               kanbanAvailable={Boolean(selectedProject)}
             />
@@ -1422,11 +1688,15 @@ const AppContent: React.FC = () => {
                     githubInstalled={ghInstalled}
                     githubAuthenticated={isAuthenticated}
                     githubUser={user}
+                    onGithubConnect={handleGithubConnect}
+                    githubLoading={githubLoading}
+                    githubStatusMessage={githubStatusMessage}
                     onSidebarContextChange={handleSidebarContextChange}
                     onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
                     isCreatingWorkspace={isCreatingWorkspace}
                     onDeleteWorkspace={handleDeleteWorkspace}
                     onDeleteProject={handleDeleteProject}
+                    isHomeView={showHomeView}
                   />
                 </ResizablePanel>
                 <ResizableHandle
@@ -1481,16 +1751,25 @@ const AppContent: React.FC = () => {
               existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
               projectPath={selectedProject?.path}
             />
-            <CloneRepoModal
-              isOpen={showCloneModal}
-              onClose={() => setShowCloneModal(false)}
-              onClone={handleCloneRepo}
+            <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
+            <GithubDeviceFlowModal
+              open={showDeviceFlowModal}
+              onClose={handleDeviceFlowClose}
+              onSuccess={handleDeviceFlowSuccess}
+              onError={handleDeviceFlowError}
+            />
+            <ProjectDialog
+              isOpen={showProjectDialog}
+              onClose={() => setShowProjectDialog(false)}
+              onProjectAdded={handleProjectAdded}
             />
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}
               workspacePath={activeWorkspace?.path || null}
-              overlayActive={showSettings || showCommandPalette || showWorkspaceModal}
+              overlayActive={
+                showSettings || showCommandPalette || showWorkspaceModal || showFirstLaunchModal
+              }
             />
           </RightSidebarProvider>
         </SidebarProvider>

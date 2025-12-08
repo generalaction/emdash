@@ -63,6 +63,48 @@ export function registerProjectIpc() {
     }
   });
 
+  ipcMain.handle('project:clone', async (_, repoUrl: string, repoName?: string, customDestination?: string) => {
+    try {
+      // Default to /Users/knewton26/Emdash, or use custom destination if provided
+      const defaultCloneDir = '/Users/knewton26/Emdash';
+      const parentDir = customDestination || defaultCloneDir;
+
+      // Ensure the emdash directory exists
+      if (!fs.existsSync(parentDir)) {
+        fs.mkdirSync(parentDir, { recursive: true });
+      }
+
+      const clonePath = join(parentDir, repoName || repoUrl.split('/').pop()?.replace('.git', '') || 'repository');
+
+      // Clone the repository directly
+      await execAsync(`git clone "${repoUrl}" "${clonePath}"`);
+
+      return { success: true, path: clonePath };
+    } catch (error) {
+      console.error('Failed to clone project:', error);
+      return { success: false, error: 'Failed to clone repository' };
+    }
+  });
+
+  ipcMain.handle('project:selectCloneDestination', async () => {
+    try {
+      const result = await dialog.showOpenDialog(getMainWindow()!, {
+        title: 'Select Clone Destination',
+        properties: ['openDirectory', 'createDirectory'],
+        message: 'Select where to clone the repository',
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false };
+      }
+
+      return { success: true, path: result.filePaths[0] };
+    } catch (error) {
+      console.error('Failed to select clone destination:', error);
+      return { success: false, error: 'Failed to select directory' };
+    }
+  });
+
   ipcMain.handle('git:getInfo', async (_, projectPath: string) => {
     try {
       const resolveRealPath = async (target: string) => {
