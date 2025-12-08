@@ -108,7 +108,8 @@ export function hasShortcutConflict(shortcut1: ShortcutConfig, shortcut2: Shortc
   );
 }
 
-const isMacPlatform = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const isMacPlatform =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 function matchesModifier(modifier: ShortcutModifier | undefined, event: KeyboardEvent): boolean {
   if (!modifier) {
