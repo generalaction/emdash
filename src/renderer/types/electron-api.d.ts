@@ -453,7 +453,9 @@ declare global {
       ) => () => void;
       onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
       onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
-      onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
+      onGithubAuthSuccess: (
+        callback: (data: { token: string; user: any; account?: any }) => void
+      ) => () => void;
       onGithubAuthError: (
         callback: (data: { error: string; message: string }) => void
       ) => () => void;
@@ -491,6 +493,53 @@ declare global {
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
+
+      // Multi-account GitHub support
+      githubGetAccounts: () => Promise<{
+        success: boolean;
+        accounts?: Array<{
+          id: string;
+          login: string;
+          name: string;
+          email: string;
+          avatar_url: string;
+          isDefault: boolean;
+          isActive: boolean;
+          createdAt: string;
+          updatedAt: string;
+        }>;
+        error?: string;
+      }>;
+      githubGetActiveAccount: () => Promise<{
+        success: boolean;
+        account?: {
+          id: string;
+          login: string;
+          name: string;
+          email: string;
+          avatar_url: string;
+          isDefault: boolean;
+          isActive: boolean;
+          createdAt: string;
+          updatedAt: string;
+        };
+        error?: string;
+      }>;
+      githubSwitchAccount: (accountId: string) => Promise<{
+        success: boolean;
+        token?: string;
+        user?: any;
+        error?: string;
+      }>;
+      githubRemoveAccount: (accountId: string) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      githubSetDefaultAccount: (accountId: string) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+
       // Linear integration
       linearCheckConnection?: () => Promise<{
         connected: boolean;
@@ -804,7 +853,9 @@ export interface ElectronAPI {
   ) => () => void;
   onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
   onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
-  onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
+  onGithubAuthSuccess: (
+    callback: (data: { token: string; user: any; account?: any }) => void
+  ) => () => void;
   onGithubAuthError: (callback: (data: { error: string; message: string }) => void) => () => void;
   onGithubAuthCancelled: (callback: () => void) => () => void;
   onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;

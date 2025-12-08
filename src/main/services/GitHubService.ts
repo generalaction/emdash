@@ -2,14 +2,15 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
-import { shell, BrowserWindow } from 'electron';
+import { shell } from 'electron';
 import { GITHUB_CONFIG } from '../config/github.config';
 import { getMainWindow } from '../app/window';
+import { databaseService } from './DatabaseService';
 
 const execAsync = promisify(exec);
 
 export interface GitHubUser {
-  id: number;
+  id: number | string;
   login: string;
   name: string;
   email: string;
@@ -81,6 +82,11 @@ export class GitHubService {
   private pollingInterval: NodeJS.Timeout | null = null;
   private currentDeviceCode: string | null = null;
   private currentInterval = 5;
+
+  // Simple ID generator
+  private generateId(): string {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  }
 
   /**
    * Authenticate with GitHub using Device Flow
@@ -170,15 +176,12 @@ export class GitHubService {
         const result = await this.pollDeviceToken(this.currentDeviceCode, this.currentInterval);
 
         if (result.success && result.token) {
-          // Success! Emit immediately
+          // Success! Stop polling but don't emit success immediately
           this.stopPolling();
-          const mainWindow = getMainWindow();
-          if (mainWindow) {
-            mainWindow.webContents.send('github:auth:success', {
-              token: result.token,
-              user: result.user || undefined,
-            });
-          }
+
+          // For device flow, success will be emitted in background task after account is saved
+          // This ensures account data is available when the UI receives the success event
+          return;
         } else if (result.error) {
           const mainWindow = getMainWindow();
 
@@ -361,24 +364,54 @@ export class GitHubService {
         // Do heavy operations in background
         setImmediate(async () => {
           try {
-            // Store token securely
-            await this.storeToken(token);
-
-            // Authenticate gh CLI with the token
-            await this.authenticateGHCLI(token).catch(() => {
-              // Silent fail - gh CLI might not be installed
-            });
-
-            // Get user info and send update
+            // Get user info first
             const user = await this.getUserInfo(token);
-            const mainWindow = getMainWindow();
-            if (user && mainWindow) {
-              mainWindow.webContents.send('github:auth:user-updated', {
-                user: user,
+
+            if (user) {
+              // Create account record
+              const account = {
+                id: String(user.id ?? this.generateId()),
+                login: user.login,
+                name: user.name,
+                email: user.email,
+                avatar_url: user.avatar_url,
+                isDefault: false,
+                isActive: true,
+              };
+
+              // Store account in database
+              await databaseService.saveGithubAccount(account);
+
+              // Store token securely with account login as identifier
+              await this.storeTokenForAccount(token, user.login);
+
+              // Set as active account
+              await databaseService.setActiveGithubAccount(account.id);
+
+              // Authenticate gh CLI with the token
+              await this.authenticateGHCLI(token).catch(() => {
+                // Silent fail - gh CLI might not be installed
               });
+
+              // Send success update
+              const mainWindow = getMainWindow();
+              if (mainWindow) {
+                mainWindow.webContents.send('github:auth:success', {
+                  token: token,
+                  user: user,
+                  account: account,
+                });
+              }
             }
           } catch (error) {
             console.warn('Background auth setup failed:', error);
+            const mainWindow = getMainWindow();
+            if (mainWindow) {
+              mainWindow.webContents.send('github:auth:error', {
+                error: 'Failed to save account information',
+                message: 'Authentication succeeded but failed to save account.',
+              });
+            }
           }
         });
 
@@ -440,8 +473,18 @@ export class GitHubService {
     } catch (error: any) {
       // Check if it's an auth error
       if (error.message && error.message.includes('not authenticated')) {
-        // Try to re-authenticate gh CLI with stored token
-        const token = await this.getStoredToken();
+        // Try to re-authenticate gh CLI with the active account token (fall back to legacy token)
+        const activeAccount = await this.getActiveGithubAccount();
+        let token: string | null = null;
+
+        if (activeAccount) {
+          token = await this.getStoredTokenForAccount(activeAccount.login);
+        }
+
+        if (!token) {
+          token = await this.getStoredToken();
+        }
+
         if (token) {
           await this.authenticateGHCLI(token);
 
@@ -563,7 +606,121 @@ export class GitHubService {
   }
 
   /**
-   * Authenticate with GitHub using Personal Access Token
+   * Get all stored GitHub accounts
+   */
+  async getGithubAccounts() {
+    return await databaseService.getGithubAccounts();
+  }
+
+  /**
+   * Get the currently active GitHub account
+   */
+  async getActiveGithubAccount() {
+    return await databaseService.getActiveGithubAccount();
+  }
+
+  /**
+   * Switch to a different GitHub account
+   */
+  async switchToGithubAccount(accountId: string): Promise<AuthResult> {
+    try {
+      const account = await databaseService.getGithubAccountById(accountId);
+      if (!account) {
+        return { success: false, error: 'Account not found' };
+      }
+
+      // Get the stored token for this account
+      const token = await this.getStoredTokenForAccount(account.login);
+      if (!token) {
+        return { success: false, error: 'Token not found for account' };
+      }
+
+      // Set as active account
+      await databaseService.setActiveGithubAccount(accountId);
+
+      // Authenticate gh CLI with the token
+      await this.authenticateGHCLI(token).catch(() => {
+        // Silent fail - gh CLI might not be installed
+      });
+
+      const parsedId = Number.parseInt(account.id, 10);
+      const normalizedId = Number.isNaN(parsedId) ? account.id : parsedId;
+
+      return {
+        success: true,
+        token: token,
+        user: {
+          id: normalizedId,
+          login: account.login,
+          name: account.name,
+          email: account.email,
+          avatar_url: account.avatar_url,
+        }
+      };
+    } catch (error) {
+      console.error('Account switching failed:', error);
+      return {
+        success: false,
+        error: 'Failed to switch account',
+      };
+    }
+  }
+
+  /**
+   * Remove a GitHub account
+   */
+  async removeGithubAccount(accountId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const account = await databaseService.getGithubAccountById(accountId);
+      if (!account) {
+        return { success: false, error: 'Account not found' };
+      }
+
+      // Remove stored token
+      await this.removeTokenForAccount(account.login);
+
+      // Remove from database
+      await databaseService.removeGithubAccount(accountId);
+
+      // If there is another account available, ensure gh CLI is authenticated with it
+      const nextActiveAccount = await databaseService.getActiveGithubAccount();
+      if (nextActiveAccount) {
+        const nextToken = await this.getStoredTokenForAccount(nextActiveAccount.login);
+        if (nextToken) {
+          await this.authenticateGHCLI(nextToken).catch(() => {
+            // Silent fail - gh CLI might not be installed
+          });
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Account removal failed:', error);
+      return {
+        success: false,
+        error: 'Failed to remove account',
+      };
+    }
+  }
+
+  /**
+   * Set default GitHub account
+   */
+  async setDefaultGithubAccount(accountId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await databaseService.setDefaultGithubAccount(accountId);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to set default account:', error);
+      return {
+        success: false,
+        error: 'Failed to set default account',
+      };
+    }
+  }
+
+  /**
+   * Authenticate with GitHub using Personal Access Token (multi-account version)
    */
   async authenticateWithToken(token: string): Promise<AuthResult> {
     try {
@@ -571,8 +728,31 @@ export class GitHubService {
       const user = await this.getUserInfo(token);
 
       if (user) {
+        // Create account record
+        const account = {
+          id: String(user.id ?? this.generateId()),
+          login: user.login,
+          name: user.name,
+          email: user.email,
+          avatar_url: user.avatar_url,
+          isDefault: false,
+          isActive: true,
+        };
+
+        // Store account in database
+        await databaseService.saveGithubAccount(account);
+
         // Store token securely
-        await this.storeToken(token);
+        await this.storeTokenForAccount(token, user.login);
+
+        // Set as active account
+        await databaseService.setActiveGithubAccount(account.id);
+
+        // Authenticate gh CLI with this token
+        await this.authenticateGHCLI(token).catch(() => {
+          // Silent fail - gh CLI might not be installed
+        });
+
         return { success: true, token, user };
       }
 
@@ -587,20 +767,67 @@ export class GitHubService {
   }
 
   /**
-   * Check if user is authenticated
+   * Check if user is authenticated (multi-account version)
    */
   async isAuthenticated(): Promise<boolean> {
     try {
-      const token = await this.getStoredToken();
+      const accounts = await this.getGithubAccounts();
+      const existingActive = accounts.find((account) => account.isActive);
+      let activeAccount = existingActive ?? accounts[0] ?? null;
+
+      if (activeAccount && !activeAccount.isActive) {
+        await databaseService.setActiveGithubAccount(activeAccount.id);
+        activeAccount = { ...activeAccount, isActive: true };
+      }
+
+      let token: string | null = null;
+
+      if (activeAccount) {
+        token = await this.getStoredTokenForAccount(activeAccount.login);
+      }
 
       if (!token) {
-        // No stored token, user needs to authenticate
+        token = await this.getStoredToken();
+      }
+
+      if (!token) {
+        token = await this.getGhCliToken();
+      }
+
+      if (!token) {
+        // No stored tokens and not logged into gh CLI
         return false;
       }
 
       // Test the token by making a simple API call
       const user = await this.getUserInfo(token);
-      return !!user;
+      if (!user) {
+        return false;
+      }
+
+      const hasDefault = accounts.some((account) => account.isDefault);
+      if (!activeAccount || activeAccount.login !== user.login) {
+        const migratedAccount = {
+          id: String(user.id ?? this.generateId()),
+          login: user.login,
+          name: user.name,
+          email: user.email,
+          avatar_url: user.avatar_url,
+          isDefault: activeAccount?.isDefault ?? !hasDefault,
+          isActive: true,
+        };
+
+        await databaseService.saveGithubAccount(migratedAccount);
+        await databaseService.setActiveGithubAccount(migratedAccount.id);
+        activeAccount =
+          (await databaseService.getGithubAccountById(migratedAccount.id)) ?? activeAccount;
+      }
+
+      // Persist tokens for the active account (and legacy location for compatibility)
+      await this.storeTokenForAccount(token, user.login);
+      await this.storeToken(token);
+
+      return true;
     } catch (error) {
       console.error('Authentication check failed:', error);
       return false;
@@ -608,11 +835,38 @@ export class GitHubService {
   }
 
   /**
-   * Get user information using GitHub CLI
+   * Get user information using the provided token
    */
   async getUserInfo(token: string): Promise<GitHubUser | null> {
     try {
-      // Use gh CLI to get user info
+      if (!token) return null;
+
+      // Prefer direct API call (works without gh CLI)
+      try {
+        const response = await fetch('https://api.github.com/user', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'Emdash',
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+
+          return {
+            id: userData.id,
+            login: userData.login,
+            name: userData.name || userData.login,
+            email: userData.email || '',
+            avatar_url: userData.avatar_url,
+          };
+        }
+      } catch (apiError) {
+        console.warn('Direct GitHub API lookup failed, falling back to gh CLI:', apiError);
+      }
+
+      // Fallback to gh CLI if available
       const { stdout } = await this.execGH('gh api user');
       const userData = JSON.parse(stdout);
 
@@ -776,10 +1030,22 @@ export class GitHubService {
   }
 
   /**
-   * Logout and clear stored token
+   * Logout and clear all stored tokens and accounts
    */
   async logout(): Promise<void> {
     try {
+      // Get all accounts to remove their tokens
+      const accounts = await this.getGithubAccounts();
+
+      // Remove all stored tokens
+      for (const account of accounts) {
+        await this.removeTokenForAccount(account.login);
+      }
+
+      // Clear all accounts from database
+      await databaseService.clearGithubAccounts();
+
+      // Remove legacy single-account token
       const keytar = await import('keytar');
       await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
     } catch (error) {
@@ -788,7 +1054,7 @@ export class GitHubService {
   }
 
   /**
-   * Store authentication token securely
+   * Store authentication token securely (legacy method for backward compatibility)
    */
   private async storeToken(token: string): Promise<void> {
     try {
@@ -801,7 +1067,7 @@ export class GitHubService {
   }
 
   /**
-   * Retrieve stored authentication token
+   * Retrieve stored authentication token (legacy method for backward compatibility)
    */
   private async getStoredToken(): Promise<string | null> {
     try {
@@ -809,6 +1075,64 @@ export class GitHubService {
       return await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
     } catch (error) {
       console.error('Failed to retrieve token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Store authentication token for a specific account
+   */
+  private async storeTokenForAccount(token: string, accountLogin: string): Promise<void> {
+    try {
+      const keytar = await import('keytar');
+      await keytar.setPassword(this.SERVICE_NAME, `${this.ACCOUNT_NAME}-${accountLogin}`, token);
+    } catch (error) {
+      console.error('Failed to store token for account:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieve stored authentication token for a specific account
+   */
+  private async getStoredTokenForAccount(accountLogin: string): Promise<string | null> {
+    try {
+      const keytar = await import('keytar');
+      return await keytar.getPassword(this.SERVICE_NAME, `${this.ACCOUNT_NAME}-${accountLogin}`);
+    } catch (error) {
+      console.error('Failed to retrieve token for account:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Remove stored authentication token for a specific account
+   */
+  private async removeTokenForAccount(accountLogin: string): Promise<void> {
+    try {
+      const keytar = await import('keytar');
+      await keytar.deletePassword(this.SERVICE_NAME, `${this.ACCOUNT_NAME}-${accountLogin}`);
+    } catch (error) {
+      console.error('Failed to remove token for account:', error);
+    }
+  }
+
+  /**
+   * Retrieve token from gh CLI if the user is already logged in there
+   */
+  private async getGhCliToken(): Promise<string | null> {
+    try {
+      const { stdout: statusOutput } = await execAsync('gh auth status --hostname github.com');
+      const isLoggedIn = String(statusOutput || '').toLowerCase().includes('logged in');
+      if (!isLoggedIn) {
+        return null;
+      }
+
+      const { stdout } = await execAsync('gh auth token');
+      const token = String(stdout || '').trim();
+      return token || null;
+    } catch (error) {
+      console.warn('Failed to read token from gh CLI:', error);
       return null;
     }
   }

@@ -333,4 +333,61 @@ export function registerGithubIpc() {
       };
     }
   });
+
+  // Multi-account support handlers
+
+  // Get all stored GitHub accounts
+  ipcMain.handle('github:getAccounts', async () => {
+    try {
+      const accounts = await githubService.getGithubAccounts();
+      return { success: true, accounts };
+    } catch (error) {
+      log.error('Failed to get GitHub accounts:', error);
+      return { success: false, error: 'Failed to get accounts' };
+    }
+  });
+
+  // Get the currently active GitHub account
+  ipcMain.handle('github:getActiveAccount', async () => {
+    try {
+      const account = await githubService.getActiveGithubAccount();
+      return { success: true, account };
+    } catch (error) {
+      log.error('Failed to get active GitHub account:', error);
+      return { success: false, error: 'Failed to get active account' };
+    }
+  });
+
+  // Switch to a different GitHub account
+  ipcMain.handle('github:switchAccount', async (_, accountId: string) => {
+    try {
+      const result = await githubService.switchToGithubAccount(accountId);
+      return result;
+    } catch (error) {
+      log.error('Failed to switch GitHub account:', error);
+      return { success: false, error: 'Failed to switch account' };
+    }
+  });
+
+  // Remove a GitHub account
+  ipcMain.handle('github:removeAccount', async (_, accountId: string) => {
+    try {
+      const result = await githubService.removeGithubAccount(accountId);
+      return result;
+    } catch (error) {
+      log.error('Failed to remove GitHub account:', error);
+      return { success: false, error: 'Failed to remove account' };
+    }
+  });
+
+  // Set default GitHub account
+  ipcMain.handle('github:setDefaultAccount', async (_, accountId: string) => {
+    try {
+      const result = await githubService.setDefaultGithubAccount(accountId);
+      return result;
+    } catch (error) {
+      log.error('Failed to set default GitHub account:', error);
+      return { success: false, error: 'Failed to set default account' };
+    }
+  });
 }

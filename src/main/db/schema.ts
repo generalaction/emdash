@@ -89,6 +89,30 @@ export const messages = sqliteTable(
   })
 );
 
+export const githubAccounts = sqliteTable(
+  'github_accounts',
+  {
+    id: text('id').primaryKey(),
+    login: text('login').notNull(),
+    name: text('name').notNull(),
+    email: text('email').notNull().default(''),
+    avatar_url: text('avatar_url').notNull(),
+    isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    loginIdx: uniqueIndex('idx_github_accounts_login').on(table.login),
+    defaultIdx: index('idx_github_accounts_default').on(table.isDefault),
+    activeIdx: index('idx_github_accounts_active').on(table.isActive),
+  })
+);
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   workspaces: many(workspaces),
 }));
@@ -120,3 +144,4 @@ export type ProjectRow = typeof projects.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
+export type GithubAccountRow = typeof githubAccounts.$inferSelect;

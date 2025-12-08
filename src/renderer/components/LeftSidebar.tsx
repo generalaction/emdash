@@ -14,12 +14,14 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Home, ChevronDown, Plus, FolderOpen } from 'lucide-react';
+import { Home, ChevronDown, Plus, FolderOpen, User, Users } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
 import { WorkspaceItem } from './WorkspaceItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import AccountManagerPopup from './AccountManagerPopup';
+import { useGithubAuth } from '@/hooks/useGithubAuth';
 import type { Project } from '../types/app';
 import type { Workspace } from '../types/chat';
 
@@ -90,6 +92,16 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
+  const [showAccountManager, setShowAccountManager] = React.useState(false);
+
+  // Use multi-account GitHub auth hook
+  const githubAuth = useGithubAuth();
+  const installed = githubAuth.installed ?? githubInstalled;
+  const authenticated = githubAuth.authenticated ?? githubAuthenticated;
+  const statusUser = githubAuth.user ?? githubUser;
+  const loadingState = githubAuth.isLoading || githubLoading;
+  const canOpenAccountManager =
+    loadingState || authenticated || githubAuth.accounts.length > 0 || Boolean(onGithubConnect);
 
   const handleDeleteProject = React.useCallback(
     async (project: Project) => {
@@ -106,21 +118,25 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     [onDeleteProject]
   );
 
-  const githubProfileUrl = React.useMemo(() => {
-    if (!githubAuthenticated) {
-      return null;
-    }
-    const login = githubUser?.login?.trim();
-    return login ? `https://github.com/${login}` : null;
-  }, [githubAuthenticated, githubUser?.login]);
-
   const handleGithubProfileClick = React.useCallback(() => {
-    if (!githubProfileUrl || typeof window === 'undefined') {
-      return;
+    // Always open account manager instead of profile URL
+    setShowAccountManager(true);
+  }, []);
+
+  const handleAddAccount = React.useCallback(() => {
+    setShowAccountManager(false);
+    if (githubAuth.login) {
+      githubAuth.login();
+    } else if (onGithubConnect) {
+      onGithubConnect();
     }
-    const api = (window as any).electronAPI;
-    api?.openExternal?.(githubProfileUrl);
-  }, [githubProfileUrl]);
+  }, [githubAuth, onGithubConnect]);
+
+  const handleOpenSettings = React.useCallback(() => {
+    setShowAccountManager(false);
+    // TODO: Navigate to GitHub settings page or open settings modal
+    console.log('Open GitHub settings');
+  }, []);
 
   React.useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
@@ -128,17 +144,18 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   const renderGithubStatus = () => (
     <GithubStatus
-      installed={githubInstalled}
-      authenticated={githubAuthenticated}
-      user={githubUser}
+      installed={installed}
+      authenticated={authenticated}
+      user={statusUser}
       onConnect={onGithubConnect}
-      isLoading={githubLoading}
+      isLoading={loadingState}
       statusMessage={githubStatusMessage}
     />
   );
 
   return (
-    <div className="relative h-full">
+    <>
+      <div className="relative h-full">
       <Sidebar className="lg:border-r-0">
         <SidebarContent>
           <SidebarGroup className="mb-3">
@@ -353,24 +370,39 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           <SidebarMenu className="w-full">
             <SidebarMenuItem>
               <SidebarMenuButton
-                tabIndex={githubProfileUrl ? 0 : -1}
+                tabIndex={canOpenAccountManager ? 0 : -1}
                 onClick={(e) => {
-                  if (!githubProfileUrl) {
+                  if (!canOpenAccountManager) {
                     return;
                   }
                   e.preventDefault();
                   handleGithubProfileClick();
                 }}
                 className={`flex w-full items-center justify-start gap-2 px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
-                  githubProfileUrl
+                  canOpenAccountManager
                     ? 'hover:bg-black/5 dark:hover:bg-white/5'
                     : 'cursor-default hover:bg-transparent'
                 }`}
-                aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
+                aria-label={authenticated ? 'Manage GitHub accounts' : undefined}
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
                   <div className="hidden truncate sm:block">{renderGithubStatus()}</div>
                 </div>
+
+                {/* Show account count indicator if multiple accounts */}
+                {githubAuth.hasMultipleAccounts && (
+                  <div className="flex items-center gap-1">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                      {githubAuth.accounts.length}
+                    </span>
+                  </div>
+                )}
+
+                {/* Show single user icon if authenticated */}
+                {githubAuth.authenticated && !githubAuth.hasMultipleAccounts && (
+                  <User className="h-4 w-4 text-muted-foreground" />
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -378,6 +410,21 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       </Sidebar>
       <SidebarToggleButton />
     </div>
+
+    {/* Account Manager Popup */}
+    <AccountManagerPopup
+      isOpen={showAccountManager}
+      onClose={() => setShowAccountManager(false)}
+      onAddAccount={handleAddAccount}
+      onSwitchAccount={githubAuth.switchAccount}
+      onRemoveAccount={githubAuth.removeAccount}
+      onSetDefaultAccount={githubAuth.setDefaultAccount}
+      onOpenSettings={handleOpenSettings}
+      accounts={githubAuth.accounts}
+      activeAccount={githubAuth.activeAccount}
+      isLoading={githubAuth.isLoading}
+    />
+    </>
   );
 };
 

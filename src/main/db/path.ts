@@ -10,7 +10,9 @@ export interface ResolveDatabasePathOptions {
 }
 
 export function resolveDatabasePath(options: ResolveDatabasePathOptions = {}): string {
-  const userDataPath = options.userDataPath ?? app.getPath('userData');
+  const userDataPath =
+    options.userDataPath ??
+    (typeof app?.getPath === 'function' ? app.getPath('userData') : process.cwd());
 
   const currentPath = join(userDataPath, CURRENT_DB_FILENAME);
   if (existsSync(currentPath)) {
@@ -38,7 +40,7 @@ export const databaseFilenames = {
 };
 
 export function resolveMigrationsPath(): string | null {
-  const appPath = app.getAppPath();
+  const appPath = typeof app?.getAppPath === 'function' ? app.getAppPath() : process.cwd();
   const resourcesPath = process.resourcesPath ?? appPath;
   const candidates = [
     join(appPath, 'drizzle'),

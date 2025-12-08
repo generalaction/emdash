@@ -8,10 +8,12 @@ import {
   workspaces as workspacesTable,
   conversations as conversationsTable,
   messages as messagesTable,
+  githubAccounts as githubAccountsTable,
   type ProjectRow,
   type WorkspaceRow,
   type ConversationRow,
   type MessageRow,
+  type GithubAccountRow,
 } from '../db/schema';
 
 export interface Project {
@@ -60,6 +62,18 @@ export interface Message {
   sender: 'user' | 'agent';
   timestamp: string;
   metadata?: string; // JSON string for additional data
+}
+
+export interface GithubAccount {
+  id: string;
+  login: string;
+  name: string;
+  email: string;
+  avatar_url: string;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class DatabaseService {
@@ -555,6 +569,263 @@ export class DatabaseService {
     );
 
     DatabaseService.migrationsApplied = true;
+  }
+
+  // GitHub Account Management Methods
+
+  async saveGithubAccount(account: Omit<GithubAccount, 'createdAt' | 'updatedAt'>): Promise<void> {
+    if (this.disabled) return;
+
+    try {
+      await this.ensureGithubAccountsTable();
+      const { db } = await getDrizzleClient();
+
+      // Try to get existing accounts to see if table exists
+      let existingAccounts: GithubAccount[] = [];
+      try {
+        existingAccounts = await this.getGithubAccounts();
+      } catch (error) {
+        // Table likely doesn't exist, create it
+        console.warn('GitHub accounts table might not exist, attempting to create it...');
+        await this.ensureGithubAccountsTable();
+        // Try again after creating table
+        existingAccounts = await this.getGithubAccounts();
+      }
+
+      const isFirstAccount = existingAccounts.length === 0;
+
+      await db
+        .insert(githubAccountsTable)
+        .values({
+          id: account.id,
+          login: account.login,
+          name: account.name,
+          email: account.email,
+          avatar_url: account.avatar_url,
+          isDefault: isFirstAccount ? true : account.isDefault,
+          isActive: isFirstAccount ? true : account.isActive,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .onConflictDoUpdate({
+          target: githubAccountsTable.login,
+          set: {
+            name: account.name,
+            email: account.email,
+            avatar_url: account.avatar_url,
+            isDefault: account.isDefault,
+            isActive: account.isActive,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          },
+        });
+    } catch (error) {
+      console.error('Failed to save GitHub account:', error);
+      throw error;
+    }
+  }
+
+  async getGithubAccounts(): Promise<GithubAccount[]> {
+    if (this.disabled) return [];
+    try {
+      const { db } = await getDrizzleClient();
+      const rows = await db
+        .select()
+        .from(githubAccountsTable)
+        .orderBy(desc(githubAccountsTable.isDefault), desc(githubAccountsTable.updatedAt));
+      return rows.map((row) => this.mapDrizzleGithubAccountRow(row));
+    } catch (error) {
+      // Table likely doesn't exist yet
+      console.warn('GitHub accounts table not found, attempting to create it...');
+      try {
+        await this.ensureGithubAccountsTable();
+      } catch (ensureError) {
+        console.warn('Failed to create GitHub accounts table', ensureError);
+      }
+      return [];
+    }
+  }
+
+  async getActiveGithubAccount(): Promise<GithubAccount | null> {
+    if (this.disabled) return null;
+    try {
+      const { db } = await getDrizzleClient();
+      const rows = await db
+        .select()
+        .from(githubAccountsTable)
+        .where(eq(githubAccountsTable.isActive, true))
+        .limit(1);
+
+      if (rows.length === 0) {
+        return null;
+      }
+
+      return this.mapDrizzleGithubAccountRow(rows[0]);
+    } catch (error) {
+      // Table likely doesn't exist yet
+      console.warn('GitHub accounts table not found, returning null for active account');
+      return null;
+    }
+  }
+
+  async getDefaultGithubAccount(): Promise<GithubAccount | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(githubAccountsTable)
+      .where(eq(githubAccountsTable.isDefault, true))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return this.mapDrizzleGithubAccountRow(rows[0]);
+  }
+
+  async setActiveGithubAccount(accountId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+
+    // First, deactivate all accounts
+    await db
+      .update(githubAccountsTable)
+      .set({ isActive: false, updatedAt: sql`CURRENT_TIMESTAMP` });
+
+    // Then activate the specified account
+    await db
+      .update(githubAccountsTable)
+      .set({ isActive: true, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(githubAccountsTable.id, accountId));
+  }
+
+  async setDefaultGithubAccount(accountId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+
+    // First, unset all default accounts
+    await db
+      .update(githubAccountsTable)
+      .set({ isDefault: false, updatedAt: sql`CURRENT_TIMESTAMP` });
+
+    // Then set the specified account as default
+    await db
+      .update(githubAccountsTable)
+      .set({ isDefault: true, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(githubAccountsTable.id, accountId));
+  }
+
+  async removeGithubAccount(accountId: string): Promise<void> {
+    if (this.disabled) return;
+    const existingAccount = await this.getGithubAccountById(accountId);
+    if (!existingAccount) return;
+
+    const { db } = await getDrizzleClient();
+
+    await db
+      .delete(githubAccountsTable)
+      .where(eq(githubAccountsTable.id, accountId));
+
+    // If the removed account was active/default, set a new one if available
+    const remainingAccounts = await this.getGithubAccounts();
+    if (remainingAccounts.length > 0) {
+      const newActive = remainingAccounts[0];
+      const hasActive = remainingAccounts.some((account) => account.isActive);
+      const hasDefault = remainingAccounts.some((account) => account.isDefault);
+
+      if (existingAccount.isActive || !hasActive) {
+        await this.setActiveGithubAccount(newActive.id);
+      }
+
+      if (existingAccount.isDefault || !hasDefault) {
+        await this.setDefaultGithubAccount(newActive.id);
+      }
+    }
+  }
+
+  async clearGithubAccounts(): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db.delete(githubAccountsTable);
+  }
+
+  async getGithubAccountById(accountId: string): Promise<GithubAccount | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(githubAccountsTable)
+      .where(eq(githubAccountsTable.id, accountId))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return this.mapDrizzleGithubAccountRow(rows[0]);
+  }
+
+  async getGithubAccountByLogin(login: string): Promise<GithubAccount | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(githubAccountsTable)
+      .where(eq(githubAccountsTable.login, login))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return this.mapDrizzleGithubAccountRow(rows[0]);
+  }
+
+  private mapDrizzleGithubAccountRow(row: GithubAccountRow): GithubAccount {
+    return {
+      id: row.id,
+      login: row.login,
+      name: row.name,
+      email: row.email,
+      avatar_url: row.avatar_url,
+      isDefault: row.isDefault,
+      isActive: row.isActive,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private async ensureGithubAccountsTable(): Promise<void> {
+    if (!this.db) {
+      const { sqlite } = await getDrizzleClient();
+      this.db = sqlite;
+    }
+
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS "github_accounts" (
+        "id" text PRIMARY KEY NOT NULL,
+        "login" text NOT NULL,
+        "name" text NOT NULL,
+        "email" text DEFAULT '',
+        "avatar_url" text NOT NULL,
+        "is_default" integer DEFAULT false NOT NULL,
+        "is_active" integer DEFAULT false NOT NULL,
+        "created_at" text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        "updated_at" text DEFAULT CURRENT_TIMESTAMP NOT NULL
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS "idx_github_accounts_login" ON "github_accounts" ("login");
+      CREATE INDEX IF NOT EXISTS "idx_github_accounts_default" ON "github_accounts" ("is_default");
+      CREATE INDEX IF NOT EXISTS "idx_github_accounts_active" ON "github_accounts" ("is_active");
+    `;
+
+    const statements = createTableSQL
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    for (const statement of statements) {
+      await this.execSql(statement);
+    }
   }
 
   private async execSql(statement: string): Promise<void> {

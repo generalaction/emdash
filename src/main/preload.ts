@@ -207,7 +207,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('github:auth:slow-down', listener);
     return () => ipcRenderer.removeListener('github:auth:slow-down', listener);
   },
-  onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => {
+  onGithubAuthSuccess: (callback: (data: { token: string; user: any; account?: any }) => void) => {
     const listener = (_: any, data: any) => callback(data);
     ipcRenderer.on('github:auth:success', listener);
     return () => ipcRenderer.removeListener('github:auth:success', listener);
@@ -247,6 +247,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   githubLogout: () => ipcRenderer.invoke('github:logout'),
   githubCheckCLIInstalled: () => ipcRenderer.invoke('github:checkCLIInstalled'),
   githubInstallCLI: () => ipcRenderer.invoke('github:installCLI'),
+
+  // Multi-account GitHub support
+  githubGetAccounts: () => ipcRenderer.invoke('github:getAccounts'),
+  githubGetActiveAccount: () => ipcRenderer.invoke('github:getActiveAccount'),
+  githubSwitchAccount: (accountId: string) => ipcRenderer.invoke('github:switchAccount', accountId),
+  githubRemoveAccount: (accountId: string) => ipcRenderer.invoke('github:removeAccount', accountId),
+  githubSetDefaultAccount: (accountId: string) => ipcRenderer.invoke('github:setDefaultAccount', accountId),
   // GitHub issues
   githubIssuesList: (projectPath: string, limit?: number) =>
     ipcRenderer.invoke('github:issues:list', projectPath, limit),
@@ -587,7 +594,9 @@ export interface ElectronAPI {
   ) => () => void;
   onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
   onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
-  onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
+  onGithubAuthSuccess: (
+    callback: (data: { token: string; user: any; account?: any }) => void
+  ) => () => void;
   onGithubAuthError: (callback: (data: { error: string; message: string }) => void) => () => void;
   onGithubAuthCancelled: (callback: () => void) => () => void;
   onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
