@@ -1,5 +1,8 @@
-import { spawn } from 'child_process';
-import { codexService } from './CodexService';
+import { spawn, execFileSync } from 'child_process';
+import { BrowserWindow } from 'electron';
+import { providerStatusCache, type ProviderStatus } from './providerStatusCache';
+import { listDetectableProviders, type ProviderDefinition } from '@shared/providers/registry';
+import { log } from '../lib/logger';
 
 export type CliStatusCode = 'connected' | 'missing' | 'needs_key' | 'error';
 
@@ -11,17 +14,15 @@ export interface CliProviderStatus {
   message?: string | null;
   docUrl?: string | null;
   command?: string | null;
+  installCommand?: string | null;
 }
 
-interface CliDefinition {
-  id: string;
-  name: string;
+type CliDefinition = ProviderDefinition & {
   commands: string[];
-  args?: string[];
-  docUrl?: string;
+  args: string[];
   statusResolver?: (result: CommandResult) => CliStatusCode;
   messageResolver?: (result: CommandResult) => string | null;
-}
+};
 
 interface CommandResult {
   command: string;
@@ -31,146 +32,134 @@ interface CommandResult {
   stderr: string;
   status: number | null;
   version: string | null;
+  resolvedPath: string | null;
+  timedOut?: boolean;
+  timeoutMs?: number;
 }
 
-const CLI_DEFINITIONS: CliDefinition[] = [
-  {
-    id: 'codex',
-    name: 'Codex',
-    commands: ['codex'],
-    args: ['--version'],
-    docUrl: 'https://github.com/openai/codex',
-  },
-  {
-    id: 'claude',
-    name: 'Claude Code',
-    commands: ['claude'],
-    args: ['--version'],
-    docUrl: 'https://docs.anthropic.com/claude/docs/claude-code',
-  },
-  {
-    id: 'cursor',
-    name: 'Cursor',
-    commands: ['cursor-agent', 'cursor'],
-    args: ['--version'],
-    docUrl: 'https://cursor.sh',
-  },
-  {
-    id: 'gemini',
-    name: 'Gemini',
-    commands: ['gemini'],
-    args: ['--version'],
-    docUrl: 'https://github.com/google-gemini/gemini-cli',
-  },
-  {
-    id: 'qwen',
-    name: 'Qwen Code',
-    commands: ['qwen'],
-    args: ['--version'],
-    docUrl: 'https://github.com/QwenLM/qwen-code',
-  },
-  {
-    id: 'droid',
-    name: 'Droid',
-    commands: ['droid'],
-    args: ['--version'],
-    docUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
-  },
-  {
-    id: 'amp',
-    name: 'Amp',
-    commands: ['amp'],
-    args: ['--version'],
-    docUrl: 'https://ampcode.com/manual#install',
-  },
-  {
-    id: 'opencode',
-    name: 'OpenCode',
-    commands: ['opencode'],
-    args: ['--version'],
-    docUrl: 'https://opencode.ai/docs/cli/',
-  },
-  {
-    id: 'copilot',
-    name: 'GitHub Copilot',
-    commands: ['copilot'],
-    args: ['--version'],
-    docUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
-  },
-  {
-    id: 'charm',
-    name: 'Charm',
-    commands: ['crush'],
-    args: ['--version'],
-    docUrl: 'https://github.com/charmbracelet/crush',
-  },
-  {
-    id: 'auggie',
-    name: 'Auggie',
-    commands: ['auggie'],
-    args: ['--version'],
-    docUrl: 'https://docs.augmentcode.com/cli/overview',
-  },
-  {
-    id: 'kimi',
-    name: 'Kimi',
-    commands: ['kimi'],
-    args: ['--help'],
-    docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
-  },
-  {
-    id: 'kiro',
-    name: 'Kiro (AWS)',
-    commands: ['kiro-cli', 'kiro'],
-    args: ['--version'],
-    docUrl: 'https://kiro.dev/docs/cli/',
-  },
-  {
-    id: 'rovo',
-    name: 'Rovo Dev (Atlassian)',
-    commands: ['rovodev', 'acli'],
-    args: ['--version'],
-    docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
-  },
-];
+const truncate = (input: string, max = 400): string =>
+  input && input.length > max ? `${input.slice(0, max)}…` : input;
+
+const DEFAULT_TIMEOUT_MS = 3000;
+
+export const CLI_DEFINITIONS: CliDefinition[] = listDetectableProviders().map((provider) => ({
+  id: provider.id,
+  name: provider.name,
+  commands: provider.commands ?? [],
+  args: provider.versionArgs ?? ['--version'],
+  docUrl: provider.docUrl,
+  installCommand: provider.installCommand,
+  detectable: provider.detectable,
+}));
 
 class ConnectionsService {
-  async getCliProviders(): Promise<CliProviderStatus[]> {
-    // Run all checks in parallel for better performance
-    const results = await Promise.all(
-      CLI_DEFINITIONS.map((definition) => this.buildStatus(definition))
-    );
-    return results;
+  private initialized = false;
+  private timeoutRetryPending = new Set<string>();
+  private timeoutRetryTimers = new Map<string, NodeJS.Timeout>();
+
+  private clearTimeoutRetry(providerId: string) {
+    const pendingTimer = this.timeoutRetryTimers.get(providerId);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      this.timeoutRetryTimers.delete(providerId);
+    }
+    this.timeoutRetryPending.delete(providerId);
   }
 
-  private async buildStatus(def: CliDefinition): Promise<CliProviderStatus> {
-    const commandResult = await this.tryCommands(def);
-    const status = await this.resolveStatus(def, commandResult);
-    const message = this.resolveMessage(def, commandResult, status);
+  async initProviderStatusCache() {
+    if (this.initialized) return;
+    this.initialized = true;
+    await providerStatusCache.load();
 
-    return {
-      id: def.id,
-      name: def.name,
-      status,
-      version: commandResult.version,
-      message,
-      docUrl: def.docUrl ?? null,
-      command: commandResult.command,
-    };
+    // Check all providers and log a summary
+    await Promise.all(CLI_DEFINITIONS.map((def) => this.checkProvider(def.id, 'bootstrap')));
+
+    const statuses = providerStatusCache.getAll();
+    const connected = CLI_DEFINITIONS.filter((d) => statuses[d.id]?.installed).map((d) => d.id);
+    const notInstalled = CLI_DEFINITIONS.filter((d) => !statuses[d.id]?.installed).map((d) => d.id);
+
+    log.info(
+      `Providers: connected (${connected.join(', ') || 'none'}) | not installed (${notInstalled.join(', ') || 'none'})`
+    );
+  }
+
+  getCachedProviderStatuses(): Record<string, ProviderStatus> {
+    return providerStatusCache.getAll();
+  }
+
+  async checkProvider(
+    providerId: string,
+    reason: 'bootstrap' | 'manual' | 'timeout-retry' = 'manual',
+    opts?: { timeoutMs?: number; allowRetry?: boolean }
+  ) {
+    const def = CLI_DEFINITIONS.find((d) => d.id === providerId);
+    if (!def) return;
+
+    if (reason !== 'timeout-retry' && this.timeoutRetryPending.has(providerId)) {
+      // Cancel any pending timeout-based retry when a fresh check is requested.
+      this.clearTimeoutRetry(providerId);
+    }
+
+    const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const commandResult = await this.tryCommands(def, timeoutMs);
+    const statusCode = await this.resolveStatus(def, commandResult);
+    this.cacheStatus(def.id, commandResult, statusCode);
+
+    // Only log verbose details for actual errors (not just "not installed")
+    const isActualError =
+      (statusCode === 'error' || statusCode === 'needs_key') && commandResult.resolvedPath !== null; // binary was found but something went wrong
+
+    if (isActualError) {
+      log.warn('provider:error', {
+        providerId: def.id,
+        status: statusCode,
+        command: commandResult.command,
+        resolvedPath: commandResult.resolvedPath,
+        exitStatus: commandResult.status,
+        stderr: commandResult.stderr ? truncate(commandResult.stderr) : null,
+        stdout: commandResult.stdout ? truncate(commandResult.stdout) : null,
+        error: commandResult.error
+          ? String(commandResult.error?.message || commandResult.error)
+          : null,
+      });
+    }
+
+    const shouldRetryTimeout =
+      commandResult.timedOut &&
+      (commandResult.resolvedPath || commandResult.stdout) &&
+      opts?.allowRetry !== false;
+    if (shouldRetryTimeout && !this.timeoutRetryPending.has(providerId)) {
+      this.timeoutRetryPending.add(providerId);
+      const retryDelayMs = 1500;
+      const retryTimeoutMs = Math.max(timeoutMs * 2, 12000);
+      const retryTimer = setTimeout(() => {
+        this.timeoutRetryTimers.delete(providerId);
+        void this.checkProvider(providerId, 'timeout-retry', {
+          timeoutMs: retryTimeoutMs,
+          allowRetry: false,
+        }).finally(() => this.timeoutRetryPending.delete(providerId));
+      }, retryDelayMs);
+      this.timeoutRetryTimers.set(providerId, retryTimer);
+    }
+  }
+
+  async refreshAllProviderStatuses(): Promise<Record<string, ProviderStatus>> {
+    log.info('provider:refreshAll:start');
+    await Promise.all(
+      CLI_DEFINITIONS.map((definition) => this.checkProvider(definition.id, 'manual'))
+    );
+    log.info('provider:refreshAll:done');
+    return this.getCachedProviderStatuses();
   }
 
   private async resolveStatus(def: CliDefinition, result: CommandResult): Promise<CliStatusCode> {
-    if (def.id === 'codex') {
-      try {
-        const installed = await codexService.getInstallationStatus();
-        return installed ? 'connected' : 'missing';
-      } catch {
-        return result.success ? 'connected' : 'missing';
-      }
-    }
-
     if (def.statusResolver) {
       return def.statusResolver(result);
+    }
+
+    if (result.timedOut && (result.resolvedPath || result.stdout)) {
+      // CLI responded or was found, but took too long (e.g., self-updating). Treat as present.
+      return 'connected';
     }
 
     if (result.success) {
@@ -214,9 +203,9 @@ class ConnectionsService {
     return null;
   }
 
-  private async tryCommands(def: CliDefinition): Promise<CommandResult> {
+  private async tryCommands(def: CliDefinition, timeoutMs: number): Promise<CommandResult> {
     for (const command of def.commands) {
-      const result = await this.runCommand(command, def.args ?? ['--version']);
+      const result = await this.runCommand(command, def.args ?? ['--version'], timeoutMs);
       if (result.success) {
         return result;
       }
@@ -228,10 +217,19 @@ class ConnectionsService {
     }
 
     // Return the last attempted command (or default) as missing
-    return this.runCommand(def.commands[def.commands.length - 1], def.args ?? ['--version']);
+    return this.runCommand(
+      def.commands[def.commands.length - 1],
+      def.args ?? ['--version'],
+      timeoutMs
+    );
   }
 
-  private async runCommand(command: string, args: string[]): Promise<CommandResult> {
+  private async runCommand(
+    command: string,
+    args: string[],
+    timeoutMs: number
+  ): Promise<CommandResult> {
+    const resolvedPath = this.resolveCommandPath(command);
     return new Promise((resolve) => {
       try {
         const child = spawn(command, args);
@@ -240,11 +238,11 @@ class ConnectionsService {
         let stderr = '';
         let didTimeout = false;
 
-        // timeout for version checks
+        // timeout for version checks (some CLIs can start slowly)
         const timeoutId = setTimeout(() => {
           didTimeout = true;
           child.kill();
-        }, 2000);
+        }, timeoutMs);
 
         child.stdout?.on('data', (data) => {
           stdout += data.toString();
@@ -264,6 +262,9 @@ class ConnectionsService {
             stderr: stderr || '',
             status: null,
             version: null,
+            resolvedPath,
+            timedOut: didTimeout,
+            timeoutMs,
           });
         });
 
@@ -281,6 +282,9 @@ class ConnectionsService {
             stderr,
             status: code,
             version,
+            resolvedPath,
+            timedOut: didTimeout,
+            timeoutMs,
           });
         });
       } catch (error) {
@@ -292,6 +296,9 @@ class ConnectionsService {
           stderr: '',
           status: null,
           version: null,
+          resolvedPath,
+          timedOut: false,
+          timeoutMs,
         });
       }
     });
@@ -301,6 +308,43 @@ class ConnectionsService {
     if (!output) return null;
     const matches = output.match(/\d+\.\d+(\.\d+)?/);
     return matches ? matches[0] : null;
+  }
+
+  private resolveCommandPath(command: string): string | null {
+    const resolver = process.platform === 'win32' ? 'where' : 'which';
+    try {
+      const result = execFileSync(resolver, [command], { encoding: 'utf8' });
+      const lines = result
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      return lines[0] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private cacheStatus(providerId: string, result: CommandResult, statusCode: CliStatusCode) {
+    const installed = statusCode === 'connected';
+    const status: ProviderStatus = {
+      installed,
+      path: result.resolvedPath,
+      version: result.version,
+      lastChecked: Date.now(),
+    };
+    providerStatusCache.set(providerId, status);
+    this.emitStatusUpdate(providerId, status);
+  }
+
+  private emitStatusUpdate(providerId: string, status: ProviderStatus) {
+    const payload = { providerId, status };
+    BrowserWindow.getAllWindows().forEach((win) => {
+      try {
+        win.webContents.send('provider:status-updated', payload);
+      } catch {
+        // ignore send errors
+      }
+    });
   }
 }
 

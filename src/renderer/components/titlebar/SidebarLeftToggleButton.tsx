@@ -5,7 +5,15 @@ import { useSidebar } from '../ui/sidebar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip';
 
 const SidebarLeftToggleButton: React.FC = () => {
-  const { toggle } = useSidebar();
+  const { toggle, open } = useSidebar();
+
+  const handleClick = async () => {
+    const newState = !open;
+    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('toolbar_left_sidebar_clicked', { state: newState ? 'open' : 'closed' });
+    });
+    toggle();
+  };
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -15,7 +23,7 @@ const SidebarLeftToggleButton: React.FC = () => {
             type="button"
             variant="ghost"
             size="icon"
-            onClick={toggle}
+            onClick={handleClick}
             className="h-8 w-8 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-background/80"
             aria-label="Toggle left sidebar"
           >
@@ -29,9 +37,13 @@ const SidebarLeftToggleButton: React.FC = () => {
           collisionPadding={8}
           className="text-xs font-medium"
         >
-          <span className="flex items-center gap-1">
-            <Command className="h-3 w-3" aria-hidden="true" />B
-          </span>
+          <div className="flex flex-col gap-1">
+            <span>Toggle left sidebar</span>
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Command className="h-3 w-3" aria-hidden="true" />
+              <span>B</span>
+            </span>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

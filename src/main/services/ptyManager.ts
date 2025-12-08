@@ -1,6 +1,7 @@
 import os from 'os';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
+import { PROVIDERS } from '@shared/providers/registry';
 
 type PtyRecord = {
   id: string;
@@ -24,15 +25,23 @@ export function startPty(options: {
   env?: NodeJS.ProcessEnv;
   cols?: number;
   rows?: number;
+  autoApprove?: boolean;
+  initialPrompt?: string;
 }): IPty {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
-  const { id, cwd, shell, env, cols = 80, rows = 24 } = options;
+  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove, initialPrompt } = options;
 
   let useShell = shell || getDefaultShell();
   const useCwd = cwd || process.cwd() || os.homedir();
-  const useEnv = { TERM: 'xterm-256color', ...process.env, ...(env || {}) };
+  const useEnv = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    ...process.env,
+    ...(env || {}),
+  };
 
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
@@ -94,10 +103,29 @@ export function startPty(options: {
   if (process.platform !== 'win32') {
     try {
       const base = String(useShell).split('/').pop() || '';
-      if (base === 'zsh') args.push('-il');
-      else if (base === 'bash') args.push('--noprofile', '--norc', '-i');
-      else if (base === 'fish' || base === 'sh') args.push('-i');
-      if (/^(codex|claude)$/i.test(base)) args.length = 0;
+
+      const baseLower = base.toLowerCase();
+      const provider = PROVIDERS.find((p) => p.cli === baseLower);
+
+      if (provider) {
+        args.length = 0;
+        if (autoApprove && provider.autoApproveFlag) {
+          args.push(provider.autoApproveFlag);
+        }
+        if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
+          if (provider.initialPromptFlag) {
+            args.push(provider.initialPromptFlag);
+          }
+          args.push(initialPrompt.trim());
+        }
+      } else {
+        // For normal shells, use login + interactive to load user configs
+        if (base === 'zsh') args.push('-il');
+        else if (base === 'bash') args.push('-il');
+        else if (base === 'fish') args.push('-il');
+        else if (base === 'sh') args.push('-il');
+        else args.push('-i'); // Fallback for other shells
+      }
     } catch {}
   }
 
@@ -110,6 +138,7 @@ export function startPty(options: {
       cwd: useCwd,
       env: useEnv,
     });
+    log.debug('ptyManager:spawned', { id, shell: useShell, args, cwd: useCwd });
   } catch (err: any) {
     try {
       const fallbackShell = getDefaultShell();

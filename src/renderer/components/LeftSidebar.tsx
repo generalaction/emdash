@@ -50,6 +50,9 @@ interface LeftSidebarProps {
   githubInstalled?: boolean;
   githubAuthenticated?: boolean;
   githubUser?: { login?: string; name?: string; avatar_url?: string } | null;
+  onGithubConnect?: () => void;
+  githubLoading?: boolean;
+  githubStatusMessage?: string;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;
@@ -57,8 +60,9 @@ interface LeftSidebarProps {
   }) => void;
   onCreateWorkspaceForProject?: (project: Project) => void;
   isCreatingWorkspace?: boolean;
-  onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void>;
+  onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void | boolean>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
+  isHomeView?: boolean;
 }
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -74,11 +78,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   githubInstalled = true,
   githubAuthenticated = false,
   githubUser,
+  onGithubConnect,
+  githubLoading = false,
+  githubStatusMessage,
   onSidebarContextChange,
   onCreateWorkspaceForProject,
   isCreatingWorkspace,
   onDeleteWorkspace,
   onDeleteProject,
+  isHomeView,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
@@ -123,6 +131,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       installed={githubInstalled}
       authenticated={githubAuthenticated}
       user={githubUser}
+      onConnect={onGithubConnect}
+      isLoading={githubLoading}
+      statusMessage={githubStatusMessage}
     />
   );
 
@@ -130,11 +141,14 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     <div className="relative h-full">
       <Sidebar className="lg:border-r-0">
         <SidebarContent>
-          <SidebarGroup className="mb-2">
+          <SidebarGroup className="mb-3">
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton
+                    asChild
+                    className={isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}
+                  >
                     <Button
                       variant="ghost"
                       onClick={onGoHome}
@@ -199,10 +213,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     const typedProject = project as Project;
                     const isDeletingProject = deletingProjectId === typedProject.id;
                     const showProjectDelete = Boolean(onDeleteProject);
+                    const isProjectActive = selectedProject?.id === typedProject.id;
                     return (
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
-                          <div className="group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground">
+                          <div
+                            className={`group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
+                              isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
+                            }`}
+                          >
                             <button
                               type="button"
                               className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
@@ -223,7 +242,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   onConfirm={() => handleDeleteProject(typedProject)}
                                   isDeleting={isDeletingProject}
                                   aria-label={`Delete project ${typedProject.name}`}
-                                  className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-destructive focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-100 ${
+                                  className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-100 ${
                                     isDeletingProject
                                       ? 'opacity-100'
                                       : 'group-hover/workspace:opacity-100'

@@ -1,5 +1,6 @@
-import React from 'react';
-import { ExternalLink, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type IntegrationStatus =
   | 'connected'
@@ -25,6 +26,7 @@ interface IntegrationRowProps {
   onOpen?: () => void;
   rightExtra?: React.ReactNode;
   showStatusPill?: boolean;
+  installCommand?: string | null;
 }
 
 const STATUS_CLASSES: Record<IntegrationStatus, string> = {
@@ -71,11 +73,14 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   onOpen,
   rightExtra,
   showStatusPill = true,
+  installCommand,
 }) => {
   const resolvedStatus = STATUS_CLASSES[status] ? status : 'disconnected';
   const showConnect = resolvedStatus !== 'connected' && status !== 'loading' && !!onConnect;
   const showDisconnect = resolvedStatus === 'connected' && !!onDisconnect;
   const showOpen = resolvedStatus === 'connected' && !!onOpen;
+  const [copied, setCopied] = useState(false);
+  const copyResetRef = useRef<number | null>(null);
 
   const resolvedStatusLabel = statusLabel ?? STATUS_LABELS[status] ?? STATUS_LABELS.disconnected;
 
@@ -94,8 +99,39 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
     </span>
   );
 
+  const handleCopyInstall = async () => {
+    if (!installCommand || typeof navigator === 'undefined' || !navigator.clipboard) {
+      return;
+    }
+    if (copyResetRef.current !== null) {
+      window.clearTimeout(copyResetRef.current);
+    }
+    try {
+      await navigator.clipboard.writeText(installCommand);
+      setCopied(true);
+      copyResetRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyResetRef.current = null;
+      }, 1600);
+    } catch {
+      setCopied(false);
+      copyResetRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (copyResetRef.current !== null) {
+        window.clearTimeout(copyResetRef.current);
+      }
+    };
+  }, []);
+
+  const CopyIcon = copied ? Check : Copy;
+  const showInstallCopy = !!installCommand && status !== 'connected';
+
   return (
-    <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/40">
+    <div className="group relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/40">
       <div className="flex items-center gap-3">
         {avatar}
         {onNameClick ? (
@@ -115,6 +151,33 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       </div>
 
       <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+        {showInstallCopy ? (
+          <TooltipProvider>
+            <Tooltip delayDuration={150}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleCopyInstall();
+                  }}
+                  className={ICON_BUTTON}
+                  aria-label={copied ? 'Command copied' : `Copy install command for ${name}`}
+                >
+                  <CopyIcon className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <div className="max-w-[240px] space-y-1">
+                  <div className="text-xs font-medium text-foreground">Copy install command</div>
+                  <code className="block truncate font-mono text-[11px] text-muted-foreground">
+                    {installCommand}
+                  </code>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
+
         <div className="min-w-0">{middle ?? defaultMiddle}</div>
         {showStatusPill ? (
           <span

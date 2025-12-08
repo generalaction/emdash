@@ -5,7 +5,6 @@ import { Search } from 'lucide-react';
 import linearLogo from '../../assets/images/linear.png';
 import { type LinearIssueSummary } from '../types/linear';
 import { Separator } from './ui/separator';
-import { Badge } from './ui/badge';
 import { Spinner } from './ui/spinner';
 
 interface LinearIssueSelectorProps {
@@ -14,6 +13,9 @@ interface LinearIssueSelectorProps {
   isOpen?: boolean;
   className?: string;
   disabled?: boolean;
+  autoOpen?: boolean;
+  onAutoOpenHandled?: () => void;
+  placeholder?: string;
 }
 
 export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
@@ -22,6 +24,9 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   isOpen = false,
   className = '',
   disabled = false,
+  autoOpen = false,
+  onAutoOpenHandled,
+  placeholder: customPlaceholder,
 }) => {
   const [availableIssues, setAvailableIssues] = useState<LinearIssueSummary[]>([]);
   const [isLoadingIssues, setIsLoadingIssues] = useState(false);
@@ -32,6 +37,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const isMountedRef = useRef(true);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const canListLinear = typeof window !== 'undefined' && !!window.electronAPI?.linearInitialFetch;
   const issuesLoaded = availableIssues.length > 0;
@@ -56,6 +62,19 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
       setVisibleCount(10);
     }
   }, [isOpen, onIssueChange]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setDropdownOpen(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setDropdownOpen(true);
+      onAutoOpenHandled?.();
+    }
+  }, [autoOpen, onAutoOpenHandled]);
 
   const loadLinearIssues = useCallback(async () => {
     if (!canListLinear) {
@@ -119,6 +138,11 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
       if (!isMountedRef.current) return;
       if (result?.success) {
         setSearchResults(result.issues ?? []);
+        // Track search
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('linear_issues_searched');
+        })();
       } else {
         setSearchResults([]);
       }
@@ -170,7 +194,17 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   );
 
   const handleIssueSelect = (identifier: string) => {
+    if (identifier === '__clear__') {
+      onIssueChange(null);
+      return;
+    }
     const issue = displayIssues.find((issue) => issue.identifier === identifier) ?? null;
+    if (issue) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('linear_issue_selected');
+      })();
+    }
     onIssueChange(issue);
   };
 
@@ -184,11 +218,13 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
     return null;
   })();
 
-  const issuePlaceholder = isLoadingIssues
-    ? 'Loading…'
-    : issueListError
-      ? 'Connect your Linear'
-      : 'Select a Linear issue';
+  const issuePlaceholder =
+    customPlaceholder ??
+    (isLoadingIssues
+      ? 'Loading…'
+      : issueListError
+        ? 'Connect your Linear'
+        : 'Select a Linear issue');
 
   if (!canListLinear) {
     return (
@@ -207,6 +243,8 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
         value={selectedIssue?.identifier || undefined}
         onValueChange={handleIssueSelect}
         disabled={isDisabled}
+        open={dropdownOpen}
+        onOpenChange={(open) => setDropdownOpen(open)}
       >
         <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
@@ -233,7 +271,10 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
             )}
           </div>
         </SelectTrigger>
-        <SelectContent side="top" className="z-[120]">
+        <SelectContent
+          side="top"
+          className="z-[120] w-auto min-w-[var(--radix-select-trigger-width)] max-w-[480px]"
+        >
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -245,7 +286,11 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
             />
           </div>
           <Separator />
-          <div className="max-h-80 overflow-y-auto" onScroll={handleScroll}>
+          <div className="max-h-80 overflow-y-auto overflow-x-hidden py-1" onScroll={handleScroll}>
+            <SelectItem value="__clear__">
+              <span className="text-sm text-muted-foreground">None</span>
+            </SelectItem>
+            <Separator className="my-1" />
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
                 <SelectItem key={issue.id || issue.identifier} value={issue.identifier}>
@@ -279,19 +324,6 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
           </div>
         </SelectContent>
       </Select>
-      {issueListError ? (
-        <div className="mt-2 rounded-md border border-border bg-muted/40 p-2">
-          <div className="flex items-center gap-2">
-            <Badge className="inline-flex items-center gap-1.5">
-              <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
-              <span>Connect Linear</span>
-            </Badge>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Add your Linear API key in Settings → Integrations to browse and attach issues here.
-          </p>
-        </div>
-      ) : null}
       {issueHelperText ? (
         <p className="mt-2 text-xs text-muted-foreground">{issueHelperText}</p>
       ) : null}

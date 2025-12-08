@@ -22,8 +22,8 @@ export function registerBrowserIpc() {
       return { ok: true };
     }
   );
-  ipcMain.handle('browser:view:loadURL', (_e, url: string) => {
-    browserViewService.loadURL(url);
+  ipcMain.handle('browser:view:loadURL', (_e, url: string, forceReload?: boolean) => {
+    browserViewService.loadURL(url, forceReload);
     return { ok: true };
   });
   ipcMain.handle('browser:view:goBack', () => {
@@ -40,6 +40,10 @@ export function registerBrowserIpc() {
   });
   ipcMain.handle('browser:view:openDevTools', () => {
     browserViewService.openDevTools();
+    return { ok: true };
+  });
+  ipcMain.handle('browser:view:clear', () => {
+    browserViewService.clear();
     return { ok: true };
   });
 }

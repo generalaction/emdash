@@ -64,7 +64,12 @@ export const ContainerStatusBadge: React.FC<Props> = ({
             <button
               type="button"
               className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
-              onClick={onStart}
+              onClick={async (e) => {
+                void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+                  captureTelemetry('container_connect_clicked');
+                });
+                await onStart(e);
+              }}
               disabled={startingAction || hasCompose}
               aria-busy={startingAction}
               aria-label={

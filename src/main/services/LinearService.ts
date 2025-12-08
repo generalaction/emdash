@@ -33,6 +33,10 @@ export class LinearService {
     try {
       const viewer = await this.fetchViewer(token);
       await this.storeToken(token);
+      // Track connection
+      void import('../telemetry').then(({ capture }) => {
+        void capture('linear_connected');
+      });
       return {
         success: true,
         workspaceName: viewer?.organization?.name ?? viewer?.displayName ?? undefined,
@@ -50,6 +54,10 @@ export class LinearService {
     try {
       const keytar = await import('keytar');
       await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      // Track disconnection
+      void import('../telemetry').then(({ capture }) => {
+        void capture('linear_disconnected');
+      });
       return { success: true };
     } catch (error) {
       console.error('Failed to clear Linear token:', error);

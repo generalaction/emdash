@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Workflow, ArrowUpRight, Check, Copy } from 'lucide-react';
+import { getInstallCommandForProvider } from '@shared/providers/registry';
 
 export const RoutingInfoCard: React.FC = () => {
-  const installCommand = 'npm install -g @openai/codex';
+  const installCommand = getInstallCommandForProvider('codex') ?? 'npm install -g @openai/codex';
   const [copied, setCopied] = useState(false);
   const copyResetRef = useRef<number | null>(null);
 

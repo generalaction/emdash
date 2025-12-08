@@ -1,198 +1,68 @@
-export type UiProvider =
-  | 'codex'
-  | 'claude'
-  | 'qwen'
-  | 'droid'
-  | 'gemini'
-  | 'cursor'
-  | 'copilot'
-  | 'amp'
-  | 'opencode'
-  | 'charm'
-  | 'auggie'
-  | 'goose'
-  | 'kimi'
-  | 'kiro'
-  | 'rovo';
+import { PROVIDERS, type ProviderId } from '@shared/providers/registry';
+
+import augmentcodeIcon from '../../assets/images/augmentcode.png';
+import qwenIcon from '../../assets/images/qwen.png';
+import charmIcon from '../../assets/images/charm.png';
+import opencodeIcon from '../../assets/images/opencode.png';
+import ampcodeIcon from '../../assets/images/ampcode.png';
+import openaiIcon from '../../assets/images/openai.png';
+import claudeIcon from '../../assets/images/claude.png';
+import factorydroidIcon from '../../assets/images/factorydroid.png';
+import geminiIcon from '../../assets/images/gemini.png';
+import cursorlogoIcon from '../../assets/images/cursorlogo.png';
+import ghcopilotIcon from '../../assets/images/ghcopilot.png';
+import gooseIcon from '../../assets/images/goose.png';
+import kimiIcon from '../../assets/images/kimi.png';
+import kiroIcon from '../../assets/images/kiro.png';
+import atlassianIcon from '../../assets/images/atlassian.png';
+import clineIcon from '../../assets/images/cline.png';
+import codebuffIcon from '../../assets/images/codebuff.png';
+
+export type UiProvider = ProviderId;
+
+const ICONS: Record<string, string> = {
+  'augmentcode.png': augmentcodeIcon,
+  'qwen.png': qwenIcon,
+  'charm.png': charmIcon,
+  'opencode.png': opencodeIcon,
+  'ampcode.png': ampcodeIcon,
+  'openai.png': openaiIcon,
+  'claude.png': claudeIcon,
+  'factorydroid.png': factorydroidIcon,
+  'gemini.png': geminiIcon,
+  'cursorlogo.png': cursorlogoIcon,
+  'ghcopilot.png': ghcopilotIcon,
+  'goose.png': gooseIcon,
+  'kimi.png': kimiIcon,
+  'kiro.png': kiroIcon,
+  'atlassian.png': atlassianIcon,
+  'cline.png': clineIcon,
+  'codebuff.png': codebuffIcon,
+};
 
 export type ProviderMeta = {
   label: string;
   icon?: string;
   terminalOnly: boolean;
   cli?: string;
-  helpUrl?: string;
-  idlePatterns?: RegExp[];
-  busyPatterns?: RegExp[];
-  planActivate?: string; // optional provider-specific activation for plan mode
-  // Optional command to auto-run in the provider's terminal session
-  // once the PTY is ready (used when the provider is launched via a
-  // general-purpose shell rather than a dedicated CLI binary).
+  planActivate?: string;
   autoStartCommand?: string;
+  autoApproveFlag?: string;
+  initialPromptFlag?: string;
 };
 
-export const providerMeta: Record<UiProvider, ProviderMeta> = {
-  auggie: {
-    label: 'Auggie',
-    icon: '../../assets/images/augmentcode.png',
-    terminalOnly: true,
-    cli: 'auggie',
-    helpUrl: 'https://docs.augmentcode.com/cli/overview',
-    idlePatterns: [/Ready|Awaiting|Press Enter|Next command/i],
-    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning/i],
-  },
-  qwen: {
-    label: 'Qwen Code',
-    icon: '../../assets/images/qwen.png',
-    terminalOnly: true,
-    cli: 'qwen',
-    helpUrl: 'https://github.com/QwenLM/qwen-code',
-    idlePatterns: [/Ready|Awaiting|Press Enter|Next command/i],
-    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning/i],
-  },
-  charm: {
-    label: 'Charm',
-    icon: '../../assets/images/charm.png',
-    terminalOnly: true,
-    cli: 'crush',
-    helpUrl: 'https://github.com/charmbracelet/crush',
-    idlePatterns: [/Ready|Awaiting|Press Enter|Select model/i],
-    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing/i],
-  },
-  opencode: {
-    label: 'OpenCode',
-    icon: '../../assets/images/opencode.png',
-    terminalOnly: true,
-    cli: 'opencode',
-    helpUrl: 'https://opencode.ai/docs/cli/',
-    idlePatterns: [/Ready|Awaiting|Press Enter|Next command/i],
-    busyPatterns: [/Thinking\.{0,3}/i, /waiting\s+for\s+response/i, /esc\s*to\s*cancel/i],
-  },
-  amp: {
-    label: 'Amp',
-    icon: '../../assets/images/ampcode.png',
-    terminalOnly: true,
-    cli: 'amp',
-    helpUrl: 'https://ampcode.com/manual#install',
-    idlePatterns: [/Ready|Awaiting|Press Enter/i],
-    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing/i],
-  },
-  codex: {
-    label: 'Codex',
-    icon: '../../assets/images/openai.png',
-    terminalOnly: true,
-    cli: 'codex',
-    helpUrl: 'https://developers.openai.com/codex/quickstart',
-    idlePatterns: [
-      /Ready|Awaiting input|Press Enter/i,
-      /\b\/(status|approvals|model)\b/i,
-      /send\s+\S*\s*newline|transcript|quit/i,
-    ],
-    busyPatterns: [
-      /Esc to interrupt/i,
-      /\(\s*(?:\d+\s*m\s*)?\d+\s*s\s*•\s*Esc to interrupt\s*\)/i,
-      /Responding to\b/i,
-      /Executing|Running|Thinking|Working|Analyzing|Identifying|Inspecting|Summarizing|Refactoring|Applying|Updating|Generating|Scanning|Parsing|Checking/i,
-    ],
-  },
-  claude: {
-    label: 'Claude Code',
-    icon: '../../assets/images/claude.png',
-    terminalOnly: true,
-    cli: 'claude',
-    helpUrl: 'https://docs.claude.com/en/docs/claude-code/quickstart',
-    planActivate: '/plan',
-    idlePatterns: [/Ready|Awaiting|Next command|Use \/login/i],
-    busyPatterns: [
-      /esc\s*to\s*interrupt/i,
-      /wrangling|crafting|thinking|reasoning|analyzing|planning|reading|scanning|applying/i,
-    ],
-  },
-  droid: {
-    label: 'Droid',
-    icon: '../../assets/images/factorydroid.png',
-    terminalOnly: true,
-    cli: 'droid',
-    helpUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
-    idlePatterns: [/Ready|Awaiting|Press Enter/i],
-    busyPatterns: [
-      /esc\s*to\s*cancel/i,
-      /Thinking\.{0,3}/i,
-      /Running|Working|Executing|Generating|Applying|Planning|Analyzing/i,
-    ],
-  },
-  gemini: {
-    label: 'Gemini',
-    icon: '../../assets/images/gemini.png',
-    terminalOnly: true,
-    cli: 'gemini',
-    helpUrl: 'https://github.com/google-gemini/gemini-cli',
-    idlePatterns: [/Ready|Awaiting|Press Enter/i],
-    busyPatterns: [
-      /esc\s*to\s*cancel/i,
-      /Thinking\.{0,3}/i,
-      /[\u2800-\u28FF].*Thinking/i,
-      /Running|Working|Executing|Generating|Applying|Planning|Analyzing/i,
-    ],
-  },
-  cursor: {
-    label: 'Cursor',
-    icon: '../../assets/images/cursorlogo.png',
-    terminalOnly: true,
-    cli: 'cursor-agent',
-    helpUrl: 'https://cursor.com/install',
-    idlePatterns: [/Add a follow-up/i, /Auto\s*[\r\n]+\s*\/\s*commands/i],
-    busyPatterns: [/^.*?Generating\.?/im, /\bWorking\b|\bExecuting\b|\bRunning\b/i],
-  },
-  copilot: {
-    label: 'Copilot',
-    icon: '../../assets/images/ghcopilot.png',
-    terminalOnly: true,
-    cli: 'copilot',
-    helpUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
-    idlePatterns: [
-      /Ready|Press Enter|Next step/i,
-      /Do you want to/i,
-      /Confirm with number keys/i,
-      /approve all file operations/i,
-      /Yes, and approve/i,
-    ],
-    busyPatterns: [/Thinking|Working|Generating/i],
-  },
-  goose: {
-    label: 'Goose',
-    icon: '../../assets/images/goose.png',
-    terminalOnly: true,
-    cli: 'goose',
-    helpUrl: 'https://block.github.io/goose/docs/quickstart/',
-    idlePatterns: [/Ready|Awaiting|Press Enter|Next command/i],
-    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning/i],
-  },
-  kimi: {
-    label: 'Kimi',
-    icon: '../../assets/images/kimi.png',
-    terminalOnly: true,
-    cli: 'kimi',
-    helpUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
-    planActivate: undefined,
-    idlePatterns: [/Ready|Awaiting|Press Enter|Next command|\/help|\/setup/i],
-    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|Kimi CLI/i],
-  },
-  kiro: {
-    label: 'Kiro (AWS)',
-    icon: '../../assets/images/kiro.png',
-    terminalOnly: true,
-    cli: 'kiro-cli',
-    helpUrl: 'https://kiro.dev/docs/cli/',
-    idlePatterns: [/Ready|Awaiting|Press Enter|Next command|Kiro CLI/i],
-    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|Kiro CLI/i],
-  },
-  rovo: {
-    label: 'Rovo Dev',
-    icon: '../../assets/images/atlassian.png',
-    terminalOnly: true,
-    helpUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
-    autoStartCommand: 'acli rovodev run',
-    idlePatterns: [/Ready|Awaiting|Press Enter|Next command|rovodev/i],
-    busyPatterns: [/Thinking|Working|Executing|Running|Applying|Analyzing|Planning|rovodev/i],
-  },
-};
+export const providerMeta: Record<UiProvider, ProviderMeta> = Object.fromEntries(
+  PROVIDERS.map((p) => [
+    p.id,
+    {
+      label: p.name,
+      icon: p.icon ? ICONS[p.icon] : undefined,
+      terminalOnly: p.terminalOnly ?? true,
+      cli: p.cli,
+      planActivate: p.planActivateCommand,
+      autoStartCommand: p.autoStartCommand,
+      autoApproveFlag: p.autoApproveFlag,
+      initialPromptFlag: p.initialPromptFlag,
+    },
+  ])
+) as Record<UiProvider, ProviderMeta>;

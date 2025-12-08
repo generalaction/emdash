@@ -1,41 +1,31 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { ExternalLink, Globe, Database, Server, ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
-import { TerminalModeBanner } from './TerminalModeBanner';
+import InstallBanner from './InstallBanner';
 import { providerMeta } from '../providers/meta';
-import MessageList from './MessageList';
 import ProviderBar from './ProviderBar';
-import useCodexStream from '../hooks/useCodexStream';
-import useClaudeStream from '../hooks/useClaudeStream';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { usePlanMode } from '@/hooks/usePlanMode';
 import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
 import { log } from '@/lib/logger';
 import { logPlanEvent } from '@/lib/planLogs';
 import { type Provider } from '../types';
-import { Workspace, Message } from '../types/chat';
+import { Workspace } from '../types/chat';
 import {
   getContainerRunState,
   subscribeToWorkspaceRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import { useBrowser } from '@/providers/BrowserProvider';
+import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
+import { getInstallCommandForProvider } from '@shared/providers/registry';
 
 declare const window: Window & {
   electronAPI: {
-    codexCheckInstallation: () => Promise<{
-      success: boolean;
-      isInstalled?: boolean;
-      error?: string;
-    }>;
-    codexCreateAgent: (
-      workspaceId: string,
-      worktreePath: string
-    ) => Promise<{ success: boolean; agent?: any; error?: string }>;
     saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
   };
 };
@@ -47,44 +37,29 @@ interface Props {
   initialProvider?: Provider;
 }
 
-const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, initialProvider }) => {
+const ChatInterface: React.FC<Props> = ({
+  workspace,
+  projectName: _projectName,
+  className,
+  initialProvider,
+}) => {
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
-  const [isCodexInstalled, setIsCodexInstalled] = useState<boolean | null>(null);
-  const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
-  const [claudeInstructions, setClaudeInstructions] = useState<string | null>(null);
-  const [agentCreated, setAgentCreated] = useState(false);
+  const [isProviderInstalled, setIsProviderInstalled] = useState<boolean | null>(null);
+  const [providerStatuses, setProviderStatuses] = useState<
+    Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
+  >({});
   const [provider, setProvider] = useState<Provider>(initialProvider || 'codex');
-  const [lockedProvider, setLockedProvider] = useState<Provider | null>(null);
-  const [hasDroidActivity, setHasDroidActivity] = useState(false);
-  const [hasGeminiActivity, setHasGeminiActivity] = useState(false);
-  const [hasCursorActivity, setHasCursorActivity] = useState(false);
+  const currentProviderStatus = providerStatuses[provider];
   const browser = useBrowser();
-  const [hasCopilotActivity, setHasCopilotActivity] = useState(false);
   const [cliStartFailed, setCliStartFailed] = useState(false);
   const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
     getContainerRunState(workspace.id)
   );
   const reduceMotion = useReducedMotion();
+  const terminalId = useMemo(() => `${provider}-main-${workspace.id}`, [provider, workspace.id]);
   const [portsExpanded, setPortsExpanded] = useState(false);
-  const initializedConversationRef = useRef<string | null>(null);
-
-  const codexStream = useCodexStream(
-    // Disable Codex chat stream when Codex is terminal-only
-    providerMeta.codex.terminalOnly
-      ? null
-      : {
-          workspaceId: workspace.id,
-          workspacePath: workspace.path,
-        }
-  );
-
-  const claudeStream = useClaudeStream(
-    provider === 'claude' && !providerMeta.claude.terminalOnly
-      ? { workspaceId: workspace.id, workspacePath: workspace.path }
-      : null
-  );
-  const activeStream = provider === 'codex' ? codexStream : claudeStream;
+  const { activeTerminalId } = useWorkspaceTerminals(workspace.id, workspace.path);
 
   // Unified Plan Mode (per workspace)
   const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(
@@ -109,8 +84,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const meta = providerMeta[provider];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;
 
-    const ptyId = `${provider}-main-${workspace.id}`;
-    const onceKey = `cli:autoStart:${ptyId}`;
+    const onceKey = `cli:autoStart:${terminalId}`;
     try {
       if (localStorage.getItem(onceKey) === '1') return;
     } catch {}
@@ -118,7 +92,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     const send = () => {
       try {
         (window as any).electronAPI?.ptyInput?.({
-          id: ptyId,
+          id: terminalId,
           data: `${meta.autoStartCommand}\n`,
         });
         try {
@@ -131,7 +105,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     let off: (() => void) | null = null;
     try {
       off = api?.onPtyStarted?.((info: { id: string }) => {
-        if (info?.id === ptyId) send();
+        if (info?.id === terminalId) send();
       });
     } catch {}
 
@@ -143,13 +117,51 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
       } catch {}
       clearTimeout(t);
     };
-  }, [provider, workspace.id]);
+  }, [provider, terminalId]);
 
   useEffect(() => {
-    initializedConversationRef.current = null;
     setCliStartFailed(false);
+    setIsProviderInstalled(null);
     setContainerState(getContainerRunState(workspace.id));
   }, [workspace.id]);
+
+  const runInstallCommand = useCallback(
+    (cmd: string) => {
+      const api: any = (window as any).electronAPI;
+      const targetId = activeTerminalId;
+      if (!targetId) return;
+
+      const send = () => {
+        try {
+          api?.ptyInput?.({ id: targetId, data: `${cmd}\n` });
+          return true;
+        } catch (error) {
+          console.error('Failed to run install command', error);
+          return false;
+        }
+      };
+
+      // Best effort immediate send
+      const ok = send();
+
+      // Listen for PTY start in case the terminal was still spinning up
+      const off = api?.onPtyStarted?.((info: { id: string }) => {
+        if (info?.id !== targetId) return;
+        send();
+        try {
+          off?.();
+        } catch {}
+      });
+
+      // If immediate send worked, remove listener
+      if (ok) {
+        try {
+          off?.();
+        } catch {}
+      }
+    },
+    [activeTerminalId]
+  );
 
   // Auto-expand/collapse ports in chat view based on container activity
   useEffect(() => {
@@ -164,15 +176,8 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
   useEffect(() => {
     try {
       const lastKey = `provider:last:${workspace.id}`;
-      const lockedKey = `provider:locked:${workspace.id}`;
       const last = window.localStorage.getItem(lastKey) as Provider | null;
-      const locked = window.localStorage.getItem(lockedKey) as Provider | null;
 
-      setLockedProvider(locked);
-      setHasDroidActivity(locked === 'droid');
-      setHasGeminiActivity(locked === 'gemini');
-      setHasCursorActivity(locked === 'cursor');
-      setHasCopilotActivity(locked === 'copilot');
       if (initialProvider) {
         setProvider(initialProvider);
       } else {
@@ -192,9 +197,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
           'kiro',
           'rovo',
         ];
-        if (locked && (validProviders as string[]).includes(locked)) {
-          setProvider(locked as Provider);
-        } else if (last && (validProviders as string[]).includes(last)) {
+        if (last && (validProviders as string[]).includes(last)) {
           setProvider(last as Provider);
         } else {
           setProvider('codex');
@@ -212,182 +215,137 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     } catch {}
   }, [provider, workspace.id]);
 
-  // When a chat becomes locked (first user message sent or terminal activity), persist the provider
+  // Track provider switching
+  const prevProviderRef = React.useRef<Provider | null>(null);
   useEffect(() => {
-    try {
-      const userLocked =
-        provider !== 'droid' &&
-        provider !== 'gemini' &&
-        provider !== 'cursor' &&
-        provider !== 'kiro' &&
-        activeStream.messages &&
-        activeStream.messages.some((m) => m.sender === 'user');
-      const droidLocked = provider === 'droid' && hasDroidActivity;
-      const geminiLocked = provider === 'gemini' && hasGeminiActivity;
-      const cursorLocked = provider === 'cursor' && hasCursorActivity;
-      const copilotLocked = provider === 'copilot' && hasCopilotActivity;
+    if (prevProviderRef.current && prevProviderRef.current !== provider) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('workspace_provider_switched', { provider });
+      })();
+    }
+    prevProviderRef.current = provider;
+  }, [provider]);
 
-      if (userLocked || droidLocked || geminiLocked || cursorLocked || copilotLocked) {
-        window.localStorage.setItem(`provider:locked:${workspace.id}`, provider);
-        setLockedProvider(provider);
-      }
-    } catch {}
-  }, [
-    provider,
-    workspace.id,
-    activeStream.messages,
-    hasDroidActivity,
-    hasGeminiActivity,
-    hasCursorActivity,
-  ]);
+  useEffect(() => {
+    const installed = currentProviderStatus?.installed === true;
+    setIsProviderInstalled(installed);
+  }, [provider, currentProviderStatus]);
 
   useEffect(() => {
     let cancelled = false;
-    if (provider !== 'claude') {
-      setIsClaudeInstalled(null);
-      setClaudeInstructions(null);
-      return;
-    }
-    (async () => {
+    let missingCheckRequested = false;
+    const api: any = (window as any).electronAPI;
+
+    const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
+      if (!statuses) return;
+      setProviderStatuses(statuses);
+      if (cancelled) return;
+      const installed = statuses?.[provider]?.installed === true;
+      setIsProviderInstalled(installed);
+    };
+
+    const maybeRefreshMissing = async (statuses?: Record<string, any> | undefined | null) => {
+      if (cancelled || missingCheckRequested) return;
+      if (!api?.getProviderStatuses) return;
+      if (statuses && statuses[provider]) return;
+      missingCheckRequested = true;
       try {
-        const res = await (window as any).electronAPI.agentCheckInstallation?.('claude');
+        const refreshed = await api.getProviderStatuses({ refresh: true, providers: [provider] });
+        if (cancelled) return;
+        if (refreshed?.success) {
+          applyStatuses(refreshed.statuses ?? {});
+        }
+      } catch (error) {
+        console.error('Provider status refresh failed', error);
+      }
+    };
+
+    const load = async () => {
+      if (!api?.getProviderStatuses) {
+        setIsProviderInstalled(false);
+        return;
+      }
+      try {
+        const res = await api.getProviderStatuses();
         if (cancelled) return;
         if (res?.success) {
-          setIsClaudeInstalled(!!res.isInstalled);
-          if (!res.isInstalled) {
-            const inst = await (window as any).electronAPI.agentGetInstallationInstructions?.(
-              'claude'
-            );
-            setClaudeInstructions(
-              inst?.instructions ||
-                'Install: npm install -g @anthropic-ai/claude-code\nThen run: claude and use /login'
-            );
-          } else {
-            setClaudeInstructions(null);
-          }
+          applyStatuses(res.statuses ?? {});
+          void maybeRefreshMissing(res.statuses);
         } else {
-          setIsClaudeInstalled(false);
+          setIsProviderInstalled(false);
         }
-      } catch {
-        setIsClaudeInstalled(false);
+      } catch (error) {
+        if (!cancelled) setIsProviderInstalled(false);
+        console.error('Provider status load failed', error);
+      }
+    };
+
+    const off =
+      api?.onProviderStatusUpdated?.((payload: { providerId: string; status: any }) => {
+        if (!payload?.providerId) return;
+        setProviderStatuses((prev) => {
+          const next = { ...prev, [payload.providerId]: payload.status };
+          return next;
+        });
+        if (payload.providerId === provider) {
+          setIsProviderInstalled(payload.status?.installed === true);
+        }
+      }) || null;
+
+    void load();
+
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }, [provider, workspace.id]);
+
+  // If we don't even have a cached status entry for the current provider, pessimistically
+  // show the install banner and kick off a background refresh to populate it.
+  useEffect(() => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.getProviderStatuses) {
+      setIsProviderInstalled(false);
+      return;
+    }
+    if (currentProviderStatus) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsProviderInstalled(false);
+
+    (async () => {
+      try {
+        const res = await api.getProviderStatuses({ refresh: true, providers: [provider] });
+        if (cancelled) return;
+        if (res?.success) {
+          const statuses = res.statuses ?? {};
+          setProviderStatuses(statuses);
+          const installed = statuses?.[provider]?.installed === true;
+          setIsProviderInstalled(installed);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setIsProviderInstalled(false);
+        }
+        console.error('Provider status refresh (missing entry) failed', error);
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [provider, workspace.id]);
+  }, [provider, currentProviderStatus]);
 
   // When switching providers, ensure other streams are stopped
   useEffect(() => {
     (async () => {
       try {
-        if (provider !== 'codex') await (window as any).electronAPI.codexStopStream?.(workspace.id);
-        if (provider !== 'claude')
-          await (window as any).electronAPI.agentStopStream?.({
-            providerId: 'claude',
-            workspaceId: workspace.id,
-          });
       } catch {}
     })();
   }, [provider, workspace.id]);
-
-  useEffect(() => {
-    if (!codexStream.isReady) return;
-
-    const convoId = codexStream.conversationId;
-    if (!convoId) return;
-    if (initializedConversationRef.current === convoId) return;
-
-    initializedConversationRef.current = convoId;
-
-    // This runs when messages are loaded but could be empty or contain initial prompt
-    const checkForWelcomeMessage = async () => {
-      if (codexStream.messages.length === 0) {
-        // Check database directly for any existing messages to see if there's an initial prompt
-        try {
-          const messagesResult = await window.electronAPI.getMessages(convoId);
-          if (messagesResult.success && messagesResult.messages) {
-            const hasInitialPrompt = messagesResult.messages.some((msg: any) => {
-              try {
-                const metadata = JSON.parse(msg.metadata || '{}');
-                return metadata.isInitialPrompt;
-              } catch {
-                return false;
-              }
-            });
-
-            // Only add welcome message if there's no initial prompt and no messages at all
-            if (!hasInitialPrompt && messagesResult.messages.length === 0) {
-              const welcomeMessage: Message = {
-                id: `welcome-${Date.now()}`,
-                content: 'Hello! What can the agent do for you?',
-                sender: 'agent',
-                timestamp: new Date(),
-              };
-
-              await window.electronAPI.saveMessage({
-                id: welcomeMessage.id,
-                conversationId: convoId,
-                content: welcomeMessage.content,
-                sender: welcomeMessage.sender,
-                metadata: JSON.stringify({ isWelcome: true }),
-              });
-
-              codexStream.appendMessage(welcomeMessage);
-            }
-          }
-        } catch (error) {
-          console.error('Failed to check for welcome message:', error);
-        }
-      }
-    };
-
-    checkForWelcomeMessage();
-  }, [
-    codexStream.isReady,
-    codexStream.conversationId,
-    codexStream.messages.length,
-    codexStream.appendMessage,
-  ]);
-
-  useEffect(() => {
-    const initializeCodex = async () => {
-      try {
-        const installResult = await window.electronAPI.codexCheckInstallation();
-        if (installResult.success) {
-          setIsCodexInstalled(installResult.isInstalled ?? false);
-
-          if (installResult.isInstalled) {
-            const agentResult = await window.electronAPI.codexCreateAgent(
-              workspace.id,
-              workspace.path
-            );
-            if (agentResult.success) {
-              setAgentCreated(true);
-              const { log } = await import('../lib/logger');
-              log.info('Codex agent created for workspace:', workspace.name);
-            } else {
-              console.error('Failed to create Codex agent:', agentResult.error);
-              toast({
-                title: 'Error',
-                description: 'Failed to create Codex agent. Please try again.',
-                variant: 'destructive',
-              });
-            }
-          }
-        } else {
-          console.error('Failed to check Codex installation:', installResult.error);
-        }
-      } catch (error) {
-        console.error('Error initializing Codex:', error);
-      }
-    };
-
-    initializeCodex();
-  }, [workspace.id, workspace.path, workspace.name, toast]);
-
-  const streamingOutputForList =
-    activeStream.isStreaming || activeStream.streamingOutput ? activeStream.streamingOutput : null;
 
   const isTerminal = providerMeta[provider]?.terminalOnly === true;
 
@@ -482,11 +440,13 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     return null;
   }, [isTerminal, workspace.metadata]);
 
+  // Only use keystroke injection for providers WITHOUT CLI flag support
+  // Providers with initialPromptFlag use CLI arg injection via TerminalPane instead
   useInitialPromptInjection({
     workspaceId: workspace.id,
     providerId: provider,
     prompt: initialInjection,
-    enabled: isTerminal,
+    enabled: isTerminal && providerMeta[provider]?.initialPromptFlag === undefined,
   });
 
   // Ensure a provider is stored for this workspace so fallbacks can subscribe immediately
@@ -684,145 +644,120 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className, ini
     );
   }, [containerState, portsExpanded, reduceMotion, workspace.id, workspace.path]);
 
+  if (!isTerminal) {
+    return null;
+  }
+
   return (
     <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
-      {isTerminal ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="px-6 pt-4">
-            <div className="mx-auto max-w-4xl space-y-2">
-              {(() => {
-                if (provider === 'codex' && isCodexInstalled === false) {
-                  return (
-                    <TerminalModeBanner
-                      provider={provider as any}
-                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                    />
-                  );
-                }
-                if (provider === 'claude' && isClaudeInstalled === false) {
-                  return (
-                    <TerminalModeBanner
-                      provider={provider as any}
-                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                    />
-                  );
-                }
-                if (provider !== 'codex' && provider !== 'claude' && cliStartFailed) {
-                  return (
-                    <TerminalModeBanner
-                      provider={provider as any}
-                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                    />
-                  );
-                }
-                return null;
-              })()}
-            </div>
-          </div>
-          {containerStatusNode}
-          <div className="mt-4 min-h-0 flex-1 px-6">
-            <div
-              className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                provider === 'charm' ? (effectiveTheme === 'dark' ? 'bg-gray-800' : 'bg-white') : ''
-              }`}
-            >
-              <TerminalPane
-                id={`${provider}-main-${workspace.id}`}
-                cwd={workspace.path}
-                shell={providerMeta[provider].cli}
-                env={
-                  planEnabled
-                    ? {
-                        EMDASH_PLAN_MODE: '1',
-                        EMDASH_PLAN_FILE: `${workspace.path}/.emdash/planning.md`,
-                      }
-                    : undefined
-                }
-                keepAlive={true}
-                onActivity={() => {
-                  try {
-                    window.localStorage.setItem(`provider:locked:${workspace.id}`, provider);
-                    setLockedProvider(provider);
-                  } catch {}
-                }}
-                onStartError={() => {
-                  setCliStartFailed(true);
-                }}
-                onStartSuccess={() => setCliStartFailed(false)}
-                variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
-                themeOverride={
-                  provider === 'charm'
-                    ? { background: effectiveTheme === 'dark' ? '#1f2937' : '#ffffff' }
-                    : undefined
-                }
-                contentFilter={
-                  provider === 'charm' && effectiveTheme !== 'dark'
-                    ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
-                    : undefined
-                }
-                className="h-full w-full"
-              />
-            </div>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="px-6 pt-4">
+          <div className="mx-auto max-w-4xl space-y-2">
+            {(() => {
+              if (isProviderInstalled !== true) {
+                return (
+                  <InstallBanner
+                    provider={provider as any}
+                    terminalId={terminalId}
+                    installCommand={getInstallCommandForProvider(provider as any)}
+                    onRunInstall={runInstallCommand}
+                    onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                  />
+                );
+              }
+              if (cliStartFailed) {
+                return (
+                  <InstallBanner
+                    provider={provider as any}
+                    terminalId={terminalId}
+                    onRunInstall={runInstallCommand}
+                    onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                  />
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
-      ) : codexStream.isLoading ? (
-        <div
-          className="flex-1 overflow-y-auto px-6 pb-2 pt-6"
-          style={{
-            maskImage: 'linear-gradient(to bottom, black 0%, black 93%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 93%, transparent 100%)',
-          }}
-        >
-          <div className="mx-auto max-w-4xl space-y-6">
-            <div className="flex items-center justify-center py-8">
-              <div className="font-sans text-sm text-gray-500 dark:text-gray-400">
-                Loading conversation...
-              </div>
-            </div>
+        {containerStatusNode}
+        <div className="mt-4 min-h-0 flex-1 px-6">
+          <div
+            className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+              provider === 'charm' ? (effectiveTheme === 'dark' ? 'bg-gray-800' : 'bg-white') : ''
+            }`}
+          >
+            <TerminalPane
+              id={terminalId}
+              cwd={workspace.path}
+              shell={providerMeta[provider].cli}
+              env={
+                planEnabled
+                  ? {
+                      EMDASH_PLAN_MODE: '1',
+                      EMDASH_PLAN_FILE: `${workspace.path}/.emdash/planning.md`,
+                    }
+                  : undefined
+              }
+              keepAlive={true}
+              onActivity={() => {
+                try {
+                  window.localStorage.setItem(`provider:locked:${workspace.id}`, provider);
+                } catch {}
+              }}
+              onStartError={() => {
+                setCliStartFailed(true);
+              }}
+              onStartSuccess={() => {
+                setCliStartFailed(false);
+                // Mark initial injection as sent so it won't re-run on restart
+                if (initialInjection && !workspace.metadata?.initialInjectionSent) {
+                  void window.electronAPI.saveWorkspace({
+                    ...workspace,
+                    metadata: {
+                      ...workspace.metadata,
+                      initialInjectionSent: true,
+                    },
+                  });
+                }
+              }}
+              variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
+              themeOverride={
+                provider === 'charm'
+                  ? { background: effectiveTheme === 'dark' ? '#1f2937' : '#ffffff' }
+                  : undefined
+              }
+              contentFilter={
+                provider === 'charm' && effectiveTheme !== 'dark'
+                  ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
+                  : undefined
+              }
+              initialPrompt={
+                providerMeta[provider]?.initialPromptFlag !== undefined &&
+                !workspace.metadata?.initialInjectionSent
+                  ? (initialInjection ?? undefined)
+                  : undefined
+              }
+              className="h-full w-full"
+            />
           </div>
         </div>
-      ) : (
-        <>
-          {provider === 'claude' && isClaudeInstalled === false ? (
-            <div className="px-6 pt-4">
-              <div className="mx-auto max-w-4xl">
-                <div className="whitespace-pre-wrap rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                  {claudeInstructions ||
-                    'Install Claude Code: npm install -g @anthropic-ai/claude-code\nThen run: claude and use /login'}
-                </div>
-              </div>
-            </div>
-          ) : null}
-          {containerStatusNode}
-          <MessageList
-            messages={activeStream.messages}
-            streamingOutput={streamingOutputForList}
-            isStreaming={activeStream.isStreaming}
-            awaitingThinking={
-              provider === 'codex' ? codexStream.awaitingThinking : claudeStream.awaitingThinking
-            }
-            providerId={provider === 'codex' ? 'codex' : 'claude'}
-          />
-        </>
-      )}
+      </div>
 
-      {isTerminal ? (
-        <ProviderBar
-          provider={provider}
-          workspaceId={workspace.id}
-          linearIssue={workspace.metadata?.linearIssue || null}
-          githubIssue={workspace.metadata?.githubIssue || null}
-          jiraIssue={workspace.metadata?.jiraIssue || null}
-          planModeEnabled={planEnabled}
-          onPlanModeChange={setPlanEnabled}
-          onApprovePlan={async () => {
-            try {
-              await logPlanEvent(workspace.path, 'Plan approved via UI; exiting Plan Mode');
-            } catch {}
-            setPlanEnabled(false);
-          }}
-        />
-      ) : null}
+      <ProviderBar
+        provider={provider}
+        workspaceId={workspace.id}
+        linearIssue={workspace.metadata?.linearIssue || null}
+        githubIssue={workspace.metadata?.githubIssue || null}
+        jiraIssue={workspace.metadata?.jiraIssue || null}
+        planModeEnabled={planEnabled}
+        onPlanModeChange={setPlanEnabled}
+        onApprovePlan={async () => {
+          try {
+            await logPlanEvent(workspace.path, 'Plan approved via UI; exiting Plan Mode');
+          } catch {}
+          setPlanEnabled(false);
+        }}
+      />
     </div>
   );
 };

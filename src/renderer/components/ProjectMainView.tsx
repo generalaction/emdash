@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
-import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';
@@ -11,6 +10,17 @@ import { ChangesBadge } from './WorkspaceChanges';
 import { Spinner } from './ui/spinner';
 import WorkspaceDeleteButton from './WorkspaceDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
+import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -23,6 +33,7 @@ import {
   subscribeToWorkspaceRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
+import { activityStore } from '../lib/activityStore';
 import type { Project, Workspace } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -36,11 +47,17 @@ function WorkspaceRow({
   active,
   onClick,
   onDelete,
+  isSelectMode,
+  isSelected,
+  onToggleSelect,
 }: {
   ws: Workspace;
   active: boolean;
   onClick: () => void;
-  onDelete: () => void | Promise<void>;
+  onDelete: () => void | Promise<void | boolean>;
+  isSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
@@ -100,28 +117,9 @@ function WorkspaceRow({
   }, [isReady, containerActive, containerState?.ports?.length]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const status = await (window as any).electronAPI.codexGetAgentStatus(ws.id);
-        if (status?.success && status.agent) {
-          setIsRunning(status.agent.status === 'running');
-        }
-      } catch {}
-    })();
-
-    const offOut = (window as any).electronAPI.onCodexStreamOutput((data: any) => {
-      if (data.workspaceId === ws.id) setIsRunning(true);
-    });
-    const offComplete = (window as any).electronAPI.onCodexStreamComplete((data: any) => {
-      if (data.workspaceId === ws.id) setIsRunning(false);
-    });
-    const offErr = (window as any).electronAPI.onCodexStreamError((data: any) => {
-      if (data.workspaceId === ws.id) setIsRunning(false);
-    });
+    const off = activityStore.subscribe(ws.id, (busy) => setIsRunning(busy));
     return () => {
-      offOut?.();
-      offComplete?.();
-      offErr?.();
+      off?.();
     };
   }, [ws.id]);
 
@@ -152,13 +150,25 @@ function WorkspaceRow({
         mode: 'container',
       });
       if (res?.ok !== true) {
+        void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('container_connect_failed', {
+            error_type: res?.error?.code || 'unknown',
+          });
+        });
         toast({
           title: 'Failed to start container',
           description: res?.error?.message || 'Unknown error',
           variant: 'destructive',
         });
+      } else {
+        void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('container_connect_success');
+        });
       }
     } catch (error: any) {
+      void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('container_connect_failed', { error_type: 'exception' });
+      });
       toast({
         title: 'Failed to start container',
         description: error?.message || String(error),
@@ -196,15 +206,21 @@ function WorkspaceRow({
   const previewUrl = containerState?.previewUrl;
   const previewService = containerState?.previewService;
 
+  const handleRowClick = () => {
+    if (!isSelectMode) {
+      onClick();
+    }
+  };
+
   return (
     <div
       className={[
-        'overflow-hidden rounded-xl border border-border bg-background',
-        active ? 'ring-2 ring-primary' : '',
+        'overflow-hidden rounded-xl border bg-background',
+        active && !isSelectMode ? 'border-primary' : 'border-border',
       ].join(' ')}
     >
       <div
-        onClick={onClick}
+        onClick={handleRowClick}
         role="button"
         tabIndex={0}
         className={[
@@ -213,7 +229,7 @@ function WorkspaceRow({
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         ].join(' ')}
       >
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             {isRunning || ws.status === 'running' ? <Spinner size="sm" className="size-3" /> : null}
@@ -300,33 +316,50 @@ function WorkspaceRow({
             </button>
           ) : null}
           {!isLoading && totalAdditions === 0 && totalDeletions === 0 && pr ? (
-            <span
-              className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (pr.url) window.electronAPI.openExternal(pr.url);
+              }}
+              className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               title={`${pr.title || 'Pull Request'} (#${pr.number})`}
             >
               {pr.isDraft
-                ? 'draft'
-                : String(pr.state).toLowerCase() === 'open'
-                  ? 'PR open'
-                  : String(pr.state).toLowerCase()}
-            </span>
+                ? 'Draft'
+                : String(pr.state).toUpperCase() === 'OPEN'
+                  ? 'View PR'
+                  : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+              <ArrowUpRight className="size-3" />
+            </button>
           ) : null}
+          {/* Agent badge commented out per user request
           {ws.agentId && <Badge variant="outline">agent</Badge>}
+          */}
 
-          <WorkspaceDeleteButton
-            workspaceName={ws.name}
-            onConfirm={async () => {
-              try {
-                setIsDeleting(true);
-                await onDelete();
-              } finally {
-                setIsDeleting(false);
-              }
-            }}
-            isDeleting={isDeleting}
-            aria-label={`Delete workspace ${ws.name}`}
-            className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent hover:text-destructive focus-visible:ring-0"
-          />
+          {isSelectMode ? (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect?.()}
+              aria-label={`Select ${ws.name}`}
+              className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
+            />
+          ) : (
+            <WorkspaceDeleteButton
+              workspaceName={ws.name}
+              onConfirm={async () => {
+                try {
+                  setIsDeleting(true);
+                  await onDelete();
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+              isDeleting={isDeleting}
+              aria-label={`Delete workspace ${ws.name}`}
+              className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
+            />
+          )}
         </div>
       </div>
 
@@ -351,7 +384,11 @@ interface ProjectMainViewProps {
   onCreateWorkspace: () => void;
   activeWorkspace: Workspace | null;
   onSelectWorkspace: (workspace: Workspace) => void;
-  onDeleteWorkspace: (project: Project, workspace: Workspace) => void | Promise<void>;
+  onDeleteWorkspace: (
+    project: Project,
+    workspace: Workspace,
+    options?: { silent?: boolean }
+  ) => void | Promise<void | boolean>;
   isCreatingWorkspace?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
 }
@@ -374,6 +411,72 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
   const [branchLoadError, setBranchLoadError] = useState<string | null>(null);
   const [branchReloadToken, setBranchReloadToken] = useState(0);
+
+  // Multi-select state
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const workspaces = project.workspaces ?? [];
+  const selectedCount = selectedIds.size;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    const toDelete = workspaces.filter((ws) => selectedIds.has(ws.id));
+    if (toDelete.length === 0) return;
+
+    setIsDeleting(true);
+    setShowDeleteDialog(false);
+
+    const deletedNames: string[] = [];
+    for (const ws of toDelete) {
+      try {
+        const result = await onDeleteWorkspace(project, ws, { silent: true });
+        if (result !== false) {
+          deletedNames.push(ws.name);
+        }
+      } catch {
+        // Continue deleting remaining workspaces
+      }
+    }
+
+    setIsDeleting(false);
+    exitSelectMode();
+
+    if (deletedNames.length > 0) {
+      const maxNames = 3;
+      const displayNames = deletedNames.slice(0, maxNames).join(', ');
+      const remaining = deletedNames.length - maxNames;
+
+      toast({
+        title: deletedNames.length === 1 ? 'Task deleted' : 'Tasks deleted',
+        description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
+      });
+    }
+  };
+
+  // Reset select mode when project changes
+  useEffect(() => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  }, [project.id]);
 
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
@@ -526,33 +629,74 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             <div className="space-y-6">
               <div className="space-y-3">
-                <div className="flex items-center justify-start gap-3">
-                  <h2 className="text-lg font-semibold">Workspaces</h2>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={onCreateWorkspace}
-                    disabled={isCreatingWorkspace}
-                    aria-busy={isCreatingWorkspace}
-                  >
-                    {isCreatingWorkspace ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        Creating…
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="mr-2 size-4" />
-                        Create workspace
-                      </>
-                    )}
-                  </Button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold">Tasks</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Spin up a fresh, isolated workspace for this project.
+                    </p>
+                  </div>
+                  {!isSelectMode && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="h-9 px-4 text-sm font-semibold shadow-sm"
+                      onClick={onCreateWorkspace}
+                      disabled={isCreatingWorkspace}
+                      aria-busy={isCreatingWorkspace}
+                    >
+                      {isCreatingWorkspace ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Starting…
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="mr-2 size-4" />
+                          Start New Task
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
+                {workspaces.length > 0 && (
+                  <div className="flex justify-end gap-2">
+                    {isSelectMode && selectedCount > 0 && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="h-8 px-3 text-xs font-medium"
+                        onClick={() => setShowDeleteDialog(true)}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Deleting…
+                          </>
+                        ) : (
+                          'Delete'
+                        )}
+                      </Button>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
+                      className="h-8 px-3 text-xs font-medium"
+                    >
+                      {isSelectMode ? 'Cancel' : 'Select'}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex flex-col gap-3">
-                  {(project.workspaces ?? []).map((ws) => (
+                  {workspaces.map((ws) => (
                     <WorkspaceRow
                       key={ws.id}
                       ws={ws}
+                      isSelectMode={isSelectMode}
+                      isSelected={selectedIds.has(ws.id)}
+                      onToggleSelect={() => toggleSelect(ws.id)}
                       active={activeWorkspace?.id === ws.id}
                       onClick={() => onSelectWorkspace(ws)}
                       onDelete={() => onDeleteWorkspace(project, ws)}
@@ -563,10 +707,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
               {(!project.workspaces || project.workspaces.length === 0) && (
                 <Alert>
-                  <AlertTitle>What’s a workspace?</AlertTitle>
+                  <AlertTitle>What's a task?</AlertTitle>
                   <AlertDescription className="flex items-center justify-between gap-4">
                     <p className="text-sm text-muted-foreground">
-                      Each workspace is an isolated copy and branch of your repo (Git-tracked files
+                      Each task is an isolated copy and branch of your repo (Git-tracked files
                       only).
                     </p>
                   </AlertDescription>
@@ -576,6 +720,26 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete tasks?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected tasks and their worktrees.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive px-4 text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleBulkDelete}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

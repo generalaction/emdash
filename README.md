@@ -1,24 +1,23 @@
-<img width="4856" height="1000" alt="gh_banner" src="https://github.com/user-attachments/assets/7c7c6e83-774a-43f4-8a6f-df10b3ba5751" />
+<img width="4856" height="1000" alt="Github_banner (1)" src="https://github.com/user-attachments/assets/9dfdd1fd-ea4f-4b86-9daf-d4a46952594a" />
 
 <div align="center" style="margin:24px 0;">
   
 <br />
 
 [![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash)
 [![Last Commit](https://img.shields.io/github/last-commit/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/commits/main)
 [![Commit Activity](https://img.shields.io/github/commit-activity/m/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/graphs/commit-activity)
-[![Issues](https://img.shields.io/github/issues/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/issues)
-[![Release](https://img.shields.io/github/v/release/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
-[![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
 <br>
 [![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/f2fv7YxuR2)
+<a href="https://www.ycombinator.com"><img src="https://img.shields.io/badge/Y%20Combinator-W26-orange" alt="Y Combinator W26"></a>
 [![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
 <br />
 
   <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/media/downloadformacos.png" alt="Download app for macOS" height="40">
+    <img src="./docs/public/media/downloadformacos.png" alt="Download app for macOS" height="40">
   </a>
 
 </div>
@@ -27,7 +26,7 @@
 
 **Run multiple coding agents in parallel—provider-agnostic, worktree-isolated, and local-first.**
 
-Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 10+ CLIs, such as Claude Code and Codex) and runs each agent in its own Git worktree to keep changes clean; when the environment matters, you can run a PR in its own Docker container. Hand off Linear, GitHub, or Jira tickets to an agent, review diffs side-by-side, and keep everything local.
+Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 15+ CLIs, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; Hand off Linear, GitHub, or Jira tickets to an agent and review diffs side-by-side.
 
 <div align="center" style="margin:24px 0;">
 
@@ -85,7 +84,7 @@ Emdash currently supports fifteen CLI providers and we are adding new providers 
 
 ### Issues
 
-Emdash allows you to pass engineering tickets straight from your issue tracker to your coding agent at workspace creation. 
+Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your coding agent at workspace creation. 
 
 | Tool | Status | Authentication |
 | ----------- | ------ | ----------- |
@@ -101,7 +100,7 @@ Emdash allows you to pass engineering tickets straight from your issue tracker t
 
 ![Parallel agents](https://www.emdash.sh/parallel_loop.gif)
 
-#### Passing a Linear ticket
+#### Pass a Linear ticket
 
 ![Passing Linear](https://www.emdash.sh/addlinearscreenshot.png)
 
@@ -198,3 +197,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 >
 > Emdash itself does **not** send your code or chats to our servers. Third‑party CLIs may transmit data per their policies.
 </details>
+
+[![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
+[![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)
+

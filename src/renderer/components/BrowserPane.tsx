@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
 import { Spinner } from './ui/spinner';
@@ -7,13 +7,27 @@ import { setLastUrl, setRunning } from '@/lib/previewStorage';
 import { PROBE_TIMEOUT_MS, SPINNER_MAX_MS, isAppPort } from '@/lib/previewNetwork';
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-const HANDLE_PX = 6; // left gutter reserved for drag handle; keep preview bounds clear of it
+
+const HANDLE_PX = 6;
+const BOUNDS_CHANGE_THRESHOLD = 2;
+const HIDE_DEBOUNCE_MS = 50;
+const URL_LOAD_DELAY_MS = 50;
+const BOUNDS_UPDATE_DELAY_MS = 100;
+const PROBE_RETRY_DELAY_MS = 500;
+const MAX_LOG_LINES = 8;
+const WIDTH_PCT_MIN = 5;
+const WIDTH_PCT_MAX = 96;
+const DEFAULT_PREVIEW_URLS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
 
 const BrowserPane: React.FC<{
   workspaceId?: string | null;
   workspacePath?: string | null;
   overlayActive?: boolean;
-}> = ({ workspaceId, workspacePath, overlayActive = false }) => {
+}> = ({ workspaceId, overlayActive = false }) => {
   const {
     isOpen,
     url,
@@ -27,10 +41,6 @@ const BrowserPane: React.FC<{
     hideSpinner,
   } = useBrowser();
   const [address, setAddress] = React.useState<string>('');
-  // const [loading] = React.useState<boolean>(false);
-  const [canBack] = React.useState(false);
-  const [canFwd] = React.useState(false);
-  const webviewRef = React.useRef<Electron.WebviewTag | null>(null);
   const [lines, setLines] = React.useState<string[]>([]);
   const [dragging, setDragging] = React.useState<boolean>(false);
   const widthPctRef = React.useRef<number>(widthPct);
@@ -38,8 +48,6 @@ const BrowserPane: React.FC<{
     widthPctRef.current = widthPct;
   }, [widthPct]);
   const [failed, setFailed] = React.useState<boolean>(false);
-  const [retryTick, setRetryTick] = React.useState<number>(0);
-  const [actionBusy, setActionBusy] = React.useState<null | 'install' | 'start'>(null);
   const [overlayRaised, setOverlayRaised] = React.useState<boolean>(false);
 
   // Listen for global overlay events (e.g., feedback modal) and hide preview when active
@@ -53,45 +61,43 @@ const BrowserPane: React.FC<{
     return () => window.removeEventListener('emdash:overlay:changed', onOverlay as any);
   }, []);
 
-  // Bind ref to provider
-  React.useEffect(() => {
-    const el = webviewRef.current;
-    const dispatch = (detail: any) =>
-      window.dispatchEvent(new CustomEvent('emdash:browser:internal', { detail }));
-    if (el) dispatch({ type: 'bind', target: el });
-    return () => {
-      dispatch({ type: 'bind', target: null });
-    };
-  }, []);
-
-  // Keep address bar in sync
   React.useEffect(() => {
     if (typeof url === 'string') setAddress(url);
   }, [url]);
 
-  // Stop the previous workspace server only when switching workspaces
   const prevWorkspaceIdRef = React.useRef<string | null>(null);
+  const lastWorkspaceUrlRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     const prev = prevWorkspaceIdRef.current;
     const cur = (workspaceId || '').trim() || null;
+
+    if (prev && cur && prev !== cur) {
+      try {
+        // Clear and hide browser view immediately when switching worktrees
+        (window as any).electronAPI?.browserClear?.();
+        (window as any).electronAPI?.browserHide?.();
+        setRunning(prev, false);
+        // Reset workspace URL tracking to force reload
+        lastWorkspaceUrlRef.current = null;
+      } catch {}
+    }
+
     try {
       // Stop all other preview servers except the new current (if any)
       (window as any).electronAPI?.hostPreviewStopAll?.(cur || '');
     } catch {}
-    if (prev && cur && prev !== cur) {
+
+    if (prev !== cur) {
       try {
-        setRunning(prev, false);
+        clearUrl();
+        hideSpinner();
+        setFailed(false);
+        setLines([]);
       } catch {}
     }
-    try {
-      clearUrl();
-    } catch {}
-    try {
-      hideSpinner();
-    } catch {}
-    setFailed(false);
+
     prevWorkspaceIdRef.current = cur;
-  }, [workspaceId]);
+  }, [workspaceId, clearUrl, hideSpinner]);
 
   React.useEffect(() => {
     const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
@@ -100,26 +106,23 @@ const BrowserPane: React.FC<{
         if (data.type === 'setup') {
           if (data.status === 'line' && data.line) {
             setLines((prev) => {
-              const next = [...prev, String(data.line).trim()].slice(-8);
+              const next = [...prev, String(data.line).trim()].slice(-MAX_LOG_LINES);
               return next;
             });
           }
-          // Only clear busy on error. On 'done' we likely start the dev server next,
-          // so we keep the spinner until a URL is reachable.
           if (data.status === 'error') {
             hideSpinner();
-            setActionBusy(null);
-          }
-          if (data.status === 'done') {
-            // Install finished successfully: re-enable action buttons, but keep spinner until URL is reachable
-            setActionBusy(null);
           }
         }
         if (data.type === 'url' && data.url) {
+          // CRITICAL: Only process URL events for the current workspaceId
+          // This ensures we don't load URLs from other worktrees
+          if (!workspaceId || data.workspaceId !== workspaceId) {
+            return;
+          }
           setFailed(false);
           const appPort = Number(window.location.port || 0);
           if (isAppPort(String(data.url), appPort)) return;
-          // Mark busy and navigate; a readiness probe below will clear busy when reachable
           showSpinner();
           navigate(String(data.url));
           try {
@@ -141,20 +144,25 @@ const BrowserPane: React.FC<{
     };
   }, [workspaceId, navigate, showSpinner, hideSpinner]);
 
-  // When URL changes, verify reachability (TCP probe) with a generous grace window
+  // Verify URL reachability with TCP probe (30s grace window for slow compilers)
   React.useEffect(() => {
     let cancelled = false;
-    const u = (url || '').trim();
-    if (!u) return;
+    const urlString = (url || '').trim();
+    if (!urlString) {
+      setFailed(false);
+      return;
+    }
     (async () => {
       try {
-        const parsed = new URL(u);
+        const parsed = new URL(urlString);
         const host = parsed.hostname || 'localhost';
         const port = Number(parsed.port || 0);
-        if (!port) return;
-        showSpinner();
-        const deadline = Date.now() + SPINNER_MAX_MS; // ~15s grace for compilers (e.g., Next initial build)
-        let ok = false;
+        if (!port) {
+          setFailed(false);
+          return;
+        }
+        const deadline = Date.now() + SPINNER_MAX_MS;
+        let isReachable = false;
         while (!cancelled && Date.now() < deadline) {
           try {
             const res = await (window as any).electronAPI?.netProbePorts?.(
@@ -162,17 +170,22 @@ const BrowserPane: React.FC<{
               [port],
               PROBE_TIMEOUT_MS
             );
-            ok = !!(res && Array.isArray(res.reachable) && res.reachable.length > 0);
-            if (ok) break;
+            isReachable = !!(res && Array.isArray(res.reachable) && res.reachable.length > 0);
+            if (isReachable) break;
           } catch {}
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, PROBE_RETRY_DELAY_MS));
         }
         if (!cancelled) {
-          hideSpinner();
-          setFailed(!ok);
+          if (isReachable) {
+            hideSpinner();
+          } else {
+            setFailed(true);
+          }
         }
       } catch {
-        hideSpinner();
+        if (!cancelled) {
+          setFailed(true);
+        }
       }
     })();
     return () => {
@@ -186,109 +199,153 @@ const BrowserPane: React.FC<{
     try {
       (window as any).electronAPI?.browserReload?.();
     } catch {}
-    setRetryTick((n) => n + 1);
   }, [url, showSpinner]);
 
-  const handleInstall = React.useCallback(async () => {
-    const id = (workspaceId || '').trim();
-    const wp = (workspacePath || '').trim();
-    if (!id || !wp) return;
-    setActionBusy('install');
-    showSpinner();
-    try {
-      await (window as any).electronAPI?.hostPreviewSetup?.({ workspaceId: id, workspacePath: wp });
-      // Success: unlock actions; spinner remains until URL reachable or user retries
-      setActionBusy(null);
-    } catch {
-      setActionBusy(null);
-      hideSpinner();
-    }
-  }, [workspaceId, workspacePath, showSpinner, hideSpinner]);
-
-  const handleStart = React.useCallback(async () => {
-    const id = (workspaceId || '').trim();
-    const wp = (workspacePath || '').trim();
-    if (!id || !wp) return;
-    setActionBusy('start');
-    showSpinner();
-    try {
-      await (window as any).electronAPI?.hostPreviewStart?.({ workspaceId: id, workspacePath: wp });
-      // Success: unlock actions; spinner remains until URL reachable or user retries
-      setActionBusy(null);
-    } catch {
-      setActionBusy(null);
-      hideSpinner();
-    }
-  }, [workspaceId, workspacePath, showSpinner, hideSpinner]);
-
-  // Switch to main-managed Browser (WebContentsView): report bounds + drive navigation via preload.
+  // Browser view is managed in main process (WebContentsView) via IPC
+  // This component reports bounds and coordinates navigation
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const computeBounds = React.useCallback(() => {
     const el = containerRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
-    // Leave a small gutter on the left for the drag handle so it can receive events above the preview view
     const x = Math.round(rect.left + HANDLE_PX);
     const y = Math.round(rect.top);
     const w = Math.max(1, Math.round(rect.width - HANDLE_PX));
-    const h = Math.round(rect.height);
+    const h = Math.max(1, Math.round(rect.height));
     return { x, y, width: w, height: h };
   }, []);
 
+  const lastBoundsRef = React.useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const hasBoundsChanged = React.useCallback(
+    (newBounds: { x: number; y: number; width: number; height: number }) => {
+      if (!lastBoundsRef.current) return true;
+      const old = lastBoundsRef.current;
+      return (
+        Math.abs(old.x - newBounds.x) > BOUNDS_CHANGE_THRESHOLD ||
+        Math.abs(old.y - newBounds.y) > BOUNDS_CHANGE_THRESHOLD ||
+        Math.abs(old.width - newBounds.width) > BOUNDS_CHANGE_THRESHOLD ||
+        Math.abs(old.height - newBounds.height) > BOUNDS_CHANGE_THRESHOLD
+      );
+    },
+    []
+  );
+
+  const visibilityTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   React.useEffect(() => {
-    if (!isOpen) {
-      try {
-        (window as any).electronAPI?.browserHide?.();
-      } catch {}
-      return;
+    if (visibilityTimeoutRef.current) {
+      clearTimeout(visibilityTimeoutRef.current);
+      visibilityTimeoutRef.current = null;
     }
-    if (overlayActive || overlayRaised) {
-      try {
-        (window as any).electronAPI?.browserHide?.();
-      } catch {}
-      return;
-    }
-    // If no URL yet, keep the native preview view hidden to avoid showing stale content
-    if (!url) {
-      try {
-        (window as any).electronAPI?.browserHide?.();
-      } catch {}
-      return;
-    }
-    const bounds = computeBounds();
-    if (bounds) {
-      try {
-        (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
-      } catch {}
-    }
-    const onResize = () => {
-      const b = computeBounds();
-      if (b)
+
+    const shouldShow = isOpen && !overlayActive && !overlayRaised && !!url && !!workspaceId;
+
+    if (!shouldShow) {
+      visibilityTimeoutRef.current = setTimeout(() => {
         try {
-          (window as any).electronAPI?.browserSetBounds?.(b);
+          (window as any).electronAPI?.browserHide?.();
+          lastBoundsRef.current = null;
         } catch {}
+        visibilityTimeoutRef.current = null;
+      }, HIDE_DEBOUNCE_MS);
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const bounds = computeBounds();
+      if (bounds && bounds.width > 0 && bounds.height > 0) {
+        if (hasBoundsChanged(bounds)) {
+          lastBoundsRef.current = bounds;
+          try {
+            (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
+            setTimeout(() => {
+              const updatedBounds = computeBounds();
+              if (updatedBounds && updatedBounds.width > 0 && updatedBounds.height > 0) {
+                if (hasBoundsChanged(updatedBounds)) {
+                  lastBoundsRef.current = updatedBounds;
+                  try {
+                    (window as any).electronAPI?.browserSetBounds?.(updatedBounds);
+                  } catch {}
+                }
+              }
+            }, BOUNDS_UPDATE_DELAY_MS);
+          } catch {}
+        }
+      }
+    });
+
+    const onResize = () => {
+      const bounds = computeBounds();
+      if (bounds && shouldShow && bounds.width > 0 && bounds.height > 0) {
+        if (hasBoundsChanged(bounds)) {
+          lastBoundsRef.current = bounds;
+          try {
+            (window as any).electronAPI?.browserSetBounds?.(bounds);
+          } catch {}
+        }
+      }
     };
     window.addEventListener('resize', onResize);
-    const RO = (window as any).ResizeObserver;
-    const ro = RO ? new RO(() => onResize()) : null;
-    if (ro && containerRef.current) ro.observe(containerRef.current);
+    const ResizeObserverClass = (window as any).ResizeObserver;
+    const resizeObserver = ResizeObserverClass ? new ResizeObserverClass(() => onResize()) : null;
+    if (resizeObserver && containerRef.current) resizeObserver.observe(containerRef.current);
+
     return () => {
+      if (visibilityTimeoutRef.current) {
+        clearTimeout(visibilityTimeoutRef.current);
+        visibilityTimeoutRef.current = null;
+      }
       try {
         (window as any).electronAPI?.browserHide?.();
       } catch {}
       window.removeEventListener('resize', onResize);
       try {
-        ro?.disconnect?.();
+        resizeObserver?.disconnect?.();
       } catch {}
     };
-  }, [isOpen, url, computeBounds, overlayActive, overlayRaised]);
+  }, [isOpen, url, computeBounds, overlayActive, overlayRaised, hasBoundsChanged, workspaceId]);
 
-  // No programmatic load of about:blank to avoid ERR_ABORTED noise.
   React.useEffect(() => {
     if (isOpen && !url) setAddress('');
   }, [isOpen, url]);
 
-  // Drag-resize from the left edge
+  const lastUrlRef = React.useRef<string | null>(null);
+  const lastWorkspaceIdRef = React.useRef<string | null | undefined>(null);
+  React.useEffect(() => {
+    if (workspaceId !== lastWorkspaceIdRef.current) {
+      lastUrlRef.current = null;
+      lastWorkspaceIdRef.current = workspaceId || null;
+      lastWorkspaceUrlRef.current = null;
+    }
+
+    if (isOpen && url && !overlayActive && !overlayRaised && workspaceId) {
+      const workspaceUrlKey = `${workspaceId}:${url}`;
+      // Force reload if workspace changed or URL changed
+      const isWorkspaceChange = lastWorkspaceUrlRef.current === null;
+      if (lastWorkspaceUrlRef.current !== workspaceUrlKey || lastUrlRef.current !== url) {
+        lastUrlRef.current = url;
+        lastWorkspaceUrlRef.current = workspaceUrlKey;
+
+        try {
+          (window as any).electronAPI?.browserClear?.();
+        } catch {}
+
+        const timeoutId = setTimeout(() => {
+          try {
+            // Force reload when workspace changes to ensure fresh content
+            (window as any).electronAPI?.browserLoadURL?.(url, isWorkspaceChange);
+          } catch {}
+        }, URL_LOAD_DELAY_MS);
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [isOpen, url, overlayActive, overlayRaised, workspaceId]);
+
   React.useEffect(() => {
     let dragging = false;
     let pointerId: number | null = null;
@@ -311,10 +368,10 @@ const BrowserPane: React.FC<{
     };
     const onPointerMove = (e: PointerEvent) => {
       if (!dragging) return;
-      const dx = startX - e.clientX; // dragging handle to left increases width
-      const vw = Math.max(1, window.innerWidth);
-      const deltaPct = (dx / vw) * 100;
-      setWidthPct(clamp(startPct + deltaPct, 5, 96));
+      const dx = startX - e.clientX;
+      const viewportWidth = Math.max(1, window.innerWidth);
+      const deltaPct = (dx / viewportWidth) * 100;
+      setWidthPct(clamp(startPct + deltaPct, WIDTH_PCT_MIN, WIDTH_PCT_MAX));
       e.preventDefault();
     };
     const onPointerUp = (e: PointerEvent) => {
@@ -343,7 +400,23 @@ const BrowserPane: React.FC<{
 
   const { goBack, goForward } = useBrowser();
 
-  const handleClose = React.useCallback(() => {
+  const handleRefresh = React.useCallback(() => {
+    if (!url) return;
+    try {
+      // Clear and reload to force fresh content
+      (window as any).electronAPI?.browserClear?.();
+      setTimeout(() => {
+        try {
+          (window as any).electronAPI?.browserLoadURL?.(url, true);
+        } catch {}
+      }, 100);
+    } catch {}
+  }, [url]);
+
+  const handleClose = React.useCallback(async () => {
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('browser_preview_closed');
+    });
     try {
       const id = (workspaceId || '').trim();
       if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
@@ -357,8 +430,6 @@ const BrowserPane: React.FC<{
     setFailed(false);
     close();
   }, [workspaceId, clearUrl, close]);
-
-  const isDev = typeof window !== 'undefined' && String(window.location.port || '') === '3000';
 
   return (
     <div
@@ -377,29 +448,40 @@ const BrowserPane: React.FC<{
           transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 220ms cubic-bezier(0.22,1,0.36,1), opacity 220ms',
           opacity: isOpen ? 1 : 0,
-          display: 'grid',
-          gridTemplateRows: '36px 1fr',
+          display: 'flex',
+          flexDirection: 'column',
           zIndex: 10,
         }}
       >
-        <div className="flex items-center gap-1 border-b border-border bg-gray-50 px-2 dark:bg-gray-900">
+        <div className="flex flex-shrink-0 items-center gap-1 border-b border-border bg-gray-50 px-2 dark:bg-gray-900">
           <button
             className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
             onClick={() => goBack()}
-            disabled={!canBack}
+            disabled
             title="Back"
+            aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
           <button
             className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
             onClick={() => goForward()}
-            disabled={!canFwd}
+            disabled
             title="Forward"
+            aria-label="Forward"
           >
             <ArrowRight className="h-4 w-4" />
           </button>
-          {/* Reload removed: dev servers auto-refresh (HMR) */}
+          {url && (
+            <button
+              className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+              onClick={handleRefresh}
+              title="Refresh"
+              aria-label="Refresh"
+            >
+              <RotateCw className="h-4 w-4" />
+            </button>
+          )}
           <form
             className="mx-2 flex min-w-0 flex-1"
             onSubmit={(e) => {
@@ -418,18 +500,16 @@ const BrowserPane: React.FC<{
           </form>
           {!url ? (
             <div className="hidden items-center gap-1.5 sm:flex">
-              {['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'].map(
-                (u) => (
-                  <button
-                    key={u}
-                    type="button"
-                    className="inline-flex items-center rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
-                    onClick={() => navigate(u)}
-                  >
-                    {u.replace('http://', '')}
-                  </button>
-                )
-              )}
+              {DEFAULT_PREVIEW_URLS.map((previewUrl) => (
+                <button
+                  key={previewUrl}
+                  type="button"
+                  className="inline-flex items-center rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+                  onClick={() => navigate(previewUrl)}
+                >
+                  {previewUrl.replace('http://', '')}
+                </button>
+              ))}
             </div>
           ) : null}
           <button
@@ -449,7 +529,7 @@ const BrowserPane: React.FC<{
           </button>
         </div>
         {!busy && url && lines.length > 0 && (
-          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
+          <div className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
             <span className="font-medium">Workspace Preview</span>
             <div className="ml-auto inline-flex items-center gap-2 text-muted-foreground">
               {lines.length ? (
@@ -459,19 +539,19 @@ const BrowserPane: React.FC<{
           </div>
         )}
 
-        <div className="relative min-h-0">
+        <div className="relative min-h-0 flex-1" style={{ minHeight: 0 }}>
           <div
             id="emdash-browser-drag"
             className="absolute left-0 top-0 z-[200] h-full w-[6px] cursor-col-resize hover:bg-border/60"
           />
-          <div ref={containerRef} className="h-full w-full" />
+          <div ref={containerRef} className="h-full w-full bg-white dark:bg-gray-950" />
           {dragging ? (
             <div
               className="absolute inset-0 z-[180] cursor-col-resize"
               style={{ background: 'transparent' }}
             />
           ) : null}
-          {busy || !url ? (
+          {busy && !url ? (
             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
               <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-[1px]">
                 <Spinner size="md" />
@@ -482,18 +562,23 @@ const BrowserPane: React.FC<{
               </div>
             </div>
           ) : null}
-          {!busy && url && failed ? (
-            isDev ? (
-              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-[1px]">
-                  <Spinner size="md" />
-                  <div className="leading-tight">
-                    <div className="font-medium text-foreground">Loading preview…</div>
-                    <div className="text-xs text-muted-foreground/80">Starting dev server</div>
+          {url && failed && !busy ? (
+            <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-4 py-3 text-sm text-muted-foreground shadow-sm">
+                <div className="text-center leading-tight">
+                  <div className="font-medium text-foreground">Preview unavailable</div>
+                  <div className="mt-1 text-xs text-muted-foreground/80">
+                    Server at {url} is not reachable
                   </div>
                 </div>
+                <button
+                  onClick={handleRetry}
+                  className="mt-2 rounded border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+                >
+                  Retry
+                </button>
               </div>
-            ) : null
+            </div>
           ) : null}
         </div>
       </div>

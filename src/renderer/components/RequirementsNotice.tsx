@@ -13,22 +13,14 @@ const RequirementsNotice: React.FC<Props> = ({
   needsGhAuth,
 }) => {
   return (
-    <div className="mx-auto max-w-2xl space-y-4 text-sm text-gray-500">
+    <div className="mx-auto max-w-2xl space-y-4 text-sm text-muted-foreground">
       {showGithubRequirement && (
         <div>
           <p className="mb-2">
-            <strong>Requirements:</strong> GitHub CLI
+            <strong>Requirements:</strong> GitHub account
           </p>
-          {needsGhInstall ? (
-            <p className="text-xs">
-              Install: <code className="rounded bg-gray-100 px-1">brew install gh</code>
-            </p>
-          ) : (
-            needsGhAuth && (
-              <p className="text-xs">
-                Authenticate: <code className="rounded bg-gray-100 px-1">gh auth login</code>
-              </p>
-            )
+          {needsGhAuth && (
+            <p className="text-xs">Click "Sign in with GitHub" to connect your account</p>
           )}
         </div>
       )}

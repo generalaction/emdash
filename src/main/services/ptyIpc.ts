@@ -1,11 +1,16 @@
-import { ipcMain, WebContents } from 'electron';
+import { ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
 import { startPty, writePty, resizePty, killPty, getPty } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
+import { getAppSettings } from '../settings';
+import * as telemetry from '../telemetry';
+import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
+import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
+const providerPtyTimers = new Map<string, number>();
 
 export function registerPtyIpc(): void {
   ipcMain.handle(
@@ -19,15 +24,18 @@ export function registerPtyIpc(): void {
         env?: Record<string, string>;
         cols?: number;
         rows?: number;
+        autoApprove?: boolean;
+        initialPrompt?: string;
       }
     ) => {
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
       try {
-        const { id, cwd, shell, env, cols, rows } = args;
+        const { id, cwd, shell, env, cols, rows, autoApprove, initialPrompt } = args;
         const existing = getPty(id);
-        const proc = existing ?? startPty({ id, cwd, shell, env, cols, rows });
+        const proc =
+          existing ?? startPty({ id, cwd, shell, env, cols, rows, autoApprove, initialPrompt });
         const envKeys = env ? Object.keys(env) : [];
         const planEnv = env && (env.EMDASH_PLAN_MODE || env.EMDASH_PLAN_FILE) ? true : false;
         log.debug('pty:start OK', {
@@ -36,6 +44,7 @@ export function registerPtyIpc(): void {
           shell,
           cols,
           rows,
+          autoApprove,
           reused: !!existing,
           envKeys,
           planEnv,
@@ -51,10 +60,15 @@ export function registerPtyIpc(): void {
 
           proc.onExit(({ exitCode, signal }) => {
             owners.get(id)?.send(`pty:exit:${id}`, { exitCode, signal });
+            maybeMarkProviderFinish(id, exitCode, signal);
             owners.delete(id);
             listeners.delete(id);
           });
           listeners.add(id);
+        }
+
+        if (!existing) {
+          maybeMarkProviderStart(id);
         }
 
         // Signal that PTY is ready so renderer may inject initial prompt safely
@@ -95,6 +109,8 @@ export function registerPtyIpc(): void {
 
   ipcMain.on('pty:kill', (_event, args: { id: string }) => {
     try {
+      // Ensure telemetry timers are cleared even on manual kill
+      maybeMarkProviderFinish(args.id, null, undefined);
       killPty(args.id);
       owners.delete(args.id);
       listeners.delete(args.id);
@@ -129,4 +145,96 @@ export function registerPtyIpc(): void {
     await terminalSnapshotService.deleteSnapshot(args.id);
     return { ok: true };
   });
+
+  ipcMain.handle('terminal:getTheme', async () => {
+    try {
+      const config = detectAndLoadTerminalConfig();
+      if (config) {
+        return { ok: true, config };
+      }
+      return { ok: false, error: 'No terminal configuration found' };
+    } catch (error: any) {
+      log.error('terminal:getTheme failed', { error });
+      return { ok: false, error: error?.message || String(error) };
+    }
+  });
+}
+
+function parseProviderPty(id: string): {
+  providerId: ProviderId;
+  workspaceId: string;
+} | null {
+  // Chat terminals are named `${provider}-main-${workspaceId}`
+  const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+  if (!match) return null;
+  const providerId = match[1] as ProviderId;
+  if (!PROVIDER_IDS.includes(providerId)) return null;
+  const workspaceId = match[2];
+  return { providerId, workspaceId };
+}
+
+function providerRunKey(providerId: ProviderId, workspaceId: string) {
+  return `${providerId}:${workspaceId}`;
+}
+
+function maybeMarkProviderStart(id: string) {
+  const parsed = parseProviderPty(id);
+  if (!parsed) return;
+  const key = providerRunKey(parsed.providerId, parsed.workspaceId);
+  if (providerPtyTimers.has(key)) return;
+  providerPtyTimers.set(key, Date.now());
+  telemetry.capture('agent_run_start', { provider: parsed.providerId });
+}
+
+function maybeMarkProviderFinish(
+  id: string,
+  exitCode: number | null | undefined,
+  signal: number | undefined
+) {
+  const parsed = parseProviderPty(id);
+  if (!parsed) return;
+  const key = providerRunKey(parsed.providerId, parsed.workspaceId);
+  const started = providerPtyTimers.get(key);
+  providerPtyTimers.delete(key);
+
+  const duration = started ? Math.max(0, Date.now() - started) : undefined;
+  const wasSignaled = signal !== undefined && signal !== null;
+  const outcome = typeof exitCode === 'number' && exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
+
+  telemetry.capture('agent_run_finish', {
+    provider: parsed.providerId,
+    outcome,
+    duration_ms: duration,
+  });
+
+  const providerName = getProvider(parsed.providerId)?.name ?? parsed.providerId;
+  if (outcome === 'ok') {
+    showCompletionNotification(providerName);
+  }
+}
+
+/**
+ * Show a system notification for provider completion.
+ * Only shows if: notifications are enabled, supported, and app is not focused.
+ */
+function showCompletionNotification(providerName: string) {
+  try {
+    const settings = getAppSettings();
+
+    if (!settings.notifications?.enabled) return;
+    if (!Notification.isSupported()) return;
+
+    const windows = BrowserWindow.getAllWindows();
+    const anyFocused = windows.some((w) => w.isFocused());
+    if (anyFocused) return;
+
+    const notification = new Notification({
+      title: `${providerName} Task Complete`,
+      body: 'Your agent has finished working',
+      silent: !settings.notifications?.sound,
+    });
+    notification.show();
+  } catch (error) {
+    log.warn('Failed to show completion notification', { error });
+  }
 }

@@ -50,7 +50,8 @@ export class WorktreeService {
   async createWorktree(
     projectPath: string,
     workspaceName: string,
-    projectId: string
+    projectId: string,
+    autoApprove?: boolean
   ): Promise<WorktreeInfo> {
     try {
       const sluggedName = this.slugify(workspaceName);
@@ -102,6 +103,12 @@ export class WorktreeService {
 
       // Ensure codex logs are ignored in this worktree
       this.ensureCodexLogIgnored(worktreePath);
+
+      // Setup Claude Code settings if auto-approve is enabled
+      if (autoApprove) {
+        this.ensureClaudeAutoApprove(worktreePath);
+      }
+
       await this.logWorktreeSyncStatus(projectPath, worktreePath, fetchedBaseRef);
 
       const worktreeInfo: WorktreeInfo = {
@@ -464,7 +471,10 @@ export class WorktreeService {
     }
   }
 
-  private parseBaseRef(ref?: string | null): BaseRefInfo | null {
+  private async parseBaseRef(
+    ref?: string | null,
+    projectPath?: string
+  ): Promise<BaseRefInfo | null> {
     if (!ref) return null;
     const cleaned = ref
       .trim()
@@ -475,6 +485,22 @@ export class WorktreeService {
     if (!remote || rest.length === 0) return null;
     const branch = rest.join('/');
     if (!branch) return null;
+
+    // If projectPath is provided, verify that 'remote' is actually a valid git remote
+    // If not, treat the entire string as a local branch name
+    if (projectPath) {
+      try {
+        const { stdout } = await execFileAsync('git', ['remote'], { cwd: projectPath });
+        const remotes = (stdout || '').trim().split('\n').filter(Boolean);
+        if (!remotes.includes(remote)) {
+          // 'remote' is not a valid git remote, treat entire string as local branch
+          return null;
+        }
+      } catch {
+        // If we can't check remotes, fall back to original behavior
+      }
+    }
+
     return { remote, branch, fullRef: `${remote}/${branch}` };
   }
 
@@ -489,9 +515,33 @@ export class WorktreeService {
       );
     }
 
-    const parsed = this.parseBaseRef(settings.baseRef);
+    const parsed = await this.parseBaseRef(settings.baseRef, projectPath);
     if (parsed) {
       return parsed;
+    }
+
+    // If parseBaseRef returned null, it might be a local branch name
+    // Check if the baseRef exists as a local branch
+    if (settings.baseRef) {
+      try {
+        const { stdout } = await execFileAsync(
+          'git',
+          ['rev-parse', '--verify', `refs/heads/${settings.baseRef}`],
+          { cwd: projectPath }
+        );
+        if (stdout?.trim()) {
+          // It's a valid local branch, use it directly without remote
+          // For local branches, we'll use 'origin' as remote and the branch name
+          const fallbackRemote = 'origin';
+          return {
+            remote: fallbackRemote,
+            branch: settings.baseRef,
+            fullRef: `${fallbackRemote}/${settings.baseRef}`,
+          };
+        }
+      } catch {
+        // Not a local branch, continue to fallback
+      }
     }
 
     const fallbackRemote = 'origin';
@@ -656,6 +706,38 @@ export class WorktreeService {
         }
       } catch {}
     } catch {}
+  }
+
+  private ensureClaudeAutoApprove(worktreePath: string) {
+    try {
+      const claudeDir = path.join(worktreePath, '.claude');
+      const settingsPath = path.join(claudeDir, 'settings.json');
+
+      // Create .claude directory if it doesn't exist
+      if (!fs.existsSync(claudeDir)) {
+        fs.mkdirSync(claudeDir, { recursive: true });
+      }
+
+      // Read existing settings or create new
+      let settings: any = {};
+      if (fs.existsSync(settingsPath)) {
+        try {
+          const content = fs.readFileSync(settingsPath, 'utf8');
+          settings = JSON.parse(content);
+        } catch (err) {
+          log.warn('Failed to parse existing .claude/settings.json, will overwrite', err);
+        }
+      }
+
+      // Set defaultMode to bypassPermissions
+      settings.defaultMode = 'bypassPermissions';
+
+      // Write settings file
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+      log.info(`Created .claude/settings.json with auto-approve enabled in ${worktreePath}`);
+    } catch (err) {
+      log.error('Failed to create .claude/settings.json', err);
+    }
   }
 
   private async logWorktreeSyncStatus(

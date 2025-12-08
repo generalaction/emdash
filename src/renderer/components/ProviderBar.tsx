@@ -24,7 +24,10 @@ import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
+import clineLogo from '../../assets/images/cline.png';
+import codebuffLogo from '../../assets/images/codebuff.png';
 import PlanModeToggle from './PlanModeToggle';
+import AutoApproveIndicator from './AutoApproveIndicator';
 import context7Logo from '../../assets/images/context7.png';
 import Context7Tooltip from './Context7Tooltip';
 import { providerMeta } from '../providers/meta';
@@ -39,6 +42,7 @@ type Props = {
   planModeEnabled?: boolean;
   onPlanModeChange?: (next: boolean) => void;
   onApprovePlan?: () => void;
+  autoApprove?: boolean;
 };
 
 export const ProviderBar: React.FC<Props> = ({
@@ -50,10 +54,11 @@ export const ProviderBar: React.FC<Props> = ({
   planModeEnabled,
   onPlanModeChange,
   onApprovePlan,
+  autoApprove,
 }) => {
-  const [c7Enabled, setC7Enabled] = React.useState<boolean>(false); // global setting
+  const [c7Enabled, setC7Enabled] = React.useState<boolean>(false);
   const [c7Busy, setC7Busy] = React.useState<boolean>(false);
-  const [c7WorkspaceEnabled, setC7WorkspaceEnabled] = React.useState<boolean>(false); // per workspace visual enable
+  const [c7WorkspaceEnabled, setC7WorkspaceEnabled] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -124,6 +129,8 @@ export const ProviderBar: React.FC<Props> = ({
     kimi: { name: 'Kimi', logo: kimiLogo },
     kiro: { name: 'Kiro', logo: kiroLogo },
     rovo: { name: 'Rovo Dev', logo: atlassianLogo },
+    cline: { name: 'Cline', logo: clineLogo },
+    codebuff: { name: 'Codebuff', logo: codebuffLogo },
   };
   const cfg = map[provider] ?? { name: provider, logo: '' };
   return (
@@ -359,6 +366,7 @@ export const ProviderBar: React.FC<Props> = ({
                 </TooltipProvider>
               ) : null}
               <PlanModeToggle value={!!planModeEnabled} onChange={onPlanModeChange} />
+              <AutoApproveIndicator enabled={!!autoApprove} />
               {planModeEnabled ? (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>

@@ -1,0 +1,21 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "---Get Started---",
+    "get-started/index",
+    "get-started/installation",
+    "get-started/tasks",
+    "get-started/pass-an-issue",
+    "---Features---",
+    "features/parallel-agents",
+    "features/containerization",
+    "features/provider-agnostic",
+    "features/best-of-n",
+    "features/kanban-view",
+    "features/diff-view",
+    "---Contributing---",
+    "contributing/how-to-contribute",
+    "---Security---",
+    "security/telemetry"
+  ]
+}

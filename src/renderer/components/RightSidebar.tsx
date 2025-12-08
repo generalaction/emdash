@@ -37,11 +37,35 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
     return [];
   })();
 
+  // Helper to generate display label with instance number if needed
+  const getVariantDisplayLabel = (variant: { provider: Provider; name: string }): string => {
+    const meta = providerMeta[variant.provider];
+    const asset = providerAssets[variant.provider];
+    const baseName = meta?.label || asset?.name || String(variant.provider);
+
+    // Count how many variants use this provider
+    const providerVariants = variants.filter((v) => v.provider === variant.provider);
+
+    // If only one instance of this provider, just show base name
+    if (providerVariants.length === 1) {
+      return baseName;
+    }
+
+    // Multiple instances: extract instance number from variant name
+    // variant.name format: "workspace-provider-1", "workspace-provider-2", etc.
+    const match = variant.name.match(/-(\d+)$/);
+    const instanceNum = match
+      ? match[1]
+      : String(providerVariants.findIndex((v) => v.name === variant.name) + 1);
+
+    return `${baseName} #${instanceNum}`;
+  };
+
   return (
     <aside
       data-state={collapsed ? 'collapsed' : 'open'}
       className={cn(
-        'group/right-sidebar relative z-[60] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden border-l border-border bg-muted/10 transition-all duration-200 ease-linear',
+        'group/right-sidebar relative z-[40] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden border-l border-border bg-muted/10 transition-all duration-200 ease-linear',
         'data-[state=collapsed]:pointer-events-none data-[state=collapsed]:border-l-0',
         className
       )}
@@ -76,7 +100,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                                   className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
                                 />
                               ) : null}
-                              {meta?.label || asset?.name || String(v.provider)}
+                              {getVariantDisplayLabel(v)}
                             </span>
                           );
                         })()}
@@ -125,7 +149,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
               </div>
               <div className="flex flex-1 items-center justify-center px-4 text-center">
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                  Select a workspace to review file changes.
+                  Select a task to review file changes.
                 </span>
               </div>
             </div>
@@ -135,7 +159,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
               </div>
               <div className="flex flex-1 items-center justify-center px-4 text-center">
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                  Select a workspace to open its terminal.
+                  Select a task to open its terminal.
                 </span>
               </div>
             </div>

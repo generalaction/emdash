@@ -144,6 +144,12 @@ export function registerUpdateIpc() {
     try {
       const { shell } = require('electron');
       await shell.openExternal(getLatestDownloadUrl());
+      // Gracefully quit after opening the external download link so the user can install
+      setTimeout(() => {
+        try {
+          app.quit();
+        } catch {}
+      }, 500);
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };

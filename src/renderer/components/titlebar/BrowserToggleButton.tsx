@@ -21,7 +21,6 @@ interface Props {
 }
 
 const BrowserToggleButton: React.FC<Props> = ({
-  defaultUrl,
   workspaceId,
   workspacePath,
   parentProjectPath,
@@ -172,7 +171,9 @@ const BrowserToggleButton: React.FC<Props> = ({
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs font-medium">
-          In‑app Browser
+          <div className="flex flex-col gap-1">
+            <span>Toggle in-app browser</span>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

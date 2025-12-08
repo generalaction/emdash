@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import { PROVIDER_IDS, type ProviderId } from '../shared/providers/registry';
 // Optional build-time defaults for distribution bundles
 // Resolve robustly across dev and packaged layouts.
 let appConfig: { posthogHost?: string; posthogKey?: string } = {};
@@ -26,14 +27,79 @@ function loadAppConfig(): { posthogHost?: string; posthogKey?: string } {
 appConfig = loadAppConfig();
 
 type TelemetryEvent =
+  // App lifecycle
   | 'app_started'
   | 'app_closed'
+  | 'app_window_focused' // when a user return back to the app after being away
+  | 'github_connection_triggered' // when a user presses the GitHub connection button in the app (with state if gh cli already installed or not)
+  | 'github_connected' // when a user connects to their GitHub account
+  // Project management
+  | 'project_add_clicked' // left sidebar button to add projects
+  | 'project_open_clicked' // button in the center to open Projects (Home View)
+  | 'project_added_success' // when a project is added successfully (both entrypoint buttons)
+  | 'project_deleted'
+  | 'project_view_opened' // when a user opens a project and see the Task overview in main screen (not the sidebar)
+  // Workspace management
+  | 'workspace_created' // when a new workspace (task) is created (track) (with all attributes, if initial prompt is used (but dont store the initial prompt itself))
+  | 'workspace_deleted' // when a workspace (task) is deleted
+  | 'workspace_provider_switched' // when a workspace (task) is switched to a different provider
+  | 'workspace_custom_named' // when a Task (workspace) is given a custom name instead of the default generated one
+  | 'workspace_advanced_options_opened' // when a workspace (task) advanced options are opened
+  // Terminal (Right Sidebar)
+  | 'terminal_entered' //when a user enters the terminal (right sidebar) with his mouse
+  | 'terminal_command_executed' //when a user executes a command in the terminal
+  | 'terminal_new_terminal_created'
+  | 'terminal_deleted'
+  // Changes (Right Sidebar)
+  | 'changes_viewed' // when a user clicks on one file to view their changes
+  // Plan mode
+  | 'plan_mode_enabled'
+  | 'plan_mode_disabled'
+  // Git & Pull Requests
+  | 'pr_created'
+  | 'pr_creation_failed'
+  | 'pr_viewed'
+  // Linear integration
+  | 'linear_connected'
+  | 'linear_disconnected'
+  | 'linear_issues_searched' // when creating a new task (workspace) and the Linear issue search is opened
+  | 'linear_issue_selected' // when a user selects a Linear issue to create a new task (workspace) (no need to send task, just selecting issue)
+  // Jira integration
+  | 'jira_connected'
+  | 'jira_disconnected'
+  | 'jira_issues_searched'
+  | 'jira_issue_selected'
+  // Container & Dev Environment
+  | 'container_connect_clicked'
+  | 'container_connect_success'
+  | 'container_connect_failed'
+  // ToolBar Section
+  | 'toolbar_feedback_clicked' // when a user clicks on the feedback button in the toolbar
+  | 'toolbar_left_sidebar_clicked' // when a user clicks on the left sidebar button in the toolbar (attribute for new state (open or closed))
+  | 'toolbar_right_sidebar_clicked' // when a user clicks on the right sidebar button in the toolbar (attribute for new state (open or closed))
+  | 'toolbar_settings_clicked' // when a user clicks on the settings button in the toolbar
+  | 'toolbar_open_in_menu_clicked' // when a user clicks on the "Open in" menu button (attribute for new state (open or closed))
+  | 'toolbar_open_in_selected' // when a user selects an app from the "Open in" menu (attribute for which app was selected: finder, cursor, vscode, terminal, iterm2, ghostty, zed)
+  | 'toolbar_kanban_toggled' // when a user toggles the Kanban view (attribute for new state (open or closed))
+  // Browser Preview
+  | 'browser_preview_closed'
+  | 'browser_preview_url_navigated' // when a user navigates to a new URL in the browser preview
+  // Settings & Preferences
+  | 'settings_tab_viewed' // when a user opens the settings (Settings View) (attribute for which tab is opened)
+  | 'theme_changed'
+  | 'telemetry_toggled'
+  | 'notification_settings_changed'
+  | 'default_provider_changed' // attribute for which provider is selected
+  // Legacy/aggregate events
   | 'feature_used'
   | 'error'
   // Aggregates (privacy-safe)
   | 'workspace_snapshot'
   // Session summary (duration only)
-  | 'app_session';
+  | 'app_session'
+  // Agent usage (provider-level only)
+  | 'agent_run_start'
+  | 'agent_run_finish';
 
 interface InitOptions {
   installSource?: string;
@@ -44,7 +110,8 @@ let apiKey: string | undefined;
 let host: string | undefined;
 let instanceId: string | undefined;
 let installSource: string | undefined;
-let userOptOut: boolean | undefined; // persisted user setting
+let userOptOut: boolean | undefined;
+let onboardingSeen: boolean = false;
 let sessionStartMs: number = Date.now();
 
 const libName = 'emdash';
@@ -62,7 +129,11 @@ function getInstanceIdPath(): string {
   return join(dir, 'telemetry.json');
 }
 
-function loadOrCreateState(): { instanceId: string; enabledOverride?: boolean } {
+function loadOrCreateState(): {
+  instanceId: string;
+  enabledOverride?: boolean;
+  onboardingSeen?: boolean;
+} {
   try {
     const file = getInstanceIdPath();
     if (existsSync(file)) {
@@ -71,20 +142,21 @@ function loadOrCreateState(): { instanceId: string; enabledOverride?: boolean } 
       if (parsed && typeof parsed.instanceId === 'string' && parsed.instanceId.length > 0) {
         const enabledOverride =
           typeof parsed.enabled === 'boolean' ? (parsed.enabled as boolean) : undefined;
-        return { instanceId: parsed.instanceId as string, enabledOverride };
+        const onboardingSeen =
+          typeof parsed.onboardingSeen === 'boolean' ? (parsed.onboardingSeen as boolean) : false;
+        return { instanceId: parsed.instanceId as string, enabledOverride, onboardingSeen };
       }
     }
   } catch {
     // fall through to create
   }
-  // Create new random ID
-  const id = cryptoRandomId();
+  const newId = cryptoRandomId();
   try {
-    persistState({ instanceId: id });
+    writeFileSync(getInstanceIdPath(), JSON.stringify({ instanceId: newId }, null, 2), 'utf8');
   } catch {
-    // ignore write errors; still use in-memory id
+    // ignore
   }
-  return { instanceId: id };
+  return { instanceId: newId };
 }
 
 function cryptoRandomId(): string {
@@ -120,15 +192,34 @@ function getBaseProps() {
   } as const;
 }
 
+/**
+ * Sanitize event properties to prevent PII leakage.
+ * Simple allowlist approach: only allow safe property names and primitive types.
+ */
 function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any> | undefined) {
-  const p: Record<string, any> = {};
-  const baseAllowed = new Set([
-    // explicitly allow only these keys to avoid PII
+  const sanitized: Record<string, any> = {};
+
+  // Simple allowlist of safe properties
+  const allowedProps = new Set([
+    'provider',
+    'source',
+    'tab',
+    'theme',
+    'trigger',
+    'has_initial_prompt',
+    'custom_name',
+    'state',
+    'success',
+    'error_type',
+    'gh_cli_installed',
     'feature',
     'type',
-    // session
+    'enabled',
+    'sound',
+    'app',
+    'duration_ms',
     'session_duration_ms',
-    // aggregates (counts + buckets only)
+    'outcome',
     'workspace_count',
     'workspace_count_bucket',
     'project_count',
@@ -136,79 +227,24 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
   ]);
 
   if (props) {
-    for (const [k, v] of Object.entries(props)) {
-      if (!baseAllowed.has(k)) continue;
-      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-        p[k] = v;
+    for (const [key, value] of Object.entries(props)) {
+      // Only process allowed property names
+      if (!allowedProps.has(key)) continue;
+
+      // Only allow primitive types
+      if (typeof value === 'string') {
+        // Trim and limit string length to prevent abuse
+        sanitized[key] = value.trim().slice(0, 100);
+      } else if (typeof value === 'number') {
+        // Clamp numbers to reasonable range
+        sanitized[key] = Math.max(0, Math.min(value, 1000000));
+      } else if (typeof value === 'boolean') {
+        sanitized[key] = value;
       }
     }
   }
 
-  // Helpers
-  const clampInt = (n: any, min = 0, max = 10_000_000) => {
-    const v = typeof n === 'number' ? Math.floor(n) : Number.parseInt(String(n), 10);
-    if (!Number.isFinite(v)) return undefined;
-    return Math.min(Math.max(v, min), max);
-  };
-
-  const BUCKETS = new Set(['0', '1-2', '3-5', '6-10', '>10']);
-
-  // Event-specific constraints
-  switch (event) {
-    case 'feature_used':
-      // Only retain a simple feature name
-      if (typeof p.feature !== 'string') delete p.feature;
-      break;
-    case 'error':
-      if (typeof p.type !== 'string') delete p.type;
-      break;
-    case 'app_session':
-      // Only duration
-      if (p.session_duration_ms != null) {
-        const v = clampInt(p.session_duration_ms, 0, 1000 * 60 * 60 * 24); // up to 24h
-        if (v == null) delete p.session_duration_ms;
-        else p.session_duration_ms = v;
-      }
-      // strip any other keys
-      for (const k of Object.keys(p)) if (k !== 'session_duration_ms') delete p[k];
-      break;
-    case 'workspace_snapshot':
-      // Allow only counts and very coarse buckets
-      if (p.workspace_count != null) {
-        const v = clampInt(p.workspace_count, 0, 100000);
-        if (v == null) delete p.workspace_count;
-        else p.workspace_count = v;
-      }
-      if (p.project_count != null) {
-        const v = clampInt(p.project_count, 0, 100000);
-        if (v == null) delete p.project_count;
-        else p.project_count = v;
-      }
-      if (p.workspace_count_bucket && !BUCKETS.has(String(p.workspace_count_bucket))) {
-        delete p.workspace_count_bucket;
-      }
-      if (p.project_count_bucket && !BUCKETS.has(String(p.project_count_bucket))) {
-        delete p.project_count_bucket;
-      }
-      // strip anything else
-      for (const k of Object.keys(p)) {
-        if (
-          k !== 'workspace_count' &&
-          k !== 'workspace_count_bucket' &&
-          k !== 'project_count' &&
-          k !== 'project_count_bucket'
-        ) {
-          delete p[k];
-        }
-      }
-      break;
-    default:
-      // no additional props for lifecycle events
-      for (const k of Object.keys(p)) delete p[k];
-      break;
-  }
-
-  return p;
+  return sanitized;
 }
 
 async function posthogCapture(
@@ -257,6 +293,7 @@ export function init(options?: InitOptions) {
   // If enabledOverride is explicitly false, user opted out; otherwise leave undefined
   userOptOut =
     typeof state.enabledOverride === 'boolean' ? state.enabledOverride === false : undefined;
+  onboardingSeen = state.onboardingSeen === true;
 
   // Fire lifecycle start
   void posthogCapture('app_started');
@@ -285,6 +322,7 @@ export function getTelemetryStatus() {
     envDisabled: !enabled,
     userOptOut: userOptOut === true,
     hasKeyAndHost: !!apiKey && !!host,
+    onboardingSeen,
   };
 }
 
@@ -310,7 +348,11 @@ export function setTelemetryEnabledViaUser(enabledFlag: boolean) {
   }
 }
 
-function persistState(state: { instanceId: string; enabledOverride?: boolean }) {
+function persistState(state: {
+  instanceId: string;
+  enabledOverride?: boolean;
+  onboardingSeen?: boolean;
+}) {
   try {
     const existing = existsSync(getInstanceIdPath())
       ? JSON.parse(readFileSync(getInstanceIdPath(), 'utf8'))
@@ -320,6 +362,8 @@ function persistState(state: { instanceId: string; enabledOverride?: boolean }) 
       instanceId: state.instanceId,
       enabled:
         typeof state.enabledOverride === 'boolean' ? state.enabledOverride : existing.enabled,
+      onboardingSeen:
+        typeof state.onboardingSeen === 'boolean' ? state.onboardingSeen : existing.onboardingSeen,
       createdAt: existing.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -336,4 +380,17 @@ function normalizeHost(h: string | undefined): string | undefined {
     s = 'https://' + s;
   }
   return s.replace(/\/+$/, '');
+}
+
+export function setOnboardingSeen(flag: boolean) {
+  onboardingSeen = Boolean(flag);
+  try {
+    persistState({
+      instanceId: instanceId || cryptoRandomId(),
+      onboardingSeen,
+      enabledOverride: userOptOut === undefined ? undefined : !userOptOut,
+    });
+  } catch {
+    // ignore
+  }
 }

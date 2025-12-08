@@ -8,4 +8,5 @@ export interface CliProviderStatus {
   message?: string | null;
   docUrl?: string | null;
   command?: string | null;
+  installCommand?: string | null;
 }

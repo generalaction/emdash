@@ -38,6 +38,7 @@ function normalizeUrl(u: string): string {
 
 class HostPreviewService extends EventEmitter {
   private procs = new Map<string, ChildProcessWithoutNullStreams>();
+  private procCwds = new Map<string, string>(); // Track cwd for each workspaceId
 
   async setup(
     workspaceId: string,
@@ -124,8 +125,54 @@ class HostPreviewService extends EventEmitter {
     workspacePath: string,
     opts?: { script?: string; parentProjectPath?: string }
   ): Promise<{ ok: boolean; error?: string }> {
-    if (this.procs.has(workspaceId)) return { ok: true };
     const cwd = path.resolve(workspacePath);
+
+    // Log the resolved path to help debug worktree issues
+    log.info?.('[hostPreview] start', {
+      workspaceId,
+      workspacePath,
+      resolvedCwd: cwd,
+      cwdExists: fs.existsSync(cwd),
+      hasPackageJson: fs.existsSync(path.join(cwd, 'package.json')),
+    });
+
+    // Check if process already exists for this workspaceId
+    const existingProc = this.procs.get(workspaceId);
+    const existingCwd = this.procCwds.get(workspaceId);
+
+    // If process exists, verify it's running from the correct directory
+    if (existingProc) {
+      // Check if process is still running
+      try {
+        // On Unix, signal 0 checks if process exists
+        existingProc.kill(0);
+        // Process is still running - check if cwd matches
+        if (existingCwd && path.resolve(existingCwd) === cwd) {
+          log.info?.('[hostPreview] reusing existing process', {
+            workspaceId,
+            cwd: existingCwd,
+          });
+          return { ok: true };
+        } else {
+          // Process exists but is running from wrong directory - stop it
+          log.info?.('[hostPreview] stopping process with wrong cwd', {
+            workspaceId,
+            oldCwd: existingCwd,
+            newCwd: cwd,
+          });
+          try {
+            existingProc.kill();
+          } catch {}
+          this.procs.delete(workspaceId);
+          this.procCwds.delete(workspaceId);
+        }
+      } catch {
+        // Process has exited - clean up
+        this.procs.delete(workspaceId);
+        this.procCwds.delete(workspaceId);
+      }
+    }
+
     const pm = detectPackageManager(cwd);
     // Preflight: if the workspace lacks node_modules but the parent has it, try linking
     try {
@@ -267,9 +314,11 @@ class HostPreviewService extends EventEmitter {
       try {
         const child = spawn(cmd, args, { cwd, env, shell: true });
         this.procs.set(workspaceId, child);
+        this.procCwds.set(workspaceId, cwd); // Store the cwd for this process
 
         let urlEmitted = false;
         let sawAddrInUse = false;
+        let candidateUrl: string | null = null;
         const startedAt = Date.now();
 
         const emitSetupLine = (line: string) => {
@@ -282,16 +331,50 @@ class HostPreviewService extends EventEmitter {
             } as HostPreviewEvent);
           } catch {}
         };
+
+        // Helper to probe and emit URL only when server is actually reachable
+        const probeAndEmitUrl = async (urlToProbe: string) => {
+          if (urlEmitted) return;
+          try {
+            const parsed = new URL(urlToProbe);
+            const host = parsed.hostname || 'localhost';
+            const port = Number(parsed.port || 0);
+            if (!port) return;
+
+            // Quick TCP probe to verify server is ready
+            const socket = net.createConnection({ host, port }, () => {
+              try {
+                socket.destroy();
+              } catch {}
+              if (!urlEmitted) {
+                urlEmitted = true;
+                try {
+                  this.emit('event', {
+                    type: 'url',
+                    workspaceId,
+                    url: urlToProbe,
+                  } as HostPreviewEvent);
+                } catch {}
+              }
+            });
+            socket.on('error', () => {
+              try {
+                socket.destroy();
+              } catch {}
+            });
+          } catch {}
+        };
+
         const onData = (buf: Buffer) => {
           const line = buf.toString();
           emitSetupLine(line);
           if (/EADDRINUSE|address\s+already\s+in\s+use/i.test(line)) sawAddrInUse = true;
           const url = normalizeUrl(line);
           if (url && !urlEmitted) {
-            urlEmitted = true;
-            try {
-              this.emit('event', { type: 'url', workspaceId, url } as HostPreviewEvent);
-            } catch {}
+            // Store candidate URL and probe before emitting
+            candidateUrl = url;
+            // Probe immediately when URL is found in logs
+            probeAndEmitUrl(url);
           }
         };
         child.stdout.on('data', onData);
@@ -301,6 +384,12 @@ class HostPreviewService extends EventEmitter {
         const host = 'localhost';
         const probeInterval = setInterval(() => {
           if (urlEmitted) return;
+          // If we have a candidate URL from logs, probe that first
+          if (candidateUrl) {
+            probeAndEmitUrl(candidateUrl);
+            return;
+          }
+          // Otherwise, probe the expected port
           const socket = net.createConnection(
             { host, port: Number(env.PORT) || forcedPort },
             () => {
@@ -329,6 +418,7 @@ class HostPreviewService extends EventEmitter {
         child.on('exit', async () => {
           clearInterval(probeInterval);
           this.procs.delete(workspaceId);
+          this.procCwds.delete(workspaceId); // Clean up cwd tracking
           const runtimeMs = Date.now() - startedAt;
           const quickFail = runtimeMs < 4000; // exited very quickly
           if (!urlEmitted && (sawAddrInUse || quickFail) && maxRetries > 0) {
@@ -375,6 +465,7 @@ class HostPreviewService extends EventEmitter {
       p.kill();
     } catch {}
     this.procs.delete(workspaceId);
+    this.procCwds.delete(workspaceId); // Clean up cwd tracking
     return { ok: true };
   }
 
@@ -387,6 +478,7 @@ class HostPreviewService extends EventEmitter {
         proc.kill();
       } catch {}
       this.procs.delete(id);
+      this.procCwds.delete(id); // Clean up cwd tracking
       stopped.push(id);
     }
     return { ok: true, stopped };

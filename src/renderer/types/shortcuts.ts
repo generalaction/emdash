@@ -1,7 +1,3 @@
-/**
- * Keyboard shortcuts types
- */
-
 export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
 
 export interface ShortcutConfig {
@@ -46,6 +42,9 @@ export interface GlobalShortcutHandlers {
 
   // Theme
   onToggleTheme?: () => void;
+
+  // Kanban
+  onToggleKanban?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;

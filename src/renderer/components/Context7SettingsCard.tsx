@@ -9,7 +9,6 @@ const Context7SettingsCard: React.FC = () => {
   const [enabled, setEnabled] = React.useState<boolean>(false);
   const [busy, setBusy] = React.useState<boolean>(false);
   const [showMcpFeedback, setShowMcpFeedback] = React.useState(false);
-  // Auto-invoke UI removed; keep global enable only
 
   const refresh = React.useCallback(async () => {
     try {

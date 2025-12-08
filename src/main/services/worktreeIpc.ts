@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { worktreeService, WorktreeInfo } from './WorktreeService';
+import { worktreeService } from './WorktreeService';
 
 export function registerWorktreeIpc(): void {
   // Create a new worktree
@@ -11,13 +11,15 @@ export function registerWorktreeIpc(): void {
         projectPath: string;
         workspaceName: string;
         projectId: string;
+        autoApprove?: boolean;
       }
     ) => {
       try {
         const worktree = await worktreeService.createWorktree(
           args.projectPath,
           args.workspaceName,
-          args.projectId
+          args.projectId,
+          args.autoApprove
         );
         return { success: true, worktree };
       } catch (error) {

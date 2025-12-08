@@ -1,5 +1,5 @@
 // Lightweight derived status store for workspaces based on agent activity
-// - Derives 'busy' when we receive stream output for a workspace
+// - Derives 'busy' when we receive stream output for a task (workspace)
 // - Derives 'idle' after a short inactivity window or when a 'complete' event fires
 
 type Derived = 'idle' | 'busy';
@@ -50,38 +50,7 @@ function wireGlobal() {
   wired = true;
   ensureTicker();
   const api: any = (window as any).electronAPI;
-  try {
-    api?.onAgentStreamStart?.((data: any) => {
-      const wid = String(data?.workspaceId || '').trim();
-      if (!wid) return;
-      lastActivity.set(wid, Date.now());
-      setStatusInternal(wid, 'busy');
-    });
-  } catch {}
-  try {
-    api?.onAgentStreamOutput?.((data: any) => {
-      const wid = String(data?.workspaceId || '').trim();
-      if (!wid) return;
-      lastActivity.set(wid, Date.now());
-      setStatusInternal(wid, 'busy');
-    });
-  } catch {}
-  try {
-    api?.onAgentStreamError?.((data: any) => {
-      const wid = String(data?.workspaceId || '').trim();
-      if (!wid) return;
-      lastActivity.set(wid, Date.now());
-      setStatusInternal(wid, 'busy');
-    });
-  } catch {}
-  try {
-    api?.onAgentStreamComplete?.((data: any) => {
-      const wid = String(data?.workspaceId || '').trim();
-      if (!wid) return;
-      // Flip to idle soon after completion unless more output arrives
-      lastActivity.set(wid, Date.now() + 500); // small grace to avoid flicker
-    });
-  } catch {}
+  // Agent streams removed; PTY and container activity drive status.
 }
 
 export function getDerivedStatus(workspaceId: string): Derived {

@@ -4,7 +4,7 @@ import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
 import { Button } from '../ui/button';
 import { Inbox, Plus } from 'lucide-react';
-import { getAll, getStatus, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
+import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import {
   subscribeDerivedStatus,
   watchWorkspacePty,
@@ -36,7 +36,6 @@ const KanbanBoard: React.FC<{
     const offs: Array<() => void> = [];
     const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const wsList = project.workspaces || [];
-    const wsIds = new Set(wsList.map((w) => w.id));
     for (const ws of wsList) {
       // Watch PTY output to capture terminal-based providers as activity
       offs.push(watchWorkspacePty(ws.id));
@@ -79,30 +78,6 @@ const KanbanBoard: React.FC<{
       });
       offs.push(un);
     }
-
-    // Global: when an agent stream completes for one of our workspaces, move to Done
-    try {
-      const offAgentDone = (window as any).electronAPI.onAgentStreamComplete?.(
-        (data: { providerId: 'codex' | 'claude'; workspaceId: string; exitCode: number }) => {
-          const wid = String(data?.workspaceId || '');
-          if (!wsIds.has(wid)) return;
-          // Only auto-complete if not currently busy according to the shared activity store
-          let currentlyBusy = false;
-          const un = activityStore.subscribe(wid, (b) => {
-            currentlyBusy = b;
-          });
-          un?.();
-          if (currentlyBusy) return;
-          setStatusMap((prev) => {
-            const cur = prev[wid] || 'todo';
-            if (cur !== 'in-progress') return prev;
-            setStatus(wid, 'done');
-            return { ...prev, [wid]: 'done' };
-          });
-        }
-      );
-      if (offAgentDone) offs.push(offAgentDone);
-    } catch {}
 
     // Per-ws: when the PTY exits and workspace is not busy anymore, move to Done
     for (const ws of wsList) {
@@ -305,6 +280,19 @@ const KanbanBoard: React.FC<{
           title={titles[s]}
           count={byStatus[s].length}
           onDropCard={(id) => handleDrop(s, id)}
+          action={
+            s === 'todo' && onCreateWorkspace ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-md border border-border/60 bg-muted text-foreground shadow-sm hover:bg-muted/80"
+                onClick={onCreateWorkspace}
+                aria-label="Start New Task"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            ) : undefined
+          }
         >
           {byStatus[s].length === 0 ? (
             s === 'todo' && !hasAny && onCreateWorkspace ? (
@@ -316,9 +304,9 @@ const KanbanBoard: React.FC<{
                   <span className="ml-2">No items</span>
                 </div>
                 <div className="flex flex-1 items-center justify-center">
-                  <Button variant="secondary" size="sm" onClick={onCreateWorkspace}>
+                  <Button variant="default" size="sm" onClick={onCreateWorkspace}>
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Create Task
+                    Start New Task
                   </Button>
                 </div>
               </div>
@@ -331,7 +319,22 @@ const KanbanBoard: React.FC<{
               </div>
             )
           ) : (
-            byStatus[s].map((ws) => <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />)
+            <>
+              {byStatus[s].map((ws) => (
+                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />
+              ))}
+              {s === 'todo' && onCreateWorkspace ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 w-full justify-center text-xs font-medium"
+                  onClick={onCreateWorkspace}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Start New Task
+                </Button>
+              ) : null}
+            </>
           )}
         </KanbanColumn>
       ))}

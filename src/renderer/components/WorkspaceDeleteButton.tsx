@@ -13,10 +13,11 @@ import {
   AlertDialogTrigger,
 } from './ui/alert-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { cn } from '@/lib/utils';
 
 type Props = {
   workspaceName: string;
-  onConfirm: () => void | Promise<void>;
+  onConfirm: () => void | Promise<void | boolean>;
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
@@ -29,18 +30,21 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   'aria-label': ariaLabel = 'Delete Task',
   isDeleting = false,
 }) => {
+  const [open, setOpen] = React.useState(false);
+
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
             <AlertDialogTrigger asChild>
               <button
                 type="button"
-                className={
+                className={cn(
                   className ||
-                  'inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-800'
-                }
+                    'inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800',
+                  isDeleting && 'opacity-100'
+                )}
                 title="Delete Task"
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}
@@ -62,22 +66,25 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
       </TooltipProvider>
       <AlertDialogContent onClick={(e) => e.stopPropagation()} className="space-y-4">
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Task?</AlertDialogTitle>
+          <AlertDialogTitle>Delete task?</AlertDialogTitle>
           <AlertDialogDescription>
-            {`This will remove the worktree for "${workspaceName}" and delete its branch.`}
+            This will permanently delete this task and its worktree.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
+            disabled={isDeleting}
             onClick={async (e) => {
               e.stopPropagation();
+              setOpen(false);
               try {
                 await onConfirm();
               } catch {}
             }}
           >
+            {isDeleting ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>

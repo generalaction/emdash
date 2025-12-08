@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useToast } from './use-toast';
 import githubLogo from '../../assets/images/github.png';
-import { generatePrTitleWithClaude } from '../lib/prTitle';
-
 type CreatePROptions = {
   workspacePath: string;
   commitMessage?: string;
@@ -44,18 +42,10 @@ export function useCreatePR() {
         return { success: false, error: 'Electron bridge unavailable' } as any;
       }
 
-      // Generate a PR title with Claude if none provided
-      let finalPrOptions = prOptions || {};
-      if (!finalPrOptions.title) {
-        try {
-          const generated = await generatePrTitleWithClaude(workspacePath);
-          if (generated) {
-            finalPrOptions = { ...finalPrOptions, title: generated };
-          }
-        } catch {
-          // ignore and fallback to default flow
-        }
-      }
+      const inferredTitle =
+        prOptions?.title || workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
+
+      let finalPrOptions = { ...(prOptions || {}), title: inferredTitle };
 
       const commitRes = await api.gitCommitAndPush({
         workspacePath,
@@ -80,25 +70,13 @@ export function useCreatePR() {
       });
 
       if (res?.success) {
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('pr_created');
+        })();
         toast({
-          title: (
-            <span className="inline-flex items-center gap-2">
-              <img src={githubLogo} alt="GitHub" className="h-5 w-5 rounded-sm object-contain" />
-              Pull Request Created
-            </span>
-          ),
-          description: res.url ? (
-            <a
-              href={res.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="cursor-pointer hover:underline"
-            >
-              {res.url}
-            </a>
-          ) : (
-            'PR created successfully.'
-          ),
+          title: 'Pull request created successfully!',
+          description: 'Opening PR page...',
         });
         try {
           await onSuccess?.();
@@ -106,6 +84,10 @@ export function useCreatePR() {
           // ignore onSuccess errors
         }
       } else {
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('pr_creation_failed', { error_type: res?.error || 'unknown' });
+        })();
         const details =
           res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
         toast({

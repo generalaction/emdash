@@ -8,8 +8,10 @@ import { TerminalPane } from './TerminalPane';
 import { providerMeta } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
-import { useToast } from '@/hooks/use-toast';
 import { classifyActivity } from '@/lib/activityClassifier';
+import { activityStore } from '@/lib/activityStore';
+import { Spinner } from './ui/spinner';
+import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
@@ -32,8 +34,30 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
   const multi = workspace.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
+
+  // Helper to generate display label with instance number if needed
+  const getVariantDisplayLabel = (variant: Variant): string => {
+    const meta = providerMeta[variant.provider];
+    const baseName = meta?.label || variant.provider;
+
+    // Count how many variants use this provider
+    const providerVariants = variants.filter((v) => v.provider === variant.provider);
+
+    // If only one instance of this provider, just show base name
+    if (providerVariants.length === 1) {
+      return baseName;
+    }
+
+    // Multiple instances: extract instance number from variant name
+    // variant.name format: "workspace-provider-1", "workspace-provider-2", etc.
+    const match = variant.name.match(/-(\d+)$/);
+    const instanceNum = match ? match[1] : String(providerVariants.indexOf(variant) + 1);
+
+    return `${baseName} #${instanceNum}`;
+  };
 
   // Build initial issue context (feature parity with single-agent ChatInterface)
   const initialInjection: string | null = useMemo(() => {
@@ -128,36 +152,6 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     return null;
   }, [workspace.metadata]);
 
-  // Ensure Codex agents are created per-variant for streaming orchestration
-  const agentIdsRef = useRef<string[]>([]);
-  const variantsKey = useMemo(
-    () => variants.map((v) => `${v.provider}:${v.path}`).join('|'),
-    [variants]
-  );
-  useEffect(() => {
-    const currentAgentIds: string[] = [];
-    (async () => {
-      for (const v of variants) {
-        if (v.provider === 'codex') {
-          try {
-            const agentId = `${workspace.id}::${v.provider}`;
-            await (window as any).electronAPI.codexCreateAgent?.(agentId, v.path);
-            currentAgentIds.push(agentId);
-            agentIdsRef.current.push(agentId);
-          } catch {}
-        }
-      }
-    })();
-    return () => {
-      for (const agentId of agentIdsRef.current) {
-        try {
-          (window as any).electronAPI.codexRemoveAgent?.(agentId);
-        } catch {}
-      }
-      agentIdsRef.current = [];
-    };
-  }, [workspace.id, variantsKey]);
-
   // Robust prompt injection modeled after useInitialPromptInjection, without one-shot gating
   const injectPrompt = async (ptyId: string, provider: Provider, text: string) => {
     const trimmed = (text || '').trim();
@@ -167,7 +161,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     const send = () => {
       if (sent) return;
       try {
-        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: trimmed + '\r' });
+        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: trimmed + '\n' });
         sent = true;
       } catch {}
     };
@@ -216,15 +210,123 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     // Send concurrently via PTY injection for all providers (Codex/Claude included)
     const tasks: Promise<any>[] = [];
     variants.forEach((v) => {
-      const termId = `${v.provider}-main-${workspace.id}`;
+      const termId = `${v.worktreeId}-main`;
       tasks.push(injectPrompt(termId, v.provider, msg));
     });
     await Promise.all(tasks);
-    // Clear the input after sending
     setPrompt('');
   };
 
-  // Prefill the top input with the prepared issue context once (user can edit before sending)
+  // Track per-variant activity so we can render a spinner on the tabs
+  useEffect(() => {
+    if (!variants.length) {
+      setVariantBusy({});
+      return;
+    }
+
+    // Keep busy state only for currently mounted variants
+    setVariantBusy((prev) => {
+      const next: Record<string, boolean> = {};
+      variants.forEach((v) => {
+        next[v.worktreeId] = prev[v.worktreeId] ?? false;
+      });
+      return next;
+    });
+
+    const timers = new Map<string, ReturnType<typeof setTimeout>>();
+    const busySince = new Map<string, number>();
+    const busyState = new Map<string, boolean>();
+
+    const publish = (variantId: string, busy: boolean) => {
+      busyState.set(variantId, busy);
+      setVariantBusy((prev) => {
+        if (prev[variantId] === busy) return prev;
+        return { ...prev, [variantId]: busy };
+      });
+    };
+
+    const clearTimer = (variantId: string) => {
+      const t = timers.get(variantId);
+      if (t) clearTimeout(t);
+      timers.delete(variantId);
+    };
+
+    const setBusy = (variantId: string, busy: boolean) => {
+      const current = busyState.get(variantId) || false;
+      if (busy) {
+        clearTimer(variantId);
+        busySince.set(variantId, Date.now());
+        if (!current) publish(variantId, true);
+        return;
+      }
+
+      const started = busySince.get(variantId) || 0;
+      const elapsed = started ? Date.now() - started : BUSY_HOLD_MS;
+      const remaining = elapsed < BUSY_HOLD_MS ? BUSY_HOLD_MS - elapsed : 0;
+
+      const clearNow = () => {
+        clearTimer(variantId);
+        busySince.delete(variantId);
+        if (busyState.get(variantId) !== false) publish(variantId, false);
+      };
+
+      if (remaining > 0) {
+        clearTimer(variantId);
+        timers.set(variantId, setTimeout(clearNow, remaining));
+      } else {
+        clearNow();
+      }
+    };
+
+    const armNeutral = (variantId: string) => {
+      if (!busyState.get(variantId)) return;
+      clearTimer(variantId);
+      timers.set(
+        variantId,
+        setTimeout(() => setBusy(variantId, false), CLEAR_BUSY_MS)
+      );
+    };
+
+    const cleanups: Array<() => void> = [];
+
+    variants.forEach((variant) => {
+      const variantId = variant.worktreeId;
+      const ptyId = `${variant.worktreeId}-main`;
+      busyState.set(variantId, variantBusy[variantId] ?? false);
+
+      const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
+        try {
+          const signal = classifyActivity(variant.provider, chunk || '');
+          if (signal === 'busy') setBusy(variantId, true);
+          else if (signal === 'idle') setBusy(variantId, false);
+          else armNeutral(variantId);
+        } catch {
+          // ignore classification failures
+        }
+      });
+      if (offData) cleanups.push(offData);
+
+      const offExit = (window as any).electronAPI?.onPtyExit?.(ptyId, () => {
+        setBusy(variantId, false);
+      });
+      if (offExit) cleanups.push(offExit);
+    });
+
+    return () => {
+      cleanups.forEach((off) => {
+        try {
+          off?.();
+        } catch {}
+      });
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+      busySince.clear();
+      busyState.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variants]);
+
+  // Prefill the top input with the prepared issue context once
   const prefillOnceRef = useRef(false);
   useEffect(() => {
     if (prefillOnceRef.current) return;
@@ -236,6 +338,12 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInjection]);
 
+  // Sync variant busy state to activityStore for sidebar indicator
+  useEffect(() => {
+    const anyBusy = Object.values(variantBusy).some(Boolean);
+    activityStore.setWorkspaceBusy(workspace.id, anyBusy);
+  }, [variantBusy, workspace.id]);
+
   if (!multi?.enabled || variants.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -245,20 +353,20 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {variants.map((v, idx) => {
         const isDark = effectiveTheme === 'dark';
         const isActive = idx === activeTabIndex;
         return (
           <div
             key={v.worktreeId}
-            className={`flex-1 overflow-hidden ${isActive ? 'block' : 'hidden'}`}
+            className={`flex-1 overflow-hidden ${isActive ? '' : 'invisible absolute inset-0'}`}
           >
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-end gap-2 px-3 py-1.5">
                 <OpenInMenu path={v.path} />
               </div>
-              <div className="mt-8 flex items-center justify-center px-4 py-2">
+              <div className="mt-2 flex items-center justify-center px-4 py-2">
                 <TooltipProvider delayDuration={250}>
                   <div className="flex items-center gap-2">
                     {variants.map((variant, tabIdx) => {
@@ -284,7 +392,15 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                                   className={`h-4 w-4 shrink-0 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
                                 />
                               ) : null}
-                              <span>{meta?.label || asset?.name || variant.provider}</span>
+                              <span>{getVariantDisplayLabel(variant)}</span>
+                              {variantBusy[variant.worktreeId] ? (
+                                <Spinner
+                                  size="sm"
+                                  className={
+                                    isTabActive ? 'text-foreground' : 'text-muted-foreground'
+                                  }
+                                />
+                              ) : null}
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -303,12 +419,39 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                   }`}
                 >
                   <TerminalPane
-                    id={`${v.provider}-main-${workspace.id}`}
+                    id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
+                    autoApprove={workspace.metadata?.autoApprove ?? false}
+                    initialPrompt={
+                      providerMeta[v.provider]?.initialPromptFlag !== undefined &&
+                      !workspace.metadata?.initialInjectionSent
+                        ? (initialInjection ?? undefined)
+                        : undefined
+                    }
                     keepAlive
                     variant={isDark ? 'dark' : 'light'}
                     className="h-full w-full"
+                    onStartSuccess={() => {
+                      // For providers WITHOUT CLI flag support, use keystroke injection
+                      if (
+                        initialInjection &&
+                        !workspace.metadata?.initialInjectionSent &&
+                        providerMeta[v.provider]?.initialPromptFlag === undefined
+                      ) {
+                        void injectPrompt(`${v.worktreeId}-main`, v.provider, initialInjection);
+                      }
+                      // Mark initial injection as sent so it won't re-run on restart
+                      if (initialInjection && !workspace.metadata?.initialInjectionSent) {
+                        void window.electronAPI.saveWorkspace({
+                          ...workspace,
+                          metadata: {
+                            ...workspace.metadata,
+                            initialInjectionSent: true,
+                          },
+                        });
+                      }
+                    }}
                   />
                 </div>
               </div>

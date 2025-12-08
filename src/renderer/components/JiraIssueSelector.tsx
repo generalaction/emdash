@@ -14,6 +14,7 @@ interface Props {
   isOpen?: boolean;
   className?: string;
   disabled?: boolean;
+  placeholder?: string;
 }
 
 const JiraIssueSelector: React.FC<Props> = ({
@@ -22,6 +23,7 @@ const JiraIssueSelector: React.FC<Props> = ({
   isOpen = false,
   className = '',
   disabled = false,
+  placeholder: customPlaceholder,
 }) => {
   const [availableIssues, setAvailableIssues] = useState<JiraIssueSummary[]>([]);
   const [isLoadingIssues, setIsLoadingIssues] = useState(false);
@@ -120,6 +122,13 @@ const JiraIssueSelector: React.FC<Props> = ({
       const result = await api.jiraSearchIssues(term.trim(), 20);
       if (!isMountedRef.current) return;
       setSearchResults(result?.success ? (result.issues ?? []) : []);
+      if (result?.success) {
+        // Track search
+        void (async () => {
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('jira_issues_searched');
+        })();
+      }
     } catch {
       if (isMountedRef.current) setSearchResults([]);
     } finally {
@@ -147,8 +156,18 @@ const JiraIssueSelector: React.FC<Props> = ({
   };
 
   const handleIssueSelect = (key: string) => {
+    if (key === '__clear__') {
+      onIssueChange(null);
+      return;
+    }
     const all = searchTerm.trim() ? searchResults : availableIssues;
     const issue = all.find((i) => i.key === key) || null;
+    if (issue) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('jira_issue_selected');
+      })();
+    }
     onIssueChange(issue);
   };
 
@@ -176,11 +195,9 @@ const JiraIssueSelector: React.FC<Props> = ({
     );
   }
 
-  const issuePlaceholder = isLoadingIssues
-    ? 'Loading…'
-    : issueListError
-      ? 'Connect your Jira'
-      : 'Select a Jira issue';
+  const issuePlaceholder =
+    customPlaceholder ??
+    (isLoadingIssues ? 'Loading…' : issueListError ? 'Connect your Jira' : 'Select a Jira issue');
 
   return (
     <div className={className}>
@@ -214,7 +231,10 @@ const JiraIssueSelector: React.FC<Props> = ({
             )}
           </div>
         </SelectTrigger>
-        <SelectContent side="top" className="z-[120]">
+        <SelectContent
+          side="top"
+          className="z-[120] w-auto min-w-[var(--radix-select-trigger-width)] max-w-[480px]"
+        >
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -226,7 +246,11 @@ const JiraIssueSelector: React.FC<Props> = ({
             />
           </div>
           <Separator />
-          <div className="max-h-80 overflow-y-auto" onScroll={handleScroll}>
+          <div className="max-h-80 overflow-y-auto overflow-x-hidden py-1" onScroll={handleScroll}>
+            <SelectItem value="__clear__">
+              <span className="text-sm text-muted-foreground">None</span>
+            </SelectItem>
+            <Separator className="my-1" />
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
                 <SelectItem key={issue.id || issue.key} value={issue.key}>

@@ -24,7 +24,14 @@ const ThemeCard: React.FC = () => {
           <button
             key={value}
             type="button"
-            onClick={() => setTheme(value)}
+            onClick={async () => {
+              if (theme !== value) {
+                void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+                  captureTelemetry('theme_changed', { theme: value });
+                });
+              }
+              setTheme(value);
+            }}
             className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               theme === value
                 ? 'border-primary bg-primary/10 text-foreground'

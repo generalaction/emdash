@@ -45,6 +45,7 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          defaultProvider?: string;
         };
         error?: string;
       }>;
@@ -60,6 +61,7 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          defaultProvider?: string;
         }>
       ) => Promise<{
         success: boolean;
@@ -74,6 +76,7 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          defaultProvider?: string;
         };
         error?: string;
       }>;
@@ -86,6 +89,8 @@ declare global {
         env?: Record<string, string>;
         cols?: number;
         rows?: number;
+        autoApprove?: boolean;
+        initialPrompt?: string;
       }) => Promise<{ ok: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
@@ -106,12 +111,45 @@ declare global {
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
       onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      terminalGetTheme: () => Promise<{
+        ok: boolean;
+        config?: {
+          terminal: string;
+          theme: {
+            background?: string;
+            foreground?: string;
+            cursor?: string;
+            cursorAccent?: string;
+            selectionBackground?: string;
+            black?: string;
+            red?: string;
+            green?: string;
+            yellow?: string;
+            blue?: string;
+            magenta?: string;
+            cyan?: string;
+            white?: string;
+            brightBlack?: string;
+            brightRed?: string;
+            brightGreen?: string;
+            brightYellow?: string;
+            brightBlue?: string;
+            brightMagenta?: string;
+            brightCyan?: string;
+            brightWhite?: string;
+            fontFamily?: string;
+            fontSize?: number;
+          };
+        };
+        error?: string;
+      }>;
 
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;
         workspaceName: string;
         projectId: string;
+        autoApprove?: boolean;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
         projectPath: string;
@@ -329,7 +367,7 @@ declare global {
       }>;
       // Telemetry
       captureTelemetry: (
-        event: 'feature_used' | 'error',
+        event: string,
         properties?: Record<string, any>
       ) => Promise<{ success: boolean; disabled?: boolean; error?: string }>;
       getTelemetryStatus: () => Promise<{
@@ -339,6 +377,7 @@ declare global {
           envDisabled: boolean;
           userOptOut: boolean;
           hasKeyAndHost: boolean;
+          onboardingSeen?: boolean;
         };
         error?: string;
       }>;
@@ -349,6 +388,18 @@ declare global {
           envDisabled: boolean;
           userOptOut: boolean;
           hasKeyAndHost: boolean;
+          onboardingSeen?: boolean;
+        };
+        error?: string;
+      }>;
+      setOnboardingSeen: (flag: boolean) => Promise<{
+        success: boolean;
+        status?: {
+          enabled: boolean;
+          envDisabled: boolean;
+          userOptOut: boolean;
+          hasKeyAndHost: boolean;
+          onboardingSeen?: boolean;
         };
         error?: string;
       }>;
@@ -403,8 +454,30 @@ declare global {
         success: boolean;
         token?: string;
         user?: any;
+        device_code?: string;
+        user_code?: string;
+        verification_uri?: string;
+        expires_in?: number;
+        interval?: number;
         error?: string;
       }>;
+      githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;
+      onGithubAuthDeviceCode: (
+        callback: (data: {
+          userCode: string;
+          verificationUri: string;
+          expiresIn: number;
+          interval: number;
+        }) => void
+      ) => () => void;
+      onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
+      onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
+      onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
+      onGithubAuthError: (
+        callback: (data: { error: string; message: string }) => void
+      ) => () => void;
+      onGithubAuthCancelled: (callback: () => void) => () => void;
+      onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
       githubIsAuthenticated: () => Promise<boolean>;
       githubGetStatus: () => Promise<{
         installed: boolean;
@@ -417,6 +490,8 @@ declare global {
         repoUrl: string,
         localPath: string
       ) => Promise<{ success: boolean; error?: string }>;
+      githubCheckCLIInstalled: () => Promise<boolean>;
+      githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
       githubListPullRequests: (
         projectPath: string
       ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
@@ -485,19 +560,21 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
-      getCliProviders?: () => Promise<{
+      getProviderStatuses?: (opts?: {
+        refresh?: boolean;
+        providers?: string[];
+        providerId?: string;
+      }) => Promise<{
         success: boolean;
-        providers?: Array<{
-          id: string;
-          name: string;
-          status: 'connected' | 'missing' | 'needs_key' | 'error';
-          version?: string | null;
-          message?: string | null;
-          docUrl?: string | null;
-          command?: string | null;
-        }>;
+        statuses?: Record<
+          string,
+          { installed: boolean; path?: string | null; version?: string | null; lastChecked: number }
+        >;
         error?: string;
       }>;
+      onProviderStatusUpdated?: (
+        listener: (data: { providerId: string; status: any }) => void
+      ) => () => void;
 
       // Database operations
       getProjects: () => Promise<any[]>;
@@ -522,79 +599,6 @@ declare global {
         content: string,
         options?: { reset?: boolean }
       ) => Promise<{ success: boolean; error?: string }>;
-
-      // Codex
-      codexCheckInstallation: () => Promise<{
-        success: boolean;
-        isInstalled?: boolean;
-        error?: string;
-      }>;
-      codexCreateAgent: (
-        workspaceId: string,
-        worktreePath: string
-      ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-      codexSendMessage: (
-        workspaceId: string,
-        message: string
-      ) => Promise<{ success: boolean; response?: any; error?: string }>;
-      codexSendMessageStream: (
-        workspaceId: string,
-        message: string,
-        conversationId?: string
-      ) => Promise<{ success: boolean; error?: string }>;
-      codexStopStream: (
-        workspaceId: string
-      ) => Promise<{ success: boolean; stopped?: boolean; error?: string }>;
-      codexGetAgentStatus: (
-        workspaceId: string
-      ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-      codexGetAllAgents: () => Promise<{
-        success: boolean;
-        agents?: any[];
-        error?: string;
-      }>;
-      codexRemoveAgent: (
-        workspaceId: string
-      ) => Promise<{ success: boolean; removed?: boolean; error?: string }>;
-      codexGetInstallationInstructions: () => Promise<{
-        success: boolean;
-        instructions?: string;
-        error?: string;
-      }>;
-
-      // Generic agent integration (multi-provider)
-      agentCheckInstallation: (providerId: 'codex' | 'claude') => Promise<{
-        success: boolean;
-        isInstalled?: boolean;
-        error?: string;
-      }>;
-      agentGetInstallationInstructions: (providerId: 'codex' | 'claude') => Promise<{
-        success: boolean;
-        instructions?: string;
-        error?: string;
-      }>;
-      agentSendMessageStream: (args: {
-        providerId: 'codex' | 'claude';
-        workspaceId: string;
-        worktreePath: string;
-        message: string;
-        conversationId?: string;
-      }) => Promise<{ success: boolean; error?: string }>;
-      agentStopStream: (args: { providerId: 'codex' | 'claude'; workspaceId: string }) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-
-      // Streaming event listeners
-      onCodexStreamOutput: (
-        listener: (data: { workspaceId: string; output: string; agentId: string }) => void
-      ) => () => void;
-      onCodexStreamError: (
-        listener: (data: { workspaceId: string; error: string; agentId: string }) => void
-      ) => () => void;
-      onCodexStreamComplete: (
-        listener: (data: { workspaceId: string; exitCode: number; agentId: string }) => void
-      ) => () => void;
     };
   }
 }
@@ -622,6 +626,8 @@ export interface ElectronAPI {
     env?: Record<string, string>;
     cols?: number;
     rows?: number;
+    autoApprove?: boolean;
+    initialPrompt?: string;
   }) => Promise<{ ok: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
@@ -648,6 +654,7 @@ export interface ElectronAPI {
     projectPath: string;
     workspaceName: string;
     projectId: string;
+    autoApprove?: boolean;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
     projectPath: string;
@@ -727,22 +734,24 @@ export interface ElectronAPI {
     branch?: string;
     error?: string;
   }>;
-  getCliProviders?: () => Promise<{
+  getProviderStatuses?: (opts?: {
+    refresh?: boolean;
+    providers?: string[];
+    providerId?: string;
+  }) => Promise<{
     success: boolean;
-    providers?: Array<{
-      id: string;
-      name: string;
-      status: 'connected' | 'missing' | 'needs_key' | 'error';
-      version?: string | null;
-      message?: string | null;
-      docUrl?: string | null;
-      command?: string | null;
-    }>;
+    statuses?: Record<
+      string,
+      { installed: boolean; path?: string | null; version?: string | null; lastChecked: number }
+    >;
     error?: string;
   }>;
+  onProviderStatusUpdated?: (
+    listener: (data: { providerId: string; status: any }) => void
+  ) => () => void;
   // Telemetry
   captureTelemetry: (
-    event: 'feature_used' | 'error',
+    event: string,
     properties?: Record<string, any>
   ) => Promise<{ success: boolean; disabled?: boolean; error?: string }>;
   getTelemetryStatus: () => Promise<{
@@ -752,6 +761,7 @@ export interface ElectronAPI {
       envDisabled: boolean;
       userOptOut: boolean;
       hasKeyAndHost: boolean;
+      onboardingSeen?: boolean;
     };
     error?: string;
   }>;
@@ -762,6 +772,7 @@ export interface ElectronAPI {
       envDisabled: boolean;
       userOptOut: boolean;
       hasKeyAndHost: boolean;
+      onboardingSeen?: boolean;
     };
     error?: string;
   }>;
@@ -797,8 +808,28 @@ export interface ElectronAPI {
     success: boolean;
     token?: string;
     user?: any;
+    device_code?: string;
+    user_code?: string;
+    verification_uri?: string;
+    expires_in?: number;
+    interval?: number;
     error?: string;
   }>;
+  githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;
+  onGithubAuthDeviceCode: (
+    callback: (data: {
+      userCode: string;
+      verificationUri: string;
+      expiresIn: number;
+      interval: number;
+    }) => void
+  ) => () => void;
+  onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
+  onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
+  onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
+  onGithubAuthError: (callback: (data: { error: string; message: string }) => void) => () => void;
+  onGithubAuthCancelled: (callback: () => void) => () => void;
+  onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
   githubIsAuthenticated: () => Promise<boolean>;
   githubGetUser: () => Promise<any>;
   githubGetRepositories: () => Promise<any[]>;
@@ -811,6 +842,8 @@ export interface ElectronAPI {
     authenticated: boolean;
     user?: any;
   }>;
+  githubCheckCLIInstalled?: () => Promise<boolean>;
+  githubInstallCLI?: () => Promise<{ success: boolean; error?: string }>;
   githubListPullRequests: (
     projectPath: string
   ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
@@ -896,76 +929,5 @@ export interface ElectronAPI {
     content: string,
     options?: { reset?: boolean }
   ) => Promise<{ success: boolean; error?: string }>;
-
-  // Codex
-  codexCheckInstallation: () => Promise<{
-    success: boolean;
-    isInstalled?: boolean;
-    error?: string;
-  }>;
-  codexCreateAgent: (
-    workspaceId: string,
-    worktreePath: string
-  ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-  codexSendMessage: (
-    workspaceId: string,
-    message: string
-  ) => Promise<{ success: boolean; response?: any; error?: string }>;
-  codexSendMessageStream: (
-    workspaceId: string,
-    message: string,
-    conversationId?: string
-  ) => Promise<{ success: boolean; error?: string }>;
-  codexStopStream: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; stopped?: boolean; error?: string }>;
-  codexGetStreamTail: (workspaceId: string) => Promise<{
-    success: boolean;
-    tail?: string;
-    startedAt?: string;
-    error?: string;
-  }>;
-  codexGetAgentStatus: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; agent?: any; error?: string }>;
-  codexGetAllAgents: () => Promise<{
-    success: boolean;
-    agents?: any[];
-    error?: string;
-  }>;
-  codexRemoveAgent: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; removed?: boolean; error?: string }>;
-  codexGetInstallationInstructions: () => Promise<{
-    success: boolean;
-    instructions?: string;
-    error?: string;
-  }>;
-
-  // Streaming event listeners
-  onCodexStreamOutput: (
-    listener: (data: {
-      workspaceId: string;
-      output: string;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-  onCodexStreamError: (
-    listener: (data: {
-      workspaceId: string;
-      error: string;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
-  onCodexStreamComplete: (
-    listener: (data: {
-      workspaceId: string;
-      exitCode: number;
-      agentId: string;
-      conversationId?: string;
-    }) => void
-  ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';

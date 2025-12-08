@@ -2,15 +2,24 @@ import { BrowserWindow } from 'electron';
 import { join } from 'path';
 import { isDev } from '../utils/dev';
 import { registerExternalLinkHandlers } from '../utils/externalLinks';
+import { ensureRendererServer } from './staticServer';
 
 let mainWindow: BrowserWindow | null = null;
 
 export function createMainWindow(): BrowserWindow {
+  // In development, resolve icon from src/assets
+  // In production (packaged), electron-builder handles the icon
+  const iconPath = isDev
+    ? join(__dirname, '..', '..', '..', 'src', 'assets', 'images', 'emdash', 'emdash_logo.png')
+    : undefined;
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 800,
+    title: 'emdash',
+    ...(iconPath && { icon: iconPath }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -28,12 +37,20 @@ export function createMainWindow(): BrowserWindow {
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
   } else {
-    // In production, compiled main files are under dist/main/main/**
-    // Renderer build outputs to dist/renderer/index.html (sibling of dist/main)
-    // __dirname here resolves to dist/main/main/app, so we go up 3 levels.
-    // renderer build outputs to dist/renderer
-    // __dirname resolves to dist/main/main/app at runtime; go up to dist and into renderer
-    mainWindow.loadFile(join(__dirname, '..', '..', '..', 'renderer', 'index.html'));
+    // Serve renderer over an HTTP origin in production so embeds work.
+    const rendererRoot = join(__dirname, '..', '..', '..', 'renderer');
+    void ensureRendererServer(rendererRoot)
+      .then((url: string) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadURL(url);
+        }
+      })
+      .catch(() => {
+        // Fallback to file load if server fails for any reason.
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadFile(join(rendererRoot, 'index.html'));
+        }
+      });
   }
 
   // Route external links to the user’s default browser
@@ -42,6 +59,14 @@ export function createMainWindow(): BrowserWindow {
   // Show when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+  });
+
+  // Track window focus for telemetry
+  mainWindow.on('focus', () => {
+    // Lazy import to avoid circular dependencies
+    void import('../telemetry').then(({ capture }) => {
+      void capture('app_window_focused');
+    });
   });
 
   // Cleanup reference on close

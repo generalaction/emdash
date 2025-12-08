@@ -14,6 +14,8 @@ interface AttachOptions {
   env?: Record<string, string>;
   initialSize: { cols: number; rows: number };
   theme: SessionTheme;
+  autoApprove?: boolean;
+  initialPrompt?: string;
 }
 
 class SessionRegistry {
@@ -56,6 +58,8 @@ class SessionRegistry {
       scrollbackLines: DEFAULT_SCROLLBACK_LINES,
       theme: options.theme,
       telemetry: null,
+      autoApprove: options.autoApprove,
+      initialPrompt: options.initialPrompt,
     };
 
     const session = new TerminalSessionManager(sessionOptions);

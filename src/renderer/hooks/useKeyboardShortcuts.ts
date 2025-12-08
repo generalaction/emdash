@@ -1,12 +1,6 @@
 import { useEffect } from 'react';
 import type { ShortcutConfig, GlobalShortcutHandlers, ShortcutMapping } from '../types/shortcuts';
 
-/**
- * ==============================================================================
- * SHORTCUTS CONFIGURATION (Single Source of Truth)
- * ==============================================================================
- */
-
 export const APP_SHORTCUTS = {
   // Command Palette
   COMMAND_PALETTE: {
@@ -45,6 +39,14 @@ export const APP_SHORTCUTS = {
     modifier: 'cmd' as const,
     description: 'Toggle theme',
     category: 'View',
+  },
+
+  // Kanban
+  TOGGLE_KANBAN: {
+    key: 'p',
+    modifier: 'cmd' as const,
+    description: 'Toggle Kanban',
+    category: 'Navigation',
   },
 
   // Modal Controls
@@ -141,6 +143,12 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       {
         config: APP_SHORTCUTS.TOGGLE_THEME,
         handler: () => handlers.onToggleTheme?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: APP_SHORTCUTS.TOGGLE_KANBAN,
+        handler: () => handlers.onToggleKanban?.(),
         priority: 'global',
         requiresClosed: true,
       },
