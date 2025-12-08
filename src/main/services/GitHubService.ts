@@ -2,7 +2,6 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
-import { shell, BrowserWindow } from 'electron';
 import { GITHUB_CONFIG } from '../config/github.config';
 import { getMainWindow } from '../app/window';
 
@@ -330,7 +329,7 @@ export class GitHubService {
    * Poll for access token using device code
    * Should be called repeatedly until success or error
    */
-  async pollDeviceToken(deviceCode: string, interval: number = 5): Promise<AuthResult> {
+  async pollDeviceToken(deviceCode: string, _interval: number = 5): Promise<AuthResult> {
     try {
       const response = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
@@ -610,7 +609,7 @@ export class GitHubService {
   /**
    * Get user information using GitHub CLI
    */
-  async getUserInfo(token: string): Promise<GitHubUser | null> {
+  async getUserInfo(_token: string): Promise<GitHubUser | null> {
     try {
       // Use gh CLI to get user info
       const { stdout } = await this.execGH('gh api user');
@@ -632,7 +631,7 @@ export class GitHubService {
   /**
    * Get user's repositories using GitHub CLI
    */
-  async getRepositories(token: string): Promise<GitHubRepo[]> {
+  async getRepositories(_token: string): Promise<GitHubRepo[]> {
     try {
       // Use gh CLI to get repositories with correct field names
       const { stdout } = await this.execGH(

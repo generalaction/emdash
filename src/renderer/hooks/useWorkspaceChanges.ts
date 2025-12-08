@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface WorkspaceChange {
   path: string;
@@ -26,57 +26,63 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
     isLoading: true,
   });
 
-  const fetchChanges = async (isInitialLoad = false) => {
-    try {
-      if (isInitialLoad) {
-        setChanges((prev) => ({ ...prev, isLoading: true, error: undefined }));
-      }
+  const fetchChanges = useCallback(
+    async (isInitialLoad = false) => {
+      try {
+        if (isInitialLoad) {
+          setChanges((prev) => ({ ...prev, isLoading: true, error: undefined }));
+        }
 
-      const result = await window.electronAPI.getGitStatus(workspacePath);
+        const result = await window.electronAPI.getGitStatus(workspacePath);
 
-      if (result.success && result.changes) {
-        const filtered = result.changes.filter(
-          (c: { path: string }) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md'
-        );
-        const totalAdditions = filtered.reduce((sum, change) => sum + (change.additions || 0), 0);
-        const totalDeletions = filtered.reduce((sum, change) => sum + (change.deletions || 0), 0);
+        if (result.success && result.changes) {
+          const filtered = result.changes.filter(
+            (c: { path: string }) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md'
+          );
+          const totalAdditions = filtered.reduce((sum, change) => sum + (change.additions || 0), 0);
+          const totalDeletions = filtered.reduce((sum, change) => sum + (change.deletions || 0), 0);
 
-        setChanges({
-          workspaceId,
-          changes: filtered,
-          totalAdditions,
-          totalDeletions,
-          isLoading: false,
-        });
-      } else {
+          setChanges({
+            workspaceId,
+            changes: filtered,
+            totalAdditions,
+            totalDeletions,
+            isLoading: false,
+          });
+        } else {
+          setChanges({
+            workspaceId,
+            changes: [],
+            totalAdditions: 0,
+            totalDeletions: 0,
+            isLoading: false,
+            error: result.error || 'Failed to fetch changes',
+          });
+        }
+      } catch (error) {
         setChanges({
           workspaceId,
           changes: [],
           totalAdditions: 0,
           totalDeletions: 0,
           isLoading: false,
-          error: result.error || 'Failed to fetch changes',
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
-    } catch (error) {
-      setChanges({
-        workspaceId,
-        changes: [],
-        totalAdditions: 0,
-        totalDeletions: 0,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  };
+    },
+    [workspacePath, workspaceId]
+  );
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    fetchChanges(true);
+    void fetchChanges(true);
 
     // Poll for changes every 10 seconds without loading state
-    const interval = setInterval(() => fetchChanges(false), 10000);
+    const interval = setInterval(() => {
+      void fetchChanges(false);
+    }, 10000);
     return () => clearInterval(interval);
-  }, [workspacePath, workspaceId]);
+  }, [fetchChanges]);
 
   return {
     ...changes,
