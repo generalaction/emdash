@@ -353,7 +353,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     if (variants.length > 0 && activeTabIndex >= 0 && activeTabIndex < variants.length) {
       // Small delay to ensure the tab content is rendered
       const timeout = setTimeout(() => {
-        scrollToBottom();
+        scrollToBottom({ onlyIfNearTop: true });
       }, 150);
       return () => clearTimeout(timeout);
     }

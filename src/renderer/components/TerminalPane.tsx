@@ -167,6 +167,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
     >
       <div
         ref={containerRef}
+        data-terminal-container
         style={{
           width: '100%',
           height: '100%',
