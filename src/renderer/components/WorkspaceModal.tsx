@@ -106,7 +106,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     activeProviders.every((providerId) => !!providerMeta[providerId]?.autoApproveFlag);
   const hasInitialPromptSupport =
     activeProviders.length > 0 &&
-    activeProviders.every((providerId) => providerMeta[providerId]?.initialPromptFlag !== undefined);
+    activeProviders.every(
+      (providerId) => providerMeta[providerId]?.initialPromptFlag !== undefined
+    );
   const shouldReduceMotion = useReducedMotion();
 
   // Clear issues and prompt when provider changes to one without support
@@ -648,9 +650,9 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             </div>
                           </div>
                           <div className="flex items-start gap-4">
-                          <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
-                            Jira issue
-                          </Label>
+                            <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
+                              Jira issue
+                            </Label>
                             <div className="flex min-w-0 flex-1 items-center gap-2">
                               <JiraIssueSelector
                                 selectedIssue={selectedJiraIssue}
