@@ -25,7 +25,6 @@ import ProjectDeleteButton from './ProjectDeleteButton';
 import type { Project } from '../types/app';
 import type { Workspace } from '../types/chat';
 
-
 interface LeftSidebarProps {
   projects: Project[];
   selectedProject: Project | null;
@@ -127,7 +126,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       name && name.trim().length > 0 ? name.trim()[0]?.toUpperCase() : '•';
 
     return (
-      <div className="flex h-full w-full flex-col items-center border-r border-border bg-sidebar pointer-events-auto">
+      <div className="bg-sidebar pointer-events-auto flex h-full w-full flex-col items-center border-r border-border">
         {/* Toggle button at top */}
         <div className="flex w-full items-center justify-center border-b border-border p-2.5">
           <TooltipProvider delayDuration={150}>
@@ -151,10 +150,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         </div>
 
         {/* Projects list - scrollable */}
-        <div className="flex-1 w-full overflow-hidden">
+        <div className="w-full flex-1 overflow-hidden">
           <div className="flex h-full flex-col items-center gap-2 overflow-y-auto px-1.5 py-2">
             {railProjects.length === 0 ? (
-              <div className="px-1 text-[9px] text-muted-foreground text-center leading-tight">
+              <div className="px-1 text-center text-[9px] leading-tight text-muted-foreground">
                 No projects
               </div>
             ) : (
@@ -261,7 +260,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   return (
     <div className="relative h-full">
-      <Sidebar className="lg:border-r-0 !w-full">
+      <Sidebar className="!w-full lg:border-r-0">
         {open ? (
           <>
             <SidebarContent>
@@ -272,7 +271,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <div className="flex items-center gap-1.5">
                         <SidebarMenuButton
                           asChild
-                          className={`flex-1 min-w-0 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
+                          className={`min-w-0 flex-1 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
                         >
                           <Button
                             variant="ghost"
@@ -408,13 +407,16 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                               <CollapsibleContent asChild>
                                 <div className="ml-7 mt-2 min-w-0">
-                                  <div className="sticky top-0 z-10 bg-sidebar pb-1">
+                                  <div className="bg-sidebar sticky top-0 z-10 pb-1">
                                     <button
                                       type="button"
                                       className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (onSelectProject && selectedProject?.id !== typedProject.id) {
+                                        if (
+                                          onSelectProject &&
+                                          selectedProject?.id !== typedProject.id
+                                        ) {
                                           onSelectProject(typedProject);
                                         } else if (!selectedProject) {
                                           onSelectProject?.(typedProject);
@@ -424,7 +426,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                       disabled={isCreatingWorkspace}
                                       aria-label={`Add Task to ${typedProject.name}`}
                                     >
-                                      <Plus className="h-3 w-3 flex-shrink-0 text-gray-400" aria-hidden />
+                                      <Plus
+                                        className="h-3 w-3 flex-shrink-0 text-gray-400"
+                                        aria-hidden
+                                      />
                                       <span className="truncate">Add Task</span>
                                     </button>
                                   </div>
