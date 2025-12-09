@@ -474,7 +474,7 @@ export class TerminalSessionManager {
       if (snapshot.cols && snapshot.rows) {
         this.terminal.resize(snapshot.cols, snapshot.rows);
       }
-      
+
       // Note: Viewport position restoration happens in attach() after terminal is opened
       // This ensures the terminal is fully initialized before we try to scroll
     } catch (error) {
