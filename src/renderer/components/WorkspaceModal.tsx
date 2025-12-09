@@ -82,7 +82,20 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const hasAutoApproveSupport =
     activeProviders.length > 0 &&
     activeProviders.every((providerId) => !!providerMeta[providerId]?.autoApproveFlag);
+  const hasInitialPromptSupport =
+    activeProviders.length > 0 &&
+    activeProviders.every((providerId) => providerMeta[providerId]?.initialPromptFlag !== undefined);
   const shouldReduceMotion = useReducedMotion();
+
+  // Clear issues and prompt when provider changes to one without support
+  useEffect(() => {
+    if (!hasInitialPromptSupport) {
+      setSelectedLinearIssue(null);
+      setSelectedGithubIssue(null);
+      setSelectedJiraIssue(null);
+      setInitialPrompt('');
+    }
+  }, [hasInitialPromptSupport]);
 
   const normalizedExisting = useMemo(
     () => existingNames.map((n) => normalizeWorkspaceName(n)).filter(Boolean),
@@ -365,7 +378,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                   }
                                 }}
                                 isOpen={isOpen}
-                                disabled={!!selectedGithubIssue || !!selectedJiraIssue}
+                                disabled={!hasInitialPromptSupport || !!selectedGithubIssue || !!selectedJiraIssue}
                                 className="w-full"
                               />
                             </div>
@@ -386,7 +399,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                   }
                                 }}
                                 isOpen={isOpen}
-                                disabled={!!selectedJiraIssue || !!selectedLinearIssue}
+                                disabled={!hasInitialPromptSupport || !!selectedJiraIssue || !!selectedLinearIssue}
                                 className="w-full"
                               />
                             </div>
@@ -407,7 +420,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                                     }
                                   }}
                                   isOpen={isOpen}
-                                  disabled={!!selectedLinearIssue || !!selectedGithubIssue}
+                                  disabled={!hasInitialPromptSupport || !!selectedLinearIssue || !!selectedGithubIssue}
                                   className="w-full"
                                 />
                               ) : (
@@ -455,16 +468,19 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                               id="initial-prompt"
                               value={initialPrompt}
                               onChange={(e) => setInitialPrompt(e.target.value)}
+                              disabled={!hasInitialPromptSupport}
                               placeholder={
-                                selectedLinearIssue
-                                  ? `e.g. Fix the attached Linear ticket ${selectedLinearIssue.identifier} — describe any constraints.`
-                                  : selectedGithubIssue
-                                    ? `e.g. Fix the attached GitHub issue #${selectedGithubIssue.number} — describe any constraints.`
-                                    : selectedJiraIssue
-                                      ? `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`
-                                      : `e.g. Summarize the key problems and propose a plan.`
+                                !hasInitialPromptSupport
+                                  ? 'Selected provider does not support initial prompts'
+                                  : selectedLinearIssue
+                                    ? `e.g. Fix the attached Linear ticket ${selectedLinearIssue.identifier} — describe any constraints.`
+                                    : selectedGithubIssue
+                                      ? `e.g. Fix the attached GitHub issue #${selectedGithubIssue.number} — describe any constraints.`
+                                      : selectedJiraIssue
+                                        ? `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`
+                                        : `e.g. Summarize the key problems and propose a plan.`
                               }
-                              className="min-h-[80px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none"
+                              className={`min-h-[80px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none ${!hasInitialPromptSupport ? 'opacity-50' : ''}`}
                               rows={3}
                             />
                           </div>
