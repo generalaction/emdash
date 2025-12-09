@@ -222,7 +222,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                   aria-label={githubProfileUrl ? 'Open GitHub profile' : 'Connect GitHub'}
                 >
-                  {githubAuthenticated ? (
+                  {githubProfileUrl ? (
                     <img
                       src={githubLogo}
                       alt="GitHub"
