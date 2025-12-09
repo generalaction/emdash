@@ -14,7 +14,8 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Home, ChevronDown, Plus, FolderOpen } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Home, ChevronDown, Plus, FolderOpen, ChevronLeft } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
@@ -145,20 +146,40 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    className={isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}
-                  >
-                    <Button
-                      variant="ghost"
-                      onClick={onGoHome}
-                      aria-label="Home"
-                      className="justify-start"
+                  <div className={`flex items-center gap-1.5 rounded-md ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}>
+                    <SidebarMenuButton
+                      asChild
+                      className="flex-1 min-w-0"
                     >
-                      <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
-                      <span className="hidden text-sm font-medium sm:inline">Home</span>
-                    </Button>
-                  </SidebarMenuButton>
+                      <Button
+                        variant="ghost"
+                        onClick={onGoHome}
+                        aria-label="Home"
+                        className="w-full justify-start"
+                      >
+                        <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
+                        <span className="hidden text-sm font-medium sm:inline">Home</span>
+                      </Button>
+                    </SidebarMenuButton>
+                    <TooltipProvider delayDuration={150}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setOpen?.(false)}
+                            aria-label="Collapse sidebar"
+                            className="h-9 w-9 flex-shrink-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs font-medium">
+                          Collapse sidebar
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>

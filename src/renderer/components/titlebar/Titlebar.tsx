@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Command, MessageSquare, Settings as SettingsIcon, KanbanSquare } from 'lucide-react';
-import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -162,7 +161,6 @@ const Titlebar: React.FC<TitlebarProps> = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <SidebarLeftToggleButton />
           <SidebarRightToggleButton />
           <TooltipProvider delayDuration={200}>
             <Tooltip>

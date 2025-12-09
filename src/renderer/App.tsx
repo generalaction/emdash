@@ -40,6 +40,11 @@ import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
 import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
+import { useBrowser } from './providers/BrowserProvider';
+import { WorkspaceSideContent } from './components/RightSidebar';
+import { useSidebar } from './components/ui/sidebar';
+import { PanelLeft } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -100,6 +105,146 @@ const clampRightSidebarSize = (value: number) =>
     RIGHT_SIDEBAR_MAX_SIZE
   );
 const MAIN_PANEL_MIN_SIZE = 30;
+
+const SidebarToggleIndicator: React.FC = () => {
+  const { open, setOpen, isMobile } = useSidebar();
+
+  // Only show on desktop when sidebar is closed
+  if (isMobile || open) {
+    return null;
+  }
+
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setOpen(true)}
+            className="absolute left-2 top-2 z-50 h-8 w-8 rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all"
+            aria-label="Open sidebar"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="text-xs font-medium">
+          Open sidebar
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
+
+const MainPanelLayout: React.FC<{
+  leftSidebarPanelRef: React.RefObject<ImperativePanelHandle>;
+  rightSidebarPanelRef: React.RefObject<ImperativePanelHandle>;
+  defaultPanelLayout: [number, number, number];
+  handlePanelLayout: (sizes: number[]) => void;
+  activeWorkspace: Workspace | null;
+  projects: Project[];
+  selectedProject: Project | null;
+  handleSelectProject: (project: Project) => void;
+  handleGoHome: () => void;
+  handleOpenProject: () => Promise<void>;
+  handleSelectWorkspace: (workspace: Workspace) => void;
+  handleReorderProjects: (sourceId: string, targetId: string) => void;
+  handleReorderProjectsFull: (newOrder: Project[]) => void;
+  ghInstalled: boolean;
+  isAuthenticated: boolean;
+  user: any;
+  handleGithubConnect: () => Promise<void>;
+  githubLoading: boolean;
+  githubStatusMessage: string | undefined;
+  handleSidebarContextChange: (ctx: { open: boolean; isMobile: boolean; setOpen: (next: boolean) => void }) => void;
+  handleStartCreateWorkspaceFromSidebar: (project: Project) => void;
+  isCreatingWorkspace: boolean;
+  handleDeleteWorkspace: (project: Project, workspace: Workspace, options?: { silent?: boolean }) => Promise<boolean>;
+  handleDeleteProject: (project: Project) => Promise<void>;
+  showHomeView: boolean;
+  renderMainContent: () => React.ReactNode;
+}> = (props) => {
+  const { isOpen: browserOpen } = useBrowser();
+  return (
+    <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="flex-1 overflow-hidden"
+        onLayout={props.handlePanelLayout}
+      >
+        <ResizablePanel
+          ref={props.leftSidebarPanelRef}
+          className="sidebar-panel sidebar-panel--left"
+          defaultSize={props.defaultPanelLayout[0]}
+          minSize={LEFT_SIDEBAR_MIN_SIZE}
+          maxSize={LEFT_SIDEBAR_MAX_SIZE}
+          collapsedSize={0}
+          collapsible
+          order={1}
+        >
+          <LeftSidebar
+            projects={props.projects}
+            selectedProject={props.selectedProject}
+            onSelectProject={props.handleSelectProject}
+            onGoHome={props.handleGoHome}
+            onOpenProject={props.handleOpenProject}
+            onSelectWorkspace={props.handleSelectWorkspace}
+            activeWorkspace={props.activeWorkspace || undefined}
+            onReorderProjects={props.handleReorderProjects}
+            onReorderProjectsFull={props.handleReorderProjectsFull}
+            githubInstalled={props.ghInstalled}
+            githubAuthenticated={props.isAuthenticated}
+            githubUser={props.user}
+            onGithubConnect={props.handleGithubConnect}
+            githubLoading={props.githubLoading}
+            githubStatusMessage={props.githubStatusMessage}
+            onSidebarContextChange={props.handleSidebarContextChange}
+            onCreateWorkspaceForProject={props.handleStartCreateWorkspaceFromSidebar}
+            isCreatingWorkspace={props.isCreatingWorkspace}
+            onDeleteWorkspace={props.handleDeleteWorkspace}
+            onDeleteProject={props.handleDeleteProject}
+            isHomeView={props.showHomeView}
+          />
+        </ResizablePanel>
+        <ResizableHandle
+          withHandle
+          className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+        />
+        <ResizablePanel
+          className="sidebar-panel sidebar-panel--main"
+          defaultSize={props.defaultPanelLayout[1]}
+          minSize={MAIN_PANEL_MIN_SIZE}
+          order={2}
+        >
+          <div className="relative flex h-full flex-col overflow-hidden bg-background text-foreground">
+            <SidebarToggleIndicator />
+            {props.renderMainContent()}
+          </div>
+        </ResizablePanel>
+        {!browserOpen ? (
+          <>
+            <ResizableHandle
+              withHandle
+              className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+            />
+            <ResizablePanel
+              ref={props.rightSidebarPanelRef}
+              className="sidebar-panel sidebar-panel--right"
+              defaultSize={props.defaultPanelLayout[2]}
+              minSize={RIGHT_SIDEBAR_MIN_SIZE}
+              maxSize={RIGHT_SIDEBAR_MAX_SIZE}
+              collapsedSize={0}
+              collapsible
+              order={3}
+            >
+              <RightSidebar workspace={props.activeWorkspace} className="lg:border-l-0" />
+            </ResizablePanel>
+          </>
+        ) : null}
+      </ResizablePanelGroup>
+    </div>
+  );
+};
 
 const AppContent: React.FC = () => {
   usePlanToasts();
@@ -231,6 +376,7 @@ const AppContent: React.FC = () => {
   const leftSidebarOpenRef = useRef<boolean>(true);
   const rightSidebarSetCollapsedRef = useRef<((next: boolean) => void) | null>(null);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
+  const [bottomTab, setBottomTab] = useState<'preview' | 'changes' | 'terminal'>('preview');
 
   const handlePanelLayout = useCallback((sizes: number[]) => {
     if (!Array.isArray(sizes) || sizes.length < 3) {
@@ -246,16 +392,12 @@ const AppContent: React.FC = () => {
 
     let storedLeft = lastLeftSidebarSizeRef.current;
     if (typeof leftSize === 'number') {
-      if (leftSize <= 0.5) {
-        leftSidebarSetOpenRef.current?.(false);
-        leftSidebarOpenRef.current = false;
-      } else {
-        leftSidebarSetOpenRef.current?.(true);
-        leftSidebarOpenRef.current = true;
-        if (!rightCollapsed) {
-          storedLeft = clampLeftSidebarSize(leftSize);
-          lastLeftSidebarSizeRef.current = storedLeft;
-        }
+      const isCollapsed = leftSize <= 0.5;
+      leftSidebarSetOpenRef.current?.(!isCollapsed);
+      leftSidebarOpenRef.current = !isCollapsed;
+      if (!isCollapsed && !rightCollapsed) {
+        storedLeft = clampLeftSidebarSize(leftSize);
+        lastLeftSidebarSizeRef.current = storedLeft;
       }
     }
 
@@ -1458,7 +1600,7 @@ const AppContent: React.FC = () => {
     };
   }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
 
-  const renderMainContent = () => {
+  const renderMainBody = () => {
     if (selectedProject && showKanban) {
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1591,6 +1733,112 @@ const AppContent: React.FC = () => {
     );
   };
 
+  const MainContentWithBrowser: React.FC<{
+    activeWorkspace: Workspace | null;
+    bottomTab: 'preview' | 'changes' | 'terminal';
+    setBottomTab: (tab: 'preview' | 'changes' | 'terminal') => void;
+    showSettings: boolean;
+    showCommandPalette: boolean;
+    showWorkspaceModal: boolean;
+    showFirstLaunchModal: boolean;
+    renderMainBody: () => React.ReactNode;
+  }> = ({
+    activeWorkspace,
+    bottomTab,
+    setBottomTab,
+    showSettings,
+    showCommandPalette,
+    showWorkspaceModal,
+    showFirstLaunchModal,
+    renderMainBody,
+  }) => {
+    const { isOpen: browserOpen } = useBrowser();
+    const showBrowserSplit = browserOpen && !!activeWorkspace;
+
+    if (!showBrowserSplit) {
+      return <>{renderMainBody()}</>;
+    }
+
+    return (
+      <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
+        <ResizablePanel defaultSize={55} minSize={35} order={1}>
+          {renderMainBody()}
+        </ResizablePanel>
+        <ResizableHandle
+          withHandle
+          className="cursor-col-resize items-center justify-center transition-colors hover:bg-border/80"
+        />
+        <ResizablePanel defaultSize={45} minSize={20} order={2} className="border-l border-border">
+          <div className="flex h-full flex-col overflow-hidden bg-background">
+            <div className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3 py-2 text-xs">
+              <div className="inline-flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('preview')}
+                  className={`rounded px-2 py-1 ${
+                    bottomTab === 'preview' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('changes')}
+                  className={`rounded px-2 py-1 ${
+                    bottomTab === 'changes' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('terminal')}
+                  className={`rounded px-2 py-1 ${
+                    bottomTab === 'terminal' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Terminal
+                </button>
+              </div>
+            </div>
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+              {bottomTab === 'preview' ? (
+                <BrowserPane
+                  workspaceId={activeWorkspace?.id || null}
+                  workspacePath={activeWorkspace?.path || null}
+                  overlayActive={
+                    showSettings || showCommandPalette || showWorkspaceModal || showFirstLaunchModal
+                  }
+                />
+              ) : (
+                <WorkspaceSideContent
+                  workspace={activeWorkspace}
+                  view={bottomTab === 'changes' ? 'changes' : 'terminal'}
+                  className="flex-1"
+                />
+              )}
+            </div>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    );
+  };
+
+  const renderMainContent = () => {
+    return (
+      <MainContentWithBrowser
+        activeWorkspace={activeWorkspace}
+        bottomTab={bottomTab}
+        setBottomTab={setBottomTab}
+        showSettings={showSettings}
+        showCommandPalette={showCommandPalette}
+        showWorkspaceModal={showWorkspaceModal}
+        showFirstLaunchModal={showFirstLaunchModal}
+        renderMainBody={renderMainBody}
+      />
+    );
+  };
+
   return (
     <BrowserProvider>
       <div
@@ -1638,78 +1886,34 @@ const AppContent: React.FC = () => {
               isKanbanOpen={Boolean(showKanban)}
               kanbanAvailable={Boolean(selectedProject)}
             />
-            <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
-              <ResizablePanelGroup
-                direction="horizontal"
-                className="flex-1 overflow-hidden"
-                onLayout={handlePanelLayout}
-              >
-                <ResizablePanel
-                  ref={leftSidebarPanelRef}
-                  className="sidebar-panel sidebar-panel--left"
-                  defaultSize={defaultPanelLayout[0]}
-                  minSize={LEFT_SIDEBAR_MIN_SIZE}
-                  maxSize={LEFT_SIDEBAR_MAX_SIZE}
-                  collapsedSize={0}
-                  collapsible
-                  order={1}
-                >
-                  <LeftSidebar
-                    projects={projects}
-                    selectedProject={selectedProject}
-                    onSelectProject={handleSelectProject}
-                    onGoHome={handleGoHome}
-                    onOpenProject={handleOpenProject}
-                    onSelectWorkspace={handleSelectWorkspace}
-                    activeWorkspace={activeWorkspace || undefined}
-                    onReorderProjects={handleReorderProjects}
-                    onReorderProjectsFull={handleReorderProjectsFull}
-                    githubInstalled={ghInstalled}
-                    githubAuthenticated={isAuthenticated}
-                    githubUser={user}
-                    onGithubConnect={handleGithubConnect}
-                    githubLoading={githubLoading}
-                    githubStatusMessage={githubStatusMessage}
-                    onSidebarContextChange={handleSidebarContextChange}
-                    onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
-                    isCreatingWorkspace={isCreatingWorkspace}
-                    onDeleteWorkspace={handleDeleteWorkspace}
-                    onDeleteProject={handleDeleteProject}
-                    isHomeView={showHomeView}
-                  />
-                </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
-                <ResizablePanel
-                  className="sidebar-panel sidebar-panel--main"
-                  defaultSize={defaultPanelLayout[1]}
-                  minSize={MAIN_PANEL_MIN_SIZE}
-                  order={2}
-                >
-                  <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-                    {renderMainContent()}
-                  </div>
-                </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
-                <ResizablePanel
-                  ref={rightSidebarPanelRef}
-                  className="sidebar-panel sidebar-panel--right"
-                  defaultSize={0}
-                  minSize={RIGHT_SIDEBAR_MIN_SIZE}
-                  maxSize={RIGHT_SIDEBAR_MAX_SIZE}
-                  collapsedSize={0}
-                  collapsible
-                  order={3}
-                >
-                  <RightSidebar workspace={activeWorkspace} className="lg:border-l-0" />
-                </ResizablePanel>
-              </ResizablePanelGroup>
-            </div>
+            <MainPanelLayout
+              leftSidebarPanelRef={leftSidebarPanelRef}
+              rightSidebarPanelRef={rightSidebarPanelRef}
+              defaultPanelLayout={defaultPanelLayout}
+              handlePanelLayout={handlePanelLayout}
+              activeWorkspace={activeWorkspace}
+              projects={projects}
+              selectedProject={selectedProject}
+              handleSelectProject={handleSelectProject}
+              handleGoHome={handleGoHome}
+              handleOpenProject={handleOpenProject}
+              handleSelectWorkspace={handleSelectWorkspace}
+              handleReorderProjects={handleReorderProjects}
+              handleReorderProjectsFull={handleReorderProjectsFull}
+              ghInstalled={ghInstalled}
+              isAuthenticated={isAuthenticated}
+              user={user}
+              handleGithubConnect={handleGithubConnect}
+              githubLoading={githubLoading}
+              githubStatusMessage={githubStatusMessage}
+              handleSidebarContextChange={handleSidebarContextChange}
+              handleStartCreateWorkspaceFromSidebar={handleStartCreateWorkspaceFromSidebar}
+              isCreatingWorkspace={isCreatingWorkspace}
+              handleDeleteWorkspace={handleDeleteWorkspace}
+              handleDeleteProject={handleDeleteProject}
+              showHomeView={showHomeView}
+              renderMainContent={renderMainContent}
+            />
             <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
             <CommandPaletteWrapper
               isOpen={showCommandPalette}
@@ -1738,13 +1942,6 @@ const AppContent: React.FC = () => {
               onError={handleDeviceFlowError}
             />
             <Toaster />
-            <BrowserPane
-              workspaceId={activeWorkspace?.id || null}
-              workspacePath={activeWorkspace?.path || null}
-              overlayActive={
-                showSettings || showCommandPalette || showWorkspaceModal || showFirstLaunchModal
-              }
-            />
           </RightSidebarProvider>
         </SidebarProvider>
       </div>
