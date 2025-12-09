@@ -19,7 +19,10 @@ export function useAutoScrollOnWorkspaceSwitch(isActive: boolean, workspaceId: s
     const { onlyIfNearTop = true } = options;
 
     // Restrict to terminal panes so we don't accidentally scroll unrelated panels.
-    const selectors = ['.terminal-pane .xterm-viewport', '.terminal-pane [data-terminal-container]'];
+    const selectors = [
+      '.terminal-pane .xterm-viewport',
+      '.terminal-pane [data-terminal-container]',
+    ];
     const containers = selectors.flatMap((selector) =>
       Array.from(document.querySelectorAll<HTMLElement>(selector))
     );
