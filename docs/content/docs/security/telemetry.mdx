@@ -57,32 +57,66 @@ We only collect **anonymous, aggregated usage data** to understand how Emdash is
 
 - `session_duration_ms` - How long the app was open
 
-#### Usage Events
+#### Feature Usage Events
 
-**`workspace_snapshot`** (early in app lifecycle)
+We track **anonymous feature usage** to understand which parts of Emdash are most valuable:
 
-- `project_count` - Total number of projects
-- `project_count_bucket` - Coarse bucket (e.g., "1-5", "6-10")
-- `workspace_count` - Total number of workspaces
-- `workspace_count_bucket` - Coarse bucket
+- **Project management**: Creating, opening, deleting projects
+- **Workspace (task) management**: Creating, deleting, switching providers
+- **Terminal usage**: Opening terminal, executing commands
+- **File changes**: Viewing diffs, creating pull requests
+- **Plan mode**: Enabling/disabling plan mode
+- **Settings & preferences**: Theme changes, notification settings, default provider
+- **Integrations**: Linear and Jira connections and searches
+- **Container connections**: Docker dev environment setup
+- **UI interactions**: Toolbar buttons, sidebar toggles, Kanban view
 
-**`feature_used`**
+All events include only:
 
-- `feature` - Name of the feature (string)
+- Event name (e.g., `project_created`, `terminal_opened`)
+- Safe, anonymized properties (e.g., `provider: "claude"`, `state: "open"`)
+- No file paths, code, prompts, or identifying information
 
-**`error`**
+<details>
+<summary>**Complete Event List** (click to expand)</summary>
 
-- `type` - Error category (string, no stack traces or details)
+**App Lifecycle**: `app_started`, `app_closed`, `app_window_focused`, `app_session`
+
+**GitHub Integration**: `github_connection_triggered`, `github_connected`
+
+**Project Management**: `project_add_clicked`, `project_open_clicked`, `project_added_success`, `project_deleted`, `project_view_opened`
+
+**Workspace (Task) Management**: `workspace_created`, `workspace_deleted`, `workspace_provider_switched`, `workspace_custom_named`, `workspace_advanced_options_opened`
+
+**Terminal**: `terminal_entered`, `terminal_command_executed`, `terminal_new_terminal_created`, `terminal_deleted`
+
+**Changes & PRs**: `changes_viewed`, `pr_created`, `pr_creation_failed`, `pr_viewed`
+
+**Plan Mode**: `plan_mode_enabled`, `plan_mode_disabled`
+
+**Linear Integration**: `linear_connected`, `linear_disconnected`, `linear_issues_searched`, `linear_issue_selected`
+
+**Jira Integration**: `jira_connected`, `jira_disconnected`, `jira_issues_searched`, `jira_issue_selected`
+
+**Container & Dev Environment**: `container_connect_clicked`, `container_connect_success`, `container_connect_failed`
+
+**Toolbar**: `toolbar_feedback_clicked`, `toolbar_left_sidebar_clicked`, `toolbar_right_sidebar_clicked`, `toolbar_settings_clicked`, `toolbar_open_in_menu_clicked`, `toolbar_open_in_selected`, `toolbar_kanban_toggled`
+
+**Browser Preview**: `browser_preview_closed`, `browser_preview_url_navigated`
+
+**Settings**: `settings_tab_viewed`, `theme_changed`, `telemetry_toggled`, `notification_settings_changed`, `default_provider_changed`
+
+**Agent Usage**: `agent_run_start`, `agent_run_finish`
+
+**Aggregates**: `workspace_snapshot`, `feature_used`, `error`
+
+</details>
 
 #### Agent Events
 
-**`agent_run_start`**
+**`agent_run_start`** / **`agent_run_finish`**
 
-- `provider` - CLI provider ID (e.g., "claude-code", "codex")
-
-**`agent_run_finish`**
-
-- `provider` - CLI provider ID
+- `provider` - CLI provider ID (e.g., "claude", "codex")
 - `outcome` - Result: `ok` or `error` (no details)
 - `duration_ms` - How long the agent ran (clamped, no content)
 
@@ -137,9 +171,10 @@ All telemetry data passes through a **sanitizer** that:
 
 ### Local Development
 
-- Official builds include PostHog credentials via CI
-- Local development builds **do not send telemetry** unless credentials are explicitly added for testing
-- Development mode is clearly marked in events
+- PostHog credentials are **public and safe to commit** to the repository
+- Both official builds (DMG) and developer builds (cloned repo) send telemetry by default
+- Official builds use credentials injected via CI, while developer builds use credentials from `src/main/appConfig.json`
+- Development mode is clearly marked in events via `is_dev: true` and `install_source: "dev"`
 
 ## For Developers
 
@@ -152,7 +187,10 @@ All telemetry data passes through a **sanitizer** that:
 **For Maintainers:**
 
 - `INSTALL_SOURCE` - Labels distribution channel (e.g., `dmg`, `dev`)
-- PostHog credentials are injected via CI for official builds
+- `POSTHOG_PROJECT_API_KEY` - Override PostHog API key (optional, defaults to public key in `src/main/appConfig.json`)
+- `POSTHOG_HOST` - Override PostHog host (optional, defaults to public host in `src/main/appConfig.json`)
+- PostHog credentials are public and committed to the repo in `src/main/appConfig.json`
+- CI builds can override credentials via GitHub secrets for official releases
 
 ### Renderer Process Events
 
@@ -184,7 +222,7 @@ We believe in transparency about data collection:
 
 If you have questions or concerns about privacy:
 
-- **Read the code**: Check `src/main/services/telemetryService.ts`
+- **Read the code**: Check `src/main/telemetry.ts` and `src/main/ipc/telemetryIpc.ts`
 - **Open an issue**: [GitHub Issues](https://github.com/generalaction/emdash/issues)
 - **Start a discussion**: [GitHub Discussions](https://github.com/generalaction/emdash/discussions)
 

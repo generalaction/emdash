@@ -106,6 +106,38 @@ declare global {
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
       onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      terminalGetTheme: () => Promise<{
+        ok: boolean;
+        config?: {
+          terminal: string;
+          theme: {
+            background?: string;
+            foreground?: string;
+            cursor?: string;
+            cursorAccent?: string;
+            selectionBackground?: string;
+            black?: string;
+            red?: string;
+            green?: string;
+            yellow?: string;
+            blue?: string;
+            magenta?: string;
+            cyan?: string;
+            white?: string;
+            brightBlack?: string;
+            brightRed?: string;
+            brightGreen?: string;
+            brightYellow?: string;
+            brightBlue?: string;
+            brightMagenta?: string;
+            brightCyan?: string;
+            brightWhite?: string;
+            fontFamily?: string;
+            fontSize?: number;
+          };
+        };
+        error?: string;
+      }>;
 
       // Worktree management
       worktreeCreate: (args: {
@@ -316,7 +348,7 @@ declare global {
       }>;
       // Telemetry
       captureTelemetry: (
-        event: 'feature_used' | 'error',
+        event: string,
         properties?: Record<string, any>
       ) => Promise<{ success: boolean; disabled?: boolean; error?: string }>;
       getTelemetryStatus: () => Promise<{
@@ -403,8 +435,30 @@ declare global {
         success: boolean;
         token?: string;
         user?: any;
+        device_code?: string;
+        user_code?: string;
+        verification_uri?: string;
+        expires_in?: number;
+        interval?: number;
         error?: string;
       }>;
+      githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;
+      onGithubAuthDeviceCode: (
+        callback: (data: {
+          userCode: string;
+          verificationUri: string;
+          expiresIn: number;
+          interval: number;
+        }) => void
+      ) => () => void;
+      onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
+      onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
+      onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
+      onGithubAuthError: (
+        callback: (data: { error: string; message: string }) => void
+      ) => () => void;
+      onGithubAuthCancelled: (callback: () => void) => () => void;
+      onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
       githubIsAuthenticated: () => Promise<boolean>;
       githubGetStatus: () => Promise<{
         installed: boolean;
@@ -417,6 +471,8 @@ declare global {
         repoUrl: string,
         localPath: string
       ) => Promise<{ success: boolean; error?: string }>;
+      githubCheckCLIInstalled: () => Promise<boolean>;
+      githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
       githubListPullRequests: (
         projectPath: string
       ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
@@ -673,7 +729,7 @@ export interface ElectronAPI {
   ) => () => void;
   // Telemetry
   captureTelemetry: (
-    event: 'feature_used' | 'error',
+    event: string,
     properties?: Record<string, any>
   ) => Promise<{ success: boolean; disabled?: boolean; error?: string }>;
   getTelemetryStatus: () => Promise<{
@@ -730,8 +786,28 @@ export interface ElectronAPI {
     success: boolean;
     token?: string;
     user?: any;
+    device_code?: string;
+    user_code?: string;
+    verification_uri?: string;
+    expires_in?: number;
+    interval?: number;
     error?: string;
   }>;
+  githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;
+  onGithubAuthDeviceCode: (
+    callback: (data: {
+      userCode: string;
+      verificationUri: string;
+      expiresIn: number;
+      interval: number;
+    }) => void
+  ) => () => void;
+  onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
+  onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
+  onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
+  onGithubAuthError: (callback: (data: { error: string; message: string }) => void) => () => void;
+  onGithubAuthCancelled: (callback: () => void) => () => void;
+  onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
   githubIsAuthenticated: () => Promise<boolean>;
   githubGetUser: () => Promise<any>;
   githubGetRepositories: () => Promise<any[]>;
@@ -744,6 +820,8 @@ export interface ElectronAPI {
     authenticated: boolean;
     user?: any;
   }>;
+  githubCheckCLIInstalled?: () => Promise<boolean>;
+  githubInstallCLI?: () => Promise<{ success: boolean; error?: string }>;
   githubListPullRequests: (
     projectPath: string
   ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;

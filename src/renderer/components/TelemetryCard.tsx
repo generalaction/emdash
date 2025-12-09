@@ -38,7 +38,12 @@ const TelemetryCard: React.FC = () => {
         <div className="flex flex-col items-end gap-1">
           <Switch
             checked={prefEnabled}
-            onCheckedChange={(checked) => void setTelemetryEnabled(checked)}
+            onCheckedChange={async (checked) => {
+              void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+                captureTelemetry('telemetry_toggled', { enabled: checked });
+              });
+              void setTelemetryEnabled(checked);
+            }}
             disabled={loading || envDisabled}
             aria-label="Enable anonymous telemetry"
           />

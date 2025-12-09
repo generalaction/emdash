@@ -32,6 +32,9 @@ const DefaultProviderSettingsCard: React.FC = () => {
 
   const save = useCallback(async (provider: Provider) => {
     setSaving(true);
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('default_provider_changed', { provider });
+    });
     try {
       const res = await window.electronAPI.updateSettings({ defaultProvider: provider });
       if (res?.success && res.settings?.defaultProvider) {

@@ -9,7 +9,7 @@ import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import PrStatusSkeleton from './ui/pr-status-skeleton';
 import FileTypeIcon from './ui/file-type-icon';
-import { Plus, Undo2 } from 'lucide-react';
+import { Plus, Undo2, ArrowUpRight } from 'lucide-react';
 
 interface FileChangesPanelProps {
   workspaceId: string;
@@ -304,13 +304,23 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
               ) : pr ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    window.electronAPI?.openExternal?.(pr.url);
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void (async () => {
+                      const { captureTelemetry } = await import('../lib/telemetryClient');
+                      captureTelemetry('pr_viewed');
+                    })();
+                    if (pr.url) window.electronAPI?.openExternal?.(pr.url);
                   }}
-                  className="cursor-pointer rounded border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-                  title={pr.title || 'Pull Request'}
+                  className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  title={`${pr.title || 'Pull Request'} (#${pr.number})`}
                 >
-                  PR {pr.isDraft ? 'draft' : pr.state.toLowerCase()}
+                  {pr.isDraft
+                    ? 'Draft'
+                    : String(pr.state).toUpperCase() === 'OPEN'
+                      ? 'View PR'
+                      : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+                  <ArrowUpRight className="size-3" />
                 </button>
               ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
                 <Button
@@ -349,6 +359,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
               change.isStaged ? 'bg-gray-50 dark:bg-gray-900/40' : ''
             }`}
             onClick={() => {
+              void (async () => {
+                const { captureTelemetry } = await import('../lib/telemetryClient');
+                captureTelemetry('changes_viewed');
+              })();
               setSelectedPath(change.path);
               setShowDiffModal(true);
             }}

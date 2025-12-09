@@ -5,11 +5,16 @@ import { useRightSidebar } from '../ui/right-sidebar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip';
 
 const SidebarRightToggleButton: React.FC = () => {
-  const { toggle } = useRightSidebar();
+  const { toggle, collapsed } = useRightSidebar();
 
   const label = 'Toggle right sidebar';
 
-  const handleClick = () => {
+  const handleClick = async () => {
+    const nextCollapsed = !collapsed;
+    const nextState = nextCollapsed ? 'closed' : 'open';
+    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('toolbar_right_sidebar_clicked', { state: nextState });
+    });
     toggle();
   };
 
@@ -35,10 +40,13 @@ const SidebarRightToggleButton: React.FC = () => {
           collisionPadding={8}
           className="text-xs font-medium"
         >
-          <span className="flex items-center gap-1">
-            <Command className="h-3 w-3" aria-hidden="true" />
-            <span>.</span>
-          </span>
+          <div className="flex flex-col gap-1">
+            <span>Toggle right sidebar</span>
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Command className="h-3 w-3" aria-hidden="true" />
+              <span>.</span>
+            </span>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

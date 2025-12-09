@@ -39,6 +39,7 @@ import BrowserPane from './components/BrowserPane';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { getContainerRunState } from './lib/containerRuns';
 import KanbanBoard from './components/kanban/KanbanBoard';
+import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -87,7 +88,7 @@ const LEFT_SIDEBAR_MIN_SIZE = 16;
 const LEFT_SIDEBAR_MAX_SIZE = 30;
 const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 const RIGHT_SIDEBAR_MIN_SIZE = 16;
-const RIGHT_SIDEBAR_MAX_SIZE = 30;
+const RIGHT_SIDEBAR_MAX_SIZE = 50;
 const clampLeftSidebarSize = (value: number) =>
   Math.min(
     Math.max(Number.isFinite(value) ? value : DEFAULT_PANEL_LAYOUT[0], LEFT_SIDEBAR_MIN_SIZE),
@@ -113,7 +114,11 @@ const AppContent: React.FC = () => {
     authenticated: isAuthenticated,
     user,
     checkStatus,
+    login: githubLogin,
   } = useGithubAuth();
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
+  const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
@@ -225,7 +230,7 @@ const AppContent: React.FC = () => {
   const leftSidebarIsMobileRef = useRef<boolean>(false);
   const leftSidebarOpenRef = useRef<boolean>(true);
   const rightSidebarSetCollapsedRef = useRef<((next: boolean) => void) | null>(null);
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(true);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
 
   const handlePanelLayout = useCallback((sizes: number[]) => {
     if (!Array.isArray(sizes) || sizes.length < 3) {
@@ -314,6 +319,10 @@ const AppContent: React.FC = () => {
   );
 
   const activateProjectView = useCallback((project: Project) => {
+    void (async () => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('project_view_opened');
+    })();
     setSelectedProject(project);
     setShowHomeView(false);
     setActiveWorkspace(null);
@@ -493,6 +502,8 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleOpenProject = async () => {
+    const { captureTelemetry } = await import('./lib/telemetryClient');
+    captureTelemetry('project_add_clicked');
     try {
       const result = await window.electronAPI.openProject();
       if (result.success && result.path) {
@@ -554,6 +565,8 @@ const AppContent: React.FC = () => {
 
               const saveResult = await window.electronAPI.saveProject(projectWithGithub);
               if (saveResult.success) {
+                const { captureTelemetry } = await import('./lib/telemetryClient');
+                captureTelemetry('project_added_success', { source: 'github' });
                 setProjects((prev) => [...prev, projectWithGithub]);
                 activateProjectView(projectWithGithub);
               } else {
@@ -584,6 +597,8 @@ const AppContent: React.FC = () => {
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
+              const { captureTelemetry } = await import('./lib/telemetryClient');
+              captureTelemetry('project_added_success', { source: 'local' });
               setProjects((prev) => [...prev, projectWithoutGithub]);
               activateProjectView(projectWithoutGithub);
             } else {
@@ -613,6 +628,77 @@ const AppContent: React.FC = () => {
       toast({
         title: 'Failed to Open Project',
         description: 'Please check the console for details.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleGithubConnect = async () => {
+    setGithubLoading(true);
+    setGithubStatusMessage(undefined);
+
+    try {
+      // Check if gh CLI is installed
+      setGithubStatusMessage('Checking for GitHub CLI...');
+      const cliInstalled = await window.electronAPI.githubCheckCLIInstalled();
+
+      if (!cliInstalled) {
+        // Detect platform for better messaging
+        let installMessage = 'Installing GitHub CLI...';
+        if (platform === 'darwin') {
+          installMessage = 'Installing GitHub CLI via Homebrew...';
+        } else if (platform === 'linux') {
+          installMessage = 'Installing GitHub CLI via apt...';
+        } else if (platform === 'win32') {
+          installMessage = 'Installing GitHub CLI via winget...';
+        }
+
+        setGithubStatusMessage(installMessage);
+        const installResult = await window.electronAPI.githubInstallCLI();
+
+        if (!installResult.success) {
+          setGithubLoading(false);
+          setGithubStatusMessage(undefined);
+          toast({
+            title: 'Installation Failed',
+            description: `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        setGithubStatusMessage('GitHub CLI installed! Setting up connection...');
+        toast({
+          title: 'GitHub CLI Installed',
+          description: 'Now authenticating with GitHub...',
+        });
+        await checkStatus(); // Refresh status
+      }
+
+      // Start Device Flow authentication (main process handles polling)
+      setGithubStatusMessage('Starting authentication...');
+      const result = await githubLogin();
+
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+
+      if (result?.success) {
+        // Show modal - it will receive events from main process
+        setShowDeviceFlowModal(true);
+      } else {
+        toast({
+          title: 'Authentication Failed',
+          description: result?.error || 'Could not start authentication',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('GitHub connection error:', error);
+      setGithubLoading(false);
+      setGithubStatusMessage(undefined);
+      toast({
+        title: 'Connection Failed',
+        description: 'Failed to connect to GitHub. Please try again.',
         variant: 'destructive',
       });
     }
@@ -1010,7 +1096,7 @@ const AppContent: React.FC = () => {
             project.id === selectedProject.id
               ? {
                   ...project,
-                  workspaces: [...(project.workspaces || []), newWorkspace],
+                  workspaces: [newWorkspace, ...(project.workspaces || [])],
                 }
               : project
           )
@@ -1020,10 +1106,18 @@ const AppContent: React.FC = () => {
           prev
             ? {
                 ...prev,
-                workspaces: [...(prev.workspaces || []), newWorkspace],
+                workspaces: [newWorkspace, ...(prev.workspaces || [])],
               }
             : null
         );
+
+        // Track workspace creation
+        const { captureTelemetry } = await import('./lib/telemetryClient');
+        const isMultiAgent = (newWorkspace.metadata as any)?.multiAgent?.enabled;
+        captureTelemetry('workspace_created', {
+          provider: isMultiAgent ? 'multi' : (newWorkspace.agentId as string) || 'codex',
+          has_initial_prompt: !!workspaceMetadata?.initialPrompt,
+        });
 
         // Set the active workspace and its provider (none if multi-agent)
         setActiveWorkspace(newWorkspace);
@@ -1193,6 +1287,10 @@ const AppContent: React.FC = () => {
           throw new Error(errorMsg);
         }
 
+        // Track workspace deletion
+        const { captureTelemetry } = await import('./lib/telemetryClient');
+        captureTelemetry('workspace_deleted');
+
         if (!options?.silent) {
           toast({
             title: 'Task deleted',
@@ -1243,7 +1341,7 @@ const AppContent: React.FC = () => {
               const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
               return alreadyPresent
                 ? project
-                : { ...project, workspaces: [...existing, workspaceSnapshot] };
+                : { ...project, workspaces: [workspaceSnapshot, ...existing] };
             })
           );
           setSelectedProject((prev) => {
@@ -1252,7 +1350,7 @@ const AppContent: React.FC = () => {
             const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
             return alreadyPresent
               ? prev
-              : { ...prev, workspaces: [...existing, workspaceSnapshot] };
+              : { ...prev, workspaces: [workspaceSnapshot, ...existing] };
           });
 
           if (wasActive) {
@@ -1297,6 +1395,8 @@ const AppContent: React.FC = () => {
       const res = await window.electronAPI.deleteProject(project.id);
       if (!res?.success) throw new Error(res?.error || 'Failed to delete project');
 
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('project_deleted');
       setProjects((prev) => prev.filter((p) => p.id !== project.id));
       if (selectedProject?.id === project.id) {
         setSelectedProject(null);
@@ -1321,6 +1421,66 @@ const AppContent: React.FC = () => {
     if (!selectedProject) return;
     setShowKanban((v) => !v);
   }, [selectedProject]);
+
+  const handleDeviceFlowSuccess = useCallback(
+    async (user: any) => {
+      setShowDeviceFlowModal(false);
+
+      // Refresh status immediately to update UI
+      await checkStatus();
+
+      // Also refresh again after a short delay to catch user info if it arrives quickly
+      setTimeout(async () => {
+        await checkStatus();
+      }, 500);
+
+      toast({
+        title: 'Connected to GitHub',
+        description: `Signed in as ${user?.login || user?.name || 'user'}`,
+      });
+    },
+    [checkStatus, toast]
+  );
+
+  const handleDeviceFlowError = useCallback(
+    (error: string) => {
+      setShowDeviceFlowModal(false);
+
+      toast({
+        title: 'Authentication Failed',
+        description: error,
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
+
+  const handleDeviceFlowClose = useCallback(() => {
+    setShowDeviceFlowModal(false);
+  }, []);
+
+  // Subscribe to GitHub auth events from main process
+  useEffect(() => {
+    const cleanupSuccess = window.electronAPI.onGithubAuthSuccess((data) => {
+      handleDeviceFlowSuccess(data.user);
+    });
+
+    const cleanupError = window.electronAPI.onGithubAuthError((data) => {
+      handleDeviceFlowError(data.message || data.error);
+    });
+
+    // Listen for user info update (arrives after token is stored and gh CLI is authenticated)
+    const cleanupUserUpdated = window.electronAPI.onGithubAuthUserUpdated(async () => {
+      // Refresh status when user info becomes available
+      await checkStatus();
+    });
+
+    return () => {
+      cleanupSuccess();
+      cleanupError();
+      cleanupUserUpdated();
+    };
+  }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
 
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
@@ -1378,7 +1538,17 @@ const AppContent: React.FC = () => {
             </div>
 
             <div className="flex flex-col justify-center gap-4 sm:flex-row">
-              <Button onClick={handleOpenProject} size="lg" className="min-w-[200px]">
+              <Button
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('./lib/telemetryClient');
+                    captureTelemetry('project_open_clicked');
+                  })();
+                  handleOpenProject();
+                }}
+                size="lg"
+                className="min-w-[200px]"
+              >
                 <FolderOpen className="mr-2 h-5 w-5" />
                 Open Project
               </Button>
@@ -1466,7 +1636,7 @@ const AppContent: React.FC = () => {
           return null;
         })()}
         <SidebarProvider>
-          <RightSidebarProvider defaultCollapsed>
+          <RightSidebarProvider>
             <AppKeyboardShortcuts
               showCommandPalette={showCommandPalette}
               showSettings={showSettings}
@@ -1531,6 +1701,9 @@ const AppContent: React.FC = () => {
                     githubInstalled={ghInstalled}
                     githubAuthenticated={isAuthenticated}
                     githubUser={user}
+                    onGithubConnect={handleGithubConnect}
+                    githubLoading={githubLoading}
+                    githubStatusMessage={githubStatusMessage}
                     onSidebarContextChange={handleSidebarContextChange}
                     onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
                     isCreatingWorkspace={isCreatingWorkspace}
@@ -1592,6 +1765,12 @@ const AppContent: React.FC = () => {
               projectPath={selectedProject?.path}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
+            <GithubDeviceFlowModal
+              open={showDeviceFlowModal}
+              onClose={handleDeviceFlowClose}
+              onSuccess={handleDeviceFlowSuccess}
+              onError={handleDeviceFlowError}
+            />
             <Toaster />
             <BrowserPane
               workspaceId={activeWorkspace?.id || null}

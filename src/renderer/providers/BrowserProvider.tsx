@@ -34,6 +34,9 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const navigate = React.useCallback((next: string) => {
     setUrl(next);
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('browser_preview_url_navigated');
+    });
     try {
       const api: any = (window as any).electronAPI;
       if (api && typeof api.browserLoadURL === 'function') {

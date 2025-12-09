@@ -10,6 +10,9 @@ import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
 
+// Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
+const viewportPositions = new Map<string, number>();
+
 export interface SessionTheme {
   base: 'dark' | 'light';
   override?: ITerminalOptions['theme'];
@@ -74,7 +77,11 @@ export class TerminalSessionManager {
       scrollback: options.scrollbackLines,
       convertEol: true,
       fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+      fontSize: 13,
+      lineHeight: 1.2,
+      letterSpacing: 0,
       allowProposedApi: true,
+      scrollOnUserInput: false,
     });
 
     this.fitAddon = new FitAddon();
@@ -108,6 +115,13 @@ export class TerminalSessionManager {
         // These are sent by xterm.js when focus changes but shouldn't go to the PTY
         const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
         if (filtered) {
+          // Track command execution when Enter is pressed
+          if (filtered.includes('\r') || filtered.includes('\n')) {
+            void (async () => {
+              const { captureTelemetry } = await import('../lib/telemetryClient');
+              captureTelemetry('terminal_command_executed');
+            })();
+          }
           window.electronAPI.ptyInput({ id: this.id, data: filtered });
         }
       }
@@ -146,32 +160,32 @@ export class TerminalSessionManager {
       }
     }
 
-    this.fitAddon.fit();
-    this.terminal.focus();
+    this.fitPreservingViewport();
     this.sendSizeIfStarted();
 
     this.resizeObserver = new ResizeObserver(() => {
-      try {
-        this.fitAddon.fit();
-      } catch (error) {
-        log.warn('Terminal fit failed', { id: this.id, error });
-      }
+      this.fitPreservingViewport();
     });
     this.resizeObserver.observe(container);
 
     requestAnimationFrame(() => {
       if (this.disposed) return;
-      try {
-        this.fitAddon.fit();
-        this.sendSizeIfStarted();
-      } catch (error) {
-        log.warn('Terminal fit failed', { id: this.id, error });
-      }
+      this.fitPreservingViewport();
+      this.sendSizeIfStarted();
+      // Restore viewport position after fit completes and terminal is fully rendered
+      // Use a second requestAnimationFrame to ensure the terminal buffer is ready
+      requestAnimationFrame(() => {
+        if (!this.disposed) {
+          this.restoreViewportPosition();
+        }
+      });
     });
   }
 
   detach() {
     if (this.attachedContainer) {
+      // Capture viewport position before detaching
+      this.captureViewportPosition();
       this.resizeObserver?.disconnect();
       this.resizeObserver = null;
       ensureTerminalHost().appendChild(this.container);
@@ -190,6 +204,8 @@ export class TerminalSessionManager {
     this.detach();
     this.stopSnapshotTimer();
     void this.captureSnapshot('dispose');
+    // Clean up stored viewport position when session is disposed
+    viewportPositions.delete(this.id);
     try {
       window.electronAPI.ptyKill(this.id);
     } catch (error) {
@@ -211,7 +227,7 @@ export class TerminalSessionManager {
   }
 
   focus() {
-    this.container.focus();
+    this.terminal.focus();
   }
 
   registerActivityListener(listener: () => void): () => void {
@@ -269,7 +285,96 @@ export class TerminalSessionManager {
             cursor: '#f9fafb',
             ...selection,
           };
-    this.terminal.options.theme = { ...base, ...(theme.override ?? {}) };
+
+    // Extract font settings before applying theme (they're not part of ITheme)
+    const fontFamily = (theme.override as any)?.fontFamily;
+    const fontSize = (theme.override as any)?.fontSize;
+
+    // Apply color theme (excluding font properties)
+    const colorTheme = { ...theme.override };
+    delete (colorTheme as any)?.fontFamily;
+    delete (colorTheme as any)?.fontSize;
+    this.terminal.options.theme = { ...base, ...colorTheme };
+
+    // Apply font settings separately
+    if (fontFamily) {
+      this.terminal.options.fontFamily = fontFamily;
+    }
+    if (fontSize) {
+      this.terminal.options.fontSize = fontSize;
+    }
+  }
+
+  /**
+   * Fit the terminal to its container while preserving the user's viewport
+   * position (prevents jumps when sidebars resize and trigger fits).
+   */
+  private fitPreservingViewport() {
+    try {
+      const buffer = this.terminal.buffer?.active;
+      const offsetFromBottom =
+        buffer && typeof buffer.baseY === 'number' && typeof buffer.viewportY === 'number'
+          ? buffer.baseY - buffer.viewportY
+          : null;
+
+      this.fitAddon.fit();
+
+      // Use requestAnimationFrame to ensure terminal is fully rendered before restoring scroll position
+      // This prevents viewport jumps when sidebars resize
+      if (offsetFromBottom !== null) {
+        requestAnimationFrame(() => {
+          if (this.disposed) return;
+          try {
+            const newBuffer = this.terminal.buffer?.active;
+            const targetBase = newBuffer?.baseY ?? null;
+            if (typeof targetBase === 'number') {
+              const targetLine = Math.max(0, targetBase - offsetFromBottom);
+              this.terminal.scrollToLine(targetLine);
+            }
+          } catch (error) {
+            log.warn('Terminal scroll restore failed after fit', { id: this.id, error });
+          }
+        });
+      }
+    } catch (error) {
+      log.warn('Terminal fit failed', { id: this.id, error });
+    }
+  }
+
+  /**
+   * Capture the current viewport position (scroll offset from bottom)
+   * and store it for later restoration.
+   */
+  private captureViewportPosition() {
+    try {
+      const buffer = this.terminal.buffer?.active;
+      if (buffer && typeof buffer.baseY === 'number' && typeof buffer.viewportY === 'number') {
+        const offsetFromBottom = buffer.baseY - buffer.viewportY;
+        viewportPositions.set(this.id, offsetFromBottom);
+      }
+    } catch (error) {
+      log.warn('Failed to capture viewport position', { id: this.id, error });
+    }
+  }
+
+  /**
+   * Restore the previously captured viewport position.
+   * This ensures the terminal stays at the same scroll position when switching
+   * between workspaces or when the terminal is reattached.
+   */
+  private restoreViewportPosition() {
+    try {
+      const storedOffset = viewportPositions.get(this.id);
+      if (typeof storedOffset === 'number') {
+        const buffer = this.terminal.buffer?.active;
+        if (buffer && typeof buffer.baseY === 'number') {
+          const targetLine = Math.max(0, buffer.baseY - storedOffset);
+          this.terminal.scrollToLine(targetLine);
+        }
+      }
+    } catch (error) {
+      log.warn('Failed to restore viewport position', { id: this.id, error });
+    }
   }
 
   private startSnapshotTimer() {
@@ -376,6 +481,9 @@ export class TerminalSessionManager {
       if (snapshot.cols && snapshot.rows) {
         this.terminal.resize(snapshot.cols, snapshot.rows);
       }
+
+      // Note: Viewport position restoration happens in attach() after terminal is opened
+      // This ensures the terminal is fully initialized before we try to scroll
     } catch (error) {
       log.warn('terminalSession:snapshotRestoreFailed', {
         id: this.id,

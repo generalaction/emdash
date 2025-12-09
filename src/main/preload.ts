@@ -76,6 +76,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
   // App settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
@@ -166,7 +167,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('icons:resolve-service', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   // Telemetry (minimal, anonymous)
-  captureTelemetry: (event: 'feature_used' | 'error', properties?: Record<string, any>) =>
+  captureTelemetry: (event: string, properties?: Record<string, any>) =>
     ipcRenderer.invoke('telemetry:capture', { event, properties }),
   getTelemetryStatus: () => ipcRenderer.invoke('telemetry:get-status'),
   setTelemetryEnabled: (enabled: boolean) => ipcRenderer.invoke('telemetry:set-enabled', enabled),
@@ -181,6 +182,52 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // GitHub integration
   githubAuth: () => ipcRenderer.invoke('github:auth'),
+  githubCancelAuth: () => ipcRenderer.invoke('github:auth:cancel'),
+
+  // GitHub auth event listeners
+  onGithubAuthDeviceCode: (
+    callback: (data: {
+      userCode: string;
+      verificationUri: string;
+      expiresIn: number;
+      interval: number;
+    }) => void
+  ) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('github:auth:device-code', listener);
+    return () => ipcRenderer.removeListener('github:auth:device-code', listener);
+  },
+  onGithubAuthPolling: (callback: (data: { status: string }) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('github:auth:polling', listener);
+    return () => ipcRenderer.removeListener('github:auth:polling', listener);
+  },
+  onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('github:auth:slow-down', listener);
+    return () => ipcRenderer.removeListener('github:auth:slow-down', listener);
+  },
+  onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('github:auth:success', listener);
+    return () => ipcRenderer.removeListener('github:auth:success', listener);
+  },
+  onGithubAuthError: (callback: (data: { error: string; message: string }) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('github:auth:error', listener);
+    return () => ipcRenderer.removeListener('github:auth:error', listener);
+  },
+  onGithubAuthCancelled: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('github:auth:cancelled', listener);
+    return () => ipcRenderer.removeListener('github:auth:cancelled', listener);
+  },
+  onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('github:auth:user-updated', listener);
+    return () => ipcRenderer.removeListener('github:auth:user-updated', listener);
+  },
+
   githubIsAuthenticated: () => ipcRenderer.invoke('github:isAuthenticated'),
   githubGetStatus: () => ipcRenderer.invoke('github:getStatus'),
   githubGetUser: () => ipcRenderer.invoke('github:getUser'),
@@ -198,6 +245,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     branchName?: string;
   }) => ipcRenderer.invoke('github:createPullRequestWorktree', args),
   githubLogout: () => ipcRenderer.invoke('github:logout'),
+  githubCheckCLIInstalled: () => ipcRenderer.invoke('github:checkCLIInstalled'),
+  githubInstallCLI: () => ipcRenderer.invoke('github:installCLI'),
   // GitHub issues
   githubIssuesList: (projectPath: string, limit?: number) =>
     ipcRenderer.invoke('github:issues:list', projectPath, limit),
@@ -326,7 +375,7 @@ export interface ElectronAPI {
 
   // Telemetry (minimal, anonymous)
   captureTelemetry: (
-    event: 'feature_used' | 'error',
+    event: string,
     properties?: Record<string, any>
   ) => Promise<{ success: boolean; error?: string; disabled?: boolean }>;
   getTelemetryStatus: () => Promise<{
@@ -516,7 +565,33 @@ export interface ElectronAPI {
   stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
 
   // GitHub integration
-  githubAuth: () => Promise<{ success: boolean; token?: string; user?: any; error?: string }>;
+  githubAuth: () => Promise<{
+    success: boolean;
+    device_code?: string;
+    user_code?: string;
+    verification_uri?: string;
+    expires_in?: number;
+    interval?: number;
+    error?: string;
+  }>;
+  githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;
+
+  // GitHub auth event listeners (return cleanup function)
+  onGithubAuthDeviceCode: (
+    callback: (data: {
+      userCode: string;
+      verificationUri: string;
+      expiresIn: number;
+      interval: number;
+    }) => void
+  ) => () => void;
+  onGithubAuthPolling: (callback: (data: { status: string }) => void) => () => void;
+  onGithubAuthSlowDown: (callback: (data: { newInterval: number }) => void) => () => void;
+  onGithubAuthSuccess: (callback: (data: { token: string; user: any }) => void) => () => void;
+  onGithubAuthError: (callback: (data: { error: string; message: string }) => void) => () => void;
+  onGithubAuthCancelled: (callback: () => void) => () => void;
+  onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
+
   githubIsAuthenticated: () => Promise<boolean>;
   githubGetStatus: () => Promise<{ installed: boolean; authenticated: boolean; user?: any }>;
   githubGetUser: () => Promise<any>;
@@ -543,6 +618,8 @@ export interface ElectronAPI {
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
+  githubCheckCLIInstalled: () => Promise<boolean>;
+  githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
 
   // Database methods
   getProjects: () => Promise<any[]>;

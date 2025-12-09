@@ -150,13 +150,25 @@ function WorkspaceRow({
         mode: 'container',
       });
       if (res?.ok !== true) {
+        void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('container_connect_failed', {
+            error_type: res?.error?.code || 'unknown',
+          });
+        });
         toast({
           title: 'Failed to start container',
           description: res?.error?.message || 'Unknown error',
           variant: 'destructive',
         });
+      } else {
+        void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('container_connect_success');
+        });
       }
     } catch (error: any) {
+      void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('container_connect_failed', { error_type: 'exception' });
+      });
       toast({
         title: 'Failed to start container',
         description: error?.message || String(error),
@@ -304,16 +316,22 @@ function WorkspaceRow({
             </button>
           ) : null}
           {!isLoading && totalAdditions === 0 && totalDeletions === 0 && pr ? (
-            <span
-              className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (pr.url) window.electronAPI.openExternal(pr.url);
+              }}
+              className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               title={`${pr.title || 'Pull Request'} (#${pr.number})`}
             >
               {pr.isDraft
-                ? 'draft'
-                : String(pr.state).toLowerCase() === 'open'
-                  ? 'PR open'
-                  : String(pr.state).toLowerCase()}
-            </span>
+                ? 'Draft'
+                : String(pr.state).toUpperCase() === 'OPEN'
+                  ? 'View PR'
+                  : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+              <ArrowUpRight className="size-3" />
+            </button>
           ) : null}
           {/* Agent badge commented out per user request
           {ws.agentId && <Badge variant="outline">agent</Badge>}
@@ -611,63 +629,66 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             <div className="space-y-6">
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
                     <h2 className="text-lg font-semibold">Tasks</h2>
-                    {!isSelectMode && (
+                    <p className="text-xs text-muted-foreground">
+                      Spin up a fresh, isolated workspace for this project.
+                    </p>
+                  </div>
+                  {!isSelectMode && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="h-9 px-4 text-sm font-semibold shadow-sm"
+                      onClick={onCreateWorkspace}
+                      disabled={isCreatingWorkspace}
+                      aria-busy={isCreatingWorkspace}
+                    >
+                      {isCreatingWorkspace ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Starting…
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="mr-2 size-4" />
+                          Start New Task
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+                {workspaces.length > 0 && (
+                  <div className="flex justify-end gap-2">
+                    {isSelectMode && selectedCount > 0 && (
                       <Button
-                        variant="secondary"
+                        variant="destructive"
                         size="sm"
                         className="h-8 px-3 text-xs font-medium"
-                        onClick={onCreateWorkspace}
-                        disabled={isCreatingWorkspace}
-                        aria-busy={isCreatingWorkspace}
+                        onClick={() => setShowDeleteDialog(true)}
+                        disabled={isDeleting}
                       >
-                        {isCreatingWorkspace ? (
+                        {isDeleting ? (
                           <>
                             <Loader2 className="mr-2 size-4 animate-spin" />
-                            Creating…
+                            Deleting…
                           </>
                         ) : (
-                          <>
-                            <Plus className="mr-2 size-4" />
-                            Create Task
-                          </>
+                          'Delete'
                         )}
                       </Button>
                     )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
+                      className="h-8 px-3 text-xs font-medium"
+                    >
+                      {isSelectMode ? 'Cancel' : 'Select'}
+                    </Button>
                   </div>
-                  {workspaces.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      {isSelectMode && selectedCount > 0 && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="h-8 px-3 text-xs font-medium"
-                          onClick={() => setShowDeleteDialog(true)}
-                          disabled={isDeleting}
-                        >
-                          {isDeleting ? (
-                            <>
-                              <Loader2 className="mr-2 size-4 animate-spin" />
-                              Deleting…
-                            </>
-                          ) : (
-                            'Delete'
-                          )}
-                        </Button>
-                      )}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                        className="h-8 px-3 text-xs font-medium"
-                      >
-                        {isSelectMode ? 'Cancel' : 'Select'}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                )}
                 <div className="flex flex-col gap-3">
                   {workspaces.map((ws) => (
                     <WorkspaceRow

@@ -23,6 +23,7 @@ import {
 import { useBrowser } from '@/providers/BrowserProvider';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
+import { useAutoScrollOnWorkspaceSwitch } from '@/hooks/useAutoScrollOnWorkspaceSwitch';
 
 declare const window: Window & {
   electronAPI: {
@@ -60,6 +61,9 @@ const ChatInterface: React.FC<Props> = ({
   const terminalId = useMemo(() => `${provider}-main-${workspace.id}`, [provider, workspace.id]);
   const [portsExpanded, setPortsExpanded] = useState(false);
   const { activeTerminalId } = useWorkspaceTerminals(workspace.id, workspace.path);
+
+  // Auto-scroll to bottom when this workspace becomes active
+  useAutoScrollOnWorkspaceSwitch(true, workspace.id);
 
   // Unified Plan Mode (per workspace)
   const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(
@@ -214,6 +218,18 @@ const ChatInterface: React.FC<Props> = ({
       window.localStorage.setItem(`provider:last:${workspace.id}`, provider);
     } catch {}
   }, [provider, workspace.id]);
+
+  // Track provider switching
+  const prevProviderRef = React.useRef<Provider | null>(null);
+  useEffect(() => {
+    if (prevProviderRef.current && prevProviderRef.current !== provider) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('workspace_provider_switched', { provider });
+      })();
+    }
+    prevProviderRef.current = provider;
+  }, [provider]);
 
   useEffect(() => {
     const installed = currentProviderStatus?.installed === true;

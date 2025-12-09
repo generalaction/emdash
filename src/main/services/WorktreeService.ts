@@ -282,10 +282,10 @@ export class WorktreeService {
     branch?: string
   ): Promise<void> {
     try {
-      let worktree = this.worktrees.get(worktreeId);
+      const worktree = this.worktrees.get(worktreeId);
 
-      let pathToRemove = worktree?.path ?? worktreePath;
-      let branchToDelete = worktree?.branch ?? branch;
+      const pathToRemove = worktree?.path ?? worktreePath;
+      const branchToDelete = worktree?.branch ?? branch;
 
       if (!pathToRemove) {
         throw new Error('Worktree path not provided');
@@ -362,7 +362,7 @@ export class WorktreeService {
           }
         }
 
-        let remoteAlias = 'origin';
+        const remoteAlias = 'origin';
         let remoteBranchName = branchToDelete;
         if (branchToDelete.startsWith('origin/')) {
           remoteBranchName = branchToDelete.replace(/^origin\//, '');

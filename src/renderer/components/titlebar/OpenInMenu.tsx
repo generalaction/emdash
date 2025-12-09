@@ -37,6 +37,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const callOpen = async (
     app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2'
   ) => {
+    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('toolbar_open_in_selected', { app });
+    });
     try {
       const res = await (window as any).electronAPI?.openIn?.({ app, path });
       if (!res?.success) {
@@ -91,7 +94,15 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         variant="ghost"
         size="sm"
         className="h-8 gap-1 px-2 text-muted-foreground hover:bg-background/80"
-        onClick={() => setOpen((v) => !v)}
+        onClick={async () => {
+          const newState = !open;
+          void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+            captureTelemetry('toolbar_open_in_menu_clicked', {
+              state: newState ? 'open' : 'closed',
+            });
+          });
+          setOpen(newState);
+        }}
         aria-expanded={open}
         aria-haspopup
       >

@@ -101,6 +101,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   }, [isOpen]);
 
   useEffect(() => {
+    if (isOpen) {
+      void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('settings_tab_viewed', { tab: activeTab });
+      });
+    }
+  }, [activeTab, isOpen]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const applyCachedStatuses = (statuses: Record<string, CachedProviderStatus> | undefined) => {
