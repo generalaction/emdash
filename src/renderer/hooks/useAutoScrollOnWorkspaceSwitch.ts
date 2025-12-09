@@ -1,0 +1,86 @@
+import { useEffect, useRef, useCallback } from 'react';
+
+/**
+ * Hook to auto-scroll terminal containers to bottom when workspace switches
+ */
+type ScrollOptions = {
+  /**
+   * Only scroll if the user is already near the top of the pane (avoids yanking them
+   * away from where they were reading).
+   */
+  onlyIfNearTop?: boolean;
+};
+
+export function useAutoScrollOnWorkspaceSwitch(isActive: boolean, workspaceId: string | null) {
+  const previousWorkspaceIdRef = useRef<string | null>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const scrollToBottom = useCallback((options: ScrollOptions = {}) => {
+    const { onlyIfNearTop = true } = options;
+
+    // Restrict to terminal panes so we don't accidentally scroll unrelated panels.
+    const selectors = [
+      '.terminal-pane .xterm-viewport',
+      '.terminal-pane [data-terminal-container]',
+    ];
+    const containers = selectors.flatMap((selector) =>
+      Array.from(document.querySelectorAll<HTMLElement>(selector))
+    );
+
+    let scrolledAny = false;
+
+    containers.forEach((container) => {
+      const isVisible =
+        container.offsetParent !== null &&
+        container.getClientRects().length > 0 &&
+        container.clientHeight > 0;
+      const hasScrollableContent = container.scrollHeight > container.clientHeight;
+      const nearTop = container.scrollTop <= 32;
+
+      if (!isVisible || !hasScrollableContent) return;
+      if (onlyIfNearTop && !nearTop) return;
+
+      container.scrollTo({
+        top: container.scrollHeight,
+        left: 0,
+        behavior: 'smooth',
+      });
+      scrolledAny = true;
+    });
+
+    if (process.env.NODE_ENV === 'development' && !scrolledAny) {
+      console.debug('[useAutoScrollOnWorkspaceSwitch] No scrollable terminal containers found');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isActive || !workspaceId) {
+      return;
+    }
+
+    // Check if workspace actually changed
+    if (previousWorkspaceIdRef.current !== workspaceId) {
+      previousWorkspaceIdRef.current = workspaceId;
+
+      // Clear any existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Delay scroll to allow content to render
+      scrollTimeoutRef.current = setTimeout(() => {
+        scrollToBottom({ onlyIfNearTop: true });
+      }, 200);
+    }
+
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
+      }
+    };
+  }, [isActive, workspaceId, scrollToBottom]);
+
+  // Expose a manual scroll function for external use
+  return { scrollToBottom };
+}
