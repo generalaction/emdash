@@ -210,6 +210,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['kiro-cli', 'kiro'],
     versionArgs: ['--version'],
     cli: 'kiro-cli',
+    defaultArgs: ['chat'],
+    initialPromptFlag: '',
     icon: 'kiro.png',
     terminalOnly: true,
   },
