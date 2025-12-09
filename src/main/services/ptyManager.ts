@@ -109,6 +109,9 @@ export function startPty(options: {
 
       if (provider) {
         args.length = 0;
+        if (provider.defaultArgs?.length) {
+          args.push(...provider.defaultArgs);
+        }
         if (autoApprove && provider.autoApproveFlag) {
           args.push(provider.autoApproveFlag);
         }
