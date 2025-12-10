@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.3.38",
+  "version": "0.3.39",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "scripts": {
