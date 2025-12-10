@@ -14,12 +14,10 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Home, ChevronDown, Plus, FolderOpen, PanelLeft, ChevronLeft, Github } from 'lucide-react';
+import { Home, ChevronDown, Plus, FolderOpen } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
-import githubLogo from '../../assets/images/github.png';
 import { WorkspaceItem } from './WorkspaceItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import type { Project } from '../types/app';
@@ -110,139 +108,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     api?.openExternal?.(githubProfileUrl);
   }, [githubProfileUrl]);
 
-  const handleCollapsedProjectClick = React.useCallback(
-    (project: Project) => {
-      onSelectProject(project);
-      if (setOpen) {
-        setOpen(true);
-      }
-    },
-    [onSelectProject, setOpen]
-  );
-
-  const renderCollapsedRail = () => {
-    const railProjects = projects || [];
-    const getInitial = (name?: string | null) =>
-      name && name.trim().length > 0 ? name.trim()[0]?.toUpperCase() : '•';
-
-    return (
-      <div className="bg-sidebar pointer-events-auto flex h-full w-full flex-col items-center border-r border-border">
-        {/* Toggle button at top */}
-        <div className="flex w-full items-center justify-center border-b border-border p-2.5">
-          <TooltipProvider delayDuration={150}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setOpen?.(true)}
-                  aria-label="Open sidebar"
-                  className="h-8 w-8 cursor-pointer text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                >
-                  <PanelLeft className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs font-medium">
-                Open sidebar
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        {/* Projects list - scrollable */}
-        <div className="w-full flex-1 overflow-hidden">
-          <div className="flex h-full flex-col items-center gap-2 overflow-y-auto px-1.5 py-2">
-            {railProjects.length === 0 ? (
-              <div className="px-1 text-center text-[9px] leading-tight text-muted-foreground">
-                No projects
-              </div>
-            ) : (
-              railProjects.map((project) => {
-                const count = project.workspaces?.length ?? 0;
-                const initial = getInitial(project.name);
-                const isActive = selectedProject?.id === project.id;
-                return (
-                  <TooltipProvider key={project.id} delayDuration={100}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => handleCollapsedProjectClick(project)}
-                          className={`group relative flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-md text-[11px] font-semibold transition-all hover:scale-105 ${
-                            isActive
-                              ? 'bg-primary text-primary-foreground shadow-sm'
-                              : 'bg-muted/60 text-foreground hover:bg-muted'
-                          }`}
-                          aria-label={`${project.name} (${count} task${count === 1 ? '' : 's'})`}
-                        >
-                          <span className="leading-none">{initial}</span>
-                          {count > 0 && (
-                            <span
-                              className={`absolute -bottom-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none ${
-                                isActive
-                                  ? 'bg-primary/20 text-primary'
-                                  : 'bg-muted text-muted-foreground'
-                              }`}
-                            >
-                              {count > 99 ? '99+' : count}
-                            </span>
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="text-xs font-medium">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold">{project.name}</span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {count} task{count === 1 ? '' : 's'}
-                          </span>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* GitHub icon at bottom */}
-        <div className="flex w-full items-center justify-center border-t border-border p-2.5">
-          <TooltipProvider delayDuration={150}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (githubProfileUrl) {
-                      handleGithubProfileClick();
-                    } else {
-                      onGithubConnect?.();
-                    }
-                  }}
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  aria-label={githubProfileUrl ? 'Open GitHub profile' : 'Connect GitHub'}
-                >
-                  {githubProfileUrl ? (
-                    <img
-                      src={githubLogo}
-                      alt="GitHub"
-                      className="h-4 w-4 rounded-sm object-contain dark:invert"
-                    />
-                  ) : (
-                    <Github className="h-4 w-4" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs font-medium">
-                {githubProfileUrl ? 'Open GitHub profile' : 'Connect GitHub'}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </div>
-    );
-  };
-
   React.useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
@@ -261,156 +126,162 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   return (
     <div className="relative h-full">
       <Sidebar className="!w-full lg:border-r-0">
-        {open ? (
-          <>
-            <SidebarContent>
-              <SidebarGroup className="mb-3">
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <div className="flex items-center gap-1.5">
-                        <SidebarMenuButton
-                          asChild
-                          className={`min-w-0 flex-1 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
-                        >
-                          <Button
-                            variant="ghost"
-                            onClick={onGoHome}
-                            aria-label="Home"
-                            className="w-full justify-start"
-                          >
-                            <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
-                            <span className="hidden text-sm font-medium sm:inline">Home</span>
-                          </Button>
-                        </SidebarMenuButton>
-                        <TooltipProvider delayDuration={150}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setOpen?.(false)}
-                                aria-label="Collapse sidebar"
-                                className="h-9 w-9 flex-shrink-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              >
-                                <ChevronLeft className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right" className="text-xs font-medium">
-                              Collapse sidebar
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-
-              <ActiveRuns
-                projects={projects}
-                onSelectProject={onSelectProject}
-                onSelectWorkspace={onSelectWorkspace}
-              />
-
-              {projects.length === 0 && (
-                <SidebarEmptyState
-                  title="No projects yet"
-                  description="Open a project to start creating worktrees and running coding agents."
-                  actionLabel={onOpenProject ? 'Open Project' : undefined}
-                  onAction={onOpenProject}
-                />
-              )}
-
-              <SidebarGroup>
-                <SidebarGroupLabel className="sr-only">Projects</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <ReorderList
-                      as="div"
-                      axis="y"
-                      items={projects}
-                      onReorder={(newOrder) => {
-                        if (onReorderProjectsFull) {
-                          onReorderProjectsFull(newOrder as Project[]);
-                        } else if (onReorderProjects) {
-                          const oldIds = projects.map((p) => p.id);
-                          const newIds = (newOrder as Project[]).map((p) => p.id);
-                          for (let i = 0; i < newIds.length; i++) {
-                            if (newIds[i] !== oldIds[i]) {
-                              const sourceId = newIds.find((id) => id === oldIds[i]);
-                              const targetId = newIds[i];
-                              if (sourceId && targetId && sourceId !== targetId) {
-                                onReorderProjects(sourceId, targetId);
-                              }
-                              break;
-                            }
-                          }
-                        }
-                      }}
-                      className="m-0 min-w-0 list-none space-y-1 p-0"
-                      itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
-                      getKey={(p) => (p as Project).id}
+        <SidebarContent>
+          <SidebarGroup className="mb-3">
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    className={`min-w-0 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
+                  >
+                    <Button
+                      variant="ghost"
+                      onClick={onGoHome}
+                      aria-label="Home"
+                      className="w-full justify-start"
                     >
-                      {(project) => {
-                        const typedProject = project as Project;
-                        const isDeletingProject = deletingProjectId === typedProject.id;
-                        const showProjectDelete = Boolean(onDeleteProject);
-                        const isProjectActive = selectedProject?.id === typedProject.id;
-                        return (
-                          <SidebarMenuItem>
-                            <Collapsible defaultOpen className="group/collapsible">
-                              <div
-                                className={`group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
-                                  isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
-                                }`}
-                              >
+                      <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
+                      <span className="hidden text-sm font-medium sm:inline">Home</span>
+                    </Button>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <ActiveRuns
+            projects={projects}
+            onSelectProject={onSelectProject}
+            onSelectWorkspace={onSelectWorkspace}
+          />
+
+          {projects.length === 0 && (
+            <SidebarEmptyState
+              title="No projects yet"
+              description="Open a project to start creating worktrees and running coding agents."
+              actionLabel={onOpenProject ? 'Open Project' : undefined}
+              onAction={onOpenProject}
+            />
+          )}
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="sr-only">Projects</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <ReorderList
+                  as="div"
+                  axis="y"
+                  items={projects}
+                  onReorder={(newOrder) => {
+                    if (onReorderProjectsFull) {
+                      onReorderProjectsFull(newOrder as Project[]);
+                    } else if (onReorderProjects) {
+                      const oldIds = projects.map((p) => p.id);
+                      const newIds = (newOrder as Project[]).map((p) => p.id);
+                      for (let i = 0; i < newIds.length; i++) {
+                        if (newIds[i] !== oldIds[i]) {
+                          const sourceId = newIds.find((id) => id === oldIds[i]);
+                          const targetId = newIds[i];
+                          if (sourceId && targetId && sourceId !== targetId) {
+                            onReorderProjects(sourceId, targetId);
+                          }
+                          break;
+                        }
+                      }
+                    }
+                  }}
+                  className="m-0 min-w-0 list-none space-y-1 p-0"
+                  itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
+                  getKey={(p) => (p as Project).id}
+                >
+                  {(project) => {
+                    const typedProject = project as Project;
+                    const isDeletingProject = deletingProjectId === typedProject.id;
+                    const showProjectDelete = Boolean(onDeleteProject);
+                    const isProjectActive = selectedProject?.id === typedProject.id;
+                    return (
+                      <SidebarMenuItem>
+                        <Collapsible defaultOpen className="group/collapsible">
+                          <div
+                            className={`group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
+                              isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectProject(typedProject);
+                              }}
+                            >
+                              <span className="block truncate">{typedProject.name}</span>
+                              <span className="hidden truncate text-xs text-muted-foreground sm:block">
+                                {typedProject.githubInfo?.repository || typedProject.path}
+                              </span>
+                            </button>
+                            <div className="relative flex flex-shrink-0 items-center pl-6">
+                              {showProjectDelete ? (
+                                <ProjectDeleteButton
+                                  projectName={typedProject.name}
+                                  onConfirm={() => handleDeleteProject(typedProject)}
+                                  isDeleting={isDeletingProject}
+                                  aria-label={`Delete project ${typedProject.name}`}
+                                  className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-100 ${
+                                    isDeletingProject
+                                      ? 'opacity-100'
+                                      : 'group-hover/workspace:opacity-100'
+                                  }`}
+                                />
+                              ) : null}
+                              <CollapsibleTrigger asChild>
                                 <button
                                   type="button"
-                                  className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
+                                  aria-label={`Toggle workspaces for ${typedProject.name}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                  <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                                </button>
+                              </CollapsibleTrigger>
+                            </div>
+                          </div>
+
+                          <CollapsibleContent asChild>
+                            <div className="ml-7 mt-2 min-w-0">
+                              <div className="bg-sidebar sticky top-0 z-10 pb-1">
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onSelectProject(typedProject);
+                                    if (
+                                      onSelectProject &&
+                                      selectedProject?.id !== typedProject.id
+                                    ) {
+                                      onSelectProject(typedProject);
+                                    } else if (!selectedProject) {
+                                      onSelectProject?.(typedProject);
+                                    }
+                                    onCreateWorkspaceForProject?.(typedProject);
                                   }}
+                                  disabled={isCreatingWorkspace}
+                                  aria-label={`Add Task to ${typedProject.name}`}
                                 >
-                                  <span className="block truncate">{typedProject.name}</span>
-                                  <span className="hidden truncate text-xs text-muted-foreground sm:block">
-                                    {typedProject.githubInfo?.repository || typedProject.path}
-                                  </span>
+                                  <Plus
+                                    className="h-3 w-3 flex-shrink-0 text-gray-400"
+                                    aria-hidden
+                                  />
+                                  <span className="truncate">Add Task</span>
                                 </button>
-                                <div className="relative flex flex-shrink-0 items-center pl-6">
-                                  {showProjectDelete ? (
-                                    <ProjectDeleteButton
-                                      projectName={typedProject.name}
-                                      onConfirm={() => handleDeleteProject(typedProject)}
-                                      isDeleting={isDeletingProject}
-                                      aria-label={`Delete project ${typedProject.name}`}
-                                      className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-100 ${
-                                        isDeletingProject
-                                          ? 'opacity-100'
-                                          : 'group-hover/workspace:opacity-100'
-                                      }`}
-                                    />
-                                  ) : null}
-                                  <CollapsibleTrigger asChild>
-                                    <button
-                                      type="button"
-                                      aria-label={`Toggle workspaces for ${typedProject.name}`}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                    >
-                                      <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                                    </button>
-                                  </CollapsibleTrigger>
-                                </div>
                               </div>
-
-                              <CollapsibleContent asChild>
-                                <div className="ml-7 mt-2 min-w-0">
-                                  <div className="bg-sidebar sticky top-0 z-10 pb-1">
-                                    <button
-                                      type="button"
-                                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
+                              <div className="hidden min-w-0 space-y-1 sm:block">
+                                {typedProject.workspaces?.map((workspace) => {
+                                  const isActive = activeWorkspace?.id === workspace.id;
+                                  return (
+                                    <div
+                                      key={workspace.id}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         if (
@@ -418,118 +289,86 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                           selectedProject?.id !== typedProject.id
                                         ) {
                                           onSelectProject(typedProject);
-                                        } else if (!selectedProject) {
-                                          onSelectProject?.(typedProject);
                                         }
-                                        onCreateWorkspaceForProject?.(typedProject);
+                                        onSelectWorkspace && onSelectWorkspace(workspace);
                                       }}
-                                      disabled={isCreatingWorkspace}
-                                      aria-label={`Add Task to ${typedProject.name}`}
+                                      className={`group/workspace min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
+                                        isActive ? 'bg-black/5 dark:bg-white/5' : ''
+                                      }`}
+                                      title={workspace.name}
                                     >
-                                      <Plus
-                                        className="h-3 w-3 flex-shrink-0 text-gray-400"
-                                        aria-hidden
+                                      <WorkspaceItem
+                                        workspace={workspace}
+                                        showDelete
+                                        onDelete={
+                                          onDeleteWorkspace
+                                            ? () => onDeleteWorkspace(typedProject, workspace)
+                                            : undefined
+                                        }
                                       />
-                                      <span className="truncate">Add Task</span>
-                                    </button>
-                                  </div>
-                                  <div className="hidden min-w-0 space-y-1 sm:block">
-                                    {typedProject.workspaces?.map((workspace) => {
-                                      const isActive = activeWorkspace?.id === workspace.id;
-                                      return (
-                                        <div
-                                          key={workspace.id}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (
-                                              onSelectProject &&
-                                              selectedProject?.id !== typedProject.id
-                                            ) {
-                                              onSelectProject(typedProject);
-                                            }
-                                            onSelectWorkspace && onSelectWorkspace(workspace);
-                                          }}
-                                          className={`group/workspace min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
-                                            isActive ? 'bg-black/5 dark:bg-white/5' : ''
-                                          }`}
-                                          title={workspace.name}
-                                        >
-                                          <WorkspaceItem
-                                            workspace={workspace}
-                                            showDelete
-                                            onDelete={
-                                              onDeleteWorkspace
-                                                ? () => onDeleteWorkspace(typedProject, workspace)
-                                                : undefined
-                                            }
-                                          />
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              </CollapsibleContent>
-                            </Collapsible>
-                          </SidebarMenuItem>
-                        );
-                      }}
-                    </ReorderList>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-
-              {projects.length > 0 && onOpenProject && (
-                <SidebarGroup className="mt-2">
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-1 w-full justify-start"
-                            onClick={onOpenProject}
-                          >
-                            <FolderOpen className="mr-2 h-4 w-4" />
-                            <span className="text-sm font-medium">Add Project</span>
-                          </Button>
-                        </SidebarMenuButton>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
                       </SidebarMenuItem>
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              )}
-            </SidebarContent>
-            <SidebarFooter className="border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
-              <SidebarMenu className="w-full">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    tabIndex={githubProfileUrl ? 0 : -1}
-                    onClick={(e) => {
-                      if (!githubProfileUrl) {
-                        return;
-                      }
-                      e.preventDefault();
-                      handleGithubProfileClick();
-                    }}
-                    className={`flex w-full items-center justify-start gap-2 px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
-                      githubProfileUrl
-                        ? 'hover:bg-black/5 dark:hover:bg-white/5'
-                        : 'cursor-default hover:bg-transparent'
-                    }`}
-                    aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
-                      <div className="hidden truncate sm:block">{renderGithubStatus()}</div>
-                    </div>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                    );
+                  }}
+                </ReorderList>
               </SidebarMenu>
-            </SidebarFooter>
-          </>
-        ) : (
-          <div className="flex h-full flex-col">{renderCollapsedRail()}</div>
-        )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          {projects.length > 0 && onOpenProject && (
+            <SidebarGroup className="mt-2">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-1 w-full justify-start"
+                        onClick={onOpenProject}
+                      >
+                        <FolderOpen className="mr-2 h-4 w-4" />
+                        <span className="text-sm font-medium">Add Project</span>
+                      </Button>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+        </SidebarContent>
+        <SidebarFooter className="border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
+          <SidebarMenu className="w-full">
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tabIndex={githubProfileUrl ? 0 : -1}
+                onClick={(e) => {
+                  if (!githubProfileUrl) {
+                    return;
+                  }
+                  e.preventDefault();
+                  handleGithubProfileClick();
+                }}
+                className={`flex w-full items-center justify-start gap-2 px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
+                  githubProfileUrl
+                    ? 'hover:bg-black/5 dark:hover:bg-white/5'
+                    : 'cursor-default hover:bg-transparent'
+                }`}
+                aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
+              >
+                <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
+                  <div className="hidden truncate sm:block">{renderGithubStatus()}</div>
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </Sidebar>
     </div>
   );
