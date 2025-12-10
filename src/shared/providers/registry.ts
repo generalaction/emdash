@@ -16,6 +16,7 @@ export const PROVIDER_IDS = [
   'rovo',
   'cline',
   'codebuff',
+  'mistral',
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -249,6 +250,19 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'codebuff',
     initialPromptFlag: '',
     icon: 'codebuff.png',
+    terminalOnly: true,
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral Vibe',
+    docUrl: 'https://github.com/mistralai/mistral-vibe',
+    installCommand: 'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
+    commands: ['vibe'],
+    versionArgs: ['-h'],
+    cli: 'vibe',
+    autoApproveFlag: '--auto-approve',
+    initialPromptFlag: '--prompt',
+    icon: 'mistral.png',
     terminalOnly: true,
   },
 ];

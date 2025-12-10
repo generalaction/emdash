@@ -4,6 +4,7 @@ import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 import { cn } from '@/lib/utils';
+import type { Provider } from '../types';
 
 interface Workspace {
   id: string;
@@ -15,10 +16,11 @@ interface Workspace {
 
 interface Props {
   workspace: Workspace | null;
+  provider?: Provider;
   className?: string;
 }
 
-const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className }) => {
+const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, provider, className }) => {
   const { effectiveTheme } = useTheme();
   const {
     terminals,
@@ -69,57 +71,59 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
   }, []);
 
   // Default theme (VS Code inspired)
-  const defaultTheme = useMemo(
-    () =>
-      effectiveTheme === 'dark'
-        ? {
-            background: '#1e1e1e',
-            foreground: '#d4d4d4',
-            cursor: '#aeafad',
-            cursorAccent: '#1e1e1e',
-            selectionBackground: '#264f78',
-            black: '#000000',
-            red: '#cd3131',
-            green: '#0dbc79',
-            yellow: '#e5e510',
-            blue: '#2472c8',
-            magenta: '#bc3fbc',
-            cyan: '#11a8cd',
-            white: '#e5e5e5',
-            brightBlack: '#666666',
-            brightRed: '#f14c4c',
-            brightGreen: '#23d18b',
-            brightYellow: '#f5f543',
-            brightBlue: '#3b8eea',
-            brightMagenta: '#d670d6',
-            brightCyan: '#29b8db',
-            brightWhite: '#ffffff',
-          }
-        : {
-            background: '#ffffff',
-            foreground: '#1e1e1e',
-            cursor: '#1e1e1e',
-            cursorAccent: '#ffffff',
-            selectionBackground: '#add6ff',
-            black: '#000000',
-            red: '#cd3131',
-            green: '#0dbc79',
-            yellow: '#bf8803',
-            blue: '#0451a5',
-            magenta: '#bc05bc',
-            cyan: '#0598bc',
-            white: '#e5e5e5',
-            brightBlack: '#666666',
-            brightRed: '#cd3131',
-            brightGreen: '#14ce14',
-            brightYellow: '#b5ba00',
-            brightBlue: '#0451a5',
-            brightMagenta: '#bc05bc',
-            brightCyan: '#0598bc',
-            brightWhite: '#a5a5a5',
-          },
-    [effectiveTheme]
-  );
+  const defaultTheme = useMemo(() => {
+    // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
+    const isMistral = provider === 'mistral';
+    const darkBackground = isMistral ? '#202938' : '#1e1e1e';
+
+    return effectiveTheme === 'dark'
+      ? {
+          background: darkBackground,
+          foreground: '#d4d4d4',
+          cursor: '#aeafad',
+          cursorAccent: darkBackground,
+          selectionBackground: '#264f78',
+          black: '#000000',
+          red: '#cd3131',
+          green: '#0dbc79',
+          yellow: '#e5e510',
+          blue: '#2472c8',
+          magenta: '#bc3fbc',
+          cyan: '#11a8cd',
+          white: '#e5e5e5',
+          brightBlack: '#666666',
+          brightRed: '#f14c4c',
+          brightGreen: '#23d18b',
+          brightYellow: '#f5f543',
+          brightBlue: '#3b8eea',
+          brightMagenta: '#d670d6',
+          brightCyan: '#29b8db',
+          brightWhite: '#ffffff',
+        }
+      : {
+          background: '#ffffff',
+          foreground: '#1e1e1e',
+          cursor: '#1e1e1e',
+          cursorAccent: '#ffffff',
+          selectionBackground: '#add6ff',
+          black: '#000000',
+          red: '#cd3131',
+          green: '#0dbc79',
+          yellow: '#bf8803',
+          blue: '#0451a5',
+          magenta: '#bc05bc',
+          cyan: '#0598bc',
+          white: '#e5e5e5',
+          brightBlack: '#666666',
+          brightRed: '#cd3131',
+          brightGreen: '#14ce14',
+          brightYellow: '#b5ba00',
+          brightBlue: '#0451a5',
+          brightMagenta: '#bc05bc',
+          brightCyan: '#0598bc',
+          brightWhite: '#a5a5a5',
+        };
+  }, [effectiveTheme, provider]);
 
   // Merge native theme with defaults (native theme takes precedence)
   const themeOverride = useMemo(() => {
@@ -208,7 +212,11 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
       <div
         className={cn(
           'bw-terminal relative flex-1 overflow-hidden',
-          effectiveTheme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          effectiveTheme === 'dark'
+            ? provider === 'mistral'
+              ? 'bg-[#202938]'
+              : 'bg-gray-800'
+            : 'bg-white'
         )}
       >
         {terminals.map((terminal) => (

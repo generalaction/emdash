@@ -97,6 +97,11 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     description:
       'Codebuff is an AI coding agent that helps you with coding tasks. Install globally and start using it in your project directory to get AI-powered coding assistance.',
   },
+  mistral: {
+    title: 'Mistral Vibe',
+    description:
+      'Mistral AI command-line coding assistant powered by Devstral. Provides conversational interface to your codebase with file manipulation, code search, version control, and execution tools.',
+  },
 };
 
 type Props = {

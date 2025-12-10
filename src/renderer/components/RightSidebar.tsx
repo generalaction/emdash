@@ -127,7 +127,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                       path={v.path}
                       className="min-h-0 flex-1 border-b border-border"
                     />
-                    <WorkspaceTerminalPanel workspace={derived} className="min-h-0 flex-1" />
+                    <WorkspaceTerminalPanel
+                      workspace={derived}
+                      provider={v.provider}
+                      className="min-h-0 flex-1"
+                    />
                   </>
                 );
               })()
@@ -137,7 +141,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                   workspaceId={workspace.path}
                   className="min-h-0 flex-1 border-b border-border"
                 />
-                <WorkspaceTerminalPanel workspace={workspace} className="min-h-0 flex-1" />
+                <WorkspaceTerminalPanel
+                  workspace={workspace}
+                  provider={workspace.agentId as Provider}
+                  className="min-h-0 flex-1"
+                />
               </>
             )}
           </div>

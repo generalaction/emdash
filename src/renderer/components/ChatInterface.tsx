@@ -687,7 +687,15 @@ const ChatInterface: React.FC<Props> = ({
         <div className="mt-4 min-h-0 flex-1 px-6">
           <div
             className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-              provider === 'charm' ? (effectiveTheme === 'dark' ? 'bg-gray-800' : 'bg-white') : ''
+              provider === 'charm'
+                ? effectiveTheme === 'dark'
+                  ? 'bg-gray-800'
+                  : 'bg-white'
+                : provider === 'mistral'
+                  ? effectiveTheme === 'dark'
+                    ? 'bg-[#202938]'
+                    : 'bg-white'
+                  : ''
             }`}
           >
             <TerminalPane
@@ -728,7 +736,9 @@ const ChatInterface: React.FC<Props> = ({
               themeOverride={
                 provider === 'charm'
                   ? { background: effectiveTheme === 'dark' ? '#1f2937' : '#ffffff' }
-                  : undefined
+                  : provider === 'mistral'
+                    ? { background: effectiveTheme === 'dark' ? '#202938' : '#ffffff' }
+                    : undefined
               }
               contentFilter={
                 provider === 'charm' && effectiveTheme !== 'dark'
