@@ -14,8 +14,7 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Home, ChevronDown, Plus, FolderOpen, PanelLeft, ChevronLeft, Github } from 'lucide-react';
+import { Home, ChevronDown, Plus, FolderOpen, Github } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
@@ -110,138 +109,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     api?.openExternal?.(githubProfileUrl);
   }, [githubProfileUrl]);
 
-  const handleCollapsedProjectClick = React.useCallback(
-    (project: Project) => {
-      onSelectProject(project);
-      if (setOpen) {
-        setOpen(true);
-      }
-    },
-    [onSelectProject, setOpen]
-  );
-
-  const renderCollapsedRail = () => {
-    const railProjects = projects || [];
-    const getInitial = (name?: string | null) =>
-      name && name.trim().length > 0 ? name.trim()[0]?.toUpperCase() : '•';
-
-    return (
-      <div className="bg-sidebar pointer-events-auto flex h-full w-full flex-col items-center border-r border-border">
-        {/* Toggle button at top */}
-        <div className="flex w-full items-center justify-center border-b border-border p-2.5">
-          <TooltipProvider delayDuration={150}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setOpen?.(true)}
-                  aria-label="Open sidebar"
-                  className="h-8 w-8 cursor-pointer text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                >
-                  <PanelLeft className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs font-medium">
-                Open sidebar
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        {/* Projects list - scrollable */}
-        <div className="w-full flex-1 overflow-hidden">
-          <div className="flex h-full flex-col items-center gap-2 overflow-y-auto px-1.5 py-2">
-            {railProjects.length === 0 ? (
-              <div className="px-1 text-center text-[9px] leading-tight text-muted-foreground">
-                No projects
-              </div>
-            ) : (
-              railProjects.map((project) => {
-                const count = project.workspaces?.length ?? 0;
-                const initial = getInitial(project.name);
-                const isActive = selectedProject?.id === project.id;
-                return (
-                  <TooltipProvider key={project.id} delayDuration={100}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => handleCollapsedProjectClick(project)}
-                          className={`group relative flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-md text-[11px] font-semibold transition-all hover:scale-105 ${
-                            isActive
-                              ? 'bg-primary text-primary-foreground shadow-sm'
-                              : 'bg-muted/60 text-foreground hover:bg-muted'
-                          }`}
-                          aria-label={`${project.name} (${count} task${count === 1 ? '' : 's'})`}
-                        >
-                          <span className="leading-none">{initial}</span>
-                          {count > 0 && (
-                            <span
-                              className={`absolute -bottom-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none ${
-                                isActive
-                                  ? 'bg-primary/20 text-primary'
-                                  : 'bg-muted text-muted-foreground'
-                              }`}
-                            >
-                              {count > 99 ? '99+' : count}
-                            </span>
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="text-xs font-medium">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold">{project.name}</span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {count} task{count === 1 ? '' : 's'}
-                          </span>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* GitHub icon at bottom */}
-        <div className="flex w-full items-center justify-center border-t border-border p-2.5">
-          <TooltipProvider delayDuration={150}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (githubProfileUrl) {
-                      handleGithubProfileClick();
-                    } else {
-                      onGithubConnect?.();
-                    }
-                  }}
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  aria-label={githubProfileUrl ? 'Open GitHub profile' : 'Connect GitHub'}
-                >
-                  {githubProfileUrl ? (
-                    <img
-                      src={githubLogo}
-                      alt="GitHub"
-                      className="h-4 w-4 rounded-sm object-contain dark:invert"
-                    />
-                  ) : (
-                    <Github className="h-4 w-4" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs font-medium">
-                {githubProfileUrl ? 'Open GitHub profile' : 'Connect GitHub'}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </div>
-    );
-  };
 
   React.useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
@@ -261,47 +128,25 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   return (
     <div className="relative h-full">
       <Sidebar className="!w-full lg:border-r-0">
-        {open ? (
-          <>
-            <SidebarContent>
+        <SidebarContent>
               <SidebarGroup className="mb-3">
                 <SidebarGroupContent>
                   <SidebarMenu>
                     <SidebarMenuItem>
-                      <div className="flex items-center gap-1.5">
-                        <SidebarMenuButton
-                          asChild
-                          className={`min-w-0 flex-1 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
+                      <SidebarMenuButton
+                        asChild
+                        className={`min-w-0 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
+                      >
+                        <Button
+                          variant="ghost"
+                          onClick={onGoHome}
+                          aria-label="Home"
+                          className="w-full justify-start"
                         >
-                          <Button
-                            variant="ghost"
-                            onClick={onGoHome}
-                            aria-label="Home"
-                            className="w-full justify-start"
-                          >
-                            <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
-                            <span className="hidden text-sm font-medium sm:inline">Home</span>
-                          </Button>
-                        </SidebarMenuButton>
-                        <TooltipProvider delayDuration={150}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setOpen?.(false)}
-                                aria-label="Collapse sidebar"
-                                className="h-9 w-9 flex-shrink-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              >
-                                <ChevronLeft className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right" className="text-xs font-medium">
-                              Collapse sidebar
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
+                          <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
+                          <span className="hidden text-sm font-medium sm:inline">Home</span>
+                        </Button>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   </SidebarMenu>
                 </SidebarGroupContent>
@@ -526,10 +371,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarFooter>
-          </>
-        ) : (
-          <div className="flex h-full flex-col">{renderCollapsedRail()}</div>
-        )}
       </Sidebar>
     </div>
   );
