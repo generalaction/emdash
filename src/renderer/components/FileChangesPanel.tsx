@@ -5,12 +5,13 @@ import { Spinner } from './ui/spinner';
 import { useToast } from '../hooks/use-toast';
 import { useCreatePR } from '../hooks/useCreatePR';
 import ChangesDiffModal from './ChangesDiffModal';
+import AllChangesDiffModal from './AllChangesDiffModal';
 import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import PrStatusSkeleton from './ui/pr-status-skeleton';
 import FileTypeIcon from './ui/file-type-icon';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Plus, Undo2, ArrowUpRight } from 'lucide-react';
+import { Plus, Undo2, ArrowUpRight, FileDiff } from 'lucide-react';
 
 interface FileChangesPanelProps {
   workspaceId: string;
@@ -19,6 +20,7 @@ interface FileChangesPanelProps {
 
 const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceId, className }) => {
   const [showDiffModal, setShowDiffModal] = useState(false);
+  const [showAllChangesModal, setShowAllChangesModal] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
@@ -225,12 +227,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
       <div className="bg-gray-50 px-3 py-2 dark:bg-gray-900">
         {hasChanges ? (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
                   {fileChanges.length} files changed
                 </span>
-                <div className="flex items-center space-x-1 text-xs">
+                <div className="flex shrink-0 items-center gap-1 text-xs">
                   <span className="font-medium text-green-600 dark:text-green-400">
                     +{totalChanges.additions}
                   </span>
@@ -240,16 +242,26 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   </span>
                 </div>
                 {hasStagedChanges && (
-                  <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
+                  <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
                     {fileChanges.filter((f) => f.isStaged).length} staged
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  className="h-8 shrink-0 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  title="View all changes in a single scrollable view"
+                  onClick={() => setShowAllChangesModal(true)}
+                >
+                  <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Check Changes</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
                   disabled={isCreatingPR}
                   title="Commit all changes and create a pull request"
                   onClick={async () => {
@@ -482,6 +494,15 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
           workspacePath={workspaceId}
           files={fileChanges}
           initialFile={selectedPath}
+          onRefreshChanges={refreshChanges}
+        />
+      )}
+      {showAllChangesModal && (
+        <AllChangesDiffModal
+          open={showAllChangesModal}
+          onClose={() => setShowAllChangesModal(false)}
+          workspacePath={workspaceId}
+          files={fileChanges}
           onRefreshChanges={refreshChanges}
         />
       )}
