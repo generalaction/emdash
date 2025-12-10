@@ -5,11 +5,12 @@ import { Spinner } from './ui/spinner';
 import { useToast } from '../hooks/use-toast';
 import { useCreatePR } from '../hooks/useCreatePR';
 import ChangesDiffModal from './ChangesDiffModal';
+import AllChangesDiffModal from './AllChangesDiffModal';
 import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import PrStatusSkeleton from './ui/pr-status-skeleton';
 import FileTypeIcon from './ui/file-type-icon';
-import { Plus, Undo2, ArrowUpRight } from 'lucide-react';
+import { Plus, ArrowUpRight, FileDiff } from 'lucide-react';
 
 interface FileChangesPanelProps {
   workspaceId: string;
@@ -18,9 +19,9 @@ interface FileChangesPanelProps {
 
 const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceId, className }) => {
   const [showDiffModal, setShowDiffModal] = useState(false);
+  const [showAllChangesModal, setShowAllChangesModal] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
-  const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
@@ -92,46 +93,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
     }
   };
 
-  const handleRevertFile = async (filePath: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent opening diff modal
-    setRevertingFiles((prev) => new Set(prev).add(filePath));
-
-    try {
-      const result = await window.electronAPI.revertFile({
-        workspacePath: workspaceId,
-        filePath,
-      });
-
-      if (result.success) {
-        const action = result.action;
-        if (action !== 'unstaged') {
-          toast({
-            title: 'File Reverted',
-            description: `${filePath} changes have been reverted.`,
-          });
-        }
-        await refreshChanges();
-      } else {
-        toast({
-          title: 'Revert Failed',
-          description: result.error || 'Failed to revert file.',
-          variant: 'destructive',
-        });
-      }
-    } catch (_error) {
-      toast({
-        title: 'Revert Failed',
-        description: 'An unexpected error occurred.',
-        variant: 'destructive',
-      });
-    } finally {
-      setRevertingFiles((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(filePath);
-        return newSet;
-      });
-    }
-  };
 
   const handleCommitAndPush = async () => {
     if (!commitMessage.trim()) {
@@ -224,12 +185,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
       <div className="bg-gray-50 px-3 py-2 dark:bg-gray-900">
         {hasChanges ? (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
                   {fileChanges.length} files changed
                 </span>
-                <div className="flex items-center space-x-1 text-xs">
+                <div className="flex shrink-0 items-center gap-1 text-xs">
                   <span className="font-medium text-green-600 dark:text-green-400">
                     +{totalChanges.additions}
                   </span>
@@ -239,31 +200,43 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   </span>
                 </div>
                 {hasStagedChanges && (
-                  <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
+                  <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
                     {fileChanges.filter((f) => f.isStaged).length} staged
                   </span>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
-                disabled={isCreatingPR}
-                title="Commit all changes and create a pull request"
-                onClick={async () => {
-                  await createPR({
-                    workspacePath: workspaceId,
-                    onSuccess: async () => {
-                      await refreshChanges();
-                      try {
-                        await refreshPr();
-                      } catch {}
-                    },
-                  });
-                }}
-              >
-                {isCreatingPR ? <Spinner size="sm" /> : 'Create PR'}
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  title="View all changes in a single scrollable view"
+                  onClick={() => setShowAllChangesModal(true)}
+                >
+                  <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Check Changes</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  disabled={isCreatingPR}
+                  title="Commit all changes and create a pull request"
+                  onClick={async () => {
+                    await createPR({
+                      workspacePath: workspaceId,
+                      onSuccess: async () => {
+                        await refreshChanges();
+                        try {
+                          await refreshPr();
+                        } catch {}
+                      },
+                    });
+                  }}
+                >
+                  {isCreatingPR ? <Spinner size="sm" /> : 'Create PR'}
+                </Button>
+              </div>
             </div>
 
             {hasStagedChanges && (
@@ -371,7 +344,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                 <div className="truncate text-sm">{renderPath(change.path)}</div>
               </div>
             </div>
-            <div className="ml-3 flex items-center gap-2">
+            <div className="ml-4 flex shrink-0 items-center gap-2">
               {change.additions > 0 && (
                 <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
                   +{change.additions}
@@ -382,42 +355,22 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   -{change.deletions}
                 </span>
               )}
-              <div className="flex items-center gap-1">
-                {!change.isStaged && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-gray-500 hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-900/20 dark:hover:text-gray-400"
-                    onClick={(e) => handleStageFile(change.path, e)}
-                    disabled={stagingFiles.has(change.path)}
-                    title="Stage file for commit"
-                  >
-                    {stagingFiles.has(change.path) ? (
-                      <Spinner size="sm" />
-                    ) : (
-                      <Plus className="h-3 w-3" />
-                    )}
-                  </Button>
-                )}
+              {!change.isStaged && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-gray-500 hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-900/20 dark:hover:text-gray-400"
-                  onClick={(e) => handleRevertFile(change.path, e)}
-                  disabled={revertingFiles.has(change.path)}
-                  title={
-                    change.isStaged
-                      ? 'Unstage file (click again to revert)'
-                      : 'Revert changes to file'
-                  }
+                  className="h-6 w-6 shrink-0 text-gray-500 hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-900/20 dark:hover:text-gray-400"
+                  onClick={(e) => handleStageFile(change.path, e)}
+                  disabled={stagingFiles.has(change.path)}
+                  title="Stage file for commit"
                 >
-                  {revertingFiles.has(change.path) ? (
+                  {stagingFiles.has(change.path) ? (
                     <Spinner size="sm" />
                   ) : (
-                    <Undo2 className="h-3 w-3" />
+                    <Plus className="h-3 w-3" />
                   )}
                 </Button>
-              </div>
+              )}
             </div>
           </div>
         ))}
@@ -429,6 +382,15 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
           workspacePath={workspaceId}
           files={fileChanges}
           initialFile={selectedPath}
+          onRefreshChanges={refreshChanges}
+        />
+      )}
+      {showAllChangesModal && (
+        <AllChangesDiffModal
+          open={showAllChangesModal}
+          onClose={() => setShowAllChangesModal(false)}
+          workspacePath={workspaceId}
+          files={fileChanges}
           onRefreshChanges={refreshChanges}
         />
       )}
