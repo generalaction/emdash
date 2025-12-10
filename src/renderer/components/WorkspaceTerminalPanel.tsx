@@ -4,6 +4,7 @@ import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 import { cn } from '@/lib/utils';
+import type { Provider } from '../types';
 
 interface Workspace {
   id: string;
@@ -15,10 +16,11 @@ interface Workspace {
 
 interface Props {
   workspace: Workspace | null;
+  provider?: Provider;
   className?: string;
 }
 
-const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className }) => {
+const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, provider, className }) => {
   const { effectiveTheme } = useTheme();
   const {
     terminals,
@@ -70,13 +72,17 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
 
   // Default theme (VS Code inspired)
   const defaultTheme = useMemo(
-    () =>
-      effectiveTheme === 'dark'
+    () => {
+      // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
+      const isMistral = provider === 'mistral';
+      const darkBackground = isMistral ? '#202938' : '#1e1e1e';
+
+      return effectiveTheme === 'dark'
         ? {
-            background: '#1e1e1e',
+            background: darkBackground,
             foreground: '#d4d4d4',
             cursor: '#aeafad',
-            cursorAccent: '#1e1e1e',
+            cursorAccent: darkBackground,
             selectionBackground: '#264f78',
             black: '#000000',
             red: '#cd3131',
@@ -117,8 +123,9 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
             brightMagenta: '#bc05bc',
             brightCyan: '#0598bc',
             brightWhite: '#a5a5a5',
-          },
-    [effectiveTheme]
+          };
+    },
+    [effectiveTheme, provider]
   );
 
   // Merge native theme with defaults (native theme takes precedence)
@@ -208,7 +215,11 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
       <div
         className={cn(
           'bw-terminal relative flex-1 overflow-hidden',
-          effectiveTheme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          effectiveTheme === 'dark'
+            ? provider === 'mistral'
+              ? 'bg-[#202938]'
+              : 'bg-gray-800'
+            : 'bg-white'
         )}
       >
         {terminals.map((terminal) => (

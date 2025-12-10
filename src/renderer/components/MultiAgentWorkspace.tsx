@@ -430,7 +430,13 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
               <div className="min-h-0 flex-1 px-6 pt-4">
                 <div
                   className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                    isDark ? 'bg-gray-800' : 'bg-white'
+                    v.provider === 'mistral'
+                      ? isDark
+                        ? 'bg-[#202938]'
+                        : 'bg-white'
+                      : isDark
+                        ? 'bg-gray-800'
+                        : 'bg-white'
                   }`}
                 >
                   <TerminalPane
@@ -446,6 +452,11 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     }
                     keepAlive
                     variant={isDark ? 'dark' : 'light'}
+                    themeOverride={
+                      v.provider === 'mistral'
+                        ? { background: isDark ? '#202938' : '#ffffff' }
+                        : undefined
+                    }
                     className="h-full w-full"
                     onStartSuccess={() => {
                       // For providers WITHOUT CLI flag support, use keystroke injection

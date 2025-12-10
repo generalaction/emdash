@@ -16,6 +16,7 @@ import kimiLogo from '../../assets/images/kimi.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
+import mistralLogo from '../../assets/images/mistral.png';
 
 export type ProviderInfo = {
   name: string;
@@ -30,6 +31,7 @@ export const providerConfig: Record<Provider, ProviderInfo> = {
   codex: { name: 'Codex', logo: openaiLogo, alt: 'Codex', invertInDark: true },
   cursor: { name: 'Cursor', logo: cursorLogo, alt: 'Cursor CLI', invertInDark: true },
   gemini: { name: 'Gemini', logo: geminiLogo, alt: 'Gemini CLI' },
+  mistral: { name: 'Mistral Vibe', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
   qwen: { name: 'Qwen Code', logo: qwenLogo, alt: 'Qwen Code' },
   droid: { name: 'Droid', logo: factoryLogo, alt: 'Factory Droid', invertInDark: true },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },

@@ -17,6 +17,7 @@ import kiroIcon from '../../assets/images/kiro.png';
 import atlassianIcon from '../../assets/images/atlassian.png';
 import clineIcon from '../../assets/images/cline.png';
 import codebuffIcon from '../../assets/images/codebuff.png';
+import mistralIcon from '../../assets/images/mistral.png';
 
 export type UiProvider = ProviderId;
 
@@ -38,6 +39,7 @@ const ICONS: Record<string, string> = {
   'atlassian.png': atlassianIcon,
   'cline.png': clineIcon,
   'codebuff.png': codebuffIcon,
+  'mistral.png': mistralIcon,
 };
 
 export type ProviderMeta = {

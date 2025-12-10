@@ -26,6 +26,7 @@ import kimiLogo from '../../assets/images/kimi.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
+import mistralLogo from '../../assets/images/mistral.png';
 import PlanModeToggle from './PlanModeToggle';
 import AutoApproveIndicator from './AutoApproveIndicator';
 import context7Logo from '../../assets/images/context7.png';
@@ -131,6 +132,7 @@ export const ProviderBar: React.FC<Props> = ({
     rovo: { name: 'Rovo Dev', logo: atlassianLogo },
     cline: { name: 'Cline', logo: clineLogo },
     codebuff: { name: 'Codebuff', logo: codebuffLogo },
+    mistral: { name: 'Mistral Vibe', logo: mistralLogo },
   };
   const cfg = map[provider] ?? { name: provider, logo: '' };
   return (
