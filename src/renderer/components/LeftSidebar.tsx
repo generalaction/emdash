@@ -14,11 +14,10 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Home, ChevronDown, Plus, FolderOpen, Github } from 'lucide-react';
+import { Home, ChevronDown, Plus, FolderOpen } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
-import githubLogo from '../../assets/images/github.png';
 import { WorkspaceItem } from './WorkspaceItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import type { Project } from '../types/app';
