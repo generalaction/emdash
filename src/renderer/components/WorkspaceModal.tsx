@@ -175,6 +175,15 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     setSelectedJiraIssue(null);
     setAutoApprove(false);
     setShowAdvanced(false);
+    setLinearSetupOpen(false);
+    setLinearApiKey('');
+    setLinearConnectionError(null);
+    setAutoOpenLinearSelector(false);
+    setJiraSetupOpen(false);
+    setJiraSite('');
+    setJiraEmail('');
+    setJiraToken('');
+    setJiraConnectionError(null);
 
     let cancel = false;
     window.electronAPI.getSettings().then((res) => {
