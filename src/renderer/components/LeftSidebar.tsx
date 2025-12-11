@@ -250,7 +250,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                           <CollapsibleContent asChild>
                             <div className="ml-7 mt-2 min-w-0">
-                              <div className="bg-sidebar sticky top-0 z-10 pb-1">
+                              <div className="bg-sidebar pb-1">
                                 <button
                                   type="button"
                                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
