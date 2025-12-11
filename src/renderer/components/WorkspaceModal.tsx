@@ -371,22 +371,24 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       return;
                     }
                     setIsCreating(true);
-                    try {
-                      onCreateWorkspace(
-                        normalizeWorkspaceName(workspaceName),
-                        showAdvanced ? initialPrompt.trim() || undefined : undefined,
-                        providerRuns,
-                        selectedLinearIssue,
-                        selectedGithubIssue,
-                        selectedJiraIssue,
-                        showAdvanced ? autoApprove : false
-                      );
-                      onClose();
-                    } catch (error) {
-                      console.error('Failed to create workspace:', error);
-                    } finally {
-                      setIsCreating(false);
-                    }
+                    (async () => {
+                      try {
+                        await onCreateWorkspace(
+                          normalizeWorkspaceName(workspaceName),
+                          showAdvanced ? initialPrompt.trim() || undefined : undefined,
+                          providerRuns,
+                          selectedLinearIssue,
+                          selectedGithubIssue,
+                          selectedJiraIssue,
+                          showAdvanced ? autoApprove : false
+                        );
+                        onClose();
+                      } catch (error) {
+                        console.error('Failed to create workspace:', error);
+                      } finally {
+                        setIsCreating(false);
+                      }
+                    })();
                   }}
                   className="space-y-4"
                 >
