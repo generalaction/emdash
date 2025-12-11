@@ -41,6 +41,9 @@ declare global {
             };
           };
           defaultProvider?: string;
+          tasks?: {
+            autoGenerateName: boolean;
+          };
         };
         error?: string;
       }>;
@@ -57,6 +60,9 @@ declare global {
             };
           };
           defaultProvider?: string;
+          tasks?: {
+            autoGenerateName?: boolean;
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -72,6 +78,9 @@ declare global {
             };
           };
           defaultProvider?: string;
+          tasks?: {
+            autoGenerateName: boolean;
+          };
         };
         error?: string;
       }>;

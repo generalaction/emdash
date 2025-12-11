@@ -31,6 +31,9 @@ export interface AppSettings {
     };
   };
   defaultProvider?: ProviderId;
+  tasks?: {
+    autoGenerateName: boolean;
+  };
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -56,6 +59,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     },
   },
   defaultProvider: DEFAULT_PROVIDER_ID,
+  tasks: {
+    autoGenerateName: true,
+  },
 };
 
 function getSettingsPath(): string {
@@ -194,6 +200,12 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.defaultProvider = isValidProviderId(defaultProvider)
     ? defaultProvider
     : DEFAULT_SETTINGS.defaultProvider!;
+
+  // Tasks
+  const tasks = (input as any)?.tasks || {};
+  out.tasks = {
+    autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
+  };
 
   return out;
 }
