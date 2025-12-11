@@ -104,10 +104,9 @@ const JiraIssueSelector: React.FC<Props> = ({
   }, [canList]);
 
   useEffect(() => {
-    if (!isOpen || !canList || disabled) return;
-    if (isLoadingIssues || hasRequestedIssues) return;
+    if (!isOpen || !canList || isLoadingIssues || hasRequestedIssues) return;
     loadIssues();
-  }, [isOpen, canList, isLoadingIssues, hasRequestedIssues, loadIssues, disabled]);
+  }, [isOpen, canList, isLoadingIssues, hasRequestedIssues, loadIssues]);
 
   const searchIssues = useCallback(async (term: string) => {
     if (!term.trim()) {

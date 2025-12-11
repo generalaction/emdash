@@ -85,10 +85,9 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   }, [api, canListGithub, projectPath]);
 
   useEffect(() => {
-    if (!isOpen || !canListGithub || disabled) return;
-    if (isLoadingIssues || hasRequestedIssues) return;
+    if (!isOpen || !canListGithub || isLoadingIssues || hasRequestedIssues) return;
     loadIssues();
-  }, [isOpen, canListGithub, isLoadingIssues, hasRequestedIssues, loadIssues, disabled]);
+  }, [isOpen, canListGithub, isLoadingIssues, hasRequestedIssues, loadIssues]);
 
   const searchIssues = useCallback(
     async (term: string) => {
