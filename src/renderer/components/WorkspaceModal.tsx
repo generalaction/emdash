@@ -212,12 +212,17 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setIsLinearConnected(false);
       return;
     }
-    api.linearCheckConnection().then((res: any) => {
-      if (!cancel) setIsLinearConnected(!!res?.connected);
-    }).catch(() => {
-      if (!cancel) setIsLinearConnected(false);
-    });
-    return () => { cancel = true; };
+    api
+      .linearCheckConnection()
+      .then((res: any) => {
+        if (!cancel) setIsLinearConnected(!!res?.connected);
+      })
+      .catch(() => {
+        if (!cancel) setIsLinearConnected(false);
+      });
+    return () => {
+      cancel = true;
+    };
   }, [isOpen]);
 
   // Check Jira connection when modal opens
@@ -225,12 +230,17 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     if (!isOpen) return;
     let cancel = false;
     const api: any = (window as any).electronAPI;
-    api?.jiraCheckConnection?.().then((res: any) => {
-      if (!cancel) setIsJiraConnected(!!res?.connected);
-    }).catch(() => {
-      if (!cancel) setIsJiraConnected(false);
-    });
-    return () => { cancel = true; };
+    api
+      ?.jiraCheckConnection?.()
+      .then((res: any) => {
+        if (!cancel) setIsJiraConnected(!!res?.connected);
+      })
+      .catch(() => {
+        if (!cancel) setIsJiraConnected(false);
+      });
+    return () => {
+      cancel = true;
+    };
   }, [isOpen]);
 
   const handleLinearConnect = useCallback(async () => {
