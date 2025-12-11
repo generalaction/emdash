@@ -98,35 +98,63 @@ export function startPty(options: {
     throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
   }
 
-  // Provide sensible defaults for interactive shells so they render prompts
+  // Detect if we're spawning a provider CLI - if so, spawn shell instead and inject CLI command
+  let commandToInject: string | null = null;
   const args: string[] = [];
+  let actualShell = useShell;
+  
   if (process.platform !== 'win32') {
     try {
       const base = String(useShell).split('/').pop() || '';
-
       const baseLower = base.toLowerCase();
       const provider = PROVIDERS.find((p) => p.cli === baseLower);
 
       if (provider) {
-        args.length = 0;
+        // Instead of spawning CLI directly, spawn user's shell and inject CLI command
+        // This allows users to exit CLI and return to shell prompt
+        actualShell = getDefaultShell();
+        
+        // Build the CLI command with all arguments
+        const cliArgs: string[] = [];
         if (provider.defaultArgs?.length) {
-          args.push(...provider.defaultArgs);
+          cliArgs.push(...provider.defaultArgs);
         }
         if (autoApprove && provider.autoApproveFlag) {
-          args.push(provider.autoApproveFlag);
+          cliArgs.push(provider.autoApproveFlag);
         }
         if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
           if (provider.initialPromptFlag) {
-            args.push(provider.initialPromptFlag);
+            cliArgs.push(provider.initialPromptFlag);
           }
-          args.push(initialPrompt.trim());
+          cliArgs.push(initialPrompt.trim());
         }
+        
+        // Build command string to inject: "claude --args..." or escape properly
+        const cliCommand = provider.cli || base;
+        const argsStr = cliArgs.length > 0 ? ' ' + cliArgs.map(arg => {
+          // Escape shell arguments properly
+          // Single quotes are the safest - they prevent all shell interpretation
+          // Replace single quotes with: ' (end quote) + \' (escaped quote) + ' (start quote)
+          if (/[\s'"\\$`\n\r\t]/.test(arg)) {
+            return `'${String(arg).replace(/'/g, "'\\''")}'`;
+          }
+          return String(arg);
+        }).join(' ') : '';
+        commandToInject = cliCommand + argsStr + '\r';
+        
+        // Use interactive shell args
+        const shellBase = actualShell.split('/').pop() || '';
+        if (shellBase === 'zsh') args.push('-il');
+        else if (shellBase === 'bash') args.push('-il');
+        else if (shellBase === 'fish') args.push('-il');
+        else if (shellBase === 'sh') args.push('-il');
+        else args.push('-i'); // Fallback for other shells
       } else {
         // For normal shells, use login + interactive to load user configs
-        if (base === 'zsh') args.push('-il');
-        else if (base === 'bash') args.push('-il');
-        else if (base === 'fish') args.push('-il');
-        else if (base === 'sh') args.push('-il');
+        if (baseLower === 'zsh') args.push('-il');
+        else if (baseLower === 'bash') args.push('-il');
+        else if (baseLower === 'fish') args.push('-il');
+        else if (baseLower === 'sh') args.push('-il');
         else args.push('-i'); // Fallback for other shells
       }
     } catch {}
@@ -134,17 +162,54 @@ export function startPty(options: {
 
   let proc: IPty;
   try {
-    proc = pty.spawn(useShell, args, {
+    proc = pty.spawn(actualShell, args, {
       name: 'xterm-256color',
       cols,
       rows,
       cwd: useCwd,
       env: useEnv,
     });
-    log.debug('ptyManager:spawned', { id, shell: useShell, args, cwd: useCwd });
+    
+    // If we have a command to inject (provider CLI), inject it after a short delay
+    // This gives the shell time to initialize and show prompt
+    if (commandToInject) {
+      const cmdToInject = commandToInject; // Capture for closure
+      setTimeout(() => {
+        try {
+          // Verify PTY still exists and is alive before writing
+          const rec = ptys.get(id);
+          if (!rec || rec.proc !== proc) {
+            log.debug('ptyManager:injectSkipped', { id, reason: 'PTY no longer exists' });
+            return;
+          }
+          // TypeScript: cmdToInject is guaranteed non-null here due to outer if check
+          proc.write(cmdToInject);
+          log.debug('ptyManager:injectedCommand', { id, command: cmdToInject.trim() });
+        } catch (err: any) {
+          // PTY might have exited - this is expected and safe to ignore
+          const errorMsg = err?.message || String(err);
+          if (errorMsg.includes('not open') || errorMsg.includes('EBADF')) {
+            log.debug('ptyManager:injectSkipped', { id, reason: 'PTY already closed' });
+          } else {
+            log.warn('ptyManager:injectFailed', { id, error: errorMsg });
+          }
+        }
+      }, 300); // 300ms delay to allow shell to initialize
+    }
+    
+    log.debug('ptyManager:spawned', { 
+      id, 
+      shell: actualShell, 
+      originalShell: useShell,
+      args, 
+      cwd: useCwd,
+      injectingCommand: commandToInject ? commandToInject.trim() : null
+    });
   } catch (err: any) {
     try {
       const fallbackShell = getDefaultShell();
+      // If original spawn failed, don't inject command (fallback is for emergency recovery)
+      commandToInject = null;
       proc = pty.spawn(fallbackShell, [], {
         name: 'xterm-256color',
         cols,
@@ -152,6 +217,7 @@ export function startPty(options: {
         cwd: useCwd,
         env: useEnv,
       });
+      log.debug('ptyManager:spawnedFallback', { id, shell: fallbackShell, cwd: useCwd });
     } catch (err2: any) {
       throw new Error(`PTY spawn failed: ${err2?.message || err?.message || String(err2 || err)}`);
     }
