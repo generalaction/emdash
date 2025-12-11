@@ -399,7 +399,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                       value={workspaceName}
                       onChange={(e) => onChange(e.target.value)}
                       onBlur={() => setTouched(true)}
-                      placeholder="e.g. refactorApiRoutes"
+                      placeholder="refactor-api-routes"
                       className={`w-full ${touched && error ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
                       aria-invalid={touched && !!error}
                       aria-describedby="workspace-name-error"
