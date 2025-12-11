@@ -5,7 +5,6 @@ import { Search } from 'lucide-react';
 import jiraLogo from '../../assets/images/jira.png';
 import { type JiraIssueSummary } from '../types/jira';
 import { Separator } from './ui/separator';
-import { Badge } from './ui/badge';
 import { Spinner } from './ui/spinner';
 
 interface Props {
@@ -170,19 +169,6 @@ const JiraIssueSelector: React.FC<Props> = ({
     onIssueChange(issue);
   };
 
-  const helperText = (() => {
-    if (!canList) return 'Connect Jira in Settings to browse issues.';
-    if (issueListError) {
-      if (isConnected) {
-        return 'Connected to Jira, but listing issues failed. Try searching by key (e.g., ABC-123) or adjust project permissions (need Browse projects).';
-      }
-      return issueListError;
-    }
-    if (isLoadingIssues) return 'Loading…';
-    if (hasRequestedIssues && !issuesLoaded && !issueListError) return 'No Jira issues available.';
-    return null;
-  })();
-
   if (!canList) {
     return (
       <div className={className}>
@@ -281,21 +267,6 @@ const JiraIssueSelector: React.FC<Props> = ({
           </div>
         </SelectContent>
       </Select>
-      {helperText && issueListError ? (
-        <div className="mt-2 rounded-md border border-border bg-muted/40 p-2">
-          <div className="flex items-center gap-2">
-            <Badge className="inline-flex items-center gap-1.5">
-              <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-              <span>{isConnected ? 'Jira connected' : 'Connect Jira'}</span>
-            </Badge>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {isConnected
-              ? 'Unable to list issues; search by key or update project permissions to include “Browse projects”.'
-              : 'Add your Jira site, email, and API token in Settings → Integrations to browse and attach issues here.'}
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 };
