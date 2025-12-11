@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useToast } from './use-toast';
+import { ToastAction } from '../components/ui/toast';
+import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 type CreatePROptions = {
   workspacePath: string;
@@ -74,9 +76,29 @@ export function useCreatePR() {
           const { captureTelemetry } = await import('../lib/telemetryClient');
           captureTelemetry('pr_created');
         })();
+        const prUrl = res?.url;
         toast({
           title: 'Pull request created successfully!',
-          description: 'Opening PR page...',
+          description: prUrl ? undefined : 'PR created but URL not available.',
+          action: prUrl ? (
+            <ToastAction
+              altText="View PR"
+              onClick={() => {
+                void (async () => {
+                  const { captureTelemetry } = await import('../lib/telemetryClient');
+                  captureTelemetry('pr_viewed');
+                })();
+                if (prUrl && window.electronAPI?.openExternal) {
+                  window.electronAPI.openExternal(prUrl);
+                }
+              }}
+            >
+              <span className="inline-flex items-center gap-1">
+                View PR
+                <ArrowUpRight className="h-3 w-3" />
+              </span>
+            </ToastAction>
+          ) : undefined,
         });
         try {
           await onSuccess?.();
