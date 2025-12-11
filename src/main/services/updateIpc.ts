@@ -1,5 +1,7 @@
 import { app, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import { log } from '../lib/logger';
+import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
 
 // Channels used to notify renderer about update lifecycle
 const UpdateChannels = {
@@ -20,6 +22,13 @@ const DEV_HINT_DOWNLOAD = 'Cannot download updates in development.';
 // We keep autoDownload off; downloads start only when the user clicks.
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
+
+// Reduce noisy console output from electron-updater (avoid dumping HTML error bodies)
+autoUpdater.logger = {
+  info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+  warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+  error: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+} as any;
 
 // Enable dev update testing if explicitly opted in
 const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
@@ -57,7 +66,7 @@ function ensureInitialized() {
   autoUpdater.on('update-available', (info) => emit(UpdateChannels.available, info));
   autoUpdater.on('update-not-available', (info) => emit(UpdateChannels.notAvailable, info));
   autoUpdater.on('error', (err) =>
-    emit(UpdateChannels.error, { message: err?.message || String(err) })
+    emit(UpdateChannels.error, { message: formatUpdaterError(err) })
   );
   autoUpdater.on('download-progress', (progress) => emit(UpdateChannels.progress, progress));
   autoUpdater.on('update-downloaded', (info) => emit(UpdateChannels.downloaded, info));
@@ -104,7 +113,7 @@ export function registerUpdateIpc() {
       // electron-updater returns UpdateCheckResult or throws
       return { success: true, result: result ?? null };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatUpdaterError(error) };
     }
   });
 
@@ -124,7 +133,7 @@ export function registerUpdateIpc() {
       await autoUpdater.downloadUpdate();
       return { success: true };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatUpdaterError(error) };
     }
   });
 
@@ -136,7 +145,7 @@ export function registerUpdateIpc() {
       }, 250);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatUpdaterError(error) };
     }
   });
 
