@@ -43,7 +43,7 @@ export function useAutoScrollOnWorkspaceSwitch(isActive: boolean, workspaceId: s
       container.scrollTo({
         top: container.scrollHeight,
         left: 0,
-        behavior: 'smooth',
+        behavior: 'instant',
       });
       scrolledAny = true;
     });
@@ -69,7 +69,7 @@ export function useAutoScrollOnWorkspaceSwitch(isActive: boolean, workspaceId: s
 
       // Delay scroll to allow content to render
       scrollTimeoutRef.current = setTimeout(() => {
-        scrollToBottom({ onlyIfNearTop: true });
+        scrollToBottom({ onlyIfNearTop: false });
       }, 200);
     }
 

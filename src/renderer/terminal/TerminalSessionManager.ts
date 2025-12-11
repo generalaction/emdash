@@ -230,6 +230,14 @@ export class TerminalSessionManager {
     this.terminal.focus();
   }
 
+  scrollToBottom() {
+    try {
+      this.terminal.scrollToBottom();
+    } catch (error) {
+      log.warn('Failed to scroll to bottom', { id: this.id, error });
+    }
+  }
+
   registerActivityListener(listener: () => void): () => void {
     this.activityListeners.add(listener);
     return () => {
@@ -444,6 +452,11 @@ export class TerminalSessionManager {
           this.terminal.refresh(0, this.terminal.rows - 1);
         } catch {}
       }
+      // Auto-scroll to bottom when new data arrives
+      // This ensures users always see the latest output, especially when the agent is waiting for input
+      try {
+        this.terminal.scrollToBottom();
+      } catch {}
     });
 
     const offExit = window.electronAPI.onPtyExit(id, (info) => {
