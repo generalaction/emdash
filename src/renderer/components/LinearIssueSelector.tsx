@@ -111,12 +111,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   }, [canListLinear]);
 
   useEffect(() => {
-    if (!isOpen || !canListLinear || disabled) {
-      return;
-    }
-    if (isLoadingIssues || hasRequestedIssues) {
-      return;
-    }
+    if (!isOpen || !canListLinear || isLoadingIssues || hasRequestedIssues) return;
     loadLinearIssues();
   }, [isOpen, canListLinear, isLoadingIssues, hasRequestedIssues, loadLinearIssues]);
 
