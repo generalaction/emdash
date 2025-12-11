@@ -386,21 +386,46 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           activeBranch = name;
         }
 
-        // Stage all and commit if there are changes
+        // Stage (only if needed) and commit
         try {
           const { stdout: st } = await execAsync('git status --porcelain', { cwd: workspacePath });
-          if (st && st.trim().length > 0) {
+          const hasWorkingChanges = Boolean(st && st.trim().length > 0);
+
+          const readStagedFiles = async () => {
+            try {
+              const { stdout } = await execAsync('git diff --cached --name-only', {
+                cwd: workspacePath,
+              });
+              return (stdout || '')
+                .split('\n')
+                .map((f) => f.trim())
+                .filter(Boolean);
+            } catch {
+              return [];
+            }
+          };
+
+          let stagedFiles = await readStagedFiles();
+
+          // Only auto-stage everything when nothing is staged yet (preserves manual staging choices)
+          if (hasWorkingChanges && stagedFiles.length === 0) {
             await execAsync('git add -A', { cwd: workspacePath });
-            // Never stage plan mode artifacts
-            try {
-              await execAsync('git reset -q .emdash || true', { cwd: workspacePath });
-            } catch {}
-            try {
-              await execAsync('git reset -q PLANNING.md || true', { cwd: workspacePath });
-            } catch {}
-            try {
-              await execAsync('git reset -q planning.md || true', { cwd: workspacePath });
-            } catch {}
+          }
+
+          // Never commit plan mode artifacts
+          try {
+            await execAsync('git reset -q .emdash || true', { cwd: workspacePath });
+          } catch {}
+          try {
+            await execAsync('git reset -q PLANNING.md || true', { cwd: workspacePath });
+          } catch {}
+          try {
+            await execAsync('git reset -q planning.md || true', { cwd: workspacePath });
+          } catch {}
+
+          stagedFiles = await readStagedFiles();
+
+          if (stagedFiles.length > 0) {
             try {
               await execAsync(`git commit -m ${JSON.stringify(commitMessage)}`, {
                 cwd: workspacePath,
