@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Trash } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Trash, Folder } from 'lucide-react';
 import { Spinner } from './ui/spinner';
 import {
   AlertDialog,
@@ -14,8 +15,8 @@ import {
 } from './ui/alert-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { cn } from '@/lib/utils';
-import DeleteRiskSkeleton from './DeleteRiskSkeleton';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
+import DeletePrNotice from './DeletePrNotice';
 
 type Props = {
   workspaceName: string;
@@ -50,6 +51,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
     ahead: 0,
     behind: 0,
     error: undefined,
+    pr: null,
   };
 
   const risky =
@@ -57,7 +59,8 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
     status.unstaged > 0 ||
     status.untracked > 0 ||
     status.ahead > 0 ||
-    !!status.error;
+    !!status.error ||
+    !!status.pr;
   const disableDelete: boolean =
     Boolean(isDeleting || loading) || (risky && !acknowledge);
 
@@ -107,49 +110,59 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-3 text-sm">
-          {risky ? (
-            <div className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50">
-              <p className="font-medium">Unmerged or unpushed work detected</p>
-              <div className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="h-4 w-4 text-amber-700 dark:text-amber-200"
-                  aria-hidden="true"
-                >
-                  <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z" />
-                </svg>
-                <span className="font-medium">{workspaceName}</span>
-                <span className="text-muted-foreground">—</span>
-                <span>
-                  {[
-                    status.staged > 0 ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged` : null,
-                    status.unstaged > 0 ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged` : null,
-                    status.untracked > 0 ? `${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked` : null,
-                    status.ahead > 0 ? `ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}` : null,
-                    status.behind > 0 ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(', ') || status.error || 'Status unavailable'}
-                </span>
-              </div>
-            </div>
-          ) : null}
-          {risky ? (
-            <label className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={acknowledge}
-                onChange={(e) => setAcknowledge(e.target.checked)}
-              />
-              <span className="leading-tight text-sm text-foreground">
-                I understand this workspace has unmerged changes or unpushed commits and want to delete it
-                anyway.
-              </span>
-            </label>
-          ) : null}
+          <AnimatePresence initial={false}>
+            {risky ? (
+              <motion.div
+                key="delete-risk"
+                initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
+              >
+                <p className="font-medium">Unmerged or unpushed work detected</p>
+                <div className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
+                  <Folder className="h-4 w-4 fill-amber-700 text-amber-700 dark:text-amber-200" />
+                  <span className="font-medium">{workspaceName}</span>
+                  <span className="text-muted-foreground">—</span>
+                  <span>
+                    {[
+                      status.staged > 0 ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged` : null,
+                      status.unstaged > 0 ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged` : null,
+                      status.untracked > 0 ? `${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked` : null,
+                      status.ahead > 0 ? `ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}` : null,
+                      status.behind > 0 ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ') || status.error || 'Status unavailable'}
+                  </span>
+                </div>
+                {status.pr ? (
+                  <DeletePrNotice workspaces={[{ name: workspaceName, pr: status.pr }]} />
+                ) : null}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <AnimatePresence initial={false}>
+            {risky ? (
+              <motion.label
+                key="ack-delete"
+                className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2"
+                initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                transition={{ duration: 0.18, ease: 'easeOut', delay: 0.02 }}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={acknowledge}
+                  onChange={(e) => setAcknowledge(e.target.checked)}
+                />
+                <span className="leading-tight text-sm text-foreground">Delete task anyway</span>
+              </motion.label>
+            ) : null}
+          </AnimatePresence>
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>

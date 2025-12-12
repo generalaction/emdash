@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
+import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight, Folder } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';
@@ -27,6 +27,7 @@ import ContainerStatusBadge from './ContainerStatusBadge';
 import WorkspacePorts from './WorkspacePorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
+import DeletePrNotice from './DeletePrNotice';
 import {
   getContainerRunState,
   startContainerRun,
@@ -35,7 +36,6 @@ import {
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
 import type { Project, Workspace } from '../types/app';
-import DeleteRiskSkeleton from './DeleteRiskSkeleton';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -431,11 +431,24 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [deleteStatus, setDeleteStatus] = useState<
     Record<
       string,
-      { staged: number; unstaged: number; untracked: number; ahead: number; behind: number; error?: string }
+      {
+        staged: number;
+        unstaged: number;
+        untracked: number;
+        ahead: number;
+        behind: number;
+        error?: string;
+        pr?: {
+          number?: number;
+          title?: string;
+          url?: string;
+          state?: string;
+          isDraft?: boolean;
+        } | null;
+      }
     >
   >({});
   const [deleteStatusLoading, setDeleteStatusLoading] = useState(false);
-  const hasDeleteStatus = Object.keys(deleteStatus).length > 0;
   const deleteRisks = useMemo(() => {
     const riskyIds = new Set<string>();
     const summaries: Record<string, string> = {};
@@ -443,7 +456,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       const status = deleteStatus[ws.id];
       if (!status) continue;
       const dirty =
-        status.staged > 0 || status.unstaged > 0 || status.untracked > 0 || status.ahead > 0 || !!status.error;
+        status.staged > 0 ||
+        status.unstaged > 0 ||
+        status.untracked > 0 ||
+        status.ahead > 0 ||
+        !!status.error ||
+        !!status.pr;
       if (dirty) {
         riskyIds.add(ws.id);
         const parts: string[] = [];
@@ -452,6 +470,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         if (status.untracked > 0) parts.push(`${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`);
         if (status.ahead > 0) parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
         if (status.behind > 0) parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
+        if (status.pr) parts.push('PR open');
         if (!parts.length && status.error) parts.push('status unavailable');
         summaries[ws.id] = parts.join(', ');
       }
@@ -537,9 +556,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
       for (const ws of selectedWorkspaces) {
         try {
-          const [statusRes, infoRes] = await Promise.allSettled([
+          const [statusRes, infoRes, prRes] = await Promise.allSettled([
             window.electronAPI.getGitStatus(ws.path),
             window.electronAPI.getGitInfo(ws.path),
+            window.electronAPI.getPrStatus({ workspacePath: ws.path }),
           ]);
 
           let staged = 0;
@@ -565,6 +585,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
               ? infoRes.value.behindCount
               : 0;
+          const pr =
+            prRes.status === 'fulfilled' && prRes.value?.success ? prRes.value.pr ?? null : null;
 
           next[ws.id] = {
             staged,
@@ -576,84 +598,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               statusRes.status === 'fulfilled'
                 ? statusRes.value?.error
                 : statusRes.reason?.message || String(statusRes.reason || ''),
-          };
-        } catch (error: any) {
-          next[ws.id] = {
-            staged: 0,
-            unstaged: 0,
-            untracked: 0,
-            ahead: 0,
-            behind: 0,
-            error: error?.message || String(error),
-          };
-        }
-      }
-
-      if (!cancelled) {
-        setDeleteStatus(next);
-        setDeleteStatusLoading(false);
-      }
-    };
-
-    void loadStatus();
-    return () => {
-      cancelled = true;
-    };
-  }, [showDeleteDialog, selectedWorkspaces]);
-
-  useEffect(() => {
-    if (!showDeleteDialog) {
-      setDeleteStatus({});
-      setAcknowledgeDirtyDelete(false);
-      return;
-    }
-
-    let cancelled = false;
-    const loadStatus = async () => {
-      setDeleteStatusLoading(true);
-      const next: typeof deleteStatus = {};
-
-      for (const ws of selectedWorkspaces) {
-        try {
-          const [statusRes, infoRes] = await Promise.allSettled([
-            window.electronAPI.getGitStatus(ws.path),
-            window.electronAPI.getGitInfo(ws.path),
-          ]);
-
-          let staged = 0;
-          let unstaged = 0;
-          let untracked = 0;
-          if (statusRes.status === 'fulfilled' && statusRes.value?.success && statusRes.value.changes) {
-            for (const change of statusRes.value.changes) {
-              if (change.status === 'untracked') {
-                untracked += 1;
-              } else if (change.isStaged) {
-                staged += 1;
-              } else {
-                unstaged += 1;
-              }
-            }
-          }
-
-          const ahead =
-            infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
-              ? infoRes.value.aheadCount
-              : 0;
-          const behind =
-            infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
-              ? infoRes.value.behindCount
-              : 0;
-
-          next[ws.id] = {
-            staged,
-            unstaged,
-            untracked,
-            ahead,
-            behind,
-            error:
-              statusRes.status === 'fulfilled'
-                ? statusRes.value?.error
-                : statusRes.reason?.message || String(statusRes.reason || ''),
+            pr,
           };
         } catch (error: any) {
           next[ws.id] = {
@@ -927,47 +872,77 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3">
-            {deleteRisks.riskyIds.size > 0 ? (
-              <div className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50">
-                <p className="font-medium">Unmerged or unpushed work detected</p>
-                <ul className="space-y-1">
-                  {selectedWorkspaces.map((ws) => {
-                    const summary = deleteRisks.summaries[ws.id];
-                    const status = deleteStatus[ws.id];
-                    if (!summary && !status?.error) return null;
-                    return (
-                      <li key={ws.id} className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-4 w-4 text-amber-700 dark:text-amber-200"
-                          aria-hidden="true"
+            <AnimatePresence initial={false}>
+              {deleteRisks.riskyIds.size > 0 ? (
+                <motion.div
+                  key="bulk-risk"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
+                >
+                  <p className="font-medium">Unmerged or unpushed work detected</p>
+                  <ul className="space-y-1">
+                    {selectedWorkspaces.map((ws) => {
+                      const summary = deleteRisks.summaries[ws.id];
+                      const status = deleteStatus[ws.id];
+                      if (!summary && !status?.error) return null;
+                      return (
+                        <li
+                          key={ws.id}
+                          className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
                         >
-                          <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z" />
-                        </svg>
-                        <span className="font-medium">{ws.name}</span>
-                        <span className="text-muted-foreground">—</span>
-                        <span>{summary || status?.error || 'Status unavailable'}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : null}
+                          <Folder className="h-4 w-4 fill-amber-700 text-amber-700 dark:text-amber-200" />
+                          <span className="font-medium">{ws.name}</span>
+                          <span className="text-muted-foreground">—</span>
+                          <span>{summary || status?.error || 'Status unavailable'}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
 
-            {deleteRisks.riskyIds.size > 0 ? (
-              <label className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm">
-                <Checkbox
-                  id="ack-delete"
-                  checked={acknowledgeDirtyDelete}
-                  onCheckedChange={(val) => setAcknowledgeDirtyDelete(val === true)}
-                />
-                <span className="leading-tight">
-                  Delete tasks anyway
-                </span>
-              </label>
-            ) : null}
+            <AnimatePresence initial={false}>
+              {(() => {
+                const prWorkspaces = selectedWorkspaces
+                  .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
+                  .filter((w) => w.pr);
+                return prWorkspaces.length ? (
+                  <motion.div
+                    key="bulk-pr-notice"
+                    initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                    transition={{ duration: 0.2, ease: 'easeOut', delay: 0.02 }}
+                  >
+                    <DeletePrNotice workspaces={prWorkspaces as any} />
+                  </motion.div>
+                ) : null;
+              })()}
+            </AnimatePresence>
+
+            <AnimatePresence initial={false}>
+              {deleteRisks.riskyIds.size > 0 ? (
+                <motion.label
+                  key="bulk-ack"
+                  className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.18, ease: 'easeOut', delay: 0.03 }}
+                >
+                  <Checkbox
+                    id="ack-delete"
+                    checked={acknowledgeDirtyDelete}
+                    onCheckedChange={(val) => setAcknowledgeDirtyDelete(val === true)}
+                  />
+                  <span className="leading-tight">Delete tasks anyway</span>
+                </motion.label>
+              ) : null}
+            </AnimatePresence>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

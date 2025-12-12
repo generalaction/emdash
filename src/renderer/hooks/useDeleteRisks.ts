@@ -11,6 +11,13 @@ type RiskState = Record<
     ahead: number;
     behind: number;
     error?: string;
+    pr?: {
+      number?: number;
+      title?: string;
+      url?: string;
+      state?: string;
+      isDraft?: boolean;
+    } | null;
   }
 >;
 
@@ -32,9 +39,10 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
       const next: RiskState = {};
       for (const ws of workspaces) {
         try {
-          const [statusRes, infoRes] = await Promise.allSettled([
+          const [statusRes, infoRes, prRes] = await Promise.allSettled([
             (window as any).electronAPI?.getGitStatus?.(ws.path),
             (window as any).electronAPI?.getGitInfo?.(ws.path),
+            (window as any).electronAPI?.getPrStatus?.({ workspacePath: ws.path }),
           ]);
 
           let staged = 0;
@@ -60,6 +68,8 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
             infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
               ? infoRes.value.behindCount
               : 0;
+          const pr =
+            prRes.status === 'fulfilled' && prRes.value?.success ? prRes.value.pr ?? null : null;
 
           next[ws.id] = {
             staged,
@@ -71,6 +81,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
               statusRes.status === 'fulfilled'
                 ? statusRes.value?.error
                 : statusRes.reason?.message || String(statusRes.reason || ''),
+            pr,
           };
         } catch (error: any) {
           next[ws.id] = {
@@ -80,6 +91,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
             ahead: 0,
             behind: 0,
             error: error?.message || String(error),
+            pr: null,
           };
         }
       }
@@ -103,7 +115,12 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
       const status = risks[ws.id];
       if (!status) continue;
       const dirty =
-        status.staged > 0 || status.unstaged > 0 || status.untracked > 0 || status.ahead > 0 || !!status.error;
+        status.staged > 0 ||
+        status.unstaged > 0 ||
+        status.untracked > 0 ||
+        status.ahead > 0 ||
+        !!status.error ||
+        !!status.pr;
       if (dirty) {
         riskyIds.add(ws.id);
         const parts = [
@@ -120,6 +137,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
           status.behind > 0
             ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`
             : null,
+          status.pr ? 'PR open' : null,
         ]
           .filter(Boolean)
           .join(', ');
