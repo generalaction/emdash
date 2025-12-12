@@ -170,6 +170,11 @@ export const ProviderBar: React.FC<Props> = ({
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Provider is locked for this conversation.</p>
+                    {provider === 'claude' && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Continue previous session with /resume
+                      </p>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

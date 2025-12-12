@@ -48,6 +48,11 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
               </TooltipTrigger>
               <TooltipContent>
                 <p>Provider is locked for this conversation.</p>
+                {value === 'claude' && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Continue previous session with /resume
+                  </p>
+                )}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
