@@ -42,6 +42,43 @@ if (process.platform === 'darwin') {
   } catch {}
 }
 
+if (process.platform === 'linux') {
+  try {
+    const os = require('os');
+    const path = require('path');
+    const homeDir = os.homedir();
+    const extras = [
+      path.join(homeDir, '.nvm/versions/node', process.version, 'bin'),
+      path.join(homeDir, '.npm-global/bin'),
+      path.join(homeDir, '.local/bin'),
+      '/usr/local/bin',
+    ];
+    const cur = process.env.PATH || '';
+    const parts = cur.split(':').filter(Boolean);
+    for (const p of extras) {
+      if (!parts.includes(p)) parts.unshift(p);
+    }
+    process.env.PATH = parts.join(':');
+
+    // As a last resort, ask the user's login shell for PATH and merge it in.
+    try {
+      const { execSync } = require('child_process');
+      const shell = process.env.SHELL || '/bin/bash';
+      const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, {
+        encoding: 'utf8',
+      });
+      if (loginPath) {
+        const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
+        process.env.PATH = Array.from(merged).join(':');
+      }
+    } catch {
+      // best-effort only
+    }
+  } catch {
+    // best-effort only
+  }
+}
+
 if (process.platform === 'win32') {
   // Ensure npm global binaries are in PATH for Windows
   const npmPath = require('path').join(process.env.APPDATA || '', 'npm');
