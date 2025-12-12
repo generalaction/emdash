@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
 import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -35,6 +35,7 @@ import {
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
 import type { Project, Workspace } from '../types/app';
+import DeleteRiskSkeleton from './DeleteRiskSkeleton';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -347,6 +348,8 @@ function WorkspaceRow({
           ) : (
             <WorkspaceDeleteButton
               workspaceName={ws.name}
+              workspaceId={ws.id}
+              workspacePath={ws.path}
               onConfirm={async () => {
                 try {
                   setIsDeleting(true);
@@ -417,9 +420,47 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
 
   const workspaces = project.workspaces ?? [];
   const selectedCount = selectedIds.size;
+  const selectedWorkspaces = useMemo(
+    () => workspaces.filter((ws) => selectedIds.has(ws.id)),
+    [selectedIds, workspaces]
+  );
+  const [deleteStatus, setDeleteStatus] = useState<
+    Record<
+      string,
+      { staged: number; unstaged: number; untracked: number; ahead: number; behind: number; error?: string }
+    >
+  >({});
+  const [deleteStatusLoading, setDeleteStatusLoading] = useState(false);
+  const hasDeleteStatus = Object.keys(deleteStatus).length > 0;
+  const deleteRisks = useMemo(() => {
+    const riskyIds = new Set<string>();
+    const summaries: Record<string, string> = {};
+    for (const ws of selectedWorkspaces) {
+      const status = deleteStatus[ws.id];
+      if (!status) continue;
+      const dirty =
+        status.staged > 0 || status.unstaged > 0 || status.untracked > 0 || status.ahead > 0 || !!status.error;
+      if (dirty) {
+        riskyIds.add(ws.id);
+        const parts: string[] = [];
+        if (status.staged > 0) parts.push(`${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`);
+        if (status.unstaged > 0) parts.push(`${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`);
+        if (status.untracked > 0) parts.push(`${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`);
+        if (status.ahead > 0) parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
+        if (status.behind > 0) parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
+        if (!parts.length && status.error) parts.push('status unavailable');
+        summaries[ws.id] = parts.join(', ');
+      }
+    }
+    return { riskyIds, summaries };
+  }, [deleteStatus, selectedWorkspaces]);
+  const deleteDisabled: boolean =
+    Boolean(isDeleting || deleteStatusLoading) ||
+    (deleteRisks.riskyIds.size > 0 && acknowledgeDirtyDelete !== true);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -481,6 +522,162 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
   }, [project.id, project.gitInfo.baseRef]);
+
+  useEffect(() => {
+    if (!showDeleteDialog) {
+      setDeleteStatus({});
+      setAcknowledgeDirtyDelete(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadStatus = async () => {
+      setDeleteStatusLoading(true);
+      const next: typeof deleteStatus = {};
+
+      for (const ws of selectedWorkspaces) {
+        try {
+          const [statusRes, infoRes] = await Promise.allSettled([
+            window.electronAPI.getGitStatus(ws.path),
+            window.electronAPI.getGitInfo(ws.path),
+          ]);
+
+          let staged = 0;
+          let unstaged = 0;
+          let untracked = 0;
+          if (statusRes.status === 'fulfilled' && statusRes.value?.success && statusRes.value.changes) {
+            for (const change of statusRes.value.changes) {
+              if (change.status === 'untracked') {
+                untracked += 1;
+              } else if (change.isStaged) {
+                staged += 1;
+              } else {
+                unstaged += 1;
+              }
+            }
+          }
+
+          const ahead =
+            infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
+              ? infoRes.value.aheadCount
+              : 0;
+          const behind =
+            infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
+              ? infoRes.value.behindCount
+              : 0;
+
+          next[ws.id] = {
+            staged,
+            unstaged,
+            untracked,
+            ahead,
+            behind,
+            error:
+              statusRes.status === 'fulfilled'
+                ? statusRes.value?.error
+                : statusRes.reason?.message || String(statusRes.reason || ''),
+          };
+        } catch (error: any) {
+          next[ws.id] = {
+            staged: 0,
+            unstaged: 0,
+            untracked: 0,
+            ahead: 0,
+            behind: 0,
+            error: error?.message || String(error),
+          };
+        }
+      }
+
+      if (!cancelled) {
+        setDeleteStatus(next);
+        setDeleteStatusLoading(false);
+      }
+    };
+
+    void loadStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [showDeleteDialog, selectedWorkspaces]);
+
+  useEffect(() => {
+    if (!showDeleteDialog) {
+      setDeleteStatus({});
+      setAcknowledgeDirtyDelete(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadStatus = async () => {
+      setDeleteStatusLoading(true);
+      const next: typeof deleteStatus = {};
+
+      for (const ws of selectedWorkspaces) {
+        try {
+          const [statusRes, infoRes] = await Promise.allSettled([
+            window.electronAPI.getGitStatus(ws.path),
+            window.electronAPI.getGitInfo(ws.path),
+          ]);
+
+          let staged = 0;
+          let unstaged = 0;
+          let untracked = 0;
+          if (statusRes.status === 'fulfilled' && statusRes.value?.success && statusRes.value.changes) {
+            for (const change of statusRes.value.changes) {
+              if (change.status === 'untracked') {
+                untracked += 1;
+              } else if (change.isStaged) {
+                staged += 1;
+              } else {
+                unstaged += 1;
+              }
+            }
+          }
+
+          const ahead =
+            infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
+              ? infoRes.value.aheadCount
+              : 0;
+          const behind =
+            infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
+              ? infoRes.value.behindCount
+              : 0;
+
+          next[ws.id] = {
+            staged,
+            unstaged,
+            untracked,
+            ahead,
+            behind,
+            error:
+              statusRes.status === 'fulfilled'
+                ? statusRes.value?.error
+                : statusRes.reason?.message || String(statusRes.reason || ''),
+          };
+        } catch (error: any) {
+          next[ws.id] = {
+            staged: 0,
+            unstaged: 0,
+            untracked: 0,
+            ahead: 0,
+            behind: 0,
+            error: error?.message || String(error),
+          };
+        }
+      }
+
+      if (!cancelled) {
+        setDeleteStatus(next);
+        setDeleteStatusLoading(false);
+      }
+    };
+
+    void loadStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [showDeleteDialog, selectedWorkspaces]);
 
   useEffect(() => {
     let cancelled = false;
@@ -729,11 +926,55 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               This will permanently delete the selected tasks and their worktrees.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-3">
+            {deleteRisks.riskyIds.size > 0 ? (
+              <div className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50">
+                <p className="font-medium">Unmerged or unpushed work detected</p>
+                <ul className="space-y-1">
+                  {selectedWorkspaces.map((ws) => {
+                    const summary = deleteRisks.summaries[ws.id];
+                    const status = deleteStatus[ws.id];
+                    if (!summary && !status?.error) return null;
+                    return (
+                      <li key={ws.id} className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-4 w-4 text-amber-700 dark:text-amber-200"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z" />
+                        </svg>
+                        <span className="font-medium">{ws.name}</span>
+                        <span className="text-muted-foreground">—</span>
+                        <span>{summary || status?.error || 'Status unavailable'}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
+            {deleteRisks.riskyIds.size > 0 ? (
+              <label className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm">
+                <Checkbox
+                  id="ack-delete"
+                  checked={acknowledgeDirtyDelete}
+                  onCheckedChange={(val) => setAcknowledgeDirtyDelete(val === true)}
+                />
+                <span className="leading-tight">
+                  Delete tasks anyway
+                </span>
+              </label>
+            ) : null}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive px-4 text-destructive-foreground hover:bg-destructive/90"
               onClick={handleBulkDelete}
+              disabled={deleteDisabled}
             >
               Delete
             </AlertDialogAction>
