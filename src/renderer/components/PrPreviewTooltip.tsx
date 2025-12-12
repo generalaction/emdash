@@ -24,7 +24,9 @@ const Pill = ({
         ? 'bg-rose-100/70 text-rose-800 dark:bg-rose-500/10 dark:text-rose-200'
         : 'bg-slate-100/70 text-slate-800 dark:bg-slate-500/10 dark:text-slate-200';
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] border border-border ${palette}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] ${palette}`}
+    >
       {children}
     </span>
   );
