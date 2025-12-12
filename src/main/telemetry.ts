@@ -1,5 +1,4 @@
 import { app } from 'electron';
-import { PROVIDER_IDS, type ProviderId } from '../shared/providers/registry';
 // Optional build-time defaults for distribution bundles
 // Resolve robustly across dev and packaged layouts.
 let appConfig: { posthogHost?: string; posthogKey?: string } = {};
