@@ -9,8 +9,8 @@ interface StoredSnapshot extends TerminalSnapshotPayload {
   bytes: number;
 }
 
-const MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024; 
-const MAX_TOTAL_BYTES = 64 * 1024 * 1024; 
+const MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 
 function resolveBaseDir(): string {
   const override = process.env.EMDASH_TERMINAL_SNAPSHOT_DIR;
