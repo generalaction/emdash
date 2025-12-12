@@ -902,7 +902,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           key={ws.id}
                           className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
                         >
-                          <Folder className="h-4 w-4 fill-amber-700 text-amber-700 dark:text-amber-200" />
+                        <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
                           <span className="font-medium">{ws.name}</span>
                           <span className="text-muted-foreground">—</span>
                           <span>{summary || status?.error || 'Status unavailable'}</span>
