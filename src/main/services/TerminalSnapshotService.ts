@@ -12,6 +12,9 @@ interface StoredSnapshot extends TerminalSnapshotPayload {
 const MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024; // 8 MB per workspace
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024; // 64 MB total budget
 
+// Per-ID mutex to prevent concurrent writes to the same snapshot file
+const writeLocks = new Map<string, Promise<void>>();
+
 function resolveBaseDir(): string {
   const override = process.env.EMDASH_TERMINAL_SNAPSHOT_DIR;
   if (override && override.trim().length > 0) {
@@ -50,18 +53,26 @@ async function readSnapshotFile(filePath: string): Promise<StoredSnapshot | null
   }
 
   try {
-    const parsed = JSON.parse(raw) as TerminalSnapshotPayload;
+    // Trim any trailing whitespace/newlines that might have been appended
+    const trimmed = raw.trim();
+    const parsed = JSON.parse(trimmed) as TerminalSnapshotPayload;
     if (parsed.version !== TERMINAL_SNAPSHOT_VERSION) {
       return null;
     }
-    const bytes = Buffer.byteLength(raw, 'utf8');
+    const bytes = Buffer.byteLength(trimmed, 'utf8');
     return { ...parsed, bytes };
   } catch (error) {
-    log.warn('terminalSnapshotService: invalid snapshot JSON', {
+    // If JSON is corrupted, delete the file to prevent repeated errors
+    log.warn('terminalSnapshotService: invalid snapshot JSON, deleting corrupted file', {
       filePath,
       error,
       bytes: Buffer.byteLength(raw, 'utf8'),
     });
+    try {
+      await fs.promises.unlink(filePath);
+    } catch (deleteError) {
+      // Ignore delete errors (file might already be gone)
+    }
     return null;
   }
 }
@@ -109,25 +120,61 @@ class TerminalSnapshotService {
     id: string,
     payload: TerminalSnapshotPayload
   ): Promise<{ ok: boolean; error?: string }> {
-    try {
-      if (payload.version !== TERMINAL_SNAPSHOT_VERSION) {
-        return { ok: false, error: 'Unsupported snapshot version' };
-      }
-
-      const json = JSON.stringify(payload);
-      const bytes = Buffer.byteLength(json, 'utf8');
-      if (bytes > MAX_SNAPSHOT_BYTES) {
-        return { ok: false, error: 'Snapshot size exceeds per-workspace limit' };
-      }
-
-      await ensureDir();
-      await fs.promises.writeFile(snapshotPath(id), json, 'utf8');
-      await this.pruneIfNeeded(id);
-      return { ok: true };
-    } catch (error) {
-      log.error('terminalSnapshotService: failed to save snapshot', { id, error });
-      return { ok: false, error: (error as Error)?.message ?? String(error) };
+    // Wait for any existing write to this ID to complete
+    const existingLock = writeLocks.get(id);
+    if (existingLock) {
+      await existingLock;
     }
+
+    // Create a new lock for this write
+    let result: { ok: boolean; error?: string };
+    const writePromise = (async () => {
+      try {
+        if (payload.version !== TERMINAL_SNAPSHOT_VERSION) {
+          result = { ok: false, error: 'Unsupported snapshot version' };
+          return;
+        }
+
+        const json = JSON.stringify(payload);
+        const bytes = Buffer.byteLength(json, 'utf8');
+        if (bytes > MAX_SNAPSHOT_BYTES) {
+          result = { ok: false, error: 'Snapshot size exceeds per-workspace limit' };
+          return;
+        }
+
+        await ensureDir();
+        const finalPath = snapshotPath(id);
+        const tempPath = `${finalPath}.tmp`;
+
+        // Write to temp file first, then atomically rename
+        // This prevents corruption if multiple writes happen concurrently
+        try {
+          await fs.promises.writeFile(tempPath, json, 'utf8');
+          await fs.promises.rename(tempPath, finalPath);
+        } catch (writeError) {
+          // Clean up temp file if rename failed
+          try {
+            await fs.promises.unlink(tempPath);
+          } catch {
+            // Ignore cleanup errors
+          }
+          throw writeError;
+        }
+
+        await this.pruneIfNeeded(id);
+        result = { ok: true };
+      } catch (error) {
+        log.error('terminalSnapshotService: failed to save snapshot', { id, error });
+        result = { ok: false, error: (error as Error)?.message ?? String(error) };
+      } finally {
+        // Remove lock when done
+        writeLocks.delete(id);
+      }
+    })();
+
+    writeLocks.set(id, writePromise);
+    await writePromise;
+    return result!;
   }
 
   async deleteSnapshot(id: string): Promise<void> {
