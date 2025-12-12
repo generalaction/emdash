@@ -48,7 +48,11 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
           let staged = 0;
           let unstaged = 0;
           let untracked = 0;
-          if (statusRes.status === 'fulfilled' && statusRes.value?.success && statusRes.value.changes) {
+          if (
+            statusRes.status === 'fulfilled' &&
+            statusRes.value?.success &&
+            statusRes.value.changes
+          ) {
             for (const change of statusRes.value.changes) {
               if (change.status === 'untracked') {
                 untracked += 1;
@@ -69,7 +73,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
               ? infoRes.value.behindCount
               : 0;
           const pr =
-            prRes.status === 'fulfilled' && prRes.value?.success ? prRes.value.pr ?? null : null;
+            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
 
           next[ws.id] = {
             staged,
@@ -124,7 +128,9 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
       if (dirty) {
         riskyIds.add(ws.id);
         const parts = [
-          status.staged > 0 ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged` : null,
+          status.staged > 0
+            ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`
+            : null,
           status.unstaged > 0
             ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`
             : null,

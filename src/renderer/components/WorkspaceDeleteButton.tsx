@@ -61,8 +61,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
     status.ahead > 0 ||
     !!status.error ||
     !!status.pr;
-  const disableDelete: boolean =
-    Boolean(isDeleting || loading) || (risky && !acknowledge);
+  const disableDelete: boolean = Boolean(isDeleting || loading) || (risky && !acknowledge);
 
   React.useEffect(() => {
     if (!open) {
@@ -127,14 +126,26 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                   <span className="text-muted-foreground">—</span>
                   <span>
                     {[
-                      status.staged > 0 ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged` : null,
-                      status.unstaged > 0 ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged` : null,
-                      status.untracked > 0 ? `${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked` : null,
-                      status.ahead > 0 ? `ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}` : null,
-                      status.behind > 0 ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}` : null,
+                      status.staged > 0
+                        ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`
+                        : null,
+                      status.unstaged > 0
+                        ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`
+                        : null,
+                      status.untracked > 0
+                        ? `${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`
+                        : null,
+                      status.ahead > 0
+                        ? `ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`
+                        : null,
+                      status.behind > 0
+                        ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`
+                        : null,
                     ]
                       .filter(Boolean)
-                      .join(', ') || status.error || 'Status unavailable'}
+                      .join(', ') ||
+                      status.error ||
+                      'Status unavailable'}
                   </span>
                 </div>
                 {status.pr ? (
@@ -159,7 +170,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                   checked={acknowledge}
                   onChange={(e) => setAcknowledge(e.target.checked)}
                 />
-                <span className="leading-tight text-sm text-foreground">Delete task anyway</span>
+                <span className="text-sm leading-tight text-foreground">Delete task anyway</span>
               </motion.label>
             ) : null}
           </AnimatePresence>

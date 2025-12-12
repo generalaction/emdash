@@ -465,11 +465,16 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       if (dirty) {
         riskyIds.add(ws.id);
         const parts: string[] = [];
-        if (status.staged > 0) parts.push(`${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`);
-        if (status.unstaged > 0) parts.push(`${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`);
-        if (status.untracked > 0) parts.push(`${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`);
-        if (status.ahead > 0) parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
-        if (status.behind > 0) parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
+        if (status.staged > 0)
+          parts.push(`${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`);
+        if (status.unstaged > 0)
+          parts.push(`${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`);
+        if (status.untracked > 0)
+          parts.push(`${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`);
+        if (status.ahead > 0)
+          parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
+        if (status.behind > 0)
+          parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
         if (status.pr) parts.push('PR open');
         if (!parts.length && status.error) parts.push('status unavailable');
         summaries[ws.id] = parts.join(', ');
@@ -565,7 +570,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           let staged = 0;
           let unstaged = 0;
           let untracked = 0;
-          if (statusRes.status === 'fulfilled' && statusRes.value?.success && statusRes.value.changes) {
+          if (
+            statusRes.status === 'fulfilled' &&
+            statusRes.value?.success &&
+            statusRes.value.changes
+          ) {
             for (const change of statusRes.value.changes) {
               if (change.status === 'untracked') {
                 untracked += 1;
@@ -586,7 +595,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               ? infoRes.value.behindCount
               : 0;
           const pr =
-            prRes.status === 'fulfilled' && prRes.value?.success ? prRes.value.pr ?? null : null;
+            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
 
           next[ws.id] = {
             staged,
