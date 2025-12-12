@@ -23,7 +23,6 @@ const DEV_HINT_DOWNLOAD = 'Cannot download updates in development.';
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
-// Reduce noisy console output from electron-updater (avoid dumping HTML error bodies)
 autoUpdater.logger = {
   info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
   warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),

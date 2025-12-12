@@ -206,7 +206,6 @@ export function resizePty(id: string, cols: number, rows: number): void {
   try {
     rec.proc.resize(cols, rows);
   } catch (error: any) {
-    // EBADF or native errors typically mean the PTY has already exited
     if (
       error &&
       (error.code === 'EBADF' ||

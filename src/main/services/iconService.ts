@@ -83,7 +83,6 @@ async function fetchHttps(
           const status = res.statusCode || 0;
           const loc = res.headers.location;
           if (status >= 300 && status < 400 && loc && /^https:\/\//i.test(loc)) {
-            // One hop follow
             https
               .get(loc, (res2) => {
                 pipeResp(res2);
