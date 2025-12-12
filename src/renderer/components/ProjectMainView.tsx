@@ -35,6 +35,7 @@ import {
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
+import PrPreviewTooltip from './PrPreviewTooltip';
 import type { Project, Workspace } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -317,22 +318,24 @@ function WorkspaceRow({
             </button>
           ) : null}
           {!isLoading && totalAdditions === 0 && totalDeletions === 0 && pr ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (pr.url) window.electronAPI.openExternal(pr.url);
-              }}
-              className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              title={`${pr.title || 'Pull Request'} (#${pr.number})`}
-            >
-              {pr.isDraft
-                ? 'Draft'
-                : String(pr.state).toUpperCase() === 'OPEN'
-                  ? 'View PR'
-                  : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
-              <ArrowUpRight className="size-3" />
-            </button>
+            <PrPreviewTooltip pr={pr} side="top">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (pr.url) window.electronAPI.openExternal(pr.url);
+                }}
+                className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+              >
+                {pr.isDraft
+                  ? 'Draft'
+                  : String(pr.state).toUpperCase() === 'OPEN'
+                    ? 'View PR'
+                    : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+                <ArrowUpRight className="size-3" />
+              </button>
+            </PrPreviewTooltip>
           ) : null}
           {/* Agent badge commented out per user request
           {ws.agentId && <Badge variant="outline">agent</Badge>}

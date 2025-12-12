@@ -297,6 +297,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         'baseRefName',
         'title',
         'author',
+        'additions',
+        'deletions',
+        'changedFiles',
       ];
       const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
       try {
@@ -304,6 +307,44 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const json = (stdout || '').trim();
         const data = json ? JSON.parse(json) : null;
         if (!data) return { success: false, error: 'No PR data returned' };
+
+        // Fallback: if GH CLI didn't return diff stats, try to compute locally
+        const asNumber = (v: any): number | null =>
+          typeof v === 'number' && Number.isFinite(v)
+            ? v
+            : typeof v === 'string' && Number.isFinite(Number.parseInt(v, 10))
+              ? Number.parseInt(v, 10)
+              : null;
+
+        const hasAdd = asNumber(data?.additions) !== null;
+        const hasDel = asNumber(data?.deletions) !== null;
+        const hasFiles = asNumber(data?.changedFiles) !== null;
+
+        if (!hasAdd || !hasDel || !hasFiles) {
+          const baseRef = typeof data?.baseRefName === 'string' ? data.baseRefName.trim() : '';
+          const targetRef = baseRef ? `origin/${baseRef}` : '';
+          const shortstatCmd = targetRef
+            ? `git diff --shortstat ${JSON.stringify(targetRef)}...HEAD`
+            : 'git diff --shortstat HEAD~1..HEAD';
+          try {
+            const { stdout: diffOut } = await execAsync(shortstatCmd, { cwd: workspacePath });
+            const statLine = (diffOut || '').trim();
+            const m =
+              statLine &&
+              statLine.match(
+                /(\d+)\s+files? changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/
+              );
+            if (m) {
+              const [, filesStr, addStr, delStr] = m;
+              if (!hasFiles && filesStr) data.changedFiles = Number.parseInt(filesStr, 10);
+              if (!hasAdd && addStr) data.additions = Number.parseInt(addStr, 10);
+              if (!hasDel && delStr) data.deletions = Number.parseInt(delStr, 10);
+            }
+          } catch {
+            // best-effort only; ignore failures
+          }
+        }
+
         return { success: true, pr: data };
       } catch (err) {
         const msg = String(err as string);
