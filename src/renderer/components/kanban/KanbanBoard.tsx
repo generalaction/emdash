@@ -22,9 +22,9 @@ const titles: Record<KanbanStatus, string> = {
 
 const KanbanBoard: React.FC<{
   project: Project;
-  onOpenWorkspace?: (ws: Task) => void;
-  onCreateWorkspace?: () => void;
-}> = ({ project, onOpenWorkspace, onCreateWorkspace }) => {
+  onOpenTask?: (ws: Task) => void;
+  onCreateTask?: () => void;
+}> = ({ project, onOpenTask, onCreateTask }) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
 
   React.useEffect(() => {
@@ -281,12 +281,12 @@ const KanbanBoard: React.FC<{
           count={byStatus[s].length}
           onDropCard={(id) => handleDrop(s, id)}
           action={
-            s === 'todo' && onCreateWorkspace ? (
+            s === 'todo' && onCreateTask ? (
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-md border border-border/60 bg-muted text-foreground shadow-sm hover:bg-muted/80"
-                onClick={onCreateWorkspace}
+                onClick={onCreateTask}
                 aria-label="Start New Task"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -295,7 +295,7 @@ const KanbanBoard: React.FC<{
           }
         >
           {byStatus[s].length === 0 ? (
-            s === 'todo' && !hasAny && onCreateWorkspace ? (
+            s === 'todo' && !hasAny && onCreateTask ? (
               <div className="flex h-full flex-col">
                 <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-center text-sm text-muted-foreground">
                   <div className="mx-auto mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-border/60 bg-background/60">
@@ -304,7 +304,7 @@ const KanbanBoard: React.FC<{
                   <span className="ml-2">No items</span>
                 </div>
                 <div className="flex flex-1 items-center justify-center">
-                  <Button variant="default" size="sm" onClick={onCreateWorkspace}>
+                  <Button variant="default" size="sm" onClick={onCreateTask}>
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
                     Start New Task
                   </Button>
@@ -321,14 +321,14 @@ const KanbanBoard: React.FC<{
           ) : (
             <>
               {byStatus[s].map((ws) => (
-                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />
+                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenTask} />
               ))}
-              {s === 'todo' && onCreateWorkspace ? (
+              {s === 'todo' && onCreateTask ? (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="mt-1 w-full justify-center text-xs font-medium"
-                  onClick={onCreateWorkspace}
+                  onClick={onCreateTask}
                 >
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Start New Task

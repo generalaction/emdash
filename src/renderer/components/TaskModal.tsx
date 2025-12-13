@@ -36,7 +36,7 @@ import { useGithubAuth } from '../hooks/useGithubAuth';
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateWorkspace: (
+  onCreateTask: (
     name: string,
     initialPrompt?: string,
     providerRuns?: ProviderRun[],
@@ -54,7 +54,7 @@ interface TaskModalProps {
 const TaskModal: React.FC<TaskModalProps> = ({
   isOpen,
   onClose,
-  onCreateWorkspace,
+  onCreateTask,
   projectName,
   defaultBranch,
   existingNames = [],
@@ -410,7 +410,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     setIsCreating(true);
                     (async () => {
                       try {
-                        await onCreateWorkspace(
+                        await onCreateTask(
                           normalizeTaskName(taskName),
                           showAdvanced ? initialPrompt.trim() || undefined : undefined,
                           providerRuns,

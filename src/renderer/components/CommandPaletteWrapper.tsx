@@ -10,7 +10,7 @@ export interface CommandPaletteWrapperProps {
   onClose: () => void;
   projects: Project[];
   handleSelectProject: (project: Project) => void;
-  handleSelectWorkspace: (workspace: Task) => void;
+  handleSelectTask: (workspace: Task) => void;
   handleGoHome: () => void;
   handleOpenProject: () => void;
   handleOpenSettings: () => void;
@@ -21,7 +21,7 @@ const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
   onClose,
   projects,
   handleSelectProject,
-  handleSelectWorkspace,
+  handleSelectTask,
   handleGoHome,
   handleOpenProject,
   handleOpenSettings,
@@ -39,12 +39,12 @@ const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
         const project = projects.find((p) => p.id === projectId);
         if (project) handleSelectProject(project);
       }}
-      onSelectWorkspace={(projectId, taskId) => {
+      onSelectTask={(projectId, taskId) => {
         const project = projects.find((p) => p.id === projectId);
         const workspace = project?.workspaces?.find((w: Task) => w.id === taskId);
         if (project && workspace) {
           handleSelectProject(project);
-          handleSelectWorkspace(workspace);
+          handleSelectTask(workspace);
         }
       }}
       onOpenSettings={handleOpenSettings}

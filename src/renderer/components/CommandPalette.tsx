@@ -33,7 +33,7 @@ interface CommandPaletteProps {
     }>;
   }>;
   onSelectProject?: (projectId: string) => void;
-  onSelectWorkspace?: (projectId: string, taskId: string) => void;
+  onSelectTask?: (projectId: string, taskId: string) => void;
   onOpenSettings?: () => void;
   onToggleLeftSidebar?: () => void;
   onToggleRightSidebar?: () => void;
@@ -61,7 +61,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onClose,
   projects = [],
   onSelectProject,
-  onSelectWorkspace,
+  onSelectTask,
   onOpenSettings,
   onToggleLeftSidebar,
   onToggleRightSidebar,
@@ -209,7 +209,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       }
 
       // Workspace commands
-      if (project.workspaces && onSelectWorkspace) {
+      if (project.workspaces && onSelectTask) {
         project.workspaces.forEach((workspace) => {
           items.push({
             id: `workspace-${project.id}-${workspace.id}`,
@@ -223,7 +223,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
               workspace.branch.toLowerCase(),
               project.name.toLowerCase(),
             ],
-            onSelect: () => runCommand(() => onSelectWorkspace(project.id, workspace.id)),
+            onSelect: () => runCommand(() => onSelectTask(project.id, workspace.id)),
           });
         });
       }
@@ -236,7 +236,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     onOpenProject,
     onOpenSettings,
     onSelectProject,
-    onSelectWorkspace,
+    onSelectTask,
     onToggleLeftSidebar,
     onToggleRightSidebar,
     onToggleTheme,

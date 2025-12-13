@@ -702,7 +702,7 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleCreateWorkspace = async (
+  const handleCreateTask = async (
     taskName: string,
     initialPrompt?: string,
     providerRuns: import('./types/chat').ProviderRun[] = [{ provider: 'claude', runs: 1 }],
@@ -1152,7 +1152,7 @@ const AppContent: React.FC = () => {
     activateProjectView(project);
   };
 
-  const handleSelectWorkspace = (workspace: Task) => {
+  const handleSelectTask = (workspace: Task) => {
     setActiveWorkspace(workspace);
     // Load provider from workspace.agentId if it exists, otherwise default to null
     // This ensures the selected provider persists across app restarts
@@ -1164,7 +1164,7 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleStartCreateWorkspaceFromSidebar = useCallback(
+  const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
       activateProjectView(targetProject);
@@ -1197,7 +1197,7 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleDeleteWorkspace = async (
+  const handleDeleteTask = async (
     targetProject: Project,
     workspace: Task,
     options?: { silent?: boolean }
@@ -1326,7 +1326,7 @@ const AppContent: React.FC = () => {
           if (wasActive) {
             const restored = refreshedWorkspaces.find((w) => w.id === workspace.id);
             if (restored) {
-              handleSelectWorkspace(restored);
+              handleSelectTask(restored);
             }
           }
         } catch (refreshError) {
@@ -1352,7 +1352,7 @@ const AppContent: React.FC = () => {
           });
 
           if (wasActive) {
-            handleSelectWorkspace(workspaceSnapshot);
+            handleSelectTask(workspaceSnapshot);
           }
         }
         return false;
@@ -1486,11 +1486,11 @@ const AppContent: React.FC = () => {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <KanbanBoard
             project={selectedProject}
-            onOpenWorkspace={(ws: any) => {
-              handleSelectWorkspace(ws);
+            onOpenTask={(ws: any) => {
+              handleSelectTask(ws);
               setShowKanban(false);
             }}
-            onCreateWorkspace={() => setShowTaskModal(true)}
+            onCreateTask={() => setShowTaskModal(true)}
           />
         </div>
       );
@@ -1579,8 +1579,8 @@ const AppContent: React.FC = () => {
               project={selectedProject}
               onCreateTask={() => setShowTaskModal(true)}
               activeTask={activeTask}
-              onSelectTask={handleSelectWorkspace}
-              onDeleteTask={handleDeleteWorkspace}
+              onSelectTask={handleSelectTask}
+              onDeleteTask={handleDeleteTask}
               isCreatingTask={isCreatingTask}
               onDeleteProject={handleDeleteProject}
             />
@@ -1692,7 +1692,7 @@ const AppContent: React.FC = () => {
                     onSelectProject={handleSelectProject}
                     onGoHome={handleGoHome}
                     onOpenProject={handleOpenProject}
-                    onSelectTask={handleSelectWorkspace}
+                    onSelectTask={handleSelectTask}
                     activeTask={activeTask || undefined}
                     onReorderProjects={handleReorderProjects}
                     onReorderProjectsFull={handleReorderProjectsFull}
@@ -1703,9 +1703,9 @@ const AppContent: React.FC = () => {
                     githubLoading={githubLoading}
                     githubStatusMessage={githubStatusMessage}
                     onSidebarContextChange={handleSidebarContextChange}
-                    onCreateTaskForProject={handleStartCreateWorkspaceFromSidebar}
+                    onCreateTaskForProject={handleStartCreateTaskFromSidebar}
                     isCreatingTask={isCreatingTask}
-                    onDeleteTask={handleDeleteWorkspace}
+                    onDeleteTask={handleDeleteTask}
                     onDeleteProject={handleDeleteProject}
                     isHomeView={showHomeView}
                   />
@@ -1748,7 +1748,7 @@ const AppContent: React.FC = () => {
               onClose={handleCloseCommandPalette}
               projects={projects}
               handleSelectProject={handleSelectProject}
-              handleSelectWorkspace={handleSelectWorkspace}
+              handleSelectTask={handleSelectTask}
               handleGoHome={handleGoHome}
               handleOpenProject={handleOpenProject}
               handleOpenSettings={handleOpenSettings}
@@ -1756,7 +1756,7 @@ const AppContent: React.FC = () => {
             <TaskModal
               isOpen={showTaskModal}
               onClose={() => setShowTaskModal(false)}
-              onCreateWorkspace={handleCreateWorkspace}
+              onCreateTask={handleCreateTask}
               projectName={selectedProject?.name || ''}
               defaultBranch={selectedProject?.gitInfo.branch || 'main'}
               existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
