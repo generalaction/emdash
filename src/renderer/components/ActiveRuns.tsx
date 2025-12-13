@@ -40,7 +40,7 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }
   for (const s of activeRuns) {
     let match: { project: any | null; workspace: any | null } | null = null;
     for (const proj of projects) {
-      const ws = (proj.workspaces || []).find((w: any) => w.id === s.taskId) || null;
+      const ws = (proj.tasks || []).find((w: any) => w.id === s.taskId) || null;
       if (ws) {
         match = { project: proj, workspace: ws };
         break;

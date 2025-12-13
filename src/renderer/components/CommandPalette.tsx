@@ -26,7 +26,7 @@ interface CommandPaletteProps {
     id: string;
     name: string;
     path: string;
-    workspaces?: Array<{
+    tasks?: Array<{
       id: string;
       name: string;
       branch: string;
@@ -209,8 +209,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       }
 
       // Workspace commands
-      if (project.workspaces && onSelectTask) {
-        project.workspaces.forEach((workspace) => {
+      if (project.tasks && onSelectTask) {
+        project.tasks.forEach((workspace) => {
           items.push({
             id: `workspace-${project.id}-${workspace.id}`,
             label: workspace.name,

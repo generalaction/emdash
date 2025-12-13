@@ -425,11 +425,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
 
-  const workspaces = project.workspaces ?? [];
+  const tasksInProject = project.tasks ?? [];
   const selectedCount = selectedIds.size;
-  const selectedWorkspaces = useMemo(
-    () => workspaces.filter((ws) => selectedIds.has(ws.id)),
-    [selectedIds, workspaces]
+  const selectedTasks = useMemo(
+    () => tasksInProject.filter((ws) => selectedIds.has(ws.id)),
+    [selectedIds, tasksInProject]
   );
   const [deleteStatus, setDeleteStatus] = useState<
     Record<
@@ -455,7 +455,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const deleteRisks = useMemo(() => {
     const riskyIds = new Set<string>();
     const summaries: Record<string, string> = {};
-    for (const ws of selectedWorkspaces) {
+    for (const ws of selectedTasks) {
       const status = deleteStatus[ws.id];
       if (!status) continue;
       const dirty =
@@ -484,7 +484,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       }
     }
     return { riskyIds, summaries };
-  }, [deleteStatus, selectedWorkspaces]);
+  }, [deleteStatus, selectedTasks]);
   const deleteDisabled: boolean =
     Boolean(isDeleting || deleteStatusLoading) ||
     (deleteRisks.riskyIds.size > 0 && acknowledgeDirtyDelete !== true);
@@ -507,7 +507,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   };
 
   const handleBulkDelete = async () => {
-    const toDelete = workspaces.filter((ws) => selectedIds.has(ws.id));
+    const toDelete = tasksInProject.filter((ws) => selectedIds.has(ws.id));
     if (toDelete.length === 0) return;
 
     setIsDeleting(true);
@@ -562,7 +562,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       setDeleteStatusLoading(true);
       const next: typeof deleteStatus = {};
 
-      for (const ws of selectedWorkspaces) {
+      for (const ws of selectedTasks) {
         try {
           const [statusRes, infoRes, prRes] = await Promise.allSettled([
             window.electronAPI.getGitStatus(ws.path),
@@ -634,7 +634,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [showDeleteDialog, selectedWorkspaces]);
+  }, [showDeleteDialog, selectedTasks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -813,7 +813,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     </Button>
                   )}
                 </div>
-                {workspaces.length > 0 && (
+                {tasksInProject.length > 0 && (
                   <div className="flex justify-end gap-2">
                     {isSelectMode && selectedCount > 0 && (
                       <Button
@@ -844,7 +844,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   </div>
                 )}
                 <div className="flex flex-col gap-3">
-                  {workspaces.map((ws) => (
+                  {tasksInProject.map((ws) => (
                     <WorkspaceRow
                       key={ws.id}
                       ws={ws}
@@ -859,7 +859,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </div>
               </div>
 
-              {(!project.workspaces || project.workspaces.length === 0) && (
+              {(!project.tasks || project.tasks.length === 0) && (
                 <Alert>
                   <AlertTitle>What's a task?</AlertTitle>
                   <AlertDescription className="flex items-center justify-between gap-4">
@@ -896,7 +896,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 >
                   <p className="font-medium">Unmerged or unpushed work detected</p>
                   <ul className="space-y-1">
-                    {selectedWorkspaces.map((ws) => {
+                    {selectedTasks.map((ws) => {
                       const summary = deleteRisks.summaries[ws.id];
                       const status = deleteStatus[ws.id];
                       if (!summary && !status?.error) return null;
@@ -919,7 +919,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             <AnimatePresence initial={false}>
               {(() => {
-                const prWorkspaces = selectedWorkspaces
+                const prWorkspaces = selectedTasks
                   .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
                   .filter((w) => w.pr);
                 return prWorkspaces.length ? (
@@ -930,7 +930,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     exit={{ opacity: 0, y: 6, scale: 0.99 }}
                     transition={{ duration: 0.2, ease: 'easeOut', delay: 0.02 }}
                   >
-                    <DeletePrNotice workspaces={prWorkspaces as any} />
+                    <DeletePrNotice tasks={prWorkspaces as any} />
                   </motion.div>
                 ) : null;
               })()}

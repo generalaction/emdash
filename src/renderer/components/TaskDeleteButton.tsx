@@ -149,7 +149,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                   </span>
                 </div>
                 {status.pr ? (
-                  <DeletePrNotice workspaces={[{ name: taskName, pr: status.pr }]} />
+                  <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} />
                 ) : null}
               </motion.div>
             ) : null}

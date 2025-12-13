@@ -41,7 +41,7 @@ const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
       }}
       onSelectTask={(projectId, taskId) => {
         const project = projects.find((p) => p.id === projectId);
-        const workspace = project?.workspaces?.find((w: Task) => w.id === taskId);
+        const workspace = project?.tasks?.find((w: Task) => w.id === taskId);
         if (project && workspace) {
           handleSelectProject(project);
           handleSelectTask(workspace);

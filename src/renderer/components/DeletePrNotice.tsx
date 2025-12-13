@@ -11,11 +11,11 @@ type PrInfo = {
 };
 
 type Props = {
-  workspaces: Array<{ name: string; pr: PrInfo }>;
+  tasks: Array<{ name: string; pr: PrInfo }>;
 };
 
-export const DeletePrNotice: React.FC<Props> = ({ workspaces }) => {
-  if (!workspaces.length) return null;
+export const DeletePrNotice: React.FC<Props> = ({ tasks }) => {
+  if (!tasks.length) return null;
 
   const handleOpen = (url?: string) => {
     if (!url) return;
@@ -31,7 +31,7 @@ export const DeletePrNotice: React.FC<Props> = ({ workspaces }) => {
         <p className="font-medium">Open PR detected</p>
       </div>
       <div className="space-y-1">
-        {workspaces.map((ws) => {
+        {tasks.map((ws) => {
           const badge = ws.pr.isDraft ? 'Draft' : 'PR';
           const number = typeof ws.pr.number === 'number' ? ` #${ws.pr.number}` : '';
           const state = ws.pr.state ? ` (${String(ws.pr.state)})` : '';

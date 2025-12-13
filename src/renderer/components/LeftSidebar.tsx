@@ -277,7 +277,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 </button>
                               </div>
                               <div className="hidden min-w-0 space-y-1 sm:block">
-                                {typedProject.workspaces?.map((task) => {
+                                {typedProject.tasks?.map((task) => {
                                   const isActive = activeTask?.id === task.id;
                                   return (
                                     <div

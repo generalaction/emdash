@@ -459,8 +459,8 @@ const AppContent: React.FC = () => {
 
         const projectsWithTasks = await Promise.all(
           initialProjects.map(async (project) => {
-            const workspaces = await window.electronAPI.getTasks(project.id);
-            return withRepoKey({ ...project, workspaces });
+            const tasks = await window.electronAPI.getTasks(project.id);
+            return withRepoKey({ ...project, tasks });
           })
         );
         const ordered = applyProjectOrder(projectsWithTasks);
@@ -547,7 +547,7 @@ const AppContent: React.FC = () => {
               branch: gitInfo.branch || undefined,
               baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
             },
-            workspaces: [],
+            tasks: [],
           };
 
           if (isAuthenticated && isGithubRemote) {
@@ -1094,7 +1094,7 @@ const AppContent: React.FC = () => {
             project.id === selectedProject.id
               ? {
                   ...project,
-                  workspaces: [newTask, ...(project.workspaces || [])],
+                  tasks: [newTask, ...(project.tasks || [])],
                 }
               : project
           )
@@ -1104,7 +1104,7 @@ const AppContent: React.FC = () => {
           prev
             ? {
                 ...prev,
-                workspaces: [newTask, ...(prev.workspaces || [])],
+                tasks: [newTask, ...(prev.tasks || [])],
               }
             : null
         );
@@ -1180,14 +1180,14 @@ const AppContent: React.FC = () => {
     setProjects((prev) =>
       prev.map((project) =>
         project.id === projectId
-          ? { ...project, workspaces: filterTasks(project.workspaces) }
+          ? { ...project, tasks: filterTasks(project.tasks) }
           : project
       )
     );
 
     setSelectedProject((prev) =>
       prev && prev.id === projectId
-        ? { ...prev, workspaces: filterTasks(prev.workspaces) }
+        ? { ...prev, tasks: filterTasks(prev.tasks) }
         : prev
     );
 
@@ -1309,22 +1309,22 @@ const AppContent: React.FC = () => {
         });
 
         try {
-          const refreshedWorkspaces = await window.electronAPI.getTasks(targetProject.id);
+          const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
           setProjects((prev) =>
             prev.map((project) =>
               project.id === targetProject.id
-                ? { ...project, workspaces: refreshedWorkspaces }
+                ? { ...project, tasks: refreshedTasks }
                 : project
             )
           );
           setSelectedProject((prev) =>
             prev && prev.id === targetProject.id
-              ? { ...prev, workspaces: refreshedWorkspaces }
+              ? { ...prev, tasks: refreshedTasks }
               : prev
           );
 
           if (wasActive) {
-            const restored = refreshedWorkspaces.find((w) => w.id === workspace.id);
+            const restored = refreshedTasks.find((w) => w.id === workspace.id);
             if (restored) {
               handleSelectTask(restored);
             }
@@ -1335,20 +1335,20 @@ const AppContent: React.FC = () => {
           setProjects((prev) =>
             prev.map((project) => {
               if (project.id !== targetProject.id) return project;
-              const existing = project.workspaces || [];
+              const existing = project.tasks || [];
               const alreadyPresent = existing.some((w) => w.id === taskSnapshot.id);
               return alreadyPresent
                 ? project
-                : { ...project, workspaces: [taskSnapshot, ...existing] };
+                : { ...project, tasks: [taskSnapshot, ...existing] };
             })
           );
           setSelectedProject((prev) => {
             if (!prev || prev.id !== targetProject.id) return prev;
-            const existing = prev.workspaces || [];
+            const existing = prev.tasks || [];
             const alreadyPresent = existing.some((w) => w.id === taskSnapshot.id);
             return alreadyPresent
               ? prev
-              : { ...prev, workspaces: [taskSnapshot, ...existing] };
+              : { ...prev, tasks: [taskSnapshot, ...existing] };
           });
 
           if (wasActive) {
@@ -1759,7 +1759,7 @@ const AppContent: React.FC = () => {
               onCreateTask={handleCreateTask}
               projectName={selectedProject?.name || ''}
               defaultBranch={selectedProject?.gitInfo.branch || 'main'}
-              existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
+              existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
               projectPath={selectedProject?.path}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />

@@ -16,12 +16,11 @@ export interface Project {
     repository: string;
     connected: boolean;
   };
-  // Internal DB field name kept as 'workspaces' for compatibility
-  workspaces?: Task[];
+  tasks?: Task[];
 }
 
 // Lightweight shapes for palette/list UIs, if needed later
 export type ProjectSummary = Pick<Project, 'id' | 'name'> & {
-  workspaces?: Pick<Task, 'id' | 'name'>[];
+  tasks?: Pick<Task, 'id' | 'name'>[];
 };
 export type TaskSummary = Pick<Task, 'id' | 'name'>;
