@@ -5,11 +5,11 @@ import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
 import {
   projects as projectsTable,
-  workspaces as workspacesTable,
+  tasks as tasksTable,
   conversations as conversationsTable,
   messages as messagesTable,
   type ProjectRow,
-  type WorkspaceRow,
+  type TaskRow,
   type ConversationRow,
   type MessageRow,
 } from '../db/schema';
@@ -217,7 +217,7 @@ export class DatabaseService {
           : null;
     const { db } = await getDrizzleClient();
     await db
-      .insert(workspacesTable)
+      .insert(tasksTable)
       .values({
         id: task.id,
         projectId: task.projectId,
@@ -230,7 +230,7 @@ export class DatabaseService {
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
-        target: workspacesTable.id,
+        target: tasksTable.id,
         set: {
           projectId: task.projectId,
           name: task.name,
@@ -248,14 +248,14 @@ export class DatabaseService {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
 
-    const rows: WorkspaceRow[] = projectId
+    const rows: TaskRow[] = projectId
       ? await db
           .select()
-          .from(workspacesTable)
-          .where(eq(workspacesTable.projectId, projectId))
-          .orderBy(desc(workspacesTable.updatedAt))
-      : await db.select().from(workspacesTable).orderBy(desc(workspacesTable.updatedAt));
-    return rows.map((row) => this.mapDrizzleWorkspaceRow(row));
+          .from(tasksTable)
+          .where(eq(tasksTable.projectId, projectId))
+          .orderBy(desc(tasksTable.updatedAt))
+      : await db.select().from(tasksTable).orderBy(desc(tasksTable.updatedAt));
+    return rows.map((row) => this.mapDrizzleTaskRow(row));
   }
 
   async deleteProject(projectId: string): Promise<void> {
@@ -267,7 +267,7 @@ export class DatabaseService {
   async deleteTask(taskId: string): Promise<void> {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
-    await db.delete(workspacesTable).where(eq(workspacesTable.id, taskId));
+    await db.delete(tasksTable).where(eq(tasksTable.id, taskId));
   }
 
   // Conversation management methods
@@ -469,7 +469,7 @@ export class DatabaseService {
     };
   }
 
-  private mapDrizzleWorkspaceRow(row: WorkspaceRow): Workspace {
+  private mapDrizzleTaskRow(row: TaskRow): Workspace {
     return {
       id: row.id,
       projectId: row.projectId,

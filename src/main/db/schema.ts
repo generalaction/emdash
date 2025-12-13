@@ -24,8 +24,8 @@ export const projects = sqliteTable(
   })
 );
 
-export const workspaces = sqliteTable(
-  'workspaces',
+export const tasks = sqliteTable(
+  'tasks',
   {
     id: text('id').primaryKey(),
     projectId: text('project_id')
@@ -45,7 +45,7 @@ export const workspaces = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
-    projectIdIdx: index('idx_workspaces_project_id').on(table.projectId),
+    projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
   })
 );
 
@@ -53,9 +53,9 @@ export const conversations = sqliteTable(
   'conversations',
   {
     id: text('id').primaryKey(),
-    taskId: text('workspace_id')
+    taskId: text('task_id')
       .notNull()
-      .references(() => workspaces.id, { onDelete: 'cascade' }),
+      .references(() => tasks.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     createdAt: text('created_at')
       .notNull()
@@ -65,7 +65,7 @@ export const conversations = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
-    taskIdIdx: index('idx_conversations_workspace_id').on(table.taskId),
+    taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
   })
 );
 
@@ -90,21 +90,21 @@ export const messages = sqliteTable(
 );
 
 export const projectsRelations = relations(projects, ({ many }) => ({
-  workspaces: many(workspaces),
+  tasks: many(tasks),
 }));
 
-export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
   project: one(projects, {
-    fields: [workspaces.projectId],
+    fields: [tasks.projectId],
     references: [projects.id],
   }),
   conversations: many(conversations),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
-  task: one(workspaces, {
+  task: one(tasks, {
     fields: [conversations.taskId],
-    references: [workspaces.id],
+    references: [tasks.id],
   }),
   messages: many(messages),
 }));
@@ -117,6 +117,6 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 }));
 
 export type ProjectRow = typeof projects.$inferSelect;
-export type WorkspaceRow = typeof workspaces.$inferSelect;
+export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;

@@ -11,9 +11,16 @@
     },
     {
       "idx": 1,
-      "version": "7",
+      "version": "6",
       "when": 1761240000000,
       "tag": "0001_add_base_ref_to_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1765592430354,
+      "tag": "0002_lyrical_impossible_man",
       "breakpoints": true
     }
   ]
