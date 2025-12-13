@@ -46,6 +46,9 @@ declare global {
             };
           };
           defaultProvider?: string;
+          tasks?: {
+            autoGenerateName: boolean;
+          };
         };
         error?: string;
       }>;
@@ -62,6 +65,9 @@ declare global {
             };
           };
           defaultProvider?: string;
+          tasks?: {
+            autoGenerateName?: boolean;
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -77,6 +83,9 @@ declare global {
             };
           };
           defaultProvider?: string;
+          tasks?: {
+            autoGenerateName: boolean;
+          };
         };
         error?: string;
       }>;
@@ -288,6 +297,9 @@ declare global {
           baseRefName?: string;
           title?: string;
           author?: any;
+          additions?: number;
+          deletions?: number;
+          changedFiles?: number;
         } | null;
         error?: string;
       }>;

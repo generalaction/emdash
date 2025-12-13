@@ -4,6 +4,7 @@ import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 import { cn } from '@/lib/utils';
+import type { Provider } from '../types';
 
 interface Workspace {
   id: string;
@@ -15,11 +16,28 @@ interface Workspace {
 
 interface Props {
   workspace: Workspace | null;
+  provider?: Provider;
   className?: string;
+  projectPath?: string;
 }
 
-const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className }) => {
+const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
+  workspace,
+  provider,
+  className,
+  projectPath,
+}) => {
   const { effectiveTheme } = useTheme();
+  const workspaceKey = workspace?.id ?? 'workspace-placeholder';
+  const workspaceTerminals = useWorkspaceTerminals(workspaceKey, workspace?.path);
+  const globalTerminals = useWorkspaceTerminals('global', projectPath, { defaultCwd: projectPath });
+  const [mode, setMode] = useState<'workspace' | 'global'>(workspace ? 'workspace' : 'global');
+  useEffect(() => {
+    if (!workspace && mode === 'workspace') {
+      setMode('global');
+    }
+  }, [workspace, mode]);
+
   const {
     terminals,
     activeTerminalId,
@@ -27,7 +45,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
     createTerminal,
     setActiveTerminal,
     closeTerminal,
-  } = useWorkspaceTerminals(workspace?.id ?? null, workspace?.path);
+  } = mode === 'global' ? globalTerminals : workspaceTerminals;
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -69,57 +87,59 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
   }, []);
 
   // Default theme (VS Code inspired)
-  const defaultTheme = useMemo(
-    () =>
-      effectiveTheme === 'dark'
-        ? {
-            background: '#1e1e1e',
-            foreground: '#d4d4d4',
-            cursor: '#aeafad',
-            cursorAccent: '#1e1e1e',
-            selectionBackground: '#264f78',
-            black: '#000000',
-            red: '#cd3131',
-            green: '#0dbc79',
-            yellow: '#e5e510',
-            blue: '#2472c8',
-            magenta: '#bc3fbc',
-            cyan: '#11a8cd',
-            white: '#e5e5e5',
-            brightBlack: '#666666',
-            brightRed: '#f14c4c',
-            brightGreen: '#23d18b',
-            brightYellow: '#f5f543',
-            brightBlue: '#3b8eea',
-            brightMagenta: '#d670d6',
-            brightCyan: '#29b8db',
-            brightWhite: '#ffffff',
-          }
-        : {
-            background: '#ffffff',
-            foreground: '#1e1e1e',
-            cursor: '#1e1e1e',
-            cursorAccent: '#ffffff',
-            selectionBackground: '#add6ff',
-            black: '#000000',
-            red: '#cd3131',
-            green: '#0dbc79',
-            yellow: '#bf8803',
-            blue: '#0451a5',
-            magenta: '#bc05bc',
-            cyan: '#0598bc',
-            white: '#e5e5e5',
-            brightBlack: '#666666',
-            brightRed: '#cd3131',
-            brightGreen: '#14ce14',
-            brightYellow: '#b5ba00',
-            brightBlue: '#0451a5',
-            brightMagenta: '#bc05bc',
-            brightCyan: '#0598bc',
-            brightWhite: '#a5a5a5',
-          },
-    [effectiveTheme]
-  );
+  const defaultTheme = useMemo(() => {
+    // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
+    const isMistral = provider === 'mistral';
+    const darkBackground = isMistral ? '#202938' : '#1e1e1e';
+
+    return effectiveTheme === 'dark'
+      ? {
+          background: darkBackground,
+          foreground: '#d4d4d4',
+          cursor: '#aeafad',
+          cursorAccent: darkBackground,
+          selectionBackground: '#264f78',
+          black: '#000000',
+          red: '#cd3131',
+          green: '#0dbc79',
+          yellow: '#e5e510',
+          blue: '#2472c8',
+          magenta: '#bc3fbc',
+          cyan: '#11a8cd',
+          white: '#e5e5e5',
+          brightBlack: '#666666',
+          brightRed: '#f14c4c',
+          brightGreen: '#23d18b',
+          brightYellow: '#f5f543',
+          brightBlue: '#3b8eea',
+          brightMagenta: '#d670d6',
+          brightCyan: '#29b8db',
+          brightWhite: '#ffffff',
+        }
+      : {
+          background: '#ffffff',
+          foreground: '#1e1e1e',
+          cursor: '#1e1e1e',
+          cursorAccent: '#ffffff',
+          selectionBackground: '#add6ff',
+          black: '#000000',
+          red: '#cd3131',
+          green: '#0dbc79',
+          yellow: '#bf8803',
+          blue: '#0451a5',
+          magenta: '#bc05bc',
+          cyan: '#0598bc',
+          white: '#e5e5e5',
+          brightBlack: '#666666',
+          brightRed: '#cd3131',
+          brightGreen: '#14ce14',
+          brightYellow: '#b5ba00',
+          brightBlue: '#0451a5',
+          brightMagenta: '#bc05bc',
+          brightCyan: '#0598bc',
+          brightWhite: '#a5a5a5',
+        };
+  }, [effectiveTheme, provider]);
 
   // Merge native theme with defaults (native theme takes precedence)
   const themeOverride = useMemo(() => {
@@ -133,7 +153,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
     };
   }, [nativeTheme, defaultTheme]);
 
-  if (!workspace) {
+  if (!workspace && !projectPath) {
     return (
       <div
         className={`flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 ${className}`}
@@ -149,7 +169,37 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
 
   return (
     <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
-      <div className="flex items-center border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
+      <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className={cn(
+              'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
+              mode === 'workspace'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-background/70'
+            )}
+            disabled={!workspace}
+            onClick={() => setMode('workspace')}
+            title={workspace ? 'Workspace terminal' : 'No workspace selected'}
+          >
+            Worktree
+          </button>
+          <button
+            type="button"
+            className={cn(
+              'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
+              mode === 'global'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-background/70'
+            )}
+            disabled={!projectPath}
+            onClick={() => setMode('global')}
+            title={projectPath ? 'Global terminal at project root' : 'No project selected'}
+          >
+            Global
+          </button>
+        </div>
         <div className="flex min-w-0 flex-1 items-center space-x-1 overflow-x-auto">
           {terminals.map((terminal) => {
             const isActive = terminal.id === activeTerminalId;
@@ -194,12 +244,15 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
           onClick={() => {
             void (async () => {
               const { captureTelemetry } = await import('../lib/telemetryClient');
-              captureTelemetry('terminal_new_terminal_created');
+              captureTelemetry('terminal_new_terminal_created', { scope: mode });
             })();
-            createTerminal();
+            createTerminal({
+              cwd: mode === 'global' ? projectPath : workspace?.path,
+            });
           }}
           className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
-          title="New terminal"
+          title={mode === 'global' ? 'New global terminal' : 'New workspace terminal'}
+          disabled={mode === 'workspace' && !workspace}
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -208,27 +261,36 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, className
       <div
         className={cn(
           'bw-terminal relative flex-1 overflow-hidden',
-          effectiveTheme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          effectiveTheme === 'dark'
+            ? provider === 'mistral'
+              ? 'bg-[#202938]'
+              : 'bg-gray-800'
+            : 'bg-white'
         )}
       >
-        {terminals.map((terminal) => (
-          <div
-            key={terminal.id}
-            className={cn(
-              'absolute inset-0 h-full w-full transition-opacity',
-              terminal.id === activeTerminalId ? 'opacity-100' : 'pointer-events-none opacity-0'
-            )}
-          >
-            <TerminalPane
-              id={terminal.id}
-              cwd={terminal.cwd || workspace.path}
-              variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
-              themeOverride={themeOverride}
-              className="h-full w-full"
-              keepAlive
-            />
-          </div>
-        ))}
+        {terminals.map((terminal) => {
+          const cwd =
+            terminal.cwd ||
+            (mode === 'global' ? projectPath || terminal.cwd : workspace?.path || terminal.cwd);
+          return (
+            <div
+              key={terminal.id}
+              className={cn(
+                'absolute inset-0 h-full w-full transition-opacity',
+                terminal.id === activeTerminalId ? 'opacity-100' : 'pointer-events-none opacity-0'
+              )}
+            >
+              <TerminalPane
+                id={terminal.id}
+                cwd={cwd}
+                variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
+                themeOverride={themeOverride}
+                className="h-full w-full"
+                keepAlive
+              />
+            </div>
+          );
+        })}
         {!terminals.length || !activeTerminal ? (
           <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
             <p>No terminal found.</p>

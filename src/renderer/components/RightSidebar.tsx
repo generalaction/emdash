@@ -20,9 +20,15 @@ export interface RightSidebarWorkspace {
 
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   workspace: RightSidebarWorkspace | null;
+  projectPath?: string | null;
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...rest }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({
+  workspace,
+  projectPath,
+  className,
+  ...rest
+}) => {
   const { collapsed } = useRightSidebar();
 
   // Detect multi-agent variants in workspace metadata
@@ -73,9 +79,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
       {...rest}
     >
       <div className="flex h-full w-full min-w-0 flex-col">
-        {workspace ? (
+        {workspace || projectPath ? (
           <div className="flex h-full flex-col">
-            {variants.length > 1 ? (
+            {workspace && variants.length > 1 ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {variants.map((v, i) => (
                   <div
@@ -113,7 +119,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                   </div>
                 ))}
               </div>
-            ) : variants.length === 1 ? (
+            ) : workspace && variants.length === 1 ? (
               (() => {
                 const v = variants[0];
                 const derived = {
@@ -127,18 +133,35 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                       path={v.path}
                       className="min-h-0 flex-1 border-b border-border"
                     />
-                    <WorkspaceTerminalPanel workspace={derived} className="min-h-0 flex-1" />
+                    <WorkspaceTerminalPanel
+                      workspace={derived}
+                      provider={v.provider}
+                      projectPath={projectPath || workspace?.path}
+                      className="min-h-0 flex-1"
+                    />
                   </>
                 );
               })()
-            ) : (
+            ) : workspace ? (
               <>
                 <FileChangesPanel
                   workspaceId={workspace.path}
                   className="min-h-0 flex-1 border-b border-border"
                 />
-                <WorkspaceTerminalPanel workspace={workspace} className="min-h-0 flex-1" />
+                <WorkspaceTerminalPanel
+                  workspace={workspace}
+                  provider={workspace.agentId as Provider}
+                  projectPath={projectPath || workspace?.path}
+                  className="min-h-0 flex-1"
+                />
               </>
+            ) : (
+              <WorkspaceTerminalPanel
+                workspace={null}
+                provider={undefined}
+                projectPath={projectPath || undefined}
+                className="min-h-0 flex-1"
+              />
             )}
           </div>
         ) : (

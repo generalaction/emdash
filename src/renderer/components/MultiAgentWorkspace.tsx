@@ -14,6 +14,7 @@ import { Spinner } from './ui/spinner';
 import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { useAutoScrollOnWorkspaceSwitch } from '@/hooks/useAutoScrollOnWorkspaceSwitch';
 
 interface Props {
   workspace: Workspace;
@@ -37,6 +38,9 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
   const multi = workspace.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
+
+  // Auto-scroll to bottom when this workspace becomes active
+  const { scrollToBottom } = useAutoScrollOnWorkspaceSwitch(true, workspace.id);
 
   // Helper to generate display label with instance number if needed
   const getVariantDisplayLabel = (variant: Variant): string => {
@@ -344,6 +348,17 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
     activityStore.setWorkspaceBusy(workspace.id, anyBusy);
   }, [variantBusy, workspace.id]);
 
+  // Scroll to bottom when active tab changes
+  useEffect(() => {
+    if (variants.length > 0 && activeTabIndex >= 0 && activeTabIndex < variants.length) {
+      // Small delay to ensure the tab content is rendered
+      const timeout = setTimeout(() => {
+        scrollToBottom({ onlyIfNearTop: true });
+      }, 150);
+      return () => clearTimeout(timeout);
+    }
+  }, [activeTabIndex, variants.length, scrollToBottom]);
+
   if (!multi?.enabled || variants.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -415,7 +430,13 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
               <div className="min-h-0 flex-1 px-6 pt-4">
                 <div
                   className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                    isDark ? 'bg-gray-800' : 'bg-white'
+                    v.provider === 'mistral'
+                      ? isDark
+                        ? 'bg-[#202938]'
+                        : 'bg-white'
+                      : isDark
+                        ? 'bg-gray-800'
+                        : 'bg-white'
                   }`}
                 >
                   <TerminalPane
@@ -431,6 +452,11 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     }
                     keepAlive
                     variant={isDark ? 'dark' : 'light'}
+                    themeOverride={
+                      v.provider === 'mistral'
+                        ? { background: isDark ? '#202938' : '#ffffff' }
+                        : undefined
+                    }
                     className="h-full w-full"
                     onStartSuccess={() => {
                       // For providers WITHOUT CLI flag support, use keystroke injection

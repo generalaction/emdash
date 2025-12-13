@@ -39,6 +39,10 @@ class SessionRegistry {
     this.sessions.delete(workspaceId);
   }
 
+  getSession(workspaceId: string): TerminalSessionManager | undefined {
+    return this.sessions.get(workspaceId);
+  }
+
   disposeAll() {
     for (const id of Array.from(this.sessions.keys())) {
       this.dispose(id);

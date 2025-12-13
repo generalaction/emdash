@@ -24,9 +24,9 @@
 
 <br />
 
-**Run multiple coding agents in parallel—provider-agnostic, worktree-isolated, and local-first.**
+**Run multiple coding agents in parallel**
 
-Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (we support 15+ CLIs, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; Hand off Linear, GitHub, or Jira tickets to an agent and review diffs side-by-side.
+Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (supports 15+ CLIs, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; Hand off Linear, GitHub, or Jira tickets to an agent and review diffs side-by-side.
 
 <div align="center" style="margin:24px 0;">
 
@@ -84,7 +84,7 @@ Emdash currently supports fifteen CLI providers and we are adding new providers 
 
 ### Issues
 
-Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your coding agent at workspace creation. 
+Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your coding agent. 
 
 | Tool | Status | Authentication |
 | ----------- | ------ | ----------- |
@@ -195,7 +195,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > - **Network:** only for provider CLIs you choose to use (e.g., Codex, Claude) and optional GitHub actions.  
 > - **Local DB:** to store your app state in SQLite on your machine.
 >
-> Emdash itself does **not** send your code or chats to our servers. Third‑party CLIs may transmit data per their policies.
+> Emdash itself does **not** send your code or chats to any servers. Third‑party CLIs may transmit data per their policies.
 </details>
 
 [![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)

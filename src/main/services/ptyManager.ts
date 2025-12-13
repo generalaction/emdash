@@ -33,7 +33,8 @@ export function startPty(options: {
   }
   const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove, initialPrompt } = options;
 
-  let useShell = shell || getDefaultShell();
+  const defaultShell = getDefaultShell();
+  let useShell = shell || defaultShell;
   const useCwd = cwd || process.cwd() || os.homedir();
   const useEnv = {
     TERM: 'xterm-256color',
@@ -98,26 +99,54 @@ export function startPty(options: {
     throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
   }
 
-  // Provide sensible defaults for interactive shells so they render prompts
+  // Provide sensible defaults for interactive shells so they render prompts.
+  // For provider CLIs, spawn the user's shell and run the provider command via -c,
+  // then exec back into the shell to allow users to stay in a normal prompt after exiting the agent.
   const args: string[] = [];
   if (process.platform !== 'win32') {
     try {
       const base = String(useShell).split('/').pop() || '';
-
       const baseLower = base.toLowerCase();
       const provider = PROVIDERS.find((p) => p.cli === baseLower);
 
       if (provider) {
-        args.length = 0;
+        // Build the provider command with flags
+        const cliArgs: string[] = [];
+        if (provider.defaultArgs?.length) {
+          cliArgs.push(...provider.defaultArgs);
+        }
         if (autoApprove && provider.autoApproveFlag) {
-          args.push(provider.autoApproveFlag);
+          cliArgs.push(provider.autoApproveFlag);
         }
         if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
           if (provider.initialPromptFlag) {
-            args.push(provider.initialPromptFlag);
+            cliArgs.push(provider.initialPromptFlag);
           }
-          args.push(initialPrompt.trim());
+          cliArgs.push(initialPrompt.trim());
         }
+
+        const cliCommand = provider.cli || baseLower;
+        const commandString =
+          cliArgs.length > 0
+            ? `${cliCommand} ${cliArgs
+                .map((arg) =>
+                  /[\s'"\\$`\n\r\t]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg
+                )
+                .join(' ')}`
+            : cliCommand;
+
+        // After the provider exits, exec back into the user's shell (login+interactive)
+        const resumeShell = `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
+        const chainCommand = `${commandString}; exec ${resumeShell}`;
+
+        // Always use the default shell for the -c command to avoid re-detecting provider CLI
+        useShell = defaultShell;
+        const shellBase = defaultShell.split('/').pop() || '';
+        if (shellBase === 'zsh') args.push('-lic', chainCommand);
+        else if (shellBase === 'bash') args.push('-lic', chainCommand);
+        else if (shellBase === 'fish') args.push('-ic', chainCommand);
+        else if (shellBase === 'sh') args.push('-lc', chainCommand);
+        else args.push('-c', chainCommand); // Fallback for other shells
       } else {
         // For normal shells, use login + interactive to load user configs
         if (base === 'zsh') args.push('-il');
@@ -177,7 +206,6 @@ export function resizePty(id: string, cols: number, rows: number): void {
   try {
     rec.proc.resize(cols, rows);
   } catch (error: any) {
-    // EBADF or native errors typically mean the PTY has already exited
     if (
       error &&
       (error.code === 'EBADF' ||

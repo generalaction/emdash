@@ -297,6 +297,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         'baseRefName',
         'title',
         'author',
+        'additions',
+        'deletions',
+        'changedFiles',
       ];
       const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
       try {
@@ -304,6 +307,44 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const json = (stdout || '').trim();
         const data = json ? JSON.parse(json) : null;
         if (!data) return { success: false, error: 'No PR data returned' };
+
+        // Fallback: if GH CLI didn't return diff stats, try to compute locally
+        const asNumber = (v: any): number | null =>
+          typeof v === 'number' && Number.isFinite(v)
+            ? v
+            : typeof v === 'string' && Number.isFinite(Number.parseInt(v, 10))
+              ? Number.parseInt(v, 10)
+              : null;
+
+        const hasAdd = asNumber(data?.additions) !== null;
+        const hasDel = asNumber(data?.deletions) !== null;
+        const hasFiles = asNumber(data?.changedFiles) !== null;
+
+        if (!hasAdd || !hasDel || !hasFiles) {
+          const baseRef = typeof data?.baseRefName === 'string' ? data.baseRefName.trim() : '';
+          const targetRef = baseRef ? `origin/${baseRef}` : '';
+          const shortstatCmd = targetRef
+            ? `git diff --shortstat ${JSON.stringify(targetRef)}...HEAD`
+            : 'git diff --shortstat HEAD~1..HEAD';
+          try {
+            const { stdout: diffOut } = await execAsync(shortstatCmd, { cwd: workspacePath });
+            const statLine = (diffOut || '').trim();
+            const m =
+              statLine &&
+              statLine.match(
+                /(\d+)\s+files? changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/
+              );
+            if (m) {
+              const [, filesStr, addStr, delStr] = m;
+              if (!hasFiles && filesStr) data.changedFiles = Number.parseInt(filesStr, 10);
+              if (!hasAdd && addStr) data.additions = Number.parseInt(addStr, 10);
+              if (!hasDel && delStr) data.deletions = Number.parseInt(delStr, 10);
+            }
+          } catch {
+            // best-effort only; ignore failures
+          }
+        }
+
         return { success: true, pr: data };
       } catch (err) {
         const msg = String(err as string);
@@ -386,21 +427,46 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           activeBranch = name;
         }
 
-        // Stage all and commit if there are changes
+        // Stage (only if needed) and commit
         try {
           const { stdout: st } = await execAsync('git status --porcelain', { cwd: workspacePath });
-          if (st && st.trim().length > 0) {
+          const hasWorkingChanges = Boolean(st && st.trim().length > 0);
+
+          const readStagedFiles = async () => {
+            try {
+              const { stdout } = await execAsync('git diff --cached --name-only', {
+                cwd: workspacePath,
+              });
+              return (stdout || '')
+                .split('\n')
+                .map((f) => f.trim())
+                .filter(Boolean);
+            } catch {
+              return [];
+            }
+          };
+
+          let stagedFiles = await readStagedFiles();
+
+          // Only auto-stage everything when nothing is staged yet (preserves manual staging choices)
+          if (hasWorkingChanges && stagedFiles.length === 0) {
             await execAsync('git add -A', { cwd: workspacePath });
-            // Never stage plan mode artifacts
-            try {
-              await execAsync('git reset -q .emdash || true', { cwd: workspacePath });
-            } catch {}
-            try {
-              await execAsync('git reset -q PLANNING.md || true', { cwd: workspacePath });
-            } catch {}
-            try {
-              await execAsync('git reset -q planning.md || true', { cwd: workspacePath });
-            } catch {}
+          }
+
+          // Never commit plan mode artifacts
+          try {
+            await execAsync('git reset -q .emdash || true', { cwd: workspacePath });
+          } catch {}
+          try {
+            await execAsync('git reset -q PLANNING.md || true', { cwd: workspacePath });
+          } catch {}
+          try {
+            await execAsync('git reset -q planning.md || true', { cwd: workspacePath });
+          } catch {}
+
+          stagedFiles = await readStagedFiles();
+
+          if (stagedFiles.length > 0) {
             try {
               await execAsync(`git commit -m ${JSON.stringify(commitMessage)}`, {
                 cwd: workspacePath,

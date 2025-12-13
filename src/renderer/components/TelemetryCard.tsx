@@ -20,13 +20,11 @@ const TelemetryCard: React.FC = () => {
               size="sm"
               className="group inline-flex h-auto items-center gap-1 px-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline focus-visible:outline-none focus-visible:ring-0"
               onClick={() =>
-                window.electronAPI.openExternal(
-                  'https://github.com/generalaction/emdash/blob/main/docs/telemetry.md'
-                )
+                window.electronAPI.openExternal('https://docs.emdash.sh/security/telemetry')
               }
             >
               <span className="transition-colors group-hover:text-foreground">
-                docs/telemetry.md
+                Telemetry information
               </span>
               <span className="text-xs text-muted-foreground transition-colors group-hover:text-foreground">
                 ↗

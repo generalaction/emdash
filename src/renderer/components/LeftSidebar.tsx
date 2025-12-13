@@ -23,20 +23,6 @@ import ProjectDeleteButton from './ProjectDeleteButton';
 import type { Project } from '../types/app';
 import type { Workspace } from '../types/chat';
 
-const SidebarToggleButton: React.FC = () => {
-  const { toggle } = useSidebar();
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={toggle}
-      className="absolute -right-3 top-4 z-20 hidden h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-background/80 lg:inline-flex"
-      aria-label="Toggle sidebar"
-    ></Button>
-  );
-};
-
 interface LeftSidebarProps {
   projects: Project[];
   selectedProject: Project | null;
@@ -139,7 +125,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   return (
     <div className="relative h-full">
-      <Sidebar className="lg:border-r-0">
+      <Sidebar className="!w-full lg:border-r-0">
         <SidebarContent>
           <SidebarGroup className="mb-3">
             <SidebarGroupContent>
@@ -147,13 +133,13 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    className={isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}
+                    className={`min-w-0 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
                   >
                     <Button
                       variant="ghost"
                       onClick={onGoHome}
                       aria-label="Home"
-                      className="justify-start"
+                      className="w-full justify-start"
                     >
                       <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
                       <span className="hidden text-sm font-medium sm:inline">Home</span>
@@ -263,7 +249,33 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           </div>
 
                           <CollapsibleContent asChild>
-                            <div className="ml-7 mt-2 min-w-0 space-y-1">
+                            <div className="ml-7 mt-2 min-w-0">
+                              <div className="bg-sidebar pb-1">
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (
+                                      onSelectProject &&
+                                      selectedProject?.id !== typedProject.id
+                                    ) {
+                                      onSelectProject(typedProject);
+                                    } else if (!selectedProject) {
+                                      onSelectProject?.(typedProject);
+                                    }
+                                    onCreateWorkspaceForProject?.(typedProject);
+                                  }}
+                                  disabled={isCreatingWorkspace}
+                                  aria-label={`Add Task to ${typedProject.name}`}
+                                >
+                                  <Plus
+                                    className="h-3 w-3 flex-shrink-0 text-gray-400"
+                                    aria-hidden
+                                  />
+                                  <span className="truncate">Add Task</span>
+                                </button>
+                              </div>
                               <div className="hidden min-w-0 space-y-1 sm:block">
                                 {typedProject.workspaces?.map((workspace) => {
                                   const isActive = activeWorkspace?.id === workspace.id;
@@ -298,24 +310,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   );
                                 })}
                               </div>
-                              <button
-                                type="button"
-                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (onSelectProject && selectedProject?.id !== typedProject.id) {
-                                    onSelectProject(typedProject);
-                                  } else if (!selectedProject) {
-                                    onSelectProject?.(typedProject);
-                                  }
-                                  onCreateWorkspaceForProject?.(typedProject);
-                                }}
-                                disabled={isCreatingWorkspace}
-                                aria-label={`Add Task to ${typedProject.name}`}
-                              >
-                                <Plus className="h-3 w-3 flex-shrink-0 text-gray-400" aria-hidden />
-                                <span className="truncate">Add Task</span>
-                              </button>
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
@@ -376,7 +370,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarToggleButton />
     </div>
   );
 };

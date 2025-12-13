@@ -16,6 +16,7 @@ export const PROVIDER_IDS = [
   'rovo',
   'cline',
   'codebuff',
+  'mistral',
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -31,6 +32,7 @@ export type ProviderDefinition = {
   cli?: string;
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
   icon?: string;
@@ -74,6 +76,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'cursor-agent',
     autoApproveFlag: '-p',
+    initialPromptFlag: '',
     icon: 'cursorlogo.png',
     terminalOnly: true,
   },
@@ -86,6 +89,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'gemini',
     autoApproveFlag: '--yolomode',
+    initialPromptFlag: '-i',
     icon: 'gemini.png',
     terminalOnly: true,
   },
@@ -98,6 +102,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'qwen',
     autoApproveFlag: '--yolo',
+    initialPromptFlag: '-i',
     icon: 'qwen.png',
     terminalOnly: true,
   },
@@ -109,6 +114,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['droid'],
     versionArgs: ['--version'],
     cli: 'droid',
+    initialPromptFlag: '',
     icon: 'factorydroid.png',
     terminalOnly: true,
   },
@@ -131,7 +137,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    autoApproveFlag: '-p',
+    initialPromptFlag: '-p',
     icon: 'opencode.png',
     terminalOnly: true,
   },
@@ -165,6 +171,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['auggie'],
     versionArgs: ['--version'],
     cli: 'auggie',
+    initialPromptFlag: '',
+    // otherwise user is prompted each time before prompt is passed
+    defaultArgs: ['--allow-indexing'],
     icon: 'augmentcode.png',
     terminalOnly: true,
   },
@@ -176,6 +185,9 @@ export const PROVIDERS: ProviderDefinition[] = [
       'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
     detectable: false,
     cli: 'goose',
+    // run subcommand with -s for interactive mode after initial prompt
+    defaultArgs: ['run', '-s'],
+    initialPromptFlag: '-t',
     icon: 'goose.png',
     terminalOnly: true,
   },
@@ -183,10 +195,11 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: 'kimi',
     name: 'Kimi',
     docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
-    installCommand: 'uv tool install --python 3.13 kimi-cli',
+    installCommand: 'uv tool install kimi-cli',
     commands: ['kimi'],
-    versionArgs: ['--help'],
+    versionArgs: ['--version'],
     cli: 'kimi',
+    initialPromptFlag: '-c',
     icon: 'kimi.png',
     terminalOnly: true,
   },
@@ -198,6 +211,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['kiro-cli', 'kiro'],
     versionArgs: ['--version'],
     cli: 'kiro-cli',
+    defaultArgs: ['chat'],
+    initialPromptFlag: '',
     icon: 'kiro.png',
     terminalOnly: true,
   },
@@ -221,6 +236,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['cline'],
     versionArgs: ['help'],
     cli: 'cline',
+    initialPromptFlag: '',
     icon: 'cline.png',
     terminalOnly: true,
   },
@@ -232,7 +248,21 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['codebuff'],
     versionArgs: ['--version'],
     cli: 'codebuff',
+    initialPromptFlag: '',
     icon: 'codebuff.png',
+    terminalOnly: true,
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral Vibe',
+    docUrl: 'https://github.com/mistralai/mistral-vibe',
+    installCommand: 'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
+    commands: ['vibe'],
+    versionArgs: ['-h'],
+    cli: 'vibe',
+    autoApproveFlag: '--auto-approve',
+    initialPromptFlag: '--prompt',
+    icon: 'mistral.png',
     terminalOnly: true,
   },
 ];

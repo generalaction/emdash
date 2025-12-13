@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
+import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight, Folder } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';
@@ -27,6 +27,7 @@ import ContainerStatusBadge from './ContainerStatusBadge';
 import WorkspacePorts from './WorkspacePorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
+import DeletePrNotice from './DeletePrNotice';
 import {
   getContainerRunState,
   startContainerRun,
@@ -34,6 +35,7 @@ import {
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
+import PrPreviewTooltip from './PrPreviewTooltip';
 import type { Project, Workspace } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -316,22 +318,24 @@ function WorkspaceRow({
             </button>
           ) : null}
           {!isLoading && totalAdditions === 0 && totalDeletions === 0 && pr ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (pr.url) window.electronAPI.openExternal(pr.url);
-              }}
-              className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              title={`${pr.title || 'Pull Request'} (#${pr.number})`}
-            >
-              {pr.isDraft
-                ? 'Draft'
-                : String(pr.state).toUpperCase() === 'OPEN'
-                  ? 'View PR'
-                  : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
-              <ArrowUpRight className="size-3" />
-            </button>
+            <PrPreviewTooltip pr={pr} side="top">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (pr.url) window.electronAPI.openExternal(pr.url);
+                }}
+                className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+              >
+                {pr.isDraft
+                  ? 'Draft'
+                  : String(pr.state).toUpperCase() === 'OPEN'
+                    ? 'View PR'
+                    : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+                <ArrowUpRight className="size-3" />
+              </button>
+            </PrPreviewTooltip>
           ) : null}
           {/* Agent badge commented out per user request
           {ws.agentId && <Badge variant="outline">agent</Badge>}
@@ -347,6 +351,8 @@ function WorkspaceRow({
           ) : (
             <WorkspaceDeleteButton
               workspaceName={ws.name}
+              workspaceId={ws.id}
+              workspacePath={ws.path}
               onConfirm={async () => {
                 try {
                   setIsDeleting(true);
@@ -417,9 +423,71 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
 
   const workspaces = project.workspaces ?? [];
   const selectedCount = selectedIds.size;
+  const selectedWorkspaces = useMemo(
+    () => workspaces.filter((ws) => selectedIds.has(ws.id)),
+    [selectedIds, workspaces]
+  );
+  const [deleteStatus, setDeleteStatus] = useState<
+    Record<
+      string,
+      {
+        staged: number;
+        unstaged: number;
+        untracked: number;
+        ahead: number;
+        behind: number;
+        error?: string;
+        pr?: {
+          number?: number;
+          title?: string;
+          url?: string;
+          state?: string;
+          isDraft?: boolean;
+        } | null;
+      }
+    >
+  >({});
+  const [deleteStatusLoading, setDeleteStatusLoading] = useState(false);
+  const deleteRisks = useMemo(() => {
+    const riskyIds = new Set<string>();
+    const summaries: Record<string, string> = {};
+    for (const ws of selectedWorkspaces) {
+      const status = deleteStatus[ws.id];
+      if (!status) continue;
+      const dirty =
+        status.staged > 0 ||
+        status.unstaged > 0 ||
+        status.untracked > 0 ||
+        status.ahead > 0 ||
+        !!status.error ||
+        !!status.pr;
+      if (dirty) {
+        riskyIds.add(ws.id);
+        const parts: string[] = [];
+        if (status.staged > 0)
+          parts.push(`${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`);
+        if (status.unstaged > 0)
+          parts.push(`${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`);
+        if (status.untracked > 0)
+          parts.push(`${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`);
+        if (status.ahead > 0)
+          parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
+        if (status.behind > 0)
+          parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
+        if (status.pr) parts.push('PR open');
+        if (!parts.length && status.error) parts.push('status unavailable');
+        summaries[ws.id] = parts.join(', ');
+      }
+    }
+    return { riskyIds, summaries };
+  }, [deleteStatus, selectedWorkspaces]);
+  const deleteDisabled: boolean =
+    Boolean(isDeleting || deleteStatusLoading) ||
+    (deleteRisks.riskyIds.size > 0 && acknowledgeDirtyDelete !== true);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -481,6 +549,92 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
   }, [project.id, project.gitInfo.baseRef]);
+
+  useEffect(() => {
+    if (!showDeleteDialog) {
+      setDeleteStatus({});
+      setAcknowledgeDirtyDelete(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadStatus = async () => {
+      setDeleteStatusLoading(true);
+      const next: typeof deleteStatus = {};
+
+      for (const ws of selectedWorkspaces) {
+        try {
+          const [statusRes, infoRes, prRes] = await Promise.allSettled([
+            window.electronAPI.getGitStatus(ws.path),
+            window.electronAPI.getGitInfo(ws.path),
+            window.electronAPI.getPrStatus({ workspacePath: ws.path }),
+          ]);
+
+          let staged = 0;
+          let unstaged = 0;
+          let untracked = 0;
+          if (
+            statusRes.status === 'fulfilled' &&
+            statusRes.value?.success &&
+            statusRes.value.changes
+          ) {
+            for (const change of statusRes.value.changes) {
+              if (change.status === 'untracked') {
+                untracked += 1;
+              } else if (change.isStaged) {
+                staged += 1;
+              } else {
+                unstaged += 1;
+              }
+            }
+          }
+
+          const ahead =
+            infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
+              ? infoRes.value.aheadCount
+              : 0;
+          const behind =
+            infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
+              ? infoRes.value.behindCount
+              : 0;
+          const pr =
+            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
+
+          next[ws.id] = {
+            staged,
+            unstaged,
+            untracked,
+            ahead,
+            behind,
+            error:
+              statusRes.status === 'fulfilled'
+                ? statusRes.value?.error
+                : statusRes.reason?.message || String(statusRes.reason || ''),
+            pr,
+          };
+        } catch (error: any) {
+          next[ws.id] = {
+            staged: 0,
+            unstaged: 0,
+            untracked: 0,
+            ahead: 0,
+            behind: 0,
+            error: error?.message || String(error),
+          };
+        }
+      }
+
+      if (!cancelled) {
+        setDeleteStatus(next);
+        setDeleteStatusLoading(false);
+      }
+    };
+
+    void loadStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [showDeleteDialog, selectedWorkspaces]);
 
   useEffect(() => {
     let cancelled = false;
@@ -729,11 +883,85 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               This will permanently delete the selected tasks and their worktrees.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-3">
+            <AnimatePresence initial={false}>
+              {deleteRisks.riskyIds.size > 0 ? (
+                <motion.div
+                  key="bulk-risk"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
+                >
+                  <p className="font-medium">Unmerged or unpushed work detected</p>
+                  <ul className="space-y-1">
+                    {selectedWorkspaces.map((ws) => {
+                      const summary = deleteRisks.summaries[ws.id];
+                      const status = deleteStatus[ws.id];
+                      if (!summary && !status?.error) return null;
+                      return (
+                        <li
+                          key={ws.id}
+                          className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
+                        >
+                          <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
+                          <span className="font-medium">{ws.name}</span>
+                          <span className="text-muted-foreground">—</span>
+                          <span>{summary || status?.error || 'Status unavailable'}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+
+            <AnimatePresence initial={false}>
+              {(() => {
+                const prWorkspaces = selectedWorkspaces
+                  .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
+                  .filter((w) => w.pr);
+                return prWorkspaces.length ? (
+                  <motion.div
+                    key="bulk-pr-notice"
+                    initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                    transition={{ duration: 0.2, ease: 'easeOut', delay: 0.02 }}
+                  >
+                    <DeletePrNotice workspaces={prWorkspaces as any} />
+                  </motion.div>
+                ) : null;
+              })()}
+            </AnimatePresence>
+
+            <AnimatePresence initial={false}>
+              {deleteRisks.riskyIds.size > 0 ? (
+                <motion.label
+                  key="bulk-ack"
+                  className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.18, ease: 'easeOut', delay: 0.03 }}
+                >
+                  <Checkbox
+                    id="ack-delete"
+                    checked={acknowledgeDirtyDelete}
+                    onCheckedChange={(val) => setAcknowledgeDirtyDelete(val === true)}
+                  />
+                  <span className="leading-tight">Delete tasks anyway</span>
+                </motion.label>
+              ) : null}
+            </AnimatePresence>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive px-4 text-destructive-foreground hover:bg-destructive/90"
               onClick={handleBulkDelete}
+              disabled={deleteDisabled}
             >
               Delete
             </AlertDialogAction>

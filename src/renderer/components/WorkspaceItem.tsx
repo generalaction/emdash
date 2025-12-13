@@ -6,6 +6,7 @@ import { ChangesBadge } from './WorkspaceChanges';
 import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useWorkspaceBusy } from '../hooks/useWorkspaceBusy';
+import PrPreviewTooltip from './PrPreviewTooltip';
 
 interface Workspace {
   id: string;
@@ -50,6 +51,8 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         {showDelete && onDelete ? (
           <WorkspaceDeleteButton
             workspaceName={workspace.name}
+            workspaceId={workspace.id}
+            workspacePath={workspace.path}
             onConfirm={async () => {
               try {
                 setIsDeleting(true);
@@ -69,22 +72,24 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
           {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
             <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
           ) : pr ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (pr.url) window.electronAPI.openExternal(pr.url);
-              }}
-              className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              title={`${pr.title || 'Pull Request'} (#${pr.number})`}
-            >
-              {pr.isDraft
-                ? 'Draft'
-                : String(pr.state).toUpperCase() === 'OPEN'
-                  ? 'View PR'
-                  : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
-              <ArrowUpRight className="size-3" />
-            </button>
+            <PrPreviewTooltip pr={pr} side="top">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (pr.url) window.electronAPI.openExternal(pr.url);
+                }}
+                className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+              >
+                {pr.isDraft
+                  ? 'Draft'
+                  : String(pr.state).toUpperCase() === 'OPEN'
+                    ? 'View PR'
+                    : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+                <ArrowUpRight className="size-3" />
+              </button>
+            </PrPreviewTooltip>
           ) : null}
         </div>
       </div>

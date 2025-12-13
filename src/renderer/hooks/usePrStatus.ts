@@ -9,6 +9,9 @@ export type PrStatus = {
   headRefName?: string;
   baseRefName?: string;
   title?: string;
+  additions?: number;
+  deletions?: number;
+  changedFiles?: number;
 };
 
 export function usePrStatus(workspacePath?: string) {
