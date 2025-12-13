@@ -421,7 +421,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         );
                         onClose();
                       } catch (error) {
-                        console.error('Failed to create workspace:', error);
+                        console.error('Failed to create task:', error);
                       } finally {
                         setIsCreating(false);
                       }

@@ -4,7 +4,7 @@ import { classifyActivity } from '../lib/activityClassifier';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
- * One-shot per workspace. Provider-agnostic.
+ * One-shot per task. Provider-agnostic.
  */
 export function useInitialPromptInjection(opts: {
   taskId: string;

@@ -133,7 +133,7 @@ function updateWorkspaceState(event: RunnerEvent) {
       try {
         listener({ ...state });
       } catch (error) {
-        log.warn?.('[containers] workspace listener failure', error);
+        log.warn?.('[containers] task listener failure', error);
       }
     }
   }
@@ -150,7 +150,7 @@ function ensureSubscribed() {
       try {
         updateWorkspaceState(event);
       } catch (error) {
-        log.error('[containers] failed to update workspace state', error);
+        log.error('[containers] failed to update task state', error);
       }
       for (const listener of listeners) {
         try {
@@ -188,7 +188,7 @@ export function subscribeToWorkspaceRunState(
     try {
       listener({ ...current });
     } catch (error) {
-      log.warn?.('[containers] workspace listener init failure', error);
+      log.warn?.('[containers] task listener init failure', error);
     }
   }
 
@@ -280,7 +280,7 @@ export function subscribeToAllRunStates(
 }
 
 /**
- * Inspect any existing compose stack for this workspace and hydrate local state,
+ * Inspect any existing compose stack for this task and hydrate local state,
  * so UI shows ports/running status after a window refresh.
  */
 export async function refreshWorkspaceRunState(taskId: string) {

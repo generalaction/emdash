@@ -92,7 +92,7 @@ export const ProviderBar: React.FC<Props> = ({
       if (!c7Enabled) return;
 
       if (!c7WorkspaceEnabled) {
-        // Enable for this workspace and send invocation once
+        // Enable for this task and send invocation once
         try {
           localStorage.setItem(`c7:ws:${taskId}`, '1');
         } catch {}
@@ -408,8 +408,8 @@ export const ProviderBar: React.FC<Props> = ({
                       title={
                         c7Enabled
                           ? c7WorkspaceEnabled
-                            ? 'Disable Context7 for this workspace'
-                            : 'Enable for this workspace & send to terminal'
+                            ? 'Disable Context7 for this task'
+                            : 'Enable for this task & send to terminal'
                           : 'Enable Context7 in Settings → MCP to use here'
                       }
                     >

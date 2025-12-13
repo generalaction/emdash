@@ -36,17 +36,17 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }
   if (!activeRuns.length) return null;
 
   // Resolve workspace/project mapping for display and navigation
-  const byId = new Map<string, { project: any | null; workspace: any | null }>();
+  const byId = new Map<string, { project: any | null; task: any | null }>();
   for (const s of activeRuns) {
-    let match: { project: any | null; workspace: any | null } | null = null;
+    let match: { project: any | null; task: any | null } | null = null;
     for (const proj of projects) {
       const ws = (proj.tasks || []).find((w: any) => w.id === s.taskId) || null;
       if (ws) {
-        match = { project: proj, workspace: ws };
+        match = { project: proj, task: ws };
         break;
       }
     }
-    byId.set(s.taskId, match ?? { project: null, workspace: null });
+    byId.set(s.taskId, match ?? { project: null, task: null });
   }
 
   return (
@@ -65,7 +65,7 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }
           {activeRuns.map((s) => {
             const info = byId.get(s.taskId);
             const project = info?.project || null;
-            const ws = info?.workspace || null;
+            const ws = info?.task || null;
             const name = ws?.name || s.taskId;
             const previewUrl = s.previewUrl;
             const onOpen = () => {

@@ -63,7 +63,7 @@ export async function buildAttachmentsSection(
   }
 
   if (parts.length === 0) return '';
-  return `\n\n---\nAttached files (from workspace):\n\n${parts.join('\n\n')}\n`;
+  return `\n\n---\nAttached files (from task):\n\n${parts.join('\n\n')}\n`;
 }
 
 export function buildImageAttachmentsSection(taskPath: string, relPaths: string[]): string {
@@ -77,5 +77,5 @@ export function buildImageAttachmentsSection(taskPath: string, relPaths: string[
     const url = `file://${absPath}`;
     lines.push(`![${name}](${url})`);
   }
-  return `\n\n---\nAttached images (from workspace):\n\n${lines.join('\n')}\n`;
+  return `\n\n---\nAttached images (from task):\n\n${lines.join('\n')}\n`;
 }

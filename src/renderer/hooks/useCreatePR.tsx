@@ -27,7 +27,7 @@ export function useCreatePR() {
   const createPR = async (opts: CreatePROptions) => {
     const {
       taskPath,
-      commitMessage = 'chore: apply workspace changes',
+      commitMessage = 'chore: apply task changes',
       createBranchIfOnDefault = true,
       branchPrefix = 'orch',
       prOptions,

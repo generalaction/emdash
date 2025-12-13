@@ -895,8 +895,8 @@ const AppContent: React.FC = () => {
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
-          log.error('Failed to save multi-agent workspace:', saveResult?.error);
-          toast({ title: 'Error', description: 'Failed to create multi-agent workspace.' });
+          log.error('Failed to save multi-agent task:', saveResult?.error);
+          toast({ title: 'Error', description: 'Failed to create multi-agent task.' });
           setIsCreatingTask(false);
           return;
         }
@@ -933,8 +933,8 @@ const AppContent: React.FC = () => {
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
-          log.error('Failed to save workspace:', saveResult?.error);
-          toast({ title: 'Error', description: 'Failed to create workspace.' });
+          log.error('Failed to save task:', saveResult?.error);
+          toast({ title: 'Error', description: 'Failed to create task.' });
           setIsCreatingTask(false);
           return;
         }
@@ -990,7 +990,7 @@ const AppContent: React.FC = () => {
             }
           } catch (seedError) {
             const { log } = await import('./lib/logger');
-            log.error('Failed to seed workspace with Linear issue context:', seedError as any);
+            log.error('Failed to seed task with Linear issue context:', seedError as any);
           }
         }
         if (taskMetadata?.githubIssue) {
@@ -1048,7 +1048,7 @@ const AppContent: React.FC = () => {
             }
           } catch (seedError) {
             const { log } = await import('./lib/logger');
-            log.error('Failed to seed workspace with GitHub issue context:', seedError as any);
+            log.error('Failed to seed task with GitHub issue context:', seedError as any);
           }
         }
         if (taskMetadata?.jiraIssue) {
@@ -1085,7 +1085,7 @@ const AppContent: React.FC = () => {
             }
           } catch (seedError) {
             const { log } = await import('./lib/logger');
-            log.error('Failed to seed workspace with Jira issue context:', seedError as any);
+            log.error('Failed to seed task with Jira issue context:', seedError as any);
           }
         }
 
@@ -1130,12 +1130,12 @@ const AppContent: React.FC = () => {
       }
     } catch (error) {
       const { log } = await import('./lib/logger');
-      log.error('Failed to create workspace:', error as any);
+      log.error('Failed to create task:', error as any);
       toast({
         title: 'Error',
         description:
           (error as Error)?.message ||
-          'Failed to create workspace. Please check the console for details.',
+          'Failed to create task. Please check the console for details.',
       });
     } finally {
       setIsCreatingTask(false);
@@ -1152,15 +1152,15 @@ const AppContent: React.FC = () => {
     activateProjectView(project);
   };
 
-  const handleSelectTask = (workspace: Task) => {
-    setActiveTask(workspace);
-    // Load provider from workspace.agentId if it exists, otherwise default to null
+  const handleSelectTask = (task: Task) => {
+    setActiveTask(task);
+    // Load provider from task.agentId if it exists, otherwise default to null
     // This ensures the selected provider persists across app restarts
-    if ((workspace.metadata as any)?.multiAgent?.enabled) {
+    if ((task.metadata as any)?.multiAgent?.enabled) {
       setActiveTaskProvider(null);
     } else {
       // Use agentId from workspace if available, otherwise fall back to 'codex' for backwards compatibility
-      setActiveTaskProvider((workspace.agentId as Provider) || 'codex');
+      setActiveTaskProvider((task.agentId as Provider) || 'codex');
     }
   };
 
@@ -1199,21 +1199,21 @@ const AppContent: React.FC = () => {
 
   const handleDeleteTask = async (
     targetProject: Project,
-    workspace: Task,
+    task: Task,
     options?: { silent?: boolean }
   ): Promise<boolean> => {
-    if (deletingTaskIdsRef.current.has(workspace.id)) {
+    if (deletingTaskIdsRef.current.has(task.id)) {
       toast({
         title: 'Deletion in progress',
-        description: `"${workspace.name}" is already being removed.`,
+        description: `"${task.name}" is already being removed.`,
       });
       return false;
     }
 
-    const wasActive = activeTask?.id === workspace.id;
-    const taskSnapshot = { ...workspace };
-    deletingTaskIdsRef.current.add(workspace.id);
-    removeTaskFromState(targetProject.id, workspace.id, wasActive);
+    const wasActive = activeTask?.id === task.id;
+    const taskSnapshot = { ...task };
+    deletingTaskIdsRef.current.add(task.id);
+    removeTaskFromState(targetProject.id, task.id, wasActive);
 
     const runDeletion = async (): Promise<boolean> => {
       try {
@@ -1222,30 +1222,30 @@ const AppContent: React.FC = () => {
           const { initialPromptSentKey } = await import('./lib/keys');
           try {
             // Legacy key (no provider)
-            const legacy = initialPromptSentKey(workspace.id);
+            const legacy = initialPromptSentKey(task.id);
             localStorage.removeItem(legacy);
           } catch {}
           try {
             // Provider-scoped keys
             for (const p of TERMINAL_PROVIDER_IDS) {
-              const k = initialPromptSentKey(workspace.id, p);
+              const k = initialPromptSentKey(task.id, p);
               localStorage.removeItem(k);
             }
           } catch {}
         } catch {}
         try {
-          window.electronAPI.ptyKill?.(`workspace-${workspace.id}`);
+          window.electronAPI.ptyKill?.(`workspace-${task.id}`);
         } catch {}
         try {
           for (const provider of TERMINAL_PROVIDER_IDS) {
             try {
-              window.electronAPI.ptyKill?.(`${provider}-main-${workspace.id}`);
+              window.electronAPI.ptyKill?.(`${provider}-main-${task.id}`);
             } catch {}
           }
         } catch {}
         const sessionIds = [
-          `workspace-${workspace.id}`,
-          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${workspace.id}`),
+          `workspace-${task.id}`,
+          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${task.id}`),
         ];
 
         await Promise.allSettled(
@@ -1262,11 +1262,11 @@ const AppContent: React.FC = () => {
         const [removeResult, deleteResult] = await Promise.allSettled([
           window.electronAPI.worktreeRemove({
             projectPath: targetProject.path,
-            worktreeId: workspace.id,
-            worktreePath: workspace.path,
-            branch: workspace.branch,
+            worktreeId: task.id,
+            worktreePath: task.path,
+            branch: task.branch,
           }),
-          window.electronAPI.deleteTask(workspace.id),
+          window.electronAPI.deleteTask(task.id),
         ]);
 
         if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
@@ -1280,7 +1280,7 @@ const AppContent: React.FC = () => {
         if (deleteResult.status !== 'fulfilled' || !deleteResult.value?.success) {
           const errorMsg =
             deleteResult.status === 'fulfilled'
-              ? deleteResult.value?.error || 'Failed to delete workspace'
+              ? deleteResult.value?.error || 'Failed to delete task'
               : deleteResult.reason?.message || String(deleteResult.reason);
           throw new Error(errorMsg);
         }
@@ -1292,19 +1292,19 @@ const AppContent: React.FC = () => {
         if (!options?.silent) {
           toast({
             title: 'Task deleted',
-            description: workspace.name,
+            description: task.name,
           });
         }
         return true;
       } catch (error) {
         const { log } = await import('./lib/logger');
-        log.error('Failed to delete workspace:', error as any);
+        log.error('Failed to delete task:', error as any);
         toast({
           title: 'Error',
           description:
             error instanceof Error
               ? error.message
-              : 'Could not delete workspace. Check the console for details.',
+              : 'Could not delete task. Check the console for details.',
           variant: 'destructive',
         });
 
@@ -1324,7 +1324,7 @@ const AppContent: React.FC = () => {
           );
 
           if (wasActive) {
-            const restored = refreshedTasks.find((w) => w.id === workspace.id);
+            const restored = refreshedTasks.find((w) => w.id === task.id);
             if (restored) {
               handleSelectTask(restored);
             }
@@ -1357,7 +1357,7 @@ const AppContent: React.FC = () => {
         }
         return false;
       } finally {
-        deletingTaskIdsRef.current.delete(workspace.id);
+        deletingTaskIdsRef.current.delete(task.id);
       }
     };
 

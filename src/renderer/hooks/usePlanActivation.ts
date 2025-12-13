@@ -5,7 +5,7 @@ import { logPlanEvent } from '@/lib/planLogs';
 
 /**
  * Terminal-only providers: if a native plan activation command exists,
- * send it once when the PTY session starts for this workspace/provider.
+ * send it once when the PTY session starts for this task/provider.
  */
 export function usePlanActivationTerminal(opts: {
   enabled: boolean;

@@ -210,20 +210,20 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
       // Workspace commands
       if (project.tasks && onSelectTask) {
-        project.tasks.forEach((workspace) => {
+        project.tasks.forEach((task) => {
           items.push({
-            id: `workspace-${project.id}-${workspace.id}`,
-            label: workspace.name,
-            description: `${project.name} • ${workspace.branch}`,
+            id: `workspace-${project.id}-${task.id}`,
+            label: task.name,
+            description: `${project.name} • ${task.branch}`,
             icon: <GitBranch className="h-4 w-4" />,
             group: 'Workspaces',
             keywords: [
               'workspace',
-              workspace.name.toLowerCase(),
-              workspace.branch.toLowerCase(),
+              task.name.toLowerCase(),
+              task.branch.toLowerCase(),
               project.name.toLowerCase(),
             ],
-            onSelect: () => runCommand(() => onSelectTask(project.id, workspace.id)),
+            onSelect: () => runCommand(() => onSelectTask(project.id, task.id)),
           });
         });
       }

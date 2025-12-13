@@ -362,7 +362,7 @@ function WorkspaceRow({
                 }
               }}
               isDeleting={isDeleting}
-              aria-label={`Delete workspace ${ws.name}`}
+              aria-label={`Delete task ${ws.name}`}
               className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
             />
           )}
@@ -787,7 +787,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   <div className="space-y-1">
                     <h2 className="text-lg font-semibold">Tasks</h2>
                     <p className="text-xs text-muted-foreground">
-                      Spin up a fresh, isolated workspace for this project.
+                      Spin up a fresh, isolated task for this project.
                     </p>
                   </div>
                   {!isSelectMode && (

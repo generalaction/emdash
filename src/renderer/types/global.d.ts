@@ -206,7 +206,7 @@ declare global {
       getProjects: () => Promise<any[]>;
       saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
       getTasks: (projectId?: string) => Promise<any[]>;
-      saveTask: (workspace: any) => Promise<{ success: boolean; error?: string }>;
+      saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
       deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
     };
