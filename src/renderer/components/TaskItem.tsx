@@ -64,7 +64,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             isDeleting={isDeleting}
             aria-label={`Delete Task ${task.name}`}
             className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 ${
-              isDeleting ? 'opacity-100' : 'opacity-0 group-hover/workspace:opacity-100'
+              isDeleting ? 'opacity-100' : 'opacity-0 group-hover/task:opacity-100'
             }`}
           />
         ) : null}

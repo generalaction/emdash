@@ -204,7 +204,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
                           <div
-                            className={`group/project group/workspace flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
+                            className={`group/project group/task flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
                               isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
                             }`}
                           >
@@ -231,7 +231,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-100 ${
                                     isDeletingProject
                                       ? 'opacity-100'
-                                      : 'group-hover/workspace:opacity-100'
+                                      : 'group-hover/task:opacity-100'
                                   }`}
                                 />
                               ) : null}
@@ -292,7 +292,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                         }
                                         onSelectTask && onSelectTask(task);
                                       }}
-                                      className={`group/workspace min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
+                                      className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
                                         isActive ? 'bg-black/5 dark:bg-white/5' : ''
                                       }`}
                                       title={task.name}
