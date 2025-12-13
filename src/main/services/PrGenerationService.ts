@@ -48,15 +48,23 @@ export class PrGenerationService {
             return preferredResult;
           }
         } catch (error) {
-          log.debug(`Workspace provider ${preferredProviderId} generation failed, trying fallbacks`, {
-            error,
-          });
+          log.debug(
+            `Workspace provider ${preferredProviderId} generation failed, trying fallbacks`,
+            {
+              error,
+            }
+          );
         }
       }
 
       // Try Claude Code as fallback (preferred default)
       try {
-        const claudeResult = await this.generateWithProvider('claude', workspacePath, diff, commits);
+        const claudeResult = await this.generateWithProvider(
+          'claude',
+          workspacePath,
+          diff,
+          commits
+        );
         if (claudeResult) {
           log.info('Generated PR content with Claude Code');
           return claudeResult;
@@ -114,10 +122,10 @@ export class PrGenerationService {
       if (baseBranchExists) {
         // Get diff between base branch and current HEAD
         try {
-          const { stdout: diffOut } = await execAsync(
-            `git diff ${baseBranch}...HEAD --stat`,
-            { cwd: workspacePath, maxBuffer: 10 * 1024 * 1024 }
-          );
+          const { stdout: diffOut } = await execAsync(`git diff ${baseBranch}...HEAD --stat`, {
+            cwd: workspacePath,
+            maxBuffer: 10 * 1024 * 1024,
+          });
           diff = diffOut || '';
 
           // Get list of changed files
@@ -152,7 +160,7 @@ export class PrGenerationService {
             maxBuffer: 10 * 1024 * 1024,
           });
           diff = workingDiff || '';
-          
+
           // Also get changed files from working directory
           const { stdout: filesOut } = await execAsync('git diff --name-only', {
             cwd: workspacePath,
@@ -218,7 +226,7 @@ export class PrGenerationService {
       if (provider.autoApproveFlag) {
         args.push(provider.autoApproveFlag);
       }
-      
+
       // Handle prompt: some providers accept it as a flag, others via stdin
       let promptViaStdin = true;
       if (provider.initialPromptFlag !== undefined && provider.initialPromptFlag !== '') {
@@ -266,7 +274,7 @@ export class PrGenerationService {
       // Handle process exit
       child.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
         clearTimeout(timeoutId);
-        
+
         if (code !== 0 && code !== null) {
           log.debug(`Provider ${providerId} exited with code ${code}`, { stderr });
           resolve(null);
@@ -330,8 +338,11 @@ export class PrGenerationService {
    * Build prompt for PR generation
    */
   private buildPrGenerationPrompt(diff: string, commits: string[]): string {
-    const commitContext = commits.length > 0 ? `\n\nCommits:\n${commits.map((c) => `- ${c}`).join('\n')}` : '';
-    const diffContext = diff ? `\n\nDiff summary:\n${diff.substring(0, 2000)}${diff.length > 2000 ? '...' : ''}` : '';
+    const commitContext =
+      commits.length > 0 ? `\n\nCommits:\n${commits.map((c) => `- ${c}`).join('\n')}` : '';
+    const diffContext = diff
+      ? `\n\nDiff summary:\n${diff.substring(0, 2000)}${diff.length > 2000 ? '...' : ''}`
+      : '';
 
     return `Generate a concise PR title and description based on these changes:
 
@@ -381,18 +392,23 @@ Only respond with valid JSON, no other text.`;
     if (commits.length > 0) {
       // Use the most recent commit message as title
       title = commits[0];
-      
+
       // Clean up common prefixes that might not be needed in PR title
-      title = title.replace(/^(feat|fix|chore|docs|style|refactor|test|perf|ci|build|revert):\s*/i, '');
-      
+      title = title.replace(
+        /^(feat|fix|chore|docs|style|refactor|test|perf|ci|build|revert):\s*/i,
+        ''
+      );
+
       // Ensure title is not too long (GitHub PR title limit is ~72 chars)
       if (title.length > 72) {
         title = title.substring(0, 69) + '...';
       }
-      
+
       // Re-add conventional commit prefix if it was there
       const firstCommit = commits[0];
-      const prefixMatch = firstCommit.match(/^(feat|fix|chore|docs|style|refactor|test|perf|ci|build|revert):/i);
+      const prefixMatch = firstCommit.match(
+        /^(feat|fix|chore|docs|style|refactor|test|perf|ci|build|revert):/i
+      );
       if (prefixMatch && !title.startsWith(prefixMatch[1])) {
         title = `${prefixMatch[1]}: ${title}`;
       }
@@ -402,7 +418,7 @@ Only respond with valid JSON, no other text.`;
       const fileParts = mainFile.split('/');
       const fileName = fileParts[fileParts.length - 1];
       const baseName = fileName.replace(/\.[^.]*$/, ''); // Remove extension
-      
+
       // Analyze file patterns to infer intent
       if (fileName.match(/test|spec/i)) {
         title = 'test: add tests';
@@ -420,13 +436,15 @@ Only respond with valid JSON, no other text.`;
 
     // Generate description from commits and files
     const descriptionParts: string[] = [];
-    
+
     // Extract diff stats first
     let fileCount = 0;
     let insertions = 0;
     let deletions = 0;
     if (diff) {
-      const statsMatch = diff.match(/(\d+)\s+files? changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/);
+      const statsMatch = diff.match(
+        /(\d+)\s+files? changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/
+      );
       if (statsMatch) {
         fileCount = parseInt(statsMatch[1] || '0', 10) || 0;
         insertions = parseInt(statsMatch[2] || '0', 10) || 0;
@@ -469,7 +487,7 @@ Only respond with valid JSON, no other text.`;
         if (changedFiles.length > 20) {
           descriptionParts.push(`\n... and ${changedFiles.length - 20} more files`);
         }
-        
+
         // Add summary stats if available
         if (fileCount > 0 || insertions > 0 || deletions > 0) {
           descriptionParts.push('\n## Summary');
@@ -507,13 +525,15 @@ Only respond with valid JSON, no other text.`;
    * Generate fallback content when no context is available
    */
   private generateFallbackContent(changedFiles: string[]): GeneratedPrContent {
-    const title = changedFiles.length > 0 
-      ? `chore: update ${changedFiles[0].split('/').pop() || 'files'}`
-      : 'chore: update code';
-    
-    const description = changedFiles.length > 0
-      ? `Updated ${changedFiles.length} file${changedFiles.length !== 1 ? 's' : ''}.`
-      : 'No changes detected.';
+    const title =
+      changedFiles.length > 0
+        ? `chore: update ${changedFiles[0].split('/').pop() || 'files'}`
+        : 'chore: update code';
+
+    const description =
+      changedFiles.length > 0
+        ? `Updated ${changedFiles.length} file${changedFiles.length !== 1 ? 's' : ''}.`
+        : 'No changes detected.';
 
     return { title, description };
   }

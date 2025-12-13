@@ -46,7 +46,7 @@ export function useCreatePR() {
 
       // Auto-generate PR title and description if not provided
       let finalPrOptions = { ...(prOptions || {}) };
-      
+
       if (!finalPrOptions.title || !finalPrOptions.body) {
         try {
           // Get default branch for comparison
@@ -64,7 +64,7 @@ export function useCreatePR() {
               workspacePath,
               base: finalPrOptions.base || defaultBranch,
             });
-            
+
             if (generated?.success && generated.title) {
               finalPrOptions.title = finalPrOptions.title || generated.title;
               finalPrOptions.body = finalPrOptions.body || generated.description || '';
@@ -78,8 +78,7 @@ export function useCreatePR() {
 
       // Fallback to inferred title if still not set
       if (!finalPrOptions.title) {
-        finalPrOptions.title =
-          workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
+        finalPrOptions.title = workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
       }
 
       const commitRes = await api.gitCommitAndPush({

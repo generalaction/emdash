@@ -95,7 +95,8 @@ export function registerGitIpc() {
         base?: string;
       }
     ) => {
-      const { workspacePath, base = 'main' } = args || ({} as { workspacePath: string; base?: string });
+      const { workspacePath, base = 'main' } =
+        args || ({} as { workspacePath: string; base?: string });
       try {
         // Try to get the workspace to find which provider was used
         let providerId: string | null = null;

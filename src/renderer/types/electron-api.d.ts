@@ -251,10 +251,7 @@ declare global {
         output?: string;
         error?: string;
       }>;
-      generatePrContent: (args: {
-        workspacePath: string;
-        base?: string;
-      }) => Promise<{
+      generatePrContent: (args: { workspacePath: string; base?: string }) => Promise<{
         success: boolean;
         title?: string;
         description?: string;

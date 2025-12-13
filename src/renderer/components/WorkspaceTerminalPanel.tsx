@@ -195,9 +195,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-[200px]">
-                    <p className="text-xs">
-                      Select a task to access its worktree terminal.
-                    </p>
+                    <p className="text-xs">Select a task to access its worktree terminal.</p>
                   </TooltipContent>
                 </>
               ) : (
