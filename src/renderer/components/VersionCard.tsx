@@ -42,6 +42,18 @@ const VersionCard: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (update.status === 'not-available' && userInitiatedRef.current) {
+      userInitiatedRef.current = false;
+      try {
+        toast({ title: 'You’re up to date', description: 'You are on the latest version.' });
+      } catch {}
+    }
+    if (update.status !== 'checking' && update.status !== 'idle') {
+      userInitiatedRef.current = false;
+    }
+  }, [toast, update.status]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
@@ -148,23 +160,6 @@ const VersionCard: React.FC = () => {
             })()
           : null}
       </div>
-
-      {(() => {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        useEffect(() => {
-          if (update.status === 'not-available' && userInitiatedRef.current) {
-            userInitiatedRef.current = false;
-            try {
-              toast({ title: 'You’re up to date', description: 'You are on the latest version.' });
-            } catch {}
-          }
-          if (update.status !== 'checking' && update.status !== 'idle') {
-            // Reset guard if state moves elsewhere without landing on not-available
-            userInitiatedRef.current = false;
-          }
-        }, [update.status]);
-        return null;
-      })()}
     </div>
   );
 };

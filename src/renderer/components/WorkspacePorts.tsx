@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ExternalLink, Copy, Check, Globe, Database, Server } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import type { RunnerPortMapping } from '@shared/container/events';
@@ -67,7 +67,15 @@ const WorkspacePorts: React.FC<Props> = ({
     return a.host - b.host;
   });
 
-  function ServiceIcon({ name, port }: { name: string; port: number }) {
+  function ServiceIcon({
+    name,
+    port,
+    workspacePath: currentWorkspacePath,
+  }: {
+    name: string;
+    port: number;
+    workspacePath?: string;
+  }) {
     const [src, setSrc] = React.useState<string | null>(null);
     React.useEffect(() => {
       let cancelled = false;
@@ -78,7 +86,7 @@ const WorkspacePorts: React.FC<Props> = ({
           const res = await api.resolveServiceIcon({
             service: name,
             allowNetwork: true,
-            workspacePath,
+            workspacePath: currentWorkspacePath,
           });
           if (!cancelled && res?.ok && typeof res.dataUrl === 'string') {
             setSrc(res.dataUrl);
@@ -88,7 +96,7 @@ const WorkspacePorts: React.FC<Props> = ({
       return () => {
         cancelled = true;
       };
-    }, [name, workspacePath]);
+    }, [currentWorkspacePath, name]);
     if (src) {
       return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
     }
@@ -106,12 +114,6 @@ const WorkspacePorts: React.FC<Props> = ({
       setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1200);
     } catch {}
   };
-
-  const exposeMode: 'none' | 'preview' | 'all' = useMemo(() => {
-    if (!ports || ports.length === 0) return 'none';
-    const allPreview = ports.every((p) => p.service === previewService);
-    return allPreview ? 'preview' : 'all';
-  }, [ports, previewService]);
 
   return (
     <motion.div
@@ -173,7 +175,7 @@ const WorkspacePorts: React.FC<Props> = ({
                 className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <ServiceIcon name={p.service} port={p.container} />
+                  <ServiceIcon name={p.service} port={p.container} workspacePath={workspacePath} />
                   <span className="font-medium">{p.service}</span>
                 </span>
                 {isPreview ? (

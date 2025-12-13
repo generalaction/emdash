@@ -9,8 +9,6 @@ import { providerConfig } from '../lib/providerConfig';
 import { ProviderInfoCard } from './ProviderInfoCard';
 import type { UiProvider } from '@/providers/meta';
 
-const MAX_RUNS = 4;
-
 interface MultiProviderDropdownProps {
   providerRuns: ProviderRun[];
   onChange: (providerRuns: ProviderRun[]) => void;
@@ -35,7 +33,6 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   const [runsSelectOpenFor, setRunsSelectOpenFor] = useState<Provider | null>(null);
 
   const selectedProviders = new Set(providerRuns.map((pr) => pr.provider));
-  const totalRuns = providerRuns.reduce((sum, pr) => sum + pr.runs, 0);
 
   // Checkbox: always add/remove (multi-select)
   const toggleProvider = (provider: Provider) => {

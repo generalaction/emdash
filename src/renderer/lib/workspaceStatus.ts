@@ -49,7 +49,6 @@ function wireGlobal() {
   if (wired) return;
   wired = true;
   ensureTicker();
-  const api: any = (window as any).electronAPI;
   // Agent streams removed; PTY and container activity drive status.
 }
 

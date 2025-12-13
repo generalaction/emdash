@@ -12,7 +12,6 @@ import { MultiProviderDropdown } from './MultiProviderDropdown';
 import { type Provider } from '../types';
 import { type ProviderRun } from '../types/chat';
 import { Separator } from './ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { providerMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';

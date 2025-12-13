@@ -143,7 +143,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
     } finally {
       setSubmitting(false);
     }
-  }, [attachments, contactEmail, feedbackDetails, githubUser, onClose, submitting]);
+  }, [attachments, contactEmail, feedbackDetails, githubUser, onClose, submitting, toast]);
 
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {

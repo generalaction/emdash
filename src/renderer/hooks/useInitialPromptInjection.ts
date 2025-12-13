@@ -23,7 +23,6 @@ export function useInitialPromptInjection(opts: {
 
     const ptyId = `${providerId}-main-${workspaceId}`;
     let sent = false;
-    let idleSeen = false;
     let silenceTimer: any = null;
     const send = () => {
       try {
@@ -43,11 +42,10 @@ export function useInitialPromptInjection(opts: {
 
       // Heuristic: if classifier says idle, trigger a quicker send
       try {
-        const signal = classifyActivity(providerId, chunk);
-        if (signal === 'idle' && !sent) {
-          idleSeen = true;
-          setTimeout(send, 250);
-        }
+      const signal = classifyActivity(providerId, chunk);
+      if (signal === 'idle' && !sent) {
+        setTimeout(send, 250);
+      }
       } catch {
         // ignore classifier errors; rely on silence debounce
       }

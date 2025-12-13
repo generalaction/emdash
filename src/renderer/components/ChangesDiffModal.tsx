@@ -174,6 +174,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
   // Handle pane resizing events
   useEffect(() => {
+    const diffContainerNode = diffContainerRef.current;
+
     const handlePointerMove = (event: PointerEvent) => {
       if (!isResizingRef.current) return;
       scheduleSplitUpdate(event.clientX);
@@ -193,7 +195,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', stopResizing);
       document.body.style.cursor = '';
-      diffContainerRef.current?.classList.remove('select-none');
+      diffContainerNode?.classList.remove('select-none');
       if (resizeRafRef.current !== null) {
         window.cancelAnimationFrame(resizeRafRef.current);
         resizeRafRef.current = null;

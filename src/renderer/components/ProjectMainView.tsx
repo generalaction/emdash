@@ -428,7 +428,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
   const [alsoDeleteRemoteBranches, setAlsoDeleteRemoteBranches] = useState(false);
 
-  const workspaces = project.workspaces ?? [];
+  const workspaces = useMemo(() => project.workspaces ?? [], [project.workspaces]);
   const selectedCount = selectedIds.size;
   const selectedWorkspaces = useMemo(
     () => workspaces.filter((ws) => selectedIds.has(ws.id)),
@@ -729,7 +729,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         setIsSavingBaseBranch(false);
       }
     },
-    [baseBranch, project.id, toast]
+    [baseBranch, project.gitInfo, project.id, toast]
   );
 
   return (

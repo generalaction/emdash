@@ -53,5 +53,5 @@ export function usePlanActivationTerminal(opts: {
       } catch {}
       clearTimeout(t);
     };
-  }, [enabled, providerId, workspaceId]);
+  }, [enabled, providerId, workspaceId, workspacePath]);
 }

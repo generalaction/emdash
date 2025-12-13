@@ -55,7 +55,7 @@ export function useGithubAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [syncCache]);
+  }, []);
 
   const logout = useCallback(async () => {
     try {

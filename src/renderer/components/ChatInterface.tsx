@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { ExternalLink, Globe, Database, Server, ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import ContainerStatusBadge from './ContainerStatusBadge';
-import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
@@ -44,7 +43,6 @@ const ChatInterface: React.FC<Props> = ({
   className,
   initialProvider,
 }) => {
-  const { toast } = useToast();
   const { effectiveTheme } = useTheme();
   const [isProviderInstalled, setIsProviderInstalled] = useState<boolean | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<
@@ -469,6 +467,8 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [workspace.id]);
 
+  const multiAgentEnabled = workspace.metadata?.multiAgent?.enabled === true;
+
   const containerStatusNode = useMemo(() => {
     const state = containerState;
     if (!state?.runId) return null;
@@ -490,7 +490,11 @@ const ChatInterface: React.FC<Props> = ({
       return a.host - b.host;
     });
 
-    const ServiceIcon: React.FC<{ name: string; port: number }> = ({ name, port }) => {
+    const ServiceIcon: React.FC<{ name: string; port: number; workspacePath: string }> = ({
+      name,
+      port,
+      workspacePath,
+    }) => {
       const [src, setSrc] = React.useState<string | null>(null);
       React.useEffect(() => {
         let cancelled = false;
@@ -502,7 +506,7 @@ const ChatInterface: React.FC<Props> = ({
             const res = await api.resolveServiceIcon({
               service: name,
               allowNetwork: true,
-              workspacePath: workspace.path,
+              workspacePath,
             });
             if (!cancelled && res?.ok && typeof res.dataUrl === 'string') setSrc(res.dataUrl);
           } catch {}
@@ -510,7 +514,7 @@ const ChatInterface: React.FC<Props> = ({
         return () => {
           cancelled = true;
         };
-      }, [name]);
+      }, [name, workspacePath]);
       if (src) return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
       const webPorts = new Set([80, 443, 3000, 5173, 8080, 8000]);
       const dbPorts = new Set([5432, 3306, 27017, 1433, 1521]);
@@ -518,7 +522,7 @@ const ChatInterface: React.FC<Props> = ({
       if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
       return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
     };
-    const isMultiAgent = workspace.metadata?.multiAgent?.enabled === true;
+    const isMultiAgent = multiAgentEnabled;
     return (
       <div className="mt-4 px-6">
         <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">
@@ -621,7 +625,11 @@ const ChatInterface: React.FC<Props> = ({
                       className="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1"
                     >
                       <span className="inline-flex items-center gap-1.5 text-foreground">
-                        <ServiceIcon name={port.service} port={port.container} />
+                        <ServiceIcon
+                          name={port.service}
+                          port={port.container}
+                          workspacePath={workspace.path}
+                        />
                         <span className="font-medium">{port.service}</span>
                       </span>
                       <span>host {port.host}</span>
@@ -646,7 +654,7 @@ const ChatInterface: React.FC<Props> = ({
         </div>
       </div>
     );
-  }, [containerState, portsExpanded, reduceMotion, workspace.id, workspace.path]);
+  }, [browser, containerState, multiAgentEnabled, portsExpanded, reduceMotion, workspace.id, workspace.path]);
 
   if (!isTerminal) {
     return null;

@@ -9,7 +9,7 @@ type Props = {
 
 const RequirementsNotice: React.FC<Props> = ({
   showGithubRequirement,
-  needsGhInstall,
+  needsGhInstall: _needsGhInstall,
   needsGhAuth,
 }) => {
   return (

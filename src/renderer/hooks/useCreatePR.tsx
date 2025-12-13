@@ -47,7 +47,7 @@ export function useCreatePR() {
       const inferredTitle =
         prOptions?.title || workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
 
-      let finalPrOptions = { ...(prOptions || {}), title: inferredTitle };
+      const finalPrOptions = { ...(prOptions || {}), title: inferredTitle };
 
       const commitRes = await api.gitCommitAndPush({
         workspacePath,

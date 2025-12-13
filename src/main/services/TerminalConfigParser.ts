@@ -282,10 +282,10 @@ function loadiTerm2Config(): TerminalConfig | null {
  */
 function loadiTerm2ConfigXML(plistPath: string): TerminalConfig | null {
   try {
-    const xmlContent = readFileSync(plistPath, 'utf8');
+    const _xmlContent = readFileSync(plistPath, 'utf8');
     // Simple XML parsing for color values
     // This is a basic implementation - could be improved
-    const colorRegex =
+    const _colorRegex =
       /<key>([^<]+)<\/key>\s*<dict>[\s\S]*?<key>Red Component<\/key>\s*<real>([\d.]+)<\/real>[\s\S]*?<key>Green Component<\/key>\s*<real>([\d.]+)<\/real>[\s\S]*?<key>Blue Component<\/key>\s*<real>([\d.]+)<\/real>/g;
     // This is complex - for now, return null and rely on JSON conversion
     return null;
@@ -455,19 +455,6 @@ function parseAlacrittyTOML(content: string): TerminalConfig | null {
   if (cursorMatch) {
     theme.cursor = cursorMatch[1];
   }
-
-  // Parse ANSI colors (simplified - Alacritty uses nested structure)
-  const ansiColors = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
-  const brightColors = [
-    'bright_black',
-    'bright_red',
-    'bright_green',
-    'bright_yellow',
-    'bright_blue',
-    'bright_magenta',
-    'bright_cyan',
-    'bright_white',
-  ];
 
   const colorMap: Record<string, keyof TerminalTheme> = {
     black: 'black',

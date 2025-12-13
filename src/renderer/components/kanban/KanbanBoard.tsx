@@ -104,7 +104,7 @@ const KanbanBoard: React.FC<{
     }
     return () => offs.forEach((f) => f());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, project.workspaces?.length]);
+  }, [project.id, project.workspaces]);
 
   // Promote any workspace with local changes directly to "Ready for review" (done)
   React.useEffect(() => {
@@ -155,7 +155,7 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.workspaces?.length]);
+  }, [project.id, project.workspaces]);
 
   // Promote any workspace with an open PR to "Ready for review" (done)
   React.useEffect(() => {
@@ -206,7 +206,7 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.workspaces?.length]);
+  }, [project.id, project.workspaces]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -258,7 +258,7 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.workspaces?.length]);
+  }, [project.id, project.workspaces]);
 
   const byStatus: Record<KanbanStatus, Workspace[]> = { todo: [], 'in-progress': [], done: [] };
   for (const ws of project.workspaces || []) {

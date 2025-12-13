@@ -47,7 +47,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
     () => [{ id: workspaceId, name: workspaceName, path: workspacePath }],
     [workspaceId, workspaceName, workspacePath]
   );
-  const { risks, loading, hasData } = useDeleteRisks(targets, open);
+  const { risks, loading } = useDeleteRisks(targets, open);
   const status = risks[workspaceId] || {
     staged: 0,
     unstaged: 0,

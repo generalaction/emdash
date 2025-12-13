@@ -24,9 +24,9 @@ class ActivityStore {
           const prov = id.includes('-main-') ? id.split('-main-')[0] || '' : '';
           const signal = classifyActivity(prov, info?.chunk || '');
           if (signal === 'busy') {
-            this.setBusy(wsId, true, true);
+            this.setBusy(wsId, true);
           } else if (signal === 'idle') {
-            this.setBusy(wsId, false, true);
+            this.setBusy(wsId, false);
           } else {
             // neutral: keep current but set soft clear timer
             if (this.states.get(wsId)) this.armTimer(wsId);
@@ -38,7 +38,7 @@ class ActivityStore {
       try {
         const id = String(info?.id || '');
         for (const wsId of this.subscribedIds) {
-          if (id.endsWith(wsId)) this.setBusy(wsId, false, true);
+          if (id.endsWith(wsId)) this.setBusy(wsId, false);
         }
       } catch {}
     });
@@ -47,11 +47,11 @@ class ActivityStore {
   private armTimer(wsId: string) {
     const prev = this.timers.get(wsId);
     if (prev) clearTimeout(prev);
-    const t = setTimeout(() => this.setBusy(wsId, false, true), CLEAR_BUSY_MS);
+    const t = setTimeout(() => this.setBusy(wsId, false), CLEAR_BUSY_MS);
     this.timers.set(wsId, t);
   }
 
-  private setBusy(wsId: string, busy: boolean, fromEvent = false) {
+  private setBusy(wsId: string, busy: boolean) {
     const current = this.states.get(wsId) || false;
     // If setting busy: clear timers and record start
     if (busy) {
@@ -103,7 +103,7 @@ class ActivityStore {
   }
 
   setWorkspaceBusy(wsId: string, busy: boolean) {
-    this.setBusy(wsId, busy, false);
+    this.setBusy(wsId, busy);
   }
 
   subscribe(wsId: string, fn: Listener) {
@@ -137,8 +137,8 @@ class ActivityStore {
         const off = api?.onPtyData?.(ptyId, (chunk: string) => {
           try {
             const signal = classifyActivity(prov, chunk || '');
-            if (signal === 'busy') this.setBusy(wsId, true, true);
-            else if (signal === 'idle') this.setBusy(wsId, false, true);
+            if (signal === 'busy') this.setBusy(wsId, true);
+            else if (signal === 'idle') this.setBusy(wsId, false);
             else if (this.states.get(wsId)) this.armTimer(wsId);
           } catch {}
         });
