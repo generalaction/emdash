@@ -224,27 +224,29 @@ function subscribe(
   workspacePath: string | undefined,
   listener: () => void
 ): () => void {
-  if (!workspaceId) {
-    return () => undefined;
-  }
-  ensureWorkspaceState(workspaceId, workspacePath);
-  let set = workspaceListeners.get(workspaceId);
+  const id = workspaceId || 'global';
+  ensureWorkspaceState(id, workspacePath);
+  let set = workspaceListeners.get(id);
   if (!set) {
     set = new Set();
-    workspaceListeners.set(workspaceId, set);
+    workspaceListeners.set(id, set);
   }
   set.add(listener);
   return () => {
-    const listeners = workspaceListeners.get(workspaceId);
+    const listeners = workspaceListeners.get(id);
     if (!listeners) return;
     listeners.delete(listener);
     if (listeners.size === 0) {
-      workspaceListeners.delete(workspaceId);
+      workspaceListeners.delete(id);
     }
   };
 }
 
-function createTerminal(workspaceId: string, workspacePath?: string) {
+function createTerminal(
+  workspaceId: string,
+  workspacePath?: string,
+  options?: { title?: string; cwd?: string }
+) {
   updateWorkspaceState(workspaceId, workspacePath, (draft) => {
     const nextIndex = draft.counter + 1;
     const id = makeTerminalId(workspaceId);
@@ -254,8 +256,8 @@ function createTerminal(workspaceId: string, workspacePath?: string) {
       ...draft.terminals,
       {
         id,
-        title: `Terminal ${nextIndex}`,
-        cwd: workspacePath,
+        title: options?.title || `Terminal ${nextIndex}`,
+        cwd: options?.cwd || workspacePath,
         createdAt: Date.now(),
       },
     ];
@@ -295,27 +297,27 @@ function closeTerminal(workspaceId: string, terminalId: string, workspacePath?: 
   }
 }
 
-export function useWorkspaceTerminals(workspaceId: string | null, workspacePath?: string) {
+export function useWorkspaceTerminals(
+  workspaceId: string | null,
+  workspacePath?: string,
+  opts?: { defaultCwd?: string }
+) {
+  const resolvedId = workspaceId || 'global';
+  const resolvedPath = workspacePath || opts?.defaultCwd;
   const snapshot = useSyncExternalStore(
-    (listener) => subscribe(workspaceId, workspacePath, listener),
-    () => getSnapshot(workspaceId, workspacePath),
-    () => getSnapshot(workspaceId, workspacePath)
+    (listener) => subscribe(resolvedId, resolvedPath, listener),
+    () => getSnapshot(resolvedId, resolvedPath),
+    () => getSnapshot(resolvedId, resolvedPath)
   );
 
   const actions = useMemo(() => {
-    if (!workspaceId) {
-      return {
-        createTerminal: () => undefined,
-        setActiveTerminal: (_terminalId: string) => undefined,
-        closeTerminal: (_terminalId: string) => undefined,
-      };
-    }
     return {
-      createTerminal: () => createTerminal(workspaceId, workspacePath),
-      setActiveTerminal: (terminalId: string) => setActive(workspaceId, terminalId, workspacePath),
-      closeTerminal: (terminalId: string) => closeTerminal(workspaceId, terminalId, workspacePath),
+      createTerminal: (options?: { title?: string; cwd?: string }) =>
+        createTerminal(resolvedId, options?.cwd || resolvedPath, options),
+      setActiveTerminal: (terminalId: string) => setActive(resolvedId, terminalId, resolvedPath),
+      closeTerminal: (terminalId: string) => closeTerminal(resolvedId, terminalId, resolvedPath),
     };
-  }, [workspaceId, workspacePath]);
+  }, [resolvedId, resolvedPath]);
 
   const activeTerminal =
     snapshot.terminals.find((terminal) => terminal.id === snapshot.activeTerminalId) ?? null;
