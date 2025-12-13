@@ -1740,7 +1740,11 @@ const AppContent: React.FC = () => {
                   collapsible
                   order={3}
                 >
-                  <RightSidebar workspace={activeWorkspace} className="lg:border-l-0" />
+                  <RightSidebar
+                    workspace={activeWorkspace}
+                    projectPath={selectedProject?.path || null}
+                    className="lg:border-l-0"
+                  />
                 </ResizablePanel>
               </ResizablePanelGroup>
             </div>
