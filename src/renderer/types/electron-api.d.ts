@@ -151,7 +151,7 @@ declare global {
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;
-        workspaceName: string;
+        taskName: string;
         projectId: string;
         autoApprove?: boolean;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
@@ -493,25 +493,25 @@ declare global {
         projectId: string;
         prNumber: number;
         prTitle?: string;
-        workspaceName?: string;
+        taskName?: string;
         branchName?: string;
       }) => Promise<{
         success: boolean;
         worktree?: any;
         branchName?: string;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
       // Linear integration
       linearCheckConnection?: () => Promise<{
         connected: boolean;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       linearSaveToken?: (token: string) => Promise<{
         success: boolean;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       linearClearToken?: () => Promise<{
@@ -642,7 +642,7 @@ export interface ElectronAPI {
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;
-    workspaceName: string;
+    taskName: string;
     projectId: string;
     autoApprove?: boolean;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
@@ -842,13 +842,13 @@ export interface ElectronAPI {
     projectId: string;
     prNumber: number;
     prTitle?: string;
-    workspaceName?: string;
+    taskName?: string;
     branchName?: string;
   }) => Promise<{
     success: boolean;
     worktree?: any;
     branchName?: string;
-    workspaceName?: string;
+    taskName?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
@@ -870,12 +870,12 @@ export interface ElectronAPI {
   // Linear integration
   linearCheckConnection?: () => Promise<{
     connected: boolean;
-    workspaceName?: string;
+    taskName?: string;
     error?: string;
   }>;
   linearSaveToken?: (token: string) => Promise<{
     success: boolean;
-    workspaceName?: string;
+    taskName?: string;
     error?: string;
   }>;
   linearClearToken?: () => Promise<{

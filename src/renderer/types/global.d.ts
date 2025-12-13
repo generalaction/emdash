@@ -47,7 +47,7 @@ declare global {
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;
-        workspaceName: string;
+        taskName: string;
         projectId: string;
         autoApprove?: boolean;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
@@ -164,13 +164,13 @@ declare global {
         projectId: string;
         prNumber: number;
         prTitle?: string;
-        workspaceName?: string;
+        taskName?: string;
         branchName?: string;
       }) => Promise<{
         success: boolean;
         worktree?: any;
         branchName?: string;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
@@ -178,11 +178,11 @@ declare global {
       updateSettings: (settings: any) => Promise<void>;
       linearCheckConnection?: () => Promise<{
         connected: boolean;
-        workspaceName?: string;
+        taskName?: string;
       }>;
       linearSaveToken?: (token: string) => Promise<{
         success: boolean;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       linearClearToken?: () => Promise<{

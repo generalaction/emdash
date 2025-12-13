@@ -350,7 +350,7 @@ function WorkspaceRow({
             />
           ) : (
             <WorkspaceDeleteButton
-              workspaceName={ws.name}
+              taskName={ws.name}
               taskId={ws.id}
               taskPath={ws.path}
               onConfirm={async () => {

@@ -50,7 +50,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       <div className="relative flex flex-shrink-0 items-center pl-6">
         {showDelete && onDelete ? (
           <TaskDeleteButton
-            workspaceName={task.name}
+            taskName={task.name}
             taskId={task.id}
             taskPath={task.path}
             onConfirm={async () => {

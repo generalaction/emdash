@@ -11,7 +11,7 @@ type ProviderTooltipProps = {
   delay?: number;
   children: React.ReactNode;
   taskPath?: string;
-  workspaceName?: string;
+  taskName?: string;
 };
 
 export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
@@ -21,7 +21,7 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
   delay = 150,
   children,
   taskPath,
-  workspaceName,
+  taskName,
 }) => {
   const items = React.useMemo(() => {
     const seen = new Set<string>();
@@ -110,11 +110,11 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
           side={side}
           className="max-w-xs rounded-md border border-border bg-background p-2 text-xs shadow-sm"
         >
-          {workspaceName ? (
+          {taskName ? (
             <div className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold leading-tight text-foreground">
               <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate" title={workspaceName}>
-                {workspaceName}
+              <span className="truncate" title={taskName}>
+                {taskName}
               </span>
             </div>
           ) : null}

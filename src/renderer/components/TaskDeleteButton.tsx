@@ -19,7 +19,7 @@ import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
 
 type Props = {
-  workspaceName: string;
+  taskName: string;
   taskId: string;
   taskPath: string;
   onConfirm: () => void | Promise<void | boolean>;
@@ -29,7 +29,7 @@ type Props = {
 };
 
 export const WorkspaceDeleteButton: React.FC<Props> = ({
-  workspaceName,
+  taskName,
   taskId,
   taskPath,
   onConfirm,
@@ -40,8 +40,8 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   const [open, setOpen] = React.useState(false);
   const [acknowledge, setAcknowledge] = React.useState(false);
   const targets = useMemo(
-    () => [{ id: taskId, name: workspaceName, path: taskPath }],
-    [taskId, workspaceName, taskPath]
+    () => [{ id: taskId, name: taskName, path: taskPath }],
+    [taskId, taskName, taskPath]
   );
   const { risks, loading, hasData } = useDeleteRisks(targets, open);
   const status = risks[taskId] || {
@@ -122,7 +122,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                 <p className="font-medium">Unmerged or unpushed work detected</p>
                 <div className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
                   <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                  <span className="font-medium">{workspaceName}</span>
+                  <span className="font-medium">{taskName}</span>
                   <span className="text-muted-foreground">—</span>
                   <span>
                     {[
@@ -149,7 +149,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                   </span>
                 </div>
                 {status.pr ? (
-                  <DeletePrNotice workspaces={[{ name: workspaceName, pr: status.pr }]} />
+                  <DeletePrNotice workspaces={[{ name: taskName, pr: status.pr }]} />
                 ) : null}
               </motion.div>
             ) : null}

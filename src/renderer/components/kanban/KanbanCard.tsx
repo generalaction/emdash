@@ -45,7 +45,7 @@ const KanbanCard: React.FC<{
       side="top"
       delay={150}
       taskPath={ws.path}
-      workspaceName={ws.name}
+      taskName={ws.name}
     >
       <div
         role="button"

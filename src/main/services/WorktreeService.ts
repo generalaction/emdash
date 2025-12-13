@@ -49,12 +49,12 @@ export class WorktreeService {
    */
   async createWorktree(
     projectPath: string,
-    workspaceName: string,
+    taskName: string,
     projectId: string,
     autoApprove?: boolean
   ): Promise<WorktreeInfo> {
     try {
-      const sluggedName = this.slugify(workspaceName);
+      const sluggedName = this.slugify(taskName);
       const timestamp = Date.now();
       const { getAppSettings } = await import('../settings');
       const settings = getAppSettings();
@@ -113,7 +113,7 @@ export class WorktreeService {
 
       const worktreeInfo: WorktreeInfo = {
         id: worktreeId,
-        name: workspaceName,
+        name: taskName,
         branch: branchName,
         path: worktreePath,
         projectId,
@@ -123,7 +123,7 @@ export class WorktreeService {
 
       this.worktrees.set(worktreeInfo.id, worktreeInfo);
 
-      log.info(`Created worktree: ${workspaceName} -> ${branchName}`);
+      log.info(`Created worktree: ${taskName} -> ${branchName}`);
 
       // Push the new branch to origin and set upstream so PRs work out of the box
       if (settings?.repository?.pushOnCreate !== false) {
@@ -768,12 +768,12 @@ export class WorktreeService {
 
   async createWorktreeFromBranch(
     projectPath: string,
-    workspaceName: string,
+    taskName: string,
     branchName: string,
     projectId: string,
     options?: { worktreePath?: string }
   ): Promise<WorktreeInfo> {
-    const normalizedName = workspaceName || branchName.replace(/\//g, '-');
+    const normalizedName = taskName || branchName.replace(/\//g, '-');
     const sluggedName = this.slugify(normalizedName) || 'workspace';
     const targetPath =
       options?.worktreePath ||

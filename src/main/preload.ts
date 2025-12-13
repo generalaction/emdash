@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;
-    workspaceName: string;
+    taskName: string;
     projectId: string;
     autoApprove?: boolean;
   }) => ipcRenderer.invoke('worktree:create', args),
@@ -241,7 +241,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectId: string;
     prNumber: number;
     prTitle?: string;
-    workspaceName?: string;
+    taskName?: string;
     branchName?: string;
   }) => ipcRenderer.invoke('github:createPullRequestWorktree', args),
   githubLogout: () => ipcRenderer.invoke('github:logout'),
@@ -424,7 +424,7 @@ export interface ElectronAPI {
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;
-    workspaceName: string;
+    taskName: string;
     projectId: string;
     autoApprove?: boolean;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
@@ -608,13 +608,13 @@ export interface ElectronAPI {
     projectId: string;
     prNumber: number;
     prTitle?: string;
-    workspaceName?: string;
+    taskName?: string;
     branchName?: string;
   }) => Promise<{
     success: boolean;
     worktree?: any;
     branchName?: string;
-    workspaceName?: string;
+    taskName?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;

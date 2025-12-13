@@ -703,7 +703,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleCreateWorkspace = async (
-    workspaceName: string,
+    taskName: string,
     initialPrompt?: string,
     providerRuns: import('./types/chat').ProviderRun[] = [{ provider: 'claude', runs: 1 }],
     linkedLinearIssue: LinearIssueSummary | null = null,
@@ -840,10 +840,10 @@ const AppContent: React.FC = () => {
         for (const { provider, runs } of providerRuns) {
           for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
             const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
-            const variantName = `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`;
+            const variantName = `${taskName}-${provider.toLowerCase()}${instanceSuffix}`;
             const worktreeResult = await window.electronAPI.worktreeCreate({
               projectPath: selectedProject.path,
-              workspaceName: variantName,
+              taskName: variantName,
               projectId: selectedProject.id,
               autoApprove,
             });
@@ -855,7 +855,7 @@ const AppContent: React.FC = () => {
             }
             const worktree = worktreeResult.worktree;
             variants.push({
-              id: `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`,
+              id: `${taskName}-${provider.toLowerCase()}${instanceSuffix}`,
               provider: provider,
               name: variantName,
               branch: worktree.branch,
@@ -876,11 +876,11 @@ const AppContent: React.FC = () => {
           },
         };
 
-        const groupId = `ws-${workspaceName}-${Date.now()}`;
+        const groupId = `ws-${taskName}-${Date.now()}`;
         newWorkspace = {
           id: groupId,
           projectId: selectedProject.id,
-          name: workspaceName,
+          name: taskName,
           branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
           path: variants[0]?.path || selectedProject.path,
           status: 'idle',
@@ -904,7 +904,7 @@ const AppContent: React.FC = () => {
         // Create worktree
         const worktreeResult = await window.electronAPI.worktreeCreate({
           projectPath: selectedProject.path,
-          workspaceName,
+          taskName,
           projectId: selectedProject.id,
           autoApprove,
         });
@@ -918,7 +918,7 @@ const AppContent: React.FC = () => {
         newWorkspace = {
           id: worktree.id,
           projectId: selectedProject.id,
-          name: workspaceName,
+          name: taskName,
           branch: worktree.branch,
           path: worktree.path,
           status: 'idle',
