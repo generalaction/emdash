@@ -102,7 +102,7 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
-  workspace: one(workspaces, {
+  task: one(workspaces, {
     fields: [conversations.taskId],
     references: [workspaces.id],
   }),
