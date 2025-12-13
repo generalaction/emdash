@@ -278,6 +278,9 @@ declare global {
           baseRefName?: string;
           title?: string;
           author?: any;
+          additions?: number;
+          deletions?: number;
+          changedFiles?: number;
         } | null;
         error?: string;
       }>;
