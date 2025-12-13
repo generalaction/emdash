@@ -219,11 +219,11 @@ const IntegrationsCard: React.FC = () => {
     }
   }, [updateLinearState]);
 
-  const githubDetail = useMemo(() => {
+  const githubDetail: string | null = useMemo(() => {
     if (!user) return null;
-    return user?.name || user?.login || null;
+    return user.name || user.login || null;
   }, [user]);
-  const githubAvatarUrl = (user as any)?.avatar_url as string | undefined;
+  const githubAvatarUrl = user?.avatar_url;
 
   const handleGithubConnect = useCallback(async () => {
     setGithubError(null);
@@ -349,7 +349,7 @@ const IntegrationsCard: React.FC = () => {
       <IntegrationRow
         logoSrc={linearLogo}
         name="Linear"
-        accountLabel={linearState.detail ?? undefined}
+        accountLabel={(linearState.detail ?? undefined) as string | undefined}
         status={linearStatus}
         middle={linearMiddle}
         showStatusPill={false}
@@ -375,7 +375,7 @@ const IntegrationsCard: React.FC = () => {
       <IntegrationRow
         logoSrc={githubLogo}
         name="GitHub"
-        accountLabel={githubDetail ?? undefined}
+        accountLabel={(githubDetail ?? undefined) as string | undefined}
         status={githubStatus}
         middle={githubMiddle}
         showStatusPill={false}
@@ -404,7 +404,7 @@ const IntegrationsCard: React.FC = () => {
       <IntegrationRow
         logoSrc={jiraLogo}
         name="Jira"
-        accountLabel={jiraDetail ?? undefined}
+        accountLabel={(jiraDetail ?? undefined) as string | undefined}
         status={
           jiraStatus === 'checking'
             ? 'loading'

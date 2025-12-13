@@ -458,9 +458,8 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
                         </div>
                         <Button
                           variant="outline"
-                          size="sm"
                           onClick={handleChangeDestination}
-                          className="shrink-0"
+                          className="shrink-0 h-10"
                         >
                           <FolderOpen className="mr-2 h-4 w-4" />
                           Change
