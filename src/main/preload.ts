@@ -365,7 +365,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 // Type definitions for the exposed API
 export interface ElectronAPI {
   // App info
-  getVersion: () => Promise<string>;
+  getAppVersion: () => Promise<string>;
+  getElectronVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
