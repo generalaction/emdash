@@ -459,7 +459,7 @@ const AppContent: React.FC = () => {
 
         const projectsWithTasks = await Promise.all(
           initialProjects.map(async (project) => {
-            const workspaces = await window.electronAPI.getWorkspaces(project.id);
+            const workspaces = await window.electronAPI.getTasks(project.id);
             return withRepoKey({ ...project, workspaces });
           })
         );
@@ -888,7 +888,7 @@ const AppContent: React.FC = () => {
           metadata: multiMeta,
         };
 
-        const saveResult = await window.electronAPI.saveWorkspace({
+        const saveResult = await window.electronAPI.saveTask({
           ...newTask,
           agentId: primaryProvider,
           metadata: multiMeta,
@@ -926,7 +926,7 @@ const AppContent: React.FC = () => {
           metadata: taskMetadata,
         };
 
-        const saveResult = await window.electronAPI.saveWorkspace({
+        const saveResult = await window.electronAPI.saveTask({
           ...newTask,
           agentId: primaryProvider,
           metadata: taskMetadata,
@@ -1266,7 +1266,7 @@ const AppContent: React.FC = () => {
             worktreePath: workspace.path,
             branch: workspace.branch,
           }),
-          window.electronAPI.deleteWorkspace(workspace.id),
+          window.electronAPI.deleteTask(workspace.id),
         ]);
 
         if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
@@ -1309,7 +1309,7 @@ const AppContent: React.FC = () => {
         });
 
         try {
-          const refreshedWorkspaces = await window.electronAPI.getWorkspaces(targetProject.id);
+          const refreshedWorkspaces = await window.electronAPI.getTasks(targetProject.id);
           setProjects((prev) =>
             prev.map((project) =>
               project.id === targetProject.id

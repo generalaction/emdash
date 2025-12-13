@@ -572,10 +572,10 @@ declare global {
       // Database operations
       getProjects: () => Promise<any[]>;
       saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
-      getWorkspaces: (projectId?: string) => Promise<any[]>;
-      saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
+      getTasks: (projectId?: string) => Promise<any[]>;
+      saveTask: (workspace: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-      deleteWorkspace: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
       // Message operations
       saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
@@ -899,10 +899,10 @@ export interface ElectronAPI {
   // Database operations
   getProjects: () => Promise<any[]>;
   saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
-  getWorkspaces: (projectId?: string) => Promise<any[]>;
-  saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
+  getTasks: (projectId?: string) => Promise<any[]>;
+  saveTask: (workspace: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-  deleteWorkspace: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;

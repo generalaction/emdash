@@ -207,7 +207,7 @@ export class DatabaseService {
     return this.getProjectById(projectId);
   }
 
-  async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
+  async saveTask(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
     const metadataValue =
       typeof workspace.metadata === 'string'
@@ -244,7 +244,7 @@ export class DatabaseService {
       });
   }
 
-  async getWorkspaces(projectId?: string): Promise<Workspace[]> {
+  async getTasks(projectId?: string): Promise<Workspace[]> {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
 
@@ -264,7 +264,7 @@ export class DatabaseService {
     await db.delete(projectsTable).where(eq(projectsTable.id, projectId));
   }
 
-  async deleteWorkspace(taskId: string): Promise<void> {
+  async deleteTask(taskId: string): Promise<void> {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
     await db.delete(workspacesTable).where(eq(workspacesTable.id, taskId));

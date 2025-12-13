@@ -23,18 +23,18 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:getWorkspaces', async (_, projectId?: string) => {
+  ipcMain.handle('db:getTasks', async (_, projectId?: string) => {
     try {
-      return await databaseService.getWorkspaces(projectId);
+      return await databaseService.getTasks(projectId);
     } catch (error) {
       log.error('Failed to get workspaces:', error);
       return [];
     }
   });
 
-  ipcMain.handle('db:saveWorkspace', async (_, workspace: any) => {
+  ipcMain.handle('db:saveTask', async (_, workspace: any) => {
     try {
-      await databaseService.saveWorkspace(workspace);
+      await databaseService.saveTask(workspace);
       return { success: true };
     } catch (error) {
       log.error('Failed to save workspace:', error);
@@ -112,7 +112,7 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:deleteWorkspace', async (_, taskId: string) => {
+  ipcMain.handle('db:deleteTask', async (_, taskId: string) => {
     try {
       // Stop any running Docker container for this workspace before deletion
       const stopResult = await containerRunnerService.stopRun(taskId);
@@ -121,7 +121,7 @@ export function registerDatabaseIpc() {
         log.warn('Failed to stop container during workspace deletion:', stopResult.error);
       }
 
-      await databaseService.deleteWorkspace(taskId);
+      await databaseService.deleteTask(taskId);
       return { success: true };
     } catch (error) {
       log.error('Failed to delete workspace:', error);

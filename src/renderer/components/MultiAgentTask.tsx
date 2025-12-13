@@ -469,7 +469,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                       }
                       // Mark initial injection as sent so it won't re-run on restart
                       if (initialInjection && !task.metadata?.initialInjectionSent) {
-                        void window.electronAPI.saveWorkspace({
+                        void window.electronAPI.saveTask({
                           ...task,
                           metadata: {
                             ...task.metadata,

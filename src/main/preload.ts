@@ -274,10 +274,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Database methods
   getProjects: () => ipcRenderer.invoke('db:getProjects'),
   saveProject: (project: any) => ipcRenderer.invoke('db:saveProject', project),
-  getWorkspaces: (projectId?: string) => ipcRenderer.invoke('db:getWorkspaces', projectId),
-  saveWorkspace: (workspace: any) => ipcRenderer.invoke('db:saveWorkspace', workspace),
+  getTasks: (projectId?: string) => ipcRenderer.invoke('db:getTasks', projectId),
+  saveTask: (workspace: any) => ipcRenderer.invoke('db:saveTask', workspace),
   deleteProject: (projectId: string) => ipcRenderer.invoke('db:deleteProject', projectId),
-  deleteWorkspace: (taskId: string) => ipcRenderer.invoke('db:deleteWorkspace', taskId),
+  deleteTask: (taskId: string) => ipcRenderer.invoke('db:deleteTask', taskId),
 
   // Conversation management
   saveConversation: (conversation: any) => ipcRenderer.invoke('db:saveConversation', conversation),
@@ -624,10 +624,10 @@ export interface ElectronAPI {
   // Database methods
   getProjects: () => Promise<any[]>;
   saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
-  getWorkspaces: (projectId?: string) => Promise<any[]>;
-  saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
+  getTasks: (projectId?: string) => Promise<any[]>;
+  saveTask: (workspace: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-  deleteWorkspace: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Conversation management
   saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;

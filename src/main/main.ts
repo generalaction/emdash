@@ -150,7 +150,7 @@ app.whenReady().then(async () => {
   try {
     const [projects, workspaces] = await Promise.all([
       databaseService.getProjects(),
-      databaseService.getWorkspaces(),
+      databaseService.getTasks(),
     ]);
     const projectCount = projects.length;
     const workspaceCount = workspaces.length;
