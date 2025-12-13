@@ -52,22 +52,22 @@ export function registerWorktreeIpc(): void {
         branch?: string;
         deleteRemoteBranch?: boolean;
       }
-    ) => {
-      try {
-        await worktreeService.removeWorktree(
-          args.projectPath,
-          args.worktreeId,
-          args.worktreePath,
-          args.branch,
-          { deleteRemoteBranch: args.deleteRemoteBranch }
-        );
-        return { success: true };
-      } catch (error) {
-        console.error('Failed to remove worktree:', error);
-        return { success: false, error: (error as Error).message };
-      }
-    }
-  );
+	    ) => {
+	      try {
+	        const result = await worktreeService.removeWorktree(
+	          args.projectPath,
+	          args.worktreeId,
+	          args.worktreePath,
+	          args.branch,
+	          { deleteRemoteBranch: args.deleteRemoteBranch }
+	        );
+	        return { success: true, ...result };
+	      } catch (error) {
+	        console.error('Failed to remove worktree:', error);
+	        return { success: false, error: (error as Error).message };
+	      }
+	    }
+	  );
 
   // Get worktree status
   ipcMain.handle('worktree:status', async (event, args: { worktreePath: string }) => {

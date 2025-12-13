@@ -207,4 +207,10 @@ describe('WorktreeService.removeWorktree remote deletion', () => {
 
     expect(execFileCalls.some((c) => c.file === 'gh' && c.args[0] === 'api')).toBe(true);
   });
+
+  it('parses GitHub repo names containing dots for API fallback', () => {
+    const service: any = new WorktreeService();
+    expect(service.parseGitHubNameWithOwner('git@github.com:foo/bar.baz.git')).toBe('foo/bar.baz');
+    expect(service.parseGitHubNameWithOwner('https://github.com/foo/bar.baz')).toBe('foo/bar.baz');
+  });
 });

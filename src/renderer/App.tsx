@@ -1288,15 +1288,30 @@ const AppContent: React.FC = () => {
           throw new Error(errorMsg);
         }
 
+        const remoteBranchWarning =
+          !!options?.deleteRemoteBranch && removeResult.status === 'fulfilled'
+            ? removeResult.value?.remoteBranchDeleted === false
+            : false;
+
         // Track workspace deletion
         const { captureTelemetry } = await import('./lib/telemetryClient');
         captureTelemetry('workspace_deleted');
 
         if (!options?.silent) {
           toast({
-            title: 'Task deleted',
+            title: remoteBranchWarning ? 'Task deleted (branch not deleted)' : 'Task deleted',
             description: workspace.name,
           });
+          if (remoteBranchWarning) {
+            toast({
+              title: 'Could not delete remote branch',
+              description:
+                (removeResult.status === 'fulfilled'
+                  ? removeResult.value?.remoteBranchDeleteError
+                  : null) || 'Check GitHub authentication and try again.',
+              variant: 'destructive',
+            });
+          }
         }
         return true;
       } catch (error) {

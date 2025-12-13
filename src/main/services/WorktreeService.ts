@@ -74,7 +74,12 @@ export class WorktreeService {
   private parseGitHubNameWithOwner(remoteUrl: string): string | null {
     const url = String(remoteUrl || '').trim();
     if (!url) return null;
-    const m = url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?$/i);
+    // Support https/ssh remotes and repo names containing dots.
+    // Examples:
+    // - git@github.com:owner/repo.git
+    // - https://github.com/owner/repo
+    // - https://github.com/owner/re.po.git
+    const m = url.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?$/i);
     if (!m) return null;
     const owner = (m[1] || '').trim();
     const repo = (m[2] || '').trim();
@@ -339,11 +344,16 @@ export class WorktreeService {
     worktreePath?: string,
     branch?: string,
     opts?: { deleteRemoteBranch?: boolean }
-  ): Promise<void> {
+  ): Promise<{
+    localBranchDeleted: boolean | null;
+    remoteBranchDeleted: boolean | null;
+    remoteBranchDeleteError?: string;
+  }> {
     try {
       const errors: string[] = [];
       let localBranchDeleted: boolean | null = null;
       let remoteBranchDeleted: boolean | null = null;
+      let remoteBranchDeleteError: string | undefined;
       const worktree = this.worktrees.get(worktreeId);
 
       const pathToRemove = worktree?.path ?? worktreePath;
@@ -495,19 +505,25 @@ export class WorktreeService {
             .replace(/^origin\//, '');
 
           if (!remoteBranchName) {
-            log.warn('Skipped deleting remote branch: branch name unavailable');
+            remoteBranchDeleted = false;
+            remoteBranchDeleteError = 'Skipped deleting remote branch: branch name unavailable';
+            log.warn(remoteBranchDeleteError);
           } else {
             // Safety: never delete the default branch
             const defaultBranch = await this.getDefaultBranch(projectPath);
             if (remoteBranchName === defaultBranch) {
-              log.warn(`Refusing to delete default branch '${defaultBranch}' on ${remoteAlias}`);
+              remoteBranchDeleted = false;
+              remoteBranchDeleteError = `Refusing to delete default branch '${defaultBranch}' on ${remoteAlias}`;
+              log.warn(remoteBranchDeleteError);
               // Continue task deletion; just skip remote deletion.
               remoteBranchName = '';
             }
 
             // Extra safety for weird refs
             if (remoteBranchName === 'HEAD') {
-              log.warn(`Refusing to delete branch named 'HEAD' on ${remoteAlias}`);
+              remoteBranchDeleted = false;
+              remoteBranchDeleteError = `Refusing to delete branch named 'HEAD' on ${remoteAlias}`;
+              log.warn(remoteBranchDeleteError);
               // Continue task deletion; just skip remote deletion.
               remoteBranchName = '';
             }
@@ -533,8 +549,12 @@ export class WorktreeService {
                   log.info(`Remote branch ${remoteAlias}/${remoteBranchName} already absent`);
                 } else {
                   remoteBranchDeleted = false;
+                  remoteBranchDeleteError = msg;
                   errors.push(`Remote branch delete failed: ${msg}`);
-                  log.warn(`Failed to delete remote branch ${remoteAlias}/${remoteBranchName}:`, remoteError);
+                  log.warn(
+                    `Failed to delete remote branch ${remoteAlias}/${remoteBranchName}:`,
+                    remoteError
+                  );
                 }
               }
 
@@ -561,6 +581,7 @@ export class WorktreeService {
                       log.info(`GitHub branch ${remoteAlias}/${remoteBranchName} already absent`);
                     } else {
                       remoteBranchDeleted = false;
+                      remoteBranchDeleteError = msg;
                       errors.push(`GitHub branch delete failed: ${msg}`);
                       log.warn(
                         `Failed to delete GitHub branch ${remoteAlias}/${remoteBranchName}:`,
@@ -568,18 +589,15 @@ export class WorktreeService {
                       );
                     }
                   }
+                } else {
+                  remoteBranchDeleted = false;
+                  remoteBranchDeleteError =
+                    'Could not determine GitHub repo name from origin URL; skipping GitHub API branch deletion.';
                 }
               }
             }
           }
         }
-      }
-
-      if (worktree) {
-        this.worktrees.delete(worktreeId);
-        log.info(`Removed worktree: ${worktree.name}`);
-      } else {
-        log.info(`Removed worktree ${worktreeId}`);
       }
 
       if (fs.existsSync(pathToRemove)) {
@@ -594,6 +612,16 @@ export class WorktreeService {
         const details = errors.length ? `\n\nDetails:\n- ${errors.join('\n- ')}` : '';
         throw new Error(`${hint}${statusLine}${details}`);
       }
+
+      // Only update in-memory state after confirming the folder is actually gone.
+      if (worktree) {
+        this.worktrees.delete(worktreeId);
+        log.info(`Removed worktree: ${worktree.name}`);
+      } else {
+        log.info(`Removed worktree ${worktreeId}`);
+      }
+
+      return { localBranchDeleted, remoteBranchDeleted, remoteBranchDeleteError };
     } catch (error) {
       log.error('Failed to remove worktree:', error);
       throw new Error(`Failed to remove worktree: ${error}`);

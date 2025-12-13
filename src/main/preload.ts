@@ -438,7 +438,13 @@ export interface ElectronAPI {
     worktreePath?: string;
     branch?: string;
     deleteRemoteBranch?: boolean;
-  }) => Promise<{ success: boolean; error?: string }>;
+  }) => Promise<{
+    success: boolean;
+    error?: string;
+    localBranchDeleted?: boolean | null;
+    remoteBranchDeleted?: boolean | null;
+    remoteBranchDeleteError?: string;
+  }>;
   worktreeStatus: (args: {
     worktreePath: string;
   }) => Promise<{ success: boolean; status?: any; error?: string }>;
