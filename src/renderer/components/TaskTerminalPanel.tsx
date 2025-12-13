@@ -2,11 +2,11 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { TerminalPane } from './TerminalPane';
 import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
+import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
 import type { Provider } from '../types';
 
-interface Workspace {
+interface Task {
   id: string;
   name: string;
   branch: string;
@@ -15,12 +15,12 @@ interface Workspace {
 }
 
 interface Props {
-  workspace: Workspace | null;
+  task: Task | null;
   provider?: Provider;
   className?: string;
 }
 
-const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, provider, className }) => {
+const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className }) => {
   const { effectiveTheme } = useTheme();
   const {
     terminals,
@@ -29,7 +29,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, provider,
     createTerminal,
     setActiveTerminal,
     closeTerminal,
-  } = useWorkspaceTerminals(workspace?.id ?? null, workspace?.path);
+  } = useTaskTerminals(task?.id ?? null, task?.path);
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -137,7 +137,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, provider,
     };
   }, [nativeTheme, defaultTheme]);
 
-  if (!workspace) {
+  if (!task) {
     return (
       <div
         className={`flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 ${className}`}
@@ -229,7 +229,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, provider,
           >
             <TerminalPane
               id={terminal.id}
-              cwd={terminal.cwd || workspace.path}
+              cwd={terminal.cwd || task.path}
               variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
               themeOverride={themeOverride}
               className="h-full w-full"
@@ -246,6 +246,6 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({ workspace, provider,
     </div>
   );
 };
-export const WorkspaceTerminalPanel = React.memo(WorkspaceTerminalPanelComponent);
+export const TaskTerminalPanel = React.memo(TaskTerminalPanelComponent);
 
-export default WorkspaceTerminalPanel;
+export default TaskTerminalPanel;

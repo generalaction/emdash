@@ -1,5 +1,5 @@
-import type { Workspace as ChatWorkspace } from './chat';
-export type Workspace = ChatWorkspace & { agentId?: string };
+import type { Task as ChatTask } from './chat';
+export type Task = ChatTask & { agentId?: string };
 
 export interface Project {
   id: string;
@@ -16,11 +16,12 @@ export interface Project {
     repository: string;
     connected: boolean;
   };
-  workspaces?: Workspace[];
+  // Internal DB field name kept as 'workspaces' for compatibility
+  workspaces?: Task[];
 }
 
 // Lightweight shapes for palette/list UIs, if needed later
 export type ProjectSummary = Pick<Project, 'id' | 'name'> & {
-  workspaces?: Pick<Workspace, 'id' | 'name'>[];
+  workspaces?: Pick<Task, 'id' | 'name'>[];
 };
-export type WorkspaceSummary = Pick<Workspace, 'id' | 'name'>;
+export type TaskSummary = Pick<Task, 'id' | 'name'>;

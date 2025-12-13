@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Spinner } from './ui/spinner';
 import { GitBranch, Bot, Play, Pause, Plus } from 'lucide-react';
 
-interface Workspace {
+interface Task {
   id: string;
   name: string;
   branch: string;
@@ -13,19 +13,19 @@ interface Workspace {
 }
 
 interface Props {
-  workspaces: Workspace[];
-  activeWorkspace: Workspace | null;
-  onSelectWorkspace: (workspace: Workspace) => void;
-  onCreateWorkspace: () => void;
-  isCreatingWorkspace?: boolean;
+  tasks: Task[];
+  activeTask: Task | null;
+  onSelectTask: (task: Task) => void;
+  onCreateTask: () => void;
+  isCreatingTask?: boolean;
 }
 
-export const WorkspaceList: React.FC<Props> = ({
-  workspaces,
-  activeWorkspace,
-  onSelectWorkspace,
-  onCreateWorkspace,
-  isCreatingWorkspace = false,
+export const TaskList: React.FC<Props> = ({
+  tasks,
+  activeTask,
+  onSelectTask,
+  onCreateTask,
+  isCreatingTask = false,
 }) => {
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -45,10 +45,10 @@ export const WorkspaceList: React.FC<Props> = ({
         <Button
           variant="default"
           size="sm"
-          onClick={onCreateWorkspace}
-          disabled={isCreatingWorkspace}
+          onClick={onCreateTask}
+          disabled={isCreatingTask}
         >
-          {isCreatingWorkspace ? (
+          {isCreatingTask ? (
             <>
               <Spinner size="sm" className="mr-2" />
               Creating...
@@ -61,35 +61,35 @@ export const WorkspaceList: React.FC<Props> = ({
         </Button>
       </div>
 
-      {workspaces.length === 0 ? (
+      {tasks.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center text-gray-500">
           <Bot className="mb-4 h-12 w-12" />
           <p className="text-center">No workspaces yet. Create one to get started!</p>
         </div>
       ) : (
         <div className="flex-1 space-y-3 overflow-y-auto">
-          {workspaces.map((workspace) => (
+          {tasks.map((task) => (
             <Card
-              key={workspace.id}
+              key={task.id}
               className={`cursor-pointer transition-all duration-200 ${
-                activeWorkspace?.id === workspace.id
+                activeTask?.id === task.id
                   ? 'border-blue-500 ring-2 ring-blue-500'
                   : 'border-gray-200 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500'
               }`}
-              onClick={() => onSelectWorkspace(workspace)}
+              onClick={() => onSelectTask(task)}
             >
               <CardHeader className="p-4">
                 <CardTitle className="flex items-center text-lg">
-                  {getStatusIcon(workspace.status)}
-                  <span className="ml-2">{workspace.name}</span>
+                  {getStatusIcon(task.status)}
+                  <span className="ml-2">{task.name}</span>
                 </CardTitle>
                 <CardDescription className="mt-1 flex items-center text-sm text-gray-500 dark:text-gray-400">
                   <GitBranch className="mr-1 h-3 w-3" />
-                  <code className="font-mono text-xs">{workspace.branch}</code>
+                  <code className="font-mono text-xs">{task.branch}</code>
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-4 pt-0 text-xs text-gray-600 dark:text-gray-300">
-                <p className="capitalize">Status: {workspace.status}</p>
+                <p className="capitalize">Status: {task.status}</p>
               </CardContent>
             </Card>
           ))}
@@ -99,4 +99,4 @@ export const WorkspaceList: React.FC<Props> = ({
   );
 };
 
-export default WorkspaceList;
+export default TaskList;

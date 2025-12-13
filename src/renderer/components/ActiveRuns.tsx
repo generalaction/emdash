@@ -17,10 +17,10 @@ import {
 interface Props {
   projects: any[];
   onSelectProject?: (project: any) => void;
-  onSelectWorkspace?: (workspace: any) => void;
+  onSelectTask?: (task: any) => void;
 }
 
-const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectWorkspace }) => {
+const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }) => {
   const [activeRuns, setActiveRuns] = React.useState<ContainerRunState[]>(() =>
     (getAllRunStates() || []).filter((s) => ['building', 'starting', 'ready'].includes(s.status))
   );
@@ -71,7 +71,7 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectWorksp
             const onOpen = () => {
               if (project && ws) {
                 onSelectProject?.(project);
-                onSelectWorkspace?.(ws);
+                onSelectTask?.(ws);
               }
             };
             return (

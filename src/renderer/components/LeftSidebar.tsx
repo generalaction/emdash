@@ -18,10 +18,10 @@ import { Home, ChevronDown, Plus, FolderOpen } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
-import { WorkspaceItem } from './WorkspaceItem';
+import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import type { Project } from '../types/app';
-import type { Workspace } from '../types/chat';
+import type { Task } from '../types/chat';
 
 interface LeftSidebarProps {
   projects: Project[];
@@ -29,8 +29,8 @@ interface LeftSidebarProps {
   onSelectProject: (project: Project) => void;
   onGoHome: () => void;
   onOpenProject?: () => void;
-  onSelectWorkspace?: (workspace: Workspace) => void;
-  activeWorkspace?: Workspace | null;
+  onSelectTask?: (task: Task) => void;
+  activeTask?: Task | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
   onReorderProjectsFull?: (newOrder: Project[]) => void;
   githubInstalled?: boolean;
@@ -44,9 +44,9 @@ interface LeftSidebarProps {
     isMobile: boolean;
     setOpen: (next: boolean) => void;
   }) => void;
-  onCreateWorkspaceForProject?: (project: Project) => void;
-  isCreatingWorkspace?: boolean;
-  onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void | boolean>;
+  onCreateTaskForProject?: (project: Project) => void;
+  isCreatingTask?: boolean;
+  onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   isHomeView?: boolean;
 }
@@ -57,8 +57,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onSelectProject,
   onGoHome,
   onOpenProject,
-  onSelectWorkspace,
-  activeWorkspace,
+  onSelectTask,
+  activeTask,
   onReorderProjects,
   onReorderProjectsFull,
   githubInstalled = true,
@@ -68,9 +68,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   githubLoading = false,
   githubStatusMessage,
   onSidebarContextChange,
-  onCreateWorkspaceForProject,
-  isCreatingWorkspace,
-  onDeleteWorkspace,
+  onCreateTaskForProject,
+  isCreatingTask,
+  onDeleteTask,
   onDeleteProject,
   isHomeView,
 }) => {
@@ -153,7 +153,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           <ActiveRuns
             projects={projects}
             onSelectProject={onSelectProject}
-            onSelectWorkspace={onSelectWorkspace}
+            onSelectTask={onSelectTask}
           />
 
           {projects.length === 0 && (
@@ -264,9 +264,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     } else if (!selectedProject) {
                                       onSelectProject?.(typedProject);
                                     }
-                                    onCreateWorkspaceForProject?.(typedProject);
+                                    onCreateTaskForProject?.(typedProject);
                                   }}
-                                  disabled={isCreatingWorkspace}
+                                  disabled={isCreatingTask}
                                   aria-label={`Add Task to ${typedProject.name}`}
                                 >
                                   <Plus
@@ -277,11 +277,11 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 </button>
                               </div>
                               <div className="hidden min-w-0 space-y-1 sm:block">
-                                {typedProject.workspaces?.map((workspace) => {
-                                  const isActive = activeWorkspace?.id === workspace.id;
+                                {typedProject.workspaces?.map((task) => {
+                                  const isActive = activeTask?.id === task.id;
                                   return (
                                     <div
-                                      key={workspace.id}
+                                      key={task.id}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         if (
@@ -290,19 +290,19 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                         ) {
                                           onSelectProject(typedProject);
                                         }
-                                        onSelectWorkspace && onSelectWorkspace(workspace);
+                                        onSelectTask && onSelectTask(task);
                                       }}
                                       className={`group/workspace min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
                                         isActive ? 'bg-black/5 dark:bg-white/5' : ''
                                       }`}
-                                      title={workspace.name}
+                                      title={task.name}
                                     >
-                                      <WorkspaceItem
-                                        workspace={workspace}
+                                      <TaskItem
+                                        task={task}
                                         showDelete
                                         onDelete={
-                                          onDeleteWorkspace
-                                            ? () => onDeleteWorkspace(typedProject, workspace)
+                                          onDeleteTask
+                                            ? () => onDeleteTask(typedProject, task)
                                             : undefined
                                         }
                                       />

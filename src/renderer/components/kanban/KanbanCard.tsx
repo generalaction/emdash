@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Workspace } from '../../types/app';
+import type { Task } from '../../types/app';
 import { providerAssets } from '../../providers/assets';
 import { providerMeta, type UiProvider } from '../../providers/meta';
 import { activityStore } from '../../lib/activityStore';
@@ -18,8 +18,8 @@ function resolveProvider(workspaceId: string): UiProvider | null {
 }
 
 const KanbanCard: React.FC<{
-  ws: Workspace;
-  onOpen?: (ws: Workspace) => void;
+  ws: Task;
+  onOpen?: (ws: Task) => void;
   draggable?: boolean;
 }> = ({ ws, onOpen, draggable = true }) => {
   const SHOW_PROVIDER_LOGOS = false;

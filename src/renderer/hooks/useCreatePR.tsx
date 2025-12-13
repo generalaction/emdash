@@ -45,7 +45,7 @@ export function useCreatePR() {
       }
 
       const inferredTitle =
-        prOptions?.title || workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
+        prOptions?.title || workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
 
       let finalPrOptions = { ...(prOptions || {}), title: inferredTitle };
 

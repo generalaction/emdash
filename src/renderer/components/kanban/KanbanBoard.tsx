@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Project, Workspace } from '../../types/app';
+import type { Project, Task } from '../../types/app';
 import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
 import { Button } from '../ui/button';
@@ -10,7 +10,7 @@ import {
   watchWorkspacePty,
   watchWorkspaceContainers,
   watchWorkspaceActivity,
-} from '../../lib/workspaceStatus';
+} from '../../lib/taskStatus';
 import { activityStore } from '../../lib/activityStore';
 
 const order: KanbanStatus[] = ['todo', 'in-progress', 'done'];
@@ -22,7 +22,7 @@ const titles: Record<KanbanStatus, string> = {
 
 const KanbanBoard: React.FC<{
   project: Project;
-  onOpenWorkspace?: (ws: Workspace) => void;
+  onOpenWorkspace?: (ws: Task) => void;
   onCreateWorkspace?: () => void;
 }> = ({ project, onOpenWorkspace, onCreateWorkspace }) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
@@ -260,7 +260,7 @@ const KanbanBoard: React.FC<{
     };
   }, [project.id, project.workspaces?.length]);
 
-  const byStatus: Record<KanbanStatus, Workspace[]> = { todo: [], 'in-progress': [], done: [] };
+  const byStatus: Record<KanbanStatus, Task[]> = { todo: [], 'in-progress': [], done: [] };
   for (const ws of project.workspaces || []) {
     const s = statusMap[ws.id] || 'todo';
     byStatus[s].push(ws);

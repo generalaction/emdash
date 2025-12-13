@@ -3,9 +3,9 @@ import { Button } from './components/ui/button';
 import { FolderOpen } from 'lucide-react';
 import LeftSidebar from './components/LeftSidebar';
 import ProjectMainView from './components/ProjectMainView';
-import WorkspaceModal from './components/WorkspaceModal';
+import TaskModal from './components/TaskModal';
 import ChatInterface from './components/ChatInterface';
-import MultiAgentWorkspace from './components/MultiAgentWorkspace';
+import MultiAgentTask from './components/MultiAgentTask';
 import { Toaster } from './components/ui/toaster';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import RequirementsNotice from './components/RequirementsNotice';
@@ -30,8 +30,8 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import FirstLaunchModal from './components/FirstLaunchModal';
-import type { Project, Workspace } from './types/app';
-import type { WorkspaceMetadata as ChatWorkspaceMetadata } from './types/chat';
+import type { Project, Task } from './types/app';
+import type { TaskMetadata } from './types/chat';
 import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import { usePlanToasts } from './hooks/usePlanToasts';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
@@ -78,8 +78,6 @@ const RightSidebarBridge: React.FC<{
   return null;
 };
 
-// Shared types
-type WorkspaceMetadata = ChatWorkspaceMetadata;
 
 const TITLEBAR_HEIGHT = '36px';
 const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
@@ -121,11 +119,11 @@ const AppContent: React.FC = () => {
   const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
+  const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
-  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
-  const [activeWorkspaceProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
+  const [isCreatingTask, setIsCreatingWorkspace] = useState<boolean>(false);
+  const [activeTask, setActiveWorkspace] = useState<Task | null>(null);
+  const [activeTaskProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
   const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
@@ -135,7 +133,7 @@ const AppContent: React.FC = () => {
   const showAgentRequirement =
     Object.keys(installedProviders).length > 0 &&
     Object.values(installedProviders).every((v) => v === false);
-  const deletingWorkspaceIdsRef = useRef<Set<string>>(new Set());
+  const deletingTaskIdsRef = useRef<Set<string>>(new Set());
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -811,7 +809,7 @@ const AppContent: React.FC = () => {
         preparedPrompt = parts.join('\n');
       }
 
-      const workspaceMetadata: WorkspaceMetadata | null =
+      const workspaceMetadata: TaskMetadata | null =
         linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
           ? {
               linearIssue: linkedLinearIssue ?? null,
@@ -827,7 +825,7 @@ const AppContent: React.FC = () => {
       const isMultiAgent = totalRuns > 1;
       const primaryProvider = providerRuns[0]?.provider || 'claude';
 
-      let newWorkspace: Workspace;
+      let newWorkspace: Task;
       if (isMultiAgent) {
         // Multi-agent workspace: create worktrees for each provider×runs combo
         const variants: Array<{
@@ -867,7 +865,7 @@ const AppContent: React.FC = () => {
           }
         }
 
-        const multiMeta: WorkspaceMetadata = {
+        const multiMeta: TaskMetadata = {
           ...(workspaceMetadata || {}),
           multiAgent: {
             enabled: true,
@@ -1154,7 +1152,7 @@ const AppContent: React.FC = () => {
     activateProjectView(project);
   };
 
-  const handleSelectWorkspace = (workspace: Workspace) => {
+  const handleSelectWorkspace = (workspace: Task) => {
     setActiveWorkspace(workspace);
     // Load provider from workspace.agentId if it exists, otherwise default to null
     // This ensures the selected provider persists across app restarts
@@ -1170,13 +1168,13 @@ const AppContent: React.FC = () => {
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
       activateProjectView(targetProject);
-      setShowWorkspaceModal(true);
+      setShowTaskModal(true);
     },
     [activateProjectView, projects]
   );
 
   const removeWorkspaceFromState = (projectId: string, workspaceId: string, wasActive: boolean) => {
-    const filterWorkspaces = (list?: Workspace[]) =>
+    const filterWorkspaces = (list?: Task[]) =>
       (list || []).filter((w) => w.id !== workspaceId);
 
     setProjects((prev) =>
@@ -1201,10 +1199,10 @@ const AppContent: React.FC = () => {
 
   const handleDeleteWorkspace = async (
     targetProject: Project,
-    workspace: Workspace,
+    workspace: Task,
     options?: { silent?: boolean }
   ): Promise<boolean> => {
-    if (deletingWorkspaceIdsRef.current.has(workspace.id)) {
+    if (deletingTaskIdsRef.current.has(workspace.id)) {
       toast({
         title: 'Deletion in progress',
         description: `"${workspace.name}" is already being removed.`,
@@ -1212,9 +1210,9 @@ const AppContent: React.FC = () => {
       return false;
     }
 
-    const wasActive = activeWorkspace?.id === workspace.id;
+    const wasActive = activeTask?.id === workspace.id;
     const workspaceSnapshot = { ...workspace };
-    deletingWorkspaceIdsRef.current.add(workspace.id);
+    deletingTaskIdsRef.current.add(workspace.id);
     removeWorkspaceFromState(targetProject.id, workspace.id, wasActive);
 
     const runDeletion = async (): Promise<boolean> => {
@@ -1359,7 +1357,7 @@ const AppContent: React.FC = () => {
         }
         return false;
       } finally {
-        deletingWorkspaceIdsRef.current.delete(workspace.id);
+        deletingTaskIdsRef.current.delete(workspace.id);
       }
     };
 
@@ -1492,7 +1490,7 @@ const AppContent: React.FC = () => {
               handleSelectWorkspace(ws);
               setShowKanban(false);
             }}
-            onCreateWorkspace={() => setShowWorkspaceModal(true)}
+            onCreateWorkspace={() => setShowTaskModal(true)}
           />
         </div>
       );
@@ -1561,29 +1559,29 @@ const AppContent: React.FC = () => {
     if (selectedProject) {
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {activeWorkspace ? (
-            (activeWorkspace.metadata as any)?.multiAgent?.enabled ? (
-              <MultiAgentWorkspace
-                workspace={activeWorkspace}
+          {activeTask ? (
+            (activeTask.metadata as any)?.multiAgent?.enabled ? (
+              <MultiAgentTask
+                task={activeTask}
                 projectName={selectedProject.name}
                 projectId={selectedProject.id}
               />
             ) : (
               <ChatInterface
-                workspace={activeWorkspace}
+                task={activeTask}
                 projectName={selectedProject.name}
                 className="min-h-0 flex-1"
-                initialProvider={activeWorkspaceProvider || undefined}
+                initialProvider={activeTaskProvider || undefined}
               />
             )
           ) : (
             <ProjectMainView
               project={selectedProject}
-              onCreateWorkspace={() => setShowWorkspaceModal(true)}
-              activeWorkspace={activeWorkspace}
-              onSelectWorkspace={handleSelectWorkspace}
-              onDeleteWorkspace={handleDeleteWorkspace}
-              isCreatingWorkspace={isCreatingWorkspace}
+              onCreateTask={() => setShowTaskModal(true)}
+              activeTask={activeTask}
+              onSelectTask={handleSelectWorkspace}
+              onDeleteTask={handleDeleteWorkspace}
+              isCreatingTask={isCreatingTask}
               onDeleteProject={handleDeleteProject}
             />
           )}
@@ -1654,19 +1652,19 @@ const AppContent: React.FC = () => {
               onToggleSettings={handleToggleSettings}
               isSettingsOpen={showSettings}
               currentPath={
-                activeWorkspace?.metadata?.multiAgent?.enabled
+                activeTask?.metadata?.multiAgent?.enabled
                   ? null
-                  : activeWorkspace?.path || selectedProject?.path || null
+                  : activeTask?.path || selectedProject?.path || null
               }
               defaultPreviewUrl={
-                activeWorkspace?.id
-                  ? getContainerRunState(activeWorkspace.id)?.previewUrl || null
+                activeTask?.id
+                  ? getContainerRunState(activeTask.id)?.previewUrl || null
                   : null
               }
-              workspaceId={activeWorkspace?.id || null}
-              workspacePath={activeWorkspace?.path || null}
+              workspaceId={activeTask?.id || null}
+              workspacePath={activeTask?.path || null}
               projectPath={selectedProject?.path || null}
-              isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
+              isWorkspaceMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
               githubUser={user}
               onToggleKanban={handleToggleKanban}
               isKanbanOpen={Boolean(showKanban)}
@@ -1694,8 +1692,8 @@ const AppContent: React.FC = () => {
                     onSelectProject={handleSelectProject}
                     onGoHome={handleGoHome}
                     onOpenProject={handleOpenProject}
-                    onSelectWorkspace={handleSelectWorkspace}
-                    activeWorkspace={activeWorkspace || undefined}
+                    onSelectTask={handleSelectWorkspace}
+                    activeTask={activeTask || undefined}
                     onReorderProjects={handleReorderProjects}
                     onReorderProjectsFull={handleReorderProjectsFull}
                     githubInstalled={ghInstalled}
@@ -1705,9 +1703,9 @@ const AppContent: React.FC = () => {
                     githubLoading={githubLoading}
                     githubStatusMessage={githubStatusMessage}
                     onSidebarContextChange={handleSidebarContextChange}
-                    onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
-                    isCreatingWorkspace={isCreatingWorkspace}
-                    onDeleteWorkspace={handleDeleteWorkspace}
+                    onCreateTaskForProject={handleStartCreateWorkspaceFromSidebar}
+                    isCreatingTask={isCreatingTask}
+                    onDeleteTask={handleDeleteWorkspace}
                     onDeleteProject={handleDeleteProject}
                     isHomeView={showHomeView}
                   />
@@ -1740,7 +1738,7 @@ const AppContent: React.FC = () => {
                   collapsible
                   order={3}
                 >
-                  <RightSidebar workspace={activeWorkspace} className="lg:border-l-0" />
+                  <RightSidebar task={activeTask} className="lg:border-l-0" />
                 </ResizablePanel>
               </ResizablePanelGroup>
             </div>
@@ -1755,9 +1753,9 @@ const AppContent: React.FC = () => {
               handleOpenProject={handleOpenProject}
               handleOpenSettings={handleOpenSettings}
             />
-            <WorkspaceModal
-              isOpen={showWorkspaceModal}
-              onClose={() => setShowWorkspaceModal(false)}
+            <TaskModal
+              isOpen={showTaskModal}
+              onClose={() => setShowTaskModal(false)}
               onCreateWorkspace={handleCreateWorkspace}
               projectName={selectedProject?.name || ''}
               defaultBranch={selectedProject?.gitInfo.branch || 'main'}
@@ -1773,10 +1771,10 @@ const AppContent: React.FC = () => {
             />
             <Toaster />
             <BrowserPane
-              workspaceId={activeWorkspace?.id || null}
-              workspacePath={activeWorkspace?.path || null}
+              workspaceId={activeTask?.id || null}
+              workspacePath={activeTask?.path || null}
               overlayActive={
-                showSettings || showCommandPalette || showWorkspaceModal || showFirstLaunchModal
+                showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
               }
             />
           </RightSidebarProvider>

@@ -5,10 +5,10 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';
-import { useWorkspaceChanges } from '../hooks/useWorkspaceChanges';
-import { ChangesBadge } from './WorkspaceChanges';
+import { useTaskChanges } from '../hooks/useTaskChanges';
+import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
-import WorkspaceDeleteButton from './WorkspaceDeleteButton';
+import WorkspaceDeleteButton from './TaskDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import {
   AlertDialog,
@@ -24,7 +24,7 @@ import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
-import WorkspacePorts from './WorkspacePorts';
+import WorkspacePorts from './TaskPorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
 import DeletePrNotice from './DeletePrNotice';
@@ -36,7 +36,7 @@ import {
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
 import PrPreviewTooltip from './PrPreviewTooltip';
-import type { Project, Workspace } from '../types/app';
+import type { Project, Task } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -53,7 +53,7 @@ function WorkspaceRow({
   isSelected,
   onToggleSelect,
 }: {
-  ws: Workspace;
+  ws: Task;
   active: boolean;
   onClick: () => void;
   onDelete: () => void | Promise<void | boolean>;
@@ -65,7 +65,7 @@ function WorkspaceRow({
   const [isRunning, setIsRunning] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { pr } = usePrStatus(ws.path);
-  const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(ws.path, ws.id);
+  const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
   const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
     getContainerRunState(ws.id)
   );
@@ -387,25 +387,25 @@ function WorkspaceRow({
 
 interface ProjectMainViewProps {
   project: Project;
-  onCreateWorkspace: () => void;
-  activeWorkspace: Workspace | null;
-  onSelectWorkspace: (workspace: Workspace) => void;
-  onDeleteWorkspace: (
+  onCreateTask: () => void;
+  activeTask: Task | null;
+  onSelectTask: (task: Task) => void;
+  onDeleteTask: (
     project: Project,
-    workspace: Workspace,
+    task: Task,
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
-  isCreatingWorkspace?: boolean;
+  isCreatingTask?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
 }
 
 const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   project,
-  onCreateWorkspace,
-  activeWorkspace,
-  onSelectWorkspace,
-  onDeleteWorkspace,
-  isCreatingWorkspace = false,
+  onCreateTask,
+  activeTask,
+  onSelectTask,
+  onDeleteTask,
+  isCreatingTask = false,
   onDeleteProject,
 }) => {
   const { toast } = useToast();
@@ -516,7 +516,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     const deletedNames: string[] = [];
     for (const ws of toDelete) {
       try {
-        const result = await onDeleteWorkspace(project, ws, { silent: true });
+        const result = await onDeleteTask(project, ws, { silent: true });
         if (result !== false) {
           deletedNames.push(ws.name);
         }
@@ -795,11 +795,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       variant="default"
                       size="sm"
                       className="h-9 px-4 text-sm font-semibold shadow-sm"
-                      onClick={onCreateWorkspace}
-                      disabled={isCreatingWorkspace}
-                      aria-busy={isCreatingWorkspace}
+                      onClick={onCreateTask}
+                      disabled={isCreatingTask}
+                      aria-busy={isCreatingTask}
                     >
-                      {isCreatingWorkspace ? (
+                      {isCreatingTask ? (
                         <>
                           <Loader2 className="mr-2 size-4 animate-spin" />
                           Starting…
@@ -851,9 +851,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       isSelectMode={isSelectMode}
                       isSelected={selectedIds.has(ws.id)}
                       onToggleSelect={() => toggleSelect(ws.id)}
-                      active={activeWorkspace?.id === ws.id}
-                      onClick={() => onSelectWorkspace(ws)}
-                      onDelete={() => onDeleteWorkspace(project, ws)}
+                      active={activeTask?.id === ws.id}
+                      onClick={() => onSelectTask(ws)}
+                      onDelete={() => onDeleteTask(project, ws)}
                     />
                   ))}
                 </div>

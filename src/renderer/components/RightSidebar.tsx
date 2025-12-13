@@ -2,13 +2,13 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import { useFileChanges } from '@/hooks/useFileChanges';
-import WorkspaceTerminalPanel from './WorkspaceTerminalPanel';
+import TaskTerminalPanel from './TaskTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { providerAssets } from '@/providers/assets';
 import { providerMeta } from '@/providers/meta';
 import type { Provider } from '../types';
 
-export interface RightSidebarWorkspace {
+export interface RightSidebarTask {
   id: string;
   name: string;
   branch: string;
@@ -19,16 +19,16 @@ export interface RightSidebarWorkspace {
 }
 
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
-  workspace: RightSidebarWorkspace | null;
+  task: RightSidebarTask | null;
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...rest }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest }) => {
   const { collapsed } = useRightSidebar();
 
   // Detect multi-agent variants in workspace metadata
   const variants: Array<{ provider: Provider; name: string; path: string }> = (() => {
     try {
-      const v = workspace?.metadata?.multiAgent?.variants || [];
+      const v = task?.metadata?.multiAgent?.variants || [];
       if (Array.isArray(v))
         return v
           .map((x: any) => ({ provider: x?.provider as Provider, name: x?.name, path: x?.path }))
@@ -73,7 +73,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
       {...rest}
     >
       <div className="flex h-full w-full min-w-0 flex-col">
-        {workspace ? (
+        {task ? (
           <div className="flex h-full flex-col">
             {variants.length > 1 ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
@@ -117,9 +117,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
               (() => {
                 const v = variants[0];
                 const derived = {
-                  ...workspace,
+                  ...task,
                   path: v.path,
-                  name: v.name || workspace.name,
+                  name: v.name || task.name,
                 } as any;
                 return (
                   <>
@@ -127,8 +127,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
                       path={v.path}
                       className="min-h-0 flex-1 border-b border-border"
                     />
-                    <WorkspaceTerminalPanel
-                      workspace={derived}
+                    <TaskTerminalPanel
+                      task={derived}
                       provider={v.provider}
                       className="min-h-0 flex-1"
                     />
@@ -138,12 +138,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, className, ...re
             ) : (
               <>
                 <FileChangesPanel
-                  workspaceId={workspace.path}
+                  workspaceId={task.path}
                   className="min-h-0 flex-1 border-b border-border"
                 />
-                <WorkspaceTerminalPanel
-                  workspace={workspace}
-                  provider={workspace.agentId as Provider}
+                <TaskTerminalPanel
+                  task={task}
+                  provider={task.agentId as Provider}
                   className="min-h-0 flex-1"
                 />
               </>

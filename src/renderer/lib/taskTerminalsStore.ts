@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
-type WorkspaceTerminal = {
+type TaskTerminal = {
   id: string;
   title: string;
   cwd?: string;
@@ -8,20 +8,20 @@ type WorkspaceTerminal = {
   createdAt: number;
 };
 
-type WorkspaceTerminalsState = {
-  terminals: WorkspaceTerminal[];
+type TaskTerminalsState = {
+  terminals: TaskTerminal[];
   activeId: string | null;
   counter: number;
 };
 
 type WorkspaceSnapshot = {
-  terminals: WorkspaceTerminal[];
+  terminals: TaskTerminal[];
   activeTerminalId: string | null;
 };
 
 const STORAGE_PREFIX = 'emdash:workspaceTerminals:v1';
 
-const workspaceStates = new Map<string, WorkspaceTerminalsState>();
+const workspaceStates = new Map<string, TaskTerminalsState>();
 const workspaceListeners = new Map<string, Set<() => void>>();
 const workspaceSnapshots = new Map<string, WorkspaceSnapshot>();
 
@@ -46,7 +46,7 @@ function storageKey(workspaceId: string) {
   return `${STORAGE_PREFIX}:${workspaceId}`;
 }
 
-function cloneState(state: WorkspaceTerminalsState): WorkspaceTerminalsState {
+function cloneState(state: TaskTerminalsState): TaskTerminalsState {
   return {
     terminals: state.terminals.map((terminal) => ({ ...terminal })),
     activeId: state.activeId,
@@ -54,7 +54,7 @@ function cloneState(state: WorkspaceTerminalsState): WorkspaceTerminalsState {
   };
 }
 
-function loadFromStorage(workspaceId: string): WorkspaceTerminalsState | null {
+function loadFromStorage(workspaceId: string): TaskTerminalsState | null {
   if (!storageAvailable) return null;
   try {
     const raw = window.localStorage.getItem(storageKey(workspaceId));
@@ -78,9 +78,9 @@ function loadFromStorage(workspaceId: string): WorkspaceTerminalsState | null {
                 typeof item.createdAt === 'number' && Number.isFinite(item.createdAt)
                   ? item.createdAt
                   : Date.now(),
-            } satisfies WorkspaceTerminal;
+            } satisfies TaskTerminal;
           })
-          .filter((x: WorkspaceTerminal | null): x is WorkspaceTerminal => Boolean(x))
+          .filter((x: TaskTerminal | null): x is TaskTerminal => Boolean(x))
       : [];
 
     const counter =
@@ -90,7 +90,7 @@ function loadFromStorage(workspaceId: string): WorkspaceTerminalsState | null {
 
     let activeId: string | null = null;
     if (typeof parsed.activeId === 'string' && parsed.activeId) {
-      activeId = terminals.some((terminal: WorkspaceTerminal) => terminal.id === parsed.activeId)
+      activeId = terminals.some((terminal: TaskTerminal) => terminal.id === parsed.activeId)
         ? parsed.activeId
         : (terminals[0]?.id ?? null);
     } else {
@@ -109,7 +109,7 @@ function loadFromStorage(workspaceId: string): WorkspaceTerminalsState | null {
   }
 }
 
-function saveToStorage(workspaceId: string, state: WorkspaceTerminalsState) {
+function saveToStorage(workspaceId: string, state: TaskTerminalsState) {
   if (!storageAvailable) return;
   try {
     const payload = JSON.stringify({
@@ -128,9 +128,9 @@ function makeTerminalId(workspaceId: string): string {
   return `${workspaceId}::term::${Date.now().toString(16)}::${rnd}`;
 }
 
-function createDefaultState(workspaceId: string, workspacePath?: string): WorkspaceTerminalsState {
+function createDefaultState(workspaceId: string, workspacePath?: string): TaskTerminalsState {
   const terminalId = makeTerminalId(workspaceId);
-  const firstTerminal: WorkspaceTerminal = {
+  const firstTerminal: TaskTerminal = {
     id: terminalId,
     title: 'Terminal 1',
     cwd: workspacePath,
@@ -143,7 +143,7 @@ function createDefaultState(workspaceId: string, workspacePath?: string): Worksp
   };
 }
 
-function ensureSnapshot(workspaceId: string, state: WorkspaceTerminalsState) {
+function ensureSnapshot(workspaceId: string, state: TaskTerminalsState) {
   const current = workspaceSnapshots.get(workspaceId);
   if (
     !current ||
@@ -161,7 +161,7 @@ function ensureSnapshot(workspaceId: string, state: WorkspaceTerminalsState) {
 function ensureWorkspaceState(
   workspaceId: string,
   workspacePath?: string
-): WorkspaceTerminalsState {
+): TaskTerminalsState {
   let state = workspaceStates.get(workspaceId);
   if (state) {
     ensureSnapshot(workspaceId, state);
@@ -189,7 +189,7 @@ function emit(workspaceId: string) {
 function updateWorkspaceState(
   workspaceId: string,
   workspacePath: string | undefined,
-  mutate: (draft: WorkspaceTerminalsState) => void
+  mutate: (draft: TaskTerminalsState) => void
 ) {
   const current = ensureWorkspaceState(workspaceId, workspacePath);
   const draft = cloneState(current);
@@ -295,15 +295,15 @@ function closeTerminal(workspaceId: string, terminalId: string, workspacePath?: 
   }
 }
 
-export function useWorkspaceTerminals(workspaceId: string | null, workspacePath?: string) {
+export function useTaskTerminals(taskId: string | null, taskPath?: string) {
   const snapshot = useSyncExternalStore(
-    (listener) => subscribe(workspaceId, workspacePath, listener),
-    () => getSnapshot(workspaceId, workspacePath),
-    () => getSnapshot(workspaceId, workspacePath)
+    (listener) => subscribe(taskId, taskPath, listener),
+    () => getSnapshot(taskId, taskPath),
+    () => getSnapshot(taskId, taskPath)
   );
 
   const actions = useMemo(() => {
-    if (!workspaceId) {
+    if (!taskId) {
       return {
         createTerminal: () => undefined,
         setActiveTerminal: (_terminalId: string) => undefined,
@@ -311,11 +311,11 @@ export function useWorkspaceTerminals(workspaceId: string | null, workspacePath?
       };
     }
     return {
-      createTerminal: () => createTerminal(workspaceId, workspacePath),
-      setActiveTerminal: (terminalId: string) => setActive(workspaceId, terminalId, workspacePath),
-      closeTerminal: (terminalId: string) => closeTerminal(workspaceId, terminalId, workspacePath),
+      createTerminal: () => createTerminal(taskId, taskPath),
+      setActiveTerminal: (terminalId: string) => setActive(taskId, terminalId, taskPath),
+      closeTerminal: (terminalId: string) => closeTerminal(taskId, terminalId, taskPath),
     };
-  }, [workspaceId, workspacePath]);
+  }, [taskId, taskPath]);
 
   const activeTerminal =
     snapshot.terminals.find((terminal) => terminal.id === snapshot.activeTerminalId) ?? null;
@@ -328,4 +328,4 @@ export function useWorkspaceTerminals(workspaceId: string | null, workspacePath?
   };
 }
 
-export type { WorkspaceTerminal };
+export type { TaskTerminal };

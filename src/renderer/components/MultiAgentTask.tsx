@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { type Workspace } from '../types/chat';
+import { type Task } from '../types/chat';
 import { type Provider } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -14,10 +14,10 @@ import { Spinner } from './ui/spinner';
 import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { useAutoScrollOnWorkspaceSwitch } from '@/hooks/useAutoScrollOnWorkspaceSwitch';
+import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 
 interface Props {
-  workspace: Workspace;
+  task: Task;
   projectName: string;
   projectId: string;
 }
@@ -31,16 +31,16 @@ type Variant = {
   worktreeId: string;
 };
 
-const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
+const MultiAgentTask: React.FC<Props> = ({ task }) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
-  const multi = workspace.metadata?.multiAgent;
+  const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
 
-  // Auto-scroll to bottom when this workspace becomes active
-  const { scrollToBottom } = useAutoScrollOnWorkspaceSwitch(true, workspace.id);
+  // Auto-scroll to bottom when this task becomes active
+  const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
 
   // Helper to generate display label with instance number if needed
   const getVariantDisplayLabel = (variant: Variant): string => {
@@ -65,7 +65,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
 
   // Build initial issue context (feature parity with single-agent ChatInterface)
   const initialInjection: string | null = useMemo(() => {
-    const md: any = workspace.metadata || null;
+    const md: any = task.metadata || null;
     if (!md) return null;
     const p = (md.initialPrompt || '').trim();
     if (p) return p;
@@ -154,7 +154,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
       return lines.join('\n');
     }
     return null;
-  }, [workspace.metadata]);
+  }, [task.metadata]);
 
   // Robust prompt injection modeled after useInitialPromptInjection, without one-shot gating
   const injectPrompt = async (ptyId: string, provider: Provider, text: string) => {
@@ -345,8 +345,8 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   // Sync variant busy state to activityStore for sidebar indicator
   useEffect(() => {
     const anyBusy = Object.values(variantBusy).some(Boolean);
-    activityStore.setWorkspaceBusy(workspace.id, anyBusy);
-  }, [variantBusy, workspace.id]);
+    activityStore.setWorkspaceBusy(task.id, anyBusy);
+  }, [variantBusy, task.id]);
 
   // Scroll to bottom when active tab changes
   useEffect(() => {
@@ -362,7 +362,7 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   if (!multi?.enabled || variants.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Multi-agent config missing for this workspace.
+        Multi-agent config missing for this task.
       </div>
     );
   }
@@ -443,10 +443,10 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
-                    autoApprove={workspace.metadata?.autoApprove ?? false}
+                    autoApprove={task.metadata?.autoApprove ?? false}
                     initialPrompt={
                       providerMeta[v.provider]?.initialPromptFlag !== undefined &&
-                      !workspace.metadata?.initialInjectionSent
+                      !task.metadata?.initialInjectionSent
                         ? (initialInjection ?? undefined)
                         : undefined
                     }
@@ -462,17 +462,17 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                       // For providers WITHOUT CLI flag support, use keystroke injection
                       if (
                         initialInjection &&
-                        !workspace.metadata?.initialInjectionSent &&
+                        !task.metadata?.initialInjectionSent &&
                         providerMeta[v.provider]?.initialPromptFlag === undefined
                       ) {
                         void injectPrompt(`${v.worktreeId}-main`, v.provider, initialInjection);
                       }
                       // Mark initial injection as sent so it won't re-run on restart
-                      if (initialInjection && !workspace.metadata?.initialInjectionSent) {
+                      if (initialInjection && !task.metadata?.initialInjectionSent) {
                         void window.electronAPI.saveWorkspace({
-                          ...workspace,
+                          ...task,
                           metadata: {
-                            ...workspace.metadata,
+                            ...task.metadata,
                             initialInjectionSent: true,
                           },
                         });
@@ -523,4 +523,4 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
   );
 };
 
-export default MultiAgentWorkspace;
+export default MultiAgentTask;

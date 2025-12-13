@@ -3,13 +3,13 @@ import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
 
-/** Per-provider run configuration for workspace creation */
+/** Per-provider run configuration for task creation */
 export interface ProviderRun {
   provider: ProviderId;
   runs: number;
 }
 
-export interface WorkspaceMetadata {
+export interface TaskMetadata {
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
@@ -17,10 +17,10 @@ export interface WorkspaceMetadata {
   autoApprove?: boolean | null;
   /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
   initialInjectionSent?: boolean | null;
-  // When present, this workspace is a multi-agent workspace orchestrating multiple worktrees
+  // When present, this task is a multi-agent task orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;
-    // Max panes allowed when the workspace was created (UI hint)
+    // Max panes allowed when the task was created (UI hint)
     maxProviders?: number;
     // Per-provider run configuration
     providerRuns?: ProviderRun[];
@@ -29,7 +29,7 @@ export interface WorkspaceMetadata {
     variants: Array<{
       id: string;
       provider: ProviderId;
-      name: string; // worktree display name, e.g. workspaceName-providerSlug
+      name: string; // worktree display name, e.g. taskName-providerSlug
       branch: string;
       path: string; // filesystem path of the worktree
       worktreeId: string; // WorktreeService id (stable hash of path)
@@ -38,14 +38,14 @@ export interface WorkspaceMetadata {
   } | null;
 }
 
-export interface Workspace {
+export interface Task {
   id: string;
   projectId: string;
   name: string;
   branch: string;
   path: string;
   status: 'active' | 'idle' | 'running';
-  metadata?: WorkspaceMetadata | null;
+  metadata?: TaskMetadata | null;
 }
 
 export interface Message {
