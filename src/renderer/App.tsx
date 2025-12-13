@@ -809,7 +809,7 @@ const AppContent: React.FC = () => {
         preparedPrompt = parts.join('\n');
       }
 
-      const workspaceMetadata: TaskMetadata | null =
+      const taskMetadata: TaskMetadata | null =
         linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
           ? {
               linearIssue: linkedLinearIssue ?? null,
@@ -866,7 +866,7 @@ const AppContent: React.FC = () => {
         }
 
         const multiMeta: TaskMetadata = {
-          ...(workspaceMetadata || {}),
+          ...(taskMetadata || {}),
           multiAgent: {
             enabled: true,
             maxProviders: 4,
@@ -923,13 +923,13 @@ const AppContent: React.FC = () => {
           path: worktree.path,
           status: 'idle',
           agentId: primaryProvider,
-          metadata: workspaceMetadata,
+          metadata: taskMetadata,
         };
 
         const saveResult = await window.electronAPI.saveWorkspace({
           ...newWorkspace,
           agentId: primaryProvider,
-          metadata: workspaceMetadata,
+          metadata: taskMetadata,
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
@@ -941,14 +941,14 @@ const AppContent: React.FC = () => {
       }
 
       {
-        if (workspaceMetadata?.linearIssue) {
+        if (taskMetadata?.linearIssue) {
           try {
             const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
               newWorkspace.id
             );
 
             if (convoResult?.success && convoResult.conversation?.id) {
-              const issue = workspaceMetadata.linearIssue;
+              const issue = taskMetadata.linearIssue;
               const detailParts: string[] = [];
               const stateName = issue.state?.name?.trim();
               const assigneeName =
@@ -993,14 +993,14 @@ const AppContent: React.FC = () => {
             log.error('Failed to seed workspace with Linear issue context:', seedError as any);
           }
         }
-        if (workspaceMetadata?.githubIssue) {
+        if (taskMetadata?.githubIssue) {
           try {
             const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
               newWorkspace.id
             );
 
             if (convoResult?.success && convoResult.conversation?.id) {
-              const issue = workspaceMetadata.githubIssue;
+              const issue = taskMetadata.githubIssue;
               const detailParts: string[] = [];
               const stateName = issue.state?.toString()?.trim();
               const assignees = Array.isArray(issue.assignees)
@@ -1051,14 +1051,14 @@ const AppContent: React.FC = () => {
             log.error('Failed to seed workspace with GitHub issue context:', seedError as any);
           }
         }
-        if (workspaceMetadata?.jiraIssue) {
+        if (taskMetadata?.jiraIssue) {
           try {
             const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
               newWorkspace.id
             );
 
             if (convoResult?.success && convoResult.conversation?.id) {
-              const issue: any = workspaceMetadata.jiraIssue;
+              const issue: any = taskMetadata.jiraIssue;
               const lines: string[] = [];
               const line1 =
                 `Linked Jira issue: ${issue.key || ''}${issue.summary ? ` — ${issue.summary}` : ''}`.trim();
@@ -1114,7 +1114,7 @@ const AppContent: React.FC = () => {
         const isMultiAgent = (newWorkspace.metadata as any)?.multiAgent?.enabled;
         captureTelemetry('workspace_created', {
           provider: isMultiAgent ? 'multi' : (newWorkspace.agentId as string) || 'codex',
-          has_initial_prompt: !!workspaceMetadata?.initialPrompt,
+          has_initial_prompt: !!taskMetadata?.initialPrompt,
         });
 
         // Set the active workspace and its provider (none if multi-agent)
