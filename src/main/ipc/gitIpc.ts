@@ -372,7 +372,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     ) => {
       const {
         taskPath,
-        commitMessage = 'chore: apply workspace changes',
+        commitMessage = 'chore: apply task changes',
         createBranchIfOnDefault = true,
         branchPrefix = 'orch',
       } = (args ||

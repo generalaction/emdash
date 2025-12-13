@@ -32,12 +32,12 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:saveTask', async (_, workspace: any) => {
+  ipcMain.handle('db:saveTask', async (_, task: any) => {
     try {
-      await databaseService.saveTask(workspace);
+      await databaseService.saveTask(task);
       return { success: true };
     } catch (error) {
-      log.error('Failed to save workspace:', error);
+      log.error('Failed to save task:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -118,13 +118,13 @@ export function registerDatabaseIpc() {
       const stopResult = await containerRunnerService.stopRun(taskId);
       if (!stopResult.ok) {
         // Log but don't fail workspace deletion if container stop fails
-        log.warn('Failed to stop container during workspace deletion:', stopResult.error);
+        log.warn('Failed to stop container during task deletion:', stopResult.error);
       }
 
       await databaseService.deleteTask(taskId);
       return { success: true };
     } catch (error) {
-      log.error('Failed to delete workspace:', error);
+      log.error('Failed to delete task:', error);
       return { success: false, error: (error as Error).message };
     }
   });

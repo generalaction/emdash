@@ -224,7 +224,7 @@ const WorkspacePorts: React.FC<Props> = ({
             </>
           ) : (
             <div className="space-y-2">
-              <div>Live expose requires a docker-compose.yml at the workspace root.</div>
+              <div>Live expose requires a docker-compose.yml at the task root.</div>
               <button
                 type="button"
                 className="inline-flex items-center rounded border border-border/70 bg-background px-2 py-0.5 text-[11px] font-medium hover:bg-muted/40"

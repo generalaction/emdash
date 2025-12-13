@@ -275,7 +275,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getProjects: () => ipcRenderer.invoke('db:getProjects'),
   saveProject: (project: any) => ipcRenderer.invoke('db:saveProject', project),
   getTasks: (projectId?: string) => ipcRenderer.invoke('db:getTasks', projectId),
-  saveTask: (workspace: any) => ipcRenderer.invoke('db:saveTask', workspace),
+  saveTask: (task: any) => ipcRenderer.invoke('db:saveTask', task),
   deleteProject: (projectId: string) => ipcRenderer.invoke('db:deleteProject', projectId),
   deleteTask: (taskId: string) => ipcRenderer.invoke('db:deleteTask', taskId),
 
@@ -625,7 +625,7 @@ export interface ElectronAPI {
   getProjects: () => Promise<any[]>;
   saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
   getTasks: (projectId?: string) => Promise<any[]>;
-  saveTask: (workspace: any) => Promise<{ success: boolean; error?: string }>;
+  saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 

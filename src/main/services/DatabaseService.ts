@@ -207,37 +207,37 @@ export class DatabaseService {
     return this.getProjectById(projectId);
   }
 
-  async saveTask(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
+  async saveTask(task: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
     const metadataValue =
-      typeof workspace.metadata === 'string'
-        ? workspace.metadata
-        : workspace.metadata
-          ? JSON.stringify(workspace.metadata)
+      typeof task.metadata === 'string'
+        ? task.metadata
+        : task.metadata
+          ? JSON.stringify(task.metadata)
           : null;
     const { db } = await getDrizzleClient();
     await db
       .insert(workspacesTable)
       .values({
-        id: workspace.id,
-        projectId: workspace.projectId,
-        name: workspace.name,
-        branch: workspace.branch,
-        path: workspace.path,
-        status: workspace.status,
-        agentId: workspace.agentId ?? null,
+        id: task.id,
+        projectId: task.projectId,
+        name: task.name,
+        branch: task.branch,
+        path: task.path,
+        status: task.status,
+        agentId: task.agentId ?? null,
         metadata: metadataValue,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
         target: workspacesTable.id,
         set: {
-          projectId: workspace.projectId,
-          name: workspace.name,
-          branch: workspace.branch,
-          path: workspace.path,
-          status: workspace.status,
-          agentId: workspace.agentId ?? null,
+          projectId: task.projectId,
+          name: task.name,
+          branch: task.branch,
+          path: task.path,
+          status: task.status,
+          agentId: task.agentId ?? null,
           metadata: metadataValue,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },

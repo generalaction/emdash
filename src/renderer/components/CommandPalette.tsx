@@ -218,7 +218,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             icon: <GitBranch className="h-4 w-4" />,
             group: 'Workspaces',
             keywords: [
-              'workspace',
+              'task',
               task.name.toLowerCase(),
               task.branch.toLowerCase(),
               project.name.toLowerCase(),
