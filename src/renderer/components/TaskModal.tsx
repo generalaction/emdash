@@ -430,18 +430,18 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   className="space-y-4"
                 >
                   <div>
-                    <Label htmlFor="workspace-name" className="mb-2 block">
+                    <Label htmlFor="task-name" className="mb-2 block">
                       Task name
                     </Label>
                     <Input
-                      id="workspace-name"
+                      id="task-name"
                       value={taskName}
                       onChange={(e) => onChange(e.target.value)}
                       onBlur={() => setTouched(true)}
                       placeholder="refactor-api-routes"
                       className={`w-full ${touched && error ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
                       aria-invalid={touched && !!error}
-                      aria-describedby="workspace-name-error"
+                      aria-describedby="task-name-error"
                       autoFocus
                     />
                   </div>
@@ -506,7 +506,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           <span>Advanced options</span>
                         </span>
                       </AccordionTrigger>
-                      <AccordionContent className="space-y-4 px-0 pt-2" id="workspace-advanced">
+                      <AccordionContent className="space-y-4 px-0 pt-2" id="task-advanced">
                         <div className="flex flex-col gap-4 p-2">
                           {hasAutoApproveSupport ? (
                             <div className="flex items-center gap-4">

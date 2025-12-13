@@ -212,7 +212,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       if (project.tasks && onSelectTask) {
         project.tasks.forEach((task) => {
           items.push({
-            id: `workspace-${project.id}-${task.id}`,
+            id: `task-${project.id}-${task.id}`,
             label: task.name,
             description: `${project.name} • ${task.branch}`,
             icon: <GitBranch className="h-4 w-4" />,
