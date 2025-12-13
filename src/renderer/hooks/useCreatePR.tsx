@@ -44,10 +44,42 @@ export function useCreatePR() {
         return { success: false, error: 'Electron bridge unavailable' } as any;
       }
 
-      const inferredTitle =
-        prOptions?.title || workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
+      // Auto-generate PR title and description if not provided
+      let finalPrOptions = { ...(prOptions || {}) };
 
-      let finalPrOptions = { ...(prOptions || {}), title: inferredTitle };
+      if (!finalPrOptions.title || !finalPrOptions.body) {
+        try {
+          // Get default branch for comparison
+          let defaultBranch = 'main';
+          try {
+            const branchStatus = await api.getBranchStatus?.({ workspacePath });
+            if (branchStatus?.success && branchStatus.defaultBranch) {
+              defaultBranch = branchStatus.defaultBranch;
+            }
+          } catch {}
+
+          // Generate PR content
+          if (api.generatePrContent) {
+            const generated = await api.generatePrContent({
+              workspacePath,
+              base: finalPrOptions.base || defaultBranch,
+            });
+
+            if (generated?.success && generated.title) {
+              finalPrOptions.title = finalPrOptions.title || generated.title;
+              finalPrOptions.body = finalPrOptions.body || generated.description || '';
+            }
+          }
+        } catch (error) {
+          // Non-fatal: continue with fallback title
+          // Silently fail - fallback title will be used
+        }
+      }
+
+      // Fallback to inferred title if still not set
+      if (!finalPrOptions.title) {
+        finalPrOptions.title = workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
+      }
 
       const commitRes = await api.gitCommitAndPush({
         workspacePath,

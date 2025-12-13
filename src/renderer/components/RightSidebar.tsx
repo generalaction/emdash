@@ -156,17 +156,29 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 />
               </>
             ) : (
-              <WorkspaceTerminalPanel
-                workspace={null}
-                provider={undefined}
-                projectPath={projectPath || undefined}
-                className="min-h-0 flex-1"
-              />
+              <>
+                <div className="flex h-1/2 flex-col border-b border-border bg-background">
+                  <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
+                    <span className="whitespace-nowrap">Changes</span>
+                  </div>
+                  <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                      Select a task to review file changes.
+                    </span>
+                  </div>
+                </div>
+                <WorkspaceTerminalPanel
+                  workspace={null}
+                  provider={undefined}
+                  projectPath={projectPath || undefined}
+                  className="h-1/2 min-h-0"
+                />
+              </>
             )}
           </div>
         ) : (
           <div className="flex h-full flex-col text-sm text-muted-foreground">
-            <div className="flex flex-1 flex-col border-b border-border bg-background">
+            <div className="flex h-1/2 flex-col border-b border-border bg-background">
               <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
                 <span className="whitespace-nowrap">Changes</span>
               </div>
@@ -176,7 +188,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 </span>
               </div>
             </div>
-            <div className="flex flex-1 flex-col border-t border-border bg-background">
+            <div className="flex h-1/2 flex-col bg-background">
               <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
                 <span className="whitespace-nowrap">Terminal</span>
               </div>

@@ -9,6 +9,8 @@ import {
   stageFile as gitStageFile,
   revertFile as gitRevertFile,
 } from '../services/GitService';
+import { prGenerationService } from '../services/PrGenerationService';
+import { databaseService } from '../services/DatabaseService';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -83,6 +85,44 @@ export function registerGitIpc() {
       }
     }
   );
+  // Git: Generate PR title and description
+  ipcMain.handle(
+    'git:generate-pr-content',
+    async (
+      _,
+      args: {
+        workspacePath: string;
+        base?: string;
+      }
+    ) => {
+      const { workspacePath, base = 'main' } =
+        args || ({} as { workspacePath: string; base?: string });
+      try {
+        // Try to get the workspace to find which provider was used
+        let providerId: string | null = null;
+        try {
+          const workspace = await databaseService.getWorkspaceByPath(workspacePath);
+          if (workspace?.agentId) {
+            providerId = workspace.agentId;
+            log.debug('Found workspace provider for PR generation', { workspacePath, providerId });
+          }
+        } catch (error) {
+          log.debug('Could not lookup workspace provider', { error });
+          // Non-fatal - continue without provider
+        }
+
+        const result = await prGenerationService.generatePrContent(workspacePath, base, providerId);
+        return { success: true, ...result };
+      } catch (error) {
+        log.error('Failed to generate PR content:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+  );
+
   // Git: Create Pull Request via GitHub CLI
   ipcMain.handle(
     'git:create-pr',
