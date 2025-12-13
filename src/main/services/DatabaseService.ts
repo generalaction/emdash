@@ -47,7 +47,7 @@ export interface Workspace {
 
 export interface Conversation {
   id: string;
-  workspaceId: string;
+  taskId: string;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -264,10 +264,10 @@ export class DatabaseService {
     await db.delete(projectsTable).where(eq(projectsTable.id, projectId));
   }
 
-  async deleteWorkspace(workspaceId: string): Promise<void> {
+  async deleteWorkspace(taskId: string): Promise<void> {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
-    await db.delete(workspacesTable).where(eq(workspacesTable.id, workspaceId));
+    await db.delete(workspacesTable).where(eq(workspacesTable.id, taskId));
   }
 
   // Conversation management methods
@@ -279,7 +279,7 @@ export class DatabaseService {
       .insert(conversationsTable)
       .values({
         id: conversation.id,
-        workspaceId: conversation.workspaceId,
+        taskId: conversation.taskId,
         title: conversation.title,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
@@ -292,22 +292,22 @@ export class DatabaseService {
       });
   }
 
-  async getConversations(workspaceId: string): Promise<Conversation[]> {
+  async getConversations(taskId: string): Promise<Conversation[]> {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
     const rows = await db
       .select()
       .from(conversationsTable)
-      .where(eq(conversationsTable.workspaceId, workspaceId))
+      .where(eq(conversationsTable.taskId, taskId))
       .orderBy(desc(conversationsTable.updatedAt));
     return rows.map((row) => this.mapDrizzleConversationRow(row));
   }
 
-  async getOrCreateDefaultConversation(workspaceId: string): Promise<Conversation> {
+  async getOrCreateDefaultConversation(taskId: string): Promise<Conversation> {
     if (this.disabled) {
       return {
-        id: `conv-${workspaceId}-default`,
-        workspaceId,
+        id: `conv-${taskId}-default`,
+        taskId,
         title: 'Default Conversation',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -318,7 +318,7 @@ export class DatabaseService {
     const existingRows = await db
       .select()
       .from(conversationsTable)
-      .where(eq(conversationsTable.workspaceId, workspaceId))
+      .where(eq(conversationsTable.taskId, taskId))
       .orderBy(asc(conversationsTable.createdAt))
       .limit(1);
 
@@ -326,10 +326,10 @@ export class DatabaseService {
       return this.mapDrizzleConversationRow(existingRows[0]);
     }
 
-    const conversationId = `conv-${workspaceId}-${Date.now()}`;
+    const conversationId = `conv-${taskId}-${Date.now()}`;
     await this.saveConversation({
       id: conversationId,
-      workspaceId,
+      taskId,
       title: 'Default Conversation',
     });
 
@@ -345,7 +345,7 @@ export class DatabaseService {
 
     return {
       id: conversationId,
-      workspaceId,
+      taskId,
       title: 'Default Conversation',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -490,7 +490,7 @@ export class DatabaseService {
   private mapDrizzleConversationRow(row: ConversationRow): Conversation {
     return {
       id: row.id,
-      workspaceId: row.workspaceId,
+      taskId: row.taskId,
       title: row.title,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -508,11 +508,11 @@ export class DatabaseService {
     };
   }
 
-  private parseWorkspaceMetadata(serialized: string, workspaceId: string): any {
+  private parseWorkspaceMetadata(serialized: string, taskId: string): any {
     try {
       return JSON.parse(serialized);
     } catch (error) {
-      console.warn(`Failed to parse workspace metadata for ${workspaceId}`, error);
+      console.warn(`Failed to parse workspace metadata for ${taskId}`, error);
       return null;
     }
   }

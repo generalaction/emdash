@@ -73,14 +73,14 @@ const ChatInterface: React.FC<Props> = ({
 
   // Log transitions for visibility
   useEffect(() => {
-    log.info('[plan] state changed', { workspaceId: task.id, enabled: planEnabled });
+    log.info('[plan] state changed', { taskId: task.id, enabled: planEnabled });
   }, [planEnabled, task.id]);
 
   // For terminal providers with native plan activation commands
   usePlanActivationTerminal({
     enabled: planEnabled,
     providerId: provider,
-    workspaceId: task.id,
+    taskId: task.id,
     workspacePath: task.path,
   });
 
@@ -447,7 +447,7 @@ const ChatInterface: React.FC<Props> = ({
   // Only use keystroke injection for providers WITHOUT CLI flag support
   // Providers with initialPromptFlag use CLI arg injection via TerminalPane instead
   useInitialPromptInjection({
-    workspaceId: task.id,
+    taskId: task.id,
     providerId: provider,
     prompt: initialInjection,
     enabled: isTerminal && providerMeta[provider]?.initialPromptFlag === undefined,
@@ -759,7 +759,7 @@ const ChatInterface: React.FC<Props> = ({
 
       <ProviderBar
         provider={provider}
-        workspaceId={task.id}
+        taskId={task.id}
         linearIssue={task.metadata?.linearIssue || null}
         githubIssue={task.metadata?.githubIssue || null}
         jiraIssue={task.metadata?.jiraIssue || null}

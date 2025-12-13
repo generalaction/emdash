@@ -62,9 +62,9 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:getConversations', async (_, workspaceId: string) => {
+  ipcMain.handle('db:getConversations', async (_, taskId: string) => {
     try {
-      const conversations = await databaseService.getConversations(workspaceId);
+      const conversations = await databaseService.getConversations(taskId);
       return { success: true, conversations };
     } catch (error) {
       log.error('Failed to get conversations:', error);
@@ -72,9 +72,9 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:getOrCreateDefaultConversation', async (_, workspaceId: string) => {
+  ipcMain.handle('db:getOrCreateDefaultConversation', async (_, taskId: string) => {
     try {
-      const conversation = await databaseService.getOrCreateDefaultConversation(workspaceId);
+      const conversation = await databaseService.getOrCreateDefaultConversation(taskId);
       return { success: true, conversation };
     } catch (error) {
       log.error('Failed to get or create default conversation:', error);
@@ -112,16 +112,16 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:deleteWorkspace', async (_, workspaceId: string) => {
+  ipcMain.handle('db:deleteWorkspace', async (_, taskId: string) => {
     try {
       // Stop any running Docker container for this workspace before deletion
-      const stopResult = await containerRunnerService.stopRun(workspaceId);
+      const stopResult = await containerRunnerService.stopRun(taskId);
       if (!stopResult.ok) {
         // Log but don't fail workspace deletion if container stop fails
         log.warn('Failed to stop container during workspace deletion:', stopResult.error);
       }
 
-      await databaseService.deleteWorkspace(workspaceId);
+      await databaseService.deleteWorkspace(taskId);
       return { success: true };
     } catch (error) {
       log.error('Failed to delete workspace:', error);

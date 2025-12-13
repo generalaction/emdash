@@ -15,7 +15,7 @@ type Listener = (event: RunnerEvent) => void;
 type WorkspaceListener = (state: ContainerRunState) => void;
 
 interface StartRunArgs {
-  workspaceId: string;
+  taskId: string;
   workspacePath: string;
   runId?: string;
   mode?: RunnerMode;
@@ -33,11 +33,11 @@ function clean(value: string | undefined | null): string | undefined {
   return trimmed.length ? trimmed : undefined;
 }
 
-function getOrCreateState(workspaceId: string): ContainerRunState {
-  const existing = workspaceStates.get(workspaceId);
+function getOrCreateState(taskId: string): ContainerRunState {
+  const existing = workspaceStates.get(taskId);
   if (existing) return existing;
   const created: ContainerRunState = {
-    workspaceId,
+    taskId,
     runId: undefined,
     status: 'idle',
     containerId: undefined,
@@ -47,7 +47,7 @@ function getOrCreateState(workspaceId: string): ContainerRunState {
     lastUpdatedAt: 0,
     lastError: null,
   };
-  workspaceStates.set(workspaceId, created);
+  workspaceStates.set(taskId, created);
   return created;
 }
 
@@ -57,7 +57,7 @@ function clonePort(port: RunnerPortMapping): RunnerPortMapping & { url: string }
 }
 
 function updateWorkspaceState(event: RunnerEvent) {
-  const state = getOrCreateState(event.workspaceId);
+  const state = getOrCreateState(event.taskId);
   const isNewRun = state.runId && state.runId !== event.runId;
   if (!state.runId || isNewRun) {
     state.runId = event.runId;
@@ -125,9 +125,9 @@ function updateWorkspaceState(event: RunnerEvent) {
       break;
   }
   state.lastUpdatedAt = event.ts;
-  workspaceStates.set(event.workspaceId, { ...state });
+  workspaceStates.set(event.taskId, { ...state });
 
-  const wsListeners = workspaceListeners.get(event.workspaceId);
+  const wsListeners = workspaceListeners.get(event.taskId);
   if (wsListeners) {
     for (const listener of wsListeners) {
       try {
@@ -176,14 +176,14 @@ export function subscribeToContainerRuns(listener: Listener): () => void {
 }
 
 export function subscribeToWorkspaceRunState(
-  workspaceId: string,
+  taskId: string,
   listener: WorkspaceListener
 ): () => void {
   ensureSubscribed();
-  const set = workspaceListeners.get(workspaceId) ?? new Set<WorkspaceListener>();
+  const set = workspaceListeners.get(taskId) ?? new Set<WorkspaceListener>();
   set.add(listener);
-  workspaceListeners.set(workspaceId, set);
-  const current = workspaceStates.get(workspaceId);
+  workspaceListeners.set(taskId, set);
+  const current = workspaceStates.get(taskId);
   if (current) {
     try {
       listener({ ...current });
@@ -193,35 +193,35 @@ export function subscribeToWorkspaceRunState(
   }
 
   return () => {
-    const listenersForWorkspace = workspaceListeners.get(workspaceId);
+    const listenersForWorkspace = workspaceListeners.get(taskId);
     if (!listenersForWorkspace) return;
     listenersForWorkspace.delete(listener);
     if (listenersForWorkspace.size === 0) {
-      workspaceListeners.delete(workspaceId);
+      workspaceListeners.delete(taskId);
     }
   };
 }
 
-export function getContainerRunState(workspaceId: string): ContainerRunState | undefined {
-  const state = workspaceStates.get(workspaceId);
+export function getContainerRunState(taskId: string): ContainerRunState | undefined {
+  const state = workspaceStates.get(taskId);
   return state ? { ...state } : undefined;
 }
 
 export async function startContainerRun(args: StartRunArgs) {
   ensureSubscribed();
   const api = (window as any).electronAPI;
-  const workspaceId = clean(args.workspaceId);
+  const taskId = clean(args.taskId);
   const workspacePath = clean(args.workspacePath);
   const runId = clean(args.runId);
   const mode = args.mode;
   const payload: Record<string, any> = {};
-  if (workspaceId) payload.workspaceId = workspaceId;
+  if (taskId) payload.taskId = taskId;
   if (workspacePath) payload.workspacePath = workspacePath;
   if (runId) payload.runId = runId;
   if (mode === 'container' || mode === 'host') payload.mode = mode;
 
-  if (!workspaceId || !workspacePath) {
-    throw new Error('workspaceId and workspacePath are required to start a container run');
+  if (!taskId || !workspacePath) {
+    throw new Error('taskId and workspacePath are required to start a container run');
   }
 
   if (!api || typeof api.startContainerRun !== 'function') {
@@ -283,19 +283,19 @@ export function subscribeToAllRunStates(
  * Inspect any existing compose stack for this workspace and hydrate local state,
  * so UI shows ports/running status after a window refresh.
  */
-export async function refreshWorkspaceRunState(workspaceId: string) {
+export async function refreshWorkspaceRunState(taskId: string) {
   ensureSubscribed();
   const api = (window as any).electronAPI;
   if (!api?.inspectContainerRun) return;
   try {
-    const res = await api.inspectContainerRun(workspaceId);
+    const res = await api.inspectContainerRun(taskId);
     if (!res?.ok) return;
     const now = Date.now();
     if (res.running && Array.isArray(res.ports) && res.ports.length > 0) {
       const runId = `resume_${now}`;
       const portsEvent: RunnerEvent = {
         ts: now,
-        workspaceId,
+        taskId,
         runId,
         mode: 'container',
         type: 'ports',
@@ -309,7 +309,7 @@ export async function refreshWorkspaceRunState(workspaceId: string) {
       updateWorkspaceState(portsEvent);
       const lifecycleEvent: RunnerEvent = {
         ts: now,
-        workspaceId,
+        taskId,
         runId,
         mode: 'container',
         type: 'lifecycle',
@@ -323,7 +323,7 @@ export async function refreshWorkspaceRunState(workspaceId: string) {
 }
 
 export interface ContainerRunState {
-  workspaceId: string;
+  taskId: string;
   runId?: string;
   status: RunnerLifecycleStatus | 'idle';
   containerId?: string;

@@ -24,10 +24,10 @@ const DEFAULT_PREVIEW_URLS = [
 ];
 
 const BrowserPane: React.FC<{
-  workspaceId?: string | null;
+  taskId?: string | null;
   workspacePath?: string | null;
   overlayActive?: boolean;
-}> = ({ workspaceId, overlayActive = false }) => {
+}> = ({ taskId, overlayActive = false }) => {
   const {
     isOpen,
     url,
@@ -69,7 +69,7 @@ const BrowserPane: React.FC<{
   const lastWorkspaceUrlRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     const prev = prevWorkspaceIdRef.current;
-    const cur = (workspaceId || '').trim() || null;
+    const cur = (taskId || '').trim() || null;
 
     if (prev && cur && prev !== cur) {
       try {
@@ -97,12 +97,12 @@ const BrowserPane: React.FC<{
     }
 
     prevWorkspaceIdRef.current = cur;
-  }, [workspaceId, clearUrl, hideSpinner]);
+  }, [taskId, clearUrl, hideSpinner]);
 
   React.useEffect(() => {
     const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
       try {
-        if (!data || !workspaceId || data.workspaceId !== workspaceId) return;
+        if (!data || !taskId || data.taskId !== taskId) return;
         if (data.type === 'setup') {
           if (data.status === 'line' && data.line) {
             setLines((prev) => {
@@ -115,9 +115,9 @@ const BrowserPane: React.FC<{
           }
         }
         if (data.type === 'url' && data.url) {
-          // CRITICAL: Only process URL events for the current workspaceId
+          // CRITICAL: Only process URL events for the current taskId
           // This ensures we don't load URLs from other worktrees
-          if (!workspaceId || data.workspaceId !== workspaceId) {
+          if (!taskId || data.taskId !== taskId) {
             return;
           }
           setFailed(false);
@@ -126,12 +126,12 @@ const BrowserPane: React.FC<{
           showSpinner();
           navigate(String(data.url));
           try {
-            setLastUrl(String(workspaceId), String(data.url));
+            setLastUrl(String(taskId), String(data.url));
           } catch {}
         }
         if (data.type === 'exit') {
           try {
-            setRunning(String(workspaceId), false);
+            setRunning(String(taskId), false);
           } catch {}
           hideSpinner();
         }
@@ -142,7 +142,7 @@ const BrowserPane: React.FC<{
         off?.();
       } catch {}
     };
-  }, [workspaceId, navigate, showSpinner, hideSpinner]);
+  }, [taskId, navigate, showSpinner, hideSpinner]);
 
   // Verify URL reachability with TCP probe (30s grace window for slow compilers)
   React.useEffect(() => {
@@ -243,7 +243,7 @@ const BrowserPane: React.FC<{
       visibilityTimeoutRef.current = null;
     }
 
-    const shouldShow = isOpen && !overlayActive && !overlayRaised && !!url && !!workspaceId;
+    const shouldShow = isOpen && !overlayActive && !overlayRaised && !!url && !!taskId;
 
     if (!shouldShow) {
       visibilityTimeoutRef.current = setTimeout(() => {
@@ -308,7 +308,7 @@ const BrowserPane: React.FC<{
         resizeObserver?.disconnect?.();
       } catch {}
     };
-  }, [isOpen, url, computeBounds, overlayActive, overlayRaised, hasBoundsChanged, workspaceId]);
+  }, [isOpen, url, computeBounds, overlayActive, overlayRaised, hasBoundsChanged, taskId]);
 
   React.useEffect(() => {
     if (isOpen && !url) setAddress('');
@@ -317,14 +317,14 @@ const BrowserPane: React.FC<{
   const lastUrlRef = React.useRef<string | null>(null);
   const lastWorkspaceIdRef = React.useRef<string | null | undefined>(null);
   React.useEffect(() => {
-    if (workspaceId !== lastWorkspaceIdRef.current) {
+    if (taskId !== lastWorkspaceIdRef.current) {
       lastUrlRef.current = null;
-      lastWorkspaceIdRef.current = workspaceId || null;
+      lastWorkspaceIdRef.current = taskId || null;
       lastWorkspaceUrlRef.current = null;
     }
 
-    if (isOpen && url && !overlayActive && !overlayRaised && workspaceId) {
-      const workspaceUrlKey = `${workspaceId}:${url}`;
+    if (isOpen && url && !overlayActive && !overlayRaised && taskId) {
+      const workspaceUrlKey = `${taskId}:${url}`;
       // Force reload if workspace changed or URL changed
       const isWorkspaceChange = lastWorkspaceUrlRef.current === null;
       if (lastWorkspaceUrlRef.current !== workspaceUrlKey || lastUrlRef.current !== url) {
@@ -344,7 +344,7 @@ const BrowserPane: React.FC<{
         return () => clearTimeout(timeoutId);
       }
     }
-  }, [isOpen, url, overlayActive, overlayRaised, workspaceId]);
+  }, [isOpen, url, overlayActive, overlayRaised, taskId]);
 
   React.useEffect(() => {
     let dragging = false;
@@ -418,7 +418,7 @@ const BrowserPane: React.FC<{
       captureTelemetry('browser_preview_closed');
     });
     try {
-      const id = (workspaceId || '').trim();
+      const id = (taskId || '').trim();
       if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
     } catch {}
     try {
@@ -429,7 +429,7 @@ const BrowserPane: React.FC<{
     } catch {}
     setFailed(false);
     close();
-  }, [workspaceId, clearUrl, close]);
+  }, [taskId, clearUrl, close]);
 
   return (
     <div

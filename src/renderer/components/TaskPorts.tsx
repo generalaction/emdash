@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useBrowser } from '@/providers/BrowserProvider';
 
 interface Props {
-  workspaceId: string;
+  taskId: string;
   workspacePath?: string;
   ports: Array<RunnerPortMapping & { url?: string }>;
   previewUrl?: string;
@@ -14,7 +14,7 @@ interface Props {
 }
 
 const WorkspacePorts: React.FC<Props> = ({
-  workspaceId,
+  taskId,
   workspacePath,
   ports,
   previewUrl,
@@ -115,7 +115,7 @@ const WorkspacePorts: React.FC<Props> = ({
 
   return (
     <motion.div
-      id={`ws-${workspaceId}-ports`}
+      id={`ws-${taskId}-ports`}
       className="border-t border-border/60 bg-muted/30 px-4 py-2"
       initial={reduceMotion ? false : { opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
@@ -164,7 +164,7 @@ const WorkspacePorts: React.FC<Props> = ({
       {sorted?.length ? (
         <div className="flex flex-wrap gap-2 pt-2">
           {sorted.map((p) => {
-            const key = `${workspaceId}-${p.service}-${p.host}`;
+            const key = `${taskId}-${p.service}-${p.host}`;
             const url = p.url ?? `http://localhost:${p.host}`;
             const isPreview = p.service === previewService;
             return (

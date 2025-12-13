@@ -320,7 +320,7 @@ declare global {
           }
       >;
       startContainerRun: (args: {
-        workspaceId: string;
+        taskId: string;
         workspacePath: string;
         runId?: string;
         mode?: RunnerMode;
@@ -346,7 +346,7 @@ declare global {
             };
           }
       >;
-      stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+      stopContainerRun: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
         app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
@@ -575,7 +575,7 @@ declare global {
       getWorkspaces: (projectId?: string) => Promise<any[]>;
       saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-      deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+      deleteWorkspace: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
       // Message operations
       saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
@@ -583,7 +583,7 @@ declare global {
         conversationId: string
       ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
       getOrCreateDefaultConversation: (
-        workspaceId: string
+        taskId: string
       ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
 
       // Debug helpers
@@ -902,7 +902,7 @@ export interface ElectronAPI {
   getWorkspaces: (projectId?: string) => Promise<any[]>;
   saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-  deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+  deleteWorkspace: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
@@ -910,7 +910,7 @@ export interface ElectronAPI {
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
   getOrCreateDefaultConversation: (
-    workspaceId: string
+    taskId: string
   ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
 
   // Debug helpers

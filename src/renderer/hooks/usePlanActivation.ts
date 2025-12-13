@@ -10,10 +10,10 @@ import { logPlanEvent } from '@/lib/planLogs';
 export function usePlanActivationTerminal(opts: {
   enabled: boolean;
   providerId: string;
-  workspaceId: string;
+  taskId: string;
   workspacePath: string;
 }) {
-  const { enabled, providerId, workspaceId, workspacePath } = opts;
+  const { enabled, providerId, taskId, workspacePath } = opts;
 
   useEffect(() => {
     if (!enabled) return;
@@ -22,7 +22,7 @@ export function usePlanActivationTerminal(opts: {
     const cmd = meta.planActivate;
     if (!cmd) return;
 
-    const ptyId = `${providerId}-main-${workspaceId}`;
+    const ptyId = `${providerId}-main-${taskId}`;
     const onceKey = `plan:activated:${ptyId}`;
     try {
       if (localStorage.getItem(onceKey) === '1') return;
@@ -53,5 +53,5 @@ export function usePlanActivationTerminal(opts: {
       } catch {}
       clearTimeout(t);
     };
-  }, [enabled, providerId, workspaceId]);
+  }, [enabled, providerId, taskId]);
 }

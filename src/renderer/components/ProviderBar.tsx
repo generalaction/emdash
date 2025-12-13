@@ -36,7 +36,7 @@ import { getContext7InvocationForProvider } from '../mcp/context7';
 
 type Props = {
   provider: Provider;
-  workspaceId: string;
+  taskId: string;
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
@@ -48,7 +48,7 @@ type Props = {
 
 export const ProviderBar: React.FC<Props> = ({
   provider,
-  workspaceId,
+  taskId,
   linearIssue,
   githubIssue,
   jiraIssue,
@@ -79,12 +79,12 @@ export const ProviderBar: React.FC<Props> = ({
   // Per-workspace default OFF
   React.useEffect(() => {
     try {
-      const key = `c7:ws:${workspaceId}`;
+      const key = `c7:ws:${taskId}`;
       setC7WorkspaceEnabled(localStorage.getItem(key) === '1');
     } catch {
       setC7WorkspaceEnabled(false);
     }
-  }, [workspaceId]);
+  }, [taskId]);
 
   const handleContext7Click = async () => {
     setC7Busy(true);
@@ -94,18 +94,18 @@ export const ProviderBar: React.FC<Props> = ({
       if (!c7WorkspaceEnabled) {
         // Enable for this workspace and send invocation once
         try {
-          localStorage.setItem(`c7:ws:${workspaceId}`, '1');
+          localStorage.setItem(`c7:ws:${taskId}`, '1');
         } catch {}
         setC7WorkspaceEnabled(true);
 
         const isTerminal = providerMeta[provider]?.terminalOnly === true;
         if (!isTerminal) return;
         const phrase = getContext7InvocationForProvider(provider) || 'use context7';
-        const ptyId = `${provider}-main-${workspaceId}`;
+        const ptyId = `${provider}-main-${taskId}`;
         (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: `${phrase}\n` });
       } else {
         try {
-          localStorage.removeItem(`c7:ws:${workspaceId}`);
+          localStorage.removeItem(`c7:ws:${taskId}`);
         } catch {}
         setC7WorkspaceEnabled(false);
       }

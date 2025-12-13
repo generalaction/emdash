@@ -51,7 +51,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         {showDelete && onDelete ? (
           <TaskDeleteButton
             workspaceName={task.name}
-            workspaceId={task.id}
+            taskId={task.id}
             workspacePath={task.path}
             onConfirm={async () => {
               try {

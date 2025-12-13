@@ -138,7 +138,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest })
             ) : (
               <>
                 <FileChangesPanel
-                  workspaceId={task.path}
+                  taskId={task.path}
                   className="min-h-0 flex-1 border-b border-border"
                 />
                 <TaskTerminalPanel
@@ -186,5 +186,5 @@ const VariantChangesIfAny: React.FC<{ path: string; className?: string }> = ({
 }) => {
   const { fileChanges } = useFileChanges(path);
   if (!fileChanges || fileChanges.length === 0) return null;
-  return <FileChangesPanel workspaceId={path} className={className || 'min-h-0'} />;
+  return <FileChangesPanel taskId={path} className={className || 'min-h-0'} />;
 };

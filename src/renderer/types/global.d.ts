@@ -208,7 +208,7 @@ declare global {
       getWorkspaces: (projectId?: string) => Promise<any[]>;
       saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-      deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+      deleteWorkspace: (taskId: string) => Promise<{ success: boolean; error?: string }>;
     };
   }
 }

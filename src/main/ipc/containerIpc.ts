@@ -114,7 +114,7 @@ export function registerContainerIpc(): void {
           ok: false,
           error: {
             code: 'INVALID_ARGUMENT',
-            message: '`workspaceId` and `workspacePath` must be provided to start a container run',
+            message: '`taskId` and `workspacePath` must be provided to start a container run',
             configPath: null,
             configKey: null,
           },
@@ -131,11 +131,11 @@ export function registerContainerIpc(): void {
     'container:stop-run',
     async (_event, args): Promise<{ ok: boolean; error?: string }> => {
       try {
-        const workspaceId = typeof args?.workspaceId === 'string' ? args.workspaceId.trim() : '';
-        if (!workspaceId) {
-          return { ok: false, error: '`workspaceId` must be provided' };
+        const taskId = typeof args?.taskId === 'string' ? args.taskId.trim() : '';
+        if (!taskId) {
+          return { ok: false, error: '`taskId` must be provided' };
         }
-        const res = await containerRunnerService.stopRun(workspaceId);
+        const res = await containerRunnerService.stopRun(taskId);
         return res as any;
       } catch (error: any) {
         return { ok: false, error: error?.message || String(error) };
@@ -158,11 +158,11 @@ export function registerContainerIpc(): void {
       | { ok: false; error: string }
     > => {
       try {
-        const workspaceId = typeof args?.workspaceId === 'string' ? args.workspaceId.trim() : '';
-        if (!workspaceId) {
-          return { ok: false, error: '`workspaceId` must be provided' } as const;
+        const taskId = typeof args?.taskId === 'string' ? args.taskId.trim() : '';
+        if (!taskId) {
+          return { ok: false, error: '`taskId` must be provided' } as const;
         }
-        return await containerRunnerService.inspectRun(workspaceId);
+        return await containerRunnerService.inspectRun(taskId);
       } catch (error: any) {
         const message = error?.message || String(error);
         log.warn('container:inspect-run failed', message);
@@ -218,7 +218,7 @@ function serializeError(error: ContainerConfigLoadError): SerializedContainerCon
 }
 
 function parseStartRunArgs(args: unknown): {
-  workspaceId: string;
+  taskId: string;
   workspacePath: string;
   runId?: string;
   mode?: RunnerMode;
@@ -228,10 +228,10 @@ function parseStartRunArgs(args: unknown): {
   }
 
   const payload = args as Record<string, unknown>;
-  const workspaceId = typeof payload.workspaceId === 'string' ? payload.workspaceId.trim() : '';
+  const taskId = typeof payload.taskId === 'string' ? payload.taskId.trim() : '';
   const workspacePath =
     typeof payload.workspacePath === 'string' ? payload.workspacePath.trim() : '';
-  if (!workspaceId || !workspacePath) {
+  if (!taskId || !workspacePath) {
     return null;
   }
 
@@ -247,7 +247,7 @@ function parseStartRunArgs(args: unknown): {
     }
   }
 
-  return { workspaceId, workspacePath, runId, mode };
+  return { taskId, workspacePath, runId, mode };
 }
 
 function serializeStartRunResult(result: ContainerStartResult): ContainerStartIpcResponse {

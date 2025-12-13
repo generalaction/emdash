@@ -33,7 +33,7 @@ interface CommandPaletteProps {
     }>;
   }>;
   onSelectProject?: (projectId: string) => void;
-  onSelectWorkspace?: (projectId: string, workspaceId: string) => void;
+  onSelectWorkspace?: (projectId: string, taskId: string) => void;
   onOpenSettings?: () => void;
   onToggleLeftSidebar?: () => void;
   onToggleRightSidebar?: () => void;

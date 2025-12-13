@@ -3,8 +3,8 @@ import { PLANNING_MD } from '@/lib/planRules';
 import { log } from '@/lib/logger';
 import { logPlanEvent } from '@/lib/planLogs';
 
-export function usePlanMode(workspaceId: string, workspacePath: string) {
-  const key = useMemo(() => `planMode:${workspaceId}`, [workspaceId]);
+export function usePlanMode(taskId: string, workspacePath: string) {
+  const key = useMemo(() => `planMode:${taskId}`, [taskId]);
   const [enabled, setEnabled] = useState<boolean>(() => {
     try {
       return localStorage.getItem(key) === '1';
@@ -169,7 +169,7 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
   useEffect(() => {
     (async () => {
       if (enabled) {
-        log.info('[plan] enabled', { workspaceId, workspacePath });
+        log.info('[plan] enabled', { taskId, workspacePath });
         await logPlanEvent(workspacePath, 'Plan Mode enabled');
         void (async () => {
           const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -202,7 +202,7 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
         } catch {}
 
         if (wasActive) {
-          log.info('[plan] disabled', { workspaceId, workspacePath });
+          log.info('[plan] disabled', { taskId, workspacePath });
           await logPlanEvent(workspacePath, 'Plan Mode disabled');
           void (async () => {
             const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -223,7 +223,7 @@ export function usePlanMode(workspaceId: string, workspacePath: string) {
         }
       }
     })();
-  }, [enabled, ensureGitExclude, ensurePlanFile, removePlanFile, workspaceId, workspacePath]);
+  }, [enabled, ensureGitExclude, ensurePlanFile, removePlanFile, taskId, workspacePath]);
 
   const toggle = useCallback(() => setEnabled((v) => !v), []);
 

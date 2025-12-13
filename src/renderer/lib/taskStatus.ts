@@ -30,11 +30,11 @@ function ensureTicker() {
   }, 2_000);
 }
 
-function setStatusInternal(workspaceId: string, next: Derived) {
-  const prev = statusByWorkspace.get(workspaceId) || 'idle';
+function setStatusInternal(taskId: string, next: Derived) {
+  const prev = statusByWorkspace.get(taskId) || 'idle';
   if (prev === next) return;
-  statusByWorkspace.set(workspaceId, next);
-  const ls = listenersByWorkspace.get(workspaceId);
+  statusByWorkspace.set(taskId, next);
+  const ls = listenersByWorkspace.get(taskId);
   if (ls)
     for (const fn of Array.from(ls)) {
       try {
@@ -53,28 +53,28 @@ function wireGlobal() {
   // Agent streams removed; PTY and container activity drive status.
 }
 
-export function getDerivedStatus(workspaceId: string): Derived {
+export function getDerivedStatus(taskId: string): Derived {
   wireGlobal();
-  return statusByWorkspace.get(workspaceId) || 'idle';
+  return statusByWorkspace.get(taskId) || 'idle';
 }
 
-export function subscribeDerivedStatus(workspaceId: string, listener: Listener): () => void {
+export function subscribeDerivedStatus(taskId: string, listener: Listener): () => void {
   wireGlobal();
-  let set = listenersByWorkspace.get(workspaceId);
+  let set = listenersByWorkspace.get(taskId);
   if (!set) {
     set = new Set<Listener>();
-    listenersByWorkspace.set(workspaceId, set);
+    listenersByWorkspace.set(taskId, set);
   }
   set.add(listener);
   // Emit current immediately
   try {
-    listener(getDerivedStatus(workspaceId));
+    listener(getDerivedStatus(taskId));
   } catch {}
   return () => {
-    const set2 = listenersByWorkspace.get(workspaceId);
+    const set2 = listenersByWorkspace.get(taskId);
     if (!set2) return;
     set2.delete(listener);
-    if (set2.size === 0) listenersByWorkspace.delete(workspaceId);
+    if (set2.size === 0) listenersByWorkspace.delete(taskId);
   };
 }
 
@@ -82,30 +82,30 @@ export function subscribeDerivedStatus(workspaceId: string, listener: Listener):
 // Call once per workspace to ensure terminal output marks the workspace busy.
 // Kept as a separate watcher so future non‑PTY providers can remain decoupled.
 const ptyUnsubs = new Map<string, () => void>();
-export function watchWorkspacePty(workspaceId: string): () => void {
+export function watchWorkspacePty(taskId: string): () => void {
   wireGlobal();
-  if (ptyUnsubs.has(workspaceId)) return ptyUnsubs.get(workspaceId)!;
+  if (ptyUnsubs.has(taskId)) return ptyUnsubs.get(taskId)!;
   const api: any = (window as any).electronAPI;
   let off: (() => void) | null = null;
   let offExit: (() => void) | null = null;
   let offStarted: (() => void) | null = null;
   try {
-    off = api?.onPtyData?.(workspaceId, (_chunk: string) => {
-      lastActivity.set(workspaceId, Date.now());
-      setStatusInternal(workspaceId, 'busy');
+    off = api?.onPtyData?.(taskId, (_chunk: string) => {
+      lastActivity.set(taskId, Date.now());
+      setStatusInternal(taskId, 'busy');
     });
   } catch {}
   try {
     offStarted = api?.onPtyStarted?.((payload: { id: string }) => {
-      if (payload?.id !== workspaceId) return;
-      lastActivity.set(workspaceId, Date.now());
-      setStatusInternal(workspaceId, 'busy');
+      if (payload?.id !== taskId) return;
+      lastActivity.set(taskId, Date.now());
+      setStatusInternal(taskId, 'busy');
     });
   } catch {}
   try {
-    offExit = api?.onPtyExit?.(workspaceId, () => {
-      lastActivity.set(workspaceId, Date.now());
-      setStatusInternal(workspaceId, 'idle');
+    offExit = api?.onPtyExit?.(taskId, () => {
+      lastActivity.set(taskId, Date.now());
+      setStatusInternal(taskId, 'idle');
     });
   } catch {}
   const cleanup = () => {
@@ -118,20 +118,20 @@ export function watchWorkspacePty(workspaceId: string): () => void {
     try {
       offStarted?.();
     } catch {}
-    ptyUnsubs.delete(workspaceId);
+    ptyUnsubs.delete(taskId);
   };
-  ptyUnsubs.set(workspaceId, cleanup);
+  ptyUnsubs.set(taskId, cleanup);
   return cleanup;
 }
 
 // Container runs also imply workspace activity (build/start/ready)
-export function watchWorkspaceContainers(workspaceId: string): () => void {
+export function watchWorkspaceContainers(taskId: string): () => void {
   wireGlobal();
-  const off = subscribeToWorkspaceRunState(workspaceId, (state) => {
+  const off = subscribeToWorkspaceRunState(taskId, (state) => {
     const s = String(state?.status || 'idle');
     const active = /^(starting|building|running|ready)$/i.test(s);
-    lastActivity.set(workspaceId, Date.now());
-    setStatusInternal(workspaceId, active ? 'busy' : 'idle');
+    lastActivity.set(taskId, Date.now());
+    setStatusInternal(taskId, active ? 'busy' : 'idle');
   });
   return off;
 }
@@ -139,11 +139,11 @@ export function watchWorkspaceContainers(workspaceId: string): () => void {
 // Align with the app's activity indicator (left sidebar).
 // Subscribes to the shared activityStore which understands provider-specific PTY IDs
 // and classifies chunks as busy/idle with debouncing.
-export function watchWorkspaceActivity(workspaceId: string): () => void {
+export function watchWorkspaceActivity(taskId: string): () => void {
   wireGlobal();
-  const off = activityStore.subscribe(workspaceId, (isBusy) => {
-    lastActivity.set(workspaceId, Date.now());
-    setStatusInternal(workspaceId, isBusy ? 'busy' : 'idle');
+  const off = activityStore.subscribe(taskId, (isBusy) => {
+    lastActivity.set(taskId, Date.now());
+    setStatusInternal(taskId, isBusy ? 'busy' : 'idle');
   });
   return off;
 }

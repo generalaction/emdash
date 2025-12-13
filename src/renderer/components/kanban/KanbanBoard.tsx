@@ -267,9 +267,9 @@ const KanbanBoard: React.FC<{
   }
   const hasAny = (project.workspaces?.length ?? 0) > 0;
 
-  const handleDrop = (target: KanbanStatus, workspaceId: string) => {
-    setStatus(workspaceId, target);
-    setStatusMap({ ...statusMap, [workspaceId]: target });
+  const handleDrop = (target: KanbanStatus, taskId: string) => {
+    setStatus(taskId, target);
+    setStatusMap({ ...statusMap, [taskId]: target });
   };
 
   return (

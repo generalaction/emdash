@@ -154,15 +154,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadContainerConfig: (workspacePath: string) =>
     ipcRenderer.invoke('container:load-config', { workspacePath }),
   startContainerRun: (args: {
-    workspaceId: string;
+    taskId: string;
     workspacePath: string;
     runId?: string;
     mode?: 'container' | 'host';
   }) => ipcRenderer.invoke('container:start-run', args),
-  stopContainerRun: (workspaceId: string) =>
-    ipcRenderer.invoke('container:stop-run', { workspaceId }),
-  inspectContainerRun: (workspaceId: string) =>
-    ipcRenderer.invoke('container:inspect-run', { workspaceId }),
+  stopContainerRun: (taskId: string) =>
+    ipcRenderer.invoke('container:stop-run', { taskId }),
+  inspectContainerRun: (taskId: string) =>
+    ipcRenderer.invoke('container:inspect-run', { taskId }),
   resolveServiceIcon: (args: { service: string; allowNetwork?: boolean; workspacePath?: string }) =>
     ipcRenderer.invoke('icons:resolve-service', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
@@ -277,13 +277,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWorkspaces: (projectId?: string) => ipcRenderer.invoke('db:getWorkspaces', projectId),
   saveWorkspace: (workspace: any) => ipcRenderer.invoke('db:saveWorkspace', workspace),
   deleteProject: (projectId: string) => ipcRenderer.invoke('db:deleteProject', projectId),
-  deleteWorkspace: (workspaceId: string) => ipcRenderer.invoke('db:deleteWorkspace', workspaceId),
+  deleteWorkspace: (taskId: string) => ipcRenderer.invoke('db:deleteWorkspace', taskId),
 
   // Conversation management
   saveConversation: (conversation: any) => ipcRenderer.invoke('db:saveConversation', conversation),
-  getConversations: (workspaceId: string) => ipcRenderer.invoke('db:getConversations', workspaceId),
-  getOrCreateDefaultConversation: (workspaceId: string) =>
-    ipcRenderer.invoke('db:getOrCreateDefaultConversation', workspaceId),
+  getConversations: (taskId: string) => ipcRenderer.invoke('db:getConversations', taskId),
+  getOrCreateDefaultConversation: (taskId: string) =>
+    ipcRenderer.invoke('db:getOrCreateDefaultConversation', taskId),
   saveMessage: (message: any) => ipcRenderer.invoke('db:saveMessage', message),
   getMessages: (conversationId: string) => ipcRenderer.invoke('db:getMessages', conversationId),
   deleteConversation: (conversationId: string) =>
@@ -320,14 +320,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Host preview (non-container)
   hostPreviewStart: (args: {
-    workspaceId: string;
+    taskId: string;
     workspacePath: string;
     script?: string;
     parentProjectPath?: string;
   }) => ipcRenderer.invoke('preview:host:start', args),
-  hostPreviewSetup: (args: { workspaceId: string; workspacePath: string }) =>
+  hostPreviewSetup: (args: { taskId: string; workspacePath: string }) =>
     ipcRenderer.invoke('preview:host:setup', args),
-  hostPreviewStop: (workspaceId: string) => ipcRenderer.invoke('preview:host:stop', workspaceId),
+  hostPreviewStop: (taskId: string) => ipcRenderer.invoke('preview:host:stop', taskId),
   hostPreviewStopAll: (exceptId?: string) => ipcRenderer.invoke('preview:host:stopAll', exceptId),
   onHostPreviewEvent: (listener: (data: any) => void) => {
     const channel = 'preview:host:event';
@@ -540,7 +540,7 @@ export interface ElectronAPI {
       }
   >;
   startContainerRun: (args: {
-    workspaceId: string;
+    taskId: string;
     workspacePath: string;
     runId?: string;
     mode?: 'container' | 'host';
@@ -562,7 +562,7 @@ export interface ElectronAPI {
         };
       }
   >;
-  stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+  stopContainerRun: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
 
   // GitHub integration
   githubAuth: () => Promise<{
@@ -627,15 +627,15 @@ export interface ElectronAPI {
   getWorkspaces: (projectId?: string) => Promise<any[]>;
   saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-  deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+  deleteWorkspace: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Conversation management
   saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
   getConversations: (
-    workspaceId: string
+    taskId: string
   ) => Promise<{ success: boolean; conversations?: any[]; error?: string }>;
   getOrCreateDefaultConversation: (
-    workspaceId: string
+    taskId: string
   ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
   getMessages: (
@@ -645,18 +645,18 @@ export interface ElectronAPI {
 
   // Host preview (non-container)
   hostPreviewStart: (args: {
-    workspaceId: string;
+    taskId: string;
     workspacePath: string;
     script?: string;
     parentProjectPath?: string;
   }) => Promise<{ ok: boolean; error?: string }>;
   hostPreviewSetup: (args: {
-    workspaceId: string;
+    taskId: string;
     workspacePath: string;
   }) => Promise<{ ok: boolean; error?: string }>;
-  hostPreviewStop: (workspaceId: string) => Promise<{ ok: boolean }>;
+  hostPreviewStop: (taskId: string) => Promise<{ ok: boolean }>;
   onHostPreviewEvent: (
-    listener: (data: { type: 'url'; workspaceId: string; url: string }) => void
+    listener: (data: { type: 'url'; taskId: string; url: string }) => void
   ) => () => void;
 
   // Main-managed browser (WebContentsView)

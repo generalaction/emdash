@@ -6,9 +6,9 @@ import { activityStore } from '../../lib/activityStore';
 import ProviderTooltip from './ProviderTooltip';
 import { Spinner } from '../ui/spinner';
 
-function resolveProvider(workspaceId: string): UiProvider | null {
+function resolveProvider(taskId: string): UiProvider | null {
   try {
-    const v = localStorage.getItem(`workspaceProvider:${workspaceId}`);
+    const v = localStorage.getItem(`workspaceProvider:${taskId}`);
     if (!v) return null;
     const id = v.trim() as UiProvider;
     return id in providerAssets ? id : null;

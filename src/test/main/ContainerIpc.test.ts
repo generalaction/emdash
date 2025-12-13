@@ -211,11 +211,11 @@ describe('registerContainerIpc', () => {
 
       const result = await handler(
         {},
-        { workspaceId: ' ws-1 ', workspacePath: ' /tmp/workspace ' }
+        { taskId: ' ws-1 ', workspacePath: ' /tmp/workspace ' }
       );
 
       expect(startRunMock).toHaveBeenCalledWith({
-        workspaceId: 'ws-1',
+        taskId: 'ws-1',
         workspacePath: '/tmp/workspace',
       });
       expect(result).toEqual({
@@ -239,7 +239,7 @@ describe('registerContainerIpc', () => {
       registerContainerIpc();
       const handler = getHandler('container:start-run');
 
-      const result = await handler({}, { workspaceId: 'ws-1', workspacePath: '/tmp/workspace' });
+      const result = await handler({}, { taskId: 'ws-1', workspacePath: '/tmp/workspace' });
 
       expect(result).toEqual({
         ok: false,
@@ -256,13 +256,13 @@ describe('registerContainerIpc', () => {
       registerContainerIpc();
       const handler = getHandler('container:start-run');
 
-      const result = await handler({}, { workspaceId: '', workspacePath: '' });
+      const result = await handler({}, { taskId: '', workspacePath: '' });
 
       expect(result).toEqual({
         ok: false,
         error: {
           code: 'INVALID_ARGUMENT',
-          message: '`workspaceId` and `workspacePath` must be provided to start a container run',
+          message: '`taskId` and `workspacePath` must be provided to start a container run',
           configKey: null,
           configPath: null,
         },
@@ -281,7 +281,7 @@ describe('registerContainerIpc', () => {
 
     const event: RunnerEvent = {
       ts: 1700000000000,
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       runId: 'run-1',
       mode: 'container',
       type: 'lifecycle',

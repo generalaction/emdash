@@ -53,7 +53,7 @@ export const conversations = sqliteTable(
   'conversations',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
+    taskId: text('workspace_id')
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
@@ -65,7 +65,7 @@ export const conversations = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
-    workspaceIdIdx: index('idx_conversations_workspace_id').on(table.workspaceId),
+    taskIdIdx: index('idx_conversations_workspace_id').on(table.taskId),
   })
 );
 
@@ -103,7 +103,7 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
   workspace: one(workspaces, {
-    fields: [conversations.workspaceId],
+    fields: [conversations.taskId],
     references: [workspaces.id],
   }),
   messages: many(messages),

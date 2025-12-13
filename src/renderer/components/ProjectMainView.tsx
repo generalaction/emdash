@@ -147,7 +147,7 @@ function WorkspaceRow({
     try {
       setIsStartingContainer(true);
       const res = await startContainerRun({
-        workspaceId: ws.id,
+        taskId: ws.id,
         workspacePath: ws.path,
         mode: 'container',
       });
@@ -351,7 +351,7 @@ function WorkspaceRow({
           ) : (
             <WorkspaceDeleteButton
               workspaceName={ws.name}
-              workspaceId={ws.id}
+              taskId={ws.id}
               workspacePath={ws.path}
               onConfirm={async () => {
                 try {
@@ -373,7 +373,7 @@ function WorkspaceRow({
         {containerActive && expanded ? (
           <WorkspacePorts
             key={`ports-${ws.id}`}
-            workspaceId={ws.id}
+            taskId={ws.id}
             workspacePath={ws.path}
             ports={ports}
             previewUrl={previewUrl}

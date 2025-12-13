@@ -53,7 +53,7 @@ describe('ContainerRunnerService', () => {
     service.onRunnerEvent((event) => events.push(event));
 
     const result = await service.startMockRun({
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       workspacePath: '/tmp/workspace',
       runId: 'run-123',
       now: () => 1700000000000,
@@ -97,7 +97,7 @@ describe('ContainerRunnerService', () => {
     service.onRunnerEvent(listener);
 
     const result = await service.startMockRun({
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       workspacePath: '/tmp/workspace',
     });
 
@@ -136,7 +136,7 @@ describe('ContainerRunnerService', () => {
     service.onRunnerEvent((event) => events.push(event));
 
     const result = await service.startMockRun({
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       workspacePath: '/tmp/workspace',
       runId: 'run-err',
       now: () => 1700000000100,

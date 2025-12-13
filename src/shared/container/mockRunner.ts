@@ -6,7 +6,7 @@ export interface PortAllocator {
 }
 
 export interface MockStartOptions {
-  workspaceId: string;
+  taskId: string;
   config: ResolvedContainerConfig;
   portAllocator: PortAllocator;
   runId?: string;
@@ -21,8 +21,8 @@ function resolveRunId(runId: string | undefined, now: () => number): string {
   return `r_${new Date(now()).toISOString()}`;
 }
 
-function resolveContainerId(workspaceId: string): string {
-  return `emdash_ws_${workspaceId}`;
+function resolveContainerId(taskId: string): string {
+  return `emdash_ws_${taskId}`;
 }
 
 function previewServiceFromConfig(config: ResolvedContainerConfig): string {
@@ -40,13 +40,13 @@ function createTimestampGenerator(now: () => number): () => number {
 }
 
 function createEventBase(
-  workspaceId: string,
+  taskId: string,
   runId: string,
   mode: RunnerMode,
   nextTs: () => number
 ) {
   return {
-    workspaceId,
+    taskId,
     runId,
     mode,
     ts: nextTs(),
@@ -58,7 +58,7 @@ export async function generateMockStartEvents(options: MockStartOptions): Promis
   const nextTs = createTimestampGenerator(now);
   const mode = options.mode ?? DEFAULT_MODE;
   const runId = resolveRunId(options.runId, now);
-  const containerId = resolveContainerId(options.workspaceId);
+  const containerId = resolveContainerId(options.taskId);
   const previewService = previewServiceFromConfig(options.config);
 
   const ports = await options.portAllocator.allocate(options.config.ports);
@@ -66,24 +66,24 @@ export async function generateMockStartEvents(options: MockStartOptions): Promis
 
   return [
     {
-      ...createEventBase(options.workspaceId, runId, mode, nextTs),
+      ...createEventBase(options.taskId, runId, mode, nextTs),
       type: 'lifecycle',
       status: 'building',
     },
     {
-      ...createEventBase(options.workspaceId, runId, mode, nextTs),
+      ...createEventBase(options.taskId, runId, mode, nextTs),
       type: 'lifecycle',
       status: 'starting',
       containerId,
     },
     {
-      ...createEventBase(options.workspaceId, runId, mode, nextTs),
+      ...createEventBase(options.taskId, runId, mode, nextTs),
       type: 'ports',
       previewService,
       ports: mappedPorts,
     },
     {
-      ...createEventBase(options.workspaceId, runId, mode, nextTs),
+      ...createEventBase(options.taskId, runId, mode, nextTs),
       type: 'lifecycle',
       status: 'ready',
     },

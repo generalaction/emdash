@@ -7,7 +7,7 @@ import { log } from '../lib/logger';
 
 export type HostPreviewEvent = {
   type: 'url' | 'setup' | 'exit';
-  workspaceId: string;
+  taskId: string;
   url?: string;
   status?: 'starting' | 'line' | 'done' | 'error';
   line?: string;
@@ -38,10 +38,10 @@ function normalizeUrl(u: string): string {
 
 class HostPreviewService extends EventEmitter {
   private procs = new Map<string, ChildProcessWithoutNullStreams>();
-  private procCwds = new Map<string, string>(); // Track cwd for each workspaceId
+  private procCwds = new Map<string, string>(); // Track cwd for each taskId
 
   async setup(
-    workspaceId: string,
+    taskId: string,
     workspacePath: string
   ): Promise<{ ok: boolean; error?: string }> {
     const cwd = path.resolve(workspacePath);
@@ -56,12 +56,12 @@ class HostPreviewService extends EventEmitter {
         shell: true,
         env: { ...process.env, BROWSER: 'none' },
       });
-      this.emit('event', { type: 'setup', workspaceId, status: 'starting' } as HostPreviewEvent);
+      this.emit('event', { type: 'setup', taskId, status: 'starting' } as HostPreviewEvent);
       const onData = (buf: Buffer) => {
         const line = buf.toString();
         this.emit('event', {
           type: 'setup',
-          workspaceId,
+          taskId,
           status: 'line',
           line,
         } as HostPreviewEvent);
@@ -75,12 +75,12 @@ class HostPreviewService extends EventEmitter {
         });
         child.on('error', reject);
       });
-      this.emit('event', { type: 'setup', workspaceId, status: 'done' } as HostPreviewEvent);
+      this.emit('event', { type: 'setup', taskId, status: 'done' } as HostPreviewEvent);
       return { ok: true };
     } catch (e: any) {
       this.emit('event', {
         type: 'setup',
-        workspaceId,
+        taskId,
         status: 'error',
         line: e?.message || String(e),
       } as HostPreviewEvent);
@@ -121,7 +121,7 @@ class HostPreviewService extends EventEmitter {
   }
 
   async start(
-    workspaceId: string,
+    taskId: string,
     workspacePath: string,
     opts?: { script?: string; parentProjectPath?: string }
   ): Promise<{ ok: boolean; error?: string }> {
@@ -129,16 +129,16 @@ class HostPreviewService extends EventEmitter {
 
     // Log the resolved path to help debug worktree issues
     log.info?.('[hostPreview] start', {
-      workspaceId,
+      taskId,
       workspacePath,
       resolvedCwd: cwd,
       cwdExists: fs.existsSync(cwd),
       hasPackageJson: fs.existsSync(path.join(cwd, 'package.json')),
     });
 
-    // Check if process already exists for this workspaceId
-    const existingProc = this.procs.get(workspaceId);
-    const existingCwd = this.procCwds.get(workspaceId);
+    // Check if process already exists for this taskId
+    const existingProc = this.procs.get(taskId);
+    const existingCwd = this.procCwds.get(taskId);
 
     // If process exists, verify it's running from the correct directory
     if (existingProc) {
@@ -149,27 +149,27 @@ class HostPreviewService extends EventEmitter {
         // Process is still running - check if cwd matches
         if (existingCwd && path.resolve(existingCwd) === cwd) {
           log.info?.('[hostPreview] reusing existing process', {
-            workspaceId,
+            taskId,
             cwd: existingCwd,
           });
           return { ok: true };
         } else {
           // Process exists but is running from wrong directory - stop it
           log.info?.('[hostPreview] stopping process with wrong cwd', {
-            workspaceId,
+            taskId,
             oldCwd: existingCwd,
             newCwd: cwd,
           });
           try {
             existingProc.kill();
           } catch {}
-          this.procs.delete(workspaceId);
-          this.procCwds.delete(workspaceId);
+          this.procs.delete(taskId);
+          this.procCwds.delete(taskId);
         }
       } catch {
         // Process has exited - clean up
-        this.procs.delete(workspaceId);
-        this.procCwds.delete(workspaceId);
+        this.procs.delete(taskId);
+        this.procCwds.delete(taskId);
       }
     }
 
@@ -187,7 +187,7 @@ class HostPreviewService extends EventEmitter {
             const linkType = process.platform === 'win32' ? 'junction' : 'dir';
             fs.symlinkSync(parentNm, wsNm, linkType as any);
             log.info?.('[hostPreview] linked node_modules', {
-              workspaceId,
+              taskId,
               wsNm,
               parentNm,
               linkType,
@@ -235,12 +235,12 @@ class HostPreviewService extends EventEmitter {
           shell: true,
           env: { ...process.env, BROWSER: 'none' },
         });
-        this.emit('event', { type: 'setup', workspaceId, status: 'starting' } as HostPreviewEvent);
+        this.emit('event', { type: 'setup', taskId, status: 'starting' } as HostPreviewEvent);
         const onData = (buf: Buffer) => {
           try {
             this.emit('event', {
               type: 'setup',
-              workspaceId,
+              taskId,
               status: 'line',
               line: buf.toString(),
             } as HostPreviewEvent);
@@ -254,7 +254,7 @@ class HostPreviewService extends EventEmitter {
           });
           inst.on('error', reject);
         });
-        this.emit('event', { type: 'setup', workspaceId, status: 'done' } as HostPreviewEvent);
+        this.emit('event', { type: 'setup', taskId, status: 'done' } as HostPreviewEvent);
       }
     } catch {}
 
@@ -290,7 +290,7 @@ class HostPreviewService extends EventEmitter {
         else args.push(...extra);
       }
       log.info?.('[hostPreview] start', {
-        workspaceId,
+        taskId,
         cwd,
         pm,
         cmd,
@@ -300,7 +300,7 @@ class HostPreviewService extends EventEmitter {
       });
     } catch {
       log.info?.('[hostPreview] start', {
-        workspaceId,
+        taskId,
         cwd,
         pm,
         cmd,
@@ -313,8 +313,8 @@ class HostPreviewService extends EventEmitter {
     const tryStart = async (maxRetries = 3): Promise<{ ok: boolean; error?: string }> => {
       try {
         const child = spawn(cmd, args, { cwd, env, shell: true });
-        this.procs.set(workspaceId, child);
-        this.procCwds.set(workspaceId, cwd); // Store the cwd for this process
+        this.procs.set(taskId, child);
+        this.procCwds.set(taskId, cwd); // Store the cwd for this process
 
         let urlEmitted = false;
         let sawAddrInUse = false;
@@ -325,7 +325,7 @@ class HostPreviewService extends EventEmitter {
           try {
             this.emit('event', {
               type: 'setup',
-              workspaceId,
+              taskId,
               status: 'line',
               line,
             } as HostPreviewEvent);
@@ -351,7 +351,7 @@ class HostPreviewService extends EventEmitter {
                 try {
                   this.emit('event', {
                     type: 'url',
-                    workspaceId,
+                    taskId,
                     url: urlToProbe,
                   } as HostPreviewEvent);
                 } catch {}
@@ -401,7 +401,7 @@ class HostPreviewService extends EventEmitter {
                 try {
                   this.emit('event', {
                     type: 'url',
-                    workspaceId,
+                    taskId,
                     url: `http://localhost:${Number(env.PORT) || forcedPort}`,
                   } as HostPreviewEvent);
                 } catch {}
@@ -417,8 +417,8 @@ class HostPreviewService extends EventEmitter {
 
         child.on('exit', async () => {
           clearInterval(probeInterval);
-          this.procs.delete(workspaceId);
-          this.procCwds.delete(workspaceId); // Clean up cwd tracking
+          this.procs.delete(taskId);
+          this.procCwds.delete(taskId); // Clean up cwd tracking
           const runtimeMs = Date.now() - startedAt;
           const quickFail = runtimeMs < 4000; // exited very quickly
           if (!urlEmitted && (sawAddrInUse || quickFail) && maxRetries > 0) {
@@ -437,7 +437,7 @@ class HostPreviewService extends EventEmitter {
             else if (pm === 'npm') args.push('--', '-p', String(forcedPort));
             else args.push('-p', String(forcedPort));
             log.info?.('[hostPreview] retry on new port', {
-              workspaceId,
+              taskId,
               port: forcedPort,
               retriesLeft: maxRetries - 1,
             });
@@ -445,7 +445,7 @@ class HostPreviewService extends EventEmitter {
             return;
           }
           try {
-            this.emit('event', { type: 'exit', workspaceId } as HostPreviewEvent);
+            this.emit('event', { type: 'exit', taskId } as HostPreviewEvent);
           } catch {}
         });
         return { ok: true };
@@ -458,14 +458,14 @@ class HostPreviewService extends EventEmitter {
     return await tryStart(3);
   }
 
-  stop(workspaceId: string): { ok: boolean } {
-    const p = this.procs.get(workspaceId);
+  stop(taskId: string): { ok: boolean } {
+    const p = this.procs.get(taskId);
     if (!p) return { ok: true };
     try {
       p.kill();
     } catch {}
-    this.procs.delete(workspaceId);
-    this.procCwds.delete(workspaceId); // Clean up cwd tracking
+    this.procs.delete(taskId);
+    this.procCwds.delete(taskId); // Clean up cwd tracking
     return { ok: true };
   }
 

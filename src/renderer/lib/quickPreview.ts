@@ -43,23 +43,23 @@ export async function ensureCompose(workspacePath?: string): Promise<boolean> {
 }
 
 export async function quickStartPreview(args: {
-  workspaceId: string;
+  taskId: string;
   workspacePath: string;
   onPreviewUrl?: (url: string) => void;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { workspaceId, workspacePath, onPreviewUrl } = args;
+  const { taskId, workspacePath, onPreviewUrl } = args;
   try {
     const node = await isNodeProject(workspacePath);
     if (!node) return { ok: false, error: 'Not a Node.js project (no package.json).' };
     await ensureCompose(workspacePath);
-    await startContainerRun({ workspaceId, workspacePath, mode: 'container' });
+    await startContainerRun({ taskId, workspacePath, mode: 'container' });
     // If already have a preview, use it immediately
-    const existing = getContainerRunState(workspaceId);
+    const existing = getContainerRunState(taskId);
     if (existing?.previewUrl && onPreviewUrl) onPreviewUrl(existing.previewUrl);
     // Subscribe for preview becoming ready
     const unsubRef: { current: null | (() => void) } = { current: null };
     await new Promise<void>((resolve) => {
-      unsubRef.current = subscribeToWorkspaceRunState(workspaceId, (state) => {
+      unsubRef.current = subscribeToWorkspaceRunState(taskId, (state) => {
         if (state.previewUrl) {
           onPreviewUrl?.(state.previewUrl);
           resolve();

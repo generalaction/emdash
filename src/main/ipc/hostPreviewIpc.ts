@@ -7,15 +7,15 @@ export function registerHostPreviewIpc() {
     async (
       _e,
       args: {
-        workspaceId: string;
+        taskId: string;
         workspacePath: string;
         script?: string;
         parentProjectPath?: string;
       }
     ) => {
-      const id = String(args?.workspaceId || '').trim();
+      const id = String(args?.taskId || '').trim();
       const wp = String(args?.workspacePath || '').trim();
-      if (!id || !wp) return { ok: false, error: 'workspaceId and workspacePath are required' };
+      if (!id || !wp) return { ok: false, error: 'taskId and workspacePath are required' };
       return hostPreviewService.start(id, wp, {
         script: args?.script,
         parentProjectPath: args?.parentProjectPath,
@@ -25,10 +25,10 @@ export function registerHostPreviewIpc() {
 
   ipcMain.handle(
     'preview:host:setup',
-    async (_e, args: { workspaceId: string; workspacePath: string }) => {
-      const id = String(args?.workspaceId || '').trim();
+    async (_e, args: { taskId: string; workspacePath: string }) => {
+      const id = String(args?.taskId || '').trim();
       const wp = String(args?.workspacePath || '').trim();
-      if (!id || !wp) return { ok: false, error: 'workspaceId and workspacePath are required' };
+      if (!id || !wp) return { ok: false, error: 'taskId and workspacePath are required' };
       return hostPreviewService.setup(id, wp);
     }
   );

@@ -1173,9 +1173,9 @@ const AppContent: React.FC = () => {
     [activateProjectView, projects]
   );
 
-  const removeWorkspaceFromState = (projectId: string, workspaceId: string, wasActive: boolean) => {
+  const removeWorkspaceFromState = (projectId: string, taskId: string, wasActive: boolean) => {
     const filterWorkspaces = (list?: Task[]) =>
-      (list || []).filter((w) => w.id !== workspaceId);
+      (list || []).filter((w) => w.id !== taskId);
 
     setProjects((prev) =>
       prev.map((project) =>
@@ -1661,7 +1661,7 @@ const AppContent: React.FC = () => {
                   ? getContainerRunState(activeTask.id)?.previewUrl || null
                   : null
               }
-              workspaceId={activeTask?.id || null}
+              taskId={activeTask?.id || null}
               workspacePath={activeTask?.path || null}
               projectPath={selectedProject?.path || null}
               isWorkspaceMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
@@ -1771,7 +1771,7 @@ const AppContent: React.FC = () => {
             />
             <Toaster />
             <BrowserPane
-              workspaceId={activeTask?.id || null}
+              taskId={activeTask?.id || null}
               workspacePath={activeTask?.path || null}
               overlayActive={
                 showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal

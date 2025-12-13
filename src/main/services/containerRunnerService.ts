@@ -54,7 +54,7 @@ export interface ContainerStartError {
 }
 
 export interface ContainerStartOptions {
-  workspaceId: string;
+  taskId: string;
   workspacePath: string;
   runId?: string;
   mode?: RunnerMode;
@@ -103,7 +103,7 @@ export class ContainerRunnerService extends EventEmitter {
   }
 
   private async startComposeRun(args: {
-    workspaceId: string;
+    taskId: string;
     workspacePath: string;
     runId: string;
     mode: RunnerMode;
@@ -111,14 +111,14 @@ export class ContainerRunnerService extends EventEmitter {
     now: () => number;
     composeFile: string;
   }): Promise<ContainerStartResult> {
-    const { workspaceId, workspacePath, runId, mode, config, now, composeFile } = args;
+    const { taskId, workspacePath, runId, mode, config, now, composeFile } = args;
     const execAsync = promisify(exec);
-    const project = `emdash_ws_${workspaceId}`;
+    const project = `emdash_ws_${taskId}`;
 
     const emitLifecycle = (
       status: 'building' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed'
     ) => {
-      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status });
+      this.emitRunnerEvent({ ts: now(), taskId, runId, mode, type: 'lifecycle', status });
     };
     const emitPorts = (
       ports: Array<{ service: string; container: number; host: number }>,
@@ -133,7 +133,7 @@ export class ContainerRunnerService extends EventEmitter {
       }));
       this.emitRunnerEvent({
         ts: now(),
-        workspaceId,
+        taskId,
         runId,
         mode,
         type: 'ports',
@@ -150,7 +150,7 @@ export class ContainerRunnerService extends EventEmitter {
         const message = 'Docker Compose is not available. Please install/update Docker Desktop.';
         this.emitRunnerEvent({
           ts: now(),
-          workspaceId,
+          taskId,
           runId,
           mode,
           type: 'error',
@@ -250,7 +250,7 @@ export class ContainerRunnerService extends EventEmitter {
       return { ok: true, runId, config, sourcePath: null };
     } catch (error) {
       log.error('[containers] compose run failed', error);
-      const serialized = this.serializeStartError(error, { workspaceId, runId, mode, now });
+      const serialized = this.serializeStartError(error, { taskId, runId, mode, now });
       if (serialized.event) this.emitRunnerEvent(serialized.event);
       return { ok: false, error: serialized.error };
     }
@@ -429,7 +429,7 @@ export class ContainerRunnerService extends EventEmitter {
     return this.emit(RUN_EVENT_CHANNEL, event);
   }
 
-  async inspectRun(workspaceId: string): Promise<
+  async inspectRun(taskId: string): Promise<
     | {
         ok: true;
         running: boolean;
@@ -439,7 +439,7 @@ export class ContainerRunnerService extends EventEmitter {
     | { ok: false; error: string }
   > {
     const execAsync = promisify(exec);
-    const project = `emdash_ws_${workspaceId}`;
+    const project = `emdash_ws_${taskId}`;
     try {
       const { stdout } = await execAsync(
         `docker compose -p ${JSON.stringify(project)} ps --format json`
@@ -492,24 +492,24 @@ export class ContainerRunnerService extends EventEmitter {
    * Emits runner events compatible with the existing renderer.
    */
   async startRun(options: ContainerStartOptions): Promise<ContainerStartResult> {
-    const existing = this.startInFlight.get(options.workspaceId);
+    const existing = this.startInFlight.get(options.taskId);
     if (existing) return existing;
 
     const promise = this._startRunImpl(options).finally(() => {
-      this.startInFlight.delete(options.workspaceId);
+      this.startInFlight.delete(options.taskId);
     });
-    this.startInFlight.set(options.workspaceId, promise);
+    this.startInFlight.set(options.taskId, promise);
     return promise;
   }
 
   private async _startRunImpl(options: ContainerStartOptions): Promise<ContainerStartResult> {
-    const { workspaceId, workspacePath } = options;
-    if (!workspaceId || !workspacePath) {
+    const { taskId, workspacePath } = options;
+    if (!taskId || !workspacePath) {
       return {
         ok: false,
         error: {
           code: 'INVALID_ARGUMENT',
-          message: '`workspaceId` and `workspacePath` are required',
+          message: '`taskId` and `workspacePath` are required',
           configKey: null,
           configPath: null,
         },
@@ -544,7 +544,7 @@ export class ContainerRunnerService extends EventEmitter {
     const emitLifecycle = (
       status: 'building' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed'
     ) => {
-      this.emitRunnerEvent({ ts: now(), workspaceId, runId, mode, type: 'lifecycle', status });
+      this.emitRunnerEvent({ ts: now(), taskId, runId, mode, type: 'lifecycle', status });
     };
 
     const emitPorts = (
@@ -560,7 +560,7 @@ export class ContainerRunnerService extends EventEmitter {
       }));
       this.emitRunnerEvent({
         ts: now(),
-        workspaceId,
+        taskId,
         runId,
         mode,
         type: 'ports',
@@ -578,7 +578,7 @@ export class ContainerRunnerService extends EventEmitter {
         const message = `Configured workdir does not exist: ${workdirAbs}`;
         const event = {
           ts: now(),
-          workspaceId,
+          taskId,
           runId,
           mode,
           type: 'error' as const,
@@ -602,7 +602,7 @@ export class ContainerRunnerService extends EventEmitter {
         const message = `No package.json found in workdir: ${workdirAbs}. Set the correct 'workdir' in .emdash/config.json`;
         this.emitRunnerEvent({
           ts: now(),
-          workspaceId,
+          taskId,
           runId,
           mode,
           type: 'error',
@@ -631,7 +631,7 @@ export class ContainerRunnerService extends EventEmitter {
         const message = 'Docker is not available or not responding. Please start Docker Desktop.';
         const event = {
           ts: now(),
-          workspaceId,
+          taskId,
           runId,
           mode,
           type: 'error' as const,
@@ -650,7 +650,7 @@ export class ContainerRunnerService extends EventEmitter {
       if (composeBase) {
         log.info('[containers] compose detected; delegating to compose runner');
         return await this.startComposeRun({
-          workspaceId,
+          taskId,
           workspacePath: absWorkspace,
           runId,
           mode,
@@ -671,7 +671,7 @@ export class ContainerRunnerService extends EventEmitter {
       emitLifecycle('building');
 
       // Ensure no leftover container with the same name
-      const containerName = `emdash_ws_${workspaceId}`;
+      const containerName = `emdash_ws_${taskId}`;
       try {
         await execAsync(`docker rm -f ${JSON.stringify(containerName)}`);
       } catch {}
@@ -703,7 +703,7 @@ export class ContainerRunnerService extends EventEmitter {
           const message = `Env file not found: ${envAbs}`;
           this.emitRunnerEvent({
             ts: now(),
-            workspaceId,
+            taskId,
             runId,
             mode,
             type: 'error',
@@ -757,7 +757,7 @@ export class ContainerRunnerService extends EventEmitter {
       );
       this.emitRunnerEvent({
         ts: now(),
-        workspaceId,
+        taskId,
         runId,
         mode,
         type: 'lifecycle',
@@ -775,7 +775,7 @@ export class ContainerRunnerService extends EventEmitter {
     } catch (error) {
       log.error('[containers] docker run failed', error);
       const serialized = this.serializeStartError(error, {
-        workspaceId,
+        taskId,
         runId,
         mode,
         now,
@@ -786,15 +786,15 @@ export class ContainerRunnerService extends EventEmitter {
   }
 
   /** Stop and remove a running container for a task (workspace) */
-  async stopRun(workspaceId: string, opts: { now?: () => number; mode?: RunnerMode } = {}) {
+  async stopRun(taskId: string, opts: { now?: () => number; mode?: RunnerMode } = {}) {
     const now = opts.now ?? Date.now;
     const mode = opts.mode ?? 'container';
     const runId = this.generateRunId(now);
-    const containerName = `emdash_ws_${workspaceId}`;
+    const containerName = `emdash_ws_${taskId}`;
     try {
       this.emitRunnerEvent({
         ts: now(),
-        workspaceId,
+        taskId,
         runId,
         mode,
         type: 'lifecycle',
@@ -810,7 +810,7 @@ export class ContainerRunnerService extends EventEmitter {
       } catch {}
       this.emitRunnerEvent({
         ts: now(),
-        workspaceId,
+        taskId,
         runId,
         mode,
         type: 'lifecycle',
@@ -821,7 +821,7 @@ export class ContainerRunnerService extends EventEmitter {
       const message = e instanceof Error ? e.message : String(e);
       this.emitRunnerEvent({
         ts: now(),
-        workspaceId,
+        taskId,
         runId,
         mode,
         type: 'error',
@@ -833,13 +833,13 @@ export class ContainerRunnerService extends EventEmitter {
   }
 
   async startMockRun(options: ContainerStartOptions): Promise<ContainerStartResult> {
-    const { workspaceId, workspacePath } = options;
-    if (!workspaceId || !workspacePath) {
+    const { taskId, workspacePath } = options;
+    if (!taskId || !workspacePath) {
       return {
         ok: false,
         error: {
           code: 'INVALID_ARGUMENT',
-          message: '`workspaceId` and `workspacePath` are required',
+          message: '`taskId` and `workspacePath` are required',
           configKey: null,
           configPath: null,
         },
@@ -860,7 +860,7 @@ export class ContainerRunnerService extends EventEmitter {
 
     try {
       const events = await generateMockStartEvents({
-        workspaceId,
+        taskId,
         config: loadResult.config,
         portAllocator: this.portAllocator,
         runId,
@@ -881,7 +881,7 @@ export class ContainerRunnerService extends EventEmitter {
     } catch (error) {
       log.error('container runner start failed', error);
       const serialized = this.serializeStartError(error, {
-        workspaceId,
+        taskId,
         runId,
         mode,
         now,
@@ -912,7 +912,7 @@ export class ContainerRunnerService extends EventEmitter {
   private serializeStartError(
     cause: unknown,
     context: {
-      workspaceId: string;
+      taskId: string;
       runId: string;
       mode: RunnerMode;
       now: () => number;
@@ -921,7 +921,7 @@ export class ContainerRunnerService extends EventEmitter {
     if (cause instanceof PortAllocationError) {
       const event: RunnerErrorEvent = {
         ts: context.now(),
-        workspaceId: context.workspaceId,
+        taskId: context.taskId,
         runId: context.runId,
         mode: context.mode,
         type: 'error',
@@ -960,7 +960,7 @@ export class ContainerRunnerService extends EventEmitter {
       },
       event: {
         ts: context.now(),
-        workspaceId: context.workspaceId,
+        taskId: context.taskId,
         runId: context.runId,
         mode: context.mode,
         type: 'error',

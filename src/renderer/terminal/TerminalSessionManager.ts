@@ -19,7 +19,7 @@ export interface SessionTheme {
 }
 
 export interface TerminalSessionOptions {
-  workspaceId: string;
+  taskId: string;
   cwd?: string;
   shell?: string;
   env?: Record<string, string>;
@@ -60,7 +60,7 @@ export class TerminalSessionManager {
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
 
   constructor(private readonly options: TerminalSessionOptions) {
-    this.id = options.workspaceId;
+    this.id = options.taskId;
 
     this.container = document.createElement('div');
     this.container.className = 'terminal-session-root';
@@ -400,8 +400,8 @@ export class TerminalSessionManager {
   }
 
   private connectPty() {
-    const { workspaceId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
-    const id = workspaceId;
+    const { taskId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
+    const id = taskId;
     void window.electronAPI
       .ptyStart({
         id,

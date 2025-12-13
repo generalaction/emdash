@@ -21,7 +21,7 @@ interface TitlebarProps {
   currentPath?: string | null;
   githubUser?: GithubUser | null;
   defaultPreviewUrl?: string | null;
-  workspaceId?: string | null;
+  taskId?: string | null;
   workspacePath?: string | null;
   projectPath?: string | null;
   isWorkspaceMultiAgent?: boolean;
@@ -36,7 +36,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   currentPath,
   githubUser,
   defaultPreviewUrl,
-  workspaceId,
+  taskId,
   workspacePath,
   projectPath,
   isWorkspaceMultiAgent,
@@ -139,10 +139,10 @@ const Titlebar: React.FC<TitlebarProps> = ({
               </Tooltip>
             </TooltipProvider>
           ) : null}
-          {workspaceId && !isWorkspaceMultiAgent ? (
+          {taskId && !isWorkspaceMultiAgent ? (
             <BrowserToggleButton
               defaultUrl={defaultPreviewUrl || undefined}
-              workspaceId={workspaceId}
+              taskId={taskId}
               workspacePath={workspacePath}
               parentProjectPath={projectPath}
             />
