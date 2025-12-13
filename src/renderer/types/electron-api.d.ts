@@ -251,6 +251,15 @@ declare global {
         output?: string;
         error?: string;
       }>;
+      generatePrContent: (args: {
+        workspacePath: string;
+        base?: string;
+      }) => Promise<{
+        success: boolean;
+        title?: string;
+        description?: string;
+        error?: string;
+      }>;
       createPullRequest: (args: {
         workspacePath: string;
         title?: string;
