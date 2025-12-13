@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
@@ -7,6 +7,7 @@ import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { X, FolderOpen, Github, Edit2 } from 'lucide-react';
 import { Separator } from './ui/separator';
+import { joinPath, parseGitHubRepoUrl, stripTrailingSeparators } from '../lib/projectCloneDestination';
 
 interface CloneRepoModalProps {
   isOpen: boolean;
@@ -24,7 +25,6 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
   const shouldReduceMotion = useReducedMotion();
   const [defaultBasePath, setDefaultBasePath] = useState<string>('');
   const previousIsOpen = useRef(false);
-
   useEffect(() => {
     const loadDefaultPath = async () => {
       try {
@@ -33,7 +33,7 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
           // Default to ~/Emdash
           const isWin = (await window.electronAPI.getPlatform()) === 'win32';
           const sep = isWin ? '\\' : '/';
-          setDefaultBasePath(`${homePath}${sep}Emdash`);
+          setDefaultBasePath(joinPath(homePath, 'Emdash', sep));
         }
       } catch (err) {
         console.error('Failed to get default path', err);
@@ -55,50 +55,58 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
 
   // Auto-populate destination when URL changes
   useEffect(() => {
-    if (!repoUrl || !defaultBasePath) return;
+    if (!repoUrl.trim() || !defaultBasePath) return;
 
-    // Extract repo name from URL
-    // e.g. https://github.com/owner/repo.git -> repo
-    try {
-      const match = repoUrl.match(/\/([^/]+?)(\.git)?$/);
-      if (match && match[1]) {
-        const repoName = match[1];
-        // Only update if destination is empty or looks like an auto-generated path
-        const isWin = destinationPath.includes('\\');
-        const sep = isWin ? '\\' : '/';
+    const parsed = parseGitHubRepoUrl(repoUrl.trim());
+    if (!parsed) return;
 
-        if (!destinationPath || destinationPath.startsWith(defaultBasePath)) {
-          setDestinationPath(`${defaultBasePath}${sep}${repoName}`);
-        }
-      }
-    } catch {}
-  }, [repoUrl, defaultBasePath]);
+    const repoName = parsed.repo;
+    const isWin = destinationPath.includes('\\');
+    const sep = isWin ? '\\' : '/';
+    const base = stripTrailingSeparators(defaultBasePath);
+    const trimmedDestination = stripTrailingSeparators(destinationPath);
+
+    const shouldAutoFill =
+      !trimmedDestination || (base && trimmedDestination.startsWith(base));
+
+    if (shouldAutoFill && base) {
+      setDestinationPath(joinPath(base, repoName, sep));
+    }
+  }, [repoUrl, defaultBasePath, destinationPath]);
 
   // Update destinationPath with defaultBasePath if it's empty and defaultBasePath is loaded
   useEffect(() => {
     if (defaultBasePath && !destinationPath) {
-      setDestinationPath(defaultBasePath);
+      setDestinationPath(stripTrailingSeparators(defaultBasePath));
     }
-  }, [defaultBasePath]);
+  }, [defaultBasePath, destinationPath]);
 
   // Ensure default path is restored when the modal first opens
   useEffect(() => {
     if (isOpen && !previousIsOpen.current && defaultBasePath && !destinationPath) {
-      setDestinationPath(defaultBasePath);
+      setDestinationPath(stripTrailingSeparators(defaultBasePath));
     }
     previousIsOpen.current = isOpen;
   }, [isOpen, defaultBasePath, destinationPath]);
+
+  const validate = useCallback((): string | null => {
+    const trimmedUrl = repoUrl.trim();
+    if (!trimmedUrl) return 'Please enter a repository URL.';
+    if (!parseGitHubRepoUrl(trimmedUrl)) return 'Please enter a valid GitHub repository URL.';
+    if (!destinationPath.trim()) return 'Please enter a destination path.';
+    return null;
+  }, [repoUrl, destinationPath]);
 
   // Keep validation errors in sync once the user has interacted
   useEffect(() => {
     if (touched) {
       setError(validate());
     }
-  }, [repoUrl, destinationPath, touched]);
+  }, [repoUrl, destinationPath, touched, validate]);
 
   const applyDefaultIfEmpty = () => {
     if (!destinationPath.trim() && defaultBasePath) {
-      setDestinationPath(defaultBasePath);
+      setDestinationPath(stripTrailingSeparators(defaultBasePath));
     }
   };
 
@@ -123,17 +131,11 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
         // BUT, showOpenDialog with 'createDirectory' allows them to create the target folder.
         // Let's just set it to what they picked. If they picked "GitHub", they probably want to append the repo name.
         // To be safe, let's just set it to what they picked and let them edit if needed.
-        setDestinationPath(selectedPath);
+        setDestinationPath(stripTrailingSeparators(selectedPath));
       }
     } catch (err) {
       console.error('Failed to open directory dialog', err);
     }
-  };
-
-  const validate = (): string | null => {
-    if (!repoUrl.trim()) return 'Please enter a repository URL.';
-    if (!destinationPath.trim()) return 'Please enter a destination path.';
-    return null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -148,8 +150,25 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
     setIsCloning(true);
     setError(null);
 
+    const trimmedUrl = repoUrl.trim();
+    const parsedUrl = parseGitHubRepoUrl(trimmedUrl);
+    if (!parsedUrl) {
+      setError('Please enter a valid GitHub repository URL.');
+      setIsCloning(false);
+      return;
+    }
+
+    const isHttp = /^https?:\/\//i.test(trimmedUrl);
+    const normalizedUrl = isHttp ? parsedUrl.normalizedUrl : trimmedUrl.replace(/\/+$/, '');
+    if (isHttp && normalizedUrl !== trimmedUrl) {
+      setRepoUrl(normalizedUrl);
+    }
+
+    const resolvedDestination =
+      destinationPath.trim() || (defaultBasePath ? stripTrailingSeparators(defaultBasePath) : '');
+
     try {
-      await onClone(repoUrl, destinationPath);
+      await onClone(normalizedUrl, stripTrailingSeparators(resolvedDestination));
       onClose();
     } catch (error: any) {
       setError(error.message || 'Failed to clone repository.');

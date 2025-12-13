@@ -31,7 +31,7 @@ export function usePlanActivationTerminal(opts: {
     const send = async () => {
       try {
         log.info('[plan] activating native plan mode', { providerId, ptyId, cmd });
-        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: `${cmd}\n` });
+        window.electronAPI?.ptyInput?.({ id: ptyId, data: `${cmd}\n` });
         try {
           localStorage.setItem(onceKey, '1');
         } catch {}
@@ -40,7 +40,7 @@ export function usePlanActivationTerminal(opts: {
     };
 
     // Prefer waiting until PTY session has started
-    const off = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
+    const off = window.electronAPI?.onPtyStarted?.((info: { id: string }) => {
       if (info?.id === ptyId) void send();
     });
 
@@ -53,5 +53,5 @@ export function usePlanActivationTerminal(opts: {
       } catch {}
       clearTimeout(t);
     };
-  }, [enabled, providerId, workspaceId]);
+  }, [enabled, providerId, workspaceId, workspacePath]);
 }

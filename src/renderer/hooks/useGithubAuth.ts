@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-type GithubUser = any;
+type GithubUser = Record<string, unknown> | null;
 
 type GithubCache = {
   installed: boolean;
@@ -15,7 +15,7 @@ export function useGithubAuth() {
   const [authenticated, setAuthenticated] = useState<boolean>(
     () => cachedGithubStatus?.authenticated ?? false
   );
-  const [user, setUser] = useState<GithubUser | null>(() => cachedGithubStatus?.user ?? null);
+  const [user, setUser] = useState<GithubUser>(() => cachedGithubStatus?.user ?? null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const syncCache = useCallback(
@@ -55,7 +55,7 @@ export function useGithubAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [syncCache]);
+  }, []);
 
   const logout = useCallback(async () => {
     try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
@@ -6,8 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
-import { X, FolderOpen, Github, Home } from 'lucide-react';
+import { X, FolderOpen, Github } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import {
+  computeNextCloneDestination,
+  deriveCloneProjectArgs,
+  joinPath,
+  parseGitHubRepoUrl,
+  splitPathForDisplay,
+  stripTrailingSeparators,
+} from '../lib/projectCloneDestination';
 
 interface ProjectDialogProps {
   isOpen: boolean;
@@ -24,22 +32,143 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
   const [localPath, setLocalPath] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
   const [isCloning, setIsCloning] = useState(false);
-  const [cloneDestination, setCloneDestination] = useState<string>('');
+  const [cloneBasePath, setCloneBasePath] = useState<string>('');
+  const [repoSegment, setRepoSegment] = useState('');
+  const [repoSegmentTouched, setRepoSegmentTouched] = useState(false);
+  const [pathSeparator, setPathSeparator] = useState<'/' | '\\'>('/');
+  const [lastAutoRepoName, setLastAutoRepoName] = useState<string | null>(null);
+  const [repoExists, setRepoExists] = useState(false);
+  const [repoCheckError, setRepoCheckError] = useState<string | null>(null);
+  const openSessionIdRef = useRef(0);
 
   const { toast } = useToast();
   const shouldReduceMotion = useReducedMotion();
+  const baseDisplayPath = cloneBasePath
+    ? `${stripTrailingSeparators(cloneBasePath)}${pathSeparator}`
+    : '/path/to/Emdash/';
+  const trimmedRepoSegment = repoSegment.trim();
+  const targetDestinationPath =
+    trimmedRepoSegment && cloneBasePath
+      ? joinPath(cloneBasePath, trimmedRepoSegment, pathSeparator)
+      : '';
 
-  // Set default clone destination on mount
+  // Set default clone destination on open
   useEffect(() => {
-    if (isOpen) {
-      setCloneDestination('/Users/knewton26/Emdash');
-    }
+    if (!isOpen) return;
+
+    openSessionIdRef.current += 1;
+    const sessionId = openSessionIdRef.current;
+
+    setRepoSegmentTouched(false);
+    setLastAutoRepoName(null);
+    setCloneBasePath('');
+    setRepoSegment('');
+    setRepoExists(false);
+    setRepoCheckError(null);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const [homePath, platform] = await Promise.all([
+          window.electronAPI.getPath('home'),
+          window.electronAPI.getPlatform(),
+        ]);
+        if (cancelled || openSessionIdRef.current !== sessionId) return;
+        const sep = platform === 'win32' ? '\\' : '/';
+        setPathSeparator(sep);
+        const basePath = homePath ? joinPath(homePath, 'Emdash', sep) : '';
+        setCloneBasePath(basePath);
+        setRepoSegment('');
+        setRepoSegmentTouched(false);
+      } catch (error) {
+        console.error('Failed to set default clone destination:', error);
+        setCloneBasePath('');
+        setRepoSegment('');
+        setRepoSegmentTouched(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
+
+  // Auto-populate destination with repo name when URL changes
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!githubUrl.trim()) return;
+
+    const parsedRepo = parseGitHubRepoUrl(githubUrl.trim());
+    const repoName = parsedRepo?.repo;
+    if (!repoName) return;
+
+    const currentDestination = joinPath(cloneBasePath, repoSegment, pathSeparator);
+
+    const { shouldUpdate, nextDestination, nextLastAutoRepoName } = computeNextCloneDestination({
+      currentDestination,
+      defaultBasePath: cloneBasePath,
+      repoName,
+      sep: pathSeparator,
+      destinationTouched: repoSegmentTouched,
+      lastAutoRepoName,
+    });
+
+    if (!shouldUpdate || !nextDestination) return;
+
+    const { prefix, name } = splitPathForDisplay(nextDestination);
+    setCloneBasePath(stripTrailingSeparators(prefix));
+    setRepoSegment(name);
+
+    if (nextLastAutoRepoName !== lastAutoRepoName) {
+      setLastAutoRepoName(nextLastAutoRepoName);
+    }
+    setRepoSegmentTouched(false);
+  }, [
+    isOpen,
+    githubUrl,
+    cloneBasePath,
+    repoSegment,
+    pathSeparator,
+    repoSegmentTouched,
+    lastAutoRepoName,
+  ]);
+
+  useEffect(() => {
+    if (!targetDestinationPath) {
+      setRepoExists(false);
+      setRepoCheckError(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const { exists, error } = await window.electronAPI.pathExists(targetDestinationPath);
+        if (cancelled) return;
+        if (error) {
+          setRepoExists(false);
+          setRepoCheckError('Unable to verify destination path');
+          return;
+        }
+        setRepoExists(exists);
+        if (!exists) setRepoCheckError(null);
+      } catch (error) {
+        if (cancelled) return;
+        setRepoExists(false);
+        setRepoCheckError('Unable to verify destination path');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetDestinationPath]);
 
   const handleOpenLocal = async () => {
     try {
       const result = await window.electronAPI.openProject();
       if (result.success && result.path) {
+        setLocalPath(result.path);
         onProjectAdded(result.path);
         onClose();
         toast({
@@ -63,10 +192,23 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
     }
   };
 
-  const handleCloneGitHub = async (repoUrl: string, repoName?: string) => {
+  const handleCloneGitHub = async (repoUrl: string) => {
     try {
       setIsCloning(true);
-      const result = await window.electronAPI.cloneProject(repoUrl, repoName, cloneDestination);
+      const currentDestination = joinPath(cloneBasePath, repoSegment, pathSeparator);
+      const parsedRepo = parseGitHubRepoUrl(repoUrl.trim());
+      const repoNameFromUrl = parsedRepo?.repo ?? null;
+      const { parentDir, repoName } = deriveCloneProjectArgs({
+        destinationPath: currentDestination,
+        defaultBasePath: cloneBasePath,
+        repoNameFromUrl,
+      });
+
+      const result = await window.electronAPI.cloneProject(
+        repoUrl,
+        repoName,
+        parentDir
+      );
       if (result.success && result.path) {
         onProjectAdded(result.path);
         onClose();
@@ -97,7 +239,20 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
     try {
       const result = await window.electronAPI.selectCloneDestination();
       if (result.success && result.path) {
-        setCloneDestination(result.path);
+        const parsedRepo = parseGitHubRepoUrl(githubUrl.trim());
+        const repoNameFromUrl = parsedRepo?.repo ?? null;
+        setCloneBasePath(result.path);
+
+        if (!repoSegment.trim() && repoNameFromUrl) {
+          setRepoSegment(repoNameFromUrl);
+          setLastAutoRepoName(repoNameFromUrl);
+          setRepoSegmentTouched(false);
+        } else {
+          setRepoSegmentTouched(true);
+        }
+
+        const sep = result.path.includes('\\') ? '\\' : result.path.includes('/') ? '/' : pathSeparator;
+        setPathSeparator(sep);
       }
     } catch (error) {
       console.error('Failed to select clone destination:', error);
@@ -110,7 +265,8 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
   };
 
   const handleCustomUrlClone = async () => {
-    if (!githubUrl.trim()) {
+    const trimmedUrl = githubUrl.trim();
+    if (!trimmedUrl) {
       toast({
         title: "Invalid URL",
         description: "Please enter a valid GitHub repository URL",
@@ -119,18 +275,22 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
       return;
     }
 
-    // Basic GitHub URL validation
-    const githubUrlPattern = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/;
-    if (!githubUrlPattern.test(githubUrl.trim())) {
+    const parsedRepo = parseGitHubRepoUrl(trimmedUrl);
+    if (!parsedRepo) {
       toast({
         title: "Invalid GitHub URL",
-        description: "Please enter a valid GitHub repository URL (e.g., https://github.com/user/repo)",
+        description:
+          "Please enter a valid GitHub repository URL (e.g., https://github.com/user/repo or git@github.com:user/repo.git)",
         variant: "destructive",
       });
       return;
     }
 
-    await handleCloneGitHub(githubUrl.trim());
+    const isHttp = /^https?:\/\//i.test(trimmedUrl);
+    const cloneUrl = isHttp ? parsedRepo.normalizedUrl : trimmedUrl.replace(/\/+$/, '');
+    if (isHttp && cloneUrl !== trimmedUrl) setGithubUrl(cloneUrl);
+
+    await handleCloneGitHub(cloneUrl);
   };
 
   return createPortal(
@@ -232,6 +392,28 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
                         id="github-url"
                         value={githubUrl}
                         onChange={(e) => setGithubUrl(e.target.value)}
+                        onBlur={() => {
+                          const trimmedUrl = githubUrl.trim();
+                          if (!trimmedUrl) return;
+
+                          const isHttp = /^https?:\/\//i.test(trimmedUrl);
+                          if (!isHttp) {
+                            if (trimmedUrl !== githubUrl) setGithubUrl(trimmedUrl);
+                            return;
+                          }
+
+                          const parsedRepo = parseGitHubRepoUrl(trimmedUrl);
+                          if (!parsedRepo) {
+                            if (trimmedUrl !== githubUrl) setGithubUrl(trimmedUrl);
+                            return;
+                          }
+
+                          if (parsedRepo.normalizedUrl !== trimmedUrl) {
+                            setGithubUrl(parsedRepo.normalizedUrl);
+                          } else if (trimmedUrl !== githubUrl) {
+                            setGithubUrl(trimmedUrl);
+                          }
+                        }}
                         placeholder="https://github.com/user/repo"
                         className="w-full"
                       />
@@ -242,24 +424,62 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
                       <Label htmlFor="clone-destination" className="block mb-2">
                         Clone Destination
                       </Label>
-                      <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
-                        <Home className="h-4 w-4 text-muted-foreground" />
-                        <span className="flex-1 text-sm">{cloneDestination}</span>
+                      <div className="flex gap-2">
+                        <div className="flex items-stretch gap-0 rounded-md border border-input">
+                          <span className="flex items-center px-3 text-sm font-mono font-normal text-muted-foreground bg-muted/30 border-r border-input/80">
+                            {baseDisplayPath}
+                          </span>
+                          <Input
+                            id="clone-repo-name"
+                            value={repoSegment}
+                            onChange={(e) => {
+                              setRepoSegment(e.target.value);
+                              setRepoSegmentTouched(true);
+                            }}
+                            onBlur={() => {
+                              const trimmed = repoSegment.trim();
+                              if (!trimmed) {
+                                const parsedRepo = parseGitHubRepoUrl(githubUrl.trim());
+                                const repoName = parsedRepo?.repo ?? lastAutoRepoName;
+                                if (repoName) {
+                                  setRepoSegment(repoName);
+                                  setLastAutoRepoName(repoName);
+                                  setRepoSegmentTouched(false);
+                                }
+                                return;
+                              }
+                              if (trimmed !== repoSegment) {
+                                setRepoSegment(trimmed);
+                              }
+                            }}
+                            placeholder="workspace-name"
+                            className="w-full rounded-none font-mono"
+                          />
+                        </div>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={handleChangeDestination}
                           className="shrink-0"
                         >
+                          <FolderOpen className="mr-2 h-4 w-4" />
                           Change
                         </Button>
                       </div>
+                      {repoCheckError ? (
+                        <p className="text-xs text-destructive mt-1">{repoCheckError}</p>
+                      ) : repoExists && targetDestinationPath ? (
+                        <p className="text-xs text-destructive mt-1">
+                          A folder already exists at {targetDestinationPath}. Choose a different name or
+                          remove that folder before cloning.
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="flex justify-end">
                       <Button
                         onClick={handleCustomUrlClone}
-                        disabled={isCloning || !githubUrl.trim()}
+                        disabled={isCloning || !githubUrl.trim() || repoExists}
                         className="w-full sm:w-auto"
                       >
                         {isCloning ? (

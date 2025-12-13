@@ -104,6 +104,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
     rows,
     theme,
     autoApprove,
+    initialPrompt,
     onActivity,
     onStartError,
     onStartSuccess,

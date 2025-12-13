@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from 'electron';
+import { app, ipcMain, dialog } from 'electron';
 import { join } from 'path';
 import * as fs from 'fs';
 import { exec } from 'child_process';
@@ -65,8 +65,7 @@ export function registerProjectIpc() {
 
   ipcMain.handle('project:clone', async (_, repoUrl: string, repoName?: string, customDestination?: string) => {
     try {
-      // Default to /Users/knewton26/Emdash, or use custom destination if provided
-      const defaultCloneDir = '/Users/knewton26/Emdash';
+      const defaultCloneDir = join(app.getPath('home'), 'Emdash');
       const parentDir = customDestination || defaultCloneDir;
 
       // Ensure the emdash directory exists
@@ -92,6 +91,7 @@ export function registerProjectIpc() {
         title: 'Select Clone Destination',
         properties: ['openDirectory', 'createDirectory'],
         message: 'Select where to clone the repository',
+        defaultPath: join(app.getPath('home'), 'Emdash'),
       });
 
       if (result.canceled || result.filePaths.length === 0) {

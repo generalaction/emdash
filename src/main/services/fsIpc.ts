@@ -148,12 +148,25 @@ export function registerFsIpc(): void {
         }
 
         return { success: true, path: relPath, size, truncated, content };
-      } catch (error) {
-        console.error('fs:read failed:', error);
-        return { success: false, error: 'Failed to read file' };
-      }
+    } catch (error) {
+      console.error('fs:read failed:', error);
+      return { success: false, error: 'Failed to read file' };
     }
+  }
   );
+
+  ipcMain.handle('fs:pathExists', async (_event, targetPath: string) => {
+    try {
+      if (!targetPath) {
+        return { exists: false };
+      }
+      const stat = safeStat(targetPath);
+      return { exists: !!stat };
+    } catch (error) {
+      console.error('fs:pathExists failed:', error);
+      return { exists: false, error: 'Failed to check path' };
+    }
+  });
 
   // Save an attachment (e.g., image) into a workspace-managed folder
   ipcMain.handle(

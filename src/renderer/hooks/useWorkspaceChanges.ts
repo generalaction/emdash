@@ -73,15 +73,19 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
     [workspacePath, workspaceId]
   );
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    void fetchChanges(true);
+    const timer = setTimeout(() => {
+      void fetchChanges(true);
+    }, 0);
 
     // Poll for changes every 10 seconds without loading state
     const interval = setInterval(() => {
       void fetchChanges(false);
     }, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [fetchChanges]);
 
   return {
