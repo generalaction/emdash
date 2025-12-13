@@ -23,7 +23,12 @@ interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   projectPath?: string | null;
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ workspace, projectPath, className, ...rest }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({
+  workspace,
+  projectPath,
+  className,
+  ...rest
+}) => {
   const { collapsed } = useRightSidebar();
 
   // Detect multi-agent variants in workspace metadata
