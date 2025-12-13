@@ -4,6 +4,7 @@ import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 import { cn } from '@/lib/utils';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import type { Provider } from '../types';
 
 interface Workspace {
@@ -171,20 +172,50 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className={cn(
-              'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-              mode === 'workspace'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-background/70'
-            )}
-            disabled={!workspace}
-            onClick={() => setMode('workspace')}
-            title={workspace ? 'Workspace terminal' : 'No workspace selected'}
-          >
-            Worktree
-          </button>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              {!workspace ? (
+                <>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <button
+                        type="button"
+                        className={cn(
+                          'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
+                          mode === 'workspace'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:bg-background/70',
+                          'cursor-not-allowed opacity-50'
+                        )}
+                        disabled={true}
+                        onClick={() => setMode('workspace')}
+                      >
+                        Worktree
+                      </button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[200px]">
+                    <p className="text-xs">Select a task to access its worktree terminal.</p>
+                  </TooltipContent>
+                </>
+              ) : (
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
+                      mode === 'workspace'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-background/70'
+                    )}
+                    onClick={() => setMode('workspace')}
+                  >
+                    Worktree
+                  </button>
+                </TooltipTrigger>
+              )}
+            </Tooltip>
+          </TooltipProvider>
           <button
             type="button"
             className={cn(
