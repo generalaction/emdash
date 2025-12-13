@@ -23,7 +23,7 @@ const STORAGE_PREFIX = 'emdash:workspaceTerminals:v1';
 
 const workspaceStates = new Map<string, TaskTerminalsState>();
 const workspaceListeners = new Map<string, Set<() => void>>();
-const workspaceSnapshots = new Map<string, WorkspaceSnapshot>();
+const taskSnapshots = new Map<string, WorkspaceSnapshot>();
 
 const EMPTY_SNAPSHOT: WorkspaceSnapshot = {
   terminals: [],
@@ -144,18 +144,18 @@ function createDefaultState(taskId: string, taskPath?: string): TaskTerminalsSta
 }
 
 function ensureSnapshot(taskId: string, state: TaskTerminalsState) {
-  const current = workspaceSnapshots.get(taskId);
+  const current = taskSnapshots.get(taskId);
   if (
     !current ||
     current.terminals !== state.terminals ||
     current.activeTerminalId !== state.activeId
   ) {
-    workspaceSnapshots.set(taskId, {
+    taskSnapshots.set(taskId, {
       terminals: state.terminals,
       activeTerminalId: state.activeId,
     });
   }
-  return workspaceSnapshots.get(taskId)!;
+  return taskSnapshots.get(taskId)!;
 }
 
 function ensureWorkspaceState(

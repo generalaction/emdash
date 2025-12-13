@@ -121,9 +121,9 @@ const AppContent: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
-  const [isCreatingTask, setIsCreatingWorkspace] = useState<boolean>(false);
-  const [activeTask, setActiveWorkspace] = useState<Task | null>(null);
-  const [activeTaskProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
+  const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
   const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
@@ -323,7 +323,7 @@ const AppContent: React.FC = () => {
     })();
     setSelectedProject(project);
     setShowHomeView(false);
-    setActiveWorkspace(null);
+    setActiveTask(null);
   }, []);
 
   const handleRightSidebarCollapsedChange = useCallback((collapsed: boolean) => {
@@ -457,13 +457,13 @@ const AppContent: React.FC = () => {
         // Refresh GH status via hook
         checkStatus();
 
-        const projectsWithWorkspaces = await Promise.all(
+        const projectsWithTasks = await Promise.all(
           initialProjects.map(async (project) => {
             const workspaces = await window.electronAPI.getWorkspaces(project.id);
             return withRepoKey({ ...project, workspaces });
           })
         );
-        const ordered = applyProjectOrder(projectsWithWorkspaces);
+        const ordered = applyProjectOrder(projectsWithTasks);
         setProjects(ordered);
 
         // Prefer cached provider status (populated in the background)
@@ -713,7 +713,7 @@ const AppContent: React.FC = () => {
   ) => {
     if (!selectedProject) return;
 
-    setIsCreatingWorkspace(true);
+    setIsCreatingTask(true);
     try {
       let preparedPrompt: string | undefined = undefined;
       if (initialPrompt && initialPrompt.trim()) {
@@ -825,7 +825,7 @@ const AppContent: React.FC = () => {
       const isMultiAgent = totalRuns > 1;
       const primaryProvider = providerRuns[0]?.provider || 'claude';
 
-      let newWorkspace: Task;
+      let newTask: Task;
       if (isMultiAgent) {
         // Multi-agent workspace: create worktrees for each provider×runs combo
         const variants: Array<{
@@ -877,7 +877,7 @@ const AppContent: React.FC = () => {
         };
 
         const groupId = `ws-${taskName}-${Date.now()}`;
-        newWorkspace = {
+        newTask = {
           id: groupId,
           projectId: selectedProject.id,
           name: taskName,
@@ -889,7 +889,7 @@ const AppContent: React.FC = () => {
         };
 
         const saveResult = await window.electronAPI.saveWorkspace({
-          ...newWorkspace,
+          ...newTask,
           agentId: primaryProvider,
           metadata: multiMeta,
         });
@@ -897,7 +897,7 @@ const AppContent: React.FC = () => {
           const { log } = await import('./lib/logger');
           log.error('Failed to save multi-agent workspace:', saveResult?.error);
           toast({ title: 'Error', description: 'Failed to create multi-agent workspace.' });
-          setIsCreatingWorkspace(false);
+          setIsCreatingTask(false);
           return;
         }
       } else {
@@ -915,7 +915,7 @@ const AppContent: React.FC = () => {
 
         const worktree = worktreeResult.worktree;
 
-        newWorkspace = {
+        newTask = {
           id: worktree.id,
           projectId: selectedProject.id,
           name: taskName,
@@ -927,7 +927,7 @@ const AppContent: React.FC = () => {
         };
 
         const saveResult = await window.electronAPI.saveWorkspace({
-          ...newWorkspace,
+          ...newTask,
           agentId: primaryProvider,
           metadata: taskMetadata,
         });
@@ -935,7 +935,7 @@ const AppContent: React.FC = () => {
           const { log } = await import('./lib/logger');
           log.error('Failed to save workspace:', saveResult?.error);
           toast({ title: 'Error', description: 'Failed to create workspace.' });
-          setIsCreatingWorkspace(false);
+          setIsCreatingTask(false);
           return;
         }
       }
@@ -944,7 +944,7 @@ const AppContent: React.FC = () => {
         if (taskMetadata?.linearIssue) {
           try {
             const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newWorkspace.id
+              newTask.id
             );
 
             if (convoResult?.success && convoResult.conversation?.id) {
@@ -978,7 +978,7 @@ const AppContent: React.FC = () => {
               }
 
               await window.electronAPI.saveMessage({
-                id: `linear-context-${newWorkspace.id}`,
+                id: `linear-context-${newTask.id}`,
                 conversationId: convoResult.conversation.id,
                 content: lines.join('\n'),
                 sender: 'agent',
@@ -996,7 +996,7 @@ const AppContent: React.FC = () => {
         if (taskMetadata?.githubIssue) {
           try {
             const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newWorkspace.id
+              newTask.id
             );
 
             if (convoResult?.success && convoResult.conversation?.id) {
@@ -1036,7 +1036,7 @@ const AppContent: React.FC = () => {
               }
 
               await window.electronAPI.saveMessage({
-                id: `github-context-${newWorkspace.id}`,
+                id: `github-context-${newTask.id}`,
                 conversationId: convoResult.conversation.id,
                 content: lines.join('\n'),
                 sender: 'agent',
@@ -1054,7 +1054,7 @@ const AppContent: React.FC = () => {
         if (taskMetadata?.jiraIssue) {
           try {
             const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newWorkspace.id
+              newTask.id
             );
 
             if (convoResult?.success && convoResult.conversation?.id) {
@@ -1073,7 +1073,7 @@ const AppContent: React.FC = () => {
               if (issue.url) lines.push(`URL: ${issue.url}`);
 
               await window.electronAPI.saveMessage({
-                id: `jira-context-${newWorkspace.id}`,
+                id: `jira-context-${newTask.id}`,
                 conversationId: convoResult.conversation.id,
                 content: lines.join('\n'),
                 sender: 'agent',
@@ -1094,7 +1094,7 @@ const AppContent: React.FC = () => {
             project.id === selectedProject.id
               ? {
                   ...project,
-                  workspaces: [newWorkspace, ...(project.workspaces || [])],
+                  workspaces: [newTask, ...(project.workspaces || [])],
                 }
               : project
           )
@@ -1104,27 +1104,27 @@ const AppContent: React.FC = () => {
           prev
             ? {
                 ...prev,
-                workspaces: [newWorkspace, ...(prev.workspaces || [])],
+                workspaces: [newTask, ...(prev.workspaces || [])],
               }
             : null
         );
 
         // Track workspace creation
         const { captureTelemetry } = await import('./lib/telemetryClient');
-        const isMultiAgent = (newWorkspace.metadata as any)?.multiAgent?.enabled;
+        const isMultiAgent = (newTask.metadata as any)?.multiAgent?.enabled;
         captureTelemetry('workspace_created', {
-          provider: isMultiAgent ? 'multi' : (newWorkspace.agentId as string) || 'codex',
+          provider: isMultiAgent ? 'multi' : (newTask.agentId as string) || 'codex',
           has_initial_prompt: !!taskMetadata?.initialPrompt,
         });
 
         // Set the active workspace and its provider (none if multi-agent)
-        setActiveWorkspace(newWorkspace);
-        if ((newWorkspace.metadata as any)?.multiAgent?.enabled) {
-          setActiveWorkspaceProvider(null);
+        setActiveTask(newTask);
+        if ((newTask.metadata as any)?.multiAgent?.enabled) {
+          setActiveTaskProvider(null);
         } else {
           // Use the saved agentId from the workspace, which should match primaryProvider
-          setActiveWorkspaceProvider(
-            (newWorkspace.agentId as Provider) || primaryProvider || 'codex'
+          setActiveTaskProvider(
+            (newTask.agentId as Provider) || primaryProvider || 'codex'
           );
         }
       }
@@ -1138,14 +1138,14 @@ const AppContent: React.FC = () => {
           'Failed to create workspace. Please check the console for details.',
       });
     } finally {
-      setIsCreatingWorkspace(false);
+      setIsCreatingTask(false);
     }
   };
 
   const handleGoHome = () => {
     setSelectedProject(null);
     setShowHomeView(true);
-    setActiveWorkspace(null);
+    setActiveTask(null);
   };
 
   const handleSelectProject = (project: Project) => {
@@ -1153,14 +1153,14 @@ const AppContent: React.FC = () => {
   };
 
   const handleSelectTask = (workspace: Task) => {
-    setActiveWorkspace(workspace);
+    setActiveTask(workspace);
     // Load provider from workspace.agentId if it exists, otherwise default to null
     // This ensures the selected provider persists across app restarts
     if ((workspace.metadata as any)?.multiAgent?.enabled) {
-      setActiveWorkspaceProvider(null);
+      setActiveTaskProvider(null);
     } else {
       // Use agentId from workspace if available, otherwise fall back to 'codex' for backwards compatibility
-      setActiveWorkspaceProvider((workspace.agentId as Provider) || 'codex');
+      setActiveTaskProvider((workspace.agentId as Provider) || 'codex');
     }
   };
 
@@ -1173,27 +1173,27 @@ const AppContent: React.FC = () => {
     [activateProjectView, projects]
   );
 
-  const removeWorkspaceFromState = (projectId: string, taskId: string, wasActive: boolean) => {
-    const filterWorkspaces = (list?: Task[]) =>
+  const removeTaskFromState = (projectId: string, taskId: string, wasActive: boolean) => {
+    const filterTasks = (list?: Task[]) =>
       (list || []).filter((w) => w.id !== taskId);
 
     setProjects((prev) =>
       prev.map((project) =>
         project.id === projectId
-          ? { ...project, workspaces: filterWorkspaces(project.workspaces) }
+          ? { ...project, workspaces: filterTasks(project.workspaces) }
           : project
       )
     );
 
     setSelectedProject((prev) =>
       prev && prev.id === projectId
-        ? { ...prev, workspaces: filterWorkspaces(prev.workspaces) }
+        ? { ...prev, workspaces: filterTasks(prev.workspaces) }
         : prev
     );
 
     if (wasActive) {
-      setActiveWorkspace(null);
-      setActiveWorkspaceProvider(null);
+      setActiveTask(null);
+      setActiveTaskProvider(null);
     }
   };
 
@@ -1211,9 +1211,9 @@ const AppContent: React.FC = () => {
     }
 
     const wasActive = activeTask?.id === workspace.id;
-    const workspaceSnapshot = { ...workspace };
+    const taskSnapshot = { ...workspace };
     deletingTaskIdsRef.current.add(workspace.id);
-    removeWorkspaceFromState(targetProject.id, workspace.id, wasActive);
+    removeTaskFromState(targetProject.id, workspace.id, wasActive);
 
     const runDeletion = async (): Promise<boolean> => {
       try {
@@ -1336,23 +1336,23 @@ const AppContent: React.FC = () => {
             prev.map((project) => {
               if (project.id !== targetProject.id) return project;
               const existing = project.workspaces || [];
-              const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
+              const alreadyPresent = existing.some((w) => w.id === taskSnapshot.id);
               return alreadyPresent
                 ? project
-                : { ...project, workspaces: [workspaceSnapshot, ...existing] };
+                : { ...project, workspaces: [taskSnapshot, ...existing] };
             })
           );
           setSelectedProject((prev) => {
             if (!prev || prev.id !== targetProject.id) return prev;
             const existing = prev.workspaces || [];
-            const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
+            const alreadyPresent = existing.some((w) => w.id === taskSnapshot.id);
             return alreadyPresent
               ? prev
-              : { ...prev, workspaces: [workspaceSnapshot, ...existing] };
+              : { ...prev, workspaces: [taskSnapshot, ...existing] };
           });
 
           if (wasActive) {
-            handleSelectTask(workspaceSnapshot);
+            handleSelectTask(taskSnapshot);
           }
         }
         return false;
@@ -1398,7 +1398,7 @@ const AppContent: React.FC = () => {
       setProjects((prev) => prev.filter((p) => p.id !== project.id));
       if (selectedProject?.id === project.id) {
         setSelectedProject(null);
-        setActiveWorkspace(null);
+        setActiveTask(null);
         setShowHomeView(true);
       }
       toast({ title: 'Project deleted', description: `"${project.name}" was removed.` });
