@@ -208,7 +208,7 @@ declare global {
         rootPath?: string;
         error?: string;
       }>;
-      getGitStatus: (workspacePath: string) => Promise<{
+      getGitStatus: (taskPath: string) => Promise<{
         success: boolean;
         changes?: Array<{
           path: string;
@@ -220,7 +220,7 @@ declare global {
         }>;
         error?: string;
       }>;
-      getFileDiff: (args: { workspacePath: string; filePath: string }) => Promise<{
+      getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         diff?: {
           lines: Array<{
@@ -231,17 +231,17 @@ declare global {
         };
         error?: string;
       }>;
-      stageFile: (args: { workspacePath: string; filePath: string }) => Promise<{
+      stageFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         error?: string;
       }>;
-      revertFile: (args: { workspacePath: string; filePath: string }) => Promise<{
+      revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         action?: 'unstaged' | 'reverted';
         error?: string;
       }>;
       gitCommitAndPush: (args: {
-        workspacePath: string;
+        taskPath: string;
         commitMessage?: string;
         createBranchIfOnDefault?: boolean;
         branchPrefix?: string;
@@ -252,7 +252,7 @@ declare global {
         error?: string;
       }>;
       createPullRequest: (args: {
-        workspacePath: string;
+        taskPath: string;
         title?: string;
         body?: string;
         base?: string;
@@ -266,7 +266,7 @@ declare global {
         output?: string;
         error?: string;
       }>;
-      getPrStatus: (args: { workspacePath: string }) => Promise<{
+      getPrStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         pr?: {
           number: number;
@@ -284,7 +284,7 @@ declare global {
         } | null;
         error?: string;
       }>;
-      getBranchStatus: (args: { workspacePath: string }) => Promise<{
+      getBranchStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         branch?: string;
         defaultBranch?: string;
@@ -297,7 +297,7 @@ declare global {
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
       }>;
-      loadContainerConfig: (workspacePath: string) => Promise<
+      loadContainerConfig: (taskPath: string) => Promise<
         | {
             ok: true;
             config: ResolvedContainerConfig;
@@ -321,7 +321,7 @@ declare global {
       >;
       startContainerRun: (args: {
         taskId: string;
-        workspacePath: string;
+        taskPath: string;
         runId?: string;
         mode?: RunnerMode;
       }) => Promise<
@@ -427,7 +427,7 @@ declare global {
       fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
       // Attachments
       saveAttachment: (args: {
-        workspacePath: string;
+        taskPath: string;
         srcPath: string;
         subdir?: string;
       }) => Promise<{
@@ -704,7 +704,7 @@ export interface ElectronAPI {
     error?: string;
   }>;
   createPullRequest: (args: {
-    workspacePath: string;
+    taskPath: string;
     title?: string;
     body?: string;
     base?: string;

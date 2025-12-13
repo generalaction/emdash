@@ -175,7 +175,7 @@ const KanbanBoard: React.FC<{
         try {
           let hasPr = false;
           for (const p of paths) {
-            const res = await (window as any).electronAPI?.getPrStatus?.({ workspacePath: p });
+            const res = await (window as any).electronAPI?.getPrStatus?.({ taskPath: p });
             if (res?.success && res?.pr) {
               hasPr = true;
               break;
@@ -225,7 +225,7 @@ const KanbanBoard: React.FC<{
         try {
           let ahead = 0;
           for (const p of paths) {
-            const res = await (window as any).electronAPI?.getBranchStatus?.({ workspacePath: p });
+            const res = await (window as any).electronAPI?.getBranchStatus?.({ taskPath: p });
             if (res?.success) {
               const a = Number(res?.ahead ?? 0);
               if (a > 0) {

@@ -44,7 +44,7 @@ const KanbanCard: React.FC<{
       adminProvider={adminProvider}
       side="top"
       delay={150}
-      workspacePath={ws.path}
+      taskPath={ws.path}
       workspaceName={ws.name}
     >
       <div

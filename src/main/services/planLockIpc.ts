@@ -130,18 +130,18 @@ function releaseLock(root: string): { success: boolean; restored: number; error?
 }
 
 export function registerPlanLockIpc(): void {
-  ipcMain.handle('plan:lock', async (_e, workspacePath: string) => {
+  ipcMain.handle('plan:lock', async (_e, taskPath: string) => {
     if (isWindows()) {
       // Best-effort: still attempt chmod; ACL hardening could be added with icacls in a future pass
-      return applyLock(workspacePath);
+      return applyLock(taskPath);
     }
-    return applyLock(workspacePath);
+    return applyLock(taskPath);
   });
 
-  ipcMain.handle('plan:unlock', async (_e, workspacePath: string) => {
+  ipcMain.handle('plan:unlock', async (_e, taskPath: string) => {
     if (isWindows()) {
-      return releaseLock(workspacePath);
+      return releaseLock(taskPath);
     }
-    return releaseLock(workspacePath);
+    return releaseLock(taskPath);
   });
 }

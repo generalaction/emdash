@@ -16,7 +16,7 @@ type WorkspaceListener = (state: ContainerRunState) => void;
 
 interface StartRunArgs {
   taskId: string;
-  workspacePath: string;
+  taskPath: string;
   runId?: string;
   mode?: RunnerMode;
 }
@@ -211,17 +211,17 @@ export async function startContainerRun(args: StartRunArgs) {
   ensureSubscribed();
   const api = (window as any).electronAPI;
   const taskId = clean(args.taskId);
-  const workspacePath = clean(args.workspacePath);
+  const taskPath = clean(args.taskPath);
   const runId = clean(args.runId);
   const mode = args.mode;
   const payload: Record<string, any> = {};
   if (taskId) payload.taskId = taskId;
-  if (workspacePath) payload.workspacePath = workspacePath;
+  if (taskPath) payload.taskPath = taskPath;
   if (runId) payload.runId = runId;
   if (mode === 'container' || mode === 'host') payload.mode = mode;
 
-  if (!taskId || !workspacePath) {
-    throw new Error('taskId and workspacePath are required to start a container run');
+  if (!taskId || !taskPath) {
+    throw new Error('taskId and taskPath are required to start a container run');
   }
 
   if (!api || typeof api.startContainerRun !== 'function') {

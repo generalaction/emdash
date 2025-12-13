@@ -128,12 +128,12 @@ function makeTerminalId(taskId: string): string {
   return `${taskId}::term::${Date.now().toString(16)}::${rnd}`;
 }
 
-function createDefaultState(taskId: string, workspacePath?: string): TaskTerminalsState {
+function createDefaultState(taskId: string, taskPath?: string): TaskTerminalsState {
   const terminalId = makeTerminalId(taskId);
   const firstTerminal: TaskTerminal = {
     id: terminalId,
     title: 'Terminal 1',
-    cwd: workspacePath,
+    cwd: taskPath,
     createdAt: Date.now(),
   };
   return {
@@ -160,7 +160,7 @@ function ensureSnapshot(taskId: string, state: TaskTerminalsState) {
 
 function ensureWorkspaceState(
   taskId: string,
-  workspacePath?: string
+  taskPath?: string
 ): TaskTerminalsState {
   let state = workspaceStates.get(taskId);
   if (state) {
@@ -168,7 +168,7 @@ function ensureWorkspaceState(
     return state;
   }
 
-  state = loadFromStorage(taskId) ?? createDefaultState(taskId, workspacePath);
+  state = loadFromStorage(taskId) ?? createDefaultState(taskId, taskPath);
   workspaceStates.set(taskId, state);
   ensureSnapshot(taskId, state);
   return state;
@@ -188,15 +188,15 @@ function emit(taskId: string) {
 
 function updateWorkspaceState(
   taskId: string,
-  workspacePath: string | undefined,
+  taskPath: string | undefined,
   mutate: (draft: TaskTerminalsState) => void
 ) {
-  const current = ensureWorkspaceState(taskId, workspacePath);
+  const current = ensureWorkspaceState(taskId, taskPath);
   const draft = cloneState(current);
   mutate(draft);
   // Ensure state remains valid
   if (!draft.terminals.length) {
-    const fallback = createDefaultState(taskId, workspacePath);
+    const fallback = createDefaultState(taskId, taskPath);
     workspaceStates.set(taskId, fallback);
     ensureSnapshot(taskId, fallback);
     saveToStorage(taskId, fallback);
@@ -213,21 +213,21 @@ function updateWorkspaceState(
   emit(taskId);
 }
 
-function getSnapshot(taskId: string | null, workspacePath?: string): WorkspaceSnapshot {
+function getSnapshot(taskId: string | null, taskPath?: string): WorkspaceSnapshot {
   if (!taskId) return EMPTY_SNAPSHOT;
-  const state = ensureWorkspaceState(taskId, workspacePath);
+  const state = ensureWorkspaceState(taskId, taskPath);
   return ensureSnapshot(taskId, state);
 }
 
 function subscribe(
   taskId: string | null,
-  workspacePath: string | undefined,
+  taskPath: string | undefined,
   listener: () => void
 ): () => void {
   if (!taskId) {
     return () => undefined;
   }
-  ensureWorkspaceState(taskId, workspacePath);
+  ensureWorkspaceState(taskId, taskPath);
   let set = workspaceListeners.get(taskId);
   if (!set) {
     set = new Set();
@@ -244,8 +244,8 @@ function subscribe(
   };
 }
 
-function createTerminal(taskId: string, workspacePath?: string) {
-  updateWorkspaceState(taskId, workspacePath, (draft) => {
+function createTerminal(taskId: string, taskPath?: string) {
+  updateWorkspaceState(taskId, taskPath, (draft) => {
     const nextIndex = draft.counter + 1;
     const id = makeTerminalId(taskId);
     draft.counter = nextIndex;
@@ -255,30 +255,30 @@ function createTerminal(taskId: string, workspacePath?: string) {
       {
         id,
         title: `Terminal ${nextIndex}`,
-        cwd: workspacePath,
+        cwd: taskPath,
         createdAt: Date.now(),
       },
     ];
   });
 }
 
-function setActive(taskId: string, terminalId: string, workspacePath?: string) {
-  updateWorkspaceState(taskId, workspacePath, (draft) => {
+function setActive(taskId: string, terminalId: string, taskPath?: string) {
+  updateWorkspaceState(taskId, taskPath, (draft) => {
     if (draft.terminals.some((terminal) => terminal.id === terminalId)) {
       draft.activeId = terminalId;
     }
   });
 }
 
-function closeTerminal(taskId: string, terminalId: string, workspacePath?: string) {
-  const state = ensureWorkspaceState(taskId, workspacePath);
+function closeTerminal(taskId: string, terminalId: string, taskPath?: string) {
+  const state = ensureWorkspaceState(taskId, taskPath);
   if (state.terminals.length <= 1) {
     return;
   }
   const exists = state.terminals.some((terminal) => terminal.id === terminalId);
   if (!exists) return;
 
-  updateWorkspaceState(taskId, workspacePath, (draft) => {
+  updateWorkspaceState(taskId, taskPath, (draft) => {
     const idx = draft.terminals.findIndex((terminal) => terminal.id === terminalId);
     draft.terminals = draft.terminals.filter((terminal) => terminal.id !== terminalId);
     if (draft.activeId === terminalId) {

@@ -7,7 +7,7 @@ import { useBrowser } from '@/providers/BrowserProvider';
 
 interface Props {
   taskId: string;
-  workspacePath?: string;
+  taskPath?: string;
   ports: Array<RunnerPortMapping & { url?: string }>;
   previewUrl?: string;
   previewService?: string;
@@ -15,7 +15,7 @@ interface Props {
 
 const WorkspacePorts: React.FC<Props> = ({
   taskId,
-  workspacePath,
+  taskPath,
   ports,
   previewUrl,
   previewService,
@@ -38,7 +38,7 @@ const WorkspacePorts: React.FC<Props> = ({
           'compose.yaml',
         ];
         for (const file of candidates) {
-          const res = await api?.fsRead?.(workspacePath || '', file, 1);
+          const res = await api?.fsRead?.(taskPath || '', file, 1);
           if (!cancelled && res?.success) {
             setHasCompose(true);
             return;
@@ -52,7 +52,7 @@ const WorkspacePorts: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [workspacePath]);
+  }, [taskPath]);
 
   const norm = (s: string) => s.toLowerCase();
   const sorted = [...(ports ?? [])].sort((a, b) => {
@@ -78,7 +78,7 @@ const WorkspacePorts: React.FC<Props> = ({
           const res = await api.resolveServiceIcon({
             service: name,
             allowNetwork: true,
-            workspacePath,
+            taskPath,
           });
           if (!cancelled && res?.ok && typeof res.dataUrl === 'string') {
             setSrc(res.dataUrl);
@@ -88,7 +88,7 @@ const WorkspacePorts: React.FC<Props> = ({
       return () => {
         cancelled = true;
       };
-    }, [name, workspacePath]);
+    }, [name, taskPath]);
     if (src) {
       return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
     }
@@ -234,7 +234,7 @@ const WorkspacePorts: React.FC<Props> = ({
                     const api: any = (window as any).electronAPI;
                     const content = `services:\n  web:\n    image: node:20\n    working_dir: /workspace\n    volumes:\n      - ./:/workspace\n    environment:\n      - HOST=0.0.0.0\n      - PORT=3000\n    command: bash -lc \"if [ -f package-lock.json ]; then npm ci; else npm install --no-package-lock; fi && npm run dev\"\n    expose:\n      - \"3000\"\n`;
                     const res = await api.fsWriteFile(
-                      workspacePath || '',
+                      taskPath || '',
                       'docker-compose.yml',
                       content,
                       false

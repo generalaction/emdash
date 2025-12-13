@@ -42,9 +42,9 @@ class HostPreviewService extends EventEmitter {
 
   async setup(
     taskId: string,
-    workspacePath: string
+    taskPath: string
   ): Promise<{ ok: boolean; error?: string }> {
-    const cwd = path.resolve(workspacePath);
+    const cwd = path.resolve(taskPath);
     const pm = detectPackageManager(cwd);
     const cmd = pm;
     // Prefer clean install for npm when lockfile exists
@@ -122,15 +122,15 @@ class HostPreviewService extends EventEmitter {
 
   async start(
     taskId: string,
-    workspacePath: string,
+    taskPath: string,
     opts?: { script?: string; parentProjectPath?: string }
   ): Promise<{ ok: boolean; error?: string }> {
-    const cwd = path.resolve(workspacePath);
+    const cwd = path.resolve(taskPath);
 
     // Log the resolved path to help debug worktree issues
     log.info?.('[hostPreview] start', {
       taskId,
-      workspacePath,
+      taskPath,
       resolvedCwd: cwd,
       cwdExists: fs.existsSync(cwd),
       hasPackageJson: fs.existsSync(path.join(cwd, 'package.json')),

@@ -16,13 +16,13 @@ import { isReachable, isAppPort, FALLBACK_DELAY_MS, SPINNER_MAX_MS } from '@/lib
 interface Props {
   defaultUrl?: string;
   taskId?: string | null;
-  workspacePath?: string | null;
+  taskPath?: string | null;
   parentProjectPath?: string | null;
 }
 
 const BrowserToggleButton: React.FC<Props> = ({
   taskId,
-  workspacePath,
+  taskPath,
   parentProjectPath,
 }) => {
   const browser = useBrowser();
@@ -85,7 +85,7 @@ const BrowserToggleButton: React.FC<Props> = ({
 
   const handleClick = React.useCallback(async () => {
     const id = (taskId || '').trim();
-    const wp = (workspacePath || '').trim();
+    const wp = (taskPath || '').trim();
     const appPort = Number(window.location.port || 0);
     // Open pane immediately with no URL; we will navigate when ready
     browser.showSpinner();
@@ -121,7 +121,7 @@ const BrowserToggleButton: React.FC<Props> = ({
         if (!installed && (await needsInstall(wp))) {
           await (window as any).electronAPI?.hostPreviewSetup?.({
             taskId: id,
-            workspacePath: wp,
+            taskPath: wp,
           });
           setInstalled(id, true);
         }
@@ -129,7 +129,7 @@ const BrowserToggleButton: React.FC<Props> = ({
         if (!running) {
           await (window as any).electronAPI?.hostPreviewStart?.({
             taskId: id,
-            workspacePath: wp,
+            taskPath: wp,
             parentProjectPath: (parentProjectPath || '').trim(),
           });
         }
@@ -153,7 +153,7 @@ const BrowserToggleButton: React.FC<Props> = ({
     }
     // Fallback: clear spinner after a grace period if nothing arrives
     setTimeout(() => browser.hideSpinner(), SPINNER_MAX_MS);
-  }, [browser, taskId, workspacePath, parentProjectPath]);
+  }, [browser, taskId, taskPath, parentProjectPath]);
 
   return (
     <TooltipProvider delayDuration={200}>

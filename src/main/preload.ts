@@ -111,7 +111,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs }),
   fsRemove: (root: string, relPath: string) => ipcRenderer.invoke('fs:remove', { root, relPath }),
   // Attachments
-  saveAttachment: (args: { workspacePath: string; srcPath: string; subdir?: string }) =>
+  saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) =>
     ipcRenderer.invoke('fs:save-attachment', args),
 
   // Project management
@@ -123,21 +123,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
-  getGitStatus: (workspacePath: string) => ipcRenderer.invoke('git:get-status', workspacePath),
-  getFileDiff: (args: { workspacePath: string; filePath: string }) =>
+  getGitStatus: (taskPath: string) => ipcRenderer.invoke('git:get-status', taskPath),
+  getFileDiff: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:get-file-diff', args),
-  stageFile: (args: { workspacePath: string; filePath: string }) =>
+  stageFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:stage-file', args),
-  revertFile: (args: { workspacePath: string; filePath: string }) =>
+  revertFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
   gitCommitAndPush: (args: {
-    workspacePath: string;
+    taskPath: string;
     commitMessage?: string;
     createBranchIfOnDefault?: boolean;
     branchPrefix?: string;
   }) => ipcRenderer.invoke('git:commit-and-push', args),
   createPullRequest: (args: {
-    workspacePath: string;
+    taskPath: string;
     title?: string;
     body?: string;
     base?: string;
@@ -146,16 +146,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     web?: boolean;
     fill?: boolean;
   }) => ipcRenderer.invoke('git:create-pr', args),
-  getPrStatus: (args: { workspacePath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
-  getBranchStatus: (args: { workspacePath: string }) =>
+  getPrStatus: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
+  getBranchStatus: (args: { taskPath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
   listRemoteBranches: (args: { projectPath: string; remote?: string }) =>
     ipcRenderer.invoke('git:list-remote-branches', args),
-  loadContainerConfig: (workspacePath: string) =>
-    ipcRenderer.invoke('container:load-config', { workspacePath }),
+  loadContainerConfig: (taskPath: string) =>
+    ipcRenderer.invoke('container:load-config', { taskPath }),
   startContainerRun: (args: {
     taskId: string;
-    workspacePath: string;
+    taskPath: string;
     runId?: string;
     mode?: 'container' | 'host';
   }) => ipcRenderer.invoke('container:start-run', args),
@@ -163,7 +163,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('container:stop-run', { taskId }),
   inspectContainerRun: (taskId: string) =>
     ipcRenderer.invoke('container:inspect-run', { taskId }),
-  resolveServiceIcon: (args: { service: string; allowNetwork?: boolean; workspacePath?: string }) =>
+  resolveServiceIcon: (args: { service: string; allowNetwork?: boolean; taskPath?: string }) =>
     ipcRenderer.invoke('icons:resolve-service', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   // Telemetry (minimal, anonymous)
@@ -294,8 +294,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('debug:append-log', filePath, content, options ?? {}),
 
   // PlanMode strict lock
-  planApplyLock: (workspacePath: string) => ipcRenderer.invoke('plan:lock', workspacePath),
-  planReleaseLock: (workspacePath: string) => ipcRenderer.invoke('plan:unlock', workspacePath),
+  planApplyLock: (taskPath: string) => ipcRenderer.invoke('plan:lock', taskPath),
+  planReleaseLock: (taskPath: string) => ipcRenderer.invoke('plan:unlock', taskPath),
   onPlanEvent: (
     listener: (data: {
       type: 'write_blocked' | 'remove_blocked';
@@ -321,11 +321,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Host preview (non-container)
   hostPreviewStart: (args: {
     taskId: string;
-    workspacePath: string;
+    taskPath: string;
     script?: string;
     parentProjectPath?: string;
   }) => ipcRenderer.invoke('preview:host:start', args),
-  hostPreviewSetup: (args: { taskId: string; workspacePath: string }) =>
+  hostPreviewSetup: (args: { taskId: string; taskPath: string }) =>
     ipcRenderer.invoke('preview:host:setup', args),
   hostPreviewStop: (taskId: string) => ipcRenderer.invoke('preview:host:stop', taskId),
   hostPreviewStopAll: (exceptId?: string) => ipcRenderer.invoke('preview:host:stopAll', exceptId),
@@ -461,7 +461,7 @@ export interface ElectronAPI {
     rootPath?: string;
     error?: string;
   }>;
-  getGitStatus: (workspacePath: string) => Promise<{
+  getGitStatus: (taskPath: string) => Promise<{
     success: boolean;
     changes?: Array<{
       path: string;
@@ -472,19 +472,19 @@ export interface ElectronAPI {
     }>;
     error?: string;
   }>;
-  getFileDiff: (args: { workspacePath: string; filePath: string }) => Promise<{
+  getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
     success: boolean;
     diff?: { lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> };
     error?: string;
   }>;
   gitCommitAndPush: (args: {
-    workspacePath: string;
+    taskPath: string;
     commitMessage?: string;
     createBranchIfOnDefault?: boolean;
     branchPrefix?: string;
   }) => Promise<{ success: boolean; branch?: string; output?: string; error?: string }>;
   createPullRequest: (args: {
-    workspacePath: string;
+    taskPath: string;
     title?: string;
     body?: string;
     base?: string;
@@ -521,7 +521,7 @@ export interface ElectronAPI {
 
   onRunEvent: (callback: (event: any) => void) => void;
   removeRunEventListeners: () => void;
-  loadContainerConfig: (workspacePath: string) => Promise<
+  loadContainerConfig: (taskPath: string) => Promise<
     | { ok: true; config: any; sourcePath: string | null }
     | {
         ok: false;
@@ -541,7 +541,7 @@ export interface ElectronAPI {
   >;
   startContainerRun: (args: {
     taskId: string;
-    workspacePath: string;
+    taskPath: string;
     runId?: string;
     mode?: 'container' | 'host';
   }) => Promise<
@@ -646,13 +646,13 @@ export interface ElectronAPI {
   // Host preview (non-container)
   hostPreviewStart: (args: {
     taskId: string;
-    workspacePath: string;
+    taskPath: string;
     script?: string;
     parentProjectPath?: string;
   }) => Promise<{ ok: boolean; error?: string }>;
   hostPreviewSetup: (args: {
     taskId: string;
-    workspacePath: string;
+    taskPath: string;
   }) => Promise<{ ok: boolean; error?: string }>;
   hostPreviewStop: (taskId: string) => Promise<{ ok: boolean }>;
   onHostPreviewEvent: (

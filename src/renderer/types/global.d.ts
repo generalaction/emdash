@@ -101,7 +101,7 @@ declare global {
         rootPath?: string;
         error?: string;
       }>;
-      getGitStatus: (workspacePath: string) => Promise<{
+      getGitStatus: (taskPath: string) => Promise<{
         success: boolean;
         changes?: Array<{
           path: string;

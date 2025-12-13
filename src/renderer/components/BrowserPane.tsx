@@ -25,7 +25,7 @@ const DEFAULT_PREVIEW_URLS = [
 
 const BrowserPane: React.FC<{
   taskId?: string | null;
-  workspacePath?: string | null;
+  taskPath?: string | null;
   overlayActive?: boolean;
 }> = ({ taskId, overlayActive = false }) => {
   const {

@@ -81,7 +81,7 @@ const ChatInterface: React.FC<Props> = ({
     enabled: planEnabled,
     providerId: provider,
     taskId: task.id,
-    workspacePath: task.path,
+    taskPath: task.path,
   });
 
   useEffect(() => {
@@ -502,7 +502,7 @@ const ChatInterface: React.FC<Props> = ({
             const res = await api.resolveServiceIcon({
               service: name,
               allowNetwork: true,
-              workspacePath: task.path,
+              taskPath: task.path,
             });
             if (!cancelled && res?.ok && typeof res.dataUrl === 'string') setSrc(res.dataUrl);
           } catch {}

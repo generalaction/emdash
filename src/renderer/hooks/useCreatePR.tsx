@@ -4,7 +4,7 @@ import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 type CreatePROptions = {
-  workspacePath: string;
+  taskPath: string;
   commitMessage?: string;
   createBranchIfOnDefault?: boolean;
   branchPrefix?: string;
@@ -26,7 +26,7 @@ export function useCreatePR() {
 
   const createPR = async (opts: CreatePROptions) => {
     const {
-      workspacePath,
+      taskPath,
       commitMessage = 'chore: apply workspace changes',
       createBranchIfOnDefault = true,
       branchPrefix = 'orch',
@@ -45,12 +45,12 @@ export function useCreatePR() {
       }
 
       const inferredTitle =
-        prOptions?.title || workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
+        prOptions?.title || taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
 
       let finalPrOptions = { ...(prOptions || {}), title: inferredTitle };
 
       const commitRes = await api.gitCommitAndPush({
-        workspacePath,
+        taskPath,
         commitMessage,
         createBranchIfOnDefault,
         branchPrefix,
@@ -66,7 +66,7 @@ export function useCreatePR() {
       }
 
       const res = await api.createPullRequest({
-        workspacePath,
+        taskPath,
         fill: true,
         ...finalPrOptions,
       });

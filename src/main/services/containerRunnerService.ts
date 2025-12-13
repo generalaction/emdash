@@ -55,7 +55,7 @@ export interface ContainerStartError {
 
 export interface ContainerStartOptions {
   taskId: string;
-  workspacePath: string;
+  taskPath: string;
   runId?: string;
   mode?: RunnerMode;
   now?: () => number;
@@ -93,10 +93,10 @@ export class ContainerRunnerService extends EventEmitter {
     return this;
   }
 
-  private findComposeFile(workspacePath: string): string | null {
+  private findComposeFile(taskPath: string): string | null {
     const candidates = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'];
     for (const rel of candidates) {
-      const abs = path.join(workspacePath, rel);
+      const abs = path.join(taskPath, rel);
       if (fs.existsSync(abs)) return abs;
     }
     return null;
@@ -104,14 +104,14 @@ export class ContainerRunnerService extends EventEmitter {
 
   private async startComposeRun(args: {
     taskId: string;
-    workspacePath: string;
+    taskPath: string;
     runId: string;
     mode: RunnerMode;
     config: ResolvedContainerConfig;
     now: () => number;
     composeFile: string;
   }): Promise<ContainerStartResult> {
-    const { taskId, workspacePath, runId, mode, config, now, composeFile } = args;
+    const { taskId, taskPath, runId, mode, config, now, composeFile } = args;
     const execAsync = promisify(exec);
     const project = `emdash_ws_${taskId}`;
 
@@ -164,7 +164,7 @@ export class ContainerRunnerService extends EventEmitter {
       }
 
       // Always attempt autodiscovery first to avoid introducing unknown services (e.g. default 'app')
-      const discovered = await this.discoverComposePorts(composeFile, workspacePath);
+      const discovered = await this.discoverComposePorts(composeFile, taskPath);
       let portRequests: ResolvedContainerPortConfig[] = [];
       if (discovered.length > 0) {
         portRequests = discovered.map((d) => ({
@@ -194,12 +194,12 @@ export class ContainerRunnerService extends EventEmitter {
       }
 
       // Build a sanitized compose file that removes host bindings (ports) and replaces with expose
-      const sanitizedAbs = path.join(workspacePath, '.emdash', 'compose.sanitized.json');
+      const sanitizedAbs = path.join(taskPath, '.emdash', 'compose.sanitized.json');
       try {
         fs.mkdirSync(path.dirname(sanitizedAbs), { recursive: true });
       } catch {}
       try {
-        const cfgJson = await this.loadComposeConfigJson(composeFile, workspacePath);
+        const cfgJson = await this.loadComposeConfigJson(composeFile, taskPath);
         const portMap = new Map<string, number[]>();
         for (const req of portRequests) {
           const arr = portMap.get(req.service) ?? [];
@@ -213,7 +213,7 @@ export class ContainerRunnerService extends EventEmitter {
       }
 
       // Write override file mapping container ports -> random host ports
-      const overrideAbs = path.join(workspacePath, '.emdash', 'compose.override.yml');
+      const overrideAbs = path.join(taskPath, '.emdash', 'compose.override.yml');
       try {
         fs.mkdirSync(path.dirname(overrideAbs), { recursive: true });
       } catch {}
@@ -221,7 +221,7 @@ export class ContainerRunnerService extends EventEmitter {
 
       // Run compose up -d
       const argsArr: string[] = ['compose'];
-      const envFileAbs = config.envFile ? path.resolve(workspacePath, config.envFile) : null;
+      const envFileAbs = config.envFile ? path.resolve(taskPath, config.envFile) : null;
       if (envFileAbs && fs.existsSync(envFileAbs)) argsArr.push('--env-file', envFileAbs);
       // Prefer sanitized file when available
       const composePathForUp = fs.existsSync(sanitizedAbs) ? sanitizedAbs : composeFile;
@@ -319,11 +319,11 @@ export class ContainerRunnerService extends EventEmitter {
     return result.length ? result : allocated;
   }
 
-  private async loadComposeConfigJson(composeFile: string, workspacePath: string): Promise<any> {
+  private async loadComposeConfigJson(composeFile: string, taskPath: string): Promise<any> {
     const execAsync = promisify(exec);
     const { stdout } = await execAsync(
       `docker compose -f ${JSON.stringify(composeFile)} config --format json`,
-      { cwd: workspacePath }
+      { cwd: taskPath }
     );
     try {
       return JSON.parse(stdout || '{}');
@@ -359,13 +359,13 @@ export class ContainerRunnerService extends EventEmitter {
 
   private async discoverComposePorts(
     composeFile: string,
-    workspacePath: string
+    taskPath: string
   ): Promise<Array<{ service: string; container: number }>> {
     const execAsync = promisify(exec);
     try {
       const { stdout } = await execAsync(
         `docker compose -f ${JSON.stringify(composeFile)} config --format json`,
-        { cwd: workspacePath }
+        { cwd: taskPath }
       );
       const cfg = JSON.parse(stdout || '{}');
       const services = cfg?.services || cfg?.Services || {};
@@ -503,13 +503,13 @@ export class ContainerRunnerService extends EventEmitter {
   }
 
   private async _startRunImpl(options: ContainerStartOptions): Promise<ContainerStartResult> {
-    const { taskId, workspacePath } = options;
-    if (!taskId || !workspacePath) {
+    const { taskId, taskPath } = options;
+    if (!taskId || !taskPath) {
       return {
         ok: false,
         error: {
           code: 'INVALID_ARGUMENT',
-          message: '`taskId` and `workspacePath` are required',
+          message: '`taskId` and `taskPath` are required',
           configKey: null,
           configPath: null,
         },
@@ -517,7 +517,7 @@ export class ContainerRunnerService extends EventEmitter {
     }
 
     // Load container config
-    const loadResult = await this.loadConfig(workspacePath);
+    const loadResult = await this.loadConfig(taskPath);
     if (loadResult.ok === false) {
       return {
         ok: false,
@@ -571,7 +571,7 @@ export class ContainerRunnerService extends EventEmitter {
 
     try {
       // Host-side preflight checks to prevent unintended workspace mutations
-      const absWorkspace = path.resolve(workspacePath);
+      const absWorkspace = path.resolve(taskPath);
       const workdirAbs = path.resolve(absWorkspace, config.workdir);
 
       if (!fs.existsSync(workdirAbs)) {
@@ -651,7 +651,7 @@ export class ContainerRunnerService extends EventEmitter {
         log.info('[containers] compose detected; delegating to compose runner');
         return await this.startComposeRun({
           taskId,
-          workspacePath: absWorkspace,
+          taskPath: absWorkspace,
           runId,
           mode,
           config,
@@ -698,7 +698,7 @@ export class ContainerRunnerService extends EventEmitter {
 
       // Env file (optional)
       if (config.envFile) {
-        const envAbs = path.resolve(workspacePath, config.envFile);
+        const envAbs = path.resolve(taskPath, config.envFile);
         if (!fs.existsSync(envAbs)) {
           const message = `Env file not found: ${envAbs}`;
           this.emitRunnerEvent({
@@ -833,20 +833,20 @@ export class ContainerRunnerService extends EventEmitter {
   }
 
   async startMockRun(options: ContainerStartOptions): Promise<ContainerStartResult> {
-    const { taskId, workspacePath } = options;
-    if (!taskId || !workspacePath) {
+    const { taskId, taskPath } = options;
+    if (!taskId || !taskPath) {
       return {
         ok: false,
         error: {
           code: 'INVALID_ARGUMENT',
-          message: '`taskId` and `workspacePath` are required',
+          message: '`taskId` and `taskPath` are required',
           configKey: null,
           configPath: null,
         },
       };
     }
 
-    const loadResult = await this.loadConfig(workspacePath);
+    const loadResult = await this.loadConfig(taskPath);
     if (loadResult.ok === false) {
       return {
         ok: false,
@@ -896,8 +896,8 @@ export class ContainerRunnerService extends EventEmitter {
     }
   }
 
-  private async loadConfig(workspacePath: string): Promise<ContainerConfigLoadResult> {
-    return loadWorkspaceContainerConfig(workspacePath);
+  private async loadConfig(taskPath: string): Promise<ContainerConfigLoadResult> {
+    return loadWorkspaceContainerConfig(taskPath);
   }
 
   private serializeConfigError(error: ContainerConfigLoadError): ContainerStartError {

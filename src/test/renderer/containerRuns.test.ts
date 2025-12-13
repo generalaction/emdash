@@ -68,12 +68,12 @@ describe('containerRuns renderer bridge', () => {
 
     const result = await startContainerRun({
       taskId: ' ws-1 ',
-      workspacePath: ' /tmp/workspace ',
+      taskPath: ' /tmp/workspace ',
     });
 
     expect(startRunMock).toHaveBeenCalledWith({
       taskId: 'ws-1',
-      workspacePath: '/tmp/workspace',
+      taskPath: '/tmp/workspace',
     });
     expect(result).toEqual({ ok: true, runId: 'run-1', sourcePath: null });
     expect(onRunEventMock).toHaveBeenCalledTimes(1);
@@ -149,11 +149,11 @@ describe('containerRuns renderer bridge', () => {
   it('re-registers listener after reset', async () => {
     startRunMock.mockResolvedValue({ ok: true, runId: 'run-3', sourcePath: null });
 
-    await startContainerRun({ taskId: 'ws-1', workspacePath: '/tmp/workspace' });
+    await startContainerRun({ taskId: 'ws-1', taskPath: '/tmp/workspace' });
     expect(onRunEventMock).toHaveBeenCalledTimes(1);
 
     resetContainerRunListeners();
-    await startContainerRun({ taskId: 'ws-1', workspacePath: '/tmp/workspace' });
+    await startContainerRun({ taskId: 'ws-1', taskPath: '/tmp/workspace' });
     expect(onRunEventMock).toHaveBeenCalledTimes(2);
   });
 });

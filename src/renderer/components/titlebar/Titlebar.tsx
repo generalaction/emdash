@@ -22,7 +22,7 @@ interface TitlebarProps {
   githubUser?: GithubUser | null;
   defaultPreviewUrl?: string | null;
   taskId?: string | null;
-  workspacePath?: string | null;
+  taskPath?: string | null;
   projectPath?: string | null;
   isWorkspaceMultiAgent?: boolean;
   onToggleKanban?: () => void;
@@ -37,7 +37,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   githubUser,
   defaultPreviewUrl,
   taskId,
-  workspacePath,
+  taskPath,
   projectPath,
   isWorkspaceMultiAgent,
   onToggleKanban,
@@ -143,7 +143,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
             <BrowserToggleButton
               defaultUrl={defaultPreviewUrl || undefined}
               taskId={taskId}
-              workspacePath={workspacePath}
+              taskPath={taskPath}
               parentProjectPath={projectPath}
             />
           ) : null}

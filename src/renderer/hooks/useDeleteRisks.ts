@@ -42,7 +42,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
           const [statusRes, infoRes, prRes] = await Promise.allSettled([
             (window as any).electronAPI?.getGitStatus?.(ws.path),
             (window as any).electronAPI?.getGitInfo?.(ws.path),
-            (window as any).electronAPI?.getPrStatus?.({ workspacePath: ws.path }),
+            (window as any).electronAPI?.getPrStatus?.({ taskPath: ws.path }),
           ]);
 
           let staged = 0;

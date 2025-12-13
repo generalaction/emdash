@@ -12,7 +12,7 @@ import { getLanguageFromPath } from '../lib/languageUtils';
 interface ChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
-  workspacePath: string;
+  taskPath: string;
   files: FileChange[];
   initialFile?: string;
   onRefreshChanges?: () => Promise<void> | void;
@@ -98,14 +98,14 @@ const HighlightedLine: React.FC<{
 export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   open,
   onClose,
-  workspacePath,
+  taskPath,
   files,
   initialFile,
   onRefreshChanges,
 }) => {
   const [selected, setSelected] = useState<string | undefined>(initialFile || files[0]?.path);
   const [refreshKey, setRefreshKey] = useState(0);
-  const { lines, loading } = useFileDiff(workspacePath, selected, refreshKey);
+  const { lines, loading } = useFileDiff(taskPath, selected, refreshKey);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
@@ -245,7 +245,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   const loadWorkingCopy = async (pathRel: string) => {
     setEditorLoading(true);
     try {
-      const res = await window.electronAPI.fsRead(workspacePath, pathRel, 512 * 1024);
+      const res = await window.electronAPI.fsRead(taskPath, pathRel, 512 * 1024);
       if (!res?.success) {
         toast({ title: 'Cannot Edit', description: res?.error || 'Failed to read file.' });
         setIsEditing(false);
@@ -477,7 +477,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                           try {
                             const contentToWrite = editorValue.replace(/\n/g, eol);
                             const res = await window.electronAPI.fsWriteFile(
-                              workspacePath,
+                              taskPath,
                               selected,
                               contentToWrite,
                               true
@@ -728,7 +728,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                                       try {
                                         const contentToWrite = editorValue.replace(/\n/g, eol);
                                         const res = await window.electronAPI.fsWriteFile(
-                                          workspacePath,
+                                          taskPath,
                                           selected!,
                                           contentToWrite,
                                           true

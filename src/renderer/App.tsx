@@ -1662,7 +1662,7 @@ const AppContent: React.FC = () => {
                   : null
               }
               taskId={activeTask?.id || null}
-              workspacePath={activeTask?.path || null}
+              taskPath={activeTask?.path || null}
               projectPath={selectedProject?.path || null}
               isWorkspaceMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
               githubUser={user}
@@ -1772,7 +1772,7 @@ const AppContent: React.FC = () => {
             <Toaster />
             <BrowserPane
               taskId={activeTask?.id || null}
-              workspacePath={activeTask?.path || null}
+              taskPath={activeTask?.path || null}
               overlayActive={
                 showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
               }

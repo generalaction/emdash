@@ -11,9 +11,9 @@ export function usePlanActivationTerminal(opts: {
   enabled: boolean;
   providerId: string;
   taskId: string;
-  workspacePath: string;
+  taskPath: string;
 }) {
-  const { enabled, providerId, taskId, workspacePath } = opts;
+  const { enabled, providerId, taskId, taskPath } = opts;
 
   useEffect(() => {
     if (!enabled) return;
@@ -35,7 +35,7 @@ export function usePlanActivationTerminal(opts: {
         try {
           localStorage.setItem(onceKey, '1');
         } catch {}
-        await logPlanEvent(workspacePath, `Sent native plan command: ${cmd}`);
+        await logPlanEvent(taskPath, `Sent native plan command: ${cmd}`);
       } catch {}
     };
 

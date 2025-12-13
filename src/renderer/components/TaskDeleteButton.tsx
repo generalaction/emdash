@@ -21,7 +21,7 @@ import DeletePrNotice from './DeletePrNotice';
 type Props = {
   workspaceName: string;
   taskId: string;
-  workspacePath: string;
+  taskPath: string;
   onConfirm: () => void | Promise<void | boolean>;
   className?: string;
   'aria-label'?: string;
@@ -31,7 +31,7 @@ type Props = {
 export const WorkspaceDeleteButton: React.FC<Props> = ({
   workspaceName,
   taskId,
-  workspacePath,
+  taskPath,
   onConfirm,
   className,
   'aria-label': ariaLabel = 'Delete Task',
@@ -40,8 +40,8 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   const [open, setOpen] = React.useState(false);
   const [acknowledge, setAcknowledge] = React.useState(false);
   const targets = useMemo(
-    () => [{ id: taskId, name: workspaceName, path: workspacePath }],
-    [taskId, workspaceName, workspacePath]
+    () => [{ id: taskId, name: workspaceName, path: taskPath }],
+    [taskId, workspaceName, taskPath]
   );
   const { risks, loading, hasData } = useDeleteRisks(targets, open);
   const status = risks[taskId] || {

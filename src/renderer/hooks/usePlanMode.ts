@@ -3,7 +3,7 @@ import { PLANNING_MD } from '@/lib/planRules';
 import { log } from '@/lib/logger';
 import { logPlanEvent } from '@/lib/planLogs';
 
-export function usePlanMode(taskId: string, workspacePath: string) {
+export function usePlanMode(taskId: string, taskPath: string) {
   const key = useMemo(() => `planMode:${taskId}`, [taskId]);
   const [enabled, setEnabled] = useState<boolean>(() => {
     try {
@@ -25,9 +25,9 @@ export function usePlanMode(taskId: string, workspacePath: string) {
     try {
       // Hidden policy file in .emdash/
       const hiddenRel = '.emdash/planning.md';
-      log.info('[plan] writing policy (hidden)', { workspacePath, hiddenRel });
+      log.info('[plan] writing policy (hidden)', { taskPath, hiddenRel });
       const resHidden = await (window as any).electronAPI.fsWriteFile(
-        workspacePath,
+        taskPath,
         hiddenRel,
         PLANNING_MD,
         true
@@ -38,11 +38,11 @@ export function usePlanMode(taskId: string, workspacePath: string) {
 
       // Root-level helper for agents that don't read hidden dirs
       const rootRel = 'PLANNING.md';
-      log.info('[plan] writing policy (root helper)', { workspacePath, rootRel });
+      log.info('[plan] writing policy (root helper)', { taskPath, rootRel });
       const rootHeader = '# Plan Mode (Read-only)\n\n';
       const rootBody = `${rootHeader}${PLANNING_MD}`;
       const resRoot = await (window as any).electronAPI.fsWriteFile(
-        workspacePath,
+        taskPath,
         rootRel,
         rootBody,
         true
@@ -50,12 +50,12 @@ export function usePlanMode(taskId: string, workspacePath: string) {
       if (!resRoot?.success) {
         log.warn('[plan] failed to write root PLANNING.md', resRoot?.error);
       }
-      await logPlanEvent(workspacePath, 'planning.md written (hidden + root helper)');
+      await logPlanEvent(taskPath, 'planning.md written (hidden + root helper)');
 
       // Root-level helper only for non-worktree repos and only if it doesn't exist.
       let wroteRootHelper = false;
       try {
-        const gitRef = await (window as any).electronAPI.fsRead(workspacePath, '.git', 1024);
+        const gitRef = await (window as any).electronAPI.fsRead(taskPath, '.git', 1024);
         const isWorktree = !!(
           gitRef?.success &&
           typeof gitRef.content === 'string' &&
@@ -65,15 +65,15 @@ export function usePlanMode(taskId: string, workspacePath: string) {
           const rootRel = 'PLANNING.md';
           let exists = false;
           try {
-            const readTry = await (window as any).electronAPI.fsRead?.(workspacePath, rootRel, 1);
+            const readTry = await (window as any).electronAPI.fsRead?.(taskPath, rootRel, 1);
             exists = !!readTry?.success;
           } catch {}
           if (!exists) {
-            log.info('[plan] writing policy (root helper)', { workspacePath, rootRel });
+            log.info('[plan] writing policy (root helper)', { taskPath, rootRel });
             const rootHeader = '# Plan Mode (Read‑only)\n\n';
             const rootBody = `${rootHeader}${PLANNING_MD}`;
             const resRoot = await (window as any).electronAPI.fsWriteFile(
-              workspacePath,
+              taskPath,
               rootRel,
               rootBody,
               true
@@ -92,25 +92,25 @@ export function usePlanMode(taskId: string, workspacePath: string) {
         const metaRel = '.emdash/planning.meta.json';
         const meta = { wroteRootHelper };
         await (window as any).electronAPI.fsWriteFile(
-          workspacePath,
+          taskPath,
           metaRel,
           JSON.stringify(meta),
           true
         );
       } catch {}
 
-      await logPlanEvent(workspacePath, 'planning.md written (hidden; root helper maybe)');
+      await logPlanEvent(taskPath, 'planning.md written (hidden; root helper maybe)');
     } catch (e) {
       log.warn('[plan] failed to write planning.md', e);
     }
-  }, [workspacePath]);
+  }, [taskPath]);
 
   const ensureGitExclude = useCallback(async () => {
     try {
       // For worktrees, we cannot safely write to the external gitdir from renderer; rely on
       // commit-time exclusions and UI filtering. For normal repos, update .git/info/exclude.
       try {
-        const gitRef = await window.electronAPI.fsRead(workspacePath, '.git', 1024);
+        const gitRef = await window.electronAPI.fsRead(taskPath, '.git', 1024);
         if (gitRef?.success && typeof gitRef.content === 'string') {
           const txt = gitRef.content.trim();
           if (/^gitdir:\s*/i.test(txt)) {
@@ -123,7 +123,7 @@ export function usePlanMode(taskId: string, workspacePath: string) {
       const rel = '.git/info/exclude';
       let current = '';
       try {
-        const read = await window.electronAPI.fsRead(workspacePath, rel, 32 * 1024);
+        const read = await window.electronAPI.fsRead(taskPath, rel, 32 * 1024);
         if (read?.success && typeof read.content === 'string') current = read.content;
       } catch {}
       const lines: string[] = [];
@@ -133,44 +133,44 @@ export function usePlanMode(taskId: string, workspacePath: string) {
       if (lines.length === 0) return;
       const next = `${current.trimEnd()}\n# emdash plan mode\n${lines.join('\n')}\n`;
       log.info('[plan] appending .emdash/ to git exclude');
-      await (window as any).electronAPI.fsWriteFile(workspacePath, rel, next, true);
-      await logPlanEvent(workspacePath, 'updated .git/info/exclude with .emdash/');
+      await (window as any).electronAPI.fsWriteFile(taskPath, rel, next, true);
+      await logPlanEvent(taskPath, 'updated .git/info/exclude with .emdash/');
     } catch (e) {
       log.warn('[plan] failed to update git exclude', e);
     }
-  }, [workspacePath]);
+  }, [taskPath]);
 
   const removePlanFile = useCallback(async () => {
     try {
       const hiddenRel = '.emdash/planning.md';
-      await (window as any).electronAPI.fsRemove(workspacePath, hiddenRel);
+      await (window as any).electronAPI.fsRemove(taskPath, hiddenRel);
       // Only remove root helper if we created it
       try {
         const metaRel = '.emdash/planning.meta.json';
-        const metaRead = await (window as any).electronAPI.fsRead?.(workspacePath, metaRel, 4096);
+        const metaRead = await (window as any).electronAPI.fsRead?.(taskPath, metaRel, 4096);
         const meta =
           metaRead?.success && typeof metaRead.content === 'string'
             ? JSON.parse(metaRead.content)
             : {};
         if (meta?.wroteRootHelper) {
           const rootRel = 'PLANNING.md';
-          await (window as any).electronAPI.fsRemove(workspacePath, rootRel);
+          await (window as any).electronAPI.fsRemove(taskPath, rootRel);
         }
         try {
-          await (window as any).electronAPI.fsRemove(workspacePath, metaRel);
+          await (window as any).electronAPI.fsRemove(taskPath, metaRel);
         } catch {}
       } catch {}
     } catch (e) {
       // ignore
     }
-  }, [workspacePath]);
+  }, [taskPath]);
 
   // Side effects on enable/disable
   useEffect(() => {
     (async () => {
       if (enabled) {
-        log.info('[plan] enabled', { taskId, workspacePath });
-        await logPlanEvent(workspacePath, 'Plan Mode enabled');
+        log.info('[plan] enabled', { taskId, taskPath });
+        await logPlanEvent(taskPath, 'Plan Mode enabled');
         void (async () => {
           const { captureTelemetry } = await import('../lib/telemetryClient');
           captureTelemetry('plan_mode_enabled');
@@ -178,11 +178,11 @@ export function usePlanMode(taskId: string, workspacePath: string) {
         ensureGitExclude();
         await ensurePlanFile();
         try {
-          const lock = await (window as any).electronAPI.planApplyLock(workspacePath);
+          const lock = await (window as any).electronAPI.planApplyLock(taskPath);
           if (!lock?.success) log.warn('[plan] failed to apply lock', lock?.error);
           else
             await logPlanEvent(
-              workspacePath,
+              taskPath,
               `Applied read-only lock (changed=${lock.changed ?? 0})`
             );
         } catch (e) {
@@ -195,25 +195,25 @@ export function usePlanMode(taskId: string, workspacePath: string) {
           const hiddenRel = '.emdash/planning.md';
           const lockRel = '.emdash/.planlock.json';
           const metaRel = '.emdash/planning.meta.json';
-          const a = await (window as any).electronAPI.fsRead?.(workspacePath, hiddenRel, 1);
-          const b = await (window as any).electronAPI.fsRead?.(workspacePath, lockRel, 1);
-          const c = await (window as any).electronAPI.fsRead?.(workspacePath, metaRel, 1);
+          const a = await (window as any).electronAPI.fsRead?.(taskPath, hiddenRel, 1);
+          const b = await (window as any).electronAPI.fsRead?.(taskPath, lockRel, 1);
+          const c = await (window as any).electronAPI.fsRead?.(taskPath, metaRel, 1);
           wasActive = !!(a?.success || b?.success || c?.success);
         } catch {}
 
         if (wasActive) {
-          log.info('[plan] disabled', { taskId, workspacePath });
-          await logPlanEvent(workspacePath, 'Plan Mode disabled');
+          log.info('[plan] disabled', { taskId, taskPath });
+          await logPlanEvent(taskPath, 'Plan Mode disabled');
           void (async () => {
             const { captureTelemetry } = await import('../lib/telemetryClient');
             captureTelemetry('plan_mode_disabled');
           })();
           try {
-            const unlock = await (window as any).electronAPI.planReleaseLock(workspacePath);
+            const unlock = await (window as any).electronAPI.planReleaseLock(taskPath);
             if (!unlock?.success) log.warn('[plan] failed to release lock', unlock?.error);
             else
               await logPlanEvent(
-                workspacePath,
+                taskPath,
                 `Released read-only lock (restored=${unlock.restored ?? 0})`
               );
           } catch (e) {
@@ -223,7 +223,7 @@ export function usePlanMode(taskId: string, workspacePath: string) {
         }
       }
     })();
-  }, [enabled, ensureGitExclude, ensurePlanFile, removePlanFile, taskId, workspacePath]);
+  }, [enabled, ensureGitExclude, ensurePlanFile, removePlanFile, taskId, taskPath]);
 
   const toggle = useCallback(() => setEnabled((v) => !v), []);
 

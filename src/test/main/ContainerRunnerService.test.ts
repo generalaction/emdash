@@ -54,7 +54,7 @@ describe('ContainerRunnerService', () => {
 
     const result = await service.startMockRun({
       taskId: 'ws-1',
-      workspacePath: '/tmp/workspace',
+      taskPath: '/tmp/workspace',
       runId: 'run-123',
       now: () => 1700000000000,
     });
@@ -98,7 +98,7 @@ describe('ContainerRunnerService', () => {
 
     const result = await service.startMockRun({
       taskId: 'ws-1',
-      workspacePath: '/tmp/workspace',
+      taskPath: '/tmp/workspace',
     });
 
     expect(result).toEqual({
@@ -137,7 +137,7 @@ describe('ContainerRunnerService', () => {
 
     const result = await service.startMockRun({
       taskId: 'ws-1',
-      workspacePath: '/tmp/workspace',
+      taskPath: '/tmp/workspace',
       runId: 'run-err',
       now: () => 1700000000100,
     });

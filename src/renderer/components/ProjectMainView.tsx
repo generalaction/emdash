@@ -148,7 +148,7 @@ function WorkspaceRow({
       setIsStartingContainer(true);
       const res = await startContainerRun({
         taskId: ws.id,
-        workspacePath: ws.path,
+        taskPath: ws.path,
         mode: 'container',
       });
       if (res?.ok !== true) {
@@ -294,7 +294,7 @@ function WorkspaceRow({
               stoppingAction={isStoppingContainer}
               onStart={handleStartContainer}
               onStop={handleStopContainer}
-              workspacePath={ws.path}
+              taskPath={ws.path}
             />
           )}
           {containerActive ? (
@@ -352,7 +352,7 @@ function WorkspaceRow({
             <WorkspaceDeleteButton
               workspaceName={ws.name}
               taskId={ws.id}
-              workspacePath={ws.path}
+              taskPath={ws.path}
               onConfirm={async () => {
                 try {
                   setIsDeleting(true);
@@ -374,7 +374,7 @@ function WorkspaceRow({
           <WorkspacePorts
             key={`ports-${ws.id}`}
             taskId={ws.id}
-            workspacePath={ws.path}
+            taskPath={ws.path}
             ports={ports}
             previewUrl={previewUrl}
             previewService={previewService}
@@ -567,7 +567,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           const [statusRes, infoRes, prRes] = await Promise.allSettled([
             window.electronAPI.getGitStatus(ws.path),
             window.electronAPI.getGitInfo(ws.path),
-            window.electronAPI.getPrStatus({ workspacePath: ws.path }),
+            window.electronAPI.getPrStatus({ taskPath: ws.path }),
           ]);
 
           let staged = 0;

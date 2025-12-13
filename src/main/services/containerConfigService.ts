@@ -56,10 +56,10 @@ export interface ContainerConfigLoadFailure {
 export type ContainerConfigLoadResult = ContainerConfigLoadSuccess | ContainerConfigLoadFailure;
 
 export async function loadWorkspaceContainerConfig(
-  workspacePath: string
+  taskPath: string
 ): Promise<ContainerConfigLoadResult> {
-  const configPath = path.join(workspacePath, CONFIG_RELATIVE_PATH);
-  const inferredPackageManager = inferPackageManager(workspacePath);
+  const configPath = path.join(taskPath, CONFIG_RELATIVE_PATH);
+  const inferredPackageManager = inferPackageManager(taskPath);
 
   const readResult = await readConfigFile(configPath);
   if (readResult.error) {
@@ -97,9 +97,9 @@ export async function loadWorkspaceContainerConfig(
   }
 }
 
-function inferPackageManager(workspacePath: string): PackageManager | undefined {
+function inferPackageManager(taskPath: string): PackageManager | undefined {
   for (const { file, manager } of PACKAGE_MANAGER_LOCKFILES) {
-    const candidate = path.join(workspacePath, file);
+    const candidate = path.join(taskPath, file);
     if (fs.existsSync(candidate)) {
       return manager;
     }
@@ -150,6 +150,6 @@ function parseConfigJson(
   }
 }
 
-export function inferPackageManagerForWorkspace(workspacePath: string): PackageManager | undefined {
-  return inferPackageManager(workspacePath);
+export function inferPackageManagerForWorkspace(taskPath: string): PackageManager | undefined {
+  return inferPackageManager(taskPath);
 }

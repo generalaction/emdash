@@ -41,7 +41,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
       }
       setBranchStatusLoading(true);
       try {
-        const res = await window.electronAPI.getBranchStatus({ workspacePath: taskId });
+        const res = await window.electronAPI.getBranchStatus({ taskPath: taskId });
         if (!cancelled) {
           setBranchAhead(res?.success ? (res?.ahead ?? 0) : 0);
         }
@@ -64,7 +64,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
 
     try {
       const result = await window.electronAPI.stageFile({
-        workspacePath: taskId,
+        taskPath: taskId,
         filePath,
       });
 
@@ -98,7 +98,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
 
     try {
       const result = await window.electronAPI.revertFile({
-        workspacePath: taskId,
+        taskPath: taskId,
         filePath,
       });
 
@@ -155,7 +155,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
     setIsCommitting(true);
     try {
       const result = await window.electronAPI.gitCommitAndPush({
-        workspacePath: taskId,
+        taskPath: taskId,
         commitMessage: commitMessage.trim(),
         createBranchIfOnDefault: true,
         branchPrefix: 'feature',
@@ -174,7 +174,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
         // Proactively load branch status so the Create PR button appears immediately
         try {
           setBranchStatusLoading(true);
-          const bs = await window.electronAPI.getBranchStatus({ workspacePath: taskId });
+          const bs = await window.electronAPI.getBranchStatus({ taskPath: taskId });
           setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
         } catch {
           setBranchAhead(0);
@@ -252,7 +252,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                 title="Commit all changes and create a pull request"
                 onClick={async () => {
                   await createPR({
-                    workspacePath: taskId,
+                    taskPath: taskId,
                     onSuccess: async () => {
                       await refreshChanges();
                       try {
@@ -331,7 +331,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                   title="Create a pull request for the current branch"
                   onClick={async () => {
                     await createPR({
-                      workspacePath: taskId,
+                      taskPath: taskId,
                       onSuccess: async () => {
                         await refreshChanges();
                         try {
@@ -434,7 +434,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
         <ChangesDiffModal
           open={showDiffModal}
           onClose={() => setShowDiffModal(false)}
-          workspacePath={taskId}
+          taskPath={taskId}
           files={fileChanges}
           initialFile={selectedPath}
           onRefreshChanges={refreshChanges}

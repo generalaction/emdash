@@ -14,17 +14,17 @@ export type PrStatus = {
   changedFiles?: number;
 };
 
-export function usePrStatus(workspacePath?: string) {
+export function usePrStatus(taskPath?: string) {
   const [pr, setPr] = useState<PrStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
-    if (!workspacePath) return;
+    if (!taskPath) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await window.electronAPI.getPrStatus({ workspacePath });
+      const res = await window.electronAPI.getPrStatus({ taskPath });
       if (res?.success) {
         setPr((res.pr as any) || null);
       } else {
@@ -40,7 +40,7 @@ export function usePrStatus(workspacePath?: string) {
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspacePath]);
+  }, [taskPath]);
 
   return { pr, loading, error, refresh };
 }

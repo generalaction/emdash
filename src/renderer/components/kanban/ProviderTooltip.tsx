@@ -10,7 +10,7 @@ type ProviderTooltipProps = {
   side?: 'top' | 'bottom' | 'left' | 'right';
   delay?: number;
   children: React.ReactNode;
-  workspacePath?: string;
+  taskPath?: string;
   workspaceName?: string;
 };
 
@@ -20,7 +20,7 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
   side = 'top',
   delay = 150,
   children,
-  workspacePath,
+  taskPath,
   workspaceName,
 }) => {
   const items = React.useMemo(() => {
@@ -66,9 +66,9 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
     let cancelled = false;
     const fetchSummary = async () => {
       if (!open) return;
-      if (!workspacePath) return;
+      if (!taskPath) return;
       try {
-        const res = await (window as any).electronAPI?.getGitStatus?.(workspacePath);
+        const res = await (window as any).electronAPI?.getGitStatus?.(taskPath);
         if (!res?.success || !Array.isArray(res?.changes)) {
           if (!cancelled) setDiffSummary(null);
           return;
@@ -98,7 +98,7 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [open, workspacePath]);
+  }, [open, taskPath]);
 
   if (!items || items.length === 0) return <>{children}</>;
 
@@ -141,7 +141,7 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
             </div>
           ) : null}
 
-          {workspacePath && diffSummary ? (
+          {taskPath && diffSummary ? (
             <div className="mt-2 border-t border-border/60 pt-1">
               <div className="mb-1 font-medium text-foreground">Changes</div>
               {diffSummary.files > 0 ? (

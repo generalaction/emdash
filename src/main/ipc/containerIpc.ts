@@ -63,13 +63,13 @@ export function registerContainerIpc(): void {
   ipcMain.handle(
     'container:load-config',
     async (_event, args): Promise<ContainerConfigIpcResponse> => {
-      const workspacePath = resolveWorkspacePath(args);
-      if (!workspacePath) {
+      const taskPath = resolveWorkspacePath(args);
+      if (!taskPath) {
         return {
           ok: false,
           error: {
             code: 'INVALID_ARGUMENT',
-            message: '`workspacePath` must be a non-empty string',
+            message: '`taskPath` must be a non-empty string',
             configPath: null,
             configKey: null,
           },
@@ -77,7 +77,7 @@ export function registerContainerIpc(): void {
       }
 
       try {
-        const result = await loadWorkspaceContainerConfig(workspacePath);
+        const result = await loadWorkspaceContainerConfig(taskPath);
         if (result.ok) {
           return {
             ok: true,
@@ -114,7 +114,7 @@ export function registerContainerIpc(): void {
           ok: false,
           error: {
             code: 'INVALID_ARGUMENT',
-            message: '`taskId` and `workspacePath` must be provided to start a container run',
+            message: '`taskId` and `taskPath` must be provided to start a container run',
             configPath: null,
             configKey: null,
           },
@@ -177,9 +177,9 @@ export function registerContainerIpc(): void {
       try {
         const service = typeof args?.service === 'string' ? args.service : '';
         const allowNetwork = args?.allowNetwork === true;
-        const workspacePath =
-          typeof args?.workspacePath === 'string' ? args.workspacePath : undefined;
-        const res = await resolveServiceIcon({ service, allowNetwork, workspacePath });
+        const taskPath =
+          typeof args?.taskPath === 'string' ? args.taskPath : undefined;
+        const res = await resolveServiceIcon({ service, allowNetwork, taskPath });
         if (res.ok) return { ok: true, dataUrl: res.dataUrl };
         return { ok: false };
       } catch (error: any) {
@@ -196,7 +196,7 @@ function resolveWorkspacePath(args: unknown): string | null {
   }
 
   if (args && typeof args === 'object') {
-    const candidate = (args as { workspacePath?: unknown }).workspacePath;
+    const candidate = (args as { taskPath?: unknown }).taskPath;
     if (typeof candidate === 'string') {
       const trimmed = candidate.trim();
       if (trimmed.length > 0) {
@@ -219,7 +219,7 @@ function serializeError(error: ContainerConfigLoadError): SerializedContainerCon
 
 function parseStartRunArgs(args: unknown): {
   taskId: string;
-  workspacePath: string;
+  taskPath: string;
   runId?: string;
   mode?: RunnerMode;
 } | null {
@@ -229,9 +229,9 @@ function parseStartRunArgs(args: unknown): {
 
   const payload = args as Record<string, unknown>;
   const taskId = typeof payload.taskId === 'string' ? payload.taskId.trim() : '';
-  const workspacePath =
-    typeof payload.workspacePath === 'string' ? payload.workspacePath.trim() : '';
-  if (!taskId || !workspacePath) {
+  const taskPath =
+    typeof payload.taskPath === 'string' ? payload.taskPath.trim() : '';
+  if (!taskId || !taskPath) {
     return null;
   }
 
@@ -247,7 +247,7 @@ function parseStartRunArgs(args: unknown): {
     }
   }
 
-  return { taskId, workspacePath, runId, mode };
+  return { taskId, taskPath, runId, mode };
 }
 
 function serializeStartRunResult(result: ContainerStartResult): ContainerStartIpcResponse {
