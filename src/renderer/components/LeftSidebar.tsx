@@ -46,7 +46,11 @@ interface LeftSidebarProps {
   }) => void;
   onCreateWorkspaceForProject?: (project: Project) => void;
   isCreatingWorkspace?: boolean;
-  onDeleteWorkspace?: (project: Project, workspace: Workspace) => void | Promise<void | boolean>;
+  onDeleteWorkspace?: (
+    project: Project,
+    workspace: Workspace,
+    options?: { silent?: boolean; deleteRemoteBranch?: boolean }
+  ) => void | Promise<void | boolean>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   isHomeView?: boolean;
 }
@@ -302,7 +306,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                         showDelete
                                         onDelete={
                                           onDeleteWorkspace
-                                            ? () => onDeleteWorkspace(typedProject, workspace)
+                                            ? (opts) =>
+                                                onDeleteWorkspace(typedProject, workspace, {
+                                                  deleteRemoteBranch: opts?.deleteRemoteBranch,
+                                                })
                                             : undefined
                                         }
                                       />

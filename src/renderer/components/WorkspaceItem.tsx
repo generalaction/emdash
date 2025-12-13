@@ -19,7 +19,7 @@ interface Workspace {
 
 interface WorkspaceItemProps {
   workspace: Workspace;
-  onDelete?: () => void | Promise<void | boolean>;
+  onDelete?: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
   showDelete?: boolean;
 }
 
@@ -53,10 +53,11 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             workspaceName={workspace.name}
             workspaceId={workspace.id}
             workspacePath={workspace.path}
-            onConfirm={async () => {
+            workspaceBranch={workspace.branch}
+            onConfirm={async (opts) => {
               try {
                 setIsDeleting(true);
-                await onDelete();
+                await onDelete(opts);
               } finally {
                 setIsDeleting(false);
               }

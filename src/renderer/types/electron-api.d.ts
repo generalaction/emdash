@@ -163,6 +163,7 @@ declare global {
         worktreeId: string;
         worktreePath?: string;
         branch?: string;
+        deleteRemoteBranch?: boolean;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeStatus: (args: {
         worktreePath: string;
@@ -654,6 +655,7 @@ export interface ElectronAPI {
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
+    deleteRemoteBranch?: boolean;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeStatus: (args: {
     worktreePath: string;

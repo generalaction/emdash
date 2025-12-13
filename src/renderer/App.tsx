@@ -1202,7 +1202,7 @@ const AppContent: React.FC = () => {
   const handleDeleteWorkspace = async (
     targetProject: Project,
     workspace: Workspace,
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; deleteRemoteBranch?: boolean }
   ): Promise<boolean> => {
     if (deletingWorkspaceIdsRef.current.has(workspace.id)) {
       toast({
@@ -1267,6 +1267,7 @@ const AppContent: React.FC = () => {
             worktreeId: workspace.id,
             worktreePath: workspace.path,
             branch: workspace.branch,
+            deleteRemoteBranch: options?.deleteRemoteBranch,
           }),
           window.electronAPI.deleteWorkspace(workspace.id),
         ]);

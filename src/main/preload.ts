@@ -95,6 +95,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
+    deleteRemoteBranch?: boolean;
   }) => ipcRenderer.invoke('worktree:remove', args),
   worktreeStatus: (args: { worktreePath: string }) => ipcRenderer.invoke('worktree:status', args),
   worktreeMerge: (args: { projectPath: string; worktreeId: string }) =>
@@ -434,6 +435,9 @@ export interface ElectronAPI {
   worktreeRemove: (args: {
     projectPath: string;
     worktreeId: string;
+    worktreePath?: string;
+    branch?: string;
+    deleteRemoteBranch?: boolean;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeStatus: (args: {
     worktreePath: string;

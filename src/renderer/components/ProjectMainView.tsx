@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
+import { Switch } from './ui/switch';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -56,7 +57,7 @@ function WorkspaceRow({
   ws: Workspace;
   active: boolean;
   onClick: () => void;
-  onDelete: () => void | Promise<void | boolean>;
+  onDelete: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
   isSelectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -353,10 +354,11 @@ function WorkspaceRow({
               workspaceName={ws.name}
               workspaceId={ws.id}
               workspacePath={ws.path}
-              onConfirm={async () => {
+              workspaceBranch={ws.branch}
+              onConfirm={async (opts) => {
                 try {
                   setIsDeleting(true);
-                  await onDelete();
+                  await onDelete(opts);
                 } finally {
                   setIsDeleting(false);
                 }
@@ -393,7 +395,7 @@ interface ProjectMainViewProps {
   onDeleteWorkspace: (
     project: Project,
     workspace: Workspace,
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; deleteRemoteBranch?: boolean }
   ) => void | Promise<void | boolean>;
   isCreatingWorkspace?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
@@ -424,6 +426,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
+  const [alsoDeleteRemoteBranches, setAlsoDeleteRemoteBranches] = useState(false);
 
   const workspaces = project.workspaces ?? [];
   const selectedCount = selectedIds.size;
@@ -516,7 +519,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     const deletedNames: string[] = [];
     for (const ws of toDelete) {
       try {
-        const result = await onDeleteWorkspace(project, ws, { silent: true });
+        const result = await onDeleteWorkspace(project, ws, {
+          silent: true,
+          deleteRemoteBranch: alsoDeleteRemoteBranches,
+        });
         if (result !== false) {
           deletedNames.push(ws.name);
         }
@@ -554,6 +560,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     if (!showDeleteDialog) {
       setDeleteStatus({});
       setAcknowledgeDirtyDelete(false);
+      setAlsoDeleteRemoteBranches(false);
       return;
     }
 
@@ -853,7 +860,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       onToggleSelect={() => toggleSelect(ws.id)}
                       active={activeWorkspace?.id === ws.id}
                       onClick={() => onSelectWorkspace(ws)}
-                      onDelete={() => onDeleteWorkspace(project, ws)}
+                      onDelete={(opts) =>
+                        onDeleteWorkspace(project, ws, {
+                          deleteRemoteBranch: opts?.deleteRemoteBranch,
+                        })
+                      }
                     />
                   ))}
                 </div>
@@ -955,6 +966,23 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </motion.label>
               ) : null}
             </AnimatePresence>
+
+            <motion.label
+              key="bulk-delete-remote"
+              className="flex items-center justify-between gap-3 rounded-xl bg-muted/15 px-4 py-3"
+              initial={{ opacity: 0, y: 6, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 6, scale: 0.99 }}
+              transition={{ duration: 0.18, ease: 'easeOut', delay: 0.03 }}
+            >
+              <span className="text-sm leading-tight text-foreground">
+                Also delete GitHub branches
+              </span>
+              <Switch
+                checked={alsoDeleteRemoteBranches}
+                onCheckedChange={setAlsoDeleteRemoteBranches}
+              />
+            </motion.label>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

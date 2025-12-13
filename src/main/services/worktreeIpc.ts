@@ -50,6 +50,7 @@ export function registerWorktreeIpc(): void {
         worktreeId: string;
         worktreePath?: string;
         branch?: string;
+        deleteRemoteBranch?: boolean;
       }
     ) => {
       try {
@@ -57,7 +58,8 @@ export function registerWorktreeIpc(): void {
           args.projectPath,
           args.worktreeId,
           args.worktreePath,
-          args.branch
+          args.branch,
+          { deleteRemoteBranch: args.deleteRemoteBranch }
         );
         return { success: true };
       } catch (error) {

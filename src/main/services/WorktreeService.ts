@@ -3,6 +3,7 @@ import { log } from '../lib/logger';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
 
@@ -23,6 +24,63 @@ export interface WorktreeInfo {
 
 export class WorktreeService {
   private worktrees = new Map<string, WorktreeInfo>();
+
+  private gitCwdFallback(): string {
+    // Pick a directory that should exist and be accessible, even when the repo/worktree
+    // folder itself is blocked by macOS sandbox/TCC.
+    try {
+      return os.tmpdir() || '/';
+    } catch {
+      return '/';
+    }
+  }
+
+  private resolveGitDir(projectPath: string): string {
+    const gitMeta = path.join(projectPath, '.git');
+    try {
+      const st = fs.statSync(gitMeta);
+      if (st.isDirectory()) return gitMeta;
+      if (st.isFile()) {
+        const content = fs.readFileSync(gitMeta, 'utf8');
+        const m = content.match(/gitdir:\s*(.*)\s*$/i);
+        if (m?.[1]) return path.resolve(projectPath, m[1].trim());
+      }
+    } catch {}
+    return gitMeta;
+  }
+
+  private async execGit(
+    projectPath: string,
+    args: string[]
+  ): Promise<{ stdout: string; stderr: string }> {
+    const gitDir = this.resolveGitDir(projectPath);
+    return await execFileAsync(
+      'git',
+      ['--git-dir', gitDir, '--work-tree', projectPath, ...args],
+      { cwd: this.gitCwdFallback() }
+    );
+  }
+
+  private async getOriginUrl(projectPath: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.execGit(projectPath, ['remote', 'get-url', 'origin']);
+      const url = String(stdout || '').trim();
+      return url || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private parseGitHubNameWithOwner(remoteUrl: string): string | null {
+    const url = String(remoteUrl || '').trim();
+    if (!url) return null;
+    const m = url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?$/i);
+    if (!m) return null;
+    const owner = (m[1] || '').trim();
+    const repo = (m[2] || '').trim();
+    if (!owner || !repo) return null;
+    return `${owner}/${repo}`;
+  }
 
   /**
    * Slugify workspace name to make it shell-safe
@@ -279,13 +337,18 @@ export class WorktreeService {
     projectPath: string,
     worktreeId: string,
     worktreePath?: string,
-    branch?: string
+    branch?: string,
+    opts?: { deleteRemoteBranch?: boolean }
   ): Promise<void> {
     try {
+      const errors: string[] = [];
+      let localBranchDeleted: boolean | null = null;
+      let remoteBranchDeleted: boolean | null = null;
       const worktree = this.worktrees.get(worktreeId);
 
       const pathToRemove = worktree?.path ?? worktreePath;
       const branchToDelete = worktree?.branch ?? branch;
+      const deleteRemoteBranch = opts?.deleteRemoteBranch === true;
 
       if (!pathToRemove) {
         throw new Error('Worktree path not provided');
@@ -294,17 +357,17 @@ export class WorktreeService {
       // Remove the worktree directory via git first
       try {
         // Use --force to remove even when there are untracked/modified files
-        await execFileAsync('git', ['worktree', 'remove', '--force', pathToRemove], {
-          cwd: projectPath,
-        });
+        await this.execGit(projectPath, ['worktree', 'remove', '--force', pathToRemove]);
       } catch (gitError) {
+        errors.push(`git worktree remove failed: ${this.extractErrorMessage(gitError)}`);
         console.warn('git worktree remove failed, attempting filesystem cleanup', gitError);
       }
 
       // Best-effort prune to clear any stale worktree metadata that can keep a branch "checked out"
       try {
-        await execFileAsync('git', ['worktree', 'prune', '--verbose'], { cwd: projectPath });
+        await this.execGit(projectPath, ['worktree', 'prune', '--verbose']);
       } catch (pruneErr) {
+        errors.push(`git worktree prune failed: ${this.extractErrorMessage(pruneErr)}`);
         console.warn('git worktree prune failed (continuing):', pruneErr);
       }
 
@@ -316,6 +379,24 @@ export class WorktreeService {
           // Handle permission issues by making files writable, then retry
           if (rmErr && (rmErr.code === 'EACCES' || rmErr.code === 'EPERM')) {
             try {
+              if (process.platform === 'darwin') {
+                try {
+                  await execFileAsync('chflags', ['-R', 'nouchg', 'noschg', pathToRemove], {
+                    cwd: this.gitCwdFallback(),
+                  });
+                } catch (flagErr) {
+                  console.warn('Failed to clear file flags for worktree cleanup:', flagErr);
+                }
+              }
+
+              // If direct removal fails (common under macOS sandbox/TCC), try moving to Trash.
+              try {
+                const electron = await import('electron');
+                await electron.shell.trashItem(pathToRemove);
+              } catch {
+                // ignore and continue
+              }
+
               if (process.platform === 'win32') {
                 // Remove read-only attribute recursively on Windows
                 await execFileAsync('cmd', [
@@ -328,22 +409,65 @@ export class WorktreeService {
                 ]);
               } else {
                 // Make everything writable on POSIX
-                await execFileAsync('chmod', ['-R', 'u+w', pathToRemove]);
+                await execFileAsync('chmod', ['-R', 'u+w', pathToRemove], { cwd: this.gitCwdFallback() });
               }
             } catch (permErr) {
               console.warn('Failed to adjust permissions for worktree cleanup:', permErr);
             }
             // Retry removal once after permissions adjusted
-            await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+            try {
+              await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+            } catch (retryRmErr: any) {
+              errors.push(
+                `filesystem cleanup failed: ${String(retryRmErr?.code || '')} ${String(
+                  retryRmErr?.message || retryRmErr
+                )}`.trim()
+              );
+            }
           } else {
             throw rmErr;
           }
         }
       }
 
+      // After filesystem cleanup, prune again to clear any stale worktree metadata
+      // that can keep a branch "checked out".
+      try {
+        await this.execGit(projectPath, ['worktree', 'prune', '--verbose']);
+      } catch (pruneErr) {
+        errors.push(`git worktree prune failed: ${this.extractErrorMessage(pruneErr)}`);
+        console.warn('git worktree prune failed (continuing):', pruneErr);
+      }
+
       if (branchToDelete) {
-        const tryDeleteBranch = async () =>
-          await execFileAsync('git', ['branch', '-D', branchToDelete!], { cwd: projectPath });
+        const normalizedLocalBranch = String(branchToDelete)
+          .trim()
+          .replace(/^refs\/heads\//, '')
+          .replace(/^refs\/remotes\/origin\//, 'origin/');
+
+        const candidates = Array.from(
+          new Set([
+            normalizedLocalBranch,
+            normalizedLocalBranch.startsWith('origin/')
+              ? normalizedLocalBranch.replace(/^origin\//, '')
+              : null,
+          ].filter(Boolean) as string[])
+        );
+
+        const tryDeleteBranch = async () => {
+          let lastErr: unknown;
+          for (const name of candidates) {
+            try {
+              await this.execGit(projectPath, ['branch', '-D', name]);
+              localBranchDeleted = true;
+              return;
+            } catch (e) {
+              lastErr = e;
+            }
+          }
+          localBranchDeleted = false;
+          throw lastErr;
+        };
         try {
           await tryDeleteBranch();
         } catch (branchError: any) {
@@ -352,39 +476,101 @@ export class WorktreeService {
           // prune and retry once more.
           if (/checked out at /.test(msg)) {
             try {
-              await execFileAsync('git', ['worktree', 'prune', '--verbose'], { cwd: projectPath });
+              await this.execGit(projectPath, ['worktree', 'prune', '--verbose']);
               await tryDeleteBranch();
             } catch (retryErr) {
+              errors.push(`git branch delete failed after prune: ${this.extractErrorMessage(retryErr)}`);
               console.warn(`Failed to delete branch ${branchToDelete} after prune:`, retryErr);
             }
           } else {
+            errors.push(`git branch delete failed: ${this.extractErrorMessage(branchError)}`);
             console.warn(`Failed to delete branch ${branchToDelete}:`, branchError);
           }
         }
 
-        const remoteAlias = 'origin';
-        let remoteBranchName = branchToDelete;
-        if (branchToDelete.startsWith('origin/')) {
-          remoteBranchName = branchToDelete.replace(/^origin\//, '');
-        }
-        try {
-          await execFileAsync('git', ['push', remoteAlias, '--delete', remoteBranchName], {
-            cwd: projectPath,
-          });
-          log.info(`Deleted remote branch ${remoteAlias}/${remoteBranchName}`);
-        } catch (remoteError: any) {
-          const msg = String(remoteError?.stderr || remoteError?.message || remoteError);
-          if (
-            /remote ref does not exist/i.test(msg) ||
-            /unknown revision/i.test(msg) ||
-            /not found/i.test(msg)
-          ) {
-            log.info(`Remote branch ${remoteAlias}/${remoteBranchName} already absent`);
+        if (deleteRemoteBranch) {
+          const remoteAlias = 'origin';
+          let remoteBranchName = normalizedLocalBranch
+            .replace(/^refs\/remotes\/origin\//, '')
+            .replace(/^origin\//, '');
+
+          if (!remoteBranchName) {
+            log.warn('Skipped deleting remote branch: branch name unavailable');
           } else {
-            log.warn(
-              `Failed to delete remote branch ${remoteAlias}/${remoteBranchName}:`,
-              remoteError
-            );
+            // Safety: never delete the default branch
+            const defaultBranch = await this.getDefaultBranch(projectPath);
+            if (remoteBranchName === defaultBranch) {
+              log.warn(`Refusing to delete default branch '${defaultBranch}' on ${remoteAlias}`);
+              // Continue task deletion; just skip remote deletion.
+              remoteBranchName = '';
+            }
+
+            // Extra safety for weird refs
+            if (remoteBranchName === 'HEAD') {
+              log.warn(`Refusing to delete branch named 'HEAD' on ${remoteAlias}`);
+              // Continue task deletion; just skip remote deletion.
+              remoteBranchName = '';
+            }
+
+            if (remoteBranchName) {
+              let deletedRemotely = false;
+
+              // Prefer Git-native deletion (works even without GitHub CLI).
+              try {
+                await this.execGit(projectPath, ['push', remoteAlias, '--delete', remoteBranchName]);
+                deletedRemotely = true;
+                remoteBranchDeleted = true;
+                log.info(`Deleted remote branch ${remoteAlias}/${remoteBranchName}`);
+              } catch (remoteError: any) {
+                const msg = String(remoteError?.stderr || remoteError?.message || remoteError);
+                if (
+                  /remote ref does not exist/i.test(msg) ||
+                  /unknown revision/i.test(msg) ||
+                  /not found/i.test(msg)
+                ) {
+                  deletedRemotely = true;
+                  remoteBranchDeleted = true;
+                  log.info(`Remote branch ${remoteAlias}/${remoteBranchName} already absent`);
+                } else {
+                  remoteBranchDeleted = false;
+                  errors.push(`Remote branch delete failed: ${msg}`);
+                  log.warn(`Failed to delete remote branch ${remoteAlias}/${remoteBranchName}:`, remoteError);
+                }
+              }
+
+              // Fallback to GitHub API deletion if Git push failed (e.g., auth issues).
+              if (!deletedRemotely) {
+                const originUrl = await this.getOriginUrl(projectPath);
+                const nameWithOwner = originUrl ? this.parseGitHubNameWithOwner(originUrl) : null;
+                if (nameWithOwner) {
+                  try {
+                    const encodedRef = encodeURIComponent(remoteBranchName);
+                    await execFileAsync(
+                      'gh',
+                      ['api', '-X', 'DELETE', `repos/${nameWithOwner}/git/refs/heads/${encodedRef}`],
+                      { cwd: this.gitCwdFallback() }
+                    );
+                    deletedRemotely = true;
+                    remoteBranchDeleted = true;
+                    log.info(`Deleted GitHub branch ${remoteAlias}/${remoteBranchName}`);
+                  } catch (ghErr: any) {
+                    const msg = String(ghErr?.stderr || ghErr?.message || ghErr);
+                    if (/not found/i.test(msg) || /404/i.test(msg)) {
+                      deletedRemotely = true;
+                      remoteBranchDeleted = true;
+                      log.info(`GitHub branch ${remoteAlias}/${remoteBranchName} already absent`);
+                    } else {
+                      remoteBranchDeleted = false;
+                      errors.push(`GitHub branch delete failed: ${msg}`);
+                      log.warn(
+                        `Failed to delete GitHub branch ${remoteAlias}/${remoteBranchName}:`,
+                        ghErr
+                      );
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -394,6 +580,19 @@ export class WorktreeService {
         log.info(`Removed worktree: ${worktree.name}`);
       } else {
         log.info(`Removed worktree ${worktreeId}`);
+      }
+
+      if (fs.existsSync(pathToRemove)) {
+        const hint =
+          process.platform === 'darwin'
+            ? `macOS blocked access to the worktree folder (${pathToRemove}). If this repo was opened via a file picker, make sure emdash has access to the parent folder that contains "worktrees/".`
+            : `Failed to remove the worktree folder (${pathToRemove}).`;
+        const statusLine =
+          typeof localBranchDeleted === 'boolean' || typeof remoteBranchDeleted === 'boolean'
+            ? `\n\nBranch cleanup:\n- local branch deleted: ${localBranchDeleted ?? 'unknown'}\n- remote branch deleted: ${remoteBranchDeleted ?? 'unknown'}`
+            : '';
+        const details = errors.length ? `\n\nDetails:\n- ${errors.join('\n- ')}` : '';
+        throw new Error(`${hint}${statusLine}${details}`);
       }
     } catch (error) {
       log.error('Failed to remove worktree:', error);
@@ -461,9 +660,7 @@ export class WorktreeService {
    */
   private async getDefaultBranch(projectPath: string): Promise<string> {
     try {
-      const { stdout } = await execFileAsync('git', ['remote', 'show', 'origin'], {
-        cwd: projectPath,
-      });
+      const { stdout } = await this.execGit(projectPath, ['remote', 'show', 'origin']);
       const match = stdout.match(/HEAD branch:\s*(\S+)/);
       return match ? match[1] : 'main';
     } catch {
@@ -490,7 +687,7 @@ export class WorktreeService {
     // If not, treat the entire string as a local branch name
     if (projectPath) {
       try {
-        const { stdout } = await execFileAsync('git', ['remote'], { cwd: projectPath });
+        const { stdout } = await this.execGit(projectPath, ['remote']);
         const remotes = (stdout || '').trim().split('\n').filter(Boolean);
         if (!remotes.includes(remote)) {
           // 'remote' is not a valid git remote, treat entire string as local branch
