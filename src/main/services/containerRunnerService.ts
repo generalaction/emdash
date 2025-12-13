@@ -785,7 +785,7 @@ export class ContainerRunnerService extends EventEmitter {
     }
   }
 
-  /** Stop and remove a running container for a task (workspace) */
+  /** Stop and remove a running container for a task */
   async stopRun(taskId: string, opts: { now?: () => number; mode?: RunnerMode } = {}) {
     const now = opts.now ?? Date.now;
     const mode = opts.mode ?? 'container';

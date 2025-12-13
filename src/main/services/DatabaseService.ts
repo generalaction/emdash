@@ -512,7 +512,7 @@ export class DatabaseService {
     try {
       return JSON.parse(serialized);
     } catch (error) {
-      console.warn(`Failed to parse workspace metadata for ${taskId}`, error);
+      console.warn(`Failed to parse task metadata for ${taskId}`, error);
       return null;
     }
   }

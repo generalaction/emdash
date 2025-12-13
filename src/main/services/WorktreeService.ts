@@ -25,7 +25,7 @@ export class WorktreeService {
   private worktrees = new Map<string, WorktreeInfo>();
 
   /**
-   * Slugify workspace name to make it shell-safe
+   * Slugify task name to make it shell-safe
    */
   private slugify(name: string): string {
     return name
@@ -45,7 +45,7 @@ export class WorktreeService {
   }
 
   /**
-   * Create a new Git worktree for an agent workspace
+   * Create a new Git worktree for an agent task
    */
   async createWorktree(
     projectPath: string,
@@ -249,7 +249,7 @@ export class WorktreeService {
     n = n.replace(/^[./-]+/, '').replace(/[./-]+$/, '');
     // Avoid reserved ref names
     if (!n || n === 'HEAD') {
-      n = `agent/${this.slugify('workspace')}-${Date.now()}`;
+      n = `agent/${this.slugify('task')}-${Date.now()}`;
     }
     return n;
   }
@@ -774,7 +774,7 @@ export class WorktreeService {
     options?: { worktreePath?: string }
   ): Promise<WorktreeInfo> {
     const normalizedName = taskName || branchName.replace(/\//g, '-');
-    const sluggedName = this.slugify(normalizedName) || 'workspace';
+    const sluggedName = this.slugify(normalizedName) || 'task';
     const targetPath =
       options?.worktreePath ||
       path.join(projectPath, '..', `worktrees/${sluggedName}-${Date.now()}`);
