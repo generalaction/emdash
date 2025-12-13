@@ -161,22 +161,42 @@ export function registerAppIpc() {
   // App metadata
   ipcMain.handle('app:getAppVersion', () => {
     try {
-      // Try multiple possible paths for package.json
-      const possiblePaths = [
-        join(__dirname, '../../package.json'), // from dist/main/ipc
-        join(__dirname, '../../../package.json'), // alternative path
-        join(app.getAppPath(), 'package.json'), // production build
-      ];
-
-      for (const packageJsonPath of possiblePaths) {
+      const readVersion = (packageJsonPath: string) => {
         try {
           const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
           if (packageJson.name === 'emdash' && packageJson.version) {
-            return packageJson.version;
+            return packageJson.version as string;
           }
         } catch {
-          continue;
+          // ignore parse/fs errors and continue
         }
+        return null;
+      };
+
+      // Walk upward from a base directory to find package.json (helps in dev where the
+      // compiled code lives in dist/main/main/**).
+      const collectCandidates = (base: string | undefined, maxDepth = 6) => {
+        if (!base) return [];
+        const paths: string[] = [];
+        let current = base;
+        for (let i = 0; i < maxDepth; i++) {
+          paths.push(join(current, 'package.json'));
+          const parent = join(current, '..');
+          if (parent === current) break;
+          current = parent;
+        }
+        return paths;
+      };
+
+      const possiblePaths = [
+        ...collectCandidates(__dirname),
+        ...collectCandidates(app.getAppPath()),
+        join(process.cwd(), 'package.json'),
+      ];
+
+      for (const packageJsonPath of possiblePaths) {
+        const version = readVersion(packageJsonPath);
+        if (version) return version;
       }
       return app.getVersion();
     } catch {
