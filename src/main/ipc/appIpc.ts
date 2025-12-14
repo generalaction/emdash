@@ -47,7 +47,6 @@ export function registerAppIpc() {
               break;
             case 'vscode':
               command = [
-                `command -v code >/dev/null 2>&1 && code ${quoted(target)}`,
                 `open -b com.microsoft.VSCode --args ${quoted(target)}`,
                 `open -b com.microsoft.VSCodeInsiders --args ${quoted(target)}`,
                 `open -a "Visual Studio Code" ${quoted(target)}`,
