@@ -63,27 +63,33 @@ export function registerProjectIpc() {
     }
   });
 
-  ipcMain.handle('project:clone', async (_, repoUrl: string, repoName?: string, customDestination?: string) => {
-    try {
-      const defaultCloneDir = join(app.getPath('home'), 'Emdash');
-      const parentDir = customDestination || defaultCloneDir;
+  ipcMain.handle(
+    'project:clone',
+    async (_, repoUrl: string, repoName?: string, customDestination?: string) => {
+      try {
+        const defaultCloneDir = join(app.getPath('home'), 'Emdash');
+        const parentDir = customDestination || defaultCloneDir;
 
-      // Ensure the emdash directory exists
-      if (!fs.existsSync(parentDir)) {
-        fs.mkdirSync(parentDir, { recursive: true });
+        // Ensure the emdash directory exists
+        if (!fs.existsSync(parentDir)) {
+          fs.mkdirSync(parentDir, { recursive: true });
+        }
+
+        const clonePath = join(
+          parentDir,
+          repoName || repoUrl.split('/').pop()?.replace('.git', '') || 'repository'
+        );
+
+        // Clone the repository directly
+        await execAsync(`git clone "${repoUrl}" "${clonePath}"`);
+
+        return { success: true, path: clonePath };
+      } catch (error) {
+        console.error('Failed to clone project:', error);
+        return { success: false, error: 'Failed to clone repository' };
       }
-
-      const clonePath = join(parentDir, repoName || repoUrl.split('/').pop()?.replace('.git', '') || 'repository');
-
-      // Clone the repository directly
-      await execAsync(`git clone "${repoUrl}" "${clonePath}"`);
-
-      return { success: true, path: clonePath };
-    } catch (error) {
-      console.error('Failed to clone project:', error);
-      return { success: false, error: 'Failed to clone repository' };
     }
-  });
+  );
 
   ipcMain.handle('project:selectCloneDestination', async () => {
     try {

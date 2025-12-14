@@ -37,9 +37,9 @@ describe('projectCloneDestination', () => {
       expect(parseGitHubRepoUrl('https://github.com/foo/bar/pr/123')?.normalizedUrl).toBe(
         'https://github.com/foo/bar'
       );
-      expect(parseGitHubRepoUrl('https://github.com/foo/bar/blob/main/README.md')?.normalizedUrl).toBe(
-        'https://github.com/foo/bar'
-      );
+      expect(
+        parseGitHubRepoUrl('https://github.com/foo/bar/blob/main/README.md')?.normalizedUrl
+      ).toBe('https://github.com/foo/bar');
     });
 
     it('accepts query strings and hashes', () => {

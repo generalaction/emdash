@@ -148,11 +148,11 @@ export function registerFsIpc(): void {
         }
 
         return { success: true, path: relPath, size, truncated, content };
-    } catch (error) {
-      console.error('fs:read failed:', error);
-      return { success: false, error: 'Failed to read file' };
+      } catch (error) {
+        console.error('fs:read failed:', error);
+        return { success: false, error: 'Failed to read file' };
+      }
     }
-  }
   );
 
   ipcMain.handle('fs:pathExists', async (_event, targetPath: string) => {

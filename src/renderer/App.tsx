@@ -514,9 +514,7 @@ const AppContent: React.FC = () => {
       const gitInfo = await window.electronAPI.getGitInfo(projectPath);
       const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
       const repoKey = normalizePathForComparison(canonicalPath);
-      const existingProject = projects.find(
-        (project) => getProjectRepoKey(project) === repoKey
-      );
+      const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
 
       if (existingProject) {
         activateProjectView(existingProject);
@@ -538,8 +536,7 @@ const AppContent: React.FC = () => {
 
       const remoteUrl = gitInfo.remote || '';
       const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-      const projectName =
-        canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+      const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
       const baseProject: Project = {
         id: Date.now().toString(),

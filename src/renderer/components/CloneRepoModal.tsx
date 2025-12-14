@@ -7,7 +7,11 @@ import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { X, FolderOpen, Github, Edit2 } from 'lucide-react';
 import { Separator } from './ui/separator';
-import { joinPath, parseGitHubRepoUrl, stripTrailingSeparators } from '../lib/projectCloneDestination';
+import {
+  joinPath,
+  parseGitHubRepoUrl,
+  stripTrailingSeparators,
+} from '../lib/projectCloneDestination';
 
 interface CloneRepoModalProps {
   isOpen: boolean;
@@ -66,8 +70,7 @@ const CloneRepoModal: React.FC<CloneRepoModalProps> = ({ isOpen, onClose, onClon
     const base = stripTrailingSeparators(defaultBasePath);
     const trimmedDestination = stripTrailingSeparators(destinationPath);
 
-    const shouldAutoFill =
-      !trimmedDestination || (base && trimmedDestination.startsWith(base));
+    const shouldAutoFill = !trimmedDestination || (base && trimmedDestination.startsWith(base));
 
     if (shouldAutoFill && base) {
       setDestinationPath(joinPath(base, repoName, sep));

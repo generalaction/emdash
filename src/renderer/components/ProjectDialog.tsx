@@ -23,11 +23,7 @@ interface ProjectDialogProps {
   onProjectAdded: (path: string) => void;
 }
 
-const ProjectDialog: React.FC<ProjectDialogProps> = ({
-  isOpen,
-  onClose,
-  onProjectAdded,
-}) => {
+const ProjectDialog: React.FC<ProjectDialogProps> = ({ isOpen, onClose, onProjectAdded }) => {
   const [mode, setMode] = useState<'local' | 'github'>('local');
   const [localPath, setLocalPath] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
@@ -172,22 +168,22 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
         onProjectAdded(result.path);
         onClose();
         toast({
-          title: "Project added",
-          description: "Local project opened successfully",
+          title: 'Project added',
+          description: 'Local project opened successfully',
         });
       } else {
         toast({
-          title: "Failed to open project",
-          description: result.error || "No directory selected",
-          variant: "destructive",
+          title: 'Failed to open project',
+          description: result.error || 'No directory selected',
+          variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Failed to open local project:', error);
       toast({
-        title: "Failed to open project",
-        description: "An unexpected error occurred",
-        variant: "destructive",
+        title: 'Failed to open project',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
       });
     }
   };
@@ -204,31 +200,27 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
         repoNameFromUrl,
       });
 
-      const result = await window.electronAPI.cloneProject(
-        repoUrl,
-        repoName,
-        parentDir
-      );
+      const result = await window.electronAPI.cloneProject(repoUrl, repoName, parentDir);
       if (result.success && result.path) {
         onProjectAdded(result.path);
         onClose();
         toast({
-          title: "Repository cloned successfully",
+          title: 'Repository cloned successfully',
           description: `GitHub repository cloned to ${result.path}`,
         });
       } else {
         toast({
-          title: "Failed to clone repository",
-          description: result.error || "Clone operation failed",
-          variant: "destructive",
+          title: 'Failed to clone repository',
+          description: result.error || 'Clone operation failed',
+          variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Failed to clone repository:', error);
       toast({
-        title: "Failed to clone repository",
-        description: "An unexpected error occurred",
-        variant: "destructive",
+        title: 'Failed to clone repository',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
       });
     } finally {
       setIsCloning(false);
@@ -251,15 +243,19 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
           setRepoSegmentTouched(true);
         }
 
-        const sep = result.path.includes('\\') ? '\\' : result.path.includes('/') ? '/' : pathSeparator;
+        const sep = result.path.includes('\\')
+          ? '\\'
+          : result.path.includes('/')
+            ? '/'
+            : pathSeparator;
         setPathSeparator(sep);
       }
     } catch (error) {
       console.error('Failed to select clone destination:', error);
       toast({
-        title: "Failed to change destination",
-        description: "Could not select directory",
-        variant: "destructive",
+        title: 'Failed to change destination',
+        description: 'Could not select directory',
+        variant: 'destructive',
       });
     }
   };
@@ -268,9 +264,9 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
     const trimmedUrl = githubUrl.trim();
     if (!trimmedUrl) {
       toast({
-        title: "Invalid URL",
-        description: "Please enter a valid GitHub repository URL",
-        variant: "destructive",
+        title: 'Invalid URL',
+        description: 'Please enter a valid GitHub repository URL',
+        variant: 'destructive',
       });
       return;
     }
@@ -278,10 +274,10 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
     const parsedRepo = parseGitHubRepoUrl(trimmedUrl);
     if (!parsedRepo) {
       toast({
-        title: "Invalid GitHub URL",
+        title: 'Invalid GitHub URL',
         description:
-          "Please enter a valid GitHub repository URL (e.g., https://github.com/user/repo or git@github.com:user/repo.git)",
-        variant: "destructive",
+          'Please enter a valid GitHub repository URL (e.g., https://github.com/user/repo or git@github.com:user/repo.git)',
+        variant: 'destructive',
       });
       return;
     }
@@ -318,7 +314,7 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
             transition={
               shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
             }
-            className="mx-4 w-full max-w-2xl max-h-[calc(100vh-48px)] transform-gpu will-change-transform overflow-hidden"
+            className="mx-4 max-h-[calc(100vh-48px)] w-full max-w-2xl transform-gpu overflow-hidden will-change-transform"
           >
             <Card className="relative max-h-full overflow-y-auto">
               <Button
@@ -360,7 +356,7 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
                 {mode === 'local' ? (
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="local-path" className="block mb-2">
+                      <Label htmlFor="local-path" className="mb-2 block">
                         Open Local Project
                       </Label>
                       <div className="flex gap-2">
@@ -372,11 +368,9 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
                           readOnly
                           className="flex-1"
                         />
-                        <Button onClick={handleOpenLocal}>
-                          Browse...
-                        </Button>
+                        <Button onClick={handleOpenLocal}>Browse...</Button>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Select an existing project directory from your local file system
                       </p>
                     </div>
@@ -385,7 +379,7 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
                   <div className="space-y-4">
                     {/* GitHub URL Input */}
                     <div>
-                      <Label htmlFor="github-url" className="block mb-2">
+                      <Label htmlFor="github-url" className="mb-2 block">
                         GitHub Repository URL
                       </Label>
                       <Input
@@ -421,12 +415,12 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
 
                     {/* Clone Destination */}
                     <div>
-                      <Label htmlFor="clone-destination" className="block mb-2">
+                      <Label htmlFor="clone-destination" className="mb-2 block">
                         Clone Destination
                       </Label>
                       <div className="flex gap-2">
                         <div className="flex items-stretch gap-0 rounded-md border border-input">
-                          <span className="flex items-center px-3 text-sm font-mono font-normal text-muted-foreground bg-muted/30 border-r border-input/80">
+                          <span className="flex items-center border-r border-input/80 bg-muted/30 px-3 font-mono text-sm font-normal text-muted-foreground">
                             {baseDisplayPath}
                           </span>
                           <Input
@@ -459,18 +453,18 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
                         <Button
                           variant="outline"
                           onClick={handleChangeDestination}
-                          className="shrink-0 h-10"
+                          className="h-10 shrink-0"
                         >
                           <FolderOpen className="mr-2 h-4 w-4" />
                           Change
                         </Button>
                       </div>
                       {repoCheckError ? (
-                        <p className="text-xs text-destructive mt-1">{repoCheckError}</p>
+                        <p className="mt-1 text-xs text-destructive">{repoCheckError}</p>
                       ) : repoExists && targetDestinationPath ? (
-                        <p className="text-xs text-destructive mt-1">
-                          A folder already exists at {targetDestinationPath}. Choose a different name or
-                          remove that folder before cloning.
+                        <p className="mt-1 text-xs text-destructive">
+                          A folder already exists at {targetDestinationPath}. Choose a different
+                          name or remove that folder before cloning.
                         </p>
                       ) : null}
                     </div>
