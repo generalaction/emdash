@@ -68,9 +68,10 @@ export function registerAppIpc() {
             case 'ghostty':
               // On macOS, Ghostty's `working-directory` config can be overridden by
               // existing windows/tabs; opening the folder directly is the most reliable.
-              command = [`open -b com.mitchellh.ghostty ${quoted(target)}`, `open -a "Ghostty" ${quoted(target)}`].join(
-                ' || '
-              );
+              command = [
+                `open -b com.mitchellh.ghostty ${quoted(target)}`,
+                `open -a "Ghostty" ${quoted(target)}`,
+              ].join(' || ');
               break;
             case 'zed':
               command = `command -v zed >/dev/null 2>&1 && zed ${quoted(target)} || open -a "Zed" ${quoted(target)}`;
