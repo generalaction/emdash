@@ -10,6 +10,7 @@ import zedLogo from '../../../assets/images/zed.png';
 import ghosttyLogo from '../../../assets/images/ghostty.png';
 import vscodeLogo from '../../../assets/images/vscode.png';
 import iterm2Logo from '../../../assets/images/iterm2.png';
+import warpLogo from '../../../assets/images/warp.svg';
 
 interface OpenInMenuProps {
   path: string;
@@ -35,7 +36,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   }, [open]);
 
   const callOpen = async (
-    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2'
+    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp'
   ) => {
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('toolbar_open_in_selected', { app });
@@ -52,7 +53,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
                 ? 'VS Code'
                 : app === 'iterm2'
                   ? 'iTerm2'
-                  : app;
+                  : app === 'warp'
+                    ? 'Warp'
+                    : app;
         toast({
           title: `Open in ${pretty} failed`,
           description:
@@ -63,7 +66,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
                 ? 'Zed is not installed or not available on this platform.'
                 : app === 'iterm2'
                   ? 'iTerm2 is not installed or not available on this platform.'
-                  : 'Application not available.'),
+                  : app === 'warp'
+                    ? 'Warp is not installed or not available on this platform.'
+                    : 'Application not available.'),
           variant: 'destructive',
         });
       }
@@ -77,7 +82,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               ? 'VS Code'
               : app === 'iterm2'
                 ? 'iTerm2'
-                : app;
+                : app === 'warp'
+                  ? 'Warp'
+                  : app;
       toast({
         title: `Open in ${pretty} failed`,
         description: e?.message || String(e),
@@ -146,6 +153,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
             <button className={menuItemBase} role="menuitem" onClick={() => callOpen('terminal')}>
               <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
               <span>Terminal</span>
+            </button>
+            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('warp')}>
+              <img src={warpLogo} alt="Warp" className="h-4 w-4 rounded" />
+              <span>Warp</span>
             </button>
             <button className={menuItemBase} role="menuitem" onClick={() => callOpen('iterm2')}>
               <img src={iterm2Logo} alt="iTerm2" className="h-4 w-4 rounded" />

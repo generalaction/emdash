@@ -21,7 +21,7 @@ export function registerAppIpc() {
     async (
       _event,
       args: {
-        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
+        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
         path: string;
       }
     ) => {
@@ -33,6 +33,25 @@ export function registerAppIpc() {
       try {
         const platform = process.platform;
         const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
+
+        if (which === 'warp') {
+          const urls = [
+            `warp://action/new_window?path=${encodeURIComponent(target)}`,
+            `warppreview://action/new_window?path=${encodeURIComponent(target)}`,
+          ];
+          for (const url of urls) {
+            try {
+              await shell.openExternal(url);
+              return { success: true };
+            } catch (error) {
+              void error;
+            }
+          }
+          return {
+            success: false,
+            error: 'Warp is not installed or its URI scheme is not registered on this platform.',
+          };
+        }
 
         let command = '';
         if (platform === 'darwin') {
@@ -148,13 +167,17 @@ export function registerAppIpc() {
               ? 'Zed'
               : which === 'iterm2'
                 ? 'iTerm2'
-                : which.toString();
+                : which === 'warp'
+                  ? 'Warp'
+                  : which.toString();
         // Return short, friendly copy instead of the full command output
         let msg = `Unable to open in ${pretty}`;
         if (which === 'ghostty')
           msg = 'Ghostty is not installed or not available on this platform.';
         if (which === 'zed') msg = 'Zed is not installed or not available on this platform.';
         if (which === 'iterm2') msg = 'iTerm2 is not installed or not available on this platform.';
+        if (which === 'warp')
+          msg = 'Warp is not installed or its URI scheme is not registered on this platform.';
         return { success: false, error: msg };
       }
     }
