@@ -66,12 +66,11 @@ export function registerAppIpc() {
               ].join(' || ');
               break;
             case 'ghostty':
-              // On macOS, the Ghostty CLI does not launch the UI. Prefer `open` and
-              // pass config options in `--key=value` form.
-              command = [
-                `open -n -b com.mitchellh.ghostty --args --working-directory=${quoted(target)}`,
-                `open -n -a "Ghostty" --args --working-directory=${quoted(target)}`,
-              ].join(' || ');
+              // On macOS, Ghostty's `working-directory` config can be overridden by
+              // existing windows/tabs; opening the folder directly is the most reliable.
+              command = [`open -b com.mitchellh.ghostty ${quoted(target)}`, `open -a "Ghostty" ${quoted(target)}`].join(
+                ' || '
+              );
               break;
             case 'zed':
               command = `command -v zed >/dev/null 2>&1 && zed ${quoted(target)} || open -a "Zed" ${quoted(target)}`;
