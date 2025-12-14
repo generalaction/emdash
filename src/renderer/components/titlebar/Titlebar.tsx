@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Command, MessageSquare, Settings as SettingsIcon, KanbanSquare } from 'lucide-react';
+import { Command, MessageSquare, Settings as SettingsIcon, KanbanSquare, PanelLeft } from 'lucide-react';
+import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
 import BrowserToggleButton from './BrowserToggleButton';
+import { useSidebar } from '../ui/sidebar';
 
 interface GithubUser {
   login?: string;
@@ -44,6 +46,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
+  const { open, setOpen, isMobile } = useSidebar();
 
   const handleOpenFeedback = useCallback(() => {
     setIsFeedbackOpen(true);
@@ -161,6 +164,27 @@ const Titlebar: React.FC<TitlebarProps> = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          {!isMobile && (
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setOpen(!open)}
+                    className="h-8 w-8 text-muted-foreground hover:bg-background/80"
+                    aria-label={open ? 'Collapse sidebar' : 'Open sidebar'}
+                  >
+                    <PanelLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs font-medium">
+                  {open ? 'Collapse sidebar' : 'Open sidebar'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <SidebarLeftToggleButton />
           <SidebarRightToggleButton />
           <TooltipProvider delayDuration={200}>
             <Tooltip>
