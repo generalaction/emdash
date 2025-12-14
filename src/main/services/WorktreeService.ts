@@ -54,11 +54,9 @@ export class WorktreeService {
     args: string[]
   ): Promise<{ stdout: string; stderr: string }> {
     const gitDir = this.resolveGitDir(projectPath);
-    return await execFileAsync(
-      'git',
-      ['--git-dir', gitDir, '--work-tree', projectPath, ...args],
-      { cwd: this.gitCwdFallback() }
-    );
+    return await execFileAsync('git', ['--git-dir', gitDir, '--work-tree', projectPath, ...args], {
+      cwd: this.gitCwdFallback(),
+    });
   }
 
   private async getOriginUrl(projectPath: string): Promise<string | null> {
@@ -419,7 +417,9 @@ export class WorktreeService {
                 ]);
               } else {
                 // Make everything writable on POSIX
-                await execFileAsync('chmod', ['-R', 'u+w', pathToRemove], { cwd: this.gitCwdFallback() });
+                await execFileAsync('chmod', ['-R', 'u+w', pathToRemove], {
+                  cwd: this.gitCwdFallback(),
+                });
               }
             } catch (permErr) {
               console.warn('Failed to adjust permissions for worktree cleanup:', permErr);
@@ -456,12 +456,14 @@ export class WorktreeService {
           .replace(/^refs\/remotes\/origin\//, 'origin/');
 
         const candidates = Array.from(
-          new Set([
-            normalizedLocalBranch,
-            normalizedLocalBranch.startsWith('origin/')
-              ? normalizedLocalBranch.replace(/^origin\//, '')
-              : null,
-          ].filter(Boolean) as string[])
+          new Set(
+            [
+              normalizedLocalBranch,
+              normalizedLocalBranch.startsWith('origin/')
+                ? normalizedLocalBranch.replace(/^origin\//, '')
+                : null,
+            ].filter(Boolean) as string[]
+          )
         );
 
         const tryDeleteBranch = async () => {
@@ -489,7 +491,9 @@ export class WorktreeService {
               await this.execGit(projectPath, ['worktree', 'prune', '--verbose']);
               await tryDeleteBranch();
             } catch (retryErr) {
-              errors.push(`git branch delete failed after prune: ${this.extractErrorMessage(retryErr)}`);
+              errors.push(
+                `git branch delete failed after prune: ${this.extractErrorMessage(retryErr)}`
+              );
               console.warn(`Failed to delete branch ${branchToDelete} after prune:`, retryErr);
             }
           } else {
@@ -533,7 +537,12 @@ export class WorktreeService {
 
               // Prefer Git-native deletion (works even without GitHub CLI).
               try {
-                await this.execGit(projectPath, ['push', remoteAlias, '--delete', remoteBranchName]);
+                await this.execGit(projectPath, [
+                  'push',
+                  remoteAlias,
+                  '--delete',
+                  remoteBranchName,
+                ]);
                 deletedRemotely = true;
                 remoteBranchDeleted = true;
                 log.info(`Deleted remote branch ${remoteAlias}/${remoteBranchName}`);
@@ -567,7 +576,12 @@ export class WorktreeService {
                     const encodedRef = encodeURIComponent(remoteBranchName);
                     await execFileAsync(
                       'gh',
-                      ['api', '-X', 'DELETE', `repos/${nameWithOwner}/git/refs/heads/${encodedRef}`],
+                      [
+                        'api',
+                        '-X',
+                        'DELETE',
+                        `repos/${nameWithOwner}/git/refs/heads/${encodedRef}`,
+                      ],
                       { cwd: this.gitCwdFallback() }
                     );
                     deletedRemotely = true;

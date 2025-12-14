@@ -42,10 +42,10 @@ export function useInitialPromptInjection(opts: {
 
       // Heuristic: if classifier says idle, trigger a quicker send
       try {
-      const signal = classifyActivity(providerId, chunk);
-      if (signal === 'idle' && !sent) {
-        setTimeout(send, 250);
-      }
+        const signal = classifyActivity(providerId, chunk);
+        if (signal === 'idle' && !sent) {
+          setTimeout(send, 250);
+        }
       } catch {
         // ignore classifier errors; rely on silence debounce
       }

@@ -654,7 +654,15 @@ const ChatInterface: React.FC<Props> = ({
         </div>
       </div>
     );
-  }, [browser, containerState, multiAgentEnabled, portsExpanded, reduceMotion, workspace.id, workspace.path]);
+  }, [
+    browser,
+    containerState,
+    multiAgentEnabled,
+    portsExpanded,
+    reduceMotion,
+    workspace.id,
+    workspace.path,
+  ]);
 
   if (!isTerminal) {
     return null;
