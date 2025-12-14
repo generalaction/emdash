@@ -66,7 +66,12 @@ export function registerAppIpc() {
               ].join(' || ');
               break;
             case 'ghostty':
-              command = `command -v ghostty >/dev/null 2>&1 && ghostty --working-directory ${quoted(target)} || open -a "Ghostty" --args --working-directory ${quoted(target)}`;
+              // On macOS, the Ghostty CLI does not launch the UI. Prefer `open` and
+              // pass config options in `--key=value` form.
+              command = [
+                `open -n -b com.mitchellh.ghostty --args --working-directory=${quoted(target)}`,
+                `open -n -a "Ghostty" --args --working-directory=${quoted(target)}`,
+              ].join(' || ');
               break;
             case 'zed':
               command = `command -v zed >/dev/null 2>&1 && zed ${quoted(target)} || open -a "Zed" ${quoted(target)}`;
@@ -105,7 +110,7 @@ export function registerAppIpc() {
               command = `x-terminal-emulator --working-directory=${quoted(target)} || gnome-terminal --working-directory=${quoted(target)} || konsole --workdir ${quoted(target)}`;
               break;
             case 'ghostty':
-              command = `ghostty --working-directory ${quoted(target)} || x-terminal-emulator --working-directory=${quoted(target)}`;
+              command = `ghostty --working-directory=${quoted(target)} || x-terminal-emulator --working-directory=${quoted(target)}`;
               break;
             case 'zed':
               command = `zed ${quoted(target)} || xdg-open ${quoted(target)}`;
