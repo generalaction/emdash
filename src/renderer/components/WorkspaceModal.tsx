@@ -219,6 +219,10 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setDefaultProviderFromSettings(defaultProvider);
       setProviderRuns([{ provider: defaultProvider, runs: 1 }]);
 
+      // Auto-approve default
+      const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
+      setAutoApprove(autoApproveByDefault && !!providerMeta[defaultProvider]?.autoApproveFlag);
+
       // Auto-generate task name
       // Only update if user hasn't typed yet
       const autoGenerate = settings?.tasks?.autoGenerateName ?? true;
@@ -410,14 +414,15 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     setIsCreating(true);
                     (async () => {
                       try {
+                        const trimmedPrompt = initialPrompt.trim();
                         await onCreateWorkspace(
                           normalizeWorkspaceName(workspaceName),
-                          showAdvanced ? initialPrompt.trim() || undefined : undefined,
+                          hasInitialPromptSupport && trimmedPrompt ? trimmedPrompt : undefined,
                           providerRuns,
                           selectedLinearIssue,
                           selectedGithubIssue,
                           selectedJiraIssue,
-                          showAdvanced ? autoApprove : false
+                          hasAutoApproveSupport ? autoApprove : false
                         );
                         onClose();
                       } catch (error) {
