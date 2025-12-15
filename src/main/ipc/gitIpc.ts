@@ -319,14 +319,20 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const errStdout = typeof error?.stdout === 'string' ? error.stdout : '';
         const errStderr = typeof error?.stderr === 'string' ? error.stderr : '';
         const combined = [errMsg, errStdout, errStderr].filter(Boolean).join('\n').trim();
-        const restrictionRe = /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i;
+        const restrictionRe =
+          /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i;
         const code = restrictionRe.test(combined) ? 'ORG_AUTH_APP_RESTRICTED' : undefined;
         if (code === 'ORG_AUTH_APP_RESTRICTED') {
           log.warn('GitHub org restrictions detected during PR creation');
         } else {
           log.error('Failed to create PR:', combined || error);
         }
-        return { success: false, error: combined || errMsg || 'Failed to create PR', output: combined, code } as any;
+        return {
+          success: false,
+          error: combined || errMsg || 'Failed to create PR',
+          output: combined,
+          code,
+        } as any;
       }
     }
   );
