@@ -253,6 +253,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   disabled={isCreatingPR}
                   title="Commit all changes and create a pull request"
                   onClick={async () => {
+                    void (async () => {
+                      const { captureTelemetry } = await import('../lib/telemetryClient');
+                      captureTelemetry('pr_viewed');
+                    })();
                     await createPR({
                       workspacePath: workspaceId,
                       onSuccess: async () => {
@@ -329,6 +333,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   disabled={isCreatingPR || branchStatusLoading}
                   title="Create a pull request for the current branch"
                   onClick={async () => {
+                    void (async () => {
+                      const { captureTelemetry } = await import('../lib/telemetryClient');
+                      captureTelemetry('pr_viewed');
+                    })();
                     await createPR({
                       workspacePath: workspaceId,
                       onSuccess: async () => {
@@ -358,6 +366,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
               change.isStaged ? 'bg-gray-50 dark:bg-gray-900/40' : ''
             }`}
             onClick={() => {
+              void (async () => {
+                const { captureTelemetry } = await import('../lib/telemetryClient');
+                captureTelemetry('changes_viewed');
+              })();
               setSelectedPath(change.path);
               setShowDiffModal(true);
             }}

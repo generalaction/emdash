@@ -137,15 +137,26 @@ export async function revertFile(
   } catch {}
 
   // Check if file is tracked in git (exists in HEAD)
+  let fileExistsInHead = false;
   try {
     await execFileAsync('git', ['cat-file', '-e', `HEAD:${filePath}`], { cwd: workspacePath });
-    // File exists in HEAD, revert it
-    await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: workspacePath });
+    fileExistsInHead = true;
   } catch {
     // File doesn't exist in HEAD (it's a new/untracked file), delete it
     const absPath = path.join(workspacePath, filePath);
     if (fs.existsSync(absPath)) {
       fs.unlinkSync(absPath);
+    }
+    return { action: 'reverted' };
+  }
+
+  // File exists in HEAD, revert it
+  if (fileExistsInHead) {
+    try {
+      await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: workspacePath });
+    } catch (error) {
+      // If checkout fails, don't delete the file - throw the error instead
+      throw new Error(`Failed to revert file: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   return { action: 'reverted' };
