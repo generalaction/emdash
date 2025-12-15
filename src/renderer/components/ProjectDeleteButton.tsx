@@ -51,10 +51,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
     const status = risks[ws.id];
     if (!status) return false;
     const hasUncommittedWork =
-      status.staged > 0 ||
-      status.unstaged > 0 ||
-      status.untracked > 0 ||
-      status.ahead > 0;
+      status.staged > 0 || status.unstaged > 0 || status.untracked > 0 || status.ahead > 0;
     const hasPR = !!status.pr;
     // Only show in this section if has uncommitted work BUT NO PR
     return hasUncommittedWork && !hasPR;
@@ -178,10 +175,12 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 transition={{ duration: 0.18, ease: 'easeOut', delay: 0.02 }}
               >
                 <DeletePrNotice
-                  workspaces={workspacesWithPRs.map((ws) => ({
-                    name: ws.name,
-                    pr: risks[ws.id]?.pr,
-                  })) as any}
+                  workspaces={
+                    workspacesWithPRs.map((ws) => ({
+                      name: ws.name,
+                      pr: risks[ws.id]?.pr,
+                    })) as any
+                  }
                 />
               </motion.div>
             ) : null}

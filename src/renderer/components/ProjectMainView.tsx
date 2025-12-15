@@ -888,7 +888,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   const summary = deleteRisks.summaries[ws.id];
                   const status = deleteStatus[ws.id];
                   if (!summary && !status?.error) return false;
-                  if (status?.pr) return false; 
+                  if (status?.pr) return false;
                   return true;
                 });
 

@@ -41,7 +41,7 @@ export const DeletePrNotice: React.FC<Props> = ({ workspaces }) => {
           const prBadge = (
             <button
               type="button"
-              className="inline-flex items-center border gap-1 rounded-md bg-white/60 px-2 py-0.5 text-xs font-medium text-amber-900 underline-offset-2 hover:underline dark:bg-white/10 dark:text-amber-50"
+              className="inline-flex items-center gap-1 rounded-md border bg-white/60 px-2 py-0.5 text-xs font-medium text-amber-900 underline-offset-2 hover:underline dark:bg-white/10 dark:text-amber-50"
               onClick={(e) => {
                 e.stopPropagation();
                 handleOpen(ws.pr.url);
