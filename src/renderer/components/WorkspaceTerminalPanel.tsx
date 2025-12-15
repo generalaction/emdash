@@ -1,10 +1,11 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { TerminalPane } from './TerminalPane';
 import { Bot, Terminal, Plus, X, TreePine, Globe } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 import { cn } from '@/lib/utils';
 import type { Provider } from '../types';
+import { captureTelemetry } from '../lib/telemetryClient';
 import {
   Select,
   SelectContent,
@@ -39,6 +40,12 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
   const workspaceTerminals = useWorkspaceTerminals(workspaceKey, workspace?.path);
   const globalTerminals = useWorkspaceTerminals('global', projectPath, { defaultCwd: projectPath });
   const [mode, setMode] = useState<'workspace' | 'global'>(workspace ? 'workspace' : 'global');
+
+  const handleModeChange = useCallback((value: string) => {
+    if (value === 'workspace' || value === 'global') {
+      setMode(value);
+    }
+  }, []);
   useEffect(() => {
     if (!workspace && mode === 'workspace') {
       setMode('global');
@@ -177,11 +184,28 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
   return (
     <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
+        {/* Screen reader-only accessibility descriptions */}
+        <span id="terminal-scope-description" className="sr-only">
+          Choose between workspace-specific or global terminal scope
+        </span>
+        {!workspace && (
+          <span id="workspace-disabled-reason" className="sr-only">
+            Workspace terminal requires an active workspace
+          </span>
+        )}
+        {!projectPath && (
+          <span id="global-disabled-reason" className="sr-only">
+            Global terminal requires a project path
+          </span>
+        )}
+
         <div className="flex items-center gap-1">
           <Select
             value={mode}
-            onValueChange={(value) => setMode(value as 'workspace' | 'global')}
+            onValueChange={handleModeChange}
             disabled={!workspace && !projectPath}
+            aria-label="Terminal scope selector"
+            aria-describedby="terminal-scope-description"
           >
             <SelectTrigger
               className={cn(
@@ -207,9 +231,10 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                 value="workspace"
                 disabled={!workspace}
                 className="text-[11px]"
+                aria-describedby={workspace ? "" : "workspace-disabled-reason"}
               >
                 <div className="flex items-center gap-2">
-                  <TreePine className="h-3.5 w-3.5" />
+                  <TreePine className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Worktree</span>
                 </div>
               </SelectItem>
@@ -217,9 +242,10 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                 value="global"
                 disabled={!projectPath}
                 className="text-[11px]"
+                aria-describedby={projectPath ? "" : "global-disabled-reason"}
               >
                 <div className="flex items-center gap-2">
-                  <Globe className="h-3.5 w-3.5" />
+                  <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Global</span>
                 </div>
               </SelectItem>
@@ -250,10 +276,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                     tabIndex={-1}
                     onClick={(event) => {
                       event.stopPropagation();
-                      void (async () => {
-                        const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('terminal_deleted');
-                      })();
+                      captureTelemetry('terminal_deleted');
                       closeTerminal(terminal.id);
                     }}
                     className="flex h-4 w-4 items-center justify-center rounded opacity-60 transition-opacity hover:bg-muted hover:opacity-100"
@@ -268,10 +291,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
         <button
           type="button"
           onClick={() => {
-            void (async () => {
-              const { captureTelemetry } = await import('../lib/telemetryClient');
-              captureTelemetry('terminal_new_terminal_created', { scope: mode });
-            })();
+            captureTelemetry('terminal_new_terminal_created', { scope: mode });
             createTerminal({
               cwd: mode === 'global' ? projectPath : workspace?.path,
             });
