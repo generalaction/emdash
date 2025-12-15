@@ -337,9 +337,6 @@ function WorkspaceRow({
               </button>
             </PrPreviewTooltip>
           ) : null}
-          {/* Agent badge commented out per user request
-          {ws.agentId && <Badge variant="outline">agent</Badge>}
-          */}
 
           {isSelectMode ? (
             <Checkbox
@@ -754,6 +751,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       {onDeleteProject ? (
                         <ProjectDeleteButton
                           projectName={project.name}
+                          workspaces={workspaces}
                           onConfirm={() => onDeleteProject?.(project)}
                           aria-label={`Delete project ${project.name}`}
                         />
@@ -885,36 +883,45 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </AlertDialogHeader>
           <div className="space-y-3">
             <AnimatePresence initial={false}>
-              {deleteRisks.riskyIds.size > 0 ? (
-                <motion.div
-                  key="bulk-risk"
-                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                  className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
-                >
-                  <p className="font-medium">Unmerged or unpushed work detected</p>
-                  <ul className="space-y-1">
-                    {selectedWorkspaces.map((ws) => {
-                      const summary = deleteRisks.summaries[ws.id];
-                      const status = deleteStatus[ws.id];
-                      if (!summary && !status?.error) return null;
-                      return (
-                        <li
-                          key={ws.id}
-                          className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
-                        >
-                          <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                          <span className="font-medium">{ws.name}</span>
-                          <span className="text-muted-foreground">—</span>
-                          <span>{summary || status?.error || 'Status unavailable'}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </motion.div>
-              ) : null}
+              {(() => {
+                const workspacesWithUncommittedWorkOnly = selectedWorkspaces.filter((ws) => {
+                  const summary = deleteRisks.summaries[ws.id];
+                  const status = deleteStatus[ws.id];
+                  if (!summary && !status?.error) return false;
+                  if (status?.pr) return false;
+                  return true;
+                });
+
+                return workspacesWithUncommittedWorkOnly.length > 0 ? (
+                  <motion.div
+                    key="bulk-risk"
+                    initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
+                  >
+                    <p className="font-medium">Unmerged or unpushed work detected</p>
+                    <ul className="space-y-1">
+                      {workspacesWithUncommittedWorkOnly.map((ws) => {
+                        const summary = deleteRisks.summaries[ws.id];
+                        const status = deleteStatus[ws.id];
+                        return (
+                          <li
+                            key={ws.id}
+                            className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
+                          >
+                            <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
+                            <span className="font-medium">{ws.name}</span>
+                            <span className="text-muted-foreground">—</span>
+                            <span>{summary || status?.error || 'Status unavailable'}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </motion.div>
+                ) : null;
+              })()}
             </AnimatePresence>
 
             <AnimatePresence initial={false}>

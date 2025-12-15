@@ -225,6 +225,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               {showProjectDelete ? (
                                 <ProjectDeleteButton
                                   projectName={typedProject.name}
+                                  workspaces={typedProject.workspaces || []}
                                   onConfirm={() => handleDeleteProject(typedProject)}
                                   isDeleting={isDeletingProject}
                                   aria-label={`Delete project ${typedProject.name}`}
