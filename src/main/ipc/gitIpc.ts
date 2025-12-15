@@ -313,9 +313,20 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const url = urlMatch ? urlMatch[0] : null;
 
         return { success: true, url, output: out };
-      } catch (error) {
-        log.error('Failed to create PR:', error);
-        return { success: false, error: error as string };
+      } catch (error: any) {
+        // Capture rich error info from gh/child_process
+        const errMsg = typeof error?.message === 'string' ? error.message : String(error);
+        const errStdout = typeof error?.stdout === 'string' ? error.stdout : '';
+        const errStderr = typeof error?.stderr === 'string' ? error.stderr : '';
+        const combined = [errMsg, errStdout, errStderr].filter(Boolean).join('\n').trim();
+        const restrictionRe = /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i;
+        const code = restrictionRe.test(combined) ? 'ORG_AUTH_APP_RESTRICTED' : undefined;
+        if (code === 'ORG_AUTH_APP_RESTRICTED') {
+          log.warn('GitHub org restrictions detected during PR creation');
+        } else {
+          log.error('Failed to create PR:', combined || error);
+        }
+        return { success: false, error: combined || errMsg || 'Failed to create PR', output: combined, code } as any;
       }
     }
   );

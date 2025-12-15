@@ -144,6 +144,10 @@ export function useCreatePR() {
         })();
         const details =
           res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
+        // Offer a browser fallback if org restricts the GitHub CLI app
+        const isOrgRestricted =
+          typeof res?.code === 'string' && res.code === 'ORG_AUTH_APP_RESTRICTED';
+
         toast({
           title: (
             <span className="inline-flex items-center gap-2">
@@ -151,8 +155,41 @@ export function useCreatePR() {
               Failed to Create PR
             </span>
           ),
-          description: (res?.error || 'Unknown error') + details,
+          description:
+            (res?.error || 'Unknown error') +
+            (isOrgRestricted
+              ? '\n\nYour organization restricts OAuth apps. You can either:\n' +
+                '• Approve the GitHub CLI app in your org settings, or\n' +
+                '• Authenticate gh with a Personal Access Token that has repo scope, or\n' +
+                '• Create the PR in your browser.'
+              : '') +
+            details,
           variant: 'destructive',
+          action: isOrgRestricted ? (
+            <ToastAction
+              altText="Open in browser"
+              onClick={() => {
+                void (async () => {
+                  const { captureTelemetry } = await import('../lib/telemetryClient');
+                  captureTelemetry('pr_creation_retry_browser');
+                })();
+                // Retry using web flow
+                void createPR({
+                  workspacePath,
+                  commitMessage,
+                  createBranchIfOnDefault,
+                  branchPrefix,
+                  prOptions: { ...(prOptions || {}), web: true, fill: true },
+                  onSuccess,
+                });
+              }}
+            >
+              <span className="inline-flex items-center gap-1">
+                Open in browser
+                <ArrowUpRight className="h-3 w-3" />
+              </span>
+            </ToastAction>
+          ) : undefined,
         });
       }
 
