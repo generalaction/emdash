@@ -576,10 +576,10 @@ const AppContent: React.FC = () => {
             } else {
               const updateHint =
                 platform === 'darwin'
-                  ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart emdash.'
+                  ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart Emdash.'
                   : platform === 'win32'
-                    ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart emdash.'
-                    : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart emdash.';
+                    ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart Emdash.'
+                    : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart Emdash.';
               toast({
                 title: 'GitHub Connection Failed',
                 description: `Git repository detected but couldn't connect to GitHub: ${githubInfo.error}\n\n${updateHint}`,
@@ -1507,7 +1507,7 @@ const AppContent: React.FC = () => {
                   <img
                     key={effectiveTheme}
                     src={effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo}
-                    alt="emdash"
+                    alt="Emdash"
                     className="logo-shimmer-image"
                   />
                   <span
@@ -1599,7 +1599,7 @@ const AppContent: React.FC = () => {
               <img
                 key={effectiveTheme}
                 src={effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo}
-                alt="emdash"
+                alt="Emdash"
                 className="h-16"
               />
             </div>

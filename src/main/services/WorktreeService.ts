@@ -511,7 +511,7 @@ export class WorktreeService {
     const settings = await projectSettingsService.getProjectSettings(projectId);
     if (!settings) {
       throw new Error(
-        'Project settings not found. Please re-open the project in emdash and try again.'
+        'Project settings not found. Please re-open the project in Emdash and try again.'
       );
     }
 

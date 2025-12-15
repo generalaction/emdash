@@ -237,7 +237,6 @@ export function GithubDeviceFlowModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-[480px] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-hidden border bg-background p-0 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
-          {/* Close button */}
           <button
             onClick={handleClose}
             className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
@@ -247,8 +246,7 @@ export function GithubDeviceFlowModal({
           </button>
 
           <div className="flex flex-col items-center px-8 py-12">
-            {/* Logo */}
-            <img src={emdashLogo} alt="emdash" className="mb-8 h-8 opacity-90" />
+            <img src={emdashLogo} alt="Emdash" className="mb-8 h-8 opacity-90" />
 
             {success ? (
               // Success State
@@ -296,11 +294,10 @@ export function GithubDeviceFlowModal({
                 <div className="space-y-2 text-center">
                   <h2 className="text-2xl font-semibold">Connect to GitHub</h2>
                   <p className="text-sm text-muted-foreground">
-                    Follow these steps to authorize emdash
+                    Follow these steps to authorize Emdash
                   </p>
                 </div>
 
-                {/* Device Code Display */}
                 {userCode && (
                   <>
                     <div className="w-full space-y-3 rounded-lg bg-muted/30 p-6">
@@ -312,7 +309,6 @@ export function GithubDeviceFlowModal({
                       </p>
                     </div>
 
-                    {/* Copy Button */}
                     <Button
                       onClick={() => copyToClipboard(userCode)}
                       variant="outline"
@@ -334,7 +330,6 @@ export function GithubDeviceFlowModal({
                   </>
                 )}
 
-                {/* Instructions */}
                 <div className="w-full space-y-3 text-sm">
                   <div className="flex items-start gap-3">
                     <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
@@ -353,7 +348,6 @@ export function GithubDeviceFlowModal({
                   </div>
                 </div>
 
-                {/* Browser Opening Countdown */}
                 {browserOpening && (
                   <div className="w-full rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
                     <p className="text-center text-sm text-blue-600 dark:text-blue-400">
@@ -362,7 +356,6 @@ export function GithubDeviceFlowModal({
                   </div>
                 )}
 
-                {/* Status */}
                 <div className="flex flex-col items-center gap-2 text-center">
                   <Spinner className="h-5 w-5 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">Waiting for authorization...</p>
@@ -373,7 +366,6 @@ export function GithubDeviceFlowModal({
                   )}
                 </div>
 
-                {/* Open GitHub Button */}
                 {verificationUri && !browserOpening && (
                   <Button onClick={openGitHub} className="w-full" size="lg">
                     <ExternalLink className="mr-2 h-4 w-4" />
@@ -381,12 +373,10 @@ export function GithubDeviceFlowModal({
                   </Button>
                 )}
 
-                {/* Help Text */}
                 <div className="w-full border-t pt-4">
                   <p className="text-center text-xs text-muted-foreground">Having trouble?</p>
                 </div>
 
-                {/* Keyboard Shortcuts */}
                 <div className="space-x-3 text-center text-xs text-muted-foreground">
                   <span>⌘C to copy</span>
                   <span>•</span>

@@ -111,7 +111,7 @@ import * as telemetry from './telemetry';
 import { join } from 'path';
 
 // Set app name for macOS dock and menu bar (especially important in dev mode)
-app.setName('emdash');
+app.setName('Emdash');
 
 // Set dock icon on macOS in development mode
 if (process.platform === 'darwin' && !app.isPackaged) {

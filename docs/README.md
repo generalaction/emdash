@@ -1,4 +1,4 @@
-# emdash
+# Emdash
 
 This is a Tanstack Start application generated with
 [Create Fumadocs](https://github.com/fuma-nama/fumadocs).
