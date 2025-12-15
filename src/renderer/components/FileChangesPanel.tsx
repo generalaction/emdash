@@ -9,6 +9,7 @@ import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import PrStatusSkeleton from './ui/pr-status-skeleton';
 import FileTypeIcon from './ui/file-type-icon';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Plus, Undo2, ArrowUpRight } from 'lucide-react';
 
 interface FileChangesPanelProps {
@@ -244,26 +245,32 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   </span>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
-                disabled={isCreatingPR}
-                title="Commit all changes and create a pull request"
-                onClick={async () => {
-                  await createPR({
-                    workspacePath: workspaceId,
-                    onSuccess: async () => {
-                      await refreshChanges();
-                      try {
-                        await refreshPr();
-                      } catch {}
-                    },
-                  });
-                }}
-              >
-                {isCreatingPR ? <Spinner size="sm" /> : 'Create PR'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  disabled={isCreatingPR}
+                  title="Commit all changes and create a pull request"
+                  onClick={async () => {
+                    void (async () => {
+                      const { captureTelemetry } = await import('../lib/telemetryClient');
+                      captureTelemetry('pr_viewed');
+                    })();
+                    await createPR({
+                      workspacePath: workspaceId,
+                      onSuccess: async () => {
+                        await refreshChanges();
+                        try {
+                          await refreshPr();
+                        } catch {}
+                      },
+                    });
+                  }}
+                >
+                  {isCreatingPR ? <Spinner size="sm" /> : 'Create PR'}
+                </Button>
+              </div>
             </div>
 
             {hasStagedChanges && (
@@ -306,10 +313,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void (async () => {
-                      const { captureTelemetry } = await import('../lib/telemetryClient');
-                      captureTelemetry('pr_viewed');
-                    })();
                     if (pr.url) window.electronAPI?.openExternal?.(pr.url);
                   }}
                   className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -330,6 +333,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                   disabled={isCreatingPR || branchStatusLoading}
                   title="Create a pull request for the current branch"
                   onClick={async () => {
+                    void (async () => {
+                      const { captureTelemetry } = await import('../lib/telemetryClient');
+                      captureTelemetry('pr_viewed');
+                    })();
                     await createPR({
                       workspacePath: workspaceId,
                       onSuccess: async () => {
@@ -392,39 +399,77 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
               )}
               <div className="flex items-center gap-1">
                 {!change.isStaged && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-gray-500 hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-900/20 dark:hover:text-gray-400"
-                    onClick={(e) => handleStageFile(change.path, e)}
-                    disabled={stagingFiles.has(change.path)}
-                    title="Stage file for commit"
-                  >
-                    {stagingFiles.has(change.path) ? (
-                      <Spinner size="sm" />
-                    ) : (
-                      <Plus className="h-3 w-3" />
-                    )}
-                  </Button>
+                  <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                          onClick={(e) => handleStageFile(change.path, e)}
+                          disabled={stagingFiles.has(change.path)}
+                        >
+                          {stagingFiles.has(change.path) ? (
+                            <Spinner size="sm" />
+                          ) : (
+                            <Plus className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="left"
+                        className="max-w-xs border-gray-300 bg-gray-900 px-3 py-2 text-sm text-white shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                      >
+                        <p className="font-medium">Stage file for commit</p>
+                        <p className="mt-0.5 text-xs text-gray-300">
+                          Add this file to the staging area so it will be included in the next
+                          commit
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-gray-500 hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-900/20 dark:hover:text-gray-400"
-                  onClick={(e) => handleRevertFile(change.path, e)}
-                  disabled={revertingFiles.has(change.path)}
-                  title={
-                    change.isStaged
-                      ? 'Unstage file (click again to revert)'
-                      : 'Revert changes to file'
-                  }
-                >
-                  {revertingFiles.has(change.path) ? (
-                    <Spinner size="sm" />
-                  ) : (
-                    <Undo2 className="h-3 w-3" />
-                  )}
-                </Button>
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                        onClick={(e) => handleRevertFile(change.path, e)}
+                        disabled={revertingFiles.has(change.path)}
+                      >
+                        {revertingFiles.has(change.path) ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <Undo2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="left"
+                      className="max-w-xs border-gray-300 bg-gray-900 px-3 py-2 text-sm text-white shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                    >
+                      {change.isStaged ? (
+                        <>
+                          <p className="font-medium">Unstage file</p>
+                          <p className="mt-0.5 text-xs text-gray-300">
+                            Remove this file from staging. Click again to discard all changes to
+                            this file.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium">Revert file changes</p>
+                          <p className="mt-0.5 text-xs text-gray-300">
+                            Discard all uncommitted changes to this file and restore it to the last
+                            committed version
+                          </p>
+                        </>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
           </div>

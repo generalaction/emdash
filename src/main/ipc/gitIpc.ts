@@ -156,9 +156,12 @@ export function registerGitIpc() {
 
         // Stage and commit any pending changes
         try {
-          const { stdout: statusOut } = await execAsync('git status --porcelain', {
-            cwd: workspacePath,
-          });
+          const { stdout: statusOut } = await execAsync(
+            'git status --porcelain --untracked-files=all',
+            {
+              cwd: workspacePath,
+            }
+          );
           if (statusOut && statusOut.trim().length > 0) {
             const { stdout: addOut, stderr: addErr } = await execAsync('git add -A', {
               cwd: workspacePath,
@@ -486,7 +489,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         // Stage (only if needed) and commit
         try {
-          const { stdout: st } = await execAsync('git status --porcelain', { cwd: workspacePath });
+          const { stdout: st } = await execAsync('git status --porcelain --untracked-files=all', {
+            cwd: workspacePath,
+          });
           const hasWorkingChanges = Boolean(st && st.trim().length > 0);
 
           const readStagedFiles = async () => {
