@@ -21,7 +21,7 @@ export function registerAppIpc() {
     async (
       _event,
       args: {
-        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
+        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
         path: string;
       }
     ) => {
@@ -34,6 +34,25 @@ export function registerAppIpc() {
         const platform = process.platform;
         const quotedPosix = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
         const quotedWin = (p: string) => `"${p.replace(/"/g, '""')}"`;
+
+        if (which === 'warp') {
+          const urls = [
+            `warp://action/new_window?path=${encodeURIComponent(target)}`,
+            `warppreview://action/new_window?path=${encodeURIComponent(target)}`,
+          ];
+          for (const url of urls) {
+            try {
+              await shell.openExternal(url);
+              return { success: true };
+            } catch (error) {
+              void error;
+            }
+          }
+          return {
+            success: false,
+            error: 'Warp is not installed or its URI scheme is not registered on this platform.',
+          };
+        }
 
         let command = '';
         if (platform === 'darwin') {
@@ -48,10 +67,9 @@ export function registerAppIpc() {
               break;
             case 'vscode':
               command = [
-                `command -v code >/dev/null 2>&1 && code ${quotedPosix(target)}`,
-                `open -b com.microsoft.VSCode --args ${quotedPosix(target)}`,
-                `open -b com.microsoft.VSCodeInsiders --args ${quotedPosix(target)}`,
-                `open -a "Visual Studio Code" ${quotedPosix(target)}`,
+                `open -b com.microsoft.VSCode --args ${quoted(target)}`,
+                `open -b com.microsoft.VSCodeInsiders --args ${quoted(target)}`,
+                `open -a "Visual Studio Code" ${quoted(target)}`,
               ].join(' || ');
               break;
             case 'terminal':
@@ -68,7 +86,12 @@ export function registerAppIpc() {
               ].join(' || ');
               break;
             case 'ghostty':
-              command = `command -v ghostty >/dev/null 2>&1 && ghostty --working-directory ${quotedPosix(target)} || open -a "Ghostty" --args --working-directory ${quotedPosix(target)}`;
+              // On macOS, Ghostty's `working-directory` config can be overridden by
+              // existing windows/tabs; opening the folder directly is the most reliable.
+              command = [
+                `open -b com.mitchellh.ghostty ${quoted(target)}`,
+                `open -a "Ghostty" ${quoted(target)}`,
+              ].join(' || ');
               break;
             case 'zed':
               command = `command -v zed >/dev/null 2>&1 && zed ${quotedPosix(target)} || open -a "Zed" ${quotedPosix(target)}`;
@@ -108,7 +131,7 @@ export function registerAppIpc() {
               command = `x-terminal-emulator --working-directory=${quotedPosix(target)} || gnome-terminal --working-directory=${quotedPosix(target)} || konsole --workdir ${quotedPosix(target)}`;
               break;
             case 'ghostty':
-              command = `ghostty --working-directory ${quotedPosix(target)} || x-terminal-emulator --working-directory=${quotedPosix(target)}`;
+              command = `ghostty --working-directory=${quoted(target)} || x-terminal-emulator --working-directory=${quoted(target)}`;
               break;
             case 'zed':
               command = `zed ${quotedPosix(target)} || xdg-open ${quotedPosix(target)}`;
@@ -146,13 +169,17 @@ export function registerAppIpc() {
               ? 'Zed'
               : which === 'iterm2'
                 ? 'iTerm2'
-                : which.toString();
+                : which === 'warp'
+                  ? 'Warp'
+                  : which.toString();
         // Return short, friendly copy instead of the full command output
         let msg = `Unable to open in ${pretty}`;
         if (which === 'ghostty')
           msg = 'Ghostty is not installed or not available on this platform.';
         if (which === 'zed') msg = 'Zed is not installed or not available on this platform.';
         if (which === 'iterm2') msg = 'iTerm2 is not installed or not available on this platform.';
+        if (which === 'warp')
+          msg = 'Warp is not installed or its URI scheme is not registered on this platform.';
         return { success: false, error: msg };
       }
     }

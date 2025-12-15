@@ -56,6 +56,7 @@ Thumbs.db
 
 # AI assistant instructions
 .notes/
+.claude/
 
 # Local generated worktrees for perf experiments
 worktrees/

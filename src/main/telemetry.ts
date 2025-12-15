@@ -78,7 +78,7 @@ type TelemetryEvent =
   | 'toolbar_right_sidebar_clicked' // when a user clicks on the right sidebar button in the toolbar (attribute for new state (open or closed))
   | 'toolbar_settings_clicked' // when a user clicks on the settings button in the toolbar
   | 'toolbar_open_in_menu_clicked' // when a user clicks on the "Open in" menu button (attribute for new state (open or closed))
-  | 'toolbar_open_in_selected' // when a user selects an app from the "Open in" menu (attribute for which app was selected: finder, cursor, vscode, terminal, iterm2, ghostty, zed)
+  | 'toolbar_open_in_selected' // when a user selects an app from the "Open in" menu (attribute for which app was selected: finder, cursor, vscode, terminal, warp, iterm2, ghostty, zed)
   | 'toolbar_kanban_toggled' // when a user toggles the Kanban view (attribute for new state (open or closed))
   // Browser Preview
   | 'browser_preview_closed'
