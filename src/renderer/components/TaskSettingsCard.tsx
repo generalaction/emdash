@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { Switch } from './ui/switch';
 
 const TaskSettingsCard: React.FC = () => {
@@ -93,7 +94,16 @@ const TaskSettingsCard: React.FC = () => {
           <div className="space-y-1">
             <div className="text-sm">Enable Auto-approve by default in new tasks</div>
             <div className="text-xs text-muted-foreground">
-              Skips permission prompts for file operations.
+              Skips permission prompts for file operations.{' '}
+              <a
+                href="https://simonwillison.net/2025/Oct/22/living-dangerously-with-claude/"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-0.5 text-foreground underline"
+              >
+                Learn more
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
           </div>
           <Switch
