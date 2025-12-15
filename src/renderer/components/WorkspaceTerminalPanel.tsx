@@ -220,8 +220,8 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                     ? 'Workspace terminal'
                     : 'No workspace selected'
                   : projectPath
-                  ? 'Global terminal at project root'
-                  : 'No project selected'
+                    ? 'Global terminal at project root'
+                    : 'No project selected'
               }
             >
               <SelectValue placeholder="Select mode" />
@@ -231,7 +231,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                 value="workspace"
                 disabled={!workspace}
                 className="text-[11px]"
-                aria-describedby={workspace ? "" : "workspace-disabled-reason"}
+                aria-describedby={workspace ? '' : 'workspace-disabled-reason'}
               >
                 <div className="flex items-center gap-2">
                   <TreePine className="h-3.5 w-3.5" aria-hidden="true" />
@@ -242,7 +242,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                 value="global"
                 disabled={!projectPath}
                 className="text-[11px]"
-                aria-describedby={projectPath ? "" : "global-disabled-reason"}
+                aria-describedby={projectPath ? '' : 'global-disabled-reason'}
               >
                 <div className="flex items-center gap-2">
                   <Globe className="h-3.5 w-3.5" aria-hidden="true" />
