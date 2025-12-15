@@ -43,6 +43,7 @@ declare global {
           defaultProvider?: string;
           tasks?: {
             autoGenerateName: boolean;
+            autoApproveByDefault: boolean;
           };
         };
         error?: string;
@@ -62,6 +63,7 @@ declare global {
           defaultProvider?: string;
           tasks?: {
             autoGenerateName?: boolean;
+            autoApproveByDefault?: boolean;
           };
         }>
       ) => Promise<{
@@ -80,6 +82,7 @@ declare global {
           defaultProvider?: string;
           tasks?: {
             autoGenerateName: boolean;
+            autoApproveByDefault: boolean;
           };
         };
         error?: string;
