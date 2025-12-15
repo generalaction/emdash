@@ -8,7 +8,11 @@ import { type FileChange } from '../hooks/useFileChanges';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import type { DiffLine } from '../hooks/useFileDiff';
-import { convertDiffLinesToMonacoFormat, getMonacoLanguageId, isBinaryFile } from '../lib/diffUtils';
+import {
+  convertDiffLinesToMonacoFormat,
+  getMonacoLanguageId,
+  isBinaryFile,
+} from '../lib/diffUtils';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 
 interface ChangesDiffModalProps {
@@ -128,7 +132,11 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(workspacePath, filePath, 2 * 1024 * 1024);
+            const readRes = await window.electronAPI.fsRead(
+              workspacePath,
+              filePath,
+              2 * 1024 * 1024
+            );
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -313,7 +321,6 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
     };
   }, [open, isDark]);
 
-
   // Cleanup editor on unmount
   useEffect(() => {
     return () => {
@@ -442,13 +449,13 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                             setCopiedFile(null);
                           }, 2000);
                         } catch (error) {
-                            toast({
+                          toast({
                             title: 'Copy failed',
                             description: 'Failed to copy file path',
-                              variant: 'destructive',
-                            });
-                          }
-                        }}
+                            variant: 'destructive',
+                          });
+                        }
+                      }}
                       className="rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                       title="Copy file path"
                       aria-label="Copy file path"
@@ -458,15 +465,15 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       ) : (
                         <Copy className="h-3.5 w-3.5" />
                       )}
-                      </button>
+                    </button>
                   )}
                 </div>
-                  <button
-                    onClick={onClose}
-                    className="rounded-md p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                <button
+                  onClick={onClose}
+                  className="rounded-md p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
 
               <div className="relative flex-1 overflow-hidden">

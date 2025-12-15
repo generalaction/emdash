@@ -8,9 +8,10 @@ import { getLanguageFromPath } from './languageUtils';
 /**
  * Convert DiffLine[] format to original/modified strings for Monaco Editor
  */
-export function convertDiffLinesToMonacoFormat(
-  lines: DiffLine[]
-): { original: string; modified: string } {
+export function convertDiffLinesToMonacoFormat(lines: DiffLine[]): {
+  original: string;
+  modified: string;
+} {
   const originalLines: string[] = [];
   const modifiedLines: string[] = [];
 
@@ -194,4 +195,3 @@ export function isBinaryFile(filePath: string): boolean {
   ];
   return binaryExtensions.includes(ext);
 }
-

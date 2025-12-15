@@ -6,7 +6,11 @@ import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import { type FileChange } from '../hooks/useFileChanges';
 import type { DiffLine } from '../hooks/useFileDiff';
-import { convertDiffLinesToMonacoFormat, getMonacoLanguageId, isBinaryFile } from '../lib/diffUtils';
+import {
+  convertDiffLinesToMonacoFormat,
+  getMonacoLanguageId,
+  isBinaryFile,
+} from '../lib/diffUtils';
 import { useToast } from '../hooks/use-toast';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 import { useTheme } from '../hooks/useTheme';
@@ -127,7 +131,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(workspacePath, filePath, 2 * 1024 * 1024);
+            const readRes = await window.electronAPI.fsRead(
+              workspacePath,
+              filePath,
+              2 * 1024 * 1024
+            );
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -363,7 +371,6 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     };
   }, [open, isDark]);
 
-
   // Cleanup editors on unmount
   useEffect(() => {
     return () => {
@@ -419,7 +426,6 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
       });
     }
   };
-
 
   const handleEditorDidMount = async (
     filePath: string,
@@ -545,7 +551,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                     No changes to display
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-100 dark:divide-gray-800/50 pr-[7px]">
+                  <div className="divide-y divide-gray-100 pr-[7px] dark:divide-gray-800/50">
                     {files.map((file, index) => {
                       const data = fileData.get(file.path);
                       const isExpanded = data?.expanded ?? true; // Default to expanded
@@ -618,7 +624,9 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                               ) : hasError ? (
                                 <div className="flex h-64 flex-col items-center justify-center gap-2 px-4 text-gray-500 dark:text-gray-400">
                                   <AlertCircle className="h-6 w-6 text-rose-500 dark:text-rose-400" />
-                                  <span className="text-sm">{data?.error || 'Failed to load diff'}</span>
+                                  <span className="text-sm">
+                                    {data?.error || 'Failed to load diff'}
+                                  </span>
                                 </div>
                               ) : data ? (
                                 <div className="relative h-[600px] min-h-[400px]">

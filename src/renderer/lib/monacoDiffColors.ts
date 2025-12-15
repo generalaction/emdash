@@ -24,4 +24,3 @@ export const MONACO_DIFF_COLORS = {
     removedLineBackground: '#fff1f280', // rose-50 (#fff1f2) with 50% opacity for line background
   },
 } as const;
-
