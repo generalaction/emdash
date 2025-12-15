@@ -156,7 +156,9 @@ export async function revertFile(
       await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: workspacePath });
     } catch (error) {
       // If checkout fails, don't delete the file - throw the error instead
-      throw new Error(`Failed to revert file: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to revert file: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
   return { action: 'reverted' };
