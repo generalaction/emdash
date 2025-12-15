@@ -1,10 +1,17 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Terminal, Plus, X } from 'lucide-react';
+import { Bot, Terminal, Plus, X, TreePine, Globe } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 import { cn } from '@/lib/utils';
 import type { Provider } from '../types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Workspace {
   id: string;
@@ -171,34 +178,53 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className={cn(
-              'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-              mode === 'workspace'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-background/70'
-            )}
-            disabled={!workspace}
-            onClick={() => setMode('workspace')}
-            title={workspace ? 'Workspace terminal' : 'No workspace selected'}
+          <Select
+            value={mode}
+            onValueChange={(value) => setMode(value as 'workspace' | 'global')}
+            disabled={!workspace && !projectPath}
           >
-            Worktree
-          </button>
-          <button
-            type="button"
-            className={cn(
-              'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-              mode === 'global'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-background/70'
-            )}
-            disabled={!projectPath}
-            onClick={() => setMode('global')}
-            title={projectPath ? 'Global terminal at project root' : 'No project selected'}
-          >
-            Global
-          </button>
+            <SelectTrigger
+              className={cn(
+                'h-auto w-[110px] px-2 py-1 text-[11px] font-semibold transition-colors',
+                'rounded border border-border/50 bg-transparent hover:bg-background/70',
+                'focus:ring-0 focus:ring-offset-0 data-[placeholder]:text-muted-foreground',
+                'shadow-sm'
+              )}
+              title={
+                mode === 'workspace'
+                  ? workspace
+                    ? 'Workspace terminal'
+                    : 'No workspace selected'
+                  : projectPath
+                  ? 'Global terminal at project root'
+                  : 'No project selected'
+              }
+            >
+              <SelectValue placeholder="Select mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                value="workspace"
+                disabled={!workspace}
+                className="text-[11px]"
+              >
+                <div className="flex items-center gap-2">
+                  <TreePine className="h-3.5 w-3.5" />
+                  <span>Worktree</span>
+                </div>
+              </SelectItem>
+              <SelectItem
+                value="global"
+                disabled={!projectPath}
+                className="text-[11px]"
+              >
+                <div className="flex items-center gap-2">
+                  <Globe className="h-3.5 w-3.5" />
+                  <span>Global</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex min-w-0 flex-1 items-center space-x-1 overflow-x-auto">
           {terminals.map((terminal) => {
