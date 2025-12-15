@@ -411,9 +411,13 @@ export class WorktreeService {
     untrackedFiles: string[];
   }> {
     try {
-      const { stdout: status } = await execFileAsync('git', ['status', '--porcelain'], {
-        cwd: worktreePath,
-      });
+      const { stdout: status } = await execFileAsync(
+        'git',
+        ['status', '--porcelain', '--untracked-files=all'],
+        {
+          cwd: worktreePath,
+        }
+      );
 
       const stagedFiles: string[] = [];
       const unstagedFiles: string[] = [];

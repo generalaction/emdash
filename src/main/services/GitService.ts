@@ -22,9 +22,13 @@ export async function getStatus(workspacePath: string): Promise<GitChange[]> {
     return [];
   }
 
-  const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain'], {
-    cwd: workspacePath,
-  });
+  const { stdout: statusOutput } = await execFileAsync(
+    'git',
+    ['status', '--porcelain', '--untracked-files=all'],
+    {
+      cwd: workspacePath,
+    }
+  );
 
   if (!statusOutput.trim()) return [];
 
@@ -132,8 +136,18 @@ export async function revertFile(
     }
   } catch {}
 
-  // File is not staged, revert working directory changes
-  await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: workspacePath });
+  // Check if file is tracked in git (exists in HEAD)
+  try {
+    await execFileAsync('git', ['cat-file', '-e', `HEAD:${filePath}`], { cwd: workspacePath });
+    // File exists in HEAD, revert it
+    await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: workspacePath });
+  } catch {
+    // File doesn't exist in HEAD (it's a new/untracked file), delete it
+    const absPath = path.join(workspacePath, filePath);
+    if (fs.existsSync(absPath)) {
+      fs.unlinkSync(absPath);
+    }
+  }
   return { action: 'reverted' };
 }
 
