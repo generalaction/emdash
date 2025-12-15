@@ -485,14 +485,14 @@ export class TerminalSessionManager {
 
   private async restoreSnapshot(): Promise<void> {
     if (!window.electronAPI.ptyGetSnapshot) return;
-    
+
     // Skip snapshot restoration for providers with native resume capability
     // The CLI will handle resuming the conversation, so we don't want duplicate history
     if (this.isProviderWithResume(this.id)) {
       log.debug('terminalSession:skippingSnapshotForResume', { id: this.id });
       return;
     }
-    
+
     try {
       const response = await window.electronAPI.ptyGetSnapshot({ id: this.id });
       if (!response?.ok || !response.snapshot?.data) return;
