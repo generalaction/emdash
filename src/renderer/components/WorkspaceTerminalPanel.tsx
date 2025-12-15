@@ -111,53 +111,54 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     const isMistral = provider === 'mistral';
     const darkBackground = isMistral ? '#202938' : '#1e1e1e';
 
-    const baseTheme = effectiveTheme === 'dark'
-      ? {
-          background: darkBackground,
-          foreground: '#d4d4d4',
-          cursor: '#aeafad',
-          cursorAccent: darkBackground,
-          selectionBackground: '#264f78',
-          black: '#000000',
-          red: '#cd3131',
-          green: '#0dbc79',
-          yellow: '#e5e510',
-          blue: '#2472c8',
-          magenta: '#bc3fbc',
-          cyan: '#11a8cd',
-          white: '#e5e5e5',
-          brightBlack: '#666666',
-          brightRed: '#f14c4c',
-          brightGreen: '#23d18b',
-          brightYellow: '#f5f543',
-          brightBlue: '#3b8eea',
-          brightMagenta: '#d670d6',
-          brightCyan: '#29b8db',
-          brightWhite: '#ffffff',
-        }
-      : {
-          background: '#ffffff',
-          foreground: '#1e1e1e',
-          cursor: '#1e1e1e',
-          cursorAccent: '#ffffff',
-          selectionBackground: '#add6ff',
-          black: '#000000',
-          red: '#cd3131',
-          green: '#0dbc79',
-          yellow: '#bf8803',
-          blue: '#0451a5',
-          magenta: '#bc05bc',
-          cyan: '#0598bc',
-          white: '#e5e5e5',
-          brightBlack: '#666666',
-          brightRed: '#cd3131',
-          brightGreen: '#14ce14',
-          brightYellow: '#b5ba00',
-          brightBlue: '#0451a5',
-          brightMagenta: '#bc05bc',
-          brightCyan: '#0598bc',
-          brightWhite: '#a5a5a5',
-        };
+    const baseTheme =
+      effectiveTheme === 'dark'
+        ? {
+            background: darkBackground,
+            foreground: '#d4d4d4',
+            cursor: '#aeafad',
+            cursorAccent: darkBackground,
+            selectionBackground: '#264f78',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#0dbc79',
+            yellow: '#e5e510',
+            blue: '#2472c8',
+            magenta: '#bc3fbc',
+            cyan: '#11a8cd',
+            white: '#e5e5e5',
+            brightBlack: '#666666',
+            brightRed: '#f14c4c',
+            brightGreen: '#23d18b',
+            brightYellow: '#f5f543',
+            brightBlue: '#3b8eea',
+            brightMagenta: '#d670d6',
+            brightCyan: '#29b8db',
+            brightWhite: '#ffffff',
+          }
+        : {
+            background: '#ffffff',
+            foreground: '#1e1e1e',
+            cursor: '#1e1e1e',
+            cursorAccent: '#ffffff',
+            selectionBackground: '#add6ff',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#0dbc79',
+            yellow: '#bf8803',
+            blue: '#0451a5',
+            magenta: '#bc05bc',
+            cyan: '#0598bc',
+            white: '#e5e5e5',
+            brightBlack: '#666666',
+            brightRed: '#cd3131',
+            brightGreen: '#14ce14',
+            brightYellow: '#b5ba00',
+            brightBlue: '#0451a5',
+            brightMagenta: '#bc05bc',
+            brightCyan: '#0598bc',
+            brightWhite: '#a5a5a5',
+          };
 
     // Merge native theme with defaults (native theme takes precedence)
     return nativeTheme ? { ...baseTheme, ...nativeTheme } : baseTheme;
@@ -262,7 +263,9 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                     setActiveTerminal(terminal.id);
                     // Focus the terminal after switching for accessibility
                     setTimeout(() => {
-                      const terminalElement = document.querySelector(`[data-terminal-id="${terminal.id}"]`);
+                      const terminalElement = document.querySelector(
+                        `[data-terminal-id="${terminal.id}"]`
+                      );
                       if (terminalElement instanceof HTMLElement) {
                         terminalElement.focus();
                       }
