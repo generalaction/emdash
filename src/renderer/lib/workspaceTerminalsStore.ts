@@ -313,7 +313,7 @@ export function useWorkspaceTerminals(
   const actions = useMemo(() => {
     return {
       createTerminal: (options?: { title?: string; cwd?: string }) =>
-        createTerminal(resolvedId, options?.cwd || resolvedPath, options),
+        createTerminal(resolvedId, resolvedPath, options),
       setActiveTerminal: (terminalId: string) => setActive(resolvedId, terminalId, resolvedPath),
       closeTerminal: (terminalId: string) => closeTerminal(resolvedId, terminalId, resolvedPath),
     };

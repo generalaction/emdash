@@ -40,17 +40,22 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
   const workspaceTerminals = useWorkspaceTerminals(workspaceKey, workspace?.path);
   const globalTerminals = useWorkspaceTerminals('global', projectPath, { defaultCwd: projectPath });
   const [mode, setMode] = useState<'workspace' | 'global'>(workspace ? 'workspace' : 'global');
+  const [userInitiatedModeChange, setUserInitiatedModeChange] = useState(false);
+  const [switchingTerminalId, setSwitchingTerminalId] = useState<string | null>(null);
 
   const handleModeChange = useCallback((value: string) => {
     if (value === 'workspace' || value === 'global') {
+      setUserInitiatedModeChange(true);
       setMode(value);
+      // Reset the flag after a short delay to allow future automatic switches
+      setTimeout(() => setUserInitiatedModeChange(false), 1000);
     }
   }, []);
   useEffect(() => {
-    if (!workspace && mode === 'workspace') {
+    if (!workspace && mode === 'workspace' && !userInitiatedModeChange) {
       setMode('global');
     }
-  }, [workspace, mode]);
+  }, [workspace, mode, userInitiatedModeChange]);
 
   const {
     terminals,
@@ -100,13 +105,13 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     })();
   }, []);
 
-  // Default theme (VS Code inspired)
-  const defaultTheme = useMemo(() => {
+  // Optimized theme calculation with native theme merging
+  const themeOverride = useMemo(() => {
     // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
     const isMistral = provider === 'mistral';
     const darkBackground = isMistral ? '#202938' : '#1e1e1e';
 
-    return effectiveTheme === 'dark'
+    const baseTheme = effectiveTheme === 'dark'
       ? {
           background: darkBackground,
           foreground: '#d4d4d4',
@@ -153,19 +158,10 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
           brightCyan: '#0598bc',
           brightWhite: '#a5a5a5',
         };
-  }, [effectiveTheme, provider]);
 
-  // Merge native theme with defaults (native theme takes precedence)
-  const themeOverride = useMemo(() => {
-    if (!nativeTheme) {
-      return defaultTheme;
-    }
-    // Merge: native theme values override defaults, but we keep defaults for missing values
-    return {
-      ...defaultTheme,
-      ...nativeTheme,
-    };
-  }, [nativeTheme, defaultTheme]);
+    // Merge native theme with defaults (native theme takes precedence)
+    return nativeTheme ? { ...baseTheme, ...nativeTheme } : baseTheme;
+  }, [effectiveTheme, provider, nativeTheme]);
 
   if (!workspace && !projectPath) {
     return (
@@ -259,7 +255,25 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
               <button
                 key={terminal.id}
                 type="button"
-                onClick={() => setActiveTerminal(terminal.id)}
+                onClick={() => {
+                  if (switchingTerminalId) return; // Prevent multiple simultaneous switches
+                  try {
+                    setSwitchingTerminalId(terminal.id);
+                    setActiveTerminal(terminal.id);
+                    // Focus the terminal after switching for accessibility
+                    setTimeout(() => {
+                      const terminalElement = document.querySelector(`[data-terminal-id="${terminal.id}"]`);
+                      if (terminalElement instanceof HTMLElement) {
+                        terminalElement.focus();
+                      }
+                      setSwitchingTerminalId(null);
+                    }, 100);
+                  } catch (error) {
+                    console.error('Failed to switch terminal:', error);
+                    setSwitchingTerminalId(null);
+                    // Could add user feedback here like a toast notification
+                  }
+                }}
                 className={cn(
                   'group flex items-center space-x-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                   isActive
@@ -267,8 +281,17 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                     : 'text-muted-foreground hover:bg-background/70 dark:hover:bg-gray-800'
                 )}
                 title={terminal.title}
+                id={`terminal-tab-${terminal.id}`}
+                aria-label={`${terminal.title} ${isActive ? 'active' : 'inactive'} terminal`}
+                aria-pressed={isActive}
+                aria-controls={terminal.id}
+                role="tab"
               >
-                <Terminal className="h-3.5 w-3.5 shrink-0" />
+                {switchingTerminalId === terminal.id ? (
+                  <div className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border border-current border-t-transparent" />
+                ) : (
+                  <Terminal className="h-3.5 w-3.5 shrink-0" />
+                )}
                 <span className="max-w-[130px] truncate">{terminal.title}</span>
                 {terminals.length > 1 ? (
                   <span
@@ -292,8 +315,13 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
           type="button"
           onClick={() => {
             captureTelemetry('terminal_new_terminal_created', { scope: mode });
+            const cwd = mode === 'global' ? projectPath : workspace?.path;
+            if (!cwd) {
+              console.warn('Cannot create terminal: no working directory available');
+              return;
+            }
             createTerminal({
-              cwd: mode === 'global' ? projectPath : workspace?.path,
+              cwd,
             });
           }}
           className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
@@ -321,10 +349,14 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
           return (
             <div
               key={terminal.id}
+              data-terminal-id={terminal.id}
               className={cn(
                 'absolute inset-0 h-full w-full transition-opacity',
                 terminal.id === activeTerminalId ? 'opacity-100' : 'pointer-events-none opacity-0'
               )}
+              role="tabpanel"
+              aria-labelledby={`terminal-tab-${terminal.id}`}
+              tabIndex={terminal.id === activeTerminalId ? 0 : -1}
             >
               <TerminalPane
                 id={terminal.id}
