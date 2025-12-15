@@ -104,6 +104,10 @@ const TaskSettingsCard: React.FC = () => {
                 Learn more
                 <ExternalLink className="h-3 w-3" />
               </a>
+              <br />
+              <span className="text-[11px] text-muted-foreground/70">
+                Supported by: Claude Code, Cursor, Gemini, Qwen, Codex, Rovo, Mistral
+              </span>
             </div>
           </div>
           <Switch
