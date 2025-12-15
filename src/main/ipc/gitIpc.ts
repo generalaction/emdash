@@ -156,9 +156,12 @@ export function registerGitIpc() {
 
         // Stage and commit any pending changes
         try {
-          const { stdout: statusOut } = await execAsync('git status --porcelain --untracked-files=all', {
-            cwd: workspacePath,
-          });
+          const { stdout: statusOut } = await execAsync(
+            'git status --porcelain --untracked-files=all',
+            {
+              cwd: workspacePath,
+            }
+          );
           if (statusOut && statusOut.trim().length > 0) {
             const { stdout: addOut, stderr: addErr } = await execAsync('git add -A', {
               cwd: workspacePath,

@@ -410,7 +410,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                       >
                         <p className="font-medium">Stage file for commit</p>
                         <p className="mt-0.5 text-xs text-gray-300">
-                          Add this file to the staging area so it will be included in the next commit
+                          Add this file to the staging area so it will be included in the next
+                          commit
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -441,8 +442,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                         <>
                           <p className="font-medium">Unstage file</p>
                           <p className="mt-0.5 text-xs text-gray-300">
-                            Remove this file from staging. Click again to discard all changes to this
-                            file.
+                            Remove this file from staging. Click again to discard all changes to
+                            this file.
                           </p>
                         </>
                       ) : (
