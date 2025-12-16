@@ -360,8 +360,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
     preferredProvider?: string;
   }) => ipcRenderer.invoke('worktreeRun:regenerateConfig', args),
+  worktreeRunGetProjectConfigStatus: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('worktreeRun:getProjectConfigStatus', args),
+  worktreeRunEnsureProjectConfig: (args: {
+    projectId: string;
+    projectPath: string;
+    preferredProvider?: string;
+    force?: boolean;
+  }) => ipcRenderer.invoke('worktreeRun:ensureProjectConfig', args),
   onWorktreeRunEvent: (listener: (event: any) => void) => {
     const channel = 'worktreeRun:event';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
+  worktreeRunSetupStepsStart: (args: {
+    workspaceId: string;
+    worktreePath: string;
+    steps: string[];
+  }) => ipcRenderer.invoke('worktreeRun:setupStepsStart', args),
+  worktreeRunSetupStepsCancel: (args: { workspaceId: string }) =>
+    ipcRenderer.invoke('worktreeRun:setupStepsCancel', args),
+  onWorktreeRunSetupStepsEvent: (listener: (event: any) => void) => {
+    const channel = 'worktreeRun:setupStepsEvent';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
@@ -689,6 +711,44 @@ export interface ElectronAPI {
   onHostPreviewEvent: (
     listener: (data: { type: 'url'; workspaceId: string; url: string }) => void
   ) => () => void;
+
+  // Worktree Run (project config + events)
+  worktreeRunLoadConfig: (args: { projectPath: string }) => Promise<{
+    ok: boolean;
+    config: any | null;
+    exists: boolean;
+    error?: string;
+  }>;
+  worktreeRunGetProjectConfigStatus: (args: { projectId: string; projectPath: string }) => Promise<{
+    ok: boolean;
+    state: {
+      projectId: string;
+      status: 'idle' | 'generating' | 'ready' | 'failed';
+      exists: boolean;
+      provider?: string | null;
+      error?: string | null;
+      updatedAt?: string | null;
+    } | null;
+    error?: string;
+  }>;
+  worktreeRunEnsureProjectConfig: (args: {
+    projectId: string;
+    projectPath: string;
+    preferredProvider?: string;
+    force?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    state: {
+      projectId: string;
+      status: 'idle' | 'generating' | 'ready' | 'failed';
+      exists: boolean;
+      provider?: string | null;
+      error?: string | null;
+      updatedAt?: string | null;
+    } | null;
+    error?: string;
+  }>;
+  onWorktreeRunEvent: (listener: (event: any) => void) => () => void;
 
   // Main-managed browser (WebContentsView)
   browserShow: (

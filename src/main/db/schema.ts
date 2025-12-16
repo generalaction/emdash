@@ -10,6 +10,10 @@ export const projects = sqliteTable(
     gitRemote: text('git_remote'),
     gitBranch: text('git_branch'),
     baseRef: text('base_ref'),
+    runConfigStatus: text('run_config_status'),
+    runConfigError: text('run_config_error'),
+    runConfigProvider: text('run_config_provider'),
+    runConfigUpdatedAt: text('run_config_updated_at'),
     githubRepository: text('github_repository'),
     githubConnected: integer('github_connected').notNull().default(0),
     createdAt: text('created_at')

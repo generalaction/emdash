@@ -184,6 +184,120 @@ declare global {
         error?: string;
       }>;
 
+      // Worktree Run
+      worktreeRunStart: (args: {
+        workspaceId: string;
+        worktreePath: string;
+        projectPath: string;
+        scriptName?: string;
+        preferredProvider?: string;
+      }) => Promise<{ ok: boolean; error?: string }>;
+      worktreeRunStop: (args: { workspaceId: string }) => Promise<{ ok: boolean }>;
+      worktreeRunGetState: (args: { workspaceId: string }) => Promise<{
+        ok: boolean;
+        state: {
+          workspaceId: string;
+          status: 'idle' | 'starting' | 'running' | 'stopped' | 'error';
+          config: any | null;
+          previewUrl: string | null;
+          error: string | null;
+        } | null;
+      }>;
+      worktreeRunLoadConfig: (args: { projectPath: string }) => Promise<{
+        ok: boolean;
+        config: any | null;
+        exists: boolean;
+        error?: string;
+      }>;
+      worktreeRunSaveConfig: (args: { projectPath: string; config: any }) => Promise<{
+        ok: boolean;
+        error?: string;
+      }>;
+      worktreeRunDeleteConfig: (args: { projectPath: string }) => Promise<{
+        ok: boolean;
+        deleted?: boolean;
+        message?: string;
+        error?: string;
+      }>;
+      worktreeRunRegenerateConfig: (args: {
+        projectPath: string;
+        preferredProvider?: string;
+      }) => Promise<{
+        ok: boolean;
+        config?: any;
+        reasoning?: string;
+        error?: string;
+      }>;
+      worktreeRunGetProjectConfigStatus: (args: {
+        projectId: string;
+        projectPath: string;
+      }) => Promise<{
+        ok: boolean;
+        state: {
+          projectId: string;
+          status: 'idle' | 'generating' | 'ready' | 'failed';
+          exists: boolean;
+          provider?: string | null;
+          error?: string | null;
+          updatedAt?: string | null;
+        } | null;
+        error?: string;
+      }>;
+      worktreeRunEnsureProjectConfig: (args: {
+        projectId: string;
+        projectPath: string;
+        preferredProvider?: string;
+        force?: boolean;
+      }) => Promise<{
+        ok: boolean;
+        state: {
+          projectId: string;
+          status: 'idle' | 'generating' | 'ready' | 'failed';
+          exists: boolean;
+          provider?: string | null;
+          error?: string | null;
+          updatedAt?: string | null;
+        } | null;
+        error?: string;
+      }>;
+      onWorktreeRunEvent: (
+        listener: (event: {
+          type: 'status' | 'url' | 'log' | 'error' | 'config';
+          workspaceId?: string;
+          projectId?: string;
+          status?: string;
+          url?: string;
+          line?: string;
+          error?: string;
+          state?: {
+            projectId: string;
+            status: 'idle' | 'generating' | 'ready' | 'failed';
+            exists: boolean;
+            provider?: string | null;
+            error?: string | null;
+            updatedAt?: string | null;
+          };
+        }) => void
+      ) => () => void;
+
+      // Worktree Run - setup steps
+      worktreeRunSetupStepsStart: (args: {
+        workspaceId: string;
+        worktreePath: string;
+        steps: string[];
+      }) => Promise<{ ok: boolean; error?: string }>;
+      worktreeRunSetupStepsCancel: (args: { workspaceId: string }) => Promise<{ ok: boolean }>;
+      onWorktreeRunSetupStepsEvent: (
+        listener: (event: {
+          type: 'setupSteps';
+          workspaceId: string;
+          status: 'starting' | 'line' | 'done' | 'error' | 'cancelled';
+          stepIndex?: number;
+          step?: string;
+          line?: string;
+        }) => void
+      ) => () => void;
+
       // Project management
       openProject: () => Promise<{
         success: boolean;
@@ -435,6 +549,23 @@ declare global {
         mkdirs?: boolean
       ) => Promise<{ success: boolean; error?: string }>;
       fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
+
+      // Plan locks (prevents accidental writes while planning)
+      planApplyLock: (
+        workspacePath: string
+      ) => Promise<{ success: boolean; changed?: number; error?: string }>;
+      planReleaseLock: (
+        workspacePath: string
+      ) => Promise<{ success: boolean; restored?: number; error?: string }>;
+      onPlanEvent: (
+        listener: (data: {
+          type: 'write_blocked' | 'remove_blocked';
+          root: string;
+          relPath: string;
+          code?: string;
+          message?: string;
+        }) => void
+      ) => () => void;
       // Attachments
       saveAttachment: (args: {
         workspacePath: string;
@@ -974,14 +1105,72 @@ export interface ElectronAPI {
     reasoning?: string;
     error?: string;
   }>;
+  worktreeRunGetProjectConfigStatus: (args: {
+    projectId: string;
+    projectPath: string;
+  }) => Promise<{
+    ok: boolean;
+    state: {
+      projectId: string;
+      status: 'idle' | 'generating' | 'ready' | 'failed';
+      exists: boolean;
+      provider?: string | null;
+      error?: string | null;
+      updatedAt?: string | null;
+    } | null;
+    error?: string;
+  }>;
+  worktreeRunEnsureProjectConfig: (args: {
+    projectId: string;
+    projectPath: string;
+    preferredProvider?: string;
+    force?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    state: {
+      projectId: string;
+      status: 'idle' | 'generating' | 'ready' | 'failed';
+      exists: boolean;
+      provider?: string | null;
+      error?: string | null;
+      updatedAt?: string | null;
+    } | null;
+    error?: string;
+  }>;
   onWorktreeRunEvent: (
     listener: (event: {
-      type: 'status' | 'url' | 'log' | 'error';
-      workspaceId: string;
+      type: 'status' | 'url' | 'log' | 'error' | 'config';
+      workspaceId?: string;
+      projectId?: string;
       status?: string;
       url?: string;
       line?: string;
       error?: string;
+      state?: {
+        projectId: string;
+        status: 'idle' | 'generating' | 'ready' | 'failed';
+        exists: boolean;
+        provider?: string | null;
+        error?: string | null;
+        updatedAt?: string | null;
+      };
+    }) => void
+  ) => () => void;
+
+  worktreeRunSetupStepsStart: (args: {
+    workspaceId: string;
+    worktreePath: string;
+    steps: string[];
+  }) => Promise<{ ok: boolean; error?: string }>;
+  worktreeRunSetupStepsCancel: (args: { workspaceId: string }) => Promise<{ ok: boolean }>;
+  onWorktreeRunSetupStepsEvent: (
+    listener: (event: {
+      type: 'setupSteps';
+      workspaceId: string;
+      status: 'starting' | 'line' | 'done' | 'error' | 'cancelled';
+      stepIndex?: number;
+      step?: string;
+      line?: string;
     }) => void
   ) => () => void;
 }

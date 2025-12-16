@@ -32,6 +32,13 @@ export interface Project {
   updatedAt: string;
 }
 
+export type ProjectRunConfigMeta = {
+  status: 'idle' | 'generating' | 'ready' | 'failed' | null;
+  error: string | null;
+  provider: string | null;
+  updatedAt: string | null;
+};
+
 export interface Workspace {
   id: string;
   projectId: string;
@@ -166,6 +173,50 @@ export class DatabaseService {
     }
 
     return this.mapDrizzleProjectRow(rows[0]);
+  }
+
+  async getProjectRunConfigMeta(projectId: string): Promise<ProjectRunConfigMeta | null> {
+    if (this.disabled) return null;
+    if (!projectId) throw new Error('projectId is required');
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select({
+        status: projectsTable.runConfigStatus,
+        error: projectsTable.runConfigError,
+        provider: projectsTable.runConfigProvider,
+        updatedAt: projectsTable.runConfigUpdatedAt,
+      })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, projectId))
+      .limit(1);
+    if (rows.length === 0) return null;
+    const row = rows[0];
+    return {
+      status: (row.status as any) ?? null,
+      error: row.error ?? null,
+      provider: row.provider ?? null,
+      updatedAt: row.updatedAt ?? null,
+    };
+  }
+
+  async updateProjectRunConfigMeta(
+    projectId: string,
+    meta: Partial<ProjectRunConfigMeta>
+  ): Promise<void> {
+    if (this.disabled) return;
+    if (!projectId) throw new Error('projectId is required');
+    const { db } = await getDrizzleClient();
+    await db
+      .update(projectsTable)
+      .set({
+        runConfigStatus:
+          meta.status === undefined ? undefined : ((meta.status as any) ?? null),
+        runConfigError: meta.error === undefined ? undefined : meta.error,
+        runConfigProvider: meta.provider === undefined ? undefined : meta.provider,
+        runConfigUpdatedAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(projectsTable.id, projectId));
   }
 
   async updateProjectBaseRef(projectId: string, nextBaseRef: string): Promise<Project | null> {

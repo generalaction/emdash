@@ -827,6 +827,17 @@ const AppContent: React.FC = () => {
       const isMultiAgent = totalRuns > 1;
       const primaryProvider = providerRuns[0]?.provider || 'claude';
 
+      // Kick off project-level run config generation early (best-effort)
+      // We only attempt auto-generation if no config exists and the project isn't in a failed state.
+      try {
+        void (window.electronAPI as any).worktreeRunEnsureProjectConfig?.({
+          projectId: selectedProject.id,
+          projectPath: selectedProject.path,
+          preferredProvider: primaryProvider,
+          force: false,
+        });
+      } catch {}
+
       let newWorkspace: Workspace;
       if (isMultiAgent) {
         // Multi-agent workspace: create worktrees for each provider×runs combo
@@ -1743,6 +1754,7 @@ const AppContent: React.FC = () => {
                   <RightSidebar
                     workspace={activeWorkspace}
                     projectPath={selectedProject?.path || null}
+                    projectId={selectedProject?.id || null}
                     className="lg:border-l-0"
                   />
                 </ResizablePanel>

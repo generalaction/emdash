@@ -238,6 +238,14 @@ export class TerminalSessionManager {
     }
   }
 
+  clear() {
+    try {
+      this.terminal.clear();
+    } catch (error) {
+      log.warn('Failed to clear terminal', { id: this.id, error });
+    }
+  }
+
   registerActivityListener(listener: () => void): () => void {
     this.activityListeners.add(listener);
     return () => {

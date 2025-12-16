@@ -1,6 +1,8 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { log } from '../lib/logger';
 import { worktreeRunService } from '../services/WorktreeRunService';
+import { projectRunConfigService } from '../services/ProjectRunConfigService';
+import { setupStepsService, type SetupStepsEvent } from '../services/SetupStepsService';
 import type { ResolvedRunConfig } from '../../shared/worktreeRun/config';
 import fs from 'fs';
 import path from 'path';
@@ -36,6 +38,38 @@ export function registerWorktreeRunIpc() {
       }
     }
   );
+
+  /**
+   * Run setup steps (dependency installs, etc) in a worktree before starting scripts.
+   */
+  ipcMain.handle(
+    'worktreeRun:setupStepsStart',
+    async (
+      _event,
+      args: { workspaceId: string; worktreePath: string; steps: string[] }
+    ) => {
+      try {
+        const { workspaceId, worktreePath, steps } = args;
+        return await setupStepsService.run({ workspaceId, worktreePath, steps });
+      } catch (error) {
+        log.error('IPC worktreeRun:setupStepsStart failed', { error });
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  /**
+   * Cancel running setup steps.
+   */
+  ipcMain.handle('worktreeRun:setupStepsCancel', async (_event, args: { workspaceId: string }) => {
+    try {
+      const { workspaceId } = args;
+      return setupStepsService.cancel(workspaceId);
+    } catch (error) {
+      log.error('IPC worktreeRun:setupStepsCancel failed', { error });
+      return { ok: false };
+    }
+  });
 
   /**
    * Stop a worktree run
@@ -195,8 +229,70 @@ export function registerWorktreeRunIpc() {
     }
   );
 
+  /**
+   * Get project-level run config generation status
+   */
+  ipcMain.handle(
+    'worktreeRun:getProjectConfigStatus',
+    async (
+      _event,
+      args: {
+        projectId: string;
+        projectPath: string;
+      }
+    ) => {
+      try {
+        const { projectId, projectPath } = args;
+        const state = projectRunConfigService.getStatus(projectId, projectPath);
+        return { ok: true, state };
+      } catch (error) {
+        log.error('IPC worktreeRun:getProjectConfigStatus failed', { error });
+        return { ok: false, state: null, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  /**
+   * Ensure project-level `.emdash/config.json` exists (generate if missing).
+   * Respects last failure unless `force: true`.
+   */
+  ipcMain.handle(
+    'worktreeRun:ensureProjectConfig',
+    async (
+      _event,
+      args: {
+        projectId: string;
+        projectPath: string;
+        preferredProvider?: string;
+        force?: boolean;
+      }
+    ) => {
+      try {
+        const state = await projectRunConfigService.ensureProjectConfig(args);
+        return { ok: true, state };
+      } catch (error) {
+        log.error('IPC worktreeRun:ensureProjectConfig failed', { error });
+        return { ok: false, state: null, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
   // Forward events from WorktreeRunService to all renderer windows
   worktreeRunService.onEvent((event) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('worktreeRun:event', event);
+    });
+  });
+
+  // Forward setup steps events to all renderer windows
+  setupStepsService.onEvent((event: SetupStepsEvent) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('worktreeRun:setupStepsEvent', event);
+    });
+  });
+
+  // Forward events from ProjectRunConfigService to all renderer windows
+  projectRunConfigService.on('event', (event: any) => {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('worktreeRun:event', event);
     });

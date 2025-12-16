@@ -748,40 +748,74 @@ export class WorktreeService {
   }
 
   /**
-   * Copy .env* files from project to worktree
+<   * Copy .env* files from project to worktree (including nested subdirectories)
    * Follows the same fail-silent pattern as ensureClaudeAutoApprove and ensureCodexLogIgnored
    */
   private copyEnvFiles(projectPath: string, worktreePath: string): void {
     try {
-      const projectDir = fs.readdirSync(projectPath);
-      const envFiles = projectDir.filter((f) => f.match(/^\.env(\..+)?$/));
+      const envFiles = this.findEnvFilesRecursive(projectPath, projectPath);
 
       if (envFiles.length === 0) {
         log.debug('No .env files found to copy', { projectPath });
         return;
       }
 
-      for (const envFile of envFiles) {
+      for (const relPath of envFiles) {
         try {
-          const src = path.join(projectPath, envFile);
-          const dest = path.join(worktreePath, envFile);
+          const src = path.join(projectPath, relPath);
+          const dest = path.join(worktreePath, relPath);
 
-          // Skip if it's a directory
-          const stats = fs.statSync(src);
-          if (!stats.isFile()) continue;
+          // Ensure destination directory exists
+          const destDir = path.dirname(dest);
+          if (!fs.existsSync(destDir)) {
+            fs.mkdirSync(destDir, { recursive: true });
+          }
 
           // Copy file
           fs.copyFileSync(src, dest);
-          log.info(`Copied ${envFile} to worktree`, { worktreePath });
+          log.info(`Copied ${relPath} to worktree`, { worktreePath });
         } catch (err) {
           // Fail silently for individual files (like ensureClaudeAutoApprove)
-          log.warn(`Failed to copy ${envFile}`, { err, worktreePath });
+          log.warn(`Failed to copy ${relPath}`, { err, worktreePath });
         }
       }
     } catch (err) {
       // Fail silently (don't block worktree creation)
       log.error('Failed to copy .env files', { err, projectPath, worktreePath });
     }
+  }
+
+  /**
+   * Recursively find all .env* files in a directory
+   * Returns relative paths from rootPath
+   */
+  private findEnvFilesRecursive(currentPath: string, rootPath: string): string[] {
+    const envFiles: string[] = [];
+    const envPattern = /^\.env(\..+)?$/;
+
+    try {
+      const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(currentPath, entry.name);
+        const relativePath = path.relative(rootPath, fullPath);
+
+        // Skip node_modules, .git, and other common directories
+        if (entry.isDirectory()) {
+          const skipDirs = ['node_modules', '.git', 'dist', 'build', 'coverage', '.next', 'worktrees', '.checkouts'];
+          if (!skipDirs.includes(entry.name)) {
+            envFiles.push(...this.findEnvFilesRecursive(fullPath, rootPath));
+          }
+        } else if (entry.isFile() && envPattern.test(entry.name)) {
+          envFiles.push(relativePath);
+        }
+      }
+    } catch (err) {
+      // Fail silently for directories we can't read
+      log.debug('Could not read directory for .env files', { currentPath, err });
+    }
+
+    return envFiles;
   }
 
   private async logWorktreeSyncStatus(

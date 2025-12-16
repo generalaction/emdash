@@ -3,7 +3,6 @@ import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import { useFileChanges } from '@/hooks/useFileChanges';
 import WorkspaceTerminalPanel from './WorkspaceTerminalPanel';
-import { WorktreeRunPanel } from './WorktreeRunPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { providerAssets } from '@/providers/assets';
 import { providerMeta } from '@/providers/meta';
@@ -11,6 +10,7 @@ import type { Provider } from '../types';
 
 export interface RightSidebarWorkspace {
   id: string;
+  projectId?: string;
   name: string;
   branch: string;
   path: string;
@@ -22,11 +22,13 @@ export interface RightSidebarWorkspace {
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   workspace: RightSidebarWorkspace | null;
   projectPath?: string | null;
+  projectId?: string | null;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
   workspace,
   projectPath,
+  projectId,
   className,
   ...rest
 }) => {
@@ -138,6 +140,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                       workspace={derived}
                       provider={v.provider}
                       projectPath={projectPath || workspace?.path}
+                      projectId={projectId || (workspace as any)?.projectId || null}
                       className="min-h-0 flex-1"
                     />
                   </>
@@ -149,17 +152,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   workspaceId={workspace.path}
                   className="min-h-0 flex-1 border-b border-border"
                 />
-                <div className="min-h-0 flex-1 border-b border-border">
-                  <WorktreeRunPanel
-                    workspaceId={workspace.id}
-                    worktreePath={workspace.path}
-                    projectPath={projectPath}
-                  />
-                </div>
                 <WorkspaceTerminalPanel
                   workspace={workspace}
                   provider={workspace.agentId as Provider}
                   projectPath={projectPath || workspace?.path}
+                  projectId={projectId || (workspace as any)?.projectId || null}
                   className="min-h-0 flex-1"
                 />
               </>
@@ -179,6 +176,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   workspace={null}
                   provider={undefined}
                   projectPath={projectPath || undefined}
+                  projectId={projectId || null}
                   className="h-1/2 min-h-0"
                 />
               </>

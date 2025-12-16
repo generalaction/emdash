@@ -1,5 +1,5 @@
 {
-  "version": "7",
+  "version": "8",
   "dialect": "sqlite",
   "entries": [
     {
@@ -14,6 +14,13 @@
       "version": "7",
       "when": 1761240000000,
       "tag": "0001_add_base_ref_to_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "8",
+      "when": 1765900000000,
+      "tag": "0002_add_run_config_status_to_projects",
       "breakpoints": true
     }
   ]

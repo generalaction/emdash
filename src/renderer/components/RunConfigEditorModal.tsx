@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Trash2, Sparkles } from 'lucide-react';
+import { X } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -315,36 +315,34 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
                 <button
                   onClick={handleRegenerate}
                   disabled={regenerating || loading}
-                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-blue-600/20 bg-blue-600/90 px-3 py-1.5 text-[13px] font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all hover:bg-blue-600 hover:shadow-[0_1px_3px_0_rgba(0,0,0,0.1)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed dark:border-blue-500/20 dark:bg-blue-700/90 dark:hover:bg-blue-700"
+                  className="inline-flex items-center gap-1 rounded border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   title="Regenerate with AI"
                 >
-                  <Sparkles className={`h-3.5 w-3.5 ${regenerating ? 'animate-spin' : ''}`} />
                   {regenerating ? 'Generating' : 'Regenerate'}
                 </button>
                 {configExists && (
                   <button
                     onClick={handleDelete}
                     disabled={regenerating || loading}
-                    className="inline-flex items-center gap-1.5 rounded-[4px] border border-red-600/20 bg-red-600/90 px-3 py-1.5 text-[13px] font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all hover:bg-red-600 hover:shadow-[0_1px_3px_0_rgba(0,0,0,0.1)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed dark:border-red-500/20 dark:bg-red-700/90 dark:hover:bg-red-700"
+                    className="inline-flex items-center gap-1 rounded border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
                     title="Delete configuration"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
                     Delete
                   </button>
                 )}
                 <button
                   onClick={handleSave}
                   disabled={regenerating || loading}
-                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-gray-900/10 bg-gray-800 px-3 py-1.5 text-[13px] font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all hover:bg-gray-900 hover:shadow-[0_1px_3px_0_rgba(0,0,0,0.1)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-100/10 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                  className="inline-flex items-center gap-1 rounded border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   title="Save (⌘S)"
                 >
-                  <Save className="h-3.5 w-3.5" />
                   Save
                 </button>
                 <button
                   onClick={handleClose}
                   disabled={regenerating}
-                  className="rounded-[4px] p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                  className="inline-flex items-center justify-center rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Close"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -357,7 +355,7 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
                 <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
                   {regenerating ? (
                     <div className="flex flex-col items-center gap-2">
-                      <Sparkles className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                       <div>Generating configuration with AI...</div>
                     </div>
                   ) : (
