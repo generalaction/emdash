@@ -17,7 +17,7 @@ import { type Provider } from '../types';
 import { Task } from '../types/chat';
 import {
   getContainerRunState,
-  subscribeToWorkspaceRunState,
+  subscribeToTaskRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import { useBrowser } from '@/providers/BrowserProvider';
@@ -461,7 +461,7 @@ const ChatInterface: React.FC<Props> = ({
   }, [provider, task.id]);
 
   useEffect(() => {
-    const off = subscribeToWorkspaceRunState(task.id, (state) => {
+    const off = subscribeToTaskRunState(task.id, (state) => {
       setContainerState(state);
     });
     return () => {

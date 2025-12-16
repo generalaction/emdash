@@ -65,10 +65,10 @@ const BrowserPane: React.FC<{
     if (typeof url === 'string') setAddress(url);
   }, [url]);
 
-  const prevWorkspaceIdRef = React.useRef<string | null>(null);
-  const lastWorkspaceUrlRef = React.useRef<string | null>(null);
+  const prevTaskIdRef = React.useRef<string | null>(null);
+  const lastTaskUrlRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    const prev = prevWorkspaceIdRef.current;
+    const prev = prevTaskIdRef.current;
     const cur = (taskId || '').trim() || null;
 
     if (prev && cur && prev !== cur) {
@@ -77,8 +77,8 @@ const BrowserPane: React.FC<{
         (window as any).electronAPI?.browserClear?.();
         (window as any).electronAPI?.browserHide?.();
         setRunning(prev, false);
-        // Reset workspace URL tracking to force reload
-        lastWorkspaceUrlRef.current = null;
+        // Reset task URL tracking to force reload
+        lastTaskUrlRef.current = null;
       } catch {}
     }
 
@@ -96,7 +96,7 @@ const BrowserPane: React.FC<{
       } catch {}
     }
 
-    prevWorkspaceIdRef.current = cur;
+    prevTaskIdRef.current = cur;
   }, [taskId, clearUrl, hideSpinner]);
 
   React.useEffect(() => {
@@ -315,21 +315,21 @@ const BrowserPane: React.FC<{
   }, [isOpen, url]);
 
   const lastUrlRef = React.useRef<string | null>(null);
-  const lastWorkspaceIdRef = React.useRef<string | null | undefined>(null);
+  const lastTaskIdRef2 = React.useRef<string | null | undefined>(null);
   React.useEffect(() => {
-    if (taskId !== lastWorkspaceIdRef.current) {
+    if (taskId !== lastTaskIdRef2.current) {
       lastUrlRef.current = null;
-      lastWorkspaceIdRef.current = taskId || null;
-      lastWorkspaceUrlRef.current = null;
+      lastTaskIdRef2.current = taskId || null;
+      lastTaskUrlRef.current = null;
     }
 
     if (isOpen && url && !overlayActive && !overlayRaised && taskId) {
-      const workspaceUrlKey = `${taskId}:${url}`;
-      // Force reload if workspace changed or URL changed
-      const isWorkspaceChange = lastWorkspaceUrlRef.current === null;
-      if (lastWorkspaceUrlRef.current !== workspaceUrlKey || lastUrlRef.current !== url) {
+      const taskUrlKey = `${taskId}:${url}`;
+      // Force reload if task changed or URL changed
+      const isTaskChange = lastTaskUrlRef.current === null;
+      if (lastTaskUrlRef.current !== taskUrlKey || lastUrlRef.current !== url) {
         lastUrlRef.current = url;
-        lastWorkspaceUrlRef.current = workspaceUrlKey;
+        lastTaskUrlRef.current = taskUrlKey;
 
         try {
           (window as any).electronAPI?.browserClear?.();
@@ -337,8 +337,8 @@ const BrowserPane: React.FC<{
 
         const timeoutId = setTimeout(() => {
           try {
-            // Force reload when workspace changes to ensure fresh content
-            (window as any).electronAPI?.browserLoadURL?.(url, isWorkspaceChange);
+            // Force reload when task changes to ensure fresh content
+            (window as any).electronAPI?.browserLoadURL?.(url, isTaskChange);
           } catch {}
         }, URL_LOAD_DELAY_MS);
         return () => clearTimeout(timeoutId);
@@ -530,7 +530,7 @@ const BrowserPane: React.FC<{
         </div>
         {!busy && url && lines.length > 0 && (
           <div className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
-            <span className="font-medium">Workspace Preview</span>
+            <span className="font-medium">Task Preview</span>
             <div className="ml-auto inline-flex items-center gap-2 text-muted-foreground">
               {lines.length ? (
                 <span className="max-w-[360px] truncate">{lines[lines.length - 1]}</span>

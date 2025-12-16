@@ -7,9 +7,9 @@ import { Inbox, Plus } from 'lucide-react';
 import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import {
   subscribeDerivedStatus,
-  watchWorkspacePty,
-  watchWorkspaceContainers,
-  watchWorkspaceActivity,
+  watchTaskPty,
+  watchTaskContainers,
+  watchTaskActivity,
 } from '../../lib/taskStatus';
 import { activityStore } from '../../lib/activityStore';
 
@@ -38,11 +38,11 @@ const KanbanBoard: React.FC<{
     const wsList = project.tasks || [];
     for (const ws of wsList) {
       // Watch PTY output to capture terminal-based providers as activity
-      offs.push(watchWorkspacePty(ws.id));
+      offs.push(watchTaskPty(ws.id));
       // Watch container run state as another activity source (build/start/ready)
-      offs.push(watchWorkspaceContainers(ws.id));
+      offs.push(watchTaskContainers(ws.id));
       // Watch app-wide activity classification (matches left sidebar spinner)
-      offs.push(watchWorkspaceActivity(ws.id));
+      offs.push(watchTaskActivity(ws.id));
       const off = subscribeDerivedStatus(ws.id, (derived) => {
         if (derived !== 'busy') return;
         setStatusMap((prev) => {

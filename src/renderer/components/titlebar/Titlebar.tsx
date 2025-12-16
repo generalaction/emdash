@@ -24,7 +24,7 @@ interface TitlebarProps {
   taskId?: string | null;
   taskPath?: string | null;
   projectPath?: string | null;
-  isWorkspaceMultiAgent?: boolean;
+  isTaskMultiAgent?: boolean;
   onToggleKanban?: () => void;
   isKanbanOpen?: boolean;
   kanbanAvailable?: boolean;
@@ -39,7 +39,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   taskId,
   taskPath,
   projectPath,
-  isWorkspaceMultiAgent,
+  isTaskMultiAgent,
   onToggleKanban,
   isKanbanOpen = false,
   kanbanAvailable = false,
@@ -139,7 +139,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
               </Tooltip>
             </TooltipProvider>
           ) : null}
-          {taskId && !isWorkspaceMultiAgent ? (
+          {taskId && !isTaskMultiAgent ? (
             <BrowserToggleButton
               defaultUrl={defaultPreviewUrl || undefined}
               taskId={taskId}

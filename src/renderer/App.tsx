@@ -827,7 +827,7 @@ const AppContent: React.FC = () => {
 
       let newTask: Task;
       if (isMultiAgent) {
-        // Multi-agent workspace: create worktrees for each provider×runs combo
+        // Multi-agent task: create worktrees for each provider×runs combo
         const variants: Array<{
           id: string;
           provider: Provider;
@@ -1109,20 +1109,20 @@ const AppContent: React.FC = () => {
             : null
         );
 
-        // Track workspace creation
+        // Track task creation
         const { captureTelemetry } = await import('./lib/telemetryClient');
         const isMultiAgent = (newTask.metadata as any)?.multiAgent?.enabled;
-        captureTelemetry('workspace_created', {
+        captureTelemetry('task_created', {
           provider: isMultiAgent ? 'multi' : (newTask.agentId as string) || 'codex',
           has_initial_prompt: !!taskMetadata?.initialPrompt,
         });
 
-        // Set the active workspace and its provider (none if multi-agent)
+        // Set the active task and its provider (none if multi-agent)
         setActiveTask(newTask);
         if ((newTask.metadata as any)?.multiAgent?.enabled) {
           setActiveTaskProvider(null);
         } else {
-          // Use the saved agentId from the workspace, which should match primaryProvider
+          // Use the saved agentId from the task, which should match primaryProvider
           setActiveTaskProvider(
             (newTask.agentId as Provider) || primaryProvider || 'codex'
           );
@@ -1159,7 +1159,7 @@ const AppContent: React.FC = () => {
     if ((task.metadata as any)?.multiAgent?.enabled) {
       setActiveTaskProvider(null);
     } else {
-      // Use agentId from workspace if available, otherwise fall back to 'codex' for backwards compatibility
+      // Use agentId from task if available, otherwise fall back to 'codex' for backwards compatibility
       setActiveTaskProvider((task.agentId as Provider) || 'codex');
     }
   };
@@ -1285,9 +1285,9 @@ const AppContent: React.FC = () => {
           throw new Error(errorMsg);
         }
 
-        // Track workspace deletion
+        // Track task deletion
         const { captureTelemetry } = await import('./lib/telemetryClient');
-        captureTelemetry('workspace_deleted');
+        captureTelemetry('task_deleted');
 
         if (!options?.silent) {
           toast({
@@ -1330,7 +1330,7 @@ const AppContent: React.FC = () => {
             }
           }
         } catch (refreshError) {
-          log.error('Failed to refresh workspaces after delete failure:', refreshError as any);
+          log.error('Failed to refresh tasks after delete failure:', refreshError as any);
 
           setProjects((prev) =>
             prev.map((project) => {
@@ -1664,7 +1664,7 @@ const AppContent: React.FC = () => {
               taskId={activeTask?.id || null}
               taskPath={activeTask?.path || null}
               projectPath={selectedProject?.path || null}
-              isWorkspaceMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
+              isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
               githubUser={user}
               onToggleKanban={handleToggleKanban}
               isKanbanOpen={Boolean(showKanban)}

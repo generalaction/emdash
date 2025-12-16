@@ -31,7 +31,7 @@ import DeletePrNotice from './DeletePrNotice';
 import {
   getContainerRunState,
   startContainerRun,
-  subscribeToWorkspaceRunState,
+  subscribeToTaskRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
@@ -126,7 +126,7 @@ function WorkspaceRow({
   }, [ws.id]);
 
   useEffect(() => {
-    const off = subscribeToWorkspaceRunState(ws.id, (state) => setContainerState(state));
+    const off = subscribeToTaskRunState(ws.id, (state) => setContainerState(state));
     return () => {
       off?.();
     };
@@ -137,7 +137,7 @@ function WorkspaceRow({
     (async () => {
       try {
         const mod = await import('@/lib/containerRuns');
-        await mod.refreshWorkspaceRunState(ws.id);
+        await mod.refreshTaskRunState(ws.id);
       } catch {}
     })();
   }, [ws.id]);
