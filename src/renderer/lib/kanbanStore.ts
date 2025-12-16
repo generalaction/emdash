@@ -1,6 +1,6 @@
 export type KanbanStatus = 'todo' | 'in-progress' | 'done';
 
-const STORAGE_KEY = 'emdash:kanban:statusByWorkspace';
+const STORAGE_KEY = 'emdash:kanban:statusByTask';
 
 type MapShape = Record<string, KanbanStatus>;
 

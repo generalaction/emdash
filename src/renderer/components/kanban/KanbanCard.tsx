@@ -8,7 +8,7 @@ import { Spinner } from '../ui/spinner';
 
 function resolveProvider(taskId: string): UiProvider | null {
   try {
-    const v = localStorage.getItem(`workspaceProvider:${taskId}`);
+    const v = localStorage.getItem(`taskProvider:${taskId}`);
     if (!v) return null;
     const id = v.trim() as UiProvider;
     return id in providerAssets ? id : null;

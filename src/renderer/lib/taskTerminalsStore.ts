@@ -19,7 +19,7 @@ type TaskSnapshot = {
   activeTerminalId: string | null;
 };
 
-const STORAGE_PREFIX = 'emdash:workspaceTerminals:v1';
+const STORAGE_PREFIX = 'emdash:taskTerminals:v1';
 
 const taskStates = new Map<string, TaskTerminalsState>();
 const taskListeners = new Map<string, Set<() => void>>();

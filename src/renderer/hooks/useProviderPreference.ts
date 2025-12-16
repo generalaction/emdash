@@ -27,7 +27,7 @@ export function useProviderPreference(
         setProvider(saved);
         return;
       }
-      const wkKey = `workspaceProvider:${taskId}`;
+      const wkKey = `taskProvider:${taskId}`;
       const wkSaved = localStorage.getItem(wkKey) as ProviderId | null;
       if (wkSaved) setProvider(wkSaved);
     } catch {}
@@ -38,7 +38,7 @@ export function useProviderPreference(
     if (!conversationId) return;
     try {
       localStorage.setItem(`conversationProvider:${conversationId}`, provider);
-      localStorage.setItem(`workspaceProvider:${taskId}`, provider);
+      localStorage.setItem(`taskProvider:${taskId}`, provider);
     } catch {}
   }, [provider, conversationId, taskId]);
 

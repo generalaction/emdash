@@ -456,7 +456,7 @@ const ChatInterface: React.FC<Props> = ({
   // Ensure a provider is stored for this task so fallbacks can subscribe immediately
   useEffect(() => {
     try {
-      localStorage.setItem(`workspaceProvider:${task.id}`, provider);
+      localStorage.setItem(`taskProvider:${task.id}`, provider);
     } catch {}
   }, [provider, task.id]);
 
