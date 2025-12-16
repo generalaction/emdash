@@ -41,7 +41,7 @@ export const TaskList: React.FC<Props> = ({
   return (
     <div className="flex h-full flex-col p-4">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Workspaces</h2>
+        <h2 className="text-xl font-semibold">Tasks</h2>
         <Button
           variant="default"
           size="sm"
@@ -64,7 +64,7 @@ export const TaskList: React.FC<Props> = ({
       {tasks.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center text-gray-500">
           <Bot className="mb-4 h-12 w-12" />
-          <p className="text-center">No workspaces yet. Create one to get started!</p>
+          <p className="text-center">No tasks yet. Create one to get started!</p>
         </div>
       ) : (
         <div className="flex-1 space-y-3 overflow-y-auto">

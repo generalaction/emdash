@@ -294,7 +294,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <Command.Input
                   value={search}
                   onValueChange={setSearch}
-                  placeholder="Search commands, projects, workspaces..."
+                  placeholder="Search commands, projects, tasks..."
                   className="flex h-12 w-full rounded-md bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   autoFocus
                 />

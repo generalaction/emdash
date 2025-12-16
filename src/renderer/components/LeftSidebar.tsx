@@ -238,7 +238,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               <CollapsibleTrigger asChild>
                                 <button
                                   type="button"
-                                  aria-label={`Toggle workspaces for ${typedProject.name}`}
+                                  aria-label={`Toggle tasks for ${typedProject.name}`}
                                   onClick={(e) => e.stopPropagation()}
                                   className="inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 >

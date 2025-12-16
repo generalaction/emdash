@@ -67,7 +67,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete project?</AlertDialogTitle>
           <AlertDialogDescription>
-            {`This removes "${projectName}" from emdash, including its saved workspaces and conversations. Files on disk are not deleted.`}
+            {`This removes "${projectName}" from emdash, including its saved tasks and conversations. Files on disk are not deleted.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

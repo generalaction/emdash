@@ -255,14 +255,14 @@ function TaskRow({
                     type="button"
                     disabled
                     className="inline-flex h-8 cursor-not-allowed items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium opacity-50"
-                    aria-label="Connect disabled for multi-agent workspaces"
+                    aria-label="Connect disabled for multi-agent tasks"
                   >
                     <img src={dockerLogo} alt="Docker" className="mr-1.5 h-3.5 w-3.5" />
                     Connect
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[22rem] text-xs leading-snug">
-                  Docker containerization is not available for multi-agent workspaces.
+                  Docker containerization is not available for multi-agent tasks.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

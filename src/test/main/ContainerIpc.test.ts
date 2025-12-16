@@ -152,7 +152,7 @@ describe('registerContainerIpc', () => {
       });
     });
 
-    it('rejects missing workspace path', async () => {
+    it('rejects missing task path', async () => {
       registerContainerIpc();
       const handler = getHandler('container:load-config');
 
