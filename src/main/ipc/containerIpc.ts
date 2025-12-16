@@ -4,7 +4,7 @@ import { log } from '../lib/logger';
 import {
   ContainerConfigLoadError,
   ContainerConfigLoadErrorCode,
-  loadWorkspaceContainerConfig,
+  loadTaskContainerConfig,
 } from '../services/containerConfigService';
 import type { ResolvedContainerConfig } from '@shared/container';
 import {
@@ -63,7 +63,7 @@ export function registerContainerIpc(): void {
   ipcMain.handle(
     'container:load-config',
     async (_event, args): Promise<ContainerConfigIpcResponse> => {
-      const taskPath = resolveWorkspacePath(args);
+      const taskPath = resolveTaskPath(args);
       if (!taskPath) {
         return {
           ok: false,
@@ -77,7 +77,7 @@ export function registerContainerIpc(): void {
       }
 
       try {
-        const result = await loadWorkspaceContainerConfig(taskPath);
+        const result = await loadTaskContainerConfig(taskPath);
         if (result.ok) {
           return {
             ok: true,
@@ -189,7 +189,7 @@ export function registerContainerIpc(): void {
   );
 }
 
-function resolveWorkspacePath(args: unknown): string | null {
+function resolveTaskPath(args: unknown): string | null {
   if (typeof args === 'string') {
     const trimmed = args.trim();
     return trimmed.length > 0 ? trimmed : null;

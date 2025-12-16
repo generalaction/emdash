@@ -32,7 +32,7 @@ export interface Project {
   updatedAt: string;
 }
 
-export interface Workspace {
+export interface Task {
   id: string;
   projectId: string;
   name: string;
@@ -207,7 +207,7 @@ export class DatabaseService {
     return this.getProjectById(projectId);
   }
 
-  async saveTask(task: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
+  async saveTask(task: Omit<Task, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
     const metadataValue =
       typeof task.metadata === 'string'
@@ -244,7 +244,7 @@ export class DatabaseService {
       });
   }
 
-  async getTasks(projectId?: string): Promise<Workspace[]> {
+  async getTasks(projectId?: string): Promise<Task[]> {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
 
@@ -469,18 +469,18 @@ export class DatabaseService {
     };
   }
 
-  private mapDrizzleTaskRow(row: TaskRow): Workspace {
+  private mapDrizzleTaskRow(row: TaskRow): Task {
     return {
       id: row.id,
       projectId: row.projectId,
       name: row.name,
       branch: row.branch,
       path: row.path,
-      status: (row.status as Workspace['status']) ?? 'idle',
+      status: (row.status as Task['status']) ?? 'idle',
       agentId: row.agentId ?? null,
       metadata:
         typeof row.metadata === 'string' && row.metadata.length > 0
-          ? this.parseWorkspaceMetadata(row.metadata, row.id)
+          ? this.parseTaskMetadata(row.metadata, row.id)
           : null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -508,7 +508,7 @@ export class DatabaseService {
     };
   }
 
-  private parseWorkspaceMetadata(serialized: string, taskId: string): any {
+  private parseTaskMetadata(serialized: string, taskId: string): any {
     try {
       return JSON.parse(serialized);
     } catch (error) {

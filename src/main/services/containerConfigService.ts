@@ -55,7 +55,7 @@ export interface ContainerConfigLoadFailure {
 
 export type ContainerConfigLoadResult = ContainerConfigLoadSuccess | ContainerConfigLoadFailure;
 
-export async function loadWorkspaceContainerConfig(
+export async function loadTaskContainerConfig(
   taskPath: string
 ): Promise<ContainerConfigLoadResult> {
   const configPath = path.join(taskPath, CONFIG_RELATIVE_PATH);
@@ -150,6 +150,6 @@ function parseConfigJson(
   }
 }
 
-export function inferPackageManagerForWorkspace(taskPath: string): PackageManager | undefined {
+export function inferPackageManagerForTask(taskPath: string): PackageManager | undefined {
   return inferPackageManager(taskPath);
 }

@@ -22,7 +22,7 @@ import { log } from '../lib/logger';
 import {
   ContainerConfigLoadError,
   ContainerConfigLoadResult,
-  loadWorkspaceContainerConfig,
+  loadTaskContainerConfig,
 } from './containerConfigService';
 
 const RUN_EVENT_CHANNEL = 'runner-event';
@@ -897,7 +897,7 @@ export class ContainerRunnerService extends EventEmitter {
   }
 
   private async loadConfig(taskPath: string): Promise<ContainerConfigLoadResult> {
-    return loadWorkspaceContainerConfig(taskPath);
+    return loadTaskContainerConfig(taskPath);
   }
 
   private serializeConfigError(error: ContainerConfigLoadError): ContainerStartError {
