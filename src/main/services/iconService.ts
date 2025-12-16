@@ -132,7 +132,7 @@ export async function resolveServiceIcon(opts: {
   if (!service) return { ok: false };
   const slug = toSlug(service);
 
-  // 1) Workspace overrides
+  // 1) Task overrides
   if (opts.taskPath) {
     const p = path.join(opts.taskPath, '.emdash', 'service-icons');
     const candidates = ['.svg', '.png', '.jpg', '.jpeg', '.ico'].map((ext) =>

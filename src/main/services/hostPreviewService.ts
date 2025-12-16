@@ -174,7 +174,7 @@ class HostPreviewService extends EventEmitter {
     }
 
     const pm = detectPackageManager(cwd);
-    // Preflight: if the workspace lacks node_modules but the parent has it, try linking
+    // Preflight: if the task lacks node_modules but the parent has it, try linking
     try {
       const parent = (opts?.parentProjectPath || '').trim();
       if (parent) {

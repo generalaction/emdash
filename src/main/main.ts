@@ -146,7 +146,7 @@ app.whenReady().then(async () => {
   // Initialize telemetry (privacy-first, anonymous)
   telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
 
-  // Best-effort: capture a coarse snapshot of project/workspace counts (no names/paths)
+  // Best-effort: capture a coarse snapshot of project/task counts (no names/paths)
   try {
     const [projects, workspaces] = await Promise.all([
       databaseService.getProjects(),

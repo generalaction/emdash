@@ -155,7 +155,7 @@ export function registerFsIpc(): void {
     }
   );
 
-  // Save an attachment (e.g., image) into a workspace-managed folder
+  // Save an attachment (e.g., image) into a task-managed folder
   ipcMain.handle(
     'fs:save-attachment',
     async (_event, args: { taskPath: string; srcPath: string; subdir?: string }) => {

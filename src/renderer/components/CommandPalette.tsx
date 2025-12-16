@@ -208,7 +208,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         });
       }
 
-      // Workspace commands
+      // Task commands
       if (project.tasks && onSelectTask) {
         project.tasks.forEach((task) => {
           items.push({

@@ -56,7 +56,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     }
 
     // Multiple instances: extract instance number from variant name
-    // variant.name format: "workspace-provider-1", "workspace-provider-2", etc.
+    // variant.name format: "task-provider-1", "task-provider-2", etc.
     const match = variant.name.match(/-(\d+)$/);
     const instanceNum = match ? match[1] : String(providerVariants.indexOf(variant) + 1);
 

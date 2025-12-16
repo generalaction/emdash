@@ -521,7 +521,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           deletedNames.push(ws.name);
         }
       } catch {
-        // Continue deleting remaining workspaces
+        // Continue deleting remaining tasks
       }
     }
 

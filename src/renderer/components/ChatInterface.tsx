@@ -62,10 +62,10 @@ const ChatInterface: React.FC<Props> = ({
   const [portsExpanded, setPortsExpanded] = useState(false);
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
-  // Auto-scroll to bottom when this workspace becomes active
+  // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
 
-  // Unified Plan Mode (per workspace)
+  // Unified Plan Mode (per task)
   const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(
     task.id,
     task.path
@@ -175,7 +175,7 @@ const ChatInterface: React.FC<Props> = ({
     if (!active) setPortsExpanded(false);
   }, [containerState?.status, containerState?.ports?.length]);
 
-  // On workspace change, restore last-selected provider (including Droid).
+  // On task change, restore last-selected provider (including Droid).
   // If a locked provider exists (including Droid), prefer locked.
   useEffect(() => {
     try {
@@ -212,7 +212,7 @@ const ChatInterface: React.FC<Props> = ({
     }
   }, [task.id, initialProvider]);
 
-  // Persist last-selected provider per workspace (including Droid)
+  // Persist last-selected provider per task (including Droid)
   useEffect(() => {
     try {
       window.localStorage.setItem(`provider:last:${task.id}`, provider);
@@ -453,7 +453,7 @@ const ChatInterface: React.FC<Props> = ({
     enabled: isTerminal && providerMeta[provider]?.initialPromptFlag === undefined,
   });
 
-  // Ensure a provider is stored for this workspace so fallbacks can subscribe immediately
+  // Ensure a provider is stored for this task so fallbacks can subscribe immediately
   useEffect(() => {
     try {
       localStorage.setItem(`workspaceProvider:${task.id}`, provider);

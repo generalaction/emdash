@@ -25,7 +25,7 @@ interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
 const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest }) => {
   const { collapsed } = useRightSidebar();
 
-  // Detect multi-agent variants in workspace metadata
+  // Detect multi-agent variants in task metadata
   const variants: Array<{ provider: Provider; name: string; path: string }> = (() => {
     try {
       const v = task?.metadata?.multiAgent?.variants || [];
@@ -52,7 +52,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest })
     }
 
     // Multiple instances: extract instance number from variant name
-    // variant.name format: "workspace-provider-1", "workspace-provider-2", etc.
+    // variant.name format: "task-provider-1", "task-provider-2", etc.
     const match = variant.name.match(/-(\d+)$/);
     const instanceNum = match
       ? match[1]

@@ -570,7 +570,7 @@ export class ContainerRunnerService extends EventEmitter {
     };
 
     try {
-      // Host-side preflight checks to prevent unintended workspace mutations
+      // Host-side preflight checks to prevent unintended task mutations
       const absWorkspace = path.resolve(taskPath);
       const workdirAbs = path.resolve(absWorkspace, config.workdir);
 
@@ -645,7 +645,7 @@ export class ContainerRunnerService extends EventEmitter {
         };
       }
 
-      // Prefer compose runner when a compose file exists at the workspace root
+      // Prefer compose runner when a compose file exists at the task root
       const composeBase = this.findComposeFile(absWorkspace);
       if (composeBase) {
         log.info('[containers] compose detected; delegating to compose runner');
@@ -685,7 +685,7 @@ export class ContainerRunnerService extends EventEmitter {
         dockerArgs.push('-p', `${m.host}:${m.container}`);
       }
 
-      // Workspace mount and workdir
+      // Task mount and workdir
       dockerArgs.push('-v', `${absWorkspace}:/workspace`);
       const workdir = path.posix.join('/workspace', config.workdir.replace(/\\/g, '/'));
       dockerArgs.push('-w', workdir);

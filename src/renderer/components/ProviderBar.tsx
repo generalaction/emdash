@@ -76,7 +76,7 @@ export const ProviderBar: React.FC<Props> = ({
     };
   }, []);
 
-  // Per-workspace default OFF
+  // Per-task default OFF
   React.useEffect(() => {
     try {
       const key = `c7:ws:${taskId}`;

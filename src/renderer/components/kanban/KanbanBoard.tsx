@@ -79,7 +79,7 @@ const KanbanBoard: React.FC<{
       offs.push(un);
     }
 
-    // Per-ws: when the PTY exits and workspace is not busy anymore, move to Done
+    // Per-task: when the PTY exits and task is not busy anymore, move to Done
     for (const ws of wsList) {
       try {
         const offExit = (window as any).electronAPI.onPtyExit?.(
@@ -106,7 +106,7 @@ const KanbanBoard: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, project.tasks?.length]);
 
-  // Promote any workspace with local changes directly to "Ready for review" (done)
+  // Promote any task with local changes directly to "Ready for review" (done)
   React.useEffect(() => {
     let cancelled = false;
     const wsList = project.tasks || [];
@@ -145,7 +145,7 @@ const KanbanBoard: React.FC<{
             });
           }
         } catch {
-          // ignore per‑workspace errors
+          // ignore per-task errors
         }
       }
     };
@@ -157,7 +157,7 @@ const KanbanBoard: React.FC<{
     };
   }, [project.id, project.tasks?.length]);
 
-  // Promote any workspace with an open PR to "Ready for review" (done)
+  // Promote any task with an open PR to "Ready for review" (done)
   React.useEffect(() => {
     let cancelled = false;
     const wsList = project.tasks || [];

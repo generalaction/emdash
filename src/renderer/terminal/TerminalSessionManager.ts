@@ -368,7 +368,7 @@ export class TerminalSessionManager {
   /**
    * Restore the previously captured viewport position.
    * This ensures the terminal stays at the same scroll position when switching
-   * between workspaces or when the terminal is reattached.
+   * between tasks or when the terminal is reattached.
    */
   private restoreViewportPosition() {
     try {

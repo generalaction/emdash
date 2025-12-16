@@ -114,10 +114,10 @@ export function registerDatabaseIpc() {
 
   ipcMain.handle('db:deleteTask', async (_, taskId: string) => {
     try {
-      // Stop any running Docker container for this workspace before deletion
+      // Stop any running Docker container for this task before deletion
       const stopResult = await containerRunnerService.stopRun(taskId);
       if (!stopResult.ok) {
-        // Log but don't fail workspace deletion if container stop fails
+        // Log but don't fail task deletion if container stop fails
         log.warn('Failed to stop container during task deletion:', stopResult.error);
       }
 

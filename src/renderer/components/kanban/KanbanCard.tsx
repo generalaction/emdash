@@ -23,7 +23,7 @@ const KanbanCard: React.FC<{
   draggable?: boolean;
 }> = ({ ws, onOpen, draggable = true }) => {
   const SHOW_PROVIDER_LOGOS = false;
-  // Resolve single-provider from legacy localStorage (single‑agent workspaces)
+  // Resolve single-provider from legacy localStorage (single-agent tasks)
   const provider = resolveProvider(ws.id);
   const asset = provider ? providerAssets[provider] : null;
 

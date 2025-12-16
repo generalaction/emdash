@@ -46,7 +46,7 @@ const BrowserToggleButton: React.FC<Props> = ({
     }
   }
 
-  // Auto-open when host preview emits a URL for this workspace
+  // Auto-open when host preview emits a URL for this task
   useEffect(() => {
     const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
       try {

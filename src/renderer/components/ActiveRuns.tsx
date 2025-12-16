@@ -35,7 +35,7 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }
 
   if (!activeRuns.length) return null;
 
-  // Resolve workspace/project mapping for display and navigation
+  // Resolve task/project mapping for display and navigation
   const byId = new Map<string, { project: any | null; task: any | null }>();
   for (const s of activeRuns) {
     let match: { project: any | null; task: any | null } | null = null;
