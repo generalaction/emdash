@@ -68,7 +68,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
               ? infoRes.value.behindCount
               : 0;
           const rawPr =
-            prRes.status === 'fulfilled' && prRes.value?.success ? prRes.value.pr ?? null : null;
+            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
           const pr = isActivePr(rawPr) ? rawPr : null;
 
           next[ws.id] = {

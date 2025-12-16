@@ -182,7 +182,9 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                         const pr = risks[ws.id]?.pr;
                         return pr && isActivePr(pr) ? { name: ws.name, pr } : null;
                       })
-                      .filter((w): w is { name: string; pr: NonNullable<typeof w>['pr'] } => w !== null) as any
+                      .filter(
+                        (w): w is { name: string; pr: NonNullable<typeof w>['pr'] } => w !== null
+                      ) as any
                   }
                 />
               </motion.div>
