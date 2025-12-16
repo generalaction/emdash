@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import { useFileChanges } from '@/hooks/useFileChanges';
 import WorkspaceTerminalPanel from './WorkspaceTerminalPanel';
+import { WorktreeRunPanel } from './WorktreeRunPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { providerAssets } from '@/providers/assets';
 import { providerMeta } from '@/providers/meta';
@@ -148,6 +149,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   workspaceId={workspace.path}
                   className="min-h-0 flex-1 border-b border-border"
                 />
+                <div className="min-h-0 flex-1 border-b border-border">
+                  <WorktreeRunPanel
+                    workspaceId={workspace.id}
+                    worktreePath={workspace.path}
+                    projectPath={projectPath}
+                  />
+                </div>
                 <WorkspaceTerminalPanel
                   workspace={workspace}
                   provider={workspace.agentId as Provider}
