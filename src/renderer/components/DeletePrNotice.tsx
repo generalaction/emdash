@@ -1,6 +1,7 @@
 import React from 'react';
 import { Folder, GitBranch } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
+import PrPreviewTooltip from './PrPreviewTooltip';
 
 type PrInfo = {
   number?: number;
@@ -35,6 +36,24 @@ export const DeletePrNotice: React.FC<Props> = ({ tasks }) => {
           const badge = ws.pr.isDraft ? 'Draft' : 'PR';
           const number = typeof ws.pr.number === 'number' ? ` #${ws.pr.number}` : '';
           const state = ws.pr.state ? ` (${String(ws.pr.state)})` : '';
+          const hasValidPr = typeof ws.pr.number === 'number' && typeof ws.pr.url === 'string';
+
+          const prBadge = (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-md border bg-white/60 px-2 py-0.5 text-xs font-medium text-amber-900 underline-offset-2 hover:underline dark:bg-white/10 dark:text-amber-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpen(ws.pr.url);
+              }}
+            >
+              <img src={githubLogo} alt="GitHub" className="h-4 w-4" />
+              {badge}
+              {number}
+              {state}
+            </button>
+          );
+
           return (
             <div
               key={`${ws.name}-${ws.pr.number ?? ws.pr.url ?? 'pr'}`}
@@ -43,19 +62,11 @@ export const DeletePrNotice: React.FC<Props> = ({ tasks }) => {
               <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
               <span className="font-medium">{ws.name}</span>
               <span className="text-muted-foreground">—</span>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-sm bg-white/60 px-2 py-0.5 text-xs font-medium text-amber-900 underline-offset-2 hover:underline dark:bg-white/10 dark:text-amber-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOpen(ws.pr.url);
-                }}
-              >
-                <img src={githubLogo} alt="GitHub" className="h-4 w-4" />
-                {badge}
-                {number}
-                {state}
-              </button>
+              {hasValidPr ? (
+                <PrPreviewTooltip pr={ws.pr as any}>{prBadge}</PrPreviewTooltip>
+              ) : (
+                prBadge
+              )}
             </div>
           );
         })}

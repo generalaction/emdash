@@ -411,9 +411,13 @@ export class WorktreeService {
     untrackedFiles: string[];
   }> {
     try {
-      const { stdout: status } = await execFileAsync('git', ['status', '--porcelain'], {
-        cwd: worktreePath,
-      });
+      const { stdout: status } = await execFileAsync(
+        'git',
+        ['status', '--porcelain', '--untracked-files=all'],
+        {
+          cwd: worktreePath,
+        }
+      );
 
       const stagedFiles: string[] = [];
       const unstagedFiles: string[] = [];
@@ -511,7 +515,7 @@ export class WorktreeService {
     const settings = await projectSettingsService.getProjectSettings(projectId);
     if (!settings) {
       throw new Error(
-        'Project settings not found. Please re-open the project in emdash and try again.'
+        'Project settings not found. Please re-open the project in Emdash and try again.'
       );
     }
 

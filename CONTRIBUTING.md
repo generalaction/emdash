@@ -1,4 +1,4 @@
-# Contributing to emdash
+# Contributing to Emdash
 
 Thanks for your interest in contributing! We favor small, focused PRs and clear intent over big bangs. This guide explains how to get set up, the workflow we use, and a few project‑specific conventions.
 

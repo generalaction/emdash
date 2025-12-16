@@ -20,9 +20,15 @@ export interface RightSidebarTask {
 
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   task: RightSidebarTask | null;
+  projectPath?: string | null;
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({
+  task,
+  projectPath,
+  className,
+  ...rest
+}) => {
   const { collapsed } = useRightSidebar();
 
   // Detect multi-agent variants in task metadata
@@ -73,9 +79,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest })
       {...rest}
     >
       <div className="flex h-full w-full min-w-0 flex-col">
-        {task ? (
+        {task || projectPath ? (
           <div className="flex h-full flex-col">
-            {variants.length > 1 ? (
+            {task && variants.length > 1 ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {variants.map((v, i) => (
                   <div
@@ -113,7 +119,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest })
                   </div>
                 ))}
               </div>
-            ) : variants.length === 1 ? (
+            ) : task && variants.length === 1 ? (
               (() => {
                 const v = variants[0];
                 const derived = {
@@ -130,12 +136,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest })
                     <TaskTerminalPanel
                       task={derived}
                       provider={v.provider}
+                      projectPath={projectPath || task?.path}
                       className="min-h-0 flex-1"
                     />
                   </>
                 );
               })()
-            ) : (
+            ) : task ? (
               <>
                 <FileChangesPanel
                   taskId={task.path}
@@ -144,14 +151,34 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest })
                 <TaskTerminalPanel
                   task={task}
                   provider={task.agentId as Provider}
+                  projectPath={projectPath || task?.path}
                   className="min-h-0 flex-1"
+                />
+              </>
+            ) : (
+              <>
+                <div className="flex h-1/2 flex-col border-b border-border bg-background">
+                  <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
+                    <span className="whitespace-nowrap">Changes</span>
+                  </div>
+                  <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                      Select a task to review file changes.
+                    </span>
+                  </div>
+                </div>
+                <TaskTerminalPanel
+                  task={null}
+                  provider={undefined}
+                  projectPath={projectPath || undefined}
+                  className="h-1/2 min-h-0"
                 />
               </>
             )}
           </div>
         ) : (
           <div className="flex h-full flex-col text-sm text-muted-foreground">
-            <div className="flex flex-1 flex-col border-b border-border bg-background">
+            <div className="flex h-1/2 flex-col border-b border-border bg-background">
               <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
                 <span className="whitespace-nowrap">Changes</span>
               </div>
@@ -161,7 +188,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, className, ...rest })
                 </span>
               </div>
             </div>
-            <div className="flex flex-1 flex-col border-t border-border bg-background">
+            <div className="flex h-1/2 flex-col bg-background">
               <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
                 <span className="whitespace-nowrap">Terminal</span>
               </div>

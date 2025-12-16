@@ -9,6 +9,8 @@ import {
   stageFile as gitStageFile,
   revertFile as gitRevertFile,
 } from '../services/GitService';
+import { prGenerationService } from '../services/PrGenerationService';
+import { databaseService } from '../services/DatabaseService';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -83,6 +85,44 @@ export function registerGitIpc() {
       }
     }
   );
+  // Git: Generate PR title and description
+  ipcMain.handle(
+    'git:generate-pr-content',
+    async (
+      _,
+      args: {
+        workspacePath: string;
+        base?: string;
+      }
+    ) => {
+      const { workspacePath, base = 'main' } =
+        args || ({} as { workspacePath: string; base?: string });
+      try {
+        // Try to get the workspace to find which provider was used
+        let providerId: string | null = null;
+        try {
+          const workspace = await databaseService.getWorkspaceByPath(workspacePath);
+          if (workspace?.agentId) {
+            providerId = workspace.agentId;
+            log.debug('Found workspace provider for PR generation', { workspacePath, providerId });
+          }
+        } catch (error) {
+          log.debug('Could not lookup workspace provider', { error });
+          // Non-fatal - continue without provider
+        }
+
+        const result = await prGenerationService.generatePrContent(workspacePath, base, providerId);
+        return { success: true, ...result };
+      } catch (error) {
+        log.error('Failed to generate PR content:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+  );
+
   // Git: Create Pull Request via GitHub CLI
   ipcMain.handle(
     'git:create-pr',
@@ -116,9 +156,12 @@ export function registerGitIpc() {
 
         // Stage and commit any pending changes
         try {
-          const { stdout: statusOut } = await execAsync('git status --porcelain', {
-            cwd: taskPath,
-          });
+          const { stdout: statusOut } = await execAsync(
+            'git status --porcelain --untracked-files=all',
+            {
+              cwd: taskPath,
+            }
+          );
           if (statusOut && statusOut.trim().length > 0) {
             const { stdout: addOut, stderr: addErr } = await execAsync('git add -A', {
               cwd: taskPath,
@@ -273,9 +316,26 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const url = urlMatch ? urlMatch[0] : null;
 
         return { success: true, url, output: out };
-      } catch (error) {
-        log.error('Failed to create PR:', error);
-        return { success: false, error: error as string };
+      } catch (error: any) {
+        // Capture rich error info from gh/child_process
+        const errMsg = typeof error?.message === 'string' ? error.message : String(error);
+        const errStdout = typeof error?.stdout === 'string' ? error.stdout : '';
+        const errStderr = typeof error?.stderr === 'string' ? error.stderr : '';
+        const combined = [errMsg, errStdout, errStderr].filter(Boolean).join('\n').trim();
+        const restrictionRe =
+          /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i;
+        const code = restrictionRe.test(combined) ? 'ORG_AUTH_APP_RESTRICTED' : undefined;
+        if (code === 'ORG_AUTH_APP_RESTRICTED') {
+          log.warn('GitHub org restrictions detected during PR creation');
+        } else {
+          log.error('Failed to create PR:', combined || error);
+        }
+        return {
+          success: false,
+          error: combined || errMsg || 'Failed to create PR',
+          output: combined,
+          code,
+        } as any;
       }
     }
   );
@@ -429,7 +489,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         // Stage (only if needed) and commit
         try {
-          const { stdout: st } = await execAsync('git status --porcelain', { cwd: taskPath });
+          const { stdout: st } = await execAsync('git status --porcelain --untracked-files=all', {
+            cwd: taskPath,
+          });
           const hasWorkingChanges = Boolean(st && st.trim().length > 0);
 
           const readStagedFiles = async () => {

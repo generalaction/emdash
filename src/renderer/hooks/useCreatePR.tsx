@@ -44,10 +44,42 @@ export function useCreatePR() {
         return { success: false, error: 'Electron bridge unavailable' } as any;
       }
 
-      const inferredTitle =
-        prOptions?.title || taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
+// Auto-generate PR title and description if not provided
+      let finalPrOptions = { ...(prOptions || {}) };
 
-      let finalPrOptions = { ...(prOptions || {}), title: inferredTitle };
+      if (!finalPrOptions.title || !finalPrOptions.body) {
+        try {
+          // Get default branch for comparison
+          let defaultBranch = 'main';
+          try {
+            const branchStatus = await api.getBranchStatus?.({ taskPath });
+            if (branchStatus?.success && branchStatus.defaultBranch) {
+              defaultBranch = branchStatus.defaultBranch;
+            }
+          } catch {}
+
+          // Generate PR content
+          if (api.generatePrContent) {
+            const generated = await api.generatePrContent({
+              workspacePath: taskPath,
+              base: finalPrOptions.base || defaultBranch,
+            });
+
+            if (generated?.success && generated.title) {
+              finalPrOptions.title = finalPrOptions.title || generated.title;
+              finalPrOptions.body = finalPrOptions.body || generated.description || '';
+            }
+          }
+        } catch (error) {
+          // Non-fatal: continue with fallback title
+          // Silently fail - fallback title will be used
+        }
+      }
+
+      // Fallback to inferred title if still not set
+      if (!finalPrOptions.title) {
+        finalPrOptions.title = taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
+      }
 
       const commitRes = await api.gitCommitAndPush({
         taskPath,
@@ -112,6 +144,10 @@ export function useCreatePR() {
         })();
         const details =
           res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
+        // Offer a browser fallback if org restricts the GitHub CLI app
+        const isOrgRestricted =
+          typeof res?.code === 'string' && res.code === 'ORG_AUTH_APP_RESTRICTED';
+
         toast({
           title: (
             <span className="inline-flex items-center gap-2">
@@ -119,8 +155,41 @@ export function useCreatePR() {
               Failed to Create PR
             </span>
           ),
-          description: (res?.error || 'Unknown error') + details,
+          description:
+            (res?.error || 'Unknown error') +
+            (isOrgRestricted
+              ? '\n\nYour organization restricts OAuth apps. You can either:\n' +
+                '• Approve the GitHub CLI app in your org settings, or\n' +
+                '• Authenticate gh with a Personal Access Token that has repo scope, or\n' +
+                '• Create the PR in your browser.'
+              : '') +
+            details,
           variant: 'destructive',
+          action: isOrgRestricted ? (
+            <ToastAction
+              altText="Open in browser"
+              onClick={() => {
+                void (async () => {
+                  const { captureTelemetry } = await import('../lib/telemetryClient');
+                  captureTelemetry('pr_creation_retry_browser');
+                })();
+                // Retry using web flow
+                void createPR({
+                  taskPath,
+                  commitMessage,
+                  createBranchIfOnDefault,
+                  branchPrefix,
+                  prOptions: { ...(prOptions || {}), web: true, fill: true },
+                  onSuccess,
+                });
+              }}
+            >
+              <span className="inline-flex items-center gap-1">
+                Open in browser
+                <ArrowUpRight className="h-3 w-3" />
+              </span>
+            </ToastAction>
+          ) : undefined,
         });
       }
 

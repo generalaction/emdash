@@ -22,9 +22,13 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
     return [];
   }
 
-  const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain'], {
-    cwd: taskPath,
-  });
+const { stdout: statusOutput } = await execFileAsync(
+    'git',
+    ['status', '--porcelain', '--untracked-files=all'],
+    {
+      cwd: taskPath,
+    }
+  );
 
   if (!statusOutput.trim()) return [];
 
@@ -132,8 +136,31 @@ export async function revertFile(
     }
   } catch {}
 
-  // File is not staged, revert working directory changes
-  await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: taskPath });
+// Check if file is tracked in git (exists in HEAD)
+  let fileExistsInHead = false;
+  try {
+    await execFileAsync('git', ['cat-file', '-e', `HEAD:${filePath}`], { cwd: taskPath });
+    fileExistsInHead = true;
+  } catch {
+    // File doesn't exist in HEAD (it's a new/untracked file), delete it
+    const absPath = path.join(taskPath, filePath);
+    if (fs.existsSync(absPath)) {
+      fs.unlinkSync(absPath);
+    }
+    return { action: 'reverted' };
+  }
+
+  // File exists in HEAD, revert it
+  if (fileExistsInHead) {
+    try {
+      await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: taskPath });
+    } catch (error) {
+      // If checkout fails, don't delete the file - throw the error instead
+      throw new Error(
+        `Failed to revert file: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
   return { action: 'reverted' };
 }
 

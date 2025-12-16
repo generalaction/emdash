@@ -21,7 +21,7 @@ export function registerAppIpc() {
     async (
       _event,
       args: {
-        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
+        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
         path: string;
       }
     ) => {
@@ -33,6 +33,25 @@ export function registerAppIpc() {
       try {
         const platform = process.platform;
         const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
+
+        if (which === 'warp') {
+          const urls = [
+            `warp://action/new_window?path=${encodeURIComponent(target)}`,
+            `warppreview://action/new_window?path=${encodeURIComponent(target)}`,
+          ];
+          for (const url of urls) {
+            try {
+              await shell.openExternal(url);
+              return { success: true };
+            } catch (error) {
+              void error;
+            }
+          }
+          return {
+            success: false,
+            error: 'Warp is not installed or its URI scheme is not registered on this platform.',
+          };
+        }
 
         let command = '';
         if (platform === 'darwin') {
@@ -47,7 +66,6 @@ export function registerAppIpc() {
               break;
             case 'vscode':
               command = [
-                `command -v code >/dev/null 2>&1 && code ${quoted(target)}`,
                 `open -b com.microsoft.VSCode --args ${quoted(target)}`,
                 `open -b com.microsoft.VSCodeInsiders --args ${quoted(target)}`,
                 `open -a "Visual Studio Code" ${quoted(target)}`,
@@ -67,7 +85,12 @@ export function registerAppIpc() {
               ].join(' || ');
               break;
             case 'ghostty':
-              command = `command -v ghostty >/dev/null 2>&1 && ghostty --working-directory ${quoted(target)} || open -a "Ghostty" --args --working-directory ${quoted(target)}`;
+              // On macOS, Ghostty's `working-directory` config can be overridden by
+              // existing windows/tabs; opening the folder directly is the most reliable.
+              command = [
+                `open -b com.mitchellh.ghostty ${quoted(target)}`,
+                `open -a "Ghostty" ${quoted(target)}`,
+              ].join(' || ');
               break;
             case 'zed':
               command = `command -v zed >/dev/null 2>&1 && zed ${quoted(target)} || open -a "Zed" ${quoted(target)}`;
@@ -106,7 +129,7 @@ export function registerAppIpc() {
               command = `x-terminal-emulator --working-directory=${quoted(target)} || gnome-terminal --working-directory=${quoted(target)} || konsole --workdir ${quoted(target)}`;
               break;
             case 'ghostty':
-              command = `ghostty --working-directory ${quoted(target)} || x-terminal-emulator --working-directory=${quoted(target)}`;
+              command = `ghostty --working-directory=${quoted(target)} || x-terminal-emulator --working-directory=${quoted(target)}`;
               break;
             case 'zed':
               command = `zed ${quoted(target)} || xdg-open ${quoted(target)}`;
@@ -144,13 +167,17 @@ export function registerAppIpc() {
               ? 'Zed'
               : which === 'iterm2'
                 ? 'iTerm2'
-                : which.toString();
+                : which === 'warp'
+                  ? 'Warp'
+                  : which.toString();
         // Return short, friendly copy instead of the full command output
         let msg = `Unable to open in ${pretty}`;
         if (which === 'ghostty')
           msg = 'Ghostty is not installed or not available on this platform.';
         if (which === 'zed') msg = 'Zed is not installed or not available on this platform.';
         if (which === 'iterm2') msg = 'iTerm2 is not installed or not available on this platform.';
+        if (which === 'warp')
+          msg = 'Warp is not installed or its URI scheme is not registered on this platform.';
         return { success: false, error: msg };
       }
     }

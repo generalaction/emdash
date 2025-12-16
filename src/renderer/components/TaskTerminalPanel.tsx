@@ -4,6 +4,7 @@ import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import type { Provider } from '../types';
 
 interface Task {
@@ -18,18 +19,34 @@ interface Props {
   task: Task | null;
   provider?: Provider;
   className?: string;
+  projectPath?: string;
 }
 
-const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className }) => {
+const TaskTerminalPanelComponent: React.FC<Props> = ({
+  task,
+  provider,
+  className,
+  projectPath,
+}) => {
   const { effectiveTheme } = useTheme();
-  const {
+  const taskKey = task?.id ?? 'task-placeholder';
+  const taskTerminals = useTaskTerminals(taskKey, task?.path);
+  const globalTerminals = useTaskTerminals('global', projectPath, { defaultCwd: projectPath });
+  const [mode, setMode] = useState<'task' | 'global'>(task ? 'task' : 'global');
+  useEffect(() => {
+    if (!task && mode === 'task') {
+      setMode('global');
+    }
+  }, [task, mode]);
+
+const {
     terminals,
     activeTerminalId,
     activeTerminal,
     createTerminal,
     setActiveTerminal,
     closeTerminal,
-  } = useTaskTerminals(task?.id ?? null, task?.path);
+  } = mode === 'global' ? globalTerminals : taskTerminals;
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -137,7 +154,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className
     };
   }, [nativeTheme, defaultTheme]);
 
-  if (!task) {
+if (!task && !projectPath) {
     return (
       <div
         className={`flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 ${className}`}
@@ -153,7 +170,67 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className
 
   return (
     <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
-      <div className="flex items-center border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
+      <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
+        <div className="flex items-center gap-1">
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              {!task ? (
+                <>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <button
+                        type="button"
+                        className={cn(
+                          'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
+                          mode === 'task'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:bg-background/70',
+                          'cursor-not-allowed opacity-50'
+                        )}
+                        disabled={true}
+                        onClick={() => setMode('task')}
+                      >
+                        Worktree
+                      </button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[200px]">
+                    <p className="text-xs">Select a task to access its worktree terminal.</p>
+                  </TooltipContent>
+                </>
+              ) : (
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
+                      mode === 'task'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-background/70'
+                    )}
+                    onClick={() => setMode('task')}
+                  >
+                    Worktree
+                  </button>
+                </TooltipTrigger>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          <button
+            type="button"
+            className={cn(
+              'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
+              mode === 'global'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-background/70'
+            )}
+            disabled={!projectPath}
+            onClick={() => setMode('global')}
+            title={projectPath ? 'Global terminal at project root' : 'No project selected'}
+          >
+            Global
+          </button>
+        </div>
         <div className="flex min-w-0 flex-1 items-center space-x-1 overflow-x-auto">
           {terminals.map((terminal) => {
             const isActive = terminal.id === activeTerminalId;
@@ -198,12 +275,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className
           onClick={() => {
             void (async () => {
               const { captureTelemetry } = await import('../lib/telemetryClient');
-              captureTelemetry('terminal_new_terminal_created');
+              captureTelemetry('terminal_new_terminal_created', { scope: mode });
             })();
-            createTerminal();
+            createTerminal({
+              cwd: mode === 'global' ? projectPath : task?.path,
+            });
           }}
           className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
-          title="New terminal"
+          title={mode === 'global' ? 'New global terminal' : 'New task terminal'}
+          disabled={mode === 'task' && !task}
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -219,24 +299,29 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className
             : 'bg-white'
         )}
       >
-        {terminals.map((terminal) => (
-          <div
-            key={terminal.id}
-            className={cn(
-              'absolute inset-0 h-full w-full transition-opacity',
-              terminal.id === activeTerminalId ? 'opacity-100' : 'pointer-events-none opacity-0'
-            )}
-          >
-            <TerminalPane
-              id={terminal.id}
-              cwd={terminal.cwd || task.path}
-              variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
-              themeOverride={themeOverride}
-              className="h-full w-full"
-              keepAlive
-            />
-          </div>
-        ))}
+{terminals.map((terminal) => {
+          const cwd =
+            terminal.cwd ||
+            (mode === 'global' ? projectPath || terminal.cwd : task?.path || terminal.cwd);
+          return (
+            <div
+              key={terminal.id}
+              className={cn(
+                'absolute inset-0 h-full w-full transition-opacity',
+                terminal.id === activeTerminalId ? 'opacity-100' : 'pointer-events-none opacity-0'
+              )}
+            >
+              <TerminalPane
+                id={terminal.id}
+                cwd={cwd}
+                variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
+                themeOverride={themeOverride}
+                className="h-full w-full"
+                keepAlive
+              />
+            </div>
+          );
+        })}
         {!terminals.length || !activeTerminal ? (
           <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
             <p>No terminal found.</p>

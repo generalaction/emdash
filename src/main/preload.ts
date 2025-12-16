@@ -33,7 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Open a path in a specific app
   openIn: (args: {
-    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
+    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
     path: string;
   }) => ipcRenderer.invoke('app:openIn', args),
 
@@ -136,6 +136,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createBranchIfOnDefault?: boolean;
     branchPrefix?: string;
   }) => ipcRenderer.invoke('git:commit-and-push', args),
+  generatePrContent: (args: { workspacePath: string; base?: string }) =>
+    ipcRenderer.invoke('git:generate-pr-content', args),
   createPullRequest: (args: {
     taskPath: string;
     title?: string;

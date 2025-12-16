@@ -224,27 +224,29 @@ function subscribe(
   taskPath: string | undefined,
   listener: () => void
 ): () => void {
-  if (!taskId) {
-    return () => undefined;
-  }
-  ensureTaskState(taskId, taskPath);
-  let set = taskListeners.get(taskId);
+  const id = taskId || 'global';
+  ensureTaskState(id, taskPath);
+  let set = taskListeners.get(id);
   if (!set) {
     set = new Set();
-    taskListeners.set(taskId, set);
+    taskListeners.set(id, set);
   }
   set.add(listener);
   return () => {
-    const listeners = taskListeners.get(taskId);
+    const listeners = taskListeners.get(id);
     if (!listeners) return;
     listeners.delete(listener);
     if (listeners.size === 0) {
-      taskListeners.delete(taskId);
+      taskListeners.delete(id);
     }
   };
 }
 
-function createTerminal(taskId: string, taskPath?: string) {
+function createTerminal(
+  taskId: string,
+  taskPath?: string,
+  options?: { title?: string; cwd?: string }
+) {
   updateTaskState(taskId, taskPath, (draft) => {
     const nextIndex = draft.counter + 1;
     const id = makeTerminalId(taskId);
@@ -254,8 +256,8 @@ function createTerminal(taskId: string, taskPath?: string) {
       ...draft.terminals,
       {
         id,
-        title: `Terminal ${nextIndex}`,
-        cwd: taskPath,
+        title: options?.title || `Terminal ${nextIndex}`,
+        cwd: options?.cwd || taskPath,
         createdAt: Date.now(),
       },
     ];
@@ -295,27 +297,27 @@ function closeTerminal(taskId: string, terminalId: string, taskPath?: string) {
   }
 }
 
-export function useTaskTerminals(taskId: string | null, taskPath?: string) {
+export function useTaskTerminals(
+  taskId: string | null,
+  taskPath?: string,
+  opts?: { defaultCwd?: string }
+) {
+  const resolvedId = taskId || 'global';
+  const resolvedPath = taskPath || opts?.defaultCwd;
   const snapshot = useSyncExternalStore(
-    (listener) => subscribe(taskId, taskPath, listener),
-    () => getSnapshot(taskId, taskPath),
-    () => getSnapshot(taskId, taskPath)
+    (listener) => subscribe(resolvedId, resolvedPath, listener),
+    () => getSnapshot(resolvedId, resolvedPath),
+    () => getSnapshot(resolvedId, resolvedPath)
   );
 
   const actions = useMemo(() => {
-    if (!taskId) {
-      return {
-        createTerminal: () => undefined,
-        setActiveTerminal: (_terminalId: string) => undefined,
-        closeTerminal: (_terminalId: string) => undefined,
-      };
-    }
     return {
-      createTerminal: () => createTerminal(taskId, taskPath),
-      setActiveTerminal: (terminalId: string) => setActive(taskId, terminalId, taskPath),
-      closeTerminal: (terminalId: string) => closeTerminal(taskId, terminalId, taskPath),
+      createTerminal: (options?: { title?: string; cwd?: string }) =>
+        createTerminal(resolvedId, options?.cwd || resolvedPath, options),
+      setActiveTerminal: (terminalId: string) => setActive(resolvedId, terminalId, resolvedPath),
+      closeTerminal: (terminalId: string) => closeTerminal(resolvedId, terminalId, resolvedPath),
     };
-  }, [taskId, taskPath]);
+  }, [resolvedId, resolvedPath]);
 
   const activeTerminal =
     snapshot.terminals.find((terminal) => terminal.id === snapshot.activeTerminalId) ?? null;

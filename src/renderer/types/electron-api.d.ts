@@ -43,6 +43,7 @@ declare global {
           defaultProvider?: string;
           tasks?: {
             autoGenerateName: boolean;
+            autoApproveByDefault: boolean;
           };
         };
         error?: string;
@@ -62,6 +63,7 @@ declare global {
           defaultProvider?: string;
           tasks?: {
             autoGenerateName?: boolean;
+            autoApproveByDefault?: boolean;
           };
         }>
       ) => Promise<{
@@ -80,6 +82,7 @@ declare global {
           defaultProvider?: string;
           tasks?: {
             autoGenerateName: boolean;
+            autoApproveByDefault: boolean;
           };
         };
         error?: string;
@@ -251,6 +254,12 @@ declare global {
         output?: string;
         error?: string;
       }>;
+      generatePrContent: (args: { workspacePath: string; base?: string }) => Promise<{
+        success: boolean;
+        title?: string;
+        description?: string;
+        error?: string;
+      }>;
       createPullRequest: (args: {
         taskPath: string;
         title?: string;
@@ -349,7 +358,7 @@ declare global {
       stopContainerRun: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
-        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2';
+        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
         path: string;
       }) => Promise<{ success: boolean; error?: string }>;
       connectToGitHub: (projectPath: string) => Promise<{
