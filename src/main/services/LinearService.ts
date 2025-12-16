@@ -13,7 +13,7 @@ export interface LinearViewer {
 
 export interface LinearConnectionStatus {
   connected: boolean;
-  taskName?: string;
+  workspaceName?: string;
   viewer?: LinearViewer;
   error?: string;
 }
@@ -27,7 +27,7 @@ export class LinearService {
   private readonly SERVICE_NAME = 'emdash-linear';
   private readonly ACCOUNT_NAME = 'api-token';
 
-  async saveToken(token: string): Promise<{ success: boolean; taskName?: string; error?: string }> {
+  async saveToken(token: string): Promise<{ success: boolean; workspaceName?: string; error?: string }> {
     try {
       const viewer = await this.fetchViewer(token);
       await this.storeToken(token);
@@ -37,7 +37,7 @@ export class LinearService {
       });
       return {
         success: true,
-        taskName: viewer?.organization?.name ?? viewer?.displayName ?? undefined,
+        workspaceName: viewer?.organization?.name ?? viewer?.displayName ?? undefined,
       };
     } catch (error) {
       const message =
@@ -76,7 +76,7 @@ export class LinearService {
       const viewer = await this.fetchViewer(token);
       return {
         connected: true,
-        taskName: viewer?.organization?.name ?? viewer?.displayName ?? undefined,
+        workspaceName: viewer?.organization?.name ?? viewer?.displayName ?? undefined,
         viewer,
       };
     } catch (error) {
