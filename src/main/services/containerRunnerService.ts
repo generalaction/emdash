@@ -571,8 +571,8 @@ export class ContainerRunnerService extends EventEmitter {
 
     try {
       // Host-side preflight checks to prevent unintended task mutations
-      const absWorkspace = path.resolve(taskPath);
-      const workdirAbs = path.resolve(absWorkspace, config.workdir);
+      const absTaskPath = path.resolve(taskPath);
+      const workdirAbs = path.resolve(absTaskPath, config.workdir);
 
       if (!fs.existsSync(workdirAbs)) {
         const message = `Configured workdir does not exist: ${workdirAbs}`;
@@ -646,12 +646,12 @@ export class ContainerRunnerService extends EventEmitter {
       }
 
       // Prefer compose runner when a compose file exists at the task root
-      const composeBase = this.findComposeFile(absWorkspace);
+      const composeBase = this.findComposeFile(absTaskPath);
       if (composeBase) {
         log.info('[containers] compose detected; delegating to compose runner');
         return await this.startComposeRun({
           taskId,
-          taskPath: absWorkspace,
+          taskPath: absTaskPath,
           runId,
           mode,
           config,
@@ -686,7 +686,7 @@ export class ContainerRunnerService extends EventEmitter {
       }
 
       // Task mount and workdir
-      dockerArgs.push('-v', `${absWorkspace}:/workspace`);
+      dockerArgs.push('-v', `${absTaskPath}:/workspace`);
       const workdir = path.posix.join('/workspace', config.workdir.replace(/\\/g, '/'));
       dockerArgs.push('-w', workdir);
 
