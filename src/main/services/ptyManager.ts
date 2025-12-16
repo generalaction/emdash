@@ -112,12 +112,24 @@ export function startPty(options: {
       if (provider) {
         // Build the provider command with flags
         const cliArgs: string[] = [];
+
+        // Add resume flag FIRST if available
+        if (provider.resumeFlag) {
+          const resumeParts = provider.resumeFlag.split(' ');
+          cliArgs.push(...resumeParts);
+        }
+
+        // Then add default args
         if (provider.defaultArgs?.length) {
           cliArgs.push(...provider.defaultArgs);
         }
+
+        // Then auto-approve flag
         if (autoApprove && provider.autoApproveFlag) {
           cliArgs.push(provider.autoApproveFlag);
         }
+
+        // Finally initial prompt
         if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
           if (provider.initialPromptFlag) {
             cliArgs.push(provider.initialPromptFlag);
