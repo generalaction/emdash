@@ -89,8 +89,7 @@ export function registerGitIpc() {
         base?: string;
       }
     ) => {
-      const { taskPath, base = 'main' } =
-        args || ({} as { taskPath: string; base?: string });
+      const { taskPath, base = 'main' } = args || ({} as { taskPath: string; base?: string });
       try {
         // Try to get the task to find which provider was used
         let providerId: string | null = null;

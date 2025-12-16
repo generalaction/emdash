@@ -262,11 +262,7 @@ export class DatabaseService {
     if (this.disabled) return null;
     const { db } = await getDrizzleClient();
 
-    const rows = await db
-      .select()
-      .from(tasksTable)
-      .where(eq(tasksTable.path, taskPath))
-      .limit(1);
+    const rows = await db.select().from(tasksTable).where(eq(tasksTable.path, taskPath)).limit(1);
 
     if (rows.length === 0) return null;
     return this.mapDrizzleTaskRow(rows[0]);

@@ -27,7 +27,9 @@ export class LinearService {
   private readonly SERVICE_NAME = 'emdash-linear';
   private readonly ACCOUNT_NAME = 'api-token';
 
-  async saveToken(token: string): Promise<{ success: boolean; workspaceName?: string; error?: string }> {
+  async saveToken(
+    token: string
+  ): Promise<{ success: boolean; workspaceName?: string; error?: string }> {
     try {
       const viewer = await this.fetchViewer(token);
       await this.storeToken(token);
