@@ -148,9 +148,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
                       'Status unavailable'}
                   </span>
                 </div>
-                {status.pr ? (
-                  <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} />
-                ) : null}
+                {status.pr ? <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} /> : null}
               </motion.div>
             ) : null}
           </AnimatePresence>

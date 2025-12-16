@@ -13,13 +13,7 @@ interface Props {
   previewService?: string;
 }
 
-const TaskPorts: React.FC<Props> = ({
-  taskId,
-  taskPath,
-  ports,
-  previewUrl,
-  previewService,
-}) => {
+const TaskPorts: React.FC<Props> = ({ taskId, taskPath, ports, previewUrl, previewService }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
   const { toast } = useToast();

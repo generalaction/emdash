@@ -171,11 +171,7 @@ export function registerFsIpc(): void {
           return { success: false, error: 'Unsupported attachment type' };
         }
 
-        const baseDir = path.join(
-          taskPath,
-          '.emdash',
-          args.subdir || DEFAULT_ATTACHMENTS_SUBDIR
-        );
+        const baseDir = path.join(taskPath, '.emdash', args.subdir || DEFAULT_ATTACHMENTS_SUBDIR);
         fs.mkdirSync(baseDir, { recursive: true });
 
         const baseName = path.basename(srcPath);

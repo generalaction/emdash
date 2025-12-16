@@ -23,15 +23,8 @@ interface TaskItemProps {
   showDelete?: boolean;
 }
 
-export const TaskItem: React.FC<TaskItemProps> = ({
-  task,
-  onDelete,
-  showDelete,
-}) => {
-  const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(
-    task.path,
-    task.id
-  );
+export const TaskItem: React.FC<TaskItemProps> = ({ task, onDelete, showDelete }) => {
+  const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
   const isRunning = useTaskBusy(task.id);
 

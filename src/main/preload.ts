@@ -161,10 +161,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     runId?: string;
     mode?: 'container' | 'host';
   }) => ipcRenderer.invoke('container:start-run', args),
-  stopContainerRun: (taskId: string) =>
-    ipcRenderer.invoke('container:stop-run', { taskId }),
-  inspectContainerRun: (taskId: string) =>
-    ipcRenderer.invoke('container:inspect-run', { taskId }),
+  stopContainerRun: (taskId: string) => ipcRenderer.invoke('container:stop-run', { taskId }),
+  inspectContainerRun: (taskId: string) => ipcRenderer.invoke('container:inspect-run', { taskId }),
   resolveServiceIcon: (args: { service: string; allowNetwork?: boolean; taskPath?: string }) =>
     ipcRenderer.invoke('icons:resolve-service', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),

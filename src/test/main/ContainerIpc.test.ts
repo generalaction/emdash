@@ -209,10 +209,7 @@ describe('registerContainerIpc', () => {
       registerContainerIpc();
       const handler = getHandler('container:start-run');
 
-      const result = await handler(
-        {},
-        { taskId: ' ws-1 ', taskPath: ' /tmp/task ' }
-      );
+      const result = await handler({}, { taskId: ' ws-1 ', taskPath: ' /tmp/task ' });
 
       expect(startRunMock).toHaveBeenCalledWith({
         taskId: 'ws-1',

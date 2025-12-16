@@ -66,10 +66,7 @@ const ChatInterface: React.FC<Props> = ({
   useAutoScrollOnTaskSwitch(true, task.id);
 
   // Unified Plan Mode (per task)
-  const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(
-    task.id,
-    task.path
-  );
+  const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(task.id, task.path);
 
   // Log transitions for visibility
   useEffect(() => {

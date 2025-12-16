@@ -45,17 +45,14 @@ export function registerGitIpc() {
   });
 
   // Git: Per-file diff (moved from Codex IPC)
-  ipcMain.handle(
-    'git:get-file-diff',
-    async (_, args: { taskPath: string; filePath: string }) => {
-      try {
-        const diff = await gitGetFileDiff(args.taskPath, args.filePath);
-        return { success: true, diff };
-      } catch (error) {
-        return { success: false, error: error as string };
-      }
+  ipcMain.handle('git:get-file-diff', async (_, args: { taskPath: string; filePath: string }) => {
+    try {
+      const diff = await gitGetFileDiff(args.taskPath, args.filePath);
+      return { success: true, diff };
+    } catch (error) {
+      return { success: false, error: error as string };
     }
-  );
+  });
 
   // Git: Stage file
   ipcMain.handle('git:stage-file', async (_, args: { taskPath: string; filePath: string }) => {
@@ -71,20 +68,17 @@ export function registerGitIpc() {
   });
 
   // Git: Revert file
-  ipcMain.handle(
-    'git:revert-file',
-    async (_, args: { taskPath: string; filePath: string }) => {
-      try {
-        log.info('Reverting file:', { taskPath: args.taskPath, filePath: args.filePath });
-        const result = await gitRevertFile(args.taskPath, args.filePath);
-        log.info('File operation completed:', { filePath: args.filePath, action: result.action });
-        return { success: true, action: result.action };
-      } catch (error) {
-        log.error('Failed to revert file:', { filePath: args.filePath, error });
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
-      }
+  ipcMain.handle('git:revert-file', async (_, args: { taskPath: string; filePath: string }) => {
+    try {
+      log.info('Reverting file:', { taskPath: args.taskPath, filePath: args.filePath });
+      const result = await gitRevertFile(args.taskPath, args.filePath);
+      log.info('File operation completed:', { filePath: args.filePath, action: result.action });
+      return { success: true, action: result.action };
+    } catch (error) {
+      log.error('Failed to revert file:', { filePath: args.filePath, error });
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  );
+  });
   // Git: Generate PR title and description
   ipcMain.handle(
     'git:generate-pr-content',

@@ -175,10 +175,7 @@ export function subscribeToContainerRuns(listener: Listener): () => void {
   };
 }
 
-export function subscribeToTaskRunState(
-  taskId: string,
-  listener: TaskListener
-): () => void {
+export function subscribeToTaskRunState(taskId: string, listener: TaskListener): () => void {
   ensureSubscribed();
   const set = taskListeners.get(taskId) ?? new Set<TaskListener>();
   set.add(listener);

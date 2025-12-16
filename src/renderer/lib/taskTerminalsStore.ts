@@ -158,10 +158,7 @@ function ensureSnapshot(taskId: string, state: TaskTerminalsState) {
   return taskSnapshots.get(taskId)!;
 }
 
-function ensureTaskState(
-  taskId: string,
-  taskPath?: string
-): TaskTerminalsState {
+function ensureTaskState(taskId: string, taskPath?: string): TaskTerminalsState {
   let state = taskStates.get(taskId);
   if (state) {
     ensureSnapshot(taskId, state);

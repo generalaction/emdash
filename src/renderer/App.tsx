@@ -78,7 +78,6 @@ const RightSidebarBridge: React.FC<{
   return null;
 };
 
-
 const TITLEBAR_HEIGHT = '36px';
 const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
 const DEFAULT_PANEL_LAYOUT: [number, number, number] = [20, 60, 20];
@@ -943,9 +942,7 @@ const AppContent: React.FC = () => {
       {
         if (taskMetadata?.linearIssue) {
           try {
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newTask.id
-            );
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
 
             if (convoResult?.success && convoResult.conversation?.id) {
               const issue = taskMetadata.linearIssue;
@@ -995,9 +992,7 @@ const AppContent: React.FC = () => {
         }
         if (taskMetadata?.githubIssue) {
           try {
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newTask.id
-            );
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
 
             if (convoResult?.success && convoResult.conversation?.id) {
               const issue = taskMetadata.githubIssue;
@@ -1053,9 +1048,7 @@ const AppContent: React.FC = () => {
         }
         if (taskMetadata?.jiraIssue) {
           try {
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newTask.id
-            );
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
 
             if (convoResult?.success && convoResult.conversation?.id) {
               const issue: any = taskMetadata.jiraIssue;
@@ -1123,9 +1116,7 @@ const AppContent: React.FC = () => {
           setActiveTaskProvider(null);
         } else {
           // Use the saved agentId from the task, which should match primaryProvider
-          setActiveTaskProvider(
-            (newTask.agentId as Provider) || primaryProvider || 'codex'
-          );
+          setActiveTaskProvider((newTask.agentId as Provider) || primaryProvider || 'codex');
         }
       }
     } catch (error) {
@@ -1174,21 +1165,16 @@ const AppContent: React.FC = () => {
   );
 
   const removeTaskFromState = (projectId: string, taskId: string, wasActive: boolean) => {
-    const filterTasks = (list?: Task[]) =>
-      (list || []).filter((w) => w.id !== taskId);
+    const filterTasks = (list?: Task[]) => (list || []).filter((w) => w.id !== taskId);
 
     setProjects((prev) =>
       prev.map((project) =>
-        project.id === projectId
-          ? { ...project, tasks: filterTasks(project.tasks) }
-          : project
+        project.id === projectId ? { ...project, tasks: filterTasks(project.tasks) } : project
       )
     );
 
     setSelectedProject((prev) =>
-      prev && prev.id === projectId
-        ? { ...prev, tasks: filterTasks(prev.tasks) }
-        : prev
+      prev && prev.id === projectId ? { ...prev, tasks: filterTasks(prev.tasks) } : prev
     );
 
     if (wasActive) {
@@ -1312,15 +1298,11 @@ const AppContent: React.FC = () => {
           const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
           setProjects((prev) =>
             prev.map((project) =>
-              project.id === targetProject.id
-                ? { ...project, tasks: refreshedTasks }
-                : project
+              project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
             )
           );
           setSelectedProject((prev) =>
-            prev && prev.id === targetProject.id
-              ? { ...prev, tasks: refreshedTasks }
-              : prev
+            prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
           );
 
           if (wasActive) {
@@ -1337,18 +1319,14 @@ const AppContent: React.FC = () => {
               if (project.id !== targetProject.id) return project;
               const existing = project.tasks || [];
               const alreadyPresent = existing.some((w) => w.id === taskSnapshot.id);
-              return alreadyPresent
-                ? project
-                : { ...project, tasks: [taskSnapshot, ...existing] };
+              return alreadyPresent ? project : { ...project, tasks: [taskSnapshot, ...existing] };
             })
           );
           setSelectedProject((prev) => {
             if (!prev || prev.id !== targetProject.id) return prev;
             const existing = prev.tasks || [];
             const alreadyPresent = existing.some((w) => w.id === taskSnapshot.id);
-            return alreadyPresent
-              ? prev
-              : { ...prev, tasks: [taskSnapshot, ...existing] };
+            return alreadyPresent ? prev : { ...prev, tasks: [taskSnapshot, ...existing] };
           });
 
           if (wasActive) {
@@ -1657,9 +1635,7 @@ const AppContent: React.FC = () => {
                   : activeTask?.path || selectedProject?.path || null
               }
               defaultPreviewUrl={
-                activeTask?.id
-                  ? getContainerRunState(activeTask.id)?.previewUrl || null
-                  : null
+                activeTask?.id ? getContainerRunState(activeTask.id)?.previewUrl || null : null
               }
               taskId={activeTask?.id || null}
               taskPath={activeTask?.path || null}
@@ -1738,7 +1714,7 @@ const AppContent: React.FC = () => {
                   collapsible
                   order={3}
                 >
-<RightSidebar
+                  <RightSidebar
                     task={activeTask}
                     projectPath={selectedProject?.path || null}
                     className="lg:border-l-0"

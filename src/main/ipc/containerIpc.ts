@@ -177,8 +177,7 @@ export function registerContainerIpc(): void {
       try {
         const service = typeof args?.service === 'string' ? args.service : '';
         const allowNetwork = args?.allowNetwork === true;
-        const taskPath =
-          typeof args?.taskPath === 'string' ? args.taskPath : undefined;
+        const taskPath = typeof args?.taskPath === 'string' ? args.taskPath : undefined;
         const res = await resolveServiceIcon({ service, allowNetwork, taskPath });
         if (res.ok) return { ok: true, dataUrl: res.dataUrl };
         return { ok: false };
@@ -229,8 +228,7 @@ function parseStartRunArgs(args: unknown): {
 
   const payload = args as Record<string, unknown>;
   const taskId = typeof payload.taskId === 'string' ? payload.taskId.trim() : '';
-  const taskPath =
-    typeof payload.taskPath === 'string' ? payload.taskPath.trim() : '';
+  const taskPath = typeof payload.taskPath === 'string' ? payload.taskPath.trim() : '';
   if (!taskId || !taskPath) {
     return null;
   }

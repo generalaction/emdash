@@ -435,11 +435,7 @@ declare global {
       ) => Promise<{ success: boolean; error?: string }>;
       fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
       // Attachments
-      saveAttachment: (args: {
-        taskPath: string;
-        srcPath: string;
-        subdir?: string;
-      }) => Promise<{
+      saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) => Promise<{
         success: boolean;
         absPath?: string;
         relPath?: string;

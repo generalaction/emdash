@@ -40,10 +40,7 @@ class HostPreviewService extends EventEmitter {
   private procs = new Map<string, ChildProcessWithoutNullStreams>();
   private procCwds = new Map<string, string>(); // Track cwd for each taskId
 
-  async setup(
-    taskId: string,
-    taskPath: string
-  ): Promise<{ ok: boolean; error?: string }> {
+  async setup(taskId: string, taskPath: string): Promise<{ ok: boolean; error?: string }> {
     const cwd = path.resolve(taskPath);
     const pm = detectPackageManager(cwd);
     const cmd = pm;

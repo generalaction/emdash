@@ -23,15 +23,12 @@ export function registerHostPreviewIpc() {
     }
   );
 
-  ipcMain.handle(
-    'preview:host:setup',
-    async (_e, args: { taskId: string; taskPath: string }) => {
-      const id = String(args?.taskId || '').trim();
-      const wp = String(args?.taskPath || '').trim();
-      if (!id || !wp) return { ok: false, error: 'taskId and taskPath are required' };
-      return hostPreviewService.setup(id, wp);
-    }
-  );
+  ipcMain.handle('preview:host:setup', async (_e, args: { taskId: string; taskPath: string }) => {
+    const id = String(args?.taskId || '').trim();
+    const wp = String(args?.taskPath || '').trim();
+    if (!id || !wp) return { ok: false, error: 'taskId and taskPath are required' };
+    return hostPreviewService.setup(id, wp);
+  });
 
   ipcMain.handle('preview:host:stop', async (_e, id: string) => {
     const wid = String(id || '').trim();

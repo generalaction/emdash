@@ -181,10 +181,7 @@ export function usePlanMode(taskId: string, taskPath: string) {
           const lock = await (window as any).electronAPI.planApplyLock(taskPath);
           if (!lock?.success) log.warn('[plan] failed to apply lock', lock?.error);
           else
-            await logPlanEvent(
-              taskPath,
-              `Applied read-only lock (changed=${lock.changed ?? 0})`
-            );
+            await logPlanEvent(taskPath, `Applied read-only lock (changed=${lock.changed ?? 0})`);
         } catch (e) {
           log.warn('[plan] planApplyLock error', e);
         }

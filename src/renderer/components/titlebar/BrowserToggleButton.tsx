@@ -20,11 +20,7 @@ interface Props {
   parentProjectPath?: string | null;
 }
 
-const BrowserToggleButton: React.FC<Props> = ({
-  taskId,
-  taskPath,
-  parentProjectPath,
-}) => {
+const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectPath }) => {
   const browser = useBrowser();
   async function needsInstall(path?: string | null): Promise<boolean> {
     const p = (path || '').trim();

@@ -39,7 +39,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     }
   }, [task, mode]);
 
-const {
+  const {
     terminals,
     activeTerminalId,
     activeTerminal,
@@ -154,7 +154,7 @@ const {
     };
   }, [nativeTheme, defaultTheme]);
 
-if (!task && !projectPath) {
+  if (!task && !projectPath) {
     return (
       <div
         className={`flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 ${className}`}
@@ -299,7 +299,7 @@ if (!task && !projectPath) {
             : 'bg-white'
         )}
       >
-{terminals.map((terminal) => {
+        {terminals.map((terminal) => {
           const cwd =
             terminal.cwd ||
             (mode === 'global' ? projectPath || terminal.cwd : task?.path || terminal.cwd);

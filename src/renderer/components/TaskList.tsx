@@ -42,12 +42,7 @@ export const TaskList: React.FC<Props> = ({
     <div className="flex h-full flex-col p-4">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold">Tasks</h2>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onCreateTask}
-          disabled={isCreatingTask}
-        >
+        <Button variant="default" size="sm" onClick={onCreateTask} disabled={isCreatingTask}>
           {isCreatingTask ? (
             <>
               <Spinner size="sm" className="mr-2" />

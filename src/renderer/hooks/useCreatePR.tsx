@@ -44,7 +44,7 @@ export function useCreatePR() {
         return { success: false, error: 'Electron bridge unavailable' } as any;
       }
 
-// Auto-generate PR title and description if not provided
+      // Auto-generate PR title and description if not provided
       let finalPrOptions = { ...(prOptions || {}) };
 
       if (!finalPrOptions.title || !finalPrOptions.body) {

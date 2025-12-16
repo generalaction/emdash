@@ -22,7 +22,7 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
     return [];
   }
 
-const { stdout: statusOutput } = await execFileAsync(
+  const { stdout: statusOutput } = await execFileAsync(
     'git',
     ['status', '--porcelain', '--untracked-files=all'],
     {
@@ -136,7 +136,7 @@ export async function revertFile(
     }
   } catch {}
 
-// Check if file is tracked in git (exists in HEAD)
+  // Check if file is tracked in git (exists in HEAD)
   let fileExistsInHead = false;
   try {
     await execFileAsync('git', ['cat-file', '-e', `HEAD:${filePath}`], { cwd: taskPath });

@@ -31,8 +31,8 @@ const AutoApproveIndicator: React.FC<Props> = ({ enabled, className = '' }) => {
           <div>
             <span className="block font-medium">Auto-approve Enabled</span>
             <span className="block">
-              File operations are automatically approved without prompting. This task was
-              created with --dangerously-skip-permissions mode.
+              File operations are automatically approved without prompting. This task was created
+              with --dangerously-skip-permissions mode.
             </span>
           </div>
         </TooltipContent>

@@ -39,12 +39,7 @@ function createTimestampGenerator(now: () => number): () => number {
   return () => now();
 }
 
-function createEventBase(
-  taskId: string,
-  runId: string,
-  mode: RunnerMode,
-  nextTs: () => number
-) {
+function createEventBase(taskId: string, runId: string, mode: RunnerMode, nextTs: () => number) {
   return {
     taskId,
     runId,
