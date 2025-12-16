@@ -45,8 +45,8 @@ const {
   };
 });
 
-const { loadWorkspaceContainerConfigMock } = vi.hoisted(() => ({
-  loadWorkspaceContainerConfigMock: vi.fn(),
+const { loadTaskContainerConfigMock } = vi.hoisted(() => ({
+  loadTaskContainerConfigMock: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -64,7 +64,7 @@ vi.mock('../../main/services/containerConfigService', async () => {
   );
   return {
     ...actual,
-    loadWorkspaceContainerConfig: loadWorkspaceContainerConfigMock,
+    loadTaskContainerConfig: loadTaskContainerConfigMock,
   };
 });
 
@@ -87,7 +87,7 @@ describe('registerContainerIpc', () => {
   beforeEach(() => {
     handlers.clear();
     handleMock.mockClear();
-    loadWorkspaceContainerConfigMock.mockReset();
+    loadTaskContainerConfigMock.mockReset();
     startRunMock.mockReset();
     onRunnerEventMock.mockClear();
     windows.length = 0;
@@ -106,7 +106,7 @@ describe('registerContainerIpc', () => {
           { service: 'api', container: 4000, protocol: 'tcp', preview: false },
         ],
       };
-      loadWorkspaceContainerConfigMock.mockResolvedValue({
+      loadTaskContainerConfigMock.mockResolvedValue({
         ok: true,
         config,
         sourcePath: '/tmp/workspace/.emdash/config.json',
@@ -117,7 +117,7 @@ describe('registerContainerIpc', () => {
 
       const result = await handler({}, { taskPath: '  /tmp/workspace  ' });
 
-      expect(loadWorkspaceContainerConfigMock).toHaveBeenCalledWith('/tmp/workspace');
+      expect(loadTaskContainerConfigMock).toHaveBeenCalledWith('/tmp/workspace');
       expect(result).toEqual({
         ok: true,
         config,
@@ -126,7 +126,7 @@ describe('registerContainerIpc', () => {
     });
 
     it('returns serialized validation error when loader fails', async () => {
-      loadWorkspaceContainerConfigMock.mockResolvedValue({
+      loadTaskContainerConfigMock.mockResolvedValue({
         ok: false,
         error: {
           code: 'VALIDATION_FAILED',
@@ -167,11 +167,11 @@ describe('registerContainerIpc', () => {
           configPath: null,
         },
       });
-      expect(loadWorkspaceContainerConfigMock).not.toHaveBeenCalled();
+      expect(loadTaskContainerConfigMock).not.toHaveBeenCalled();
     });
 
     it('handles unexpected loader errors', async () => {
-      loadWorkspaceContainerConfigMock.mockRejectedValue(new Error('boom'));
+      loadTaskContainerConfigMock.mockRejectedValue(new Error('boom'));
 
       registerContainerIpc();
       const handler = getHandler('container:load-config');
