@@ -1234,7 +1234,7 @@ const AppContent: React.FC = () => {
           } catch {}
         } catch {}
         try {
-          window.electronAPI.ptyKill?.(`workspace-${task.id}`);
+          window.electronAPI.ptyKill?.(`task-${task.id}`);
         } catch {}
         try {
           for (const provider of TERMINAL_PROVIDER_IDS) {
@@ -1244,7 +1244,7 @@ const AppContent: React.FC = () => {
           }
         } catch {}
         const sessionIds = [
-          `workspace-${task.id}`,
+          `task-${task.id}`,
           ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${task.id}`),
         ];
 
