@@ -2,14 +2,7 @@ import React from 'react';
 import { Folder, GitBranch } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 import PrPreviewTooltip from './PrPreviewTooltip';
-
-type PrInfo = {
-  number?: number;
-  title?: string;
-  url?: string;
-  state?: string;
-  isDraft?: boolean;
-};
+import type { PrInfo } from '../lib/prStatus';
 
 type Props = {
   workspaces: Array<{ name: string; pr: PrInfo }>;

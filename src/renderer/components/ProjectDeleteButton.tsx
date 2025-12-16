@@ -17,6 +17,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { cn } from '@/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
+import { isActivePr } from '../lib/prStatus';
 import type { Workspace } from '../types/app';
 
 type Props = {
@@ -52,7 +53,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
     if (!status) return false;
     const hasUncommittedWork =
       status.staged > 0 || status.unstaged > 0 || status.untracked > 0 || status.ahead > 0;
-    const hasPR = !!status.pr;
+    const hasPR = status.pr && isActivePr(status.pr);
     // Only show in this section if has uncommitted work BUT NO PR
     return hasUncommittedWork && !hasPR;
   });
@@ -60,7 +61,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
   // Workspaces with PRs (may or may not have uncommitted work)
   const workspacesWithPRs = workspaces.filter((ws) => {
     const status = risks[ws.id];
-    return !!status?.pr;
+    return status?.pr && isActivePr(status.pr);
   });
 
   const hasRisks = workspacesWithUncommittedWork.length > 0 || workspacesWithPRs.length > 0;
@@ -176,10 +177,14 @@ export const ProjectDeleteButton: React.FC<Props> = ({
               >
                 <DeletePrNotice
                   workspaces={
-                    workspacesWithPRs.map((ws) => ({
-                      name: ws.name,
-                      pr: risks[ws.id]?.pr,
-                    })) as any
+                    workspacesWithPRs
+                      .map((ws) => {
+                        const pr = risks[ws.id]?.pr;
+                        return pr && isActivePr(pr) ? { name: ws.name, pr } : null;
+                      })
+                      .filter(
+                        (w): w is { name: string; pr: NonNullable<typeof w>['pr'] } => w !== null
+                      ) as any
                   }
                 />
               </motion.div>
