@@ -165,7 +165,8 @@ export class RunConfigGenerationService {
         promptViaStdin = false;
       }
 
-      const child = spawn(provider.cli, args, {
+      const cliCommand = provider.cli;
+      const child = spawn(cliCommand, args, {
         cwd: projectPath,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {

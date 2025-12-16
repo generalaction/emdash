@@ -6,7 +6,7 @@ import { RunConfigEditorModal } from './RunConfigEditorModal';
 interface WorktreeRunPanelProps {
   workspaceId: string | null;
   worktreePath: string | null;
-  projectPath: string | null;
+  projectPath?: string | null;
 }
 
 export const WorktreeRunPanel: React.FC<WorktreeRunPanelProps> = ({

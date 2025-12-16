@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import { log } from '../lib/logger';
-import { hostPreviewService, type HostPreviewEvent } from './HostPreviewService';
+import { hostPreviewService, type HostPreviewEvent } from './hostPreviewService';
 import { runConfigGenerationService } from './RunConfigGenerationService';
 import type { ResolvedRunConfig } from '../../shared/worktreeRun/config';
 import { resolveRunConfig } from '../../shared/worktreeRun/config';
