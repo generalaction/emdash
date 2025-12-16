@@ -2,6 +2,8 @@ import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { exec, execFile } from 'child_process';
 import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import { promisify } from 'util';
 import {
   getStatus as gitGetStatus,
@@ -289,7 +291,22 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const flags: string[] = [];
         if (repoNameWithOwner) flags.push(`--repo ${JSON.stringify(repoNameWithOwner)}`);
         if (title) flags.push(`--title ${JSON.stringify(title)}`);
-        if (body) flags.push(`--body ${JSON.stringify(body)}`);
+        
+        // Use temp file for body to properly handle newlines and multiline content
+        let bodyFile: string | null = null;
+        if (body) {
+          try {
+            bodyFile = path.join(os.tmpdir(), `gh-pr-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`);
+            // Write body with actual newlines preserved
+            fs.writeFileSync(bodyFile, body, 'utf8');
+            flags.push(`--body-file ${JSON.stringify(bodyFile)}`);
+          } catch (writeError) {
+            log.warn('Failed to write body to temp file, falling back to --body flag', { writeError });
+            // Fallback to direct --body flag if temp file creation fails
+            flags.push(`--body ${JSON.stringify(body)}`);
+          }
+        }
+        
         if (base || defaultBranch) flags.push(`--base ${JSON.stringify(base || defaultBranch)}`);
         if (head) {
           flags.push(`--head ${JSON.stringify(head)}`);
@@ -306,7 +323,22 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         const cmd = `gh pr create ${flags.join(' ')}`.trim();
 
-        const { stdout, stderr } = await execAsync(cmd, { cwd: workspacePath });
+        let stdout: string;
+        let stderr: string;
+        try {
+          const result = await execAsync(cmd, { cwd: workspacePath });
+          stdout = result.stdout || '';
+          stderr = result.stderr || '';
+        } finally {
+          // Clean up temp file if it was created
+          if (bodyFile && fs.existsSync(bodyFile)) {
+            try {
+              fs.unlinkSync(bodyFile);
+            } catch (unlinkError) {
+              log.debug('Failed to delete temp body file', { bodyFile, unlinkError });
+            }
+          }
+        }
         const out = [...outputs, (stdout || '').trim() || (stderr || '').trim()]
           .filter(Boolean)
           .join('\n');
