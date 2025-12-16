@@ -137,7 +137,7 @@ describe('ContainerRunnerService', () => {
 
     const result = await service.startMockRun({
       taskId: 'task-1',
-      taskPath: '/tmp/workspace',
+      taskPath: '/tmp/task',
       runId: 'run-err',
       now: () => 1700000000100,
     });
