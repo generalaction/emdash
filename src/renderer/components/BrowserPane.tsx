@@ -102,7 +102,12 @@ const BrowserPane: React.FC<{
   React.useEffect(() => {
     const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
       try {
-        if (!data || !workspaceId || data.workspaceId !== workspaceId) return;
+        if (!data || !workspaceId) return;
+        
+        // Ignore events from WorktreeRunService (they have :: in workspace ID)
+        if (data.workspaceId && data.workspaceId.includes('::')) return;
+        
+        if (data.workspaceId !== workspaceId) return;
         if (data.type === 'setup') {
           if (data.status === 'line' && data.line) {
             setLines((prev) => {

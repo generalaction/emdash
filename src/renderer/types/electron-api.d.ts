@@ -1,5 +1,6 @@
 // Updated for Codex integration
 import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
+import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -958,6 +959,21 @@ export interface ElectronAPI {
     projectPath: string;
     config: any;
   }) => Promise<{ ok: boolean; error?: string }>;
+  worktreeRunDeleteConfig: (args: { projectPath: string }) => Promise<{
+    ok: boolean;
+    deleted?: boolean;
+    message?: string;
+    error?: string;
+  }>;
+  worktreeRunRegenerateConfig: (args: {
+    projectPath: string;
+    preferredProvider?: string;
+  }) => Promise<{
+    ok: boolean;
+    config?: any;
+    reasoning?: string;
+    error?: string;
+  }>;
   onWorktreeRunEvent: (
     listener: (event: {
       type: 'status' | 'url' | 'log' | 'error';
@@ -969,4 +985,3 @@ export interface ElectronAPI {
     }) => void
   ) => () => void;
 }
-import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';

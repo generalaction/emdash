@@ -469,6 +469,10 @@ class HostPreviewService extends EventEmitter {
     return { ok: true };
   }
 
+  isRunning(workspaceId: string): boolean {
+    return this.procs.has(workspaceId);
+  }
+
   stopAll(exceptId?: string | null): { ok: boolean; stopped: string[] } {
     const stopped: string[] = [];
     const except = (exceptId || '').trim();

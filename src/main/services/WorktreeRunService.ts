@@ -38,25 +38,43 @@ class WorktreeRunService extends EventEmitter {
   constructor() {
     super();
 
-    // Forward HostPreviewService events
+    // Forward HostPreviewService events with script prefixing
     hostPreviewService.on('event', (event: HostPreviewEvent) => {
-      const { workspaceId, type, url, line, status: setupStatus } = event;
+      const { workspaceId: scriptWorkspaceId, type, url, line, status: setupStatus } = event;
+
+      // Parse scriptWorkspaceId format: "workspaceId::scriptName"
+      const parts = scriptWorkspaceId.split('::');
+      const workspaceId = parts[0];
+      const scriptName = parts[1] || 'default';
 
       if (type === 'url' && url) {
-        // Update state with preview URL
+        // Update state with preview URL (only from the first script with preview=true)
         const state = this.states.get(workspaceId);
-        if (state) {
-          this.states.set(workspaceId, { ...state, previewUrl: url });
+        if (state && state.config) {
+          const script = state.config.scripts.find((s) => s.name === scriptName);
+          if (script?.preview) {
+            this.states.set(workspaceId, { ...state, previewUrl: url });
+            this.emit('event', { type: 'url', workspaceId, url } as WorktreeRunEvent);
+          }
         }
-        this.emit('event', { type: 'url', workspaceId, url } as WorktreeRunEvent);
       } else if (type === 'setup' && line) {
-        // Forward setup logs
-        this.emit('event', { type: 'log', workspaceId, line } as WorktreeRunEvent);
+        // Forward logs with script name prefix
+        const prefixedLine = `[${scriptName}] ${line}`;
+        this.emit('event', { type: 'log', workspaceId, line: prefixedLine } as WorktreeRunEvent);
       } else if (type === 'exit') {
-        // Handle exit
+        // Handle exit - check if all scripts have exited
         const state = this.states.get(workspaceId);
-        if (state) {
-          this.updateState(workspaceId, { status: 'stopped', previewUrl: null });
+        if (state && state.config) {
+          // Check if all script workspaces have exited
+          const allScripts = state.config.scripts;
+          const stillRunning = allScripts.some((script) => {
+            const sid = `${workspaceId}::${script.name}`;
+            return sid !== scriptWorkspaceId && hostPreviewService.isRunning(sid);
+          });
+
+          if (!stillRunning) {
+            this.updateState(workspaceId, { status: 'stopped', previewUrl: null });
+          }
         }
       }
     });
@@ -75,7 +93,10 @@ class WorktreeRunService extends EventEmitter {
       // Load config (worktree overrides project)
       const config = await this.loadConfig(worktreePath, projectPath, options?.preferredProvider);
       if (!config) {
-        return { ok: false, error: 'No run configuration found or generated' };
+        return { 
+          ok: false, 
+          error: 'Failed to generate run configuration. Please create .emdash/config.json manually using the config editor.' 
+        };
       }
 
       // Update state
@@ -86,37 +107,51 @@ class WorktreeRunService extends EventEmitter {
         error: null,
       });
 
-      // Find script to run
-      const scriptName = options?.scriptName || config.scripts.find((s) => s.preview)?.name;
-      const script = scriptName
-        ? config.scripts.find((s) => s.name === scriptName)
-        : config.scripts[0];
-
-      if (!script) {
-        const error = 'No script found to run';
+      // Run ALL scripts (not just one)
+      if (config.scripts.length === 0) {
+        const error = 'No scripts found in config';
         this.updateState(workspaceId, { status: 'error', error });
         return { ok: false, error };
       }
 
-      // Build script command (handle package manager + custom command)
-      const scriptCommand = script.command;
+      // Start all scripts with prefixed logs
+      const scriptPromises = config.scripts.map(async (script) => {
+        const scriptCommand = script.command;
+        const scriptCwd = script.cwd && script.cwd !== '.' 
+          ? path.join(worktreePath, script.cwd)
+          : worktreePath;
 
-      // Start via HostPreviewService
-      const result = await hostPreviewService.start(workspaceId, worktreePath, {
-        script: scriptCommand,
-        parentProjectPath: projectPath,
+        // Create a unique workspace ID per script for hostPreviewService
+        const scriptWorkspaceId = `${workspaceId}::${script.name}`;
+
+        try {
+          const result = await hostPreviewService.start(scriptWorkspaceId, scriptCwd, {
+            script: scriptCommand,
+            parentProjectPath: projectPath,
+          });
+          return { ok: result.ok, scriptName: script.name, error: result.error };
+        } catch (error) {
+          return { 
+            ok: false, 
+            scriptName: script.name, 
+            error: error instanceof Error ? error.message : String(error) 
+          };
+        }
       });
 
-      if (result.ok) {
-        this.updateState(workspaceId, { status: 'running' });
-      } else {
-        this.updateState(workspaceId, {
-          status: 'error',
-          error: result.error || 'Failed to start',
-        });
+      const results = await Promise.allSettled(scriptPromises);
+      const failures = results
+        .filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok))
+        .map((r) => r.status === 'fulfilled' ? r.value.scriptName : 'unknown');
+
+      if (failures.length === config.scripts.length) {
+        const error = `All scripts failed to start: ${failures.join(', ')}`;
+        this.updateState(workspaceId, { status: 'error', error });
+        return { ok: false, error };
       }
 
-      return result;
+      this.updateState(workspaceId, { status: 'running' });
+      return { ok: true };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       log.error('Failed to start worktree run', { workspaceId, error });
@@ -126,14 +161,29 @@ class WorktreeRunService extends EventEmitter {
   }
 
   /**
-   * Stop a running worktree
+   * Stop a running worktree (stops ALL scripts)
    */
   stop(workspaceId: string): { ok: boolean } {
-    const result = hostPreviewService.stop(workspaceId);
-    if (result.ok) {
+    const state = this.states.get(workspaceId);
+    if (!state || !state.config) {
+      return { ok: false };
+    }
+
+    // Stop all script instances
+    let anySuccess = false;
+    state.config.scripts.forEach((script) => {
+      const scriptWorkspaceId = `${workspaceId}::${script.name}`;
+      const result = hostPreviewService.stop(scriptWorkspaceId);
+      if (result.ok) {
+        anySuccess = true;
+      }
+    });
+
+    if (anySuccess) {
       this.updateState(workspaceId, { status: 'stopped', previewUrl: null });
     }
-    return result;
+
+    return { ok: anySuccess };
   }
 
   /**
@@ -207,29 +257,12 @@ class WorktreeRunService extends EventEmitter {
       }
     }
 
-    // Fallback: Generate heuristic config
-    log.warn('AI generation failed, using heuristic config', { projectPath });
-    const heuristic = await runConfigGenerationService.generateHeuristicConfig(projectPath);
-
-    // Try to save heuristic config
-    try {
-      const configDir = path.dirname(projectConfigPath);
-      if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true });
-      }
-      const configFile: any = {
-        version: 1,
-        packageManager: heuristic.packageManager,
-        install: heuristic.install,
-        scripts: heuristic.scripts,
-      };
-      fs.writeFileSync(projectConfigPath, JSON.stringify(configFile, null, 2), 'utf8');
-      log.info('Saved heuristic config to project', { projectConfigPath });
-    } catch (err) {
-      log.warn('Failed to save heuristic config', { err });
-    }
-
-    return heuristic;
+    // AI generation failed - return null and let user create config manually
+    log.warn('AI generation failed - config must be created manually', { 
+      projectPath,
+      hint: 'User should create .emdash/config.json manually or use the config editor in the UI'
+    });
+    return null;
   }
 
   /**

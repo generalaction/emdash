@@ -119,6 +119,82 @@ export function registerWorktreeRunIpc() {
     }
   );
 
+  /**
+   * Delete config
+   */
+  ipcMain.handle('worktreeRun:deleteConfig', async (_event, args: { projectPath: string }) => {
+    try {
+      const { projectPath } = args;
+      const configPath = path.join(projectPath, PROJECT_CONFIG_PATH);
+
+      if (!fs.existsSync(configPath)) {
+        return { ok: true, deleted: false, message: 'Config does not exist' };
+      }
+
+      fs.unlinkSync(configPath);
+      log.info('Deleted run config', { configPath });
+      return { ok: true, deleted: true };
+    } catch (error) {
+      log.error('IPC worktreeRun:deleteConfig failed', { error });
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  /**
+   * Regenerate config via AI
+   */
+  ipcMain.handle(
+    'worktreeRun:regenerateConfig',
+    async (
+      _event,
+      args: { projectPath: string; preferredProvider?: string }
+    ) => {
+      try {
+        const { projectPath, preferredProvider } = args;
+        const { runConfigGenerationService } = await import('../services/RunConfigGenerationService');
+
+        log.info('Regenerating config via AI', { projectPath, preferredProvider });
+        const generated = await runConfigGenerationService.generateRunConfig(
+          projectPath,
+          preferredProvider
+        );
+
+        if (!generated) {
+          return {
+            ok: false,
+            error: 'AI generation failed. Please check that your CLI coding agent is available and configured.',
+          };
+        }
+
+        // Save generated config
+        const configPath = path.join(projectPath, PROJECT_CONFIG_PATH);
+        const configDir = path.dirname(configPath);
+
+        if (!fs.existsSync(configDir)) {
+          fs.mkdirSync(configDir, { recursive: true });
+        }
+
+        fs.writeFileSync(configPath, JSON.stringify(generated.config, null, 2), 'utf8');
+        log.info('Saved regenerated config', { configPath });
+
+        return {
+          ok: true,
+          config: generated.config,
+          reasoning: generated.reasoning,
+        };
+      } catch (error) {
+        log.error('IPC worktreeRun:regenerateConfig failed', { error });
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+  );
+
   // Forward events from WorktreeRunService to all renderer windows
   worktreeRunService.onEvent((event) => {
     BrowserWindow.getAllWindows().forEach((win) => {

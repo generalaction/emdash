@@ -1,15 +1,46 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save } from 'lucide-react';
+import { X, Save, Trash2, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useToast } from '../hooks/use-toast';
+import { getWorkspaceProviderPreference } from '../utils/providerPreference';
+
+// Type helper to access worktreeRun methods
+type WorktreeRunConfigAPI = {
+  worktreeRunLoadConfig: (args: { projectPath: string }) => Promise<{
+    ok: boolean;
+    config: any | null;
+    exists: boolean;
+    error?: string;
+  }>;
+  worktreeRunSaveConfig: (args: {
+    projectPath: string;
+    config: any;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  worktreeRunDeleteConfig: (args: { projectPath: string }) => Promise<{
+    ok: boolean;
+    deleted?: boolean;
+    message?: string;
+    error?: string;
+  }>;
+  worktreeRunRegenerateConfig: (args: {
+    projectPath: string;
+    preferredProvider?: string;
+  }) => Promise<{
+    ok: boolean;
+    config?: any;
+    reasoning?: string;
+    error?: string;
+  }>;
+};
 
 interface RunConfigEditorModalProps {
   open: boolean;
   onClose: () => void;
   projectPath: string;
+  workspaceId?: string | null;
   onSave?: () => void;
 }
 
@@ -17,12 +48,15 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
   open,
   onClose,
   projectPath,
+  workspaceId,
   onSave,
 }) => {
   const [editorValue, setEditorValue] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
+  const [regenerating, setRegenerating] = useState<boolean>(false);
   const [dirty, setDirty] = useState<boolean>(false);
   const [isDark, setIsDark] = useState(false);
+  const [configExists, setConfigExists] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
@@ -79,13 +113,20 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
     if (!open || !projectPath) return;
 
     setLoading(true);
-    window.electronAPI
+    (window.electronAPI as WorktreeRunConfigAPI & typeof window.electronAPI)
       .worktreeRunLoadConfig({ projectPath })
-      .then((result) => {
+      .then((result: {
+        ok: boolean;
+        config: any | null;
+        exists: boolean;
+        error?: string;
+      }) => {
         if (result.ok && result.config) {
           setEditorValue(JSON.stringify(result.config, null, 2));
           setDirty(false);
+          setConfigExists(true);
         } else if (result.ok && !result.exists) {
+          setConfigExists(false);
           // No config - create default
           const defaultConfig = {
             version: 1,
@@ -125,7 +166,7 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
       const config = JSON.parse(editorValue);
 
       // Save via IPC
-      const result = await window.electronAPI.worktreeRunSaveConfig({
+      const result = await (window.electronAPI as WorktreeRunConfigAPI & typeof window.electronAPI).worktreeRunSaveConfig({
         projectPath,
         config,
       });
@@ -135,12 +176,98 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
       }
 
       setDirty(false);
+      setConfigExists(true);
       toast({ title: 'Saved', description: 'Run configuration updated' });
       if (onSave) onSave();
     } catch (err: any) {
       toast({
         title: 'Save failed',
         description: err?.message || 'Invalid JSON or save error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRegenerate = async () => {
+    const confirmed = window.confirm(
+      'Regenerate configuration using AI? This will overwrite the current configuration.'
+    );
+    if (!confirmed) return;
+
+    // Get preferred provider from workspace preference
+    const preferredProvider = getWorkspaceProviderPreference(workspaceId) || undefined;
+
+    setRegenerating(true);
+    try {
+      const result = await (window.electronAPI as WorktreeRunConfigAPI & typeof window.electronAPI).worktreeRunRegenerateConfig({
+        projectPath,
+        preferredProvider,
+      });
+
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to regenerate');
+      }
+
+      if (result.config) {
+        setEditorValue(JSON.stringify(result.config, null, 2));
+        setDirty(false);
+        setConfigExists(true);
+        toast({
+          title: 'Regenerated',
+          description: 'Configuration regenerated successfully using AI.',
+        });
+        if (onSave) onSave();
+      } else {
+        throw new Error('No config returned from generation');
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Regeneration failed',
+        description: err?.message || 'Failed to regenerate configuration',
+        variant: 'destructive',
+      });
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!configExists) {
+      toast({
+        title: 'No config to delete',
+        description: 'Configuration file does not exist',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Delete this configuration? The next run will trigger AI generation to create a new one.'
+    );
+    if (!confirmed) return;
+
+    try {
+      const result = await (window.electronAPI as WorktreeRunConfigAPI & typeof window.electronAPI).worktreeRunDeleteConfig({
+        projectPath,
+      });
+
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to delete');
+      }
+
+      setConfigExists(false);
+      setEditorValue('');
+      setDirty(false);
+      toast({ 
+        title: 'Deleted', 
+        description: 'Configuration deleted. Next run will generate a new config.' 
+      });
+      if (onSave) onSave();
+      onClose();
+    } catch (err: any) {
+      toast({
+        title: 'Delete failed',
+        description: err?.message || 'Failed to delete configuration',
         variant: 'destructive',
       });
     }
@@ -177,24 +304,47 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
                 ? { opacity: 1, y: 0, scale: 1 }
                 : { opacity: 0, y: 6, scale: 0.995 }
             }
-            className="flex h-[70vh] w-[60vw] transform-gpu flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+            className="flex h-[70vh] w-[60vw] transform-gpu flex-col overflow-hidden rounded-2xl border border-gray-200/50 bg-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:border-gray-700/50 dark:bg-gray-900 dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)]"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 bg-white/80 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-900/50">
-              <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                Edit Run Configuration
+            <div className="flex items-center justify-between border-b border-gray-200/80 bg-white/95 px-5 py-3 backdrop-blur-xl dark:border-gray-700/80 dark:bg-gray-900/95">
+              <div className="text-[13px] font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+                Run Configuration
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleSave}
-                  className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900/40"
-                  title="Save (Cmd/Ctrl+S)"
+                  onClick={handleRegenerate}
+                  disabled={regenerating || loading}
+                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-blue-600/20 bg-blue-600/90 px-3 py-1.5 text-[13px] font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all hover:bg-blue-600 hover:shadow-[0_1px_3px_0_rgba(0,0,0,0.1)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed dark:border-blue-500/20 dark:bg-blue-700/90 dark:hover:bg-blue-700"
+                  title="Regenerate with AI"
                 >
-                  <Save className="h-3.5 w-3.5" /> Save
+                  <Sparkles className={`h-3.5 w-3.5 ${regenerating ? 'animate-spin' : ''}`} />
+                  {regenerating ? 'Generating' : 'Regenerate'}
+                </button>
+                {configExists && (
+                  <button
+                    onClick={handleDelete}
+                    disabled={regenerating || loading}
+                    className="inline-flex items-center gap-1.5 rounded-[4px] border border-red-600/20 bg-red-600/90 px-3 py-1.5 text-[13px] font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all hover:bg-red-600 hover:shadow-[0_1px_3px_0_rgba(0,0,0,0.1)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed dark:border-red-500/20 dark:bg-red-700/90 dark:hover:bg-red-700"
+                    title="Delete configuration"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                )}
+                <button
+                  onClick={handleSave}
+                  disabled={regenerating || loading}
+                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-gray-900/10 bg-gray-800 px-3 py-1.5 text-[13px] font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all hover:bg-gray-900 hover:shadow-[0_1px_3px_0_rgba(0,0,0,0.1)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-100/10 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                  title="Save (⌘S)"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  Save
                 </button>
                 <button
                   onClick={handleClose}
-                  className="rounded-md p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  disabled={regenerating}
+                  className="rounded-[4px] p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed dark:hover:bg-gray-800 dark:hover:text-gray-300"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -203,9 +353,16 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
 
             {/* Editor */}
             <div className="relative flex-1 overflow-hidden">
-              {loading ? (
+              {loading || regenerating ? (
                 <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
-                  Loading configuration...
+                  {regenerating ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Sparkles className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
+                      <div>Generating configuration with AI...</div>
+                    </div>
+                  ) : (
+                    'Loading configuration...'
+                  )}
                 </div>
               ) : (
                 <div className="relative h-full w-full">
@@ -268,8 +425,8 @@ export const RunConfigEditorModal: React.FC<RunConfigEditorModalProps> = ({
             </div>
 
             {/* Footer hint */}
-            <div className="border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              Cmd/Ctrl+S to save • Esc to close
+            <div className="border-t border-gray-200/80 bg-gray-50/50 px-5 py-2.5 text-[11px] tracking-wide text-gray-500 backdrop-blur-xl dark:border-gray-700/80 dark:bg-gray-900/50 dark:text-gray-400">
+              <span className="font-mono">⌘S</span> to save · <span className="font-mono">Esc</span> to close
             </div>
           </motion.div>
         </motion.div>

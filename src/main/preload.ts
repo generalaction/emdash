@@ -354,6 +354,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('worktreeRun:loadConfig', args),
   worktreeRunSaveConfig: (args: { projectPath: string; config: any }) =>
     ipcRenderer.invoke('worktreeRun:saveConfig', args),
+  worktreeRunDeleteConfig: (args: { projectPath: string }) =>
+    ipcRenderer.invoke('worktreeRun:deleteConfig', args),
+  worktreeRunRegenerateConfig: (args: {
+    projectPath: string;
+    preferredProvider?: string;
+  }) => ipcRenderer.invoke('worktreeRun:regenerateConfig', args),
   onWorktreeRunEvent: (listener: (event: any) => void) => {
     const channel = 'worktreeRun:event';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
