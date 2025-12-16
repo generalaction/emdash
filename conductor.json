@@ -1,0 +1,6 @@
+{
+    "scripts": {
+        "setup": "",
+        "run": "npm run d"
+    }
+}
