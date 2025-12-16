@@ -38,12 +38,12 @@ type TelemetryEvent =
   | 'project_added_success' // when a project is added successfully (both entrypoint buttons)
   | 'project_deleted'
   | 'project_view_opened' // when a user opens a project and see the Task overview in main screen (not the sidebar)
-  // Workspace management
-  | 'workspace_created' // when a new workspace (task) is created (track) (with all attributes, if initial prompt is used (but dont store the initial prompt itself))
-  | 'workspace_deleted' // when a workspace (task) is deleted
-  | 'workspace_provider_switched' // when a workspace (task) is switched to a different provider
-  | 'workspace_custom_named' // when a Task (workspace) is given a custom name instead of the default generated one
-  | 'workspace_advanced_options_opened' // when a workspace (task) advanced options are opened
+  // Task management
+  | 'task_created' // when a new task is created (track) (with all attributes, if initial prompt is used (but dont store the initial prompt itself))
+  | 'task_deleted' // when a task is deleted
+  | 'task_provider_switched' // when a task is switched to a different provider
+  | 'task_custom_named' // when a task is given a custom name instead of the default generated one
+  | 'task_advanced_options_opened' // when task advanced options are opened
   // Terminal (Right Sidebar)
   | 'terminal_entered' //when a user enters the terminal (right sidebar) with his mouse
   | 'terminal_command_executed' //when a user executes a command in the terminal
@@ -61,8 +61,8 @@ type TelemetryEvent =
   // Linear integration
   | 'linear_connected'
   | 'linear_disconnected'
-  | 'linear_issues_searched' // when creating a new task (workspace) and the Linear issue search is opened
-  | 'linear_issue_selected' // when a user selects a Linear issue to create a new task (workspace) (no need to send task, just selecting issue)
+  | 'linear_issues_searched' // when creating a new task and the Linear issue search is opened
+  | 'linear_issue_selected' // when a user selects a Linear issue to create a new task (no need to send task, just selecting issue)
   // Jira integration
   | 'jira_connected'
   | 'jira_disconnected'
@@ -93,7 +93,7 @@ type TelemetryEvent =
   | 'feature_used'
   | 'error'
   // Aggregates (privacy-safe)
-  | 'workspace_snapshot'
+  | 'task_snapshot'
   // Session summary (duration only)
   | 'app_session'
   // Agent usage (provider-level only)
@@ -219,8 +219,8 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     'duration_ms',
     'session_duration_ms',
     'outcome',
-    'workspace_count',
-    'workspace_count_bucket',
+    'task_count',
+    'task_count_bucket',
     'project_count',
     'project_count_bucket',
   ]);

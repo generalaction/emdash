@@ -156,11 +156,11 @@ app.whenReady().then(async () => {
     const workspaceCount = workspaces.length;
     const toBucket = (n: number) =>
       n === 0 ? '0' : n <= 2 ? '1-2' : n <= 5 ? '3-5' : n <= 10 ? '6-10' : '>10';
-    telemetry.capture('workspace_snapshot', {
+    telemetry.capture('task_snapshot', {
       project_count: projectCount,
       project_count_bucket: toBucket(projectCount),
-      workspace_count: workspaceCount,
-      workspace_count_bucket: toBucket(workspaceCount),
+      task_count: workspaceCount,
+      task_count_bucket: toBucket(workspaceCount),
     } as any);
   } catch {
     // ignore errors — telemetry is best-effort only

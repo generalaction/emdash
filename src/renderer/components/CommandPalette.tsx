@@ -216,7 +216,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             label: task.name,
             description: `${project.name} • ${task.branch}`,
             icon: <GitBranch className="h-4 w-4" />,
-            group: 'Workspaces',
+            group: 'Tasks',
             keywords: [
               'task',
               task.name.toLowerCase(),
@@ -254,7 +254,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     return groups;
   }, [commands]);
 
-  const groupOrder = ['Navigation', 'Toggles', 'Projects', 'Workspaces'];
+  const groupOrder = ['Navigation', 'Toggles', 'Projects', 'Tasks'];
 
   return createPortal(
     <AnimatePresence>

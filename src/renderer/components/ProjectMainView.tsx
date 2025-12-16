@@ -8,7 +8,7 @@ import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
-import WorkspaceDeleteButton from './TaskDeleteButton';
+import TaskDeleteButton from './TaskDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import {
   AlertDialog,
@@ -24,7 +24,7 @@ import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
-import WorkspacePorts from './TaskPorts';
+import TaskPorts from './TaskPorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
 import DeletePrNotice from './DeletePrNotice';
@@ -44,7 +44,7 @@ const normalizeBaseRef = (ref?: string | null): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
-function WorkspaceRow({
+function TaskRow({
   ws,
   active,
   onClick,
@@ -349,7 +349,7 @@ function WorkspaceRow({
               className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
             />
           ) : (
-            <WorkspaceDeleteButton
+            <TaskDeleteButton
               taskName={ws.name}
               taskId={ws.id}
               taskPath={ws.path}
@@ -371,7 +371,7 @@ function WorkspaceRow({
 
       <AnimatePresence initial={false}>
         {containerActive && expanded ? (
-          <WorkspacePorts
+          <TaskPorts
             key={`ports-${ws.id}`}
             taskId={ws.id}
             taskPath={ws.path}
@@ -845,7 +845,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 )}
                 <div className="flex flex-col gap-3">
                   {tasksInProject.map((ws) => (
-                    <WorkspaceRow
+                    <TaskRow
                       key={ws.id}
                       ws={ws}
                       isSelectMode={isSelectMode}

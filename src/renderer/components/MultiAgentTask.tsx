@@ -345,7 +345,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
   // Sync variant busy state to activityStore for sidebar indicator
   useEffect(() => {
     const anyBusy = Object.values(variantBusy).some(Boolean);
-    activityStore.setWorkspaceBusy(task.id, anyBusy);
+    activityStore.setTaskBusy(task.id, anyBusy);
   }, [variantBusy, task.id]);
 
   // Scroll to bottom when active tab changes

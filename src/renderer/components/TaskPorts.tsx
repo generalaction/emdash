@@ -13,7 +13,7 @@ interface Props {
   previewService?: string;
 }
 
-const WorkspacePorts: React.FC<Props> = ({
+const TaskPorts: React.FC<Props> = ({
   taskId,
   taskPath,
   ports,
@@ -271,4 +271,4 @@ const WorkspacePorts: React.FC<Props> = ({
   );
 };
 
-export default WorkspacePorts;
+export default TaskPorts;

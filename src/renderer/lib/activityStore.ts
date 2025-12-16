@@ -102,7 +102,7 @@ class ActivityStore {
     }
   }
 
-  setWorkspaceBusy(wsId: string, busy: boolean) {
+  setTaskBusy(wsId: string, busy: boolean) {
     this.setBusy(wsId, busy, false);
   }
 

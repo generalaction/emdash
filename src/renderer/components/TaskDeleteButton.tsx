@@ -28,7 +28,7 @@ type Props = {
   isDeleting?: boolean;
 };
 
-export const WorkspaceDeleteButton: React.FC<Props> = ({
+export const TaskDeleteButton: React.FC<Props> = ({
   taskName,
   taskId,
   taskPath,
@@ -197,4 +197,4 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   );
 };
 
-export default WorkspaceDeleteButton;
+export default TaskDeleteButton;

@@ -9,7 +9,7 @@ import {
 
 // Events allowed from renderer process
 // Main process-only events (app_started, app_closed, app_window_focused, github_connection_triggered,
-// github_connected, workspace_snapshot, app_session, agent_run_start, agent_run_finish) should NOT be here
+// github_connected, task_snapshot, app_session, agent_run_start, agent_run_finish) should NOT be here
 const RENDERER_ALLOWED_EVENTS = new Set([
   // Legacy
   'feature_used',
@@ -20,12 +20,12 @@ const RENDERER_ALLOWED_EVENTS = new Set([
   'project_added_success',
   'project_deleted',
   'project_view_opened',
-  // Workspace management
-  'workspace_created',
-  'workspace_deleted',
-  'workspace_provider_switched',
-  'workspace_custom_named',
-  'workspace_advanced_options_opened',
+  // Task management
+  'task_created',
+  'task_deleted',
+  'task_provider_switched',
+  'task_custom_named',
+  'task_advanced_options_opened',
   // Terminal (Right Sidebar)
   'terminal_entered',
   'terminal_command_executed',

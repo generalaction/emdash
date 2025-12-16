@@ -225,7 +225,7 @@ const ChatInterface: React.FC<Props> = ({
     if (prevProviderRef.current && prevProviderRef.current !== provider) {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('workspace_provider_switched', { provider });
+        captureTelemetry('task_provider_switched', { provider });
       })();
     }
     prevProviderRef.current = provider;
