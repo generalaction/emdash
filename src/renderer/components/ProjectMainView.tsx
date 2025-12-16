@@ -36,6 +36,7 @@ import {
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
 import PrPreviewTooltip from './PrPreviewTooltip';
+import { isActivePr, PrInfo } from '../lib/prStatus';
 import type { Project, Workspace } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -438,13 +439,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         ahead: number;
         behind: number;
         error?: string;
-        pr?: {
-          number?: number;
-          title?: string;
-          url?: string;
-          state?: string;
-          isDraft?: boolean;
-        } | null;
+        pr?: PrInfo | null;
       }
     >
   >({});
@@ -461,7 +456,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         status.untracked > 0 ||
         status.ahead > 0 ||
         !!status.error ||
-        !!status.pr;
+        (status.pr && isActivePr(status.pr));
       if (dirty) {
         riskyIds.add(ws.id);
         const parts: string[] = [];
@@ -475,7 +470,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
         if (status.behind > 0)
           parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
-        if (status.pr) parts.push('PR open');
+        if (status.pr && isActivePr(status.pr)) parts.push('PR open');
         if (!parts.length && status.error) parts.push('status unavailable');
         summaries[ws.id] = parts.join(', ');
       }
@@ -594,8 +589,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
               ? infoRes.value.behindCount
               : 0;
-          const pr =
-            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
+          const rawPr =
+            prRes.status === 'fulfilled' && prRes.value?.success ? prRes.value.pr ?? null : null;
+          const pr = isActivePr(rawPr) ? rawPr : null;
 
           next[ws.id] = {
             staged,
@@ -888,7 +884,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   const summary = deleteRisks.summaries[ws.id];
                   const status = deleteStatus[ws.id];
                   if (!summary && !status?.error) return false;
-                  if (status?.pr) return false;
+                  if (status?.pr && isActivePr(status.pr)) return false;
                   return true;
                 });
 
@@ -928,7 +924,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               {(() => {
                 const prWorkspaces = selectedWorkspaces
                   .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
-                  .filter((w) => w.pr);
+                  .filter((w) => w.pr && isActivePr(w.pr));
                 return prWorkspaces.length ? (
                   <motion.div
                     key="bulk-pr-notice"
