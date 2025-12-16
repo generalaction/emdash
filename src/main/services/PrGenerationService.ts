@@ -170,7 +170,7 @@ export class PrGenerationService {
           maxBuffer: 10 * 1024 * 1024,
         });
         const workingDiffText = workingDiff || '';
-        
+
         // If we have both committed and uncommitted changes, combine them
         if (workingDiffText && diff) {
           // Combine diff stats (working directory changes will be added)
@@ -188,7 +188,7 @@ export class PrGenerationService {
           .split('\n')
           .map((f) => f.trim())
           .filter(Boolean);
-        
+
         // Merge file lists, avoiding duplicates
         const allFiles = new Set([...changedFiles, ...uncommittedFiles]);
         changedFiles = Array.from(allFiles);
@@ -412,26 +412,26 @@ Only respond with valid JSON, no other text.`;
         const parsed = JSON.parse(jsonMatch[0]);
         if (parsed.title && parsed.description) {
           let description = String(parsed.description);
-          
+
           // Handle multiple newline escape scenarios:
           // 1. Literal backslash-n sequences (from double-escaped JSON like "\\n")
           // 2. String representations of newlines
           // Do this before trimming to preserve intentional whitespace
-          
+
           // First, check if we have literal \n characters (backslash followed by n)
           // This happens when JSON contains "\\n" which becomes "\n" after parsing
           if (description.includes('\\n')) {
             // Replace literal backslash-n with actual newlines
             description = description.replace(/\\n/g, '\n');
           }
-          
+
           // Also handle case where newlines might be represented as literal text "\\n" (double backslash)
           // This is less common but could happen if the LLM outputs raw text
           description = description.replace(/\\\\n/g, '\n');
-          
+
           // Trim after processing newlines
           description = description.trim();
-          
+
           return {
             title: parsed.title.trim(),
             description,
@@ -611,10 +611,10 @@ Only respond with valid JSON, no other text.`;
 
     // Ensure headers have proper spacing (double newline before headers)
     let normalized = text.replace(/\n(##+ )/g, '\n\n$1');
-    
+
     // Remove excessive blank lines (more than 2 consecutive)
     normalized = normalized.replace(/\n{3,}/g, '\n\n');
-    
+
     // Trim trailing whitespace on each line but preserve intentional spacing
     normalized = normalized
       .split('\n')

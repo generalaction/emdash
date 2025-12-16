@@ -291,22 +291,27 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const flags: string[] = [];
         if (repoNameWithOwner) flags.push(`--repo ${JSON.stringify(repoNameWithOwner)}`);
         if (title) flags.push(`--title ${JSON.stringify(title)}`);
-        
+
         // Use temp file for body to properly handle newlines and multiline content
         let bodyFile: string | null = null;
         if (body) {
           try {
-            bodyFile = path.join(os.tmpdir(), `gh-pr-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`);
+            bodyFile = path.join(
+              os.tmpdir(),
+              `gh-pr-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`
+            );
             // Write body with actual newlines preserved
             fs.writeFileSync(bodyFile, body, 'utf8');
             flags.push(`--body-file ${JSON.stringify(bodyFile)}`);
           } catch (writeError) {
-            log.warn('Failed to write body to temp file, falling back to --body flag', { writeError });
+            log.warn('Failed to write body to temp file, falling back to --body flag', {
+              writeError,
+            });
             // Fallback to direct --body flag if temp file creation fails
             flags.push(`--body ${JSON.stringify(body)}`);
           }
         }
-        
+
         if (base || defaultBranch) flags.push(`--base ${JSON.stringify(base || defaultBranch)}`);
         if (head) {
           flags.push(`--head ${JSON.stringify(head)}`);
