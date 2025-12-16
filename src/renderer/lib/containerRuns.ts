@@ -12,7 +12,7 @@ import type { RunnerPortMapping } from '@shared/container';
 import { log } from './logger';
 
 type Listener = (event: RunnerEvent) => void;
-type WorkspaceListener = (state: ContainerRunState) => void;
+type TaskListener = (state: ContainerRunState) => void;
 
 interface StartRunArgs {
   taskId: string;
@@ -22,8 +22,8 @@ interface StartRunArgs {
 }
 
 const listeners = new Set<Listener>();
-const workspaceListeners = new Map<string, Set<WorkspaceListener>>();
-const workspaceStates = new Map<string, ContainerRunState>();
+const taskListeners = new Map<string, Set<TaskListener>>();
+const taskStates = new Map<string, ContainerRunState>();
 let subscribed = false;
 let unsubscribe: (() => void) | undefined;
 
@@ -34,7 +34,7 @@ function clean(value: string | undefined | null): string | undefined {
 }
 
 function getOrCreateState(taskId: string): ContainerRunState {
-  const existing = workspaceStates.get(taskId);
+  const existing = taskStates.get(taskId);
   if (existing) return existing;
   const created: ContainerRunState = {
     taskId,
@@ -47,7 +47,7 @@ function getOrCreateState(taskId: string): ContainerRunState {
     lastUpdatedAt: 0,
     lastError: null,
   };
-  workspaceStates.set(taskId, created);
+  taskStates.set(taskId, created);
   return created;
 }
 
@@ -56,7 +56,7 @@ function clonePort(port: RunnerPortMapping): RunnerPortMapping & { url: string }
   return { ...port, url };
 }
 
-function updateWorkspaceState(event: RunnerEvent) {
+function updateTaskState(event: RunnerEvent) {
   const state = getOrCreateState(event.taskId);
   const isNewRun = state.runId && state.runId !== event.runId;
   if (!state.runId || isNewRun) {
@@ -125,11 +125,11 @@ function updateWorkspaceState(event: RunnerEvent) {
       break;
   }
   state.lastUpdatedAt = event.ts;
-  workspaceStates.set(event.taskId, { ...state });
+  taskStates.set(event.taskId, { ...state });
 
-  const wsListeners = workspaceListeners.get(event.taskId);
-  if (wsListeners) {
-    for (const listener of wsListeners) {
+  const taskListenersForTask = taskListeners.get(event.taskId);
+  if (taskListenersForTask) {
+    for (const listener of taskListenersForTask) {
       try {
         listener({ ...state });
       } catch (error) {
@@ -148,7 +148,7 @@ function ensureSubscribed() {
     unsubscribe = api.onRunEvent((event: RunnerEvent) => {
       log.info('[containers] runner event', event);
       try {
-        updateWorkspaceState(event);
+        updateTaskState(event);
       } catch (error) {
         log.error('[containers] failed to update task state', error);
       }
@@ -175,15 +175,15 @@ export function subscribeToContainerRuns(listener: Listener): () => void {
   };
 }
 
-export function subscribeToWorkspaceRunState(
+export function subscribeToTaskRunState(
   taskId: string,
-  listener: WorkspaceListener
+  listener: TaskListener
 ): () => void {
   ensureSubscribed();
-  const set = workspaceListeners.get(taskId) ?? new Set<WorkspaceListener>();
+  const set = taskListeners.get(taskId) ?? new Set<TaskListener>();
   set.add(listener);
-  workspaceListeners.set(taskId, set);
-  const current = workspaceStates.get(taskId);
+  taskListeners.set(taskId, set);
+  const current = taskStates.get(taskId);
   if (current) {
     try {
       listener({ ...current });
@@ -193,17 +193,17 @@ export function subscribeToWorkspaceRunState(
   }
 
   return () => {
-    const listenersForWorkspace = workspaceListeners.get(taskId);
-    if (!listenersForWorkspace) return;
-    listenersForWorkspace.delete(listener);
-    if (listenersForWorkspace.size === 0) {
-      workspaceListeners.delete(taskId);
+    const listenersForTask = taskListeners.get(taskId);
+    if (!listenersForTask) return;
+    listenersForTask.delete(listener);
+    if (listenersForTask.size === 0) {
+      taskListeners.delete(taskId);
     }
   };
 }
 
 export function getContainerRunState(taskId: string): ContainerRunState | undefined {
-  const state = workspaceStates.get(taskId);
+  const state = taskStates.get(taskId);
   return state ? { ...state } : undefined;
 }
 
@@ -252,14 +252,14 @@ export function resetContainerRunListeners() {
     } catch {}
   }
   listeners.clear();
-  workspaceListeners.clear();
-  workspaceStates.clear();
+  taskListeners.clear();
+  taskStates.clear();
   subscribed = false;
   unsubscribe = undefined;
 }
 
 export function getAllRunStates(): ContainerRunState[] {
-  return Array.from(workspaceStates.values()).map((s) => ({ ...s }));
+  return Array.from(taskStates.values()).map((s) => ({ ...s }));
 }
 
 export function subscribeToAllRunStates(
@@ -283,7 +283,7 @@ export function subscribeToAllRunStates(
  * Inspect any existing compose stack for this task and hydrate local state,
  * so UI shows ports/running status after a window refresh.
  */
-export async function refreshWorkspaceRunState(taskId: string) {
+export async function refreshTaskRunState(taskId: string) {
   ensureSubscribed();
   const api = (window as any).electronAPI;
   if (!api?.inspectContainerRun) return;
@@ -306,7 +306,7 @@ export async function refreshWorkspaceRunState(taskId: string) {
           url: `http://localhost:${p.host}`,
         })),
       } as any;
-      updateWorkspaceState(portsEvent);
+      updateTaskState(portsEvent);
       const lifecycleEvent: RunnerEvent = {
         ts: now,
         taskId,
@@ -315,7 +315,7 @@ export async function refreshWorkspaceRunState(taskId: string) {
         type: 'lifecycle',
         status: 'ready',
       } as any;
-      updateWorkspaceState(lifecycleEvent);
+      updateTaskState(lifecycleEvent);
     }
   } catch (error) {
     log.warn?.('[containers] refresh run state failed', error);

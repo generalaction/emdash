@@ -1,6 +1,6 @@
 import {
   startContainerRun,
-  subscribeToWorkspaceRunState,
+  subscribeToTaskRunState,
   getContainerRunState,
 } from '@/lib/containerRuns';
 
@@ -59,7 +59,7 @@ export async function quickStartPreview(args: {
     // Subscribe for preview becoming ready
     const unsubRef: { current: null | (() => void) } = { current: null };
     await new Promise<void>((resolve) => {
-      unsubRef.current = subscribeToWorkspaceRunState(taskId, (state) => {
+      unsubRef.current = subscribeToTaskRunState(taskId, (state) => {
         if (state.previewUrl) {
           onPreviewUrl?.(state.previewUrl);
           resolve();

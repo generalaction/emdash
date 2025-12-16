@@ -49,7 +49,7 @@ vi.mock('../../renderer/lib/logger', () => ({
 import {
   startContainerRun,
   subscribeToContainerRuns,
-  subscribeToWorkspaceRunState,
+  subscribeToTaskRunState,
   getContainerRunState,
   resetContainerRunListeners,
 } from '../../renderer/lib/containerRuns';
@@ -100,9 +100,9 @@ describe('containerRuns renderer bridge', () => {
     unsubscribe();
   });
 
-  it('tracks workspace state and notifies workspace listeners', () => {
+  it('tracks task state and notifies task listeners', () => {
     const updates: Array<{ status: string; previewUrl?: string | undefined }> = [];
-    const unsubscribe = subscribeToWorkspaceRunState('ws-1', (state) =>
+    const unsubscribe = subscribeToTaskRunState('ws-1', (state) =>
       updates.push({ status: state.status, previewUrl: state.previewUrl })
     );
 

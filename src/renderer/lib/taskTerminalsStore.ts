@@ -14,18 +14,18 @@ type TaskTerminalsState = {
   counter: number;
 };
 
-type WorkspaceSnapshot = {
+type TaskSnapshot = {
   terminals: TaskTerminal[];
   activeTerminalId: string | null;
 };
 
 const STORAGE_PREFIX = 'emdash:workspaceTerminals:v1';
 
-const workspaceStates = new Map<string, TaskTerminalsState>();
-const workspaceListeners = new Map<string, Set<() => void>>();
-const taskSnapshots = new Map<string, WorkspaceSnapshot>();
+const taskStates = new Map<string, TaskTerminalsState>();
+const taskListeners = new Map<string, Set<() => void>>();
+const taskSnapshots = new Map<string, TaskSnapshot>();
 
-const EMPTY_SNAPSHOT: WorkspaceSnapshot = {
+const EMPTY_SNAPSHOT: TaskSnapshot = {
   terminals: [],
   activeTerminalId: null,
 };
@@ -158,24 +158,24 @@ function ensureSnapshot(taskId: string, state: TaskTerminalsState) {
   return taskSnapshots.get(taskId)!;
 }
 
-function ensureWorkspaceState(
+function ensureTaskState(
   taskId: string,
   taskPath?: string
 ): TaskTerminalsState {
-  let state = workspaceStates.get(taskId);
+  let state = taskStates.get(taskId);
   if (state) {
     ensureSnapshot(taskId, state);
     return state;
   }
 
   state = loadFromStorage(taskId) ?? createDefaultState(taskId, taskPath);
-  workspaceStates.set(taskId, state);
+  taskStates.set(taskId, state);
   ensureSnapshot(taskId, state);
   return state;
 }
 
 function emit(taskId: string) {
-  const listeners = workspaceListeners.get(taskId);
+  const listeners = taskListeners.get(taskId);
   if (!listeners) return;
   for (const listener of listeners) {
     try {
@@ -186,18 +186,18 @@ function emit(taskId: string) {
   }
 }
 
-function updateWorkspaceState(
+function updateTaskState(
   taskId: string,
   taskPath: string | undefined,
   mutate: (draft: TaskTerminalsState) => void
 ) {
-  const current = ensureWorkspaceState(taskId, taskPath);
+  const current = ensureTaskState(taskId, taskPath);
   const draft = cloneState(current);
   mutate(draft);
   // Ensure state remains valid
   if (!draft.terminals.length) {
     const fallback = createDefaultState(taskId, taskPath);
-    workspaceStates.set(taskId, fallback);
+    taskStates.set(taskId, fallback);
     ensureSnapshot(taskId, fallback);
     saveToStorage(taskId, fallback);
     emit(taskId);
@@ -207,15 +207,15 @@ function updateWorkspaceState(
     draft.activeId = draft.terminals[0].id;
   }
   draft.counter = Math.max(draft.counter, draft.terminals.length);
-  workspaceStates.set(taskId, draft);
+  taskStates.set(taskId, draft);
   ensureSnapshot(taskId, draft);
   saveToStorage(taskId, draft);
   emit(taskId);
 }
 
-function getSnapshot(taskId: string | null, taskPath?: string): WorkspaceSnapshot {
+function getSnapshot(taskId: string | null, taskPath?: string): TaskSnapshot {
   if (!taskId) return EMPTY_SNAPSHOT;
-  const state = ensureWorkspaceState(taskId, taskPath);
+  const state = ensureTaskState(taskId, taskPath);
   return ensureSnapshot(taskId, state);
 }
 
@@ -227,25 +227,25 @@ function subscribe(
   if (!taskId) {
     return () => undefined;
   }
-  ensureWorkspaceState(taskId, taskPath);
-  let set = workspaceListeners.get(taskId);
+  ensureTaskState(taskId, taskPath);
+  let set = taskListeners.get(taskId);
   if (!set) {
     set = new Set();
-    workspaceListeners.set(taskId, set);
+    taskListeners.set(taskId, set);
   }
   set.add(listener);
   return () => {
-    const listeners = workspaceListeners.get(taskId);
+    const listeners = taskListeners.get(taskId);
     if (!listeners) return;
     listeners.delete(listener);
     if (listeners.size === 0) {
-      workspaceListeners.delete(taskId);
+      taskListeners.delete(taskId);
     }
   };
 }
 
 function createTerminal(taskId: string, taskPath?: string) {
-  updateWorkspaceState(taskId, taskPath, (draft) => {
+  updateTaskState(taskId, taskPath, (draft) => {
     const nextIndex = draft.counter + 1;
     const id = makeTerminalId(taskId);
     draft.counter = nextIndex;
@@ -263,7 +263,7 @@ function createTerminal(taskId: string, taskPath?: string) {
 }
 
 function setActive(taskId: string, terminalId: string, taskPath?: string) {
-  updateWorkspaceState(taskId, taskPath, (draft) => {
+  updateTaskState(taskId, taskPath, (draft) => {
     if (draft.terminals.some((terminal) => terminal.id === terminalId)) {
       draft.activeId = terminalId;
     }
@@ -271,14 +271,14 @@ function setActive(taskId: string, terminalId: string, taskPath?: string) {
 }
 
 function closeTerminal(taskId: string, terminalId: string, taskPath?: string) {
-  const state = ensureWorkspaceState(taskId, taskPath);
+  const state = ensureTaskState(taskId, taskPath);
   if (state.terminals.length <= 1) {
     return;
   }
   const exists = state.terminals.some((terminal) => terminal.id === terminalId);
   if (!exists) return;
 
-  updateWorkspaceState(taskId, taskPath, (draft) => {
+  updateTaskState(taskId, taskPath, (draft) => {
     const idx = draft.terminals.findIndex((terminal) => terminal.id === terminalId);
     draft.terminals = draft.terminals.filter((terminal) => terminal.id !== terminalId);
     if (draft.activeId === terminalId) {

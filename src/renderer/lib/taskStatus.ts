@@ -1,15 +1,15 @@
-// Lightweight derived status store for workspaces based on agent activity
-// - Derives 'busy' when we receive stream output for a task (workspace)
+// Lightweight derived status store for tasks based on agent activity
+// - Derives 'busy' when we receive stream output for a task
 // - Derives 'idle' after a short inactivity window or when a 'complete' event fires
 
 type Derived = 'idle' | 'busy';
-import { subscribeToWorkspaceRunState } from './containerRuns';
+import { subscribeToTaskRunState } from './containerRuns';
 import { activityStore } from './activityStore';
 
 type Listener = (status: Derived) => void;
 
-const statusByWorkspace = new Map<string, Derived>();
-const listenersByWorkspace = new Map<string, Set<Listener>>();
+const statusByTask = new Map<string, Derived>();
+const listenersByTask = new Map<string, Set<Listener>>();
 const lastActivity = new Map<string, number>();
 
 // Inactivity delay before flipping back to idle
@@ -21,20 +21,20 @@ function ensureTicker() {
   tickStarted = true;
   setInterval(() => {
     const now = Date.now();
-    for (const [wid, ts] of lastActivity.entries()) {
-      const cur = statusByWorkspace.get(wid) || 'idle';
+    for (const [tid, ts] of lastActivity.entries()) {
+      const cur = statusByTask.get(tid) || 'idle';
       if (cur === 'busy' && now - ts > IDLE_AFTER_MS) {
-        setStatusInternal(wid, 'idle');
+        setStatusInternal(tid, 'idle');
       }
     }
   }, 2_000);
 }
 
 function setStatusInternal(taskId: string, next: Derived) {
-  const prev = statusByWorkspace.get(taskId) || 'idle';
+  const prev = statusByTask.get(taskId) || 'idle';
   if (prev === next) return;
-  statusByWorkspace.set(taskId, next);
-  const ls = listenersByWorkspace.get(taskId);
+  statusByTask.set(taskId, next);
+  const ls = listenersByTask.get(taskId);
   if (ls)
     for (const fn of Array.from(ls)) {
       try {
@@ -55,15 +55,15 @@ function wireGlobal() {
 
 export function getDerivedStatus(taskId: string): Derived {
   wireGlobal();
-  return statusByWorkspace.get(taskId) || 'idle';
+  return statusByTask.get(taskId) || 'idle';
 }
 
 export function subscribeDerivedStatus(taskId: string, listener: Listener): () => void {
   wireGlobal();
-  let set = listenersByWorkspace.get(taskId);
+  let set = listenersByTask.get(taskId);
   if (!set) {
     set = new Set<Listener>();
-    listenersByWorkspace.set(taskId, set);
+    listenersByTask.set(taskId, set);
   }
   set.add(listener);
   // Emit current immediately
@@ -71,18 +71,18 @@ export function subscribeDerivedStatus(taskId: string, listener: Listener): () =
     listener(getDerivedStatus(taskId));
   } catch {}
   return () => {
-    const set2 = listenersByWorkspace.get(taskId);
+    const set2 = listenersByTask.get(taskId);
     if (!set2) return;
     set2.delete(listener);
-    if (set2.size === 0) listenersByWorkspace.delete(taskId);
+    if (set2.size === 0) listenersByTask.delete(taskId);
   };
 }
 
 // Observe PTY activity (all current providers emit via PTY).
-// Call once per workspace to ensure terminal output marks the workspace busy.
+// Call once per task to ensure terminal output marks the task busy.
 // Kept as a separate watcher so future non‑PTY providers can remain decoupled.
 const ptyUnsubs = new Map<string, () => void>();
-export function watchWorkspacePty(taskId: string): () => void {
+export function watchTaskPty(taskId: string): () => void {
   wireGlobal();
   if (ptyUnsubs.has(taskId)) return ptyUnsubs.get(taskId)!;
   const api: any = (window as any).electronAPI;
@@ -124,10 +124,10 @@ export function watchWorkspacePty(taskId: string): () => void {
   return cleanup;
 }
 
-// Container runs also imply workspace activity (build/start/ready)
-export function watchWorkspaceContainers(taskId: string): () => void {
+// Container runs also imply task activity (build/start/ready)
+export function watchTaskContainers(taskId: string): () => void {
   wireGlobal();
-  const off = subscribeToWorkspaceRunState(taskId, (state) => {
+  const off = subscribeToTaskRunState(taskId, (state) => {
     const s = String(state?.status || 'idle');
     const active = /^(starting|building|running|ready)$/i.test(s);
     lastActivity.set(taskId, Date.now());
@@ -139,7 +139,7 @@ export function watchWorkspaceContainers(taskId: string): () => void {
 // Align with the app's activity indicator (left sidebar).
 // Subscribes to the shared activityStore which understands provider-specific PTY IDs
 // and classifies chunks as busy/idle with debouncing.
-export function watchWorkspaceActivity(taskId: string): () => void {
+export function watchTaskActivity(taskId: string): () => void {
   wireGlobal();
   const off = activityStore.subscribe(taskId, (isBusy) => {
     lastActivity.set(taskId, Date.now());
