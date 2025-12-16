@@ -114,7 +114,30 @@ export const ProjectDeleteButton: React.FC<Props> = ({
 
         <div className="space-y-3 text-sm">
           <AnimatePresence initial={false}>
-            {workspacesWithUncommittedWork.length > 0 ? (
+            {loading ? (
+              <motion.div
+                key="project-delete-loading"
+                initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
+              >
+                <Spinner className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" size="sm" />
+                <div className="flex flex-col gap-1 min-w-0">
+                  <span className="text-sm font-semibold text-foreground">
+                    Please wait...
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Scanning workspaces for uncommitted changes and open pull requests
+                  </span>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence initial={false}>
+            {!loading && workspacesWithUncommittedWork.length > 0 ? (
               <motion.div
                 key="project-delete-risk"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -167,7 +190,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
           </AnimatePresence>
 
           <AnimatePresence initial={false}>
-            {workspacesWithPRs.length > 0 ? (
+            {!loading && workspacesWithPRs.length > 0 ? (
               <motion.div
                 key="project-delete-prs"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -215,20 +238,35 @@ export const ProjectDeleteButton: React.FC<Props> = ({
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
-            disabled={disableDelete}
-            onClick={async (e) => {
-              e.stopPropagation();
-              setOpen(false);
-              try {
-                await onConfirm();
-              } catch {}
-            }}
-          >
-            {isDeleting ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
-            Delete
-          </AlertDialogAction>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogAction
+                  className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
+                  disabled={disableDelete}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setOpen(false);
+                    try {
+                      await onConfirm();
+                    } catch {}
+                  }}
+                >
+                  {isDeleting ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
+                  Delete
+                </AlertDialogAction>
+              </TooltipTrigger>
+              {disableDelete && !isDeleting ? (
+                <TooltipContent side="top" className="text-xs">
+                  {loading
+                    ? 'Checking workspaces...'
+                    : hasRisks && !acknowledge
+                      ? 'Acknowledge the risks to delete'
+                      : 'Delete is disabled'}
+                </TooltipContent>
+              ) : null}
+            </Tooltip>
+          </TooltipProvider>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

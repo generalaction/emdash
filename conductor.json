@@ -1,0 +1,7 @@
+{
+  "nodeVersion": "22.20.0",
+  "scripts": {
+    "setup": "npm install",
+    "run": "npm run d"
+  }
+}
