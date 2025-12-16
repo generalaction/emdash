@@ -928,5 +928,45 @@ export interface ElectronAPI {
     content: string,
     options?: { reset?: boolean }
   ) => Promise<{ success: boolean; error?: string }>;
+
+  // Worktree Run
+  worktreeRunStart: (args: {
+    workspaceId: string;
+    worktreePath: string;
+    projectPath: string;
+    scriptName?: string;
+    preferredProvider?: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  worktreeRunStop: (args: { workspaceId: string }) => Promise<{ ok: boolean }>;
+  worktreeRunGetState: (args: { workspaceId: string }) => Promise<{
+    ok: boolean;
+    state: {
+      workspaceId: string;
+      status: 'idle' | 'starting' | 'running' | 'stopped' | 'error';
+      config: any | null;
+      previewUrl: string | null;
+      error: string | null;
+    } | null;
+  }>;
+  worktreeRunLoadConfig: (args: { projectPath: string }) => Promise<{
+    ok: boolean;
+    config: any | null;
+    exists: boolean;
+    error?: string;
+  }>;
+  worktreeRunSaveConfig: (args: {
+    projectPath: string;
+    config: any;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  onWorktreeRunEvent: (
+    listener: (event: {
+      type: 'status' | 'url' | 'log' | 'error';
+      workspaceId: string;
+      status?: string;
+      url?: string;
+      line?: string;
+      error?: string;
+    }) => void
+  ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';

@@ -109,6 +109,9 @@ export class WorktreeService {
         this.ensureClaudeAutoApprove(worktreePath);
       }
 
+      // Copy .env files from project to worktree
+      this.copyEnvFiles(projectPath, worktreePath);
+
       await this.logWorktreeSyncStatus(projectPath, worktreePath, fetchedBaseRef);
 
       const worktreeInfo: WorktreeInfo = {
@@ -744,6 +747,43 @@ export class WorktreeService {
     }
   }
 
+  /**
+   * Copy .env* files from project to worktree
+   * Follows the same fail-silent pattern as ensureClaudeAutoApprove and ensureCodexLogIgnored
+   */
+  private copyEnvFiles(projectPath: string, worktreePath: string): void {
+    try {
+      const projectDir = fs.readdirSync(projectPath);
+      const envFiles = projectDir.filter((f) => f.match(/^\.env(\..+)?$/));
+
+      if (envFiles.length === 0) {
+        log.debug('No .env files found to copy', { projectPath });
+        return;
+      }
+
+      for (const envFile of envFiles) {
+        try {
+          const src = path.join(projectPath, envFile);
+          const dest = path.join(worktreePath, envFile);
+
+          // Skip if it's a directory
+          const stats = fs.statSync(src);
+          if (!stats.isFile()) continue;
+
+          // Copy file
+          fs.copyFileSync(src, dest);
+          log.info(`Copied ${envFile} to worktree`, { worktreePath });
+        } catch (err) {
+          // Fail silently for individual files (like ensureClaudeAutoApprove)
+          log.warn(`Failed to copy ${envFile}`, { err, worktreePath });
+        }
+      }
+    } catch (err) {
+      // Fail silently (don't block worktree creation)
+      log.error('Failed to copy .env files', { err, projectPath, worktreePath });
+    }
+  }
+
   private async logWorktreeSyncStatus(
     projectPath: string,
     worktreePath: string,
@@ -808,6 +848,9 @@ export class WorktreeService {
     }
 
     this.ensureCodexLogIgnored(worktreePath);
+
+    // Copy .env files from project to worktree
+    this.copyEnvFiles(projectPath, worktreePath);
 
     const worktreeInfo: WorktreeInfo = {
       id: this.stableIdFromPath(worktreePath),

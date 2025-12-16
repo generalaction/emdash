@@ -338,6 +338,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
+  // Worktree Run
+  worktreeRunStart: (args: {
+    workspaceId: string;
+    worktreePath: string;
+    projectPath: string;
+    scriptName?: string;
+    preferredProvider?: string;
+  }) => ipcRenderer.invoke('worktreeRun:start', args),
+  worktreeRunStop: (args: { workspaceId: string }) =>
+    ipcRenderer.invoke('worktreeRun:stop', args),
+  worktreeRunGetState: (args: { workspaceId: string }) =>
+    ipcRenderer.invoke('worktreeRun:getState', args),
+  worktreeRunLoadConfig: (args: { projectPath: string }) =>
+    ipcRenderer.invoke('worktreeRun:loadConfig', args),
+  worktreeRunSaveConfig: (args: { projectPath: string; config: any }) =>
+    ipcRenderer.invoke('worktreeRun:saveConfig', args),
+  onWorktreeRunEvent: (listener: (event: any) => void) => {
+    const channel = 'worktreeRun:event';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   // Main-managed browser (WebContentsView)
   browserShow: (bounds: { x: number; y: number; width: number; height: number }, url?: string) =>
     ipcRenderer.invoke('browser:view:show', { ...bounds, url }),
