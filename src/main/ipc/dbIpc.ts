@@ -27,7 +27,7 @@ export function registerDatabaseIpc() {
     try {
       return await databaseService.getTasks(projectId);
     } catch (error) {
-      log.error('Failed to get workspaces:', error);
+      log.error('Failed to get tasks:', error);
       return [];
     }
   });

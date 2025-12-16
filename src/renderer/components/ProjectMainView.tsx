@@ -919,10 +919,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             <AnimatePresence initial={false}>
               {(() => {
-                const prWorkspaces = selectedTasks
+                const prTasks = selectedTasks
                   .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
                   .filter((w) => w.pr);
-                return prWorkspaces.length ? (
+                return prTasks.length ? (
                   <motion.div
                     key="bulk-pr-notice"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -930,7 +930,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     exit={{ opacity: 0, y: 6, scale: 0.99 }}
                     transition={{ duration: 0.2, ease: 'easeOut', delay: 0.02 }}
                   >
-                    <DeletePrNotice tasks={prWorkspaces as any} />
+                    <DeletePrNotice tasks={prTasks as any} />
                   </motion.div>
                 ) : null;
               })()}

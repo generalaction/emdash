@@ -191,11 +191,11 @@ export function registerFsIpc(): void {
 
         fs.copyFileSync(srcPath, destAbs);
 
-        const relFromWorkspace = path.relative(taskPath, destAbs);
+        const relFromTask = path.relative(taskPath, destAbs);
         return {
           success: true,
           absPath: destAbs,
-          relPath: relFromWorkspace,
+          relPath: relFromTask,
           fileName: destName,
         };
       } catch (error) {
