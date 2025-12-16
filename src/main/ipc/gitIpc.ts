@@ -85,27 +85,27 @@ export function registerGitIpc() {
     async (
       _,
       args: {
-        workspacePath: string;
+        taskPath: string;
         base?: string;
       }
     ) => {
-      const { workspacePath, base = 'main' } =
-        args || ({} as { workspacePath: string; base?: string });
+      const { taskPath, base = 'main' } =
+        args || ({} as { taskPath: string; base?: string });
       try {
-        // Try to get the workspace to find which provider was used
+        // Try to get the task to find which provider was used
         let providerId: string | null = null;
         try {
-          const workspace = await databaseService.getWorkspaceByPath(workspacePath);
-          if (workspace?.agentId) {
-            providerId = workspace.agentId;
-            log.debug('Found workspace provider for PR generation', { workspacePath, providerId });
+          const task = await databaseService.getTaskByPath(taskPath);
+          if (task?.agentId) {
+            providerId = task.agentId;
+            log.debug('Found task provider for PR generation', { taskPath, providerId });
           }
         } catch (error) {
-          log.debug('Could not lookup workspace provider', { error });
+          log.debug('Could not lookup task provider', { error });
           // Non-fatal - continue without provider
         }
 
-        const result = await prGenerationService.generatePrContent(workspacePath, base, providerId);
+        const result = await prGenerationService.generatePrContent(taskPath, base, providerId);
         return { success: true, ...result };
       } catch (error) {
         log.error('Failed to generate PR content:', error);

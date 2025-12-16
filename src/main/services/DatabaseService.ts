@@ -258,18 +258,18 @@ export class DatabaseService {
     return rows.map((row) => this.mapDrizzleTaskRow(row));
   }
 
-  async getWorkspaceByPath(workspacePath: string): Promise<Workspace | null> {
+  async getTaskByPath(taskPath: string): Promise<Task | null> {
     if (this.disabled) return null;
     const { db } = await getDrizzleClient();
 
     const rows = await db
       .select()
-      .from(workspacesTable)
-      .where(eq(workspacesTable.path, workspacePath))
+      .from(tasksTable)
+      .where(eq(tasksTable.path, taskPath))
       .limit(1);
 
     if (rows.length === 0) return null;
-    return this.mapDrizzleWorkspaceRow(rows[0]);
+    return this.mapDrizzleTaskRow(rows[0]);
   }
 
   async deleteProject(projectId: string): Promise<void> {

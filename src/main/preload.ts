@@ -136,7 +136,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createBranchIfOnDefault?: boolean;
     branchPrefix?: string;
   }) => ipcRenderer.invoke('git:commit-and-push', args),
-  generatePrContent: (args: { workspacePath: string; base?: string }) =>
+  generatePrContent: (args: { taskPath: string; base?: string }) =>
     ipcRenderer.invoke('git:generate-pr-content', args),
   createPullRequest: (args: {
     taskPath: string;

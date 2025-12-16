@@ -61,7 +61,7 @@ export function useCreatePR() {
           // Generate PR content
           if (api.generatePrContent) {
             const generated = await api.generatePrContent({
-              workspacePath: taskPath,
+              taskPath,
               base: finalPrOptions.base || defaultBranch,
             });
 
