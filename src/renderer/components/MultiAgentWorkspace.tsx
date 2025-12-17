@@ -443,7 +443,10 @@ const MultiAgentWorkspace: React.FC<Props> = ({ workspace }) => {
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
-                    autoApprove={workspace.metadata?.autoApprove ?? false}
+                    autoApprove={
+                      Boolean(workspace.metadata?.autoApprove) &&
+                      Boolean(providerMeta[v.provider]?.autoApproveFlag)
+                    }
                     initialPrompt={
                       providerMeta[v.provider]?.initialPromptFlag !== undefined &&
                       !workspace.metadata?.initialInjectionSent
