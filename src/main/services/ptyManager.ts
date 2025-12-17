@@ -32,7 +32,17 @@ export function startPty(options: {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
-  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove, initialPrompt, skipResume } = options;
+  const {
+    id,
+    cwd,
+    shell,
+    env,
+    cols = 80,
+    rows = 24,
+    autoApprove,
+    initialPrompt,
+    skipResume,
+  } = options;
 
   const defaultShell = getDefaultShell();
   let useShell = shell || defaultShell;
