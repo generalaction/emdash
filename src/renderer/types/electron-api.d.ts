@@ -98,6 +98,7 @@ declare global {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        skipResume?: boolean;
       }) => Promise<{ ok: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
@@ -627,6 +628,7 @@ export interface ElectronAPI {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
+    skipResume?: boolean;
   }) => Promise<{ ok: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
