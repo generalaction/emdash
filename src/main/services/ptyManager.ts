@@ -49,7 +49,7 @@ export function startPty(options: {
   const useCwd = cwd || process.cwd() || os.homedir();
 
   // Build a clean environment instead of inheriting process.env wholesale.
-  // 
+  //
   // WHY: When Emdash runs as an AppImage on Linux (or other packaged Electron apps),
   // the parent process.env contains packaging artifacts like PYTHONHOME, APPDIR,
   // APPIMAGE, etc. These variables can break user tools, especially Python virtual
