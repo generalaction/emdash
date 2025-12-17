@@ -124,10 +124,8 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
               >
                 <Spinner className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" size="sm" />
-                <div className="flex flex-col gap-1 min-w-0">
-                  <span className="text-sm font-semibold text-foreground">
-                    Please wait...
-                  </span>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-sm font-semibold text-foreground">Please wait...</span>
                   <span className="text-xs text-muted-foreground">
                     Scanning workspaces for uncommitted changes and open pull requests
                   </span>
