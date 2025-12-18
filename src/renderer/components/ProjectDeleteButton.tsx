@@ -257,7 +257,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
               {disableDelete && !isDeleting ? (
                 <TooltipContent side="top" className="text-xs">
                   {loading
-                    ? 'Checking workspaces...'
+                    ? 'Checking tasks...'
                     : hasRisks && !acknowledge
                       ? 'Acknowledge the risks to delete'
                       : 'Delete is disabled'}

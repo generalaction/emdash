@@ -471,7 +471,7 @@ export class TerminalSessionManager {
 
   /**
    * Check if this terminal ID is a provider CLI that supports native resume.
-   * Provider CLIs use the format: `${provider}-main-${workspaceId}`
+   * Provider CLIs use the format: `${provider}-main-${taskId}`
    * If the provider has a resumeFlag, we skip snapshot restoration to avoid duplicate history.
    */
   private isProviderWithResume(id: string): boolean {

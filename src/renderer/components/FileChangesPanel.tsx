@@ -501,7 +501,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
         <AllChangesDiffModal
           open={showAllChangesModal}
           onClose={() => setShowAllChangesModal(false)}
-          workspacePath={workspaceId}
+          taskPath={taskId}
           files={fileChanges}
           onRefreshChanges={refreshChanges}
         />
