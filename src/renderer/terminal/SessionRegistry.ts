@@ -64,7 +64,8 @@ class SessionRegistry {
       telemetry: null,
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
-      skipResume: true, // Always skip resume for new sessions (new conversations/tabs)
+      // Let ptyIpc decide whether to skip resume based on snapshot existence
+      // Don't force skipResume here - the IPC layer handles this intelligently
     };
 
     const session = new TerminalSessionManager(sessionOptions);
