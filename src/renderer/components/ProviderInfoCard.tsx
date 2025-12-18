@@ -4,7 +4,7 @@ import { providerAssets } from '@/providers/assets';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
 
-export type ProviderInfo = {
+type ProviderInfo = {
   title: string;
   description?: string;
   knowledgeCutoff?: string;

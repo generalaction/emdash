@@ -1,10 +1,6 @@
-export type PrInfo = {
-  number?: number;
-  title?: string;
-  url?: string;
-  state?: string | null;
-  isDraft?: boolean;
-};
+import type { PrInfo } from '../types/pr';
+
+export type { PrInfo } from '../types/pr';
 
 export const isActivePr = (pr?: PrInfo | null): pr is PrInfo => {
   if (!pr) return false;

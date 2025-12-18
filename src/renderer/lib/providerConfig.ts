@@ -18,7 +18,7 @@ import clineLogo from '../../assets/images/cline.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
 
-export type ProviderInfo = {
+type ProviderInfo = {
   name: string;
   logo: string;
   alt: string;

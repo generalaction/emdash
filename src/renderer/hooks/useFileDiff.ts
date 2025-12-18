@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { DiffLine } from '../types/diff';
 
-export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
+export type { DiffLine } from '../types/diff';
 
 export function useFileDiff(
   workspacePath: string | undefined,

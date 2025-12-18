@@ -9,6 +9,7 @@ import type {
   RunnerResultEvent,
 } from '@shared/container';
 import type { RunnerPortMapping } from '@shared/container';
+import type { ContainerRunState } from '../types/container';
 import { log } from './logger';
 
 type Listener = (event: RunnerEvent) => void;
@@ -322,14 +323,4 @@ export async function refreshWorkspaceRunState(workspaceId: string) {
   }
 }
 
-export interface ContainerRunState {
-  workspaceId: string;
-  runId?: string;
-  status: RunnerLifecycleStatus | 'idle';
-  containerId?: string;
-  ports: Array<RunnerPortMapping & { url: string }>;
-  previewService?: string;
-  previewUrl?: string;
-  lastUpdatedAt: number;
-  lastError: { code: string; message: string } | null;
-}
+export type { ContainerRunState } from '../types/container';

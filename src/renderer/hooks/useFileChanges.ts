@@ -1,13 +1,7 @@
 import { useState, useEffect } from 'react';
+import type { FileChange } from '../types/git';
 
-export interface FileChange {
-  path: string;
-  status: 'added' | 'modified' | 'deleted' | 'renamed';
-  additions: number;
-  deletions: number;
-  isStaged: boolean;
-  diff?: string;
-}
+export type { FileChange } from '../types/git';
 
 export function useFileChanges(workspacePath: string) {
   const [fileChanges, setFileChanges] = useState<FileChange[]>([]);

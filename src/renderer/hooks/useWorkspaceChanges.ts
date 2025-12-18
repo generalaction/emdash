@@ -1,21 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import type { WorkspaceChange, WorkspaceChanges } from '../types/git';
 
-export interface WorkspaceChange {
-  path: string;
-  status: string;
-  additions: number;
-  deletions: number;
-  diff?: string;
-}
-
-export interface WorkspaceChanges {
-  workspaceId: string;
-  changes: WorkspaceChange[];
-  totalAdditions: number;
-  totalDeletions: number;
-  isLoading: boolean;
-  error?: string;
-}
+export type { WorkspaceChange, WorkspaceChanges } from '../types/git';
 
 export function useWorkspaceChanges(workspacePath: string, workspaceId: string) {
   const [changes, setChanges] = useState<WorkspaceChanges>({
