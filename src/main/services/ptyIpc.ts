@@ -15,7 +15,7 @@ const providerPtyTimers = new Map<string, number>();
 export function registerPtyIpc(): void {
   ipcMain.handle(
     'pty:start',
-    (
+    async (
       event,
       args: {
         id: string;
@@ -35,8 +35,42 @@ export function registerPtyIpc(): void {
       try {
         const { id, cwd, shell, env, cols, rows, autoApprove, initialPrompt, skipResume } = args;
         const existing = getPty(id);
+
+        // Only use resume flag if there's actually a conversation history to resume
+        let shouldSkipResume = skipResume || false;
+        if (!existing && !skipResume && shell) {
+          const parsed = parseProviderPty(id);
+          if (parsed) {
+            const provider = getProvider(parsed.providerId);
+            if (provider?.resumeFlag) {
+              // Check if snapshot exists before using resume flag
+              try {
+                const snapshot = await terminalSnapshotService.getSnapshot(id);
+                if (!snapshot || !snapshot.data) {
+                  log.info('ptyIpc:noSnapshot - skipping resume flag', { id });
+                  shouldSkipResume = true;
+                }
+              } catch (err) {
+                log.warn('ptyIpc:snapshotCheckFailed - skipping resume', { id, error: err });
+                shouldSkipResume = true;
+              }
+            }
+          }
+        }
+
         const proc =
-          existing ?? startPty({ id, cwd, shell, env, cols, rows, autoApprove, initialPrompt, skipResume });
+          existing ??
+          startPty({
+            id,
+            cwd,
+            shell,
+            env,
+            cols,
+            rows,
+            autoApprove,
+            initialPrompt,
+            skipResume: shouldSkipResume,
+          });
         const envKeys = env ? Object.keys(env) : [];
         const planEnv = env && (env.EMDASH_PLAN_MODE || env.EMDASH_PLAN_FILE) ? true : false;
         log.debug('pty:start OK', {
@@ -46,6 +80,7 @@ export function registerPtyIpc(): void {
           cols,
           rows,
           autoApprove,
+          skipResume,
           reused: !!existing,
           envKeys,
           planEnv,
