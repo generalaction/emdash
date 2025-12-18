@@ -2,20 +2,12 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, Settings } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Separator } from './ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -38,7 +30,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const [owner, setOwner] = useState<string>('');
   const [owners, setOwners] = useState<Owner[]>([]);
   const [isPrivate, setIsPrivate] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -87,7 +78,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     setIsValidating(false);
     setProgress('');
     setTouched(false);
-    setShowAdvanced(false);
   }, [isOpen]);
 
   // Validate repository name
@@ -144,7 +134,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       }
 
       if (!owner) {
-        setError('Please select an owner');
+        setError('Unable to determine GitHub account. Please ensure you are authenticated.');
         return;
       }
 
@@ -160,7 +150,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         });
 
         if (result.success && result.projectPath) {
-          setProgress('');
+          setProgress('Repository created successfully! Adding to workspace...');
+          // Brief delay to show success message
+          await new Promise((resolve) => setTimeout(resolve, 500));
           onSuccess(result.projectPath);
           onClose();
         } else {
@@ -222,13 +214,10 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
               </Button>
               <CardHeader className="space-y-1 pb-2 pr-12">
                 <CardTitle className="text-lg">New Project</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
-                  Create a new GitHub repository and get started
-                </CardDescription>
               </CardHeader>
 
               <CardContent>
-                <Separator className="mb-2" />
+                <Separator className="mb-4" />
                 {isCreating && progress ? (
                   <div className="space-y-4 py-4">
                     <div className="flex items-center gap-3">
@@ -262,18 +251,12 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         disabled={isCreating}
                         autoFocus
                       />
-                      {repoFullPath && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Will create: <span className="font-mono">{repoFullPath}</span>
-                        </p>
-                      )}
                       {touched && (validationError || error) && (
-                        <p className="mt-1 text-xs text-destructive">
-                          {validationError || error}
-                        </p>
-                      )}
-                      {isValidating && (
-                        <p className="mt-1 text-xs text-muted-foreground">Validating...</p>
+                        <div className="mt-1">
+                          <p className="text-xs text-destructive">
+                            {validationError || error}
+                          </p>
+                        </div>
                       )}
                     </div>
 
@@ -291,26 +274,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                     </div>
 
                     <div>
-                      <Label htmlFor="owner" className="mb-2 block">
-                        Owner *
-                      </Label>
-                      <Select value={owner} onValueChange={setOwner} disabled={isCreating}>
-                        <SelectTrigger id="owner">
-                          <SelectValue placeholder="Select owner" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {owners.map((o) => (
-                            <SelectItem key={o.login} value={o.login}>
-                              {o.login} ({o.type === 'User' ? 'User' : 'Organization'})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
                       <Label className="mb-2 block">Visibility</Label>
-                      <div className="space-y-2">
+                      <div className="flex items-center gap-4">
                         <label className="flex items-center space-x-2 cursor-pointer">
                           <input
                             type="radio"
@@ -337,35 +302,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         </label>
                       </div>
                     </div>
-
-                    <Accordion
-                      type="single"
-                      collapsible
-                      value={showAdvanced ? 'advanced' : undefined}
-                      className="space-y-2"
-                    >
-                      <AccordionItem value="advanced" className="border-none">
-                        <AccordionTrigger
-                          className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border-none bg-gray-100 px-3 text-sm font-medium text-foreground hover:bg-gray-200 hover:no-underline dark:bg-gray-700 dark:hover:bg-gray-600 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            setShowAdvanced((prev) => !prev);
-                          }}
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <Settings className="h-4 w-4 text-muted-foreground" />
-                            <span>Advanced options</span>
-                          </span>
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-4 px-0 pt-2">
-                          <div className="flex flex-col gap-4 p-2">
-                            <p className="text-sm text-muted-foreground">
-                              Additional options coming soon (templates, .gitignore, license)
-                            </p>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
 
                     {error && !validationError && (
                       <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">

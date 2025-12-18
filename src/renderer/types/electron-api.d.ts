@@ -45,6 +45,9 @@ declare global {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
           };
+          projects?: {
+            defaultDirectory: string;
+          };
         };
         error?: string;
       }>;
@@ -65,6 +68,9 @@ declare global {
             autoGenerateName?: boolean;
             autoApproveByDefault?: boolean;
           };
+          projects?: {
+            defaultDirectory?: string;
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -83,6 +89,9 @@ declare global {
           tasks?: {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
+          };
+          projects?: {
+            defaultDirectory: string;
           };
         };
         error?: string;

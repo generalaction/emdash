@@ -14,6 +14,7 @@ export function GithubStatus({
   onConnect,
   isLoading = false,
   statusMessage,
+  isInitialized = false,
 }: {
   installed?: boolean;
   authenticated?: boolean;
@@ -22,7 +23,13 @@ export function GithubStatus({
   onConnect?: () => void;
   isLoading?: boolean;
   statusMessage?: string;
+  isInitialized?: boolean;
 }) {
+  // Not initialized - don't show anything to avoid flash of incorrect state
+  if (!isInitialized) {
+    return null;
+  }
+
   // Not installed - show install button
   if (!installed) {
     return (

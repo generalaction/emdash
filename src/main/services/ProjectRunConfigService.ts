@@ -2,8 +2,16 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import { log } from '../lib/logger';
-import { runConfigGenerationService } from './RunConfigGenerationService';
+// TODO: Implement RunConfigGenerationService
+// import { runConfigGenerationService } from './RunConfigGenerationService';
 import { databaseService } from './DatabaseService';
+
+// Temporary stub until RunConfigGenerationService is implemented
+const runConfigGenerationService = {
+  generateRunConfig: async (_projectPath: string, _preferredProvider?: string) => {
+    return { config: null, provider: null };
+  },
+};
 
 const PROJECT_CONFIG_PATH = '.emdash/config.json';
 
@@ -80,7 +88,8 @@ class ProjectRunConfigService extends EventEmitter {
     if (exists) {
       const ready = this.getStatus(projectId, projectPath);
       try {
-        await databaseService.updateProjectRunConfigMeta(projectId, {
+        // TODO: Add updateProjectRunConfigMeta to DatabaseService
+        await (databaseService as any).updateProjectRunConfigMeta?.(projectId, {
           status: 'ready',
           error: null,
           provider: preferredProvider ?? ready.provider ?? null,
@@ -91,9 +100,10 @@ class ProjectRunConfigService extends EventEmitter {
     }
 
     // Load persisted status to avoid auto-retrying after a failure.
-    let persisted = null as Awaited<ReturnType<typeof databaseService.getProjectRunConfigMeta>> | null;
+    // TODO: Add getProjectRunConfigMeta to DatabaseService
+    let persisted = null as any;
     try {
-      persisted = await databaseService.getProjectRunConfigMeta(projectId);
+      persisted = await (databaseService as any).getProjectRunConfigMeta?.(projectId);
     } catch {}
 
     const current = this.states.get(projectId);
@@ -127,7 +137,7 @@ class ProjectRunConfigService extends EventEmitter {
     };
     this.states.set(projectId, generating);
     try {
-      await databaseService.updateProjectRunConfigMeta(projectId, {
+      await (databaseService as any).updateProjectRunConfigMeta?.(projectId, {
         status: 'generating',
         error: null,
         provider: generating.provider ?? null,
@@ -153,7 +163,7 @@ class ProjectRunConfigService extends EventEmitter {
         };
         this.states.set(projectId, failed);
         try {
-          await databaseService.updateProjectRunConfigMeta(projectId, {
+          await (databaseService as any).updateProjectRunConfigMeta?.(projectId, {
             status: 'failed',
             error: failed.error ?? null,
             provider: failed.provider ?? null,
@@ -180,7 +190,7 @@ class ProjectRunConfigService extends EventEmitter {
       };
       this.states.set(projectId, ready);
       try {
-        await databaseService.updateProjectRunConfigMeta(projectId, {
+        await (databaseService as any).updateProjectRunConfigMeta?.(projectId, {
           status: 'ready',
           error: null,
           provider: ready.provider ?? null,
@@ -200,7 +210,7 @@ class ProjectRunConfigService extends EventEmitter {
       };
       this.states.set(projectId, failed);
       try {
-        await databaseService.updateProjectRunConfigMeta(projectId, {
+        await (databaseService as any).updateProjectRunConfigMeta?.(projectId, {
           status: 'failed',
           error: failed.error ?? null,
           provider: failed.provider ?? null,

@@ -40,6 +40,7 @@ interface LeftSidebarProps {
   onGithubConnect?: () => void;
   githubLoading?: boolean;
   githubStatusMessage?: string;
+  githubInitialized?: boolean;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;
@@ -69,6 +70,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onGithubConnect,
   githubLoading = false,
   githubStatusMessage,
+  githubInitialized = false,
   onSidebarContextChange,
   onCreateWorkspaceForProject,
   isCreatingWorkspace,
@@ -122,6 +124,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       onConnect={onGithubConnect}
       isLoading={githubLoading}
       statusMessage={githubStatusMessage}
+      isInitialized={githubInitialized}
     />
   );
 
