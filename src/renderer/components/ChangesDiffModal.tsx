@@ -18,7 +18,7 @@ import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 interface ChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
-  workspacePath: string;
+  taskPath: string;
   files: FileChange[];
   initialFile?: string;
   onRefreshChanges?: () => Promise<void> | void;
@@ -27,7 +27,7 @@ interface ChangesDiffModalProps {
 export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   open,
   onClose,
-  workspacePath,
+  taskPath,
   files,
   initialFile,
   onRefreshChanges,
@@ -100,7 +100,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
       try {
         // Get diff lines
-        const diffRes = await window.electronAPI.getFileDiff({ workspacePath, filePath });
+        const diffRes = await window.electronAPI.getFileDiff({ taskPath, filePath });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
         }
@@ -115,7 +115,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
           originalContent = converted.original;
           modifiedContent = '';
         } else if (selectedFile.status === 'added') {
-          const readRes = await window.electronAPI.fsRead(workspacePath, filePath, 2 * 1024 * 1024);
+          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
           if (readRes?.success && readRes.content) {
             modifiedContent = readRes.content;
             originalContent = '';
@@ -132,11 +132,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(
-              workspacePath,
-              filePath,
-              2 * 1024 * 1024
-            );
+            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -173,7 +169,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selected, workspacePath]); // Removed 'files' to prevent constant reloading - files array changes every 5s
+  }, [open, selected, taskPath]); // Removed 'files' to prevent constant reloading - files array changes every 5s
 
   // Add Monaco theme and styles
   useEffect(() => {

@@ -36,7 +36,7 @@ import { getContext7InvocationForProvider } from '../mcp/context7';
 
 type Props = {
   provider: Provider;
-  workspaceId: string;
+  taskId: string;
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
@@ -48,7 +48,7 @@ type Props = {
 
 export const ProviderBar: React.FC<Props> = ({
   provider,
-  workspaceId,
+  taskId,
   linearIssue,
   githubIssue,
   jiraIssue,
@@ -59,7 +59,7 @@ export const ProviderBar: React.FC<Props> = ({
 }) => {
   const [c7Enabled, setC7Enabled] = React.useState<boolean>(false);
   const [c7Busy, setC7Busy] = React.useState<boolean>(false);
-  const [c7WorkspaceEnabled, setC7WorkspaceEnabled] = React.useState<boolean>(false);
+  const [c7TaskEnabled, setC7TaskEnabled] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -76,38 +76,38 @@ export const ProviderBar: React.FC<Props> = ({
     };
   }, []);
 
-  // Per-workspace default OFF
+  // Per-task default OFF
   React.useEffect(() => {
     try {
-      const key = `c7:ws:${workspaceId}`;
-      setC7WorkspaceEnabled(localStorage.getItem(key) === '1');
+      const key = `c7:ws:${taskId}`;
+      setC7TaskEnabled(localStorage.getItem(key) === '1');
     } catch {
-      setC7WorkspaceEnabled(false);
+      setC7TaskEnabled(false);
     }
-  }, [workspaceId]);
+  }, [taskId]);
 
   const handleContext7Click = async () => {
     setC7Busy(true);
     try {
       if (!c7Enabled) return;
 
-      if (!c7WorkspaceEnabled) {
-        // Enable for this workspace and send invocation once
+      if (!c7TaskEnabled) {
+        // Enable for this task and send invocation once
         try {
-          localStorage.setItem(`c7:ws:${workspaceId}`, '1');
+          localStorage.setItem(`c7:ws:${taskId}`, '1');
         } catch {}
-        setC7WorkspaceEnabled(true);
+        setC7TaskEnabled(true);
 
         const isTerminal = providerMeta[provider]?.terminalOnly === true;
         if (!isTerminal) return;
         const phrase = getContext7InvocationForProvider(provider) || 'use context7';
-        const ptyId = `${provider}-main-${workspaceId}`;
+        const ptyId = `${provider}-main-${taskId}`;
         (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: `${phrase}\n` });
       } else {
         try {
-          localStorage.removeItem(`c7:ws:${workspaceId}`);
+          localStorage.removeItem(`c7:ws:${taskId}`);
         } catch {}
-        setC7WorkspaceEnabled(false);
+        setC7TaskEnabled(false);
       }
     } finally {
       setC7Busy(false);
@@ -401,15 +401,15 @@ export const ProviderBar: React.FC<Props> = ({
                       disabled={c7Busy || !c7Enabled}
                       className={[
                         'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs',
-                        c7WorkspaceEnabled
+                        c7TaskEnabled
                           ? 'border-emerald-500/50 bg-emerald-500/10 text-foreground'
                           : 'border-gray-200 bg-gray-100 text-foreground dark:border-gray-700 dark:bg-gray-700',
                       ].join(' ')}
                       title={
                         c7Enabled
-                          ? c7WorkspaceEnabled
-                            ? 'Disable Context7 for this workspace'
-                            : 'Enable for this workspace & send to terminal'
+                          ? c7TaskEnabled
+                            ? 'Disable Context7 for this task'
+                            : 'Enable for this task & send to terminal'
                           : 'Enable Context7 in Settings → MCP to use here'
                       }
                     >
@@ -431,7 +431,7 @@ export const ProviderBar: React.FC<Props> = ({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-sm text-xs">
-                    <Context7Tooltip provider={provider} enabled={c7WorkspaceEnabled} />
+                    <Context7Tooltip provider={provider} enabled={c7TaskEnabled} />
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

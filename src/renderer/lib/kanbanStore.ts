@@ -1,6 +1,6 @@
 export type KanbanStatus = 'todo' | 'in-progress' | 'done';
 
-const STORAGE_KEY = 'emdash:kanban:statusByWorkspace';
+const STORAGE_KEY = 'emdash:kanban:statusByTask';
 
 type MapShape = Record<string, KanbanStatus>;
 
@@ -29,13 +29,13 @@ function write(next: MapShape) {
   } catch {}
 }
 
-export function getStatus(workspaceId: string): KanbanStatus {
+export function getStatus(taskId: string): KanbanStatus {
   const map = read();
-  return (map[workspaceId] as KanbanStatus) || 'todo';
+  return (map[taskId] as KanbanStatus) || 'todo';
 }
 
-export function setStatus(workspaceId: string, status: KanbanStatus): void {
-  const map = { ...read(), [workspaceId]: status };
+export function setStatus(taskId: string, status: KanbanStatus): void {
+  const map = { ...read(), [taskId]: status };
   write(map);
 }
 

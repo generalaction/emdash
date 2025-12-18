@@ -2,12 +2,12 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { TerminalPane } from './TerminalPane';
 import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
+import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import type { Provider } from '../types';
 
-interface Workspace {
+interface Task {
   id: string;
   name: string;
   branch: string;
@@ -16,28 +16,28 @@ interface Workspace {
 }
 
 interface Props {
-  workspace: Workspace | null;
+  task: Task | null;
   provider?: Provider;
   className?: string;
   projectPath?: string;
 }
 
-const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
-  workspace,
+const TaskTerminalPanelComponent: React.FC<Props> = ({
+  task,
   provider,
   className,
   projectPath,
 }) => {
   const { effectiveTheme } = useTheme();
-  const workspaceKey = workspace?.id ?? 'workspace-placeholder';
-  const workspaceTerminals = useWorkspaceTerminals(workspaceKey, workspace?.path);
-  const globalTerminals = useWorkspaceTerminals('global', projectPath, { defaultCwd: projectPath });
-  const [mode, setMode] = useState<'workspace' | 'global'>(workspace ? 'workspace' : 'global');
+  const taskKey = task?.id ?? 'task-placeholder';
+  const taskTerminals = useTaskTerminals(taskKey, task?.path);
+  const globalTerminals = useTaskTerminals('global', projectPath, { defaultCwd: projectPath });
+  const [mode, setMode] = useState<'task' | 'global'>(task ? 'task' : 'global');
   useEffect(() => {
-    if (!workspace && mode === 'workspace') {
+    if (!task && mode === 'task') {
       setMode('global');
     }
-  }, [workspace, mode]);
+  }, [task, mode]);
 
   const {
     terminals,
@@ -46,7 +46,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     createTerminal,
     setActiveTerminal,
     closeTerminal,
-  } = mode === 'global' ? globalTerminals : workspaceTerminals;
+  } = mode === 'global' ? globalTerminals : taskTerminals;
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -154,7 +154,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     };
   }, [nativeTheme, defaultTheme]);
 
-  if (!workspace && !projectPath) {
+  if (!task && !projectPath) {
     return (
       <div
         className={`flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 ${className}`}
@@ -174,7 +174,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
         <div className="flex items-center gap-1">
           <TooltipProvider delayDuration={200}>
             <Tooltip>
-              {!workspace ? (
+              {!task ? (
                 <>
                   <TooltipTrigger asChild>
                     <span className="inline-block">
@@ -182,13 +182,13 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                         type="button"
                         className={cn(
                           'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-                          mode === 'workspace'
+                          mode === 'task'
                             ? 'bg-background text-foreground shadow-sm'
                             : 'text-muted-foreground hover:bg-background/70',
                           'cursor-not-allowed opacity-50'
                         )}
                         disabled={true}
-                        onClick={() => setMode('workspace')}
+                        onClick={() => setMode('task')}
                       >
                         Worktree
                       </button>
@@ -204,11 +204,11 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                     type="button"
                     className={cn(
                       'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-                      mode === 'workspace'
+                      mode === 'task'
                         ? 'bg-background text-foreground shadow-sm'
                         : 'text-muted-foreground hover:bg-background/70'
                     )}
-                    onClick={() => setMode('workspace')}
+                    onClick={() => setMode('task')}
                   >
                     Worktree
                   </button>
@@ -278,12 +278,12 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
               captureTelemetry('terminal_new_terminal_created', { scope: mode });
             })();
             createTerminal({
-              cwd: mode === 'global' ? projectPath : workspace?.path,
+              cwd: mode === 'global' ? projectPath : task?.path,
             });
           }}
           className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
-          title={mode === 'global' ? 'New global terminal' : 'New workspace terminal'}
-          disabled={mode === 'workspace' && !workspace}
+          title={mode === 'global' ? 'New global terminal' : 'New task terminal'}
+          disabled={mode === 'task' && !task}
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -302,7 +302,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
         {terminals.map((terminal) => {
           const cwd =
             terminal.cwd ||
-            (mode === 'global' ? projectPath || terminal.cwd : workspace?.path || terminal.cwd);
+            (mode === 'global' ? projectPath || terminal.cwd : task?.path || terminal.cwd);
           return (
             <div
               key={terminal.id}
@@ -331,6 +331,6 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     </div>
   );
 };
-export const WorkspaceTerminalPanel = React.memo(WorkspaceTerminalPanelComponent);
+export const TaskTerminalPanel = React.memo(TaskTerminalPanelComponent);
 
-export default WorkspaceTerminalPanel;
+export default TaskTerminalPanel;

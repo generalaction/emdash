@@ -4,7 +4,7 @@ import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 type CreatePROptions = {
-  workspacePath: string;
+  taskPath: string;
   commitMessage?: string;
   createBranchIfOnDefault?: boolean;
   branchPrefix?: string;
@@ -26,8 +26,8 @@ export function useCreatePR() {
 
   const createPR = async (opts: CreatePROptions) => {
     const {
-      workspacePath,
-      commitMessage = 'chore: apply workspace changes',
+      taskPath,
+      commitMessage = 'chore: apply task changes',
       createBranchIfOnDefault = true,
       branchPrefix = 'orch',
       prOptions,
@@ -52,7 +52,7 @@ export function useCreatePR() {
           // Get default branch for comparison
           let defaultBranch = 'main';
           try {
-            const branchStatus = await api.getBranchStatus?.({ workspacePath });
+            const branchStatus = await api.getBranchStatus?.({ taskPath });
             if (branchStatus?.success && branchStatus.defaultBranch) {
               defaultBranch = branchStatus.defaultBranch;
             }
@@ -61,7 +61,7 @@ export function useCreatePR() {
           // Generate PR content
           if (api.generatePrContent) {
             const generated = await api.generatePrContent({
-              workspacePath,
+              taskPath,
               base: finalPrOptions.base || defaultBranch,
             });
 
@@ -78,11 +78,11 @@ export function useCreatePR() {
 
       // Fallback to inferred title if still not set
       if (!finalPrOptions.title) {
-        finalPrOptions.title = workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
+        finalPrOptions.title = taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
       }
 
       const commitRes = await api.gitCommitAndPush({
-        workspacePath,
+        taskPath,
         commitMessage,
         createBranchIfOnDefault,
         branchPrefix,
@@ -98,7 +98,7 @@ export function useCreatePR() {
       }
 
       const res = await api.createPullRequest({
-        workspacePath,
+        taskPath,
         fill: true,
         ...finalPrOptions,
       });
@@ -175,7 +175,7 @@ export function useCreatePR() {
                 })();
                 // Retry using web flow
                 void createPR({
-                  workspacePath,
+                  taskPath,
                   commitMessage,
                   createBranchIfOnDefault,
                   branchPrefix,

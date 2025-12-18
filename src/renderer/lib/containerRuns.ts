@@ -12,18 +12,18 @@ import type { RunnerPortMapping } from '@shared/container';
 import { log } from './logger';
 
 type Listener = (event: RunnerEvent) => void;
-type WorkspaceListener = (state: ContainerRunState) => void;
+type TaskListener = (state: ContainerRunState) => void;
 
 interface StartRunArgs {
-  workspaceId: string;
-  workspacePath: string;
+  taskId: string;
+  taskPath: string;
   runId?: string;
   mode?: RunnerMode;
 }
 
 const listeners = new Set<Listener>();
-const workspaceListeners = new Map<string, Set<WorkspaceListener>>();
-const workspaceStates = new Map<string, ContainerRunState>();
+const taskListeners = new Map<string, Set<TaskListener>>();
+const taskStates = new Map<string, ContainerRunState>();
 let subscribed = false;
 let unsubscribe: (() => void) | undefined;
 
@@ -33,11 +33,11 @@ function clean(value: string | undefined | null): string | undefined {
   return trimmed.length ? trimmed : undefined;
 }
 
-function getOrCreateState(workspaceId: string): ContainerRunState {
-  const existing = workspaceStates.get(workspaceId);
+function getOrCreateState(taskId: string): ContainerRunState {
+  const existing = taskStates.get(taskId);
   if (existing) return existing;
   const created: ContainerRunState = {
-    workspaceId,
+    taskId,
     runId: undefined,
     status: 'idle',
     containerId: undefined,
@@ -47,7 +47,7 @@ function getOrCreateState(workspaceId: string): ContainerRunState {
     lastUpdatedAt: 0,
     lastError: null,
   };
-  workspaceStates.set(workspaceId, created);
+  taskStates.set(taskId, created);
   return created;
 }
 
@@ -56,8 +56,8 @@ function clonePort(port: RunnerPortMapping): RunnerPortMapping & { url: string }
   return { ...port, url };
 }
 
-function updateWorkspaceState(event: RunnerEvent) {
-  const state = getOrCreateState(event.workspaceId);
+function updateTaskState(event: RunnerEvent) {
+  const state = getOrCreateState(event.taskId);
   const isNewRun = state.runId && state.runId !== event.runId;
   if (!state.runId || isNewRun) {
     state.runId = event.runId;
@@ -125,15 +125,15 @@ function updateWorkspaceState(event: RunnerEvent) {
       break;
   }
   state.lastUpdatedAt = event.ts;
-  workspaceStates.set(event.workspaceId, { ...state });
+  taskStates.set(event.taskId, { ...state });
 
-  const wsListeners = workspaceListeners.get(event.workspaceId);
-  if (wsListeners) {
-    for (const listener of wsListeners) {
+  const taskListenersForTask = taskListeners.get(event.taskId);
+  if (taskListenersForTask) {
+    for (const listener of taskListenersForTask) {
       try {
         listener({ ...state });
       } catch (error) {
-        log.warn?.('[containers] workspace listener failure', error);
+        log.warn?.('[containers] task listener failure', error);
       }
     }
   }
@@ -148,9 +148,9 @@ function ensureSubscribed() {
     unsubscribe = api.onRunEvent((event: RunnerEvent) => {
       log.info('[containers] runner event', event);
       try {
-        updateWorkspaceState(event);
+        updateTaskState(event);
       } catch (error) {
-        log.error('[containers] failed to update workspace state', error);
+        log.error('[containers] failed to update task state', error);
       }
       for (const listener of listeners) {
         try {
@@ -175,53 +175,50 @@ export function subscribeToContainerRuns(listener: Listener): () => void {
   };
 }
 
-export function subscribeToWorkspaceRunState(
-  workspaceId: string,
-  listener: WorkspaceListener
-): () => void {
+export function subscribeToTaskRunState(taskId: string, listener: TaskListener): () => void {
   ensureSubscribed();
-  const set = workspaceListeners.get(workspaceId) ?? new Set<WorkspaceListener>();
+  const set = taskListeners.get(taskId) ?? new Set<TaskListener>();
   set.add(listener);
-  workspaceListeners.set(workspaceId, set);
-  const current = workspaceStates.get(workspaceId);
+  taskListeners.set(taskId, set);
+  const current = taskStates.get(taskId);
   if (current) {
     try {
       listener({ ...current });
     } catch (error) {
-      log.warn?.('[containers] workspace listener init failure', error);
+      log.warn?.('[containers] task listener init failure', error);
     }
   }
 
   return () => {
-    const listenersForWorkspace = workspaceListeners.get(workspaceId);
-    if (!listenersForWorkspace) return;
-    listenersForWorkspace.delete(listener);
-    if (listenersForWorkspace.size === 0) {
-      workspaceListeners.delete(workspaceId);
+    const listenersForTask = taskListeners.get(taskId);
+    if (!listenersForTask) return;
+    listenersForTask.delete(listener);
+    if (listenersForTask.size === 0) {
+      taskListeners.delete(taskId);
     }
   };
 }
 
-export function getContainerRunState(workspaceId: string): ContainerRunState | undefined {
-  const state = workspaceStates.get(workspaceId);
+export function getContainerRunState(taskId: string): ContainerRunState | undefined {
+  const state = taskStates.get(taskId);
   return state ? { ...state } : undefined;
 }
 
 export async function startContainerRun(args: StartRunArgs) {
   ensureSubscribed();
   const api = (window as any).electronAPI;
-  const workspaceId = clean(args.workspaceId);
-  const workspacePath = clean(args.workspacePath);
+  const taskId = clean(args.taskId);
+  const taskPath = clean(args.taskPath);
   const runId = clean(args.runId);
   const mode = args.mode;
   const payload: Record<string, any> = {};
-  if (workspaceId) payload.workspaceId = workspaceId;
-  if (workspacePath) payload.workspacePath = workspacePath;
+  if (taskId) payload.taskId = taskId;
+  if (taskPath) payload.taskPath = taskPath;
   if (runId) payload.runId = runId;
   if (mode === 'container' || mode === 'host') payload.mode = mode;
 
-  if (!workspaceId || !workspacePath) {
-    throw new Error('workspaceId and workspacePath are required to start a container run');
+  if (!taskId || !taskPath) {
+    throw new Error('taskId and taskPath are required to start a container run');
   }
 
   if (!api || typeof api.startContainerRun !== 'function') {
@@ -252,14 +249,14 @@ export function resetContainerRunListeners() {
     } catch {}
   }
   listeners.clear();
-  workspaceListeners.clear();
-  workspaceStates.clear();
+  taskListeners.clear();
+  taskStates.clear();
   subscribed = false;
   unsubscribe = undefined;
 }
 
 export function getAllRunStates(): ContainerRunState[] {
-  return Array.from(workspaceStates.values()).map((s) => ({ ...s }));
+  return Array.from(taskStates.values()).map((s) => ({ ...s }));
 }
 
 export function subscribeToAllRunStates(
@@ -280,22 +277,22 @@ export function subscribeToAllRunStates(
 }
 
 /**
- * Inspect any existing compose stack for this workspace and hydrate local state,
+ * Inspect any existing compose stack for this task and hydrate local state,
  * so UI shows ports/running status after a window refresh.
  */
-export async function refreshWorkspaceRunState(workspaceId: string) {
+export async function refreshTaskRunState(taskId: string) {
   ensureSubscribed();
   const api = (window as any).electronAPI;
   if (!api?.inspectContainerRun) return;
   try {
-    const res = await api.inspectContainerRun(workspaceId);
+    const res = await api.inspectContainerRun(taskId);
     if (!res?.ok) return;
     const now = Date.now();
     if (res.running && Array.isArray(res.ports) && res.ports.length > 0) {
       const runId = `resume_${now}`;
       const portsEvent: RunnerEvent = {
         ts: now,
-        workspaceId,
+        taskId,
         runId,
         mode: 'container',
         type: 'ports',
@@ -306,16 +303,16 @@ export async function refreshWorkspaceRunState(workspaceId: string) {
           url: `http://localhost:${p.host}`,
         })),
       } as any;
-      updateWorkspaceState(portsEvent);
+      updateTaskState(portsEvent);
       const lifecycleEvent: RunnerEvent = {
         ts: now,
-        workspaceId,
+        taskId,
         runId,
         mode: 'container',
         type: 'lifecycle',
         status: 'ready',
       } as any;
-      updateWorkspaceState(lifecycleEvent);
+      updateTaskState(lifecycleEvent);
     }
   } catch (error) {
     log.warn?.('[containers] refresh run state failed', error);
@@ -323,7 +320,7 @@ export async function refreshWorkspaceRunState(workspaceId: string) {
 }
 
 export interface ContainerRunState {
-  workspaceId: string;
+  taskId: string;
   runId?: string;
   status: RunnerLifecycleStatus | 'idle';
   containerId?: string;

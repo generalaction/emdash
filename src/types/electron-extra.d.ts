@@ -11,10 +11,10 @@ declare global {
       ) => Promise<{ success: boolean; error?: string }>;
       fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
       planApplyLock: (
-        workspacePath: string
+        taskPath: string
       ) => Promise<{ success: boolean; changed?: number; error?: string }>;
       planReleaseLock: (
-        workspacePath: string
+        taskPath: string
       ) => Promise<{ success: boolean; restored?: number; error?: string }>;
       onPlanEvent: (
         listener: (data: {

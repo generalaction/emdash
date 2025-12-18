@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ec5ad35e-22ec-4c0b-9d48-cfb1033d9d93",
-  "prevId": "b932945e-f26a-4c07-9c63-08179d95d5bc",
+  "id": "f61fcd81-f000-4e2d-84f2-2f79133ae5d6",
+  "prevId": "ec5ad35e-22ec-4c0b-9d48-cfb1033d9d93",
   "tables": {
     "conversations": {
       "name": "conversations",
@@ -14,8 +14,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "workspace_id": {
-          "name": "workspace_id",
+        "task_id": {
+          "name": "task_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -46,18 +46,18 @@
         }
       },
       "indexes": {
-        "idx_conversations_workspace_id": {
-          "name": "idx_conversations_workspace_id",
-          "columns": ["workspace_id"],
+        "idx_conversations_task_id": {
+          "name": "idx_conversations_task_id",
+          "columns": ["task_id"],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "conversations_workspace_id_workspaces_id_fk": {
-          "name": "conversations_workspace_id_workspaces_id_fk",
+        "conversations_task_id_tasks_id_fk": {
+          "name": "conversations_task_id_tasks_id_fk",
           "tableFrom": "conversations",
-          "tableTo": "workspaces",
-          "columnsFrom": ["workspace_id"],
+          "tableTo": "tasks",
+          "columnsFrom": ["task_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -179,6 +179,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "base_ref": {
+          "name": "base_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "github_repository": {
           "name": "github_repository",
           "type": "text",
@@ -209,13 +216,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "CURRENT_TIMESTAMP"
-        },
-        "base_ref": {
-          "name": "base_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
@@ -230,8 +230,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "workspaces": {
-      "name": "workspaces",
+    "tasks": {
+      "name": "tasks",
       "columns": {
         "id": {
           "name": "id",
@@ -308,16 +308,16 @@
         }
       },
       "indexes": {
-        "idx_workspaces_project_id": {
-          "name": "idx_workspaces_project_id",
+        "idx_tasks_project_id": {
+          "name": "idx_tasks_project_id",
           "columns": ["project_id"],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "workspaces_project_id_projects_id_fk": {
-          "name": "workspaces_project_id_projects_id_fk",
-          "tableFrom": "workspaces",
+        "tasks_project_id_projects_id_fk": {
+          "name": "tasks_project_id_projects_id_fk",
+          "tableFrom": "tasks",
           "tableTo": "projects",
           "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
@@ -334,8 +334,12 @@
   "enums": {},
   "_meta": {
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {
+      "\"workspaces\"": "\"tasks\""
+    },
+    "columns": {
+      "\"conversations\".\"workspace_id\"": "\"conversations\".\"task_id\""
+    }
   },
   "internal": {
     "indexes": {}

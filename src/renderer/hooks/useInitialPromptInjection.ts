@@ -4,24 +4,24 @@ import { classifyActivity } from '../lib/activityClassifier';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
- * One-shot per workspace. Provider-agnostic.
+ * One-shot per task. Provider-agnostic.
  */
 export function useInitialPromptInjection(opts: {
-  workspaceId: string;
+  taskId: string;
   providerId: string; // codex | claude | ... used for PTY id prefix
   prompt?: string | null;
   enabled?: boolean;
 }) {
-  const { workspaceId, providerId, prompt, enabled = true } = opts;
+  const { taskId, providerId, prompt, enabled = true } = opts;
 
   useEffect(() => {
     if (!enabled) return;
     const trimmed = (prompt || '').trim();
     if (!trimmed) return;
-    const sentKey = initialPromptSentKey(workspaceId, providerId);
+    const sentKey = initialPromptSentKey(taskId, providerId);
     if (localStorage.getItem(sentKey) === '1') return;
 
-    const ptyId = `${providerId}-main-${workspaceId}`;
+    const ptyId = `${providerId}-main-${taskId}`;
     let sent = false;
     let idleSeen = false;
     let silenceTimer: any = null;
@@ -71,5 +71,5 @@ export function useInitialPromptInjection(opts: {
       offStarted?.();
       offData?.();
     };
-  }, [enabled, workspaceId, providerId, prompt]);
+  }, [enabled, taskId, providerId, prompt]);
 }

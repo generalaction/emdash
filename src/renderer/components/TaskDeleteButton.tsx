@@ -20,19 +20,19 @@ import DeletePrNotice from './DeletePrNotice';
 import { isActivePr } from '../lib/prStatus';
 
 type Props = {
-  workspaceName: string;
-  workspaceId: string;
-  workspacePath: string;
+  taskName: string;
+  taskId: string;
+  taskPath: string;
   onConfirm: () => void | Promise<void | boolean>;
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
 };
 
-export const WorkspaceDeleteButton: React.FC<Props> = ({
-  workspaceName,
-  workspaceId,
-  workspacePath,
+export const TaskDeleteButton: React.FC<Props> = ({
+  taskName,
+  taskId,
+  taskPath,
   onConfirm,
   className,
   'aria-label': ariaLabel = 'Delete Task',
@@ -41,11 +41,11 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   const [open, setOpen] = React.useState(false);
   const [acknowledge, setAcknowledge] = React.useState(false);
   const targets = useMemo(
-    () => [{ id: workspaceId, name: workspaceName, path: workspacePath }],
-    [workspaceId, workspaceName, workspacePath]
+    () => [{ id: taskId, name: taskName, path: taskPath }],
+    [taskId, taskName, taskPath]
   );
   const { risks, loading, hasData } = useDeleteRisks(targets, open);
-  const status = risks[workspaceId] || {
+  const status = risks[taskId] || {
     staged: 0,
     unstaged: 0,
     untracked: 0,
@@ -123,7 +123,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                 <p className="font-medium">Unmerged or unpushed work detected</p>
                 <div className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
                   <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                  <span className="font-medium">{workspaceName}</span>
+                  <span className="font-medium">{taskName}</span>
                   <span className="text-muted-foreground">—</span>
                   <span>
                     {[
@@ -150,7 +150,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                   </span>
                 </div>
                 {status.pr && isActivePr(status.pr) ? (
-                  <DeletePrNotice workspaces={[{ name: workspaceName, pr: status.pr }]} />
+                  <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} />
                 ) : null}
               </motion.div>
             ) : null}
@@ -198,4 +198,4 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   );
 };
 
-export default WorkspaceDeleteButton;
+export default TaskDeleteButton;

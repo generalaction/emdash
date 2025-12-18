@@ -2,13 +2,13 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import { useFileChanges } from '@/hooks/useFileChanges';
-import WorkspaceTerminalPanel from './WorkspaceTerminalPanel';
+import TaskTerminalPanel from './TaskTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { providerAssets } from '@/providers/assets';
 import { providerMeta } from '@/providers/meta';
 import type { Provider } from '../types';
 
-export interface RightSidebarWorkspace {
+export interface RightSidebarTask {
   id: string;
   name: string;
   branch: string;
@@ -19,22 +19,17 @@ export interface RightSidebarWorkspace {
 }
 
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
-  workspace: RightSidebarWorkspace | null;
+  task: RightSidebarTask | null;
   projectPath?: string | null;
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({
-  workspace,
-  projectPath,
-  className,
-  ...rest
-}) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, className, ...rest }) => {
   const { collapsed } = useRightSidebar();
 
-  // Detect multi-agent variants in workspace metadata
+  // Detect multi-agent variants in task metadata
   const variants: Array<{ provider: Provider; name: string; path: string }> = (() => {
     try {
-      const v = workspace?.metadata?.multiAgent?.variants || [];
+      const v = task?.metadata?.multiAgent?.variants || [];
       if (Array.isArray(v))
         return v
           .map((x: any) => ({ provider: x?.provider as Provider, name: x?.name, path: x?.path }))
@@ -58,7 +53,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     }
 
     // Multiple instances: extract instance number from variant name
-    // variant.name format: "workspace-provider-1", "workspace-provider-2", etc.
+    // variant.name format: "task-provider-1", "task-provider-2", etc.
     const match = variant.name.match(/-(\d+)$/);
     const instanceNum = match
       ? match[1]
@@ -79,9 +74,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
       {...rest}
     >
       <div className="flex h-full w-full min-w-0 flex-col">
-        {workspace || projectPath ? (
+        {task || projectPath ? (
           <div className="flex h-full flex-col">
-            {workspace && variants.length > 1 ? (
+            {task && variants.length > 1 ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {variants.map((v, i) => (
                   <div
@@ -119,13 +114,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   </div>
                 ))}
               </div>
-            ) : workspace && variants.length === 1 ? (
+            ) : task && variants.length === 1 ? (
               (() => {
                 const v = variants[0];
                 const derived = {
-                  ...workspace,
+                  ...task,
                   path: v.path,
-                  name: v.name || workspace.name,
+                  name: v.name || task.name,
                 } as any;
                 return (
                   <>
@@ -133,25 +128,25 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                       path={v.path}
                       className="min-h-0 flex-1 border-b border-border"
                     />
-                    <WorkspaceTerminalPanel
-                      workspace={derived}
+                    <TaskTerminalPanel
+                      task={derived}
                       provider={v.provider}
-                      projectPath={projectPath || workspace?.path}
+                      projectPath={projectPath || task?.path}
                       className="min-h-0 flex-1"
                     />
                   </>
                 );
               })()
-            ) : workspace ? (
+            ) : task ? (
               <>
                 <FileChangesPanel
-                  workspaceId={workspace.path}
+                  taskId={task.path}
                   className="min-h-0 flex-1 border-b border-border"
                 />
-                <WorkspaceTerminalPanel
-                  workspace={workspace}
-                  provider={workspace.agentId as Provider}
-                  projectPath={projectPath || workspace?.path}
+                <TaskTerminalPanel
+                  task={task}
+                  provider={task.agentId as Provider}
+                  projectPath={projectPath || task?.path}
                   className="min-h-0 flex-1"
                 />
               </>
@@ -167,8 +162,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     </span>
                   </div>
                 </div>
-                <WorkspaceTerminalPanel
-                  workspace={null}
+                <TaskTerminalPanel
+                  task={null}
                   provider={undefined}
                   projectPath={projectPath || undefined}
                   className="h-1/2 min-h-0"
@@ -213,5 +208,5 @@ const VariantChangesIfAny: React.FC<{ path: string; className?: string }> = ({
 }) => {
   const { fileChanges } = useFileChanges(path);
   if (!fileChanges || fileChanges.length === 0) return null;
-  return <FileChangesPanel workspaceId={path} className={className || 'min-h-0'} />;
+  return <FileChangesPanel taskId={path} className={className || 'min-h-0'} />;
 };

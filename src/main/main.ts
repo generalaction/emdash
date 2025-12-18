@@ -146,21 +146,21 @@ app.whenReady().then(async () => {
   // Initialize telemetry (privacy-first, anonymous)
   telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
 
-  // Best-effort: capture a coarse snapshot of project/workspace counts (no names/paths)
+  // Best-effort: capture a coarse snapshot of project/task counts (no names/paths)
   try {
-    const [projects, workspaces] = await Promise.all([
+    const [projects, tasks] = await Promise.all([
       databaseService.getProjects(),
-      databaseService.getWorkspaces(),
+      databaseService.getTasks(),
     ]);
     const projectCount = projects.length;
-    const workspaceCount = workspaces.length;
+    const taskCount = tasks.length;
     const toBucket = (n: number) =>
       n === 0 ? '0' : n <= 2 ? '1-2' : n <= 5 ? '3-5' : n <= 10 ? '6-10' : '>10';
-    telemetry.capture('workspace_snapshot', {
+    telemetry.capture('task_snapshot', {
       project_count: projectCount,
       project_count_bucket: toBucket(projectCount),
-      workspace_count: workspaceCount,
-      workspace_count_bucket: toBucket(workspaceCount),
+      task_count: taskCount,
+      task_count_bucket: toBucket(taskCount),
     } as any);
   } catch {
     // ignore errors — telemetry is best-effort only

@@ -17,57 +17,49 @@ export interface GeneratedPrContent {
 export class PrGenerationService {
   /**
    * Generate PR title and description based on git changes
-   * @param workspacePath - Path to the workspace
+   * @param taskPath - Path to the task
    * @param baseBranch - Base branch to compare against (default: 'main')
-   * @param preferredProviderId - Optional provider ID to use first (e.g., from workspace.agentId)
+   * @param preferredProviderId - Optional provider ID to use first (e.g., from task.agentId)
    */
   async generatePrContent(
-    workspacePath: string,
+    taskPath: string,
     baseBranch: string = 'main',
     preferredProviderId?: string | null
   ): Promise<GeneratedPrContent> {
     try {
       // Get git diff and commit messages
-      const { diff, commits, changedFiles } = await this.getGitContext(workspacePath, baseBranch);
+      const { diff, commits, changedFiles } = await this.getGitContext(taskPath, baseBranch);
 
       if (!diff && commits.length === 0) {
         return this.generateFallbackContent(changedFiles);
       }
 
-      // Try the workspace's provider first if specified
+      // Try the task's provider first if specified
       if (preferredProviderId && this.isValidProviderId(preferredProviderId)) {
         try {
           const preferredResult = await this.generateWithProvider(
             preferredProviderId as ProviderId,
-            workspacePath,
+            taskPath,
             diff,
             commits
           );
           if (preferredResult) {
-            log.info(`Generated PR content with workspace provider: ${preferredProviderId}`);
+            log.info(`Generated PR content with task provider: ${preferredProviderId}`);
             return {
               title: preferredResult.title,
               description: this.normalizeMarkdown(preferredResult.description),
             };
           }
         } catch (error) {
-          log.debug(
-            `Workspace provider ${preferredProviderId} generation failed, trying fallbacks`,
-            {
-              error,
-            }
-          );
+          log.debug(`Task provider ${preferredProviderId} generation failed, trying fallbacks`, {
+            error,
+          });
         }
       }
 
       // Try Claude Code as fallback (preferred default)
       try {
-        const claudeResult = await this.generateWithProvider(
-          'claude',
-          workspacePath,
-          diff,
-          commits
-        );
+        const claudeResult = await this.generateWithProvider('claude', taskPath, diff, commits);
         if (claudeResult) {
           log.info('Generated PR content with Claude Code');
           return {
@@ -81,7 +73,7 @@ export class PrGenerationService {
 
       // Try Codex as fallback
       try {
-        const codexResult = await this.generateWithProvider('codex', workspacePath, diff, commits);
+        const codexResult = await this.generateWithProvider('codex', taskPath, diff, commits);
         if (codexResult) {
           log.info('Generated PR content with Codex');
           return {
@@ -105,7 +97,7 @@ export class PrGenerationService {
    * Get git context (diff, commits, changed files) for PR generation
    */
   private async getGitContext(
-    workspacePath: string,
+    taskPath: string,
     baseBranch: string
   ): Promise<{ diff: string; commits: string[]; changedFiles: string[] }> {
     let diff = '';
@@ -116,11 +108,11 @@ export class PrGenerationService {
       // Check if base branch exists (local or remote)
       let baseBranchExists = false;
       try {
-        await execAsync(`git rev-parse --verify ${baseBranch}`, { cwd: workspacePath });
+        await execAsync(`git rev-parse --verify ${baseBranch}`, { cwd: taskPath });
         baseBranchExists = true;
       } catch {
         try {
-          await execAsync(`git rev-parse --verify origin/${baseBranch}`, { cwd: workspacePath });
+          await execAsync(`git rev-parse --verify origin/${baseBranch}`, { cwd: taskPath });
           baseBranchExists = true;
           baseBranch = `origin/${baseBranch}`;
         } catch {
@@ -132,7 +124,7 @@ export class PrGenerationService {
         // Get diff between base branch and current HEAD (committed changes)
         try {
           const { stdout: diffOut } = await execAsync(`git diff ${baseBranch}...HEAD --stat`, {
-            cwd: workspacePath,
+            cwd: taskPath,
             maxBuffer: 10 * 1024 * 1024,
           });
           diff = diffOut || '';
@@ -140,7 +132,7 @@ export class PrGenerationService {
           // Get list of changed files from commits
           const { stdout: filesOut } = await execAsync(
             `git diff --name-only ${baseBranch}...HEAD`,
-            { cwd: workspacePath }
+            { cwd: taskPath }
           );
           const committedFiles = (filesOut || '')
             .split('\n')
@@ -151,7 +143,7 @@ export class PrGenerationService {
           // Get commit messages
           const { stdout: commitsOut } = await execAsync(
             `git log ${baseBranch}..HEAD --pretty=format:"%s"`,
-            { cwd: workspacePath }
+            { cwd: taskPath }
           );
           commits = (commitsOut || '')
             .split('\n')
@@ -166,7 +158,7 @@ export class PrGenerationService {
       // This ensures PR description includes changes that will be committed
       try {
         const { stdout: workingDiff } = await execAsync('git diff --stat', {
-          cwd: workspacePath,
+          cwd: taskPath,
           maxBuffer: 10 * 1024 * 1024,
         });
         const workingDiffText = workingDiff || '';
@@ -182,7 +174,7 @@ export class PrGenerationService {
 
         // Get uncommitted changed files and merge with committed files
         const { stdout: filesOut } = await execAsync('git diff --name-only', {
-          cwd: workspacePath,
+          cwd: taskPath,
         });
         const uncommittedFiles = (filesOut || '')
           .split('\n')
@@ -200,13 +192,13 @@ export class PrGenerationService {
       if (commits.length === 0 && diff.length === 0) {
         try {
           const { stdout: stagedDiff } = await execAsync('git diff --cached --stat', {
-            cwd: workspacePath,
+            cwd: taskPath,
             maxBuffer: 10 * 1024 * 1024,
           });
           if (stagedDiff) {
             diff = stagedDiff;
             const { stdout: filesOut } = await execAsync('git diff --cached --name-only', {
-              cwd: workspacePath,
+              cwd: taskPath,
             });
             changedFiles = (filesOut || '')
               .split('\n')
@@ -227,7 +219,7 @@ export class PrGenerationService {
    */
   private async generateWithProvider(
     providerId: ProviderId,
-    workspacePath: string,
+    taskPath: string,
     diff: string,
     commits: string[]
   ): Promise<GeneratedPrContent | null> {
@@ -244,7 +236,7 @@ export class PrGenerationService {
     // Check if provider CLI is available
     try {
       await execFileAsync(cliCommand, provider.versionArgs || ['--version'], {
-        cwd: workspacePath,
+        cwd: taskPath,
       });
     } catch {
       log.debug(`Provider ${providerId} CLI not available`);
@@ -282,7 +274,7 @@ export class PrGenerationService {
 
       // Spawn the provider CLI
       const child = spawn(cliCommand, args, {
-        cwd: workspacePath,
+        cwd: taskPath,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
           ...process.env,

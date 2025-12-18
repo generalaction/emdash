@@ -3,14 +3,14 @@ import CommandPalette from '../components/CommandPalette';
 import { useSidebar } from '../components/ui/sidebar';
 import { useRightSidebar } from '../components/ui/right-sidebar';
 import { useTheme } from '../hooks/useTheme';
-import type { Project, Workspace } from '../types/app';
+import type { Project, Task } from '../types/app';
 
 export interface CommandPaletteWrapperProps {
   isOpen: boolean;
   onClose: () => void;
   projects: Project[];
   handleSelectProject: (project: Project) => void;
-  handleSelectWorkspace: (workspace: Workspace) => void;
+  handleSelectTask: (task: Task) => void;
   handleGoHome: () => void;
   handleOpenProject: () => void;
   handleOpenSettings: () => void;
@@ -21,7 +21,7 @@ const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
   onClose,
   projects,
   handleSelectProject,
-  handleSelectWorkspace,
+  handleSelectTask,
   handleGoHome,
   handleOpenProject,
   handleOpenSettings,
@@ -39,12 +39,12 @@ const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
         const project = projects.find((p) => p.id === projectId);
         if (project) handleSelectProject(project);
       }}
-      onSelectWorkspace={(projectId, workspaceId) => {
+      onSelectTask={(projectId, taskId) => {
         const project = projects.find((p) => p.id === projectId);
-        const workspace = project?.workspaces?.find((w: Workspace) => w.id === workspaceId);
-        if (project && workspace) {
+        const task = project?.tasks?.find((w: Task) => w.id === taskId);
+        if (project && task) {
           handleSelectProject(project);
-          handleSelectWorkspace(workspace);
+          handleSelectTask(task);
         }
       }}
       onOpenSettings={handleOpenSettings}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 
-type WorkspaceRef = { id: string; name: string; path: string };
+type TaskRef = { id: string; name: string; path: string };
 
 type RiskState = Record<
   string,
@@ -16,13 +16,13 @@ type RiskState = Record<
   }
 >;
 
-export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
+export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
   const [risks, setRisks] = useState<RiskState>({});
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!enabled || workspaces.length === 0) {
+    if (!enabled || tasks.length === 0) {
       setRisks({});
       setLoading(false);
       setLoaded(false);
@@ -32,12 +32,12 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
     const load = async () => {
       setLoading(true);
       const next: RiskState = {};
-      for (const ws of workspaces) {
+      for (const ws of tasks) {
         try {
           const [statusRes, infoRes, prRes] = await Promise.allSettled([
             (window as any).electronAPI?.getGitStatus?.(ws.path),
             (window as any).electronAPI?.getGitInfo?.(ws.path),
-            (window as any).electronAPI?.getPrStatus?.({ workspacePath: ws.path }),
+            (window as any).electronAPI?.getPrStatus?.({ taskPath: ws.path }),
           ]);
 
           let staged = 0;
@@ -105,13 +105,13 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled, workspaces]);
+  }, [enabled, tasks]);
 
   const hasData = loaded && Object.keys(risks).length > 0;
   const summary = useMemo(() => {
     const riskyIds = new Set<string>();
     const summaries: Record<string, string> = {};
-    for (const ws of workspaces) {
+    for (const ws of tasks) {
       const status = risks[ws.id];
       if (!status) continue;
       const dirty =
@@ -147,7 +147,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
       }
     }
     return { riskyIds, summaries };
-  }, [risks, workspaces]);
+  }, [risks, tasks]);
 
   return { risks, loading, summary, hasData };
 }

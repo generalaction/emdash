@@ -117,7 +117,7 @@ class TerminalSnapshotService {
       const json = JSON.stringify(payload);
       const bytes = Buffer.byteLength(json, 'utf8');
       if (bytes > MAX_SNAPSHOT_BYTES) {
-        return { ok: false, error: 'Snapshot size exceeds per-workspace limit' };
+        return { ok: false, error: 'Snapshot size exceeds per-task limit' };
       }
 
       await ensureDir();

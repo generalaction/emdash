@@ -260,7 +260,7 @@ export function registerGithubIpc() {
         projectId: string;
         prNumber: number;
         prTitle?: string;
-        workspaceName?: string;
+        taskName?: string;
         branchName?: string;
       }
     ) => {
@@ -271,9 +271,9 @@ export function registerGithubIpc() {
       }
 
       const defaultSlug = slugify(args.prTitle || `pr-${prNumber}`) || `pr-${prNumber}`;
-      const workspaceName =
-        args.workspaceName && args.workspaceName.trim().length > 0
-          ? args.workspaceName.trim()
+      const taskName =
+        args.taskName && args.taskName.trim().length > 0
+          ? args.taskName.trim()
           : `pr-${prNumber}-${defaultSlug}`;
       const branchName = args.branchName || `pr/${prNumber}`;
 
@@ -282,13 +282,13 @@ export function registerGithubIpc() {
         const existing = currentWorktrees.find((wt) => wt.branch === branchName);
 
         if (existing) {
-          return { success: true, worktree: existing, branchName, workspaceName: existing.name };
+          return { success: true, worktree: existing, branchName, taskName: existing.name };
         }
 
         await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
 
         const worktreesDir = path.resolve(projectPath, '..', 'worktrees');
-        const slug = slugify(workspaceName) || `pr-${prNumber}`;
+        const slug = slugify(taskName) || `pr-${prNumber}`;
         let worktreePath = path.join(worktreesDir, slug);
 
         if (fs.existsSync(worktreePath)) {
@@ -297,13 +297,13 @@ export function registerGithubIpc() {
 
         const worktree = await worktreeService.createWorktreeFromBranch(
           projectPath,
-          workspaceName,
+          taskName,
           branchName,
           projectId,
           { worktreePath }
         );
 
-        return { success: true, worktree, branchName, workspaceName };
+        return { success: true, worktree, branchName, taskName };
       } catch (error) {
         log.error('Failed to create PR worktree:', error);
         const message =

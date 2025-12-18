@@ -49,7 +49,7 @@ vi.mock('../../renderer/lib/logger', () => ({
 import {
   startContainerRun,
   subscribeToContainerRuns,
-  subscribeToWorkspaceRunState,
+  subscribeToTaskRunState,
   getContainerRunState,
   resetContainerRunListeners,
 } from '../../renderer/lib/containerRuns';
@@ -67,13 +67,13 @@ describe('containerRuns renderer bridge', () => {
     startRunMock.mockResolvedValue({ ok: true, runId: 'run-1', sourcePath: null });
 
     const result = await startContainerRun({
-      workspaceId: ' ws-1 ',
-      workspacePath: ' /tmp/workspace ',
+      taskId: ' ws-1 ',
+      taskPath: ' /tmp/task ',
     });
 
     expect(startRunMock).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      workspacePath: '/tmp/workspace',
+      taskId: 'ws-1',
+      taskPath: '/tmp/task',
     });
     expect(result).toEqual({ ok: true, runId: 'run-1', sourcePath: null });
     expect(onRunEventMock).toHaveBeenCalledTimes(1);
@@ -85,7 +85,7 @@ describe('containerRuns renderer bridge', () => {
 
     const sample: RunnerEvent = {
       ts: 1700000000000,
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       runId: 'run-2',
       mode: 'container',
       type: 'lifecycle',
@@ -100,15 +100,15 @@ describe('containerRuns renderer bridge', () => {
     unsubscribe();
   });
 
-  it('tracks workspace state and notifies workspace listeners', () => {
+  it('tracks task state and notifies task listeners', () => {
     const updates: Array<{ status: string; previewUrl?: string | undefined }> = [];
-    const unsubscribe = subscribeToWorkspaceRunState('ws-1', (state) =>
+    const unsubscribe = subscribeToTaskRunState('ws-1', (state) =>
       updates.push({ status: state.status, previewUrl: state.previewUrl })
     );
 
     triggerEvent({
       ts: 1,
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       runId: 'run-1',
       mode: 'container',
       type: 'lifecycle',
@@ -117,7 +117,7 @@ describe('containerRuns renderer bridge', () => {
 
     triggerEvent({
       ts: 2,
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       runId: 'run-1',
       mode: 'container',
       type: 'ports',
@@ -130,7 +130,7 @@ describe('containerRuns renderer bridge', () => {
 
     triggerEvent({
       ts: 3,
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       runId: 'run-1',
       mode: 'container',
       type: 'lifecycle',
@@ -149,11 +149,11 @@ describe('containerRuns renderer bridge', () => {
   it('re-registers listener after reset', async () => {
     startRunMock.mockResolvedValue({ ok: true, runId: 'run-3', sourcePath: null });
 
-    await startContainerRun({ workspaceId: 'ws-1', workspacePath: '/tmp/workspace' });
+    await startContainerRun({ taskId: 'ws-1', taskPath: '/tmp/task' });
     expect(onRunEventMock).toHaveBeenCalledTimes(1);
 
     resetContainerRunListeners();
-    await startContainerRun({ workspaceId: 'ws-1', workspacePath: '/tmp/workspace' });
+    await startContainerRun({ taskId: 'ws-1', taskPath: '/tmp/task' });
     expect(onRunEventMock).toHaveBeenCalledTimes(2);
   });
 });
