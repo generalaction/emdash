@@ -24,6 +24,8 @@ import { useBrowser } from '@/providers/BrowserProvider';
 import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnWorkspaceSwitch } from '@/hooks/useAutoScrollOnWorkspaceSwitch';
+import { useConversations } from '@/hooks/useConversations';
+import { ConversationTabs } from './ConversationTabs';
 
 declare const window: Window & {
   electronAPI: {
@@ -58,7 +60,23 @@ const ChatInterface: React.FC<Props> = ({
     getContainerRunState(workspace.id)
   );
   const reduceMotion = useReducedMotion();
-  const terminalId = useMemo(() => `${provider}-main-${workspace.id}`, [provider, workspace.id]);
+
+  // Multi-conversation support
+  const {
+    conversations,
+    activeConversationId,
+    activeConversation,
+    isLoading: conversationsLoading,
+    createConversation,
+    selectConversation,
+    renameConversation,
+    deleteConversation,
+  } = useConversations(workspace.id);
+
+  const terminalId = useMemo(
+    () => `${provider}-conv-${activeConversationId || workspace.id}`,
+    [provider, activeConversationId, workspace.id]
+  );
   const [portsExpanded, setPortsExpanded] = useState(false);
   const { activeTerminalId } = useWorkspaceTerminals(workspace.id, workspace.path);
 
@@ -648,12 +666,45 @@ const ChatInterface: React.FC<Props> = ({
     );
   }, [containerState, portsExpanded, reduceMotion, workspace.id, workspace.path]);
 
+  // Debug: Log conversation state
+  useEffect(() => {
+    console.log('[ChatInterface] Conversations state:', {
+      loading: conversationsLoading,
+      count: conversations.length,
+      activeId: activeConversationId,
+      conversations: conversations.map(c => ({ id: c.id, title: c.title }))
+    });
+  }, [conversationsLoading, conversations, activeConversationId]);
+
   if (!isTerminal) {
     return null;
   }
 
   return (
     <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
+      {/* Conversation tabs at the top */}
+      {!conversationsLoading && conversations.length > 0 && (
+        <ConversationTabs
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onSelectConversation={selectConversation}
+          workspaceId={workspace.id}
+          onCreateConversationWithProvider={async (selectedProvider) => {
+            // Create new conversation
+            await createConversation();
+
+            // If a specific provider was selected (not Terminal option), switch to it
+            if (selectedProvider !== null) {
+              setProvider(selectedProvider as Provider);
+            }
+          }}
+          onRenameConversation={renameConversation}
+          onDeleteConversation={deleteConversation}
+          providerIcon={providerMeta[provider]?.icon}
+          providerLabel={providerMeta[provider]?.label}
+        />
+      )}
+
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="px-6 pt-4">
           <div className="mx-auto max-w-4xl space-y-2">

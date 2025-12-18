@@ -26,16 +26,17 @@ export function registerPtyIpc(): void {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        skipResume?: boolean;
       }
     ) => {
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
       try {
-        const { id, cwd, shell, env, cols, rows, autoApprove, initialPrompt } = args;
+        const { id, cwd, shell, env, cols, rows, autoApprove, initialPrompt, skipResume } = args;
         const existing = getPty(id);
         const proc =
-          existing ?? startPty({ id, cwd, shell, env, cols, rows, autoApprove, initialPrompt });
+          existing ?? startPty({ id, cwd, shell, env, cols, rows, autoApprove, initialPrompt, skipResume });
         const envKeys = env ? Object.keys(env) : [];
         const planEnv = env && (env.EMDASH_PLAN_MODE || env.EMDASH_PLAN_FILE) ? true : false;
         log.debug('pty:start OK', {

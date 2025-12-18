@@ -64,6 +64,7 @@ class SessionRegistry {
       telemetry: null,
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
+      skipResume: true, // Always skip resume for new sessions (new conversations/tabs)
     };
 
     const session = new TerminalSessionManager(sessionOptions);

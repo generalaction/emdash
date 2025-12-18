@@ -30,6 +30,7 @@ export interface TerminalSessionOptions {
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  skipResume?: boolean;
 }
 
 type CleanupFn = () => void;
@@ -401,7 +402,7 @@ export class TerminalSessionManager {
   }
 
   private connectPty() {
-    const { workspaceId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
+    const { workspaceId, cwd, shell, env, initialSize, autoApprove, initialPrompt, skipResume } = this.options;
     const id = workspaceId;
     void window.electronAPI
       .ptyStart({
@@ -413,6 +414,7 @@ export class TerminalSessionManager {
         rows: initialSize.rows,
         autoApprove,
         initialPrompt,
+        skipResume,
       })
       .then((result) => {
         if (result?.ok) {

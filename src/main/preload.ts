@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
+    skipResume?: boolean;
   }) => ipcRenderer.invoke('pty:start', opts),
   ptyInput: (args: { id: string; data: string }) => ipcRenderer.send('pty:input', args),
   ptyResize: (args: { id: string; cols: number; rows: number }) =>
@@ -286,10 +287,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConversations: (workspaceId: string) => ipcRenderer.invoke('db:getConversations', workspaceId),
   getOrCreateDefaultConversation: (workspaceId: string) =>
     ipcRenderer.invoke('db:getOrCreateDefaultConversation', workspaceId),
-  saveMessage: (message: any) => ipcRenderer.invoke('db:saveMessage', message),
-  getMessages: (conversationId: string) => ipcRenderer.invoke('db:getMessages', conversationId),
+  updateConversation: (conversationId: string, updates: Partial<{ title: string }>) =>
+    ipcRenderer.invoke('db:updateConversation', conversationId, updates),
   deleteConversation: (conversationId: string) =>
     ipcRenderer.invoke('db:deleteConversation', conversationId),
+  saveMessage: (message: any) => ipcRenderer.invoke('db:saveMessage', message),
+  getMessages: (conversationId: string) => ipcRenderer.invoke('db:getMessages', conversationId),
 
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>
@@ -639,11 +642,15 @@ export interface ElectronAPI {
   getOrCreateDefaultConversation: (
     workspaceId: string
   ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+  updateConversation: (
+    conversationId: string,
+    updates: Partial<{ title: string }>
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
   getMessages: (
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
-  deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Host preview (non-container)
   hostPreviewStart: (args: {

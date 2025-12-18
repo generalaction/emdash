@@ -27,11 +27,12 @@ export function startPty(options: {
   rows?: number;
   autoApprove?: boolean;
   initialPrompt?: string;
+  skipResume?: boolean;
 }): IPty {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
-  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove, initialPrompt } = options;
+  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove, initialPrompt, skipResume = false } = options;
 
   const defaultShell = getDefaultShell();
   let useShell = shell || defaultShell;
@@ -113,8 +114,8 @@ export function startPty(options: {
         // Build the provider command with flags
         const cliArgs: string[] = [];
 
-        // Add resume flag FIRST if available
-        if (provider.resumeFlag) {
+        // Add resume flag FIRST if available (skip for new conversations)
+        if (provider.resumeFlag && !skipResume) {
           const resumeParts = provider.resumeFlag.split(' ');
           cliArgs.push(...resumeParts);
         }
