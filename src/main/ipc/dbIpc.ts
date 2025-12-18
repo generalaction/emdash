@@ -102,6 +102,19 @@ export function registerDatabaseIpc() {
     }
   });
 
+  ipcMain.handle(
+    'db:updateConversation',
+    async (_, conversationId: string, updates: Partial<{ title: string }>) => {
+      try {
+        await databaseService.updateConversation(conversationId, updates);
+        return { success: true };
+      } catch (error) {
+        log.error('Failed to update conversation:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
   ipcMain.handle('db:deleteConversation', async (_, conversationId: string) => {
     try {
       await databaseService.deleteConversation(conversationId);

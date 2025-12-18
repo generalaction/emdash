@@ -313,7 +313,7 @@ export class DatabaseService {
       .select()
       .from(conversationsTable)
       .where(eq(conversationsTable.workspaceId, workspaceId))
-      .orderBy(desc(conversationsTable.updatedAt));
+      .orderBy(asc(conversationsTable.createdAt));
     return rows.map((row) => this.mapDrizzleConversationRow(row));
   }
 
@@ -322,7 +322,7 @@ export class DatabaseService {
       return {
         id: `conv-${workspaceId}-default`,
         workspaceId,
-        title: 'Default Conversation',
+        title: 'Main Chat',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -344,7 +344,7 @@ export class DatabaseService {
     await this.saveConversation({
       id: conversationId,
       workspaceId,
-      title: 'Default Conversation',
+      title: 'Main Chat',
     });
 
     const [createdRow] = await db
@@ -360,7 +360,7 @@ export class DatabaseService {
     return {
       id: conversationId,
       workspaceId,
-      title: 'Default Conversation',
+      title: 'Main Chat',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -407,6 +407,21 @@ export class DatabaseService {
       .where(eq(messagesTable.conversationId, conversationId))
       .orderBy(asc(messagesTable.timestamp));
     return rows.map((row) => this.mapDrizzleMessageRow(row));
+  }
+
+  async updateConversation(
+    conversationId: string,
+    updates: Partial<Pick<Conversation, 'title'>>
+  ): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(conversationsTable)
+      .set({
+        ...updates,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(conversationsTable.id, conversationId));
   }
 
   async deleteConversation(conversationId: string): Promise<void> {

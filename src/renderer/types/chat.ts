@@ -48,6 +48,14 @@ export interface Workspace {
   metadata?: WorkspaceMetadata | null;
 }
 
+export interface Conversation {
+  id: string;
+  workspaceId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Message {
   id: string;
   content: string;

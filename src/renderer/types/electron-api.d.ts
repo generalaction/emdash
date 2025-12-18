@@ -587,14 +587,25 @@ declare global {
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
       deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
 
+      // Conversation operations
+      saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
+      getConversations: (
+        workspaceId: string
+      ) => Promise<{ success: boolean; conversations?: any[]; error?: string }>;
+      getOrCreateDefaultConversation: (
+        workspaceId: string
+      ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+      updateConversation: (
+        conversationId: string,
+        updates: Partial<{ title: string }>
+      ) => Promise<{ success: boolean; error?: string }>;
+      deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
+
       // Message operations
       saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
       getMessages: (
         conversationId: string
       ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
-      getOrCreateDefaultConversation: (
-        workspaceId: string
-      ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
 
       // Debug helpers
       debugAppendLog: (
@@ -915,14 +926,25 @@ export interface ElectronAPI {
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
 
+  // Conversation operations
+  saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
+  getConversations: (
+    workspaceId: string
+  ) => Promise<{ success: boolean; conversations?: any[]; error?: string }>;
+  getOrCreateDefaultConversation: (
+    workspaceId: string
+  ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+  updateConversation: (
+    conversationId: string,
+    updates: Partial<{ title: string }>
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
+
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
   getMessages: (
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
-  getOrCreateDefaultConversation: (
-    workspaceId: string
-  ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
 
   // Debug helpers
   debugAppendLog: (

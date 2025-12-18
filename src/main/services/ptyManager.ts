@@ -41,7 +41,7 @@ export function startPty(options: {
     rows = 24,
     autoApprove,
     initialPrompt,
-    skipResume,
+    skipResume = false,
   } = options;
 
   const defaultShell = getDefaultShell();
