@@ -748,6 +748,186 @@ export class GitHubService {
   }
 
   /**
+   * Validate repository name format
+   */
+  validateRepositoryName(name: string): { valid: boolean; error?: string } {
+    if (!name || name.trim().length === 0) {
+      return { valid: false, error: 'Repository name is required' };
+    }
+
+    const trimmed = name.trim();
+
+    // Check length
+    if (trimmed.length > 100) {
+      return { valid: false, error: 'Repository name must be 100 characters or less' };
+    }
+
+    // Check for valid characters (alphanumeric, hyphens, underscores, dots)
+    // GitHub allows: a-z, A-Z, 0-9, -, _, .
+    if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+      return {
+        valid: false,
+        error: 'Repository name can only contain letters, numbers, hyphens, underscores, and dots',
+      };
+    }
+
+    // Cannot start or end with hyphen, dot, or underscore
+    if (/^[-._]|[-._]$/.test(trimmed)) {
+      return {
+        valid: false,
+        error: 'Repository name cannot start or end with a hyphen, dot, or underscore',
+      };
+    }
+
+    // Cannot be all dots
+    if (/^\.+$/.test(trimmed)) {
+      return { valid: false, error: 'Repository name cannot be all dots' };
+    }
+
+    // Reserved names (basic ones, GitHub has more)
+    const reserved = ['con', 'prn', 'aux', 'nul', 'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9', 'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'];
+    if (reserved.includes(trimmed.toLowerCase())) {
+      return { valid: false, error: 'Repository name is reserved' };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Check if a repository exists for the given owner and name
+   */
+  async checkRepositoryExists(owner: string, name: string): Promise<boolean> {
+    try {
+      await this.execGH(`gh repo view ${owner}/${name}`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get available owners (user + organizations)
+   */
+  async getOwners(): Promise<Array<{ login: string; type: 'User' | 'Organization' }>> {
+    try {
+      // Get current user
+      const { stdout: userStdout } = await this.execGH('gh api user');
+      const user = JSON.parse(userStdout);
+
+      const owners: Array<{ login: string; type: 'User' | 'Organization' }> = [
+        { login: user.login, type: 'User' },
+      ];
+
+      // Get organizations
+      try {
+        const { stdout: orgsStdout } = await this.execGH('gh api user/orgs');
+        const orgs = JSON.parse(orgsStdout);
+        if (Array.isArray(orgs)) {
+          for (const org of orgs) {
+            owners.push({ login: org.login, type: 'Organization' });
+          }
+        }
+      } catch (error) {
+        // If orgs fetch fails, just continue with user only
+        console.warn('Failed to fetch organizations:', error);
+      }
+
+      return owners;
+    } catch (error) {
+      console.error('Failed to get owners:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new GitHub repository
+   */
+  async createRepository(params: {
+    name: string;
+    description?: string;
+    owner: string;
+    isPrivate: boolean;
+  }): Promise<{ url: string; defaultBranch: string; fullName: string }> {
+    try {
+      const { name, description, owner, isPrivate } = params;
+
+      // Build gh repo create command
+      const visibilityFlag = isPrivate ? '--private' : '--public';
+      let command = `gh repo create ${owner}/${name} ${visibilityFlag} --confirm`;
+
+      if (description && description.trim()) {
+        // Escape description for shell
+        const desc = JSON.stringify(description.trim());
+        command += ` --description ${desc}`;
+      }
+
+      await this.execGH(command);
+
+      // Get repository details
+      const { stdout } = await this.execGH(
+        `gh repo view ${owner}/${name} --json name,nameWithOwner,url,defaultBranchRef`
+      );
+      const repoInfo = JSON.parse(stdout);
+
+      return {
+        url: repoInfo.url || `https://github.com/${repoInfo.nameWithOwner}`,
+        defaultBranch: repoInfo.defaultBranchRef?.name || 'main',
+        fullName: repoInfo.nameWithOwner || `${owner}/${name}`,
+      };
+    } catch (error) {
+      console.error('Failed to create repository:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize a new project with initial files and commit
+   */
+  async initializeNewProject(params: {
+    repoUrl: string;
+    localPath: string;
+    name: string;
+    description?: string;
+  }): Promise<void> {
+    const { repoUrl, localPath, name, description } = params;
+
+    try {
+      // Ensure the directory exists (clone should have created it, but just in case)
+      if (!fs.existsSync(localPath)) {
+        throw new Error('Local path does not exist after clone');
+      }
+
+      // Create README.md
+      const readmePath = path.join(localPath, 'README.md');
+      const readmeContent = description
+        ? `# ${name}\n\n${description}\n`
+        : `# ${name}\n`;
+      fs.writeFileSync(readmePath, readmeContent, 'utf8');
+
+      // Initialize git, add files, commit, and push
+      const execOptions = { cwd: localPath };
+
+      // Add and commit
+      await execAsync('git add README.md', execOptions);
+      await execAsync('git commit -m "Initial commit"', execOptions);
+
+      // Push to origin
+      await execAsync('git push -u origin main', execOptions).catch(async () => {
+        // If main branch doesn't exist, try master
+        try {
+          await execAsync('git push -u origin master', execOptions);
+        } catch {
+          // If both fail, let the error propagate
+          throw new Error('Failed to push to remote repository');
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize new project:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Clone a repository to local workspace
    */
   async cloneRepository(

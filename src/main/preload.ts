@@ -236,6 +236,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   githubGetRepositories: () => ipcRenderer.invoke('github:getRepositories'),
   githubCloneRepository: (repoUrl: string, localPath: string) =>
     ipcRenderer.invoke('github:cloneRepository', repoUrl, localPath),
+  githubGetOwners: () => ipcRenderer.invoke('github:getOwners'),
+  githubValidateRepoName: (name: string, owner: string) =>
+    ipcRenderer.invoke('github:validateRepoName', name, owner),
+  githubCreateNewProject: (params: {
+    name: string;
+    description?: string;
+    owner: string;
+    isPrivate: boolean;
+    gitignoreTemplate?: string;
+  }) => ipcRenderer.invoke('github:createNewProject', params),
   githubListPullRequests: (projectPath: string) =>
     ipcRenderer.invoke('github:listPullRequests', { projectPath }),
   githubCreatePullRequestWorktree: (args: {

@@ -29,6 +29,7 @@ interface LeftSidebarProps {
   onSelectProject: (project: Project) => void;
   onGoHome: () => void;
   onOpenProject?: () => void;
+  onNewProject?: () => void;
   onSelectWorkspace?: (workspace: Workspace) => void;
   activeWorkspace?: Workspace | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
@@ -57,6 +58,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onSelectProject,
   onGoHome,
   onOpenProject,
+  onNewProject,
   onSelectWorkspace,
   activeWorkspace,
   onReorderProjects,
@@ -162,6 +164,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               description="Open a project to start creating worktrees and running coding agents."
               actionLabel={onOpenProject ? 'Open Project' : undefined}
               onAction={onOpenProject}
+              secondaryActionLabel={onNewProject ? 'New Project' : undefined}
+              onSecondaryAction={onNewProject}
             />
           )}
 

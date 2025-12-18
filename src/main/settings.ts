@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
+import { homedir } from 'os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 
@@ -35,6 +36,9 @@ export interface AppSettings {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
   };
+  projects?: {
+    defaultDirectory: string;
+  };
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -63,6 +67,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+  },
+  projects: {
+    defaultDirectory: join(homedir(), 'emdash-projects'),
   },
 };
 
@@ -210,6 +217,22 @@ function normalizeSettings(input: AppSettings): AppSettings {
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
+  };
+
+  // Projects
+  const projects = (input as any)?.projects || {};
+  let defaultDir = String(
+    projects?.defaultDirectory ?? DEFAULT_SETTINGS.projects!.defaultDirectory
+  ).trim();
+  if (!defaultDir) {
+    defaultDir = DEFAULT_SETTINGS.projects!.defaultDirectory;
+  }
+  // Resolve ~ to home directory if present
+  if (defaultDir.startsWith('~')) {
+    defaultDir = join(homedir(), defaultDir.slice(1));
+  }
+  out.projects = {
+    defaultDirectory: defaultDir,
   };
 
   return out;

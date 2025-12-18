@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './components/ui/button';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Plus } from 'lucide-react';
 import LeftSidebar from './components/LeftSidebar';
 import ProjectMainView from './components/ProjectMainView';
 import WorkspaceModal from './components/WorkspaceModal';
+import { NewProjectModal } from './components/NewProjectModal';
 import ChatInterface from './components/ChatInterface';
 import MultiAgentWorkspace from './components/MultiAgentWorkspace';
 import { Toaster } from './components/ui/toaster';
@@ -122,6 +123,9 @@ const AppContent: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
+  const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
+  const [autoOpenWorkspaceAfterNewProject, setAutoOpenWorkspaceAfterNewProject] =
+    useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
@@ -632,6 +636,120 @@ const AppContent: React.FC = () => {
       });
     }
   };
+
+  const handleNewProjectSuccess = useCallback(
+    async (projectPath: string) => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('new_project_created');
+      try {
+        const gitInfo = await window.electronAPI.getGitInfo(projectPath);
+        const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
+        const repoKey = normalizePathForComparison(canonicalPath);
+        const existingProject = projects.find(
+          (project) => getProjectRepoKey(project) === repoKey
+        );
+
+        if (existingProject) {
+          activateProjectView(existingProject);
+          setAutoOpenWorkspaceAfterNewProject(true);
+          setShowWorkspaceModal(true);
+          return;
+        }
+
+        const remoteUrl = gitInfo.remote || '';
+        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+        const projectName =
+          canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+
+        const baseProject: Project = {
+          id: Date.now().toString(),
+          name: projectName,
+          path: canonicalPath,
+          repoKey,
+          gitInfo: {
+            isGitRepo: true,
+            remote: gitInfo.remote || undefined,
+            branch: gitInfo.branch || undefined,
+            baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
+          },
+          workspaces: [],
+        };
+
+        if (isAuthenticated && isGithubRemote) {
+          const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+          if (githubInfo.success) {
+            const projectWithGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: githubInfo.repository || '',
+                connected: true,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_added_success', { source: 'new_project' });
+              setProjects((prev) => [...prev, projectWithGithub]);
+              activateProjectView(projectWithGithub);
+              setAutoOpenWorkspaceAfterNewProject(true);
+              setShowWorkspaceModal(true);
+            } else {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to save project:', saveResult.error);
+              toast({
+                title: 'Project Created',
+                description: 'Repository created but failed to save to database.',
+                variant: 'destructive',
+              });
+            }
+          } else {
+            const projectWithoutGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_added_success', { source: 'new_project' });
+              setProjects((prev) => [...prev, projectWithoutGithub]);
+              activateProjectView(projectWithoutGithub);
+              setAutoOpenWorkspaceAfterNewProject(true);
+              setShowWorkspaceModal(true);
+            }
+          }
+        } else {
+          const projectWithoutGithub = withRepoKey({
+            ...baseProject,
+            githubInfo: {
+              repository: '',
+              connected: false,
+            },
+          });
+
+          const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+          if (saveResult.success) {
+            captureTelemetry('project_added_success', { source: 'new_project' });
+            setProjects((prev) => [...prev, projectWithoutGithub]);
+            activateProjectView(projectWithoutGithub);
+            setAutoOpenWorkspaceAfterNewProject(true);
+            setShowWorkspaceModal(true);
+          }
+        }
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to load new project:', error);
+        toast({
+          title: 'Project Created',
+          description: 'Repository created but failed to load. Please try opening it manually.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [projects, isAuthenticated, activateProjectView, normalizePathForComparison, toast]
+  );
 
   const handleGithubConnect = async () => {
     setGithubLoading(true);
@@ -1547,10 +1665,19 @@ const AppContent: React.FC = () => {
                   handleOpenProject();
                 }}
                 size="lg"
+                variant="outline"
                 className="min-w-[200px]"
               >
                 <FolderOpen className="mr-2 h-5 w-5" />
                 Open Project
+              </Button>
+              <Button
+                onClick={() => setShowNewProjectModal(true)}
+                size="lg"
+                className="min-w-[200px]"
+              >
+                <Plus className="mr-2 h-5 w-5" />
+                New Project
               </Button>
             </div>
           </div>
@@ -1615,9 +1742,17 @@ const AppContent: React.FC = () => {
           </div>
 
           <div className="mb-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <Button onClick={handleOpenProject} size="lg" className="min-w-[200px]">
+            <Button onClick={handleOpenProject} size="lg" variant="outline" className="min-w-[200px]">
               <FolderOpen className="mr-2 h-5 w-5" />
               Open Project
+            </Button>
+            <Button
+              onClick={() => setShowNewProjectModal(true)}
+              size="lg"
+              className="min-w-[200px]"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              New Project
             </Button>
           </div>
         </div>
@@ -1694,6 +1829,7 @@ const AppContent: React.FC = () => {
                     onSelectProject={handleSelectProject}
                     onGoHome={handleGoHome}
                     onOpenProject={handleOpenProject}
+                    onNewProject={() => setShowNewProjectModal(true)}
                     onSelectWorkspace={handleSelectWorkspace}
                     activeWorkspace={activeWorkspace || undefined}
                     onReorderProjects={handleReorderProjects}
@@ -1761,12 +1897,20 @@ const AppContent: React.FC = () => {
             />
             <WorkspaceModal
               isOpen={showWorkspaceModal}
-              onClose={() => setShowWorkspaceModal(false)}
+              onClose={() => {
+                setShowWorkspaceModal(false);
+                setAutoOpenWorkspaceAfterNewProject(false);
+              }}
               onCreateWorkspace={handleCreateWorkspace}
               projectName={selectedProject?.name || ''}
               defaultBranch={selectedProject?.gitInfo.branch || 'main'}
               existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
               projectPath={selectedProject?.path}
+            />
+            <NewProjectModal
+              isOpen={showNewProjectModal}
+              onClose={() => setShowNewProjectModal(false)}
+              onSuccess={handleNewProjectSuccess}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
             <GithubDeviceFlowModal
