@@ -51,23 +51,15 @@ export class PrGenerationService {
             };
           }
         } catch (error) {
-          log.debug(
-            `Task provider ${preferredProviderId} generation failed, trying fallbacks`,
-            {
-              error,
-            }
-          );
+          log.debug(`Task provider ${preferredProviderId} generation failed, trying fallbacks`, {
+            error,
+          });
         }
       }
 
       // Try Claude Code as fallback (preferred default)
       try {
-        const claudeResult = await this.generateWithProvider(
-          'claude',
-          taskPath,
-          diff,
-          commits
-        );
+        const claudeResult = await this.generateWithProvider('claude', taskPath, diff, commits);
         if (claudeResult) {
           log.info('Generated PR content with Claude Code');
           return {

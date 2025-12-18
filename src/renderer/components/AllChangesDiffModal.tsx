@@ -131,11 +131,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(
-              taskPath,
-              filePath,
-              2 * 1024 * 1024
-            );
+            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
