@@ -1,13 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Pencil, Save, Undo2, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Copy, Check } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useFileDiff, type DiffLine } from '../hooks/useFileDiff';
+import { DiffEditor, loader } from '@monaco-editor/react';
+import type * as monaco from 'monaco-editor';
 import { type FileChange } from '../hooks/useFileChanges';
 import { useToast } from '../hooks/use-toast';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { getLanguageFromPath } from '../lib/languageUtils';
+import { useTheme } from '../hooks/useTheme';
+import type { DiffLine } from '../hooks/useFileDiff';
+import {
+  convertDiffLinesToMonacoFormat,
+  getMonacoLanguageId,
+  isBinaryFile,
+} from '../lib/diffUtils';
+import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 
 interface ChangesDiffModalProps {
   open: boolean;
@@ -18,83 +24,6 @@ interface ChangesDiffModalProps {
   onRefreshChanges?: () => Promise<void> | void;
 }
 
-// Component for rendering a single line with syntax highlighting
-const HighlightedLine: React.FC<{
-  text: string;
-  type: DiffLine['type'];
-  language: string;
-  isDark: boolean;
-}> = ({ text, type, language, isDark }) => {
-  // Hooks must be called before any conditional returns
-  const lineRef = useRef<HTMLDivElement>(null);
-
-  const lineContent = text || ' ';
-
-  useEffect(() => {
-    if (lineRef.current) {
-      // Force transparent backgrounds and remove text shadows on all nested elements
-      const allElements = lineRef.current.querySelectorAll('pre, code, span');
-      allElements.forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.setProperty('background', 'transparent', 'important');
-        htmlEl.style.setProperty('background-color', 'transparent', 'important');
-        htmlEl.style.setProperty('text-shadow', 'none', 'important');
-      });
-    }
-  }, [lineContent, language, isDark]);
-
-  const bgClass =
-    type === 'add'
-      ? 'bg-emerald-50 dark:bg-emerald-900/30'
-      : type === 'del'
-        ? 'bg-rose-50 dark:bg-rose-900/30'
-        : 'bg-transparent';
-
-  // For empty lines, just render a space
-  if (lineContent.trim() === '' && lineContent === '') {
-    return (
-      <div className={`px-3 py-0.5 font-mono text-[12px] leading-5 ${bgClass}`}>{'\u00A0'}</div>
-    );
-  }
-
-  return (
-    <div
-      className={`relative ${bgClass}`}
-      data-diff-syntax-highlight
-      style={{ width: '100%', minWidth: '100%', display: 'block' }}
-    >
-      <div
-        ref={lineRef}
-        className="w-full px-3 py-0.5 [&_code]:!bg-transparent [&_pre]:!bg-transparent [&_span]:!bg-transparent"
-      >
-        <SyntaxHighlighter
-          language={language}
-          style={isDark ? oneDark : oneLight}
-          customStyle={{
-            margin: 0,
-            padding: 0,
-            background: 'transparent',
-            backgroundColor: 'transparent',
-            fontSize: '12px',
-            lineHeight: '1.25rem',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            display: 'block',
-            textShadow: 'none',
-            overflow: 'visible',
-            minWidth: 'max-content',
-          }}
-          PreTag="div"
-          CodeTag="code"
-          wrapLines={false}
-          wrapLongLines={false}
-        >
-          {lineContent}
-        </SyntaxHighlighter>
-      </div>
-    </div>
-  );
-};
-
 export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   open,
   onClose,
@@ -104,293 +33,285 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   onRefreshChanges,
 }) => {
   const [selected, setSelected] = useState<string | undefined>(initialFile || files[0]?.path);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const { lines, loading } = useFileDiff(taskPath, selected, refreshKey);
+  const [copiedFile, setCopiedFile] = useState<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
-  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
-  const [isDark, setIsDark] = useState(false);
-  const [paneSplit, setPaneSplit] = useState(50);
-  const diffContainerRef = useRef<HTMLDivElement>(null);
-  const isResizingRef = useRef(false);
-  const resizeRafRef = useRef<number | null>(null);
-  const latestClientXRef = useRef<number | null>(null);
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'dark';
+  const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
 
-  const updateSplitFromClientX = useCallback((clientX: number) => {
-    const container = diffContainerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const contentWidth = container.scrollWidth;
-    if (contentWidth === 0) return;
-    const offsetX = clientX - rect.left + container.scrollLeft;
-    const percent = (offsetX / contentWidth) * 100;
-    const clamped = Math.min(80, Math.max(20, percent));
-    setPaneSplit(clamped);
-  }, []);
+  // File data state for Monaco editor
+  const [fileData, setFileData] = useState<{
+    original: string;
+    modified: string;
+    language: string;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
 
-  const scheduleSplitUpdate = useCallback(
-    (clientX: number) => {
-      latestClientXRef.current = clientX;
-      if (resizeRafRef.current !== null) return;
+  // Load file data when selected file changes
+  useEffect(() => {
+    if (!open || !selected) {
+      setFileData(null);
+      return;
+    }
 
-      resizeRafRef.current = window.requestAnimationFrame(() => {
-        resizeRafRef.current = null;
-        if (latestClientXRef.current !== null) {
-          updateSplitFromClientX(latestClientXRef.current);
+    let cancelled = false;
+
+    const loadFileData = async () => {
+      // Find file from current files array (but don't depend on it in useEffect)
+      const selectedFile = files.find((f) => f.path === selected);
+      if (!selectedFile) {
+        if (!cancelled) {
+          setFileData({
+            original: '',
+            modified: '',
+            language: 'plaintext',
+            loading: false,
+            error: 'File not found',
+          });
         }
-      });
-    },
-    [updateSplitFromClientX]
-  );
-
-  // Detect if dark mode is active
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const checkDarkMode = () => {
-      setIsDark(
-        document.documentElement.classList.contains('dark') ||
-          window.matchMedia('(prefers-color-scheme: dark)').matches
-      );
-    };
-
-    checkDarkMode();
-
-    // Watch for theme changes
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', checkDarkMode);
-
-    return () => {
-      observer.disconnect();
-      mediaQuery.removeEventListener('change', checkDarkMode);
-    };
-  }, []);
-
-  // Handle pane resizing events
-  useEffect(() => {
-    const handlePointerMove = (event: PointerEvent) => {
-      if (!isResizingRef.current) return;
-      scheduleSplitUpdate(event.clientX);
-    };
-
-    const stopResizing = () => {
-      if (!isResizingRef.current) return;
-      isResizingRef.current = false;
-      document.body.style.cursor = '';
-      diffContainerRef.current?.classList.remove('select-none');
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', stopResizing);
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', stopResizing);
-      document.body.style.cursor = '';
-      diffContainerRef.current?.classList.remove('select-none');
-      if (resizeRafRef.current !== null) {
-        window.cancelAnimationFrame(resizeRafRef.current);
-        resizeRafRef.current = null;
-      }
-      latestClientXRef.current = null;
-    };
-  }, [scheduleSplitUpdate]);
-
-  // Get language for current file
-  const language = useMemo(() => {
-    return selected ? getLanguageFromPath(selected) : 'text';
-  }, [selected]);
-
-  // Reset expanded sections when file changes
-  useEffect(() => {
-    setExpandedSections(new Set());
-  }, [selected]);
-
-  // Inline edit mode state (right pane)
-  const [isEditing, setIsEditing] = useState(false);
-  const [editorValue, setEditorValue] = useState<string>('');
-  const [editorLoading, setEditorLoading] = useState<boolean>(false);
-  const [dirty, setDirty] = useState<boolean>(false);
-  const [eol, setEol] = useState<'\n' | '\r\n'>('\n');
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // Ref for syntax highlight container in edit mode
-  const highlightRef = useRef<HTMLDivElement>(null);
-
-  // Sync scroll between textarea and syntax highlighter in edit mode
-  useEffect(() => {
-    if (!isEditing || !textareaRef.current || !highlightRef.current) return;
-
-    const textarea = textareaRef.current;
-    const highlight = highlightRef.current;
-
-    const syncScroll = () => {
-      highlight.scrollTop = textarea.scrollTop;
-      highlight.scrollLeft = textarea.scrollLeft;
-    };
-
-    textarea.addEventListener('scroll', syncScroll);
-    return () => {
-      textarea.removeEventListener('scroll', syncScroll);
-    };
-  }, [isEditing, editorValue]);
-
-  // Load working copy when toggling into edit mode
-  const loadWorkingCopy = async (pathRel: string) => {
-    setEditorLoading(true);
-    try {
-      const res = await window.electronAPI.fsRead(taskPath, pathRel, 512 * 1024);
-      if (!res?.success) {
-        toast({ title: 'Cannot Edit', description: res?.error || 'Failed to read file.' });
-        setIsEditing(false);
         return;
       }
-      if (res.truncated) {
-        toast({ title: 'File Too Large', description: 'Inline editing limited to ~500KB.' });
-        setIsEditing(false);
-        return;
-      }
-      const content = String(res.content || '');
-      const detectedEol = content.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
-      setEol(detectedEol as any);
-      setEditorValue(content);
-      setDirty(false);
-      // Focus after next paint
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    } catch (e) {
-      toast({ title: 'Cannot Edit', description: 'Failed to read file.' });
-      setIsEditing(false);
-    } finally {
-      setEditorLoading(false);
-    }
-  };
 
-  // Exit edit mode on file switch, with confirmation if dirty
-  const switchFile = async (nextPath: string) => {
-    if (isEditing && dirty) {
-      const proceed = window.confirm('Discard unsaved changes?');
-      if (!proceed) return;
-    }
-    setSelected(nextPath);
-    setIsEditing(false);
-    setDirty(false);
-  };
+      const filePath = selectedFile.path;
+      const language = getMonacoLanguageId(filePath);
 
-  // Group lines into sections with collapsible context
-  type DiffSection =
-    | {
-        type: 'context';
-        startIdx: number;
-        endIdx: number;
-        startLine: number;
-        endLine: number;
-        lines: DiffLine[];
-      }
-    | { type: 'diff'; lines: Array<{ left?: DiffLine; right?: DiffLine }> };
-
-  const sections = useMemo(() => {
-    const result: DiffSection[] = [];
-    let currentContext: DiffLine[] = [];
-    let currentDiff: Array<{ left?: DiffLine; right?: DiffLine }> = [];
-    let contextStartIdx = 0;
-    let sectionIdx = 0;
-    let leftLineNumber = 1; // Track line numbers in the left (original) file
-    // Note: For context sections, line numbers are the same in both files
-    let contextStartLine = 1;
-
-    const flushContext = () => {
-      if (currentContext.length > 0) {
-        const contextEndLine = contextStartLine + currentContext.length - 1;
-        result.push({
-          type: 'context',
-          startIdx: contextStartIdx,
-          endIdx: contextStartIdx + currentContext.length - 1,
-          startLine: contextStartLine,
-          endLine: contextEndLine,
-          lines: [...currentContext],
+      // Skip binary files
+      if (isBinaryFile(filePath)) {
+        setFileData({
+          original: '',
+          modified: '',
+          language: 'plaintext',
+          loading: false,
+          error: 'Binary file - diff not available',
         });
-        // Update line numbers after context (context lines exist in both files)
-        leftLineNumber += currentContext.length;
-        currentContext = [];
+        return;
       }
-    };
 
-    const flushDiff = () => {
-      if (currentDiff.length > 0) {
-        result.push({ type: 'diff', lines: [...currentDiff] });
-        currentDiff = [];
-      }
-    };
+      // Set loading state
+      setFileData({
+        original: '',
+        modified: '',
+        language,
+        loading: true,
+        error: null,
+      });
 
-    // Convert linear diff into rows for side-by-side and group context
-    for (let i = 0; i < lines.length; i++) {
-      const l = lines[i];
-
-      if (l.type === 'context') {
-        // If we have accumulated diff lines, flush them first
-        flushDiff();
-        // Accumulate context lines
-        if (currentContext.length === 0) {
-          contextStartIdx = sectionIdx;
-          contextStartLine = leftLineNumber; // Track starting line number for this context section
+      try {
+        // Get diff lines
+        const diffRes = await window.electronAPI.getFileDiff({ taskPath, filePath });
+        if (!diffRes?.success || !diffRes.diff) {
+          throw new Error(diffRes?.error || 'Failed to load diff');
         }
-        currentContext.push(l);
-        // Context lines exist in both files, so increment line number
-        leftLineNumber++;
-      } else {
-        // If we have accumulated context lines, flush them
-        flushContext();
 
-        // Process diff lines
-        if (l.type === 'del') {
-          currentDiff.push({ left: l });
-          leftLineNumber++; // Deleted lines only exist in left file
-        } else if (l.type === 'add') {
-          // Try to pair with previous deletion if it exists and right is empty
-          const last = currentDiff[currentDiff.length - 1];
-          if (last && last.right === undefined && last.left && last.left.type === 'del') {
-            last.right = l;
+        const diffLines: DiffLine[] = diffRes.diff.lines;
+
+        let originalContent = '';
+        let modifiedContent = '';
+
+        if (selectedFile.status === 'deleted') {
+          const converted = convertDiffLinesToMonacoFormat(diffLines);
+          originalContent = converted.original;
+          modifiedContent = '';
+        } else if (selectedFile.status === 'added') {
+          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+          if (readRes?.success && readRes.content) {
+            modifiedContent = readRes.content;
+            originalContent = '';
           } else {
-            currentDiff.push({ right: l });
+            const converted = convertDiffLinesToMonacoFormat(diffLines);
+            originalContent = '';
+            modifiedContent = converted.modified;
           }
-          // Added lines only exist in right file (don't increment leftLineNumber)
+        } else {
+          // Modified file: reconstruct from diff
+          const converted = convertDiffLinesToMonacoFormat(diffLines);
+          originalContent = converted.original;
+          modifiedContent = converted.modified;
+
+          // Try to read actual current content for better accuracy
+          try {
+            const readRes = await window.electronAPI.fsRead(
+              taskPath,
+              filePath,
+              2 * 1024 * 1024
+            );
+            if (readRes?.success && readRes.content) {
+              modifiedContent = readRes.content;
+            }
+          } catch {
+            // Fallback to diff-based content
+          }
         }
-        sectionIdx++;
+
+        if (!cancelled) {
+          setFileData({
+            original: originalContent,
+            modified: modifiedContent,
+            language,
+            loading: false,
+            error: null,
+          });
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          setFileData({
+            original: '',
+            modified: '',
+            language,
+            loading: false,
+            error: error?.message || 'Failed to load file diff',
+          });
+        }
       }
-    }
+    };
 
-    // Flush remaining
-    flushContext();
-    flushDiff();
+    loadFileData();
 
-    return result;
-  }, [lines]);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selected, taskPath]); // Removed 'files' to prevent constant reloading - files array changes every 5s
 
-  // Add global styles to override syntax highlighter backgrounds and text shadows
+  // Add Monaco theme and styles
   useEffect(() => {
     if (!open) return;
 
-    const styleId = 'diff-syntax-highlighter-override';
+    const styleId = 'changes-diff-modal-styles';
     if (document.getElementById(styleId)) return;
 
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      [data-diff-syntax-highlight] pre,
-      [data-diff-syntax-highlight] code,
-      [data-diff-syntax-highlight] span {
+      /* Fix Monaco diff editor spacing */
+      .monaco-diff-editor .diffViewport {
+        padding-left: 0 !important;
+      }
+      /* Right-align line numbers and optimize spacing */
+      .monaco-diff-editor .line-numbers {
+        text-align: right !important;
+        padding-right: 12px !important;
+        padding-left: 4px !important;
+        min-width: 40px !important;
+      }
+      /* Add padding between line numbers and code content border */
+      .monaco-diff-editor .monaco-editor .margin {
+        padding-right: 8px !important;
+      }
+      /* Hide left/original line numbers in unified diff view */
+      .monaco-diff-editor .original .line-numbers {
+        display: none !important;
+      }
+      .monaco-diff-editor .original .margin {
+        display: none !important;
+      }
+      /* Make overview ruler thinner */
+      .monaco-diff-editor .monaco-editor .overview-ruler {
+        width: 3px !important;
+      }
+      .monaco-diff-editor .monaco-editor .overview-ruler .overview-ruler-content {
+        width: 3px !important;
+      }
+      /* Hide +/- indicators */
+      .monaco-diff-editor .margin-view-overlays .line-insert,
+      .monaco-diff-editor .margin-view-overlays .line-delete,
+      .monaco-diff-editor .margin-view-overlays .codicon-add,
+      .monaco-diff-editor .margin-view-overlays .codicon-remove,
+      .monaco-diff-editor .margin-view-overlays .codicon-diff-added,
+      .monaco-diff-editor .margin-view-overlays .codicon-diff-removed {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+      }
+      /* Add thin border between line numbers and code content */
+      .monaco-diff-editor .modified .margin-view-overlays {
+        border-right: 1px solid ${isDark ? 'rgba(156, 163, 175, 0.2)' : 'rgba(107, 114, 128, 0.2)'} !important;
+      }
+      .monaco-diff-editor .monaco-editor .margin {
+        border-right: 1px solid ${isDark ? 'rgba(156, 163, 175, 0.2)' : 'rgba(107, 114, 128, 0.2)'} !important;
+      }
+      .monaco-diff-editor .monaco-editor-background {
+        margin-left: 0 !important;
+      }
+      /* Hide Monaco's default scrollbar and use custom */
+      .monaco-diff-editor .monaco-scrollable-element > .scrollbar {
+        margin: 0 !important;
         background: transparent !important;
-        background-color: transparent !important;
-        text-shadow: none !important;
+      }
+      .monaco-diff-editor .monaco-scrollable-element > .scrollbar > .slider {
+        background: transparent !important;
+      }
+      /* Apple-like scrollbar for Monaco editor - only show on hover */
+      .monaco-diff-editor:hover .monaco-scrollable-element > .scrollbar > .slider {
+        background: ${isDark ? 'rgba(156, 163, 175, 0.2)' : 'rgba(107, 114, 128, 0.2)'} !important;
+        border-radius: 6px !important;
+        border: 2.5px solid transparent !important;
+        background-clip: padding-box !important;
+      }
+      .monaco-diff-editor .monaco-scrollable-element > .scrollbar > .slider:hover {
+        background: ${isDark ? 'rgba(156, 163, 175, 0.4)' : 'rgba(107, 114, 128, 0.4)'} !important;
+        background-clip: padding-box !important;
+      }
+      .monaco-diff-editor .monaco-scrollable-element > .scrollbar > .slider:active {
+        background: ${isDark ? 'rgba(156, 163, 175, 0.6)' : 'rgba(107, 114, 128, 0.6)'} !important;
+        background-clip: padding-box !important;
+      }
+      .monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical {
+        width: 4px !important;
+        right: 0 !important;
+      }
+      .monaco-diff-editor .monaco-scrollable-element > .scrollbar.horizontal {
+        height: 4px !important;
+        bottom: 0 !important;
+      }
+      .monaco-diff-editor .monaco-scrollable-element {
+        box-shadow: none !important;
+      }
+      .monaco-diff-editor .overflow-guard {
+        box-shadow: none !important;
       }
     `;
     document.head.appendChild(style);
+
+    // Define Monaco themes
+    const defineThemes = async () => {
+      try {
+        const monaco = await loader.init();
+        monaco.editor.defineTheme('custom-diff-dark', {
+          base: 'vs-dark',
+          inherit: true,
+          rules: [],
+          colors: {
+            'editor.background': MONACO_DIFF_COLORS.dark.editorBackground,
+            'editorGutter.background': MONACO_DIFF_COLORS.dark.editorBackground,
+            'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.dark.insertedTextBackground,
+            'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.dark.insertedLineBackground,
+            'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.dark.removedTextBackground,
+            'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.dark.removedLineBackground,
+            'diffEditor.unchangedRegionBackground': '#1a2332',
+          },
+        });
+        monaco.editor.defineTheme('custom-diff-light', {
+          base: 'vs',
+          inherit: true,
+          rules: [],
+          colors: {
+            'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.light.insertedTextBackground,
+            'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.light.insertedLineBackground,
+            'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.light.removedTextBackground,
+            'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.light.removedLineBackground,
+            'diffEditor.unchangedRegionBackground': '#e2e8f0',
+          },
+        });
+        const currentTheme = isDark ? 'custom-diff-dark' : 'custom-diff-light';
+        monaco.editor.setTheme(currentTheme);
+      } catch (error) {
+        console.warn('Failed to define Monaco themes:', error);
+      }
+    };
+    defineThemes();
 
     return () => {
       const existingStyle = document.getElementById(styleId);
@@ -398,11 +319,65 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
         existingStyle.remove();
       }
     };
-  }, [open]);
+  }, [open, isDark]);
+
+  // Cleanup editor on unmount
+  useEffect(() => {
+    return () => {
+      if (editorRef.current) {
+        try {
+          editorRef.current.dispose();
+        } catch {
+          // Ignore disposal errors
+        }
+        editorRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleEditorDidMount = async (editor: monaco.editor.IStandaloneDiffEditor) => {
+    editorRef.current = editor;
+
+    // Define themes when editor is ready
+    try {
+      const monaco = await loader.init();
+      monaco.editor.defineTheme('custom-diff-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': MONACO_DIFF_COLORS.dark.editorBackground,
+          'editorGutter.background': MONACO_DIFF_COLORS.dark.editorBackground,
+          'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.dark.insertedTextBackground,
+          'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.dark.insertedLineBackground,
+          'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.dark.removedTextBackground,
+          'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.dark.removedLineBackground,
+          'diffEditor.unchangedRegionBackground': '#1a2332',
+        },
+      });
+      monaco.editor.defineTheme('custom-diff-light', {
+        base: 'vs',
+        inherit: true,
+        rules: [],
+        colors: {
+          'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.light.insertedTextBackground,
+          'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.light.insertedLineBackground,
+          'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.light.removedTextBackground,
+          'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.light.removedLineBackground,
+          'diffEditor.unchangedRegionBackground': '#e2e8f0',
+        },
+      });
+      const currentTheme = isDark ? 'custom-diff-dark' : 'custom-diff-light';
+      monaco.editor.setTheme(currentTheme);
+    } catch (error) {
+      console.warn('Failed to define Monaco themes:', error);
+    }
+  };
 
   if (typeof document === 'undefined') {
     return null;
   }
+
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -430,6 +405,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
             }
             className="flex h-[82vh] w-[92vw] transform-gpu overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl will-change-transform dark:border-gray-700 dark:bg-gray-800"
           >
+            {/* Left sidebar - file list */}
             <div className="w-72 overflow-y-auto border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
               <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Changed Files
@@ -442,7 +418,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-gray-100'
                       : 'text-gray-700 dark:text-gray-300'
                   }`}
-                  onClick={() => switchFile(f.path)}
+                  onClick={() => setSelected(f.path)}
                 >
                   <div className="truncate font-medium">{f.path}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -452,347 +428,119 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
               ))}
             </div>
 
+            {/* Right side - Monaco diff editor */}
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex items-center justify-between border-b border-gray-200 bg-white/80 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-900/50">
-                <div className="truncate text-sm text-gray-700 dark:text-gray-200">{selected}</div>
-                <div className="flex items-center gap-2">
-                  {!isEditing ? (
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="truncate font-mono text-sm text-gray-700 dark:text-gray-200">
+                    {selected}
+                  </span>
+                  {selected && (
                     <button
-                      className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900/40"
                       onClick={async () => {
-                        if (!selected) return;
-                        await loadWorkingCopy(selected);
-                        setIsEditing(true);
+                        try {
+                          await navigator.clipboard.writeText(selected);
+                          setCopiedFile(selected);
+                          toast({
+                            title: 'Copied',
+                            description: `File path copied to clipboard`,
+                          });
+                          setTimeout(() => {
+                            setCopiedFile(null);
+                          }, 2000);
+                        } catch (error) {
+                          toast({
+                            title: 'Copy failed',
+                            description: 'Failed to copy file path',
+                            variant: 'destructive',
+                          });
+                        }
                       }}
-                      title="Edit right side"
+                      className="rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                      title="Copy file path"
+                      aria-label="Copy file path"
                     >
-                      <Pencil className="h-3.5 w-3.5" /> Edit
+                      {copiedFile === selected ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
                     </button>
-                  ) : (
-                    <>
-                      <button
-                        className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900/40"
-                        onClick={async () => {
-                          if (!selected) return;
-                          try {
-                            const contentToWrite = editorValue.replace(/\n/g, eol);
-                            const res = await window.electronAPI.fsWriteFile(
-                              taskPath,
-                              selected,
-                              contentToWrite,
-                              true
-                            );
-                            if (!res?.success) throw new Error(res?.error || 'Write failed');
-                            setDirty(false);
-                            setRefreshKey((k) => k + 1);
-                            setIsEditing(false);
-                            toast({ title: 'Saved', description: selected });
-                            if (onRefreshChanges) await onRefreshChanges();
-                          } catch (e: any) {
-                            toast({
-                              title: 'Save failed',
-                              description: String(e?.message || e || 'Unable to save file'),
-                              variant: 'destructive',
-                            });
-                          }
-                        }}
-                        title="Save (⌘/Ctrl+S)"
-                      >
-                        <Save className="h-3.5 w-3.5" /> Save
-                      </button>
-                      <button
-                        className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900/40"
-                        onClick={async () => {
-                          if (!selected) return;
-                          await loadWorkingCopy(selected);
-                          setDirty(false);
-                        }}
-                        title="Discard local edits"
-                      >
-                        <Undo2 className="h-3.5 w-3.5" /> Discard
-                      </button>
-                    </>
                   )}
-                  <button
-                    onClick={onClose}
-                    className="rounded-md p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
                 </div>
+                <button
+                  onClick={onClose}
+                  className="rounded-md p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
 
-              <div className="relative flex-1 overflow-y-auto">
-                {loading ? (
+              <div className="relative flex-1 overflow-hidden">
+                {fileData?.loading ? (
                   <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
-                    Loading diff…
-                  </div>
-                ) : (
-                  <div
-                    ref={diffContainerRef}
-                    className="relative min-h-full w-full overflow-hidden"
-                  >
-                    <div className="relative min-h-full w-full">
-                      <div
-                        className="grid min-h-full w-full gap-px bg-gray-200 dark:bg-gray-800"
-                        style={{ gridTemplateColumns: `${paneSplit}% ${100 - paneSplit}%` }}
-                      >
-                        <div className="min-w-0 overflow-x-auto bg-white dark:bg-gray-900">
-                          <div className="min-w-max">
-                            {sections.map((section, sectionIdx) => {
-                              if (section.type === 'context') {
-                                const isExpanded = expandedSections.has(sectionIdx);
-                                const lineCount = section.lines.length;
-                                const lineRange =
-                                  section.startLine === section.endLine
-                                    ? `${section.startLine}`
-                                    : `${section.startLine}-${section.endLine}`;
-
-                                return (
-                                  <div key={`context-l-${sectionIdx}`}>
-                                    <button
-                                      onClick={() => {
-                                        const newExpanded = new Set(expandedSections);
-                                        if (isExpanded) {
-                                          newExpanded.delete(sectionIdx);
-                                        } else {
-                                          newExpanded.add(sectionIdx);
-                                        }
-                                        setExpandedSections(newExpanded);
-                                      }}
-                                      className="w-full border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:bg-gray-800"
-                                      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} context lines ${lineRange}`}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        {isExpanded ? (
-                                          <ChevronDown className="h-3.5 w-3.5" />
-                                        ) : (
-                                          <ChevronRight className="h-3.5 w-3.5" />
-                                        )}
-                                        <span>
-                                          {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) - Lines{' '}
-                                          {lineRange}
-                                        </span>
-                                      </div>
-                                    </button>
-                                    {isExpanded &&
-                                      section.lines.map((l, idx) => (
-                                        <HighlightedLine
-                                          key={`context-l-${sectionIdx}-${idx}`}
-                                          text={l.left || l.right || ''}
-                                          type="context"
-                                          language={language}
-                                          isDark={isDark}
-                                        />
-                                      ))}
-                                  </div>
-                                );
-                              } else {
-                                return (
-                                  <React.Fragment key={`diff-l-${sectionIdx}`}>
-                                    {section.lines.map((r, idx) => (
-                                      <HighlightedLine
-                                        key={`diff-l-${sectionIdx}-${idx}`}
-                                        text={r.left?.left ?? r.left?.right ?? ''}
-                                        type={r.left?.type || 'context'}
-                                        language={language}
-                                        isDark={isDark}
-                                      />
-                                    ))}
-                                  </React.Fragment>
-                                );
-                              }
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="min-w-0 overflow-x-auto bg-white dark:bg-gray-900">
-                          <div className="min-w-max">
-                            {!isEditing ? (
-                              sections.map((section, sectionIdx) => {
-                                if (section.type === 'context') {
-                                  const isExpanded = expandedSections.has(sectionIdx);
-                                  const lineCount = section.lines.length;
-                                  const lineRange =
-                                    section.startLine === section.endLine
-                                      ? `${section.startLine}`
-                                      : `${section.startLine}-${section.endLine}`;
-
-                                  return (
-                                    <div key={`context-r-${sectionIdx}`}>
-                                      <button
-                                        onClick={() => {
-                                          const newExpanded = new Set(expandedSections);
-                                          if (isExpanded) {
-                                            newExpanded.delete(sectionIdx);
-                                          } else {
-                                            newExpanded.add(sectionIdx);
-                                          }
-                                          setExpandedSections(newExpanded);
-                                        }}
-                                        className="w-full border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:bg-gray-800"
-                                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} context lines ${lineRange}`}
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          {isExpanded ? (
-                                            <ChevronDown className="h-3.5 w-3.5" />
-                                          ) : (
-                                            <ChevronRight className="h-3.5 w-3.5" />
-                                          )}
-                                          <span>
-                                            {isExpanded ? 'Collapse' : 'Expand'} ({lineCount}) -
-                                            Lines {lineRange}
-                                          </span>
-                                        </div>
-                                      </button>
-                                      {isExpanded &&
-                                        section.lines.map((l, idx) => (
-                                          <HighlightedLine
-                                            key={`context-r-${sectionIdx}-${idx}`}
-                                            text={l.right || l.left || ''}
-                                            type="context"
-                                            language={language}
-                                            isDark={isDark}
-                                          />
-                                        ))}
-                                    </div>
-                                  );
-                                } else {
-                                  // Diff lines
-                                  return (
-                                    <React.Fragment key={`diff-r-${sectionIdx}`}>
-                                      {section.lines.map((r, idx) => (
-                                        <HighlightedLine
-                                          key={`diff-r-${sectionIdx}-${idx}`}
-                                          text={r.right?.right ?? r.right?.left ?? ''}
-                                          type={r.right?.type || 'context'}
-                                          language={language}
-                                          isDark={isDark}
-                                        />
-                                      ))}
-                                    </React.Fragment>
-                                  );
-                                }
-                              })
-                            ) : editorLoading ? (
-                              <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
-                                Loading file…
-                              </div>
-                            ) : (
-                              <div className="relative h-full w-full overflow-hidden">
-                                <div
-                                  ref={highlightRef}
-                                  className="pointer-events-none absolute inset-0 overflow-auto p-3"
-                                  data-diff-syntax-highlight
-                                >
-                                  <SyntaxHighlighter
-                                    language={language}
-                                    style={isDark ? oneDark : oneLight}
-                                    customStyle={{
-                                      margin: 0,
-                                      padding: 0,
-                                      background: 'transparent',
-                                      backgroundColor: 'transparent',
-                                      fontSize: '12px',
-                                      lineHeight: '1.25rem',
-                                      fontFamily:
-                                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                      textShadow: 'none',
-                                    }}
-                                    PreTag="div"
-                                    CodeTag="code"
-                                    wrapLines={true}
-                                    wrapLongLines={true}
-                                  >
-                                    {editorValue || ' '}
-                                  </SyntaxHighlighter>
-                                </div>
-                                <textarea
-                                  ref={textareaRef}
-                                  className="relative h-full w-full resize-none border-0 bg-transparent p-3 font-mono text-[12px] leading-5 text-transparent caret-gray-900 outline-none dark:caret-gray-100"
-                                  style={{
-                                    color: 'transparent',
-                                    WebkitTextFillColor: 'transparent',
-                                    caretColor: isDark ? '#f3f4f6' : '#111827',
-                                  }}
-                                  value={editorValue}
-                                  onChange={(e) => {
-                                    setEditorValue(e.target.value);
-                                    setDirty(true);
-                                  }}
-                                  spellCheck={false}
-                                  onKeyDown={async (e) => {
-                                    const isMeta = e.metaKey || e.ctrlKey;
-                                    if (isMeta && e.key.toLowerCase() === 's') {
-                                      e.preventDefault();
-                                      try {
-                                        const contentToWrite = editorValue.replace(/\n/g, eol);
-                                        const res = await window.electronAPI.fsWriteFile(
-                                          taskPath,
-                                          selected!,
-                                          contentToWrite,
-                                          true
-                                        );
-                                        if (!res?.success)
-                                          throw new Error(res?.error || 'Write failed');
-                                        setDirty(false);
-                                        setRefreshKey((k) => k + 1);
-                                        setIsEditing(false);
-                                        toast({ title: 'Saved', description: selected! });
-                                        if (onRefreshChanges) await onRefreshChanges();
-                                      } catch (err: any) {
-                                        toast({
-                                          title: 'Save failed',
-                                          description: String(
-                                            err?.message || 'Unable to save file'
-                                          ),
-                                          variant: 'destructive',
-                                        });
-                                      }
-                                    }
-                                    if (e.key === 'Escape') {
-                                      if (
-                                        !dirty ||
-                                        window.confirm('Discard unsaved changes and exit edit?')
-                                      ) {
-                                        setIsEditing(false);
-                                        setDirty(false);
-                                      }
-                                    }
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div
-                        className="absolute bottom-0 top-0 z-10 flex items-stretch"
-                        style={{ left: `${paneSplit}%`, transform: 'translateX(-50%)' }}
-                      >
-                        <button
-                          type="button"
-                          aria-label="Resize diff panes"
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            isResizingRef.current = true;
-                            document.body.style.cursor = 'col-resize';
-                            diffContainerRef.current?.classList.add('select-none');
-                            scheduleSplitUpdate(e.clientX);
-                          }}
-                          onPointerEnter={() => {
-                            document.body.style.cursor = 'col-resize';
-                          }}
-                          onPointerLeave={() => {
-                            if (!isResizingRef.current) document.body.style.cursor = '';
-                          }}
-                          className="h-full w-8 cursor-col-resize bg-transparent"
-                          style={{ touchAction: 'none' }}
-                        />
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-600 dark:border-t-gray-400"></div>
+                      <span className="text-sm">Loading diff...</span>
                     </div>
                   </div>
-                )}
+                ) : fileData?.error ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-gray-500 dark:text-gray-400">
+                    <span className="text-sm">{fileData.error}</span>
+                  </div>
+                ) : fileData ? (
+                  <>
+                    <div className="h-full">
+                      <DiffEditor
+                        height="100%"
+                        language={fileData.language}
+                        original={fileData.original}
+                        modified={fileData.modified}
+                        theme={isDark ? 'custom-diff-dark' : 'custom-diff-light'}
+                        options={{
+                          readOnly: true,
+                          renderSideBySide: false, // Unified/inline view
+                          fontSize: 13,
+                          lineHeight: 20,
+                          minimap: { enabled: false },
+                          scrollBeyondLastLine: false,
+                          wordWrap: 'on',
+                          lineNumbers: 'on',
+                          lineNumbersMinChars: 2,
+                          renderIndicators: false, // Hide +/- indicators
+                          overviewRulerLanes: 3, // Show overview ruler with change indicators
+                          renderOverviewRuler: true, // Show overview ruler
+                          automaticLayout: true,
+                          scrollbar: {
+                            vertical: 'visible',
+                            horizontal: 'visible',
+                            useShadows: false,
+                            verticalScrollbarSize: 4,
+                            horizontalScrollbarSize: 4,
+                            arrowSize: 0,
+                            verticalHasArrows: false,
+                            horizontalHasArrows: false,
+                            alwaysConsumeMouseWheel: false,
+                            verticalSliderSize: 4,
+                            horizontalSliderSize: 4,
+                          },
+                          hideUnchangedRegions: {
+                            enabled: true,
+                          },
+                          diffWordWrap: 'on',
+                          enableSplitViewResizing: false,
+                          smoothScrolling: true,
+                          cursorSmoothCaretAnimation: 'on',
+                          padding: { top: 8, bottom: 8 },
+                          glyphMargin: false,
+                          lineDecorationsWidth: 16,
+                          folding: false,
+                        }}
+                        onMount={handleEditorDidMount}
+                      />
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
           </motion.div>

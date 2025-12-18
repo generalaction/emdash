@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isActivePr, PrInfo } from '../lib/prStatus';
 
 type TaskRef = { id: string; name: string; path: string };
 
@@ -11,13 +12,7 @@ type RiskState = Record<
     ahead: number;
     behind: number;
     error?: string;
-    pr?: {
-      number?: number;
-      title?: string;
-      url?: string;
-      state?: string;
-      isDraft?: boolean;
-    } | null;
+    pr?: PrInfo | null;
   }
 >;
 
@@ -72,8 +67,9 @@ export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
             infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
               ? infoRes.value.behindCount
               : 0;
-          const pr =
+          const rawPr =
             prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
+          const pr = isActivePr(rawPr) ? rawPr : null;
 
           next[ws.id] = {
             staged,
@@ -124,7 +120,7 @@ export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
         status.untracked > 0 ||
         status.ahead > 0 ||
         !!status.error ||
-        !!status.pr;
+        (status.pr && isActivePr(status.pr));
       if (dirty) {
         riskyIds.add(ws.id);
         const parts = [
@@ -143,7 +139,7 @@ export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
           status.behind > 0
             ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`
             : null,
-          status.pr ? 'PR open' : null,
+          status.pr && isActivePr(status.pr) ? 'PR open' : null,
         ]
           .filter(Boolean)
           .join(', ');

@@ -17,6 +17,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { cn } from '@/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
+import { isActivePr } from '../lib/prStatus';
 import type { Task } from '../types/chat';
 
 type Props = {
@@ -52,7 +53,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
     if (!status) return false;
     const hasUncommittedWork =
       status.staged > 0 || status.unstaged > 0 || status.untracked > 0 || status.ahead > 0;
-    const hasPR = !!status.pr;
+    const hasPR = status.pr && isActivePr(status.pr);
     // Only show in this section if has uncommitted work BUT NO PR
     return hasUncommittedWork && !hasPR;
   });
@@ -60,7 +61,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
   // Tasks with PRs (may or may not have uncommitted work)
   const tasksWithPRs = tasks.filter((ws) => {
     const status = risks[ws.id];
-    return !!status?.pr;
+    return status?.pr && isActivePr(status.pr);
   });
 
   const hasRisks = tasksWithUncommittedWork.length > 0 || tasksWithPRs.length > 0;
@@ -113,7 +114,28 @@ export const ProjectDeleteButton: React.FC<Props> = ({
 
         <div className="space-y-3 text-sm">
           <AnimatePresence initial={false}>
-            {tasksWithUncommittedWork.length > 0 ? (
+            {loading ? (
+              <motion.div
+                key="project-delete-loading"
+                initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
+              >
+                <Spinner className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" size="sm" />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-sm font-semibold text-foreground">Please wait...</span>
+                  <span className="text-xs text-muted-foreground">
+                    Scanning tasks for uncommitted changes and open pull requests
+                  </span>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence initial={false}>
+            {!loading && tasksWithUncommittedWork.length > 0 ? (
               <motion.div
                 key="project-delete-risk"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -166,7 +188,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
           </AnimatePresence>
 
           <AnimatePresence initial={false}>
-            {tasksWithPRs.length > 0 ? (
+            {!loading && tasksWithPRs.length > 0 ? (
               <motion.div
                 key="project-delete-prs"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -176,10 +198,14 @@ export const ProjectDeleteButton: React.FC<Props> = ({
               >
                 <DeletePrNotice
                   tasks={
-                    tasksWithPRs.map((ws) => ({
-                      name: ws.name,
-                      pr: risks[ws.id]?.pr,
-                    })) as any
+                    tasksWithPRs
+                      .map((ws) => {
+                        const pr = risks[ws.id]?.pr;
+                        return pr && isActivePr(pr) ? { name: ws.name, pr } : null;
+                      })
+                      .filter(
+                        (w): w is { name: string; pr: NonNullable<typeof w>['pr'] } => w !== null
+                      ) as any
                   }
                 />
               </motion.div>
@@ -210,20 +236,35 @@ export const ProjectDeleteButton: React.FC<Props> = ({
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
-            disabled={disableDelete}
-            onClick={async (e) => {
-              e.stopPropagation();
-              setOpen(false);
-              try {
-                await onConfirm();
-              } catch {}
-            }}
-          >
-            {isDeleting ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
-            Delete
-          </AlertDialogAction>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogAction
+                  className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
+                  disabled={disableDelete}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setOpen(false);
+                    try {
+                      await onConfirm();
+                    } catch {}
+                  }}
+                >
+                  {isDeleting ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
+                  Delete
+                </AlertDialogAction>
+              </TooltipTrigger>
+              {disableDelete && !isDeleting ? (
+                <TooltipContent side="top" className="text-xs">
+                  {loading
+                    ? 'Checking workspaces...'
+                    : hasRisks && !acknowledge
+                      ? 'Acknowledge the risks to delete'
+                      : 'Delete is disabled'}
+                </TooltipContent>
+              ) : null}
+            </Tooltip>
+          </TooltipProvider>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

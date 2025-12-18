@@ -349,6 +349,8 @@ const ChatInterface: React.FC<Props> = ({
   }, [provider, task.id]);
 
   const isTerminal = providerMeta[provider]?.terminalOnly === true;
+  const autoApproveEnabled =
+    Boolean(task.metadata?.autoApprove) && Boolean(providerMeta[provider]?.autoApproveFlag);
 
   const initialInjection = useMemo(() => {
     if (!isTerminal) return null;
@@ -699,6 +701,7 @@ const ChatInterface: React.FC<Props> = ({
               id={terminalId}
               cwd={task.path}
               shell={providerMeta[provider].cli}
+              autoApprove={autoApproveEnabled}
               env={
                 planEnabled
                   ? {
@@ -760,6 +763,7 @@ const ChatInterface: React.FC<Props> = ({
         linearIssue={task.metadata?.linearIssue || null}
         githubIssue={task.metadata?.githubIssue || null}
         jiraIssue={task.metadata?.jiraIssue || null}
+        autoApprove={autoApproveEnabled}
         planModeEnabled={planEnabled}
         onPlanModeChange={setPlanEnabled}
         onApprovePlan={async () => {

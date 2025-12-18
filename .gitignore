@@ -67,3 +67,4 @@ worktrees/
 /container.md
 
 .env
+.cursor

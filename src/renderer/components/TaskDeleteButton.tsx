@@ -17,6 +17,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { cn } from '@/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
+import { isActivePr } from '../lib/prStatus';
 
 type Props = {
   taskName: string;
@@ -54,13 +55,13 @@ export const TaskDeleteButton: React.FC<Props> = ({
     pr: null,
   };
 
-  const risky =
+  const risky: boolean =
     status.staged > 0 ||
     status.unstaged > 0 ||
     status.untracked > 0 ||
     status.ahead > 0 ||
     !!status.error ||
-    !!status.pr;
+    !!(status.pr && isActivePr(status.pr));
   const disableDelete: boolean = Boolean(isDeleting || loading) || (risky && !acknowledge);
 
   React.useEffect(() => {
@@ -148,7 +149,9 @@ export const TaskDeleteButton: React.FC<Props> = ({
                       'Status unavailable'}
                   </span>
                 </div>
-                {status.pr ? <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} /> : null}
+                {status.pr && isActivePr(status.pr) ? (
+                  <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} />
+                ) : null}
               </motion.div>
             ) : null}
           </AnimatePresence>
