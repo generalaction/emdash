@@ -351,9 +351,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </SidebarGroup>
           )}
         </SidebarContent>
-        <SidebarFooter className="border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
-          <SidebarMenu className="w-full">
-            <SidebarMenuItem>
+        <SidebarFooter className="border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4 min-w-0 overflow-hidden">
+          <SidebarMenu className="w-full min-w-0">
+            <SidebarMenuItem className="min-w-0">
               <SidebarMenuButton
                 tabIndex={githubProfileUrl ? 0 : -1}
                 onClick={(e) => {
@@ -363,15 +363,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   e.preventDefault();
                   handleGithubProfileClick();
                 }}
-                className={`flex w-full items-center justify-start gap-2 px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
+                className={`flex w-full items-center justify-start gap-2 px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 min-w-0 overflow-hidden ${
                   githubProfileUrl
                     ? 'hover:bg-black/5 dark:hover:bg-white/5'
                     : 'cursor-default hover:bg-transparent'
                 }`}
                 aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
               >
-                <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
-                  <div className="hidden truncate sm:block">{renderGithubStatus()}</div>
+                <div className="flex min-w-0 flex-1 flex-col gap-1 text-left w-full overflow-hidden">
+                  <div className="hidden sm:block w-full min-w-0">{renderGithubStatus()}</div>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>

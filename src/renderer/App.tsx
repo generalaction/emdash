@@ -10,8 +10,8 @@ import ChatInterface from './components/ChatInterface';
 import MultiAgentWorkspace from './components/MultiAgentWorkspace';
 import { Toaster } from './components/ui/toaster';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
-import RequirementsNotice from './components/RequirementsNotice';
 import { useToast } from './hooks/use-toast';
+import { ToastAction } from './components/ui/toast';
 import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -1750,7 +1750,7 @@ const AppContent: React.FC = () => {
     if (showHomeView) {
       return (
         <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-          <div className="container mx-auto flex min-h-full flex-1 flex-col justify-center px-8 py-8 pr-4">
+          <div className="container mx-auto flex min-h-full flex-1 flex-col justify-center px-8 py-8 max-w-3xl">
             <div className="mb-6 text-center">
               <div className="mb-2 flex items-center justify-center">
                 <div className="logo-shimmer-container">
@@ -1779,11 +1779,6 @@ const AppContent: React.FC = () => {
               <p className="text-xs text-muted-foreground whitespace-nowrap">
                 Run multiple Coding Agents in parallel
               </p>
-              <RequirementsNotice
-                showGithubRequirement={showGithubRequirement}
-                needsGhInstall={needsGhInstall}
-                needsGhAuth={needsGhAuth}
-              />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
@@ -1809,6 +1804,18 @@ const AppContent: React.FC = () => {
                     const { captureTelemetry } = await import('./lib/telemetryClient');
                     captureTelemetry('project_create_clicked');
                   })();
+                  if (!isAuthenticated || !ghInstalled) {
+                    toast({
+                      title: 'GitHub authentication required',
+                      variant: 'destructive',
+                      action: (
+                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+                          Connect GitHub
+                        </ToastAction>
+                      ),
+                    });
+                    return;
+                  }
                   setShowNewProjectModal(true);
                 }}
                 className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -1825,6 +1832,18 @@ const AppContent: React.FC = () => {
                     const { captureTelemetry } = await import('./lib/telemetryClient');
                     captureTelemetry('project_clone_clicked');
                   })();
+                  if (!isAuthenticated || !ghInstalled) {
+                    toast({
+                      title: 'GitHub authentication required',
+                      variant: 'destructive',
+                      action: (
+                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+                          Connect GitHub
+                        </ToastAction>
+                      ),
+                    });
+                    return;
+                  }
                   setShowCloneModal(true);
                 }}
                 className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

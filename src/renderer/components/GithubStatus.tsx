@@ -38,21 +38,21 @@ export function GithubStatus({
         disabled={isLoading}
         variant="default"
         size="sm"
-        className={`w-full items-center justify-start gap-2 py-2 ${className}`}
+        className={`w-full items-center justify-start gap-2 py-2 min-w-0 overflow-hidden ${className}`}
       >
         {isLoading ? (
           <>
-            <Spinner size="sm" />
-            <span className="text-xs font-medium">
+            <Spinner size="sm" className="flex-shrink-0" />
+            <span className="text-xs font-medium truncate min-w-0">
               {statusMessage || 'Installing GitHub CLI...'}
             </span>
           </>
         ) : (
           <>
             <Download className="h-4 w-4 flex-shrink-0" />
-            <div className="flex flex-col items-start gap-0.5">
-              <span className="text-xs font-medium leading-tight">Connect GitHub</span>
-              <span className="text-[10px] leading-tight opacity-80">Install & sign in</span>
+            <div className="flex flex-col items-start gap-0.5 min-w-0 flex-1">
+              <span className="text-xs font-medium leading-tight truncate w-full">Connect GitHub</span>
+              <span className="text-[10px] leading-tight opacity-80 truncate w-full">Install & sign in</span>
             </div>
           </>
         )}
@@ -68,21 +68,21 @@ export function GithubStatus({
         disabled={isLoading}
         variant="default"
         size="sm"
-        className={`w-full items-center justify-start gap-2 py-2 ${className}`}
+        className={`w-full items-center justify-start gap-2 py-2 min-w-0 overflow-hidden ${className}`}
       >
         {isLoading ? (
           <>
-            <Spinner size="sm" />
-            <span className="text-xs font-medium">
+            <Spinner size="sm" className="flex-shrink-0" />
+            <span className="text-xs font-medium truncate min-w-0">
               {statusMessage || 'Connecting to GitHub...'}
             </span>
           </>
         ) : (
           <>
             <Github className="h-4 w-4 flex-shrink-0" />
-            <div className="flex flex-col items-start gap-0.5">
-              <span className="text-xs font-medium leading-tight">Connect GitHub</span>
-              <span className="text-[10px] leading-tight opacity-80">Sign in with GitHub</span>
+            <div className="flex flex-col items-start gap-0.5 min-w-0 flex-1">
+              <span className="text-xs font-medium leading-tight truncate w-full">Connect GitHub</span>
+              <span className="text-[10px] leading-tight opacity-80 truncate w-full">Sign in with GitHub</span>
             </div>
           </>
         )}
