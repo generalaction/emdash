@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedContainerConfig, RunnerEvent } from '@shared/container';
 import { PortAllocationError } from '@shared/container';
 
-const { loadWorkspaceContainerConfigMock } = vi.hoisted(() => ({
-  loadWorkspaceContainerConfigMock: vi.fn(),
+const { loadTaskContainerConfigMock } = vi.hoisted(() => ({
+  loadTaskContainerConfigMock: vi.fn(),
 }));
 
 vi.mock('../../main/services/containerConfigService', async () => {
@@ -12,7 +12,7 @@ vi.mock('../../main/services/containerConfigService', async () => {
   );
   return {
     ...actual,
-    loadWorkspaceContainerConfig: loadWorkspaceContainerConfigMock,
+    loadTaskContainerConfig: loadTaskContainerConfigMock,
   };
 });
 
@@ -23,7 +23,7 @@ import { ContainerConfigLoadError } from '../../main/services/containerConfigSer
 
 describe('ContainerRunnerService', () => {
   beforeEach(() => {
-    loadWorkspaceContainerConfigMock.mockReset();
+    loadTaskContainerConfigMock.mockReset();
   });
 
   it('emits runner events and returns run info on success', async () => {
@@ -37,10 +37,10 @@ describe('ContainerRunnerService', () => {
         { service: 'api', container: 4000, protocol: 'tcp', preview: false },
       ],
     };
-    loadWorkspaceContainerConfigMock.mockResolvedValue({
+    loadTaskContainerConfigMock.mockResolvedValue({
       ok: true,
       config,
-      sourcePath: '/tmp/workspace/.emdash/config.json',
+      sourcePath: '/tmp/task/.emdash/config.json',
     });
 
     const allocateMock = vi.fn(async () => [
@@ -53,8 +53,8 @@ describe('ContainerRunnerService', () => {
     service.onRunnerEvent((event) => events.push(event));
 
     const result = await service.startMockRun({
-      workspaceId: 'ws-1',
-      workspacePath: '/tmp/workspace',
+      taskId: 'task-1',
+      taskPath: '/tmp/task',
       runId: 'run-123',
       now: () => 1700000000000,
     });
@@ -63,7 +63,7 @@ describe('ContainerRunnerService', () => {
       ok: true,
       runId: 'run-123',
       config,
-      sourcePath: '/tmp/workspace/.emdash/config.json',
+      sourcePath: '/tmp/task/.emdash/config.json',
     });
     expect(allocateMock).toHaveBeenCalledWith(config.ports);
     expect(events).toHaveLength(4);
@@ -81,9 +81,9 @@ describe('ContainerRunnerService', () => {
   it('returns config error without emitting events', async () => {
     const error = new ContainerConfigLoadError('VALIDATION_FAILED', 'Invalid config', {
       configKey: 'ports[0]',
-      configPath: '/tmp/workspace/.emdash/config.json',
+      configPath: '/tmp/task/.emdash/config.json',
     });
-    loadWorkspaceContainerConfigMock.mockResolvedValue({
+    loadTaskContainerConfigMock.mockResolvedValue({
       ok: false,
       error,
     });
@@ -97,8 +97,8 @@ describe('ContainerRunnerService', () => {
     service.onRunnerEvent(listener);
 
     const result = await service.startMockRun({
-      workspaceId: 'ws-1',
-      workspacePath: '/tmp/workspace',
+      taskId: 'task-1',
+      taskPath: '/tmp/task',
     });
 
     expect(result).toEqual({
@@ -107,7 +107,7 @@ describe('ContainerRunnerService', () => {
         code: 'VALIDATION_FAILED',
         message: 'Invalid config',
         configKey: 'ports[0]',
-        configPath: '/tmp/workspace/.emdash/config.json',
+        configPath: '/tmp/task/.emdash/config.json',
       },
     });
     expect(listener).not.toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('ContainerRunnerService', () => {
       workdir: '.',
       ports: [{ service: 'app', container: 3000, protocol: 'tcp', preview: true }],
     };
-    loadWorkspaceContainerConfigMock.mockResolvedValue({
+    loadTaskContainerConfigMock.mockResolvedValue({
       ok: true,
       config,
       sourcePath: null,
@@ -136,8 +136,8 @@ describe('ContainerRunnerService', () => {
     service.onRunnerEvent((event) => events.push(event));
 
     const result = await service.startMockRun({
-      workspaceId: 'ws-1',
-      workspacePath: '/tmp/workspace',
+      taskId: 'task-1',
+      taskPath: '/tmp/task',
       runId: 'run-err',
       now: () => 1700000000100,
     });

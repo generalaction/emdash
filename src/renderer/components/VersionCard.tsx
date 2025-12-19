@@ -59,7 +59,7 @@ const VersionCard: React.FC = () => {
       <div className="flex items-start gap-3">
         <div className="flex-1 space-y-1">
           <div className="flex items-baseline gap-2">
-            <span className="text-sm font-medium text-foreground">emdash</span>
+            <span className="text-sm font-medium text-foreground">Emdash</span>
             <code className="font-mono text-sm text-muted-foreground">{emdashVersion}</code>
           </div>
         </div>

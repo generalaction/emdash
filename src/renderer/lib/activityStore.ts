@@ -18,15 +18,15 @@ class ActivityStore {
     api?.onPtyActivity?.((info: { id: string; chunk?: string }) => {
       try {
         const id = String(info?.id || '');
-        // Match any subscribed workspace id by suffix
+        // Match any subscribed task id by suffix
         for (const wsId of this.subscribedIds) {
           if (!id.endsWith(wsId)) continue;
           const prov = id.includes('-main-') ? id.split('-main-')[0] || '' : '';
           const signal = classifyActivity(prov, info?.chunk || '');
           if (signal === 'busy') {
-            this.setBusy(wsId, true);
+            this.setBusy(wsId, true, true);
           } else if (signal === 'idle') {
-            this.setBusy(wsId, false);
+            this.setBusy(wsId, false, true);
           } else {
             // neutral: keep current but set soft clear timer
             if (this.states.get(wsId)) this.armTimer(wsId);
@@ -38,7 +38,7 @@ class ActivityStore {
       try {
         const id = String(info?.id || '');
         for (const wsId of this.subscribedIds) {
-          if (id.endsWith(wsId)) this.setBusy(wsId, false);
+          if (id.endsWith(wsId)) this.setBusy(wsId, false, true);
         }
       } catch {}
     });
@@ -47,11 +47,11 @@ class ActivityStore {
   private armTimer(wsId: string) {
     const prev = this.timers.get(wsId);
     if (prev) clearTimeout(prev);
-    const t = setTimeout(() => this.setBusy(wsId, false), CLEAR_BUSY_MS);
+    const t = setTimeout(() => this.setBusy(wsId, false, true), CLEAR_BUSY_MS);
     this.timers.set(wsId, t);
   }
 
-  private setBusy(wsId: string, busy: boolean) {
+  private setBusy(wsId: string, busy: boolean, fromEvent = false) {
     const current = this.states.get(wsId) || false;
     // If setting busy: clear timers and record start
     if (busy) {
@@ -102,8 +102,8 @@ class ActivityStore {
     }
   }
 
-  setWorkspaceBusy(wsId: string, busy: boolean) {
-    this.setBusy(wsId, busy);
+  setTaskBusy(wsId: string, busy: boolean) {
+    this.setBusy(wsId, busy, false);
   }
 
   subscribe(wsId: string, fn: Listener) {
@@ -114,7 +114,7 @@ class ActivityStore {
     this.listeners.set(wsId, set);
     // emit current
     fn(this.states.get(wsId) || false);
-    // Fallback: also listen directly to this workspace's main PTY data in case global broadcast is missing
+    // Fallback: also listen directly to this task's main PTY data in case global broadcast is missing
     const offDirect: Array<() => void> = [];
     try {
       const api: any = (window as any).electronAPI;
@@ -137,8 +137,8 @@ class ActivityStore {
         const off = api?.onPtyData?.(ptyId, (chunk: string) => {
           try {
             const signal = classifyActivity(prov, chunk || '');
-            if (signal === 'busy') this.setBusy(wsId, true);
-            else if (signal === 'idle') this.setBusy(wsId, false);
+            if (signal === 'busy') this.setBusy(wsId, true, true);
+            else if (signal === 'idle') this.setBusy(wsId, false, true);
             else if (this.states.get(wsId)) this.armTimer(wsId);
           } catch {}
         });

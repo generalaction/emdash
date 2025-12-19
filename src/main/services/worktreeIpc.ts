@@ -9,7 +9,7 @@ export function registerWorktreeIpc(): void {
       event,
       args: {
         projectPath: string;
-        workspaceName: string;
+        taskName: string;
         projectId: string;
         autoApprove?: boolean;
       }
@@ -17,7 +17,7 @@ export function registerWorktreeIpc(): void {
       try {
         const worktree = await worktreeService.createWorktree(
           args.projectPath,
-          args.workspaceName,
+          args.taskName,
           args.projectId,
           args.autoApprove
         );

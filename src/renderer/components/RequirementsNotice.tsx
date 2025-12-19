@@ -4,7 +4,6 @@ type Props = {
   showGithubRequirement: boolean;
   needsGhInstall: boolean;
   needsGhAuth: boolean;
-  showAgentRequirement?: boolean;
 };
 
 const RequirementsNotice: React.FC<Props> = ({

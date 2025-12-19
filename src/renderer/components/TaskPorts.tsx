@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Copy, Check, Globe, Database, Server } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import type { RunnerPortMapping } from '@shared/container/events';
@@ -6,20 +6,14 @@ import { useToast } from '@/hooks/use-toast';
 import { useBrowser } from '@/providers/BrowserProvider';
 
 interface Props {
-  workspaceId: string;
-  workspacePath?: string;
+  taskId: string;
+  taskPath?: string;
   ports: Array<RunnerPortMapping & { url?: string }>;
   previewUrl?: string;
   previewService?: string;
 }
 
-const WorkspacePorts: React.FC<Props> = ({
-  workspaceId,
-  workspacePath,
-  ports,
-  previewUrl,
-  previewService,
-}) => {
+const TaskPorts: React.FC<Props> = ({ taskId, taskPath, ports, previewUrl, previewService }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
   const { toast } = useToast();
@@ -38,7 +32,7 @@ const WorkspacePorts: React.FC<Props> = ({
           'compose.yaml',
         ];
         for (const file of candidates) {
-          const res = await api?.fsRead?.(workspacePath || '', file, 1);
+          const res = await api?.fsRead?.(taskPath || '', file, 1);
           if (!cancelled && res?.success) {
             setHasCompose(true);
             return;
@@ -52,7 +46,7 @@ const WorkspacePorts: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [workspacePath]);
+  }, [taskPath]);
 
   const norm = (s: string) => s.toLowerCase();
   const sorted = [...(ports ?? [])].sort((a, b) => {
@@ -67,15 +61,7 @@ const WorkspacePorts: React.FC<Props> = ({
     return a.host - b.host;
   });
 
-  function ServiceIcon({
-    name,
-    port,
-    workspacePath: currentWorkspacePath,
-  }: {
-    name: string;
-    port: number;
-    workspacePath?: string;
-  }) {
+  function ServiceIcon({ name, port }: { name: string; port: number }) {
     const [src, setSrc] = React.useState<string | null>(null);
     React.useEffect(() => {
       let cancelled = false;
@@ -86,7 +72,7 @@ const WorkspacePorts: React.FC<Props> = ({
           const res = await api.resolveServiceIcon({
             service: name,
             allowNetwork: true,
-            workspacePath: currentWorkspacePath,
+            taskPath,
           });
           if (!cancelled && res?.ok && typeof res.dataUrl === 'string') {
             setSrc(res.dataUrl);
@@ -96,7 +82,7 @@ const WorkspacePorts: React.FC<Props> = ({
       return () => {
         cancelled = true;
       };
-    }, [currentWorkspacePath, name]);
+    }, [name, taskPath]);
     if (src) {
       return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
     }
@@ -115,9 +101,15 @@ const WorkspacePorts: React.FC<Props> = ({
     } catch {}
   };
 
+  const exposeMode: 'none' | 'preview' | 'all' = useMemo(() => {
+    if (!ports || ports.length === 0) return 'none';
+    const allPreview = ports.every((p) => p.service === previewService);
+    return allPreview ? 'preview' : 'all';
+  }, [ports, previewService]);
+
   return (
     <motion.div
-      id={`ws-${workspaceId}-ports`}
+      id={`ws-${taskId}-ports`}
       className="border-t border-border/60 bg-muted/30 px-4 py-2"
       initial={reduceMotion ? false : { opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
@@ -166,7 +158,7 @@ const WorkspacePorts: React.FC<Props> = ({
       {sorted?.length ? (
         <div className="flex flex-wrap gap-2 pt-2">
           {sorted.map((p) => {
-            const key = `${workspaceId}-${p.service}-${p.host}`;
+            const key = `${taskId}-${p.service}-${p.host}`;
             const url = p.url ?? `http://localhost:${p.host}`;
             const isPreview = p.service === previewService;
             return (
@@ -175,7 +167,7 @@ const WorkspacePorts: React.FC<Props> = ({
                 className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <ServiceIcon name={p.service} port={p.container} workspacePath={workspacePath} />
+                  <ServiceIcon name={p.service} port={p.container} />
                   <span className="font-medium">{p.service}</span>
                 </span>
                 {isPreview ? (
@@ -226,7 +218,7 @@ const WorkspacePorts: React.FC<Props> = ({
             </>
           ) : (
             <div className="space-y-2">
-              <div>Live expose requires a docker-compose.yml at the workspace root.</div>
+              <div>Live expose requires a docker-compose.yml at the task root.</div>
               <button
                 type="button"
                 className="inline-flex items-center rounded border border-border/70 bg-background px-2 py-0.5 text-[11px] font-medium hover:bg-muted/40"
@@ -236,7 +228,7 @@ const WorkspacePorts: React.FC<Props> = ({
                     const api: any = (window as any).electronAPI;
                     const content = `services:\n  web:\n    image: node:20\n    working_dir: /workspace\n    volumes:\n      - ./:/workspace\n    environment:\n      - HOST=0.0.0.0\n      - PORT=3000\n    command: bash -lc \"if [ -f package-lock.json ]; then npm ci; else npm install --no-package-lock; fi && npm run dev\"\n    expose:\n      - \"3000\"\n`;
                     const res = await api.fsWriteFile(
-                      workspacePath || '',
+                      taskPath || '',
                       'docker-compose.yml',
                       content,
                       false
@@ -273,4 +265,4 @@ const WorkspacePorts: React.FC<Props> = ({
   );
 };
 
-export default WorkspacePorts;
+export default TaskPorts;

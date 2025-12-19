@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Project, Workspace } from '../../types/app';
+import type { Project, Task } from '../../types/app';
 import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
 import { Button } from '../ui/button';
@@ -7,11 +7,12 @@ import { Inbox, Plus } from 'lucide-react';
 import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import {
   subscribeDerivedStatus,
-  watchWorkspacePty,
-  watchWorkspaceContainers,
-  watchWorkspaceActivity,
-} from '../../lib/workspaceStatus';
+  watchTaskPty,
+  watchTaskContainers,
+  watchTaskActivity,
+} from '../../lib/taskStatus';
 import { activityStore } from '../../lib/activityStore';
+import { refreshPrStatus } from '../../lib/prStatusStore';
 
 const order: KanbanStatus[] = ['todo', 'in-progress', 'done'];
 const titles: Record<KanbanStatus, string> = {
@@ -22,9 +23,9 @@ const titles: Record<KanbanStatus, string> = {
 
 const KanbanBoard: React.FC<{
   project: Project;
-  onOpenWorkspace?: (ws: Workspace) => void;
-  onCreateWorkspace?: () => void;
-}> = ({ project, onOpenWorkspace, onCreateWorkspace }) => {
+  onOpenTask?: (ws: Task) => void;
+  onCreateTask?: () => void;
+}> = ({ project, onOpenTask, onCreateTask }) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
 
   React.useEffect(() => {
@@ -35,14 +36,14 @@ const KanbanBoard: React.FC<{
   React.useEffect(() => {
     const offs: Array<() => void> = [];
     const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    const wsList = project.workspaces || [];
+    const wsList = project.tasks || [];
     for (const ws of wsList) {
       // Watch PTY output to capture terminal-based providers as activity
-      offs.push(watchWorkspacePty(ws.id));
+      offs.push(watchTaskPty(ws.id));
       // Watch container run state as another activity source (build/start/ready)
-      offs.push(watchWorkspaceContainers(ws.id));
+      offs.push(watchTaskContainers(ws.id));
       // Watch app-wide activity classification (matches left sidebar spinner)
-      offs.push(watchWorkspaceActivity(ws.id));
+      offs.push(watchTaskActivity(ws.id));
       const off = subscribeDerivedStatus(ws.id, (derived) => {
         if (derived !== 'busy') return;
         setStatusMap((prev) => {
@@ -79,7 +80,7 @@ const KanbanBoard: React.FC<{
       offs.push(un);
     }
 
-    // Per-ws: when the PTY exits and workspace is not busy anymore, move to Done
+    // Per-task: when the PTY exits and task is not busy anymore, move to Done
     for (const ws of wsList) {
       try {
         const offExit = (window as any).electronAPI.onPtyExit?.(
@@ -104,12 +105,12 @@ const KanbanBoard: React.FC<{
     }
     return () => offs.forEach((f) => f());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, project.workspaces]);
+  }, [project.id, project.tasks?.length]);
 
-  // Promote any workspace with local changes directly to "Ready for review" (done)
+  // Promote any task with local changes directly to "Ready for review" (done)
   React.useEffect(() => {
     let cancelled = false;
-    const wsList = project.workspaces || [];
+    const wsList = project.tasks || [];
     const check = async () => {
       for (const ws of wsList) {
         const variantPaths: string[] = (() => {
@@ -145,7 +146,7 @@ const KanbanBoard: React.FC<{
             });
           }
         } catch {
-          // ignore per‑workspace errors
+          // ignore per-task errors
         }
       }
     };
@@ -155,12 +156,12 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.workspaces]);
+  }, [project.id, project.tasks?.length]);
 
-  // Promote any workspace with an open PR to "Ready for review" (done)
+  // Promote any task with an open PR to "Ready for review" (done)
   React.useEffect(() => {
     let cancelled = false;
-    const wsList = project.workspaces || [];
+    const wsList = project.tasks || [];
     const check = async () => {
       for (const ws of wsList) {
         const variantPaths: string[] = (() => {
@@ -175,8 +176,8 @@ const KanbanBoard: React.FC<{
         try {
           let hasPr = false;
           for (const p of paths) {
-            const res = await (window as any).electronAPI?.getPrStatus?.({ workspacePath: p });
-            if (res?.success && res?.pr) {
+            const pr = await refreshPrStatus(p);
+            if (pr) {
               hasPr = true;
               break;
             }
@@ -206,11 +207,11 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.workspaces]);
+  }, [project.id, project.tasks?.length]);
 
   React.useEffect(() => {
     let cancelled = false;
-    const wsList = project.workspaces || [];
+    const wsList = project.tasks || [];
     const check = async () => {
       for (const ws of wsList) {
         const variantPaths: string[] = (() => {
@@ -225,7 +226,7 @@ const KanbanBoard: React.FC<{
         try {
           let ahead = 0;
           for (const p of paths) {
-            const res = await (window as any).electronAPI?.getBranchStatus?.({ workspacePath: p });
+            const res = await (window as any).electronAPI?.getBranchStatus?.({ taskPath: p });
             if (res?.success) {
               const a = Number(res?.ahead ?? 0);
               if (a > 0) {
@@ -258,18 +259,18 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.workspaces]);
+  }, [project.id, project.tasks?.length]);
 
-  const byStatus: Record<KanbanStatus, Workspace[]> = { todo: [], 'in-progress': [], done: [] };
-  for (const ws of project.workspaces || []) {
+  const byStatus: Record<KanbanStatus, Task[]> = { todo: [], 'in-progress': [], done: [] };
+  for (const ws of project.tasks || []) {
     const s = statusMap[ws.id] || 'todo';
     byStatus[s].push(ws);
   }
-  const hasAny = (project.workspaces?.length ?? 0) > 0;
+  const hasAny = (project.tasks?.length ?? 0) > 0;
 
-  const handleDrop = (target: KanbanStatus, workspaceId: string) => {
-    setStatus(workspaceId, target);
-    setStatusMap({ ...statusMap, [workspaceId]: target });
+  const handleDrop = (target: KanbanStatus, taskId: string) => {
+    setStatus(taskId, target);
+    setStatusMap({ ...statusMap, [taskId]: target });
   };
 
   return (
@@ -281,12 +282,12 @@ const KanbanBoard: React.FC<{
           count={byStatus[s].length}
           onDropCard={(id) => handleDrop(s, id)}
           action={
-            s === 'todo' && onCreateWorkspace ? (
+            s === 'todo' && onCreateTask ? (
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-md border border-border/60 bg-muted text-foreground shadow-sm hover:bg-muted/80"
-                onClick={onCreateWorkspace}
+                onClick={onCreateTask}
                 aria-label="Start New Task"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -295,7 +296,7 @@ const KanbanBoard: React.FC<{
           }
         >
           {byStatus[s].length === 0 ? (
-            s === 'todo' && !hasAny && onCreateWorkspace ? (
+            s === 'todo' && !hasAny && onCreateTask ? (
               <div className="flex h-full flex-col">
                 <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-center text-sm text-muted-foreground">
                   <div className="mx-auto mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-border/60 bg-background/60">
@@ -304,7 +305,7 @@ const KanbanBoard: React.FC<{
                   <span className="ml-2">No items</span>
                 </div>
                 <div className="flex flex-1 items-center justify-center">
-                  <Button variant="default" size="sm" onClick={onCreateWorkspace}>
+                  <Button variant="default" size="sm" onClick={onCreateTask}>
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
                     Start New Task
                   </Button>
@@ -321,14 +322,14 @@ const KanbanBoard: React.FC<{
           ) : (
             <>
               {byStatus[s].map((ws) => (
-                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenWorkspace} />
+                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenTask} />
               ))}
-              {s === 'todo' && onCreateWorkspace ? (
+              {s === 'todo' && onCreateTask ? (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="mt-1 w-full justify-center text-xs font-medium"
-                  onClick={onCreateWorkspace}
+                  onClick={onCreateTask}
                 >
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Start New Task

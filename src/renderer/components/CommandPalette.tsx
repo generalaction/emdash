@@ -26,14 +26,14 @@ interface CommandPaletteProps {
     id: string;
     name: string;
     path: string;
-    workspaces?: Array<{
+    tasks?: Array<{
       id: string;
       name: string;
       branch: string;
     }>;
   }>;
   onSelectProject?: (projectId: string) => void;
-  onSelectWorkspace?: (projectId: string, workspaceId: string) => void;
+  onSelectTask?: (projectId: string, taskId: string) => void;
   onOpenSettings?: () => void;
   onToggleLeftSidebar?: () => void;
   onToggleRightSidebar?: () => void;
@@ -61,7 +61,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onClose,
   projects = [],
   onSelectProject,
-  onSelectWorkspace,
+  onSelectTask,
   onOpenSettings,
   onToggleLeftSidebar,
   onToggleRightSidebar,
@@ -208,22 +208,22 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         });
       }
 
-      // Workspace commands
-      if (project.workspaces && onSelectWorkspace) {
-        project.workspaces.forEach((workspace) => {
+      // Task commands
+      if (project.tasks && onSelectTask) {
+        project.tasks.forEach((task) => {
           items.push({
-            id: `workspace-${project.id}-${workspace.id}`,
-            label: workspace.name,
-            description: `${project.name} • ${workspace.branch}`,
+            id: `task-${project.id}-${task.id}`,
+            label: task.name,
+            description: `${project.name} • ${task.branch}`,
             icon: <GitBranch className="h-4 w-4" />,
-            group: 'Workspaces',
+            group: 'Tasks',
             keywords: [
-              'workspace',
-              workspace.name.toLowerCase(),
-              workspace.branch.toLowerCase(),
+              'task',
+              task.name.toLowerCase(),
+              task.branch.toLowerCase(),
               project.name.toLowerCase(),
             ],
-            onSelect: () => runCommand(() => onSelectWorkspace(project.id, workspace.id)),
+            onSelect: () => runCommand(() => onSelectTask(project.id, task.id)),
           });
         });
       }
@@ -236,7 +236,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     onOpenProject,
     onOpenSettings,
     onSelectProject,
-    onSelectWorkspace,
+    onSelectTask,
     onToggleLeftSidebar,
     onToggleRightSidebar,
     onToggleTheme,
@@ -254,7 +254,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     return groups;
   }, [commands]);
 
-  const groupOrder = ['Navigation', 'Toggles', 'Projects', 'Workspaces'];
+  const groupOrder = ['Navigation', 'Toggles', 'Projects', 'Tasks'];
 
   return createPortal(
     <AnimatePresence>
@@ -294,7 +294,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <Command.Input
                   value={search}
                   onValueChange={setSearch}
-                  placeholder="Search commands, projects, workspaces..."
+                  placeholder="Search commands, projects, tasks..."
                   className="flex h-12 w-full rounded-md bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   autoFocus
                 />

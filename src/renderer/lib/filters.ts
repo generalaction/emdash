@@ -1,6 +1,6 @@
 export interface FilterContext {
   phase: 'chunk' | 'final' | 'historical';
-  workspaceId: string;
+  taskId: string;
   conversationId?: string | null;
 }
 

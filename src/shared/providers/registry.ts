@@ -32,6 +32,7 @@ export type ProviderDefinition = {
   cli?: string;
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  resumeFlag?: string;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
@@ -63,6 +64,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'claude',
     autoApproveFlag: '--dangerously-skip-permissions',
     initialPromptFlag: '',
+    resumeFlag: '-c -r',
     planActivateCommand: '/plan',
     icon: 'claude.png',
     terminalOnly: true,
@@ -90,6 +92,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'gemini',
     autoApproveFlag: '--yolomode',
     initialPromptFlag: '-i',
+    resumeFlag: '--resume',
     icon: 'gemini.png',
     terminalOnly: true,
   },
@@ -103,6 +106,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'qwen',
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-i',
+    resumeFlag: '--continue',
     icon: 'qwen.png',
     terminalOnly: true,
   },

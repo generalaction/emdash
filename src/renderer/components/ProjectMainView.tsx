@@ -5,10 +5,10 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';
-import { useWorkspaceChanges } from '../hooks/useWorkspaceChanges';
-import { ChangesBadge } from './WorkspaceChanges';
+import { useTaskChanges } from '../hooks/useTaskChanges';
+import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
-import WorkspaceDeleteButton from './WorkspaceDeleteButton';
+import TaskDeleteButton from './TaskDeleteButton';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import {
   AlertDialog,
@@ -25,19 +25,21 @@ import { Switch } from './ui/switch';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
-import WorkspacePorts from './WorkspacePorts';
+import TaskPorts from './TaskPorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
 import DeletePrNotice from './DeletePrNotice';
 import {
   getContainerRunState,
   startContainerRun,
-  subscribeToWorkspaceRunState,
+  subscribeToTaskRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
 import PrPreviewTooltip from './PrPreviewTooltip';
-import type { Project, Workspace } from '../types/app';
+import { isActivePr, PrInfo } from '../lib/prStatus';
+import { refreshPrStatus } from '../lib/prStatusStore';
+import type { Project, Task } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -45,7 +47,15 @@ const normalizeBaseRef = (ref?: string | null): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
-function WorkspaceRow({
+const normalizeBranchLabel = (branch?: string | null): string => {
+  return String(branch || '')
+    .trim()
+    .replace(/^refs\/heads\//, '')
+    .replace(/^refs\/remotes\/origin\//, 'origin/')
+    .replace(/^origin\//, '');
+};
+
+function TaskRow({
   ws,
   active,
   onClick,
@@ -54,7 +64,7 @@ function WorkspaceRow({
   isSelected,
   onToggleSelect,
 }: {
-  ws: Workspace;
+  ws: Task;
   active: boolean;
   onClick: () => void;
   onDelete: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
@@ -66,7 +76,7 @@ function WorkspaceRow({
   const [isRunning, setIsRunning] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { pr } = usePrStatus(ws.path);
-  const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(ws.path, ws.id);
+  const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
   const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
     getContainerRunState(ws.id)
   );
@@ -127,7 +137,7 @@ function WorkspaceRow({
   }, [ws.id]);
 
   useEffect(() => {
-    const off = subscribeToWorkspaceRunState(ws.id, (state) => setContainerState(state));
+    const off = subscribeToTaskRunState(ws.id, (state) => setContainerState(state));
     return () => {
       off?.();
     };
@@ -138,7 +148,7 @@ function WorkspaceRow({
     (async () => {
       try {
         const mod = await import('@/lib/containerRuns');
-        await mod.refreshWorkspaceRunState(ws.id);
+        await mod.refreshTaskRunState(ws.id);
       } catch {}
     })();
   }, [ws.id]);
@@ -148,8 +158,8 @@ function WorkspaceRow({
     try {
       setIsStartingContainer(true);
       const res = await startContainerRun({
-        workspaceId: ws.id,
-        workspacePath: ws.path,
+        taskId: ws.id,
+        taskPath: ws.path,
         mode: 'container',
       });
       if (res?.ok !== true) {
@@ -256,14 +266,14 @@ function WorkspaceRow({
                     type="button"
                     disabled
                     className="inline-flex h-8 cursor-not-allowed items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium opacity-50"
-                    aria-label="Connect disabled for multi-agent workspaces"
+                    aria-label="Connect disabled for multi-agent tasks"
                   >
                     <img src={dockerLogo} alt="Docker" className="mr-1.5 h-3.5 w-3.5" />
                     Connect
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[22rem] text-xs leading-snug">
-                  Docker containerization is not available for multi-agent workspaces.
+                  Docker containerization is not available for multi-agent tasks.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -295,7 +305,7 @@ function WorkspaceRow({
               stoppingAction={isStoppingContainer}
               onStart={handleStartContainer}
               onStop={handleStopContainer}
-              workspacePath={ws.path}
+              taskPath={ws.path}
             />
           )}
           {containerActive ? (
@@ -338,9 +348,6 @@ function WorkspaceRow({
               </button>
             </PrPreviewTooltip>
           ) : null}
-          {/* Agent badge commented out per user request
-          {ws.agentId && <Badge variant="outline">agent</Badge>}
-          */}
 
           {isSelectMode ? (
             <Checkbox
@@ -350,11 +357,11 @@ function WorkspaceRow({
               className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
             />
           ) : (
-            <WorkspaceDeleteButton
-              workspaceName={ws.name}
-              workspaceId={ws.id}
-              workspacePath={ws.path}
-              workspaceBranch={ws.branch}
+            <TaskDeleteButton
+              taskName={ws.name}
+              taskId={ws.id}
+              taskPath={ws.path}
+              taskBranch={ws.branch}
               onConfirm={async (opts) => {
                 try {
                   setIsDeleting(true);
@@ -364,7 +371,7 @@ function WorkspaceRow({
                 }
               }}
               isDeleting={isDeleting}
-              aria-label={`Delete workspace ${ws.name}`}
+              aria-label={`Delete task ${ws.name}`}
               className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
             />
           )}
@@ -373,10 +380,10 @@ function WorkspaceRow({
 
       <AnimatePresence initial={false}>
         {containerActive && expanded ? (
-          <WorkspacePorts
+          <TaskPorts
             key={`ports-${ws.id}`}
-            workspaceId={ws.id}
-            workspacePath={ws.path}
+            taskId={ws.id}
+            taskPath={ws.path}
             ports={ports}
             previewUrl={previewUrl}
             previewService={previewService}
@@ -389,25 +396,25 @@ function WorkspaceRow({
 
 interface ProjectMainViewProps {
   project: Project;
-  onCreateWorkspace: () => void;
-  activeWorkspace: Workspace | null;
-  onSelectWorkspace: (workspace: Workspace) => void;
-  onDeleteWorkspace: (
+  onCreateTask: () => void;
+  activeTask: Task | null;
+  onSelectTask: (task: Task) => void;
+  onDeleteTask: (
     project: Project,
-    workspace: Workspace,
+    task: Task,
     options?: { silent?: boolean; deleteRemoteBranch?: boolean }
   ) => void | Promise<void | boolean>;
-  isCreatingWorkspace?: boolean;
+  isCreatingTask?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
 }
 
 const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   project,
-  onCreateWorkspace,
-  activeWorkspace,
-  onSelectWorkspace,
-  onDeleteWorkspace,
-  isCreatingWorkspace = false,
+  onCreateTask,
+  activeTask,
+  onSelectTask,
+  onDeleteTask,
+  isCreatingTask = false,
   onDeleteProject,
 }) => {
   const { toast } = useToast();
@@ -428,12 +435,14 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
   const [alsoDeleteRemoteBranches, setAlsoDeleteRemoteBranches] = useState(false);
 
-  const workspaces = useMemo(() => project.workspaces ?? [], [project.workspaces]);
+  const tasksInProject = project.tasks ?? [];
   const selectedCount = selectedIds.size;
-  const selectedWorkspaces = useMemo(
-    () => workspaces.filter((ws) => selectedIds.has(ws.id)),
-    [selectedIds, workspaces]
+  const selectedTasks = useMemo(
+    () => tasksInProject.filter((ws) => selectedIds.has(ws.id)),
+    [selectedIds, tasksInProject]
   );
+  const remoteBranchSummary =
+    selectedCount === 1 ? normalizeBranchLabel(selectedTasks[0]?.branch) : `${selectedCount} branches`;
   const [deleteStatus, setDeleteStatus] = useState<
     Record<
       string,
@@ -444,13 +453,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         ahead: number;
         behind: number;
         error?: string;
-        pr?: {
-          number?: number;
-          title?: string;
-          url?: string;
-          state?: string;
-          isDraft?: boolean;
-        } | null;
+        pr?: PrInfo | null;
       }
     >
   >({});
@@ -458,7 +461,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const deleteRisks = useMemo(() => {
     const riskyIds = new Set<string>();
     const summaries: Record<string, string> = {};
-    for (const ws of selectedWorkspaces) {
+    for (const ws of selectedTasks) {
       const status = deleteStatus[ws.id];
       if (!status) continue;
       const dirty =
@@ -467,7 +470,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         status.untracked > 0 ||
         status.ahead > 0 ||
         !!status.error ||
-        !!status.pr;
+        (status.pr && isActivePr(status.pr));
       if (dirty) {
         riskyIds.add(ws.id);
         const parts: string[] = [];
@@ -481,13 +484,13 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
         if (status.behind > 0)
           parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
-        if (status.pr) parts.push('PR open');
+        if (status.pr && isActivePr(status.pr)) parts.push('PR open');
         if (!parts.length && status.error) parts.push('status unavailable');
         summaries[ws.id] = parts.join(', ');
       }
     }
     return { riskyIds, summaries };
-  }, [deleteStatus, selectedWorkspaces]);
+  }, [deleteStatus, selectedTasks]);
   const deleteDisabled: boolean =
     Boolean(isDeleting || deleteStatusLoading) ||
     (deleteRisks.riskyIds.size > 0 && acknowledgeDirtyDelete !== true);
@@ -510,7 +513,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   };
 
   const handleBulkDelete = async () => {
-    const toDelete = workspaces.filter((ws) => selectedIds.has(ws.id));
+    const toDelete = tasksInProject.filter((ws) => selectedIds.has(ws.id));
     if (toDelete.length === 0) return;
 
     setIsDeleting(true);
@@ -519,7 +522,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     const deletedNames: string[] = [];
     for (const ws of toDelete) {
       try {
-        const result = await onDeleteWorkspace(project, ws, {
+        const result = await onDeleteTask(project, ws, {
           silent: true,
           deleteRemoteBranch: alsoDeleteRemoteBranches,
         });
@@ -527,7 +530,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           deletedNames.push(ws.name);
         }
       } catch {
-        // Continue deleting remaining workspaces
+        // Continue deleting remaining tasks
       }
     }
 
@@ -569,12 +572,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       setDeleteStatusLoading(true);
       const next: typeof deleteStatus = {};
 
-      for (const ws of selectedWorkspaces) {
+      for (const ws of selectedTasks) {
         try {
-          const [statusRes, infoRes, prRes] = await Promise.allSettled([
+          const [statusRes, infoRes, rawPr] = await Promise.allSettled([
             window.electronAPI.getGitStatus(ws.path),
             window.electronAPI.getGitInfo(ws.path),
-            window.electronAPI.getPrStatus({ workspacePath: ws.path }),
+            refreshPrStatus(ws.path),
           ]);
 
           let staged = 0;
@@ -604,8 +607,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
               ? infoRes.value.behindCount
               : 0;
-          const pr =
-            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
+          const prValue = rawPr.status === 'fulfilled' ? rawPr.value : null;
+          const pr = isActivePr(prValue) ? prValue : null;
 
           next[ws.id] = {
             staged,
@@ -641,7 +644,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [showDeleteDialog, selectedWorkspaces]);
+  }, [showDeleteDialog, selectedTasks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -729,7 +732,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         setIsSavingBaseBranch(false);
       }
     },
-    [baseBranch, project.gitInfo, project.id, toast]
+    [baseBranch, project.id, toast]
   );
 
   return (
@@ -761,6 +764,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       {onDeleteProject ? (
                         <ProjectDeleteButton
                           projectName={project.name}
+                          tasks={project.tasks}
                           onConfirm={() => onDeleteProject?.(project)}
                           aria-label={`Delete project ${project.name}`}
                         />
@@ -794,7 +798,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   <div className="space-y-1">
                     <h2 className="text-lg font-semibold">Tasks</h2>
                     <p className="text-xs text-muted-foreground">
-                      Spin up a fresh, isolated workspace for this project.
+                      Spin up a fresh, isolated task for this project.
                     </p>
                   </div>
                   {!isSelectMode && (
@@ -802,11 +806,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       variant="default"
                       size="sm"
                       className="h-9 px-4 text-sm font-semibold shadow-sm"
-                      onClick={onCreateWorkspace}
-                      disabled={isCreatingWorkspace}
-                      aria-busy={isCreatingWorkspace}
+                      onClick={onCreateTask}
+                      disabled={isCreatingTask}
+                      aria-busy={isCreatingTask}
                     >
-                      {isCreatingWorkspace ? (
+                      {isCreatingTask ? (
                         <>
                           <Loader2 className="mr-2 size-4 animate-spin" />
                           Starting…
@@ -820,7 +824,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     </Button>
                   )}
                 </div>
-                {workspaces.length > 0 && (
+                {tasksInProject.length > 0 && (
                   <div className="flex justify-end gap-2">
                     {isSelectMode && selectedCount > 0 && (
                       <Button
@@ -851,26 +855,22 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   </div>
                 )}
                 <div className="flex flex-col gap-3">
-                  {workspaces.map((ws) => (
-                    <WorkspaceRow
+                  {tasksInProject.map((ws) => (
+                    <TaskRow
                       key={ws.id}
                       ws={ws}
                       isSelectMode={isSelectMode}
                       isSelected={selectedIds.has(ws.id)}
                       onToggleSelect={() => toggleSelect(ws.id)}
-                      active={activeWorkspace?.id === ws.id}
-                      onClick={() => onSelectWorkspace(ws)}
-                      onDelete={(opts) =>
-                        onDeleteWorkspace(project, ws, {
-                          deleteRemoteBranch: opts?.deleteRemoteBranch,
-                        })
-                      }
+                      active={activeTask?.id === ws.id}
+                      onClick={() => onSelectTask(ws)}
+                      onDelete={(opts) => onDeleteTask(project, ws, opts)}
                     />
                   ))}
                 </div>
               </div>
 
-              {(!project.workspaces || project.workspaces.length === 0) && (
+              {(!project.tasks || project.tasks.length === 0) && (
                 <Alert>
                   <AlertTitle>What's a task?</AlertTitle>
                   <AlertDescription className="flex items-center justify-between gap-4">
@@ -896,44 +896,53 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </AlertDialogHeader>
           <div className="space-y-3">
             <AnimatePresence initial={false}>
-              {deleteRisks.riskyIds.size > 0 ? (
-                <motion.div
-                  key="bulk-risk"
-                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                  className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
-                >
-                  <p className="font-medium">Unmerged or unpushed work detected</p>
-                  <ul className="space-y-1">
-                    {selectedWorkspaces.map((ws) => {
-                      const summary = deleteRisks.summaries[ws.id];
-                      const status = deleteStatus[ws.id];
-                      if (!summary && !status?.error) return null;
-                      return (
-                        <li
-                          key={ws.id}
-                          className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
-                        >
-                          <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                          <span className="font-medium">{ws.name}</span>
-                          <span className="text-muted-foreground">—</span>
-                          <span>{summary || status?.error || 'Status unavailable'}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </motion.div>
-              ) : null}
+              {(() => {
+                const tasksWithUncommittedWorkOnly = selectedTasks.filter((ws) => {
+                  const summary = deleteRisks.summaries[ws.id];
+                  const status = deleteStatus[ws.id];
+                  if (!summary && !status?.error) return false;
+                  if (status?.pr && isActivePr(status.pr)) return false;
+                  return true;
+                });
+
+                return tasksWithUncommittedWorkOnly.length > 0 ? (
+                  <motion.div
+                    key="bulk-risk"
+                    initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
+                  >
+                    <p className="font-medium">Unmerged or unpushed work detected</p>
+                    <ul className="space-y-1">
+                      {tasksWithUncommittedWorkOnly.map((ws) => {
+                        const summary = deleteRisks.summaries[ws.id];
+                        const status = deleteStatus[ws.id];
+                        return (
+                          <li
+                            key={ws.id}
+                            className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
+                          >
+                            <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
+                            <span className="font-medium">{ws.name}</span>
+                            <span className="text-muted-foreground">—</span>
+                            <span>{summary || status?.error || 'Status unavailable'}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </motion.div>
+                ) : null;
+              })()}
             </AnimatePresence>
 
             <AnimatePresence initial={false}>
               {(() => {
-                const prWorkspaces = selectedWorkspaces
+                const prTasks = selectedTasks
                   .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
-                  .filter((w) => w.pr);
-                return prWorkspaces.length ? (
+                  .filter((w) => w.pr && isActivePr(w.pr));
+                return prTasks.length ? (
                   <motion.div
                     key="bulk-pr-notice"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -941,7 +950,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     exit={{ opacity: 0, y: 6, scale: 0.99 }}
                     transition={{ duration: 0.2, ease: 'easeOut', delay: 0.02 }}
                   >
-                    <DeletePrNotice workspaces={prWorkspaces as any} />
+                    <DeletePrNotice tasks={prTasks as any} />
                   </motion.div>
                 ) : null;
               })()}
@@ -967,22 +976,32 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               ) : null}
             </AnimatePresence>
 
-            <motion.label
-              key="bulk-delete-remote"
-              className="flex items-center justify-between gap-3 rounded-xl bg-muted/15 px-4 py-3"
-              initial={{ opacity: 0, y: 6, scale: 0.99 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 6, scale: 0.99 }}
-              transition={{ duration: 0.18, ease: 'easeOut', delay: 0.03 }}
-            >
-              <span className="text-sm leading-tight text-foreground">
-                Also delete GitHub branches
-              </span>
-              <Switch
-                checked={alsoDeleteRemoteBranches}
-                onCheckedChange={setAlsoDeleteRemoteBranches}
-              />
-            </motion.label>
+            <AnimatePresence initial={false}>
+              {selectedCount > 0 ? (
+                <motion.label
+                  key="bulk-delete-remote-branches"
+                  className="flex items-center justify-between gap-3 rounded-xl bg-muted/15 px-4 py-3"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.18, ease: 'easeOut', delay: 0.02 }}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm leading-tight text-foreground">
+                      Also delete GitHub branches
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {remoteBranchSummary}
+                    </span>
+                  </span>
+                  <Switch
+                    checked={alsoDeleteRemoteBranches}
+                    disabled={isDeleting || deleteStatusLoading}
+                    onCheckedChange={setAlsoDeleteRemoteBranches}
+                  />
+                </motion.label>
+              ) : null}
+            </AnimatePresence>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

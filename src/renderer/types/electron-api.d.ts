@@ -45,6 +45,9 @@ declare global {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
           };
+          projects?: {
+            defaultDirectory: string;
+          };
         };
         error?: string;
       }>;
@@ -65,6 +68,9 @@ declare global {
             autoGenerateName?: boolean;
             autoApproveByDefault?: boolean;
           };
+          projects?: {
+            defaultDirectory?: string;
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -84,6 +90,9 @@ declare global {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
           };
+          projects?: {
+            defaultDirectory: string;
+          };
         };
         error?: string;
       }>;
@@ -98,6 +107,7 @@ declare global {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        skipResume?: boolean;
       }) => Promise<{ ok: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
@@ -154,7 +164,7 @@ declare global {
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;
-        workspaceName: string;
+        taskName: string;
         projectId: string;
         autoApprove?: boolean;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
@@ -218,7 +228,7 @@ declare global {
         rootPath?: string;
         error?: string;
       }>;
-      getGitStatus: (workspacePath: string) => Promise<{
+      getGitStatus: (taskPath: string) => Promise<{
         success: boolean;
         changes?: Array<{
           path: string;
@@ -230,7 +240,7 @@ declare global {
         }>;
         error?: string;
       }>;
-      getFileDiff: (args: { workspacePath: string; filePath: string }) => Promise<{
+      getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         diff?: {
           lines: Array<{
@@ -241,17 +251,17 @@ declare global {
         };
         error?: string;
       }>;
-      stageFile: (args: { workspacePath: string; filePath: string }) => Promise<{
+      stageFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         error?: string;
       }>;
-      revertFile: (args: { workspacePath: string; filePath: string }) => Promise<{
+      revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         action?: 'unstaged' | 'reverted';
         error?: string;
       }>;
       gitCommitAndPush: (args: {
-        workspacePath: string;
+        taskPath: string;
         commitMessage?: string;
         createBranchIfOnDefault?: boolean;
         branchPrefix?: string;
@@ -261,14 +271,14 @@ declare global {
         output?: string;
         error?: string;
       }>;
-      generatePrContent: (args: { workspacePath: string; base?: string }) => Promise<{
+      generatePrContent: (args: { taskPath: string; base?: string }) => Promise<{
         success: boolean;
         title?: string;
         description?: string;
         error?: string;
       }>;
       createPullRequest: (args: {
-        workspacePath: string;
+        taskPath: string;
         title?: string;
         body?: string;
         base?: string;
@@ -282,7 +292,7 @@ declare global {
         output?: string;
         error?: string;
       }>;
-      getPrStatus: (args: { workspacePath: string }) => Promise<{
+      getPrStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         pr?: {
           number: number;
@@ -300,7 +310,7 @@ declare global {
         } | null;
         error?: string;
       }>;
-      getBranchStatus: (args: { workspacePath: string }) => Promise<{
+      getBranchStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         branch?: string;
         defaultBranch?: string;
@@ -313,7 +323,7 @@ declare global {
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
       }>;
-      loadContainerConfig: (workspacePath: string) => Promise<
+      loadContainerConfig: (taskPath: string) => Promise<
         | {
             ok: true;
             config: ResolvedContainerConfig;
@@ -336,8 +346,8 @@ declare global {
           }
       >;
       startContainerRun: (args: {
-        workspaceId: string;
-        workspacePath: string;
+        taskId: string;
+        taskPath: string;
         runId?: string;
         mode?: RunnerMode;
       }) => Promise<
@@ -362,7 +372,7 @@ declare global {
             };
           }
       >;
-      stopContainerRun: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+      stopContainerRun: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
         app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
@@ -442,11 +452,7 @@ declare global {
       ) => Promise<{ success: boolean; error?: string }>;
       fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
       // Attachments
-      saveAttachment: (args: {
-        workspacePath: string;
-        srcPath: string;
-        subdir?: string;
-      }) => Promise<{
+      saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) => Promise<{
         success: boolean;
         absPath?: string;
         relPath?: string;
@@ -499,6 +505,35 @@ declare global {
         repoUrl: string,
         localPath: string
       ) => Promise<{ success: boolean; error?: string }>;
+      githubGetOwners: () => Promise<{
+        success: boolean;
+        owners?: Array<{ login: string; type: 'User' | 'Organization' }>;
+        error?: string;
+      }>;
+      githubValidateRepoName: (
+        name: string,
+        owner: string
+      ) => Promise<{
+        success: boolean;
+        valid?: boolean;
+        exists?: boolean;
+        error?: string;
+      }>;
+      githubCreateNewProject: (params: {
+        name: string;
+        description?: string;
+        owner: string;
+        isPrivate: boolean;
+        gitignoreTemplate?: string;
+      }) => Promise<{
+        success: boolean;
+        projectPath?: string;
+        repoUrl?: string;
+        fullName?: string;
+        defaultBranch?: string;
+        githubRepoCreated?: boolean;
+        error?: string;
+      }>;
       githubCheckCLIInstalled: () => Promise<boolean>;
       githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
       githubListPullRequests: (
@@ -509,25 +544,25 @@ declare global {
         projectId: string;
         prNumber: number;
         prTitle?: string;
-        workspaceName?: string;
+        taskName?: string;
         branchName?: string;
       }) => Promise<{
         success: boolean;
         worktree?: any;
         branchName?: string;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
       // Linear integration
       linearCheckConnection?: () => Promise<{
         connected: boolean;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       linearSaveToken?: (token: string) => Promise<{
         success: boolean;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       linearClearToken?: () => Promise<{
@@ -588,10 +623,10 @@ declare global {
       // Database operations
       getProjects: () => Promise<any[]>;
       saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
-      getWorkspaces: (projectId?: string) => Promise<any[]>;
-      saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
+      getTasks: (projectId?: string) => Promise<any[]>;
+      saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-      deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+      deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
       // Message operations
       saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
@@ -599,7 +634,7 @@ declare global {
         conversationId: string
       ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
       getOrCreateDefaultConversation: (
-        workspaceId: string
+        taskId: string
       ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
 
       // Debug helpers
@@ -635,6 +670,7 @@ export interface ElectronAPI {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
+    skipResume?: boolean;
   }) => Promise<{ ok: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
@@ -659,7 +695,7 @@ export interface ElectronAPI {
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;
-    workspaceName: string;
+    taskName: string;
     projectId: string;
     autoApprove?: boolean;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
@@ -728,7 +764,7 @@ export interface ElectronAPI {
     error?: string;
   }>;
   createPullRequest: (args: {
-    workspacePath: string;
+    taskPath: string;
     title?: string;
     body?: string;
     base?: string;
@@ -866,13 +902,13 @@ export interface ElectronAPI {
     projectId: string;
     prNumber: number;
     prTitle?: string;
-    workspaceName?: string;
+    taskName?: string;
     branchName?: string;
   }) => Promise<{
     success: boolean;
     worktree?: any;
     branchName?: string;
-    workspaceName?: string;
+    taskName?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
@@ -894,12 +930,12 @@ export interface ElectronAPI {
   // Linear integration
   linearCheckConnection?: () => Promise<{
     connected: boolean;
-    workspaceName?: string;
+    taskName?: string;
     error?: string;
   }>;
   linearSaveToken?: (token: string) => Promise<{
     success: boolean;
-    workspaceName?: string;
+    taskName?: string;
     error?: string;
   }>;
   linearClearToken?: () => Promise<{
@@ -923,10 +959,10 @@ export interface ElectronAPI {
   // Database operations
   getProjects: () => Promise<any[]>;
   saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
-  getWorkspaces: (projectId?: string) => Promise<any[]>;
-  saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
+  getTasks: (projectId?: string) => Promise<any[]>;
+  saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-  deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+  deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
@@ -934,7 +970,7 @@ export interface ElectronAPI {
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
   getOrCreateDefaultConversation: (
-    workspaceId: string
+    taskId: string
   ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
 
   // Debug helpers

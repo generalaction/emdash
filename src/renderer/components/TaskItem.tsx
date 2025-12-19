@@ -1,14 +1,14 @@
 import React from 'react';
 import { GitBranch, ArrowUpRight } from 'lucide-react';
-import WorkspaceDeleteButton from './WorkspaceDeleteButton';
-import { useWorkspaceChanges } from '../hooks/useWorkspaceChanges';
-import { ChangesBadge } from './WorkspaceChanges';
+import TaskDeleteButton from './TaskDeleteButton';
+import { useTaskChanges } from '../hooks/useTaskChanges';
+import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
-import { useWorkspaceBusy } from '../hooks/useWorkspaceBusy';
+import { useTaskBusy } from '../hooks/useTaskBusy';
 import PrPreviewTooltip from './PrPreviewTooltip';
 
-interface Workspace {
+interface Task {
   id: string;
   name: string;
   branch: string;
@@ -17,43 +17,36 @@ interface Workspace {
   agentId?: string;
 }
 
-interface WorkspaceItemProps {
-  workspace: Workspace;
+interface TaskItemProps {
+  task: Task;
   onDelete?: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
   showDelete?: boolean;
 }
 
-export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
-  workspace,
-  onDelete,
-  showDelete,
-}) => {
-  const { totalAdditions, totalDeletions, isLoading } = useWorkspaceChanges(
-    workspace.path,
-    workspace.id
-  );
-  const { pr } = usePrStatus(workspace.path);
-  const isRunning = useWorkspaceBusy(workspace.id);
+export const TaskItem: React.FC<TaskItemProps> = ({ task, onDelete, showDelete }) => {
+  const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
+  const { pr } = usePrStatus(task.path);
+  const isRunning = useTaskBusy(task.id);
 
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   return (
     <div className="flex min-w-0 items-center justify-between">
       <div className="flex min-w-0 flex-1 items-center gap-2 py-1">
-        {isRunning || workspace.status === 'running' ? (
+        {isRunning || task.status === 'running' ? (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         ) : (
           <GitBranch className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
-        <span className="block truncate text-xs font-medium text-foreground">{workspace.name}</span>
+        <span className="block truncate text-xs font-medium text-foreground">{task.name}</span>
       </div>
       <div className="relative flex flex-shrink-0 items-center pl-6">
         {showDelete && onDelete ? (
-          <WorkspaceDeleteButton
-            workspaceName={workspace.name}
-            workspaceId={workspace.id}
-            workspacePath={workspace.path}
-            workspaceBranch={workspace.branch}
+          <TaskDeleteButton
+            taskName={task.name}
+            taskId={task.id}
+            taskPath={task.path}
+            taskBranch={task.branch}
             onConfirm={async (opts) => {
               try {
                 setIsDeleting(true);
@@ -63,9 +56,9 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
               }
             }}
             isDeleting={isDeleting}
-            aria-label={`Delete Task ${workspace.name}`}
+            aria-label={`Delete Task ${task.name}`}
             className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 ${
-              isDeleting ? 'opacity-100' : 'opacity-0 group-hover/workspace:opacity-100'
+              isDeleting ? 'opacity-100' : 'opacity-0 group-hover/task:opacity-100'
             }`}
           />
         ) : null}

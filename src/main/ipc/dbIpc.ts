@@ -23,21 +23,21 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:getWorkspaces', async (_, projectId?: string) => {
+  ipcMain.handle('db:getTasks', async (_, projectId?: string) => {
     try {
-      return await databaseService.getWorkspaces(projectId);
+      return await databaseService.getTasks(projectId);
     } catch (error) {
-      log.error('Failed to get workspaces:', error);
+      log.error('Failed to get tasks:', error);
       return [];
     }
   });
 
-  ipcMain.handle('db:saveWorkspace', async (_, workspace: any) => {
+  ipcMain.handle('db:saveTask', async (_, task: any) => {
     try {
-      await databaseService.saveWorkspace(workspace);
+      await databaseService.saveTask(task);
       return { success: true };
     } catch (error) {
-      log.error('Failed to save workspace:', error);
+      log.error('Failed to save task:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -62,9 +62,9 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:getConversations', async (_, workspaceId: string) => {
+  ipcMain.handle('db:getConversations', async (_, taskId: string) => {
     try {
-      const conversations = await databaseService.getConversations(workspaceId);
+      const conversations = await databaseService.getConversations(taskId);
       return { success: true, conversations };
     } catch (error) {
       log.error('Failed to get conversations:', error);
@@ -72,9 +72,9 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:getOrCreateDefaultConversation', async (_, workspaceId: string) => {
+  ipcMain.handle('db:getOrCreateDefaultConversation', async (_, taskId: string) => {
     try {
-      const conversation = await databaseService.getOrCreateDefaultConversation(workspaceId);
+      const conversation = await databaseService.getOrCreateDefaultConversation(taskId);
       return { success: true, conversation };
     } catch (error) {
       log.error('Failed to get or create default conversation:', error);
@@ -112,19 +112,19 @@ export function registerDatabaseIpc() {
     }
   });
 
-  ipcMain.handle('db:deleteWorkspace', async (_, workspaceId: string) => {
+  ipcMain.handle('db:deleteTask', async (_, taskId: string) => {
     try {
-      // Stop any running Docker container for this workspace before deletion
-      const stopResult = await containerRunnerService.stopRun(workspaceId);
+      // Stop any running Docker container for this task before deletion
+      const stopResult = await containerRunnerService.stopRun(taskId);
       if (!stopResult.ok) {
-        // Log but don't fail workspace deletion if container stop fails
-        log.warn('Failed to stop container during workspace deletion:', stopResult.error);
+        // Log but don't fail task deletion if container stop fails
+        log.warn('Failed to stop container during task deletion:', stopResult.error);
       }
 
-      await databaseService.deleteWorkspace(workspaceId);
+      await databaseService.deleteTask(taskId);
       return { success: true };
     } catch (error) {
-      log.error('Failed to delete workspace:', error);
+      log.error('Failed to delete task:', error);
       return { success: false, error: (error as Error).message };
     }
   });

@@ -59,7 +59,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
     if (!container) return;
 
     const session = terminalSessionRegistry.attach({
-      workspaceId: id,
+      taskId: id,
       container,
       cwd,
       shell,

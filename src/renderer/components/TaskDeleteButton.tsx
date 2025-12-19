@@ -18,23 +18,24 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { cn } from '@/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
+import { isActivePr } from '../lib/prStatus';
 
 type Props = {
-  workspaceName: string;
-  workspaceId: string;
-  workspacePath: string;
-  workspaceBranch?: string;
+  taskName: string;
+  taskId: string;
+  taskPath: string;
+  taskBranch?: string;
   onConfirm: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
 };
 
-export const WorkspaceDeleteButton: React.FC<Props> = ({
-  workspaceName,
-  workspaceId,
-  workspacePath,
-  workspaceBranch,
+export const TaskDeleteButton: React.FC<Props> = ({
+  taskName,
+  taskId,
+  taskPath,
+  taskBranch,
   onConfirm,
   className,
   'aria-label': ariaLabel = 'Delete Task',
@@ -44,11 +45,11 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   const [acknowledge, setAcknowledge] = React.useState(false);
   const [deleteRemoteBranch, setDeleteRemoteBranch] = React.useState(false);
   const targets = useMemo(
-    () => [{ id: workspaceId, name: workspaceName, path: workspacePath }],
-    [workspaceId, workspaceName, workspacePath]
+    () => [{ id: taskId, name: taskName, path: taskPath }],
+    [taskId, taskName, taskPath]
   );
-  const { risks, loading } = useDeleteRisks(targets, open);
-  const status = risks[workspaceId] || {
+  const { risks, loading, hasData } = useDeleteRisks(targets, open);
+  const status = risks[taskId] || {
     staged: 0,
     unstaged: 0,
     untracked: 0,
@@ -58,13 +59,13 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
     pr: null,
   };
 
-  const risky =
+  const risky: boolean =
     status.staged > 0 ||
     status.unstaged > 0 ||
     status.untracked > 0 ||
     status.ahead > 0 ||
     !!status.error ||
-    !!status.pr;
+    !!(status.pr && isActivePr(status.pr));
   const disableDelete: boolean = Boolean(isDeleting || loading) || (risky && !acknowledge);
 
   React.useEffect(() => {
@@ -74,7 +75,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
     }
   }, [open]);
 
-  const remoteBranchLabel = (workspaceBranch || '')
+  const remoteBranchLabel = (taskBranch || '')
     .replace(/^refs\/heads\//, '')
     .replace(/^refs\/remotes\/origin\//, 'origin/')
     .replace(/^origin\//, '');
@@ -132,7 +133,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                 <p className="font-medium">Unmerged or unpushed work detected</p>
                 <div className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
                   <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                  <span className="font-medium">{workspaceName}</span>
+                  <span className="font-medium">{taskName}</span>
                   <span className="text-muted-foreground">—</span>
                   <span>
                     {[
@@ -158,8 +159,8 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
                       'Status unavailable'}
                   </span>
                 </div>
-                {status.pr ? (
-                  <DeletePrNotice workspaces={[{ name: workspaceName, pr: status.pr }]} />
+                {status.pr && isActivePr(status.pr) ? (
+                  <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} />
                 ) : null}
               </motion.div>
             ) : null}
@@ -185,7 +186,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
             ) : null}
           </AnimatePresence>
         </div>
-        {workspaceBranch ? (
+        {taskBranch ? (
           <motion.label
             className="flex items-center justify-between gap-3 rounded-xl bg-muted/15 px-4 py-3"
             initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -202,7 +203,7 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
             </span>
             <Switch
               checked={deleteRemoteBranch}
-              disabled={isDeleting || loading}
+              disabled={isDeleting || loading || !hasData}
               onCheckedChange={setDeleteRemoteBranch}
             />
           </motion.label>
@@ -229,4 +230,4 @@ export const WorkspaceDeleteButton: React.FC<Props> = ({
   );
 };
 
-export default WorkspaceDeleteButton;
+export default TaskDeleteButton;

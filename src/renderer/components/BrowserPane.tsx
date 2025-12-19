@@ -24,10 +24,10 @@ const DEFAULT_PREVIEW_URLS = [
 ];
 
 const BrowserPane: React.FC<{
-  workspaceId?: string | null;
-  workspacePath?: string | null;
+  taskId?: string | null;
+  taskPath?: string | null;
   overlayActive?: boolean;
-}> = ({ workspaceId, overlayActive = false }) => {
+}> = ({ taskId, overlayActive = false }) => {
   const {
     isOpen,
     url,
@@ -65,11 +65,11 @@ const BrowserPane: React.FC<{
     if (typeof url === 'string') setAddress(url);
   }, [url]);
 
-  const prevWorkspaceIdRef = React.useRef<string | null>(null);
-  const lastWorkspaceUrlRef = React.useRef<string | null>(null);
+  const prevTaskIdRef = React.useRef<string | null>(null);
+  const lastTaskUrlRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    const prev = prevWorkspaceIdRef.current;
-    const cur = (workspaceId || '').trim() || null;
+    const prev = prevTaskIdRef.current;
+    const cur = (taskId || '').trim() || null;
 
     if (prev && cur && prev !== cur) {
       try {
@@ -77,8 +77,8 @@ const BrowserPane: React.FC<{
         (window as any).electronAPI?.browserClear?.();
         (window as any).electronAPI?.browserHide?.();
         setRunning(prev, false);
-        // Reset workspace URL tracking to force reload
-        lastWorkspaceUrlRef.current = null;
+        // Reset task URL tracking to force reload
+        lastTaskUrlRef.current = null;
       } catch {}
     }
 
@@ -96,13 +96,13 @@ const BrowserPane: React.FC<{
       } catch {}
     }
 
-    prevWorkspaceIdRef.current = cur;
-  }, [workspaceId, clearUrl, hideSpinner]);
+    prevTaskIdRef.current = cur;
+  }, [taskId, clearUrl, hideSpinner]);
 
   React.useEffect(() => {
     const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
       try {
-        if (!data || !workspaceId || data.workspaceId !== workspaceId) return;
+        if (!data || !taskId || data.taskId !== taskId) return;
         if (data.type === 'setup') {
           if (data.status === 'line' && data.line) {
             setLines((prev) => {
@@ -115,9 +115,9 @@ const BrowserPane: React.FC<{
           }
         }
         if (data.type === 'url' && data.url) {
-          // CRITICAL: Only process URL events for the current workspaceId
+          // CRITICAL: Only process URL events for the current taskId
           // This ensures we don't load URLs from other worktrees
-          if (!workspaceId || data.workspaceId !== workspaceId) {
+          if (!taskId || data.taskId !== taskId) {
             return;
           }
           setFailed(false);
@@ -126,12 +126,12 @@ const BrowserPane: React.FC<{
           showSpinner();
           navigate(String(data.url));
           try {
-            setLastUrl(String(workspaceId), String(data.url));
+            setLastUrl(String(taskId), String(data.url));
           } catch {}
         }
         if (data.type === 'exit') {
           try {
-            setRunning(String(workspaceId), false);
+            setRunning(String(taskId), false);
           } catch {}
           hideSpinner();
         }
@@ -142,7 +142,7 @@ const BrowserPane: React.FC<{
         off?.();
       } catch {}
     };
-  }, [workspaceId, navigate, showSpinner, hideSpinner]);
+  }, [taskId, navigate, showSpinner, hideSpinner]);
 
   // Verify URL reachability with TCP probe (30s grace window for slow compilers)
   React.useEffect(() => {
@@ -243,7 +243,7 @@ const BrowserPane: React.FC<{
       visibilityTimeoutRef.current = null;
     }
 
-    const shouldShow = isOpen && !overlayActive && !overlayRaised && !!url && !!workspaceId;
+    const shouldShow = isOpen && !overlayActive && !overlayRaised && !!url && !!taskId;
 
     if (!shouldShow) {
       visibilityTimeoutRef.current = setTimeout(() => {
@@ -308,28 +308,28 @@ const BrowserPane: React.FC<{
         resizeObserver?.disconnect?.();
       } catch {}
     };
-  }, [isOpen, url, computeBounds, overlayActive, overlayRaised, hasBoundsChanged, workspaceId]);
+  }, [isOpen, url, computeBounds, overlayActive, overlayRaised, hasBoundsChanged, taskId]);
 
   React.useEffect(() => {
     if (isOpen && !url) setAddress('');
   }, [isOpen, url]);
 
   const lastUrlRef = React.useRef<string | null>(null);
-  const lastWorkspaceIdRef = React.useRef<string | null | undefined>(null);
+  const lastTaskIdRef2 = React.useRef<string | null | undefined>(null);
   React.useEffect(() => {
-    if (workspaceId !== lastWorkspaceIdRef.current) {
+    if (taskId !== lastTaskIdRef2.current) {
       lastUrlRef.current = null;
-      lastWorkspaceIdRef.current = workspaceId || null;
-      lastWorkspaceUrlRef.current = null;
+      lastTaskIdRef2.current = taskId || null;
+      lastTaskUrlRef.current = null;
     }
 
-    if (isOpen && url && !overlayActive && !overlayRaised && workspaceId) {
-      const workspaceUrlKey = `${workspaceId}:${url}`;
-      // Force reload if workspace changed or URL changed
-      const isWorkspaceChange = lastWorkspaceUrlRef.current === null;
-      if (lastWorkspaceUrlRef.current !== workspaceUrlKey || lastUrlRef.current !== url) {
+    if (isOpen && url && !overlayActive && !overlayRaised && taskId) {
+      const taskUrlKey = `${taskId}:${url}`;
+      // Force reload if task changed or URL changed
+      const isTaskChange = lastTaskUrlRef.current === null;
+      if (lastTaskUrlRef.current !== taskUrlKey || lastUrlRef.current !== url) {
         lastUrlRef.current = url;
-        lastWorkspaceUrlRef.current = workspaceUrlKey;
+        lastTaskUrlRef.current = taskUrlKey;
 
         try {
           (window as any).electronAPI?.browserClear?.();
@@ -337,14 +337,14 @@ const BrowserPane: React.FC<{
 
         const timeoutId = setTimeout(() => {
           try {
-            // Force reload when workspace changes to ensure fresh content
-            (window as any).electronAPI?.browserLoadURL?.(url, isWorkspaceChange);
+            // Force reload when task changes to ensure fresh content
+            (window as any).electronAPI?.browserLoadURL?.(url, isTaskChange);
           } catch {}
         }, URL_LOAD_DELAY_MS);
         return () => clearTimeout(timeoutId);
       }
     }
-  }, [isOpen, url, overlayActive, overlayRaised, workspaceId]);
+  }, [isOpen, url, overlayActive, overlayRaised, taskId]);
 
   React.useEffect(() => {
     let dragging = false;
@@ -418,7 +418,7 @@ const BrowserPane: React.FC<{
       captureTelemetry('browser_preview_closed');
     });
     try {
-      const id = (workspaceId || '').trim();
+      const id = (taskId || '').trim();
       if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
     } catch {}
     try {
@@ -429,7 +429,7 @@ const BrowserPane: React.FC<{
     } catch {}
     setFailed(false);
     close();
-  }, [workspaceId, clearUrl, close]);
+  }, [taskId, clearUrl, close]);
 
   return (
     <div
@@ -530,7 +530,7 @@ const BrowserPane: React.FC<{
         </div>
         {!busy && url && lines.length > 0 && (
           <div className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
-            <span className="font-medium">Workspace Preview</span>
+            <span className="font-medium">Task Preview</span>
             <div className="ml-auto inline-flex items-center gap-2 text-muted-foreground">
               {lines.length ? (
                 <span className="max-w-[360px] truncate">{lines[lines.length - 1]}</span>

@@ -8,9 +8,18 @@ type Props = {
   description?: string;
   actionLabel?: string;
   onAction?: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
 };
 
-const SidebarEmptyState: React.FC<Props> = ({ title, description, actionLabel, onAction }) => {
+const SidebarEmptyState: React.FC<Props> = ({
+  title,
+  description,
+  actionLabel,
+  onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
+}) => {
   return (
     <div>
       <Card className="bg-muted/20">
@@ -20,18 +29,31 @@ const SidebarEmptyState: React.FC<Props> = ({ title, description, actionLabel, o
             <CardDescription className="text-xs leading-relaxed">{description}</CardDescription>
           ) : null}
         </CardHeader>
-        {actionLabel && onAction ? (
-          <CardContent className="pt-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full justify-center"
-              onClick={onAction}
-            >
-              <FolderOpen className="mr-2 h-4 w-4" />
-              {actionLabel}
-            </Button>
+        {(actionLabel && onAction) || (secondaryActionLabel && onSecondaryAction) ? (
+          <CardContent className="space-y-2 pt-0">
+            {actionLabel && onAction && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-center"
+                onClick={onAction}
+              >
+                <FolderOpen className="mr-2 h-4 w-4" />
+                {actionLabel}
+              </Button>
+            )}
+            {secondaryActionLabel && onSecondaryAction && (
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                className="w-full justify-center"
+                onClick={onSecondaryAction}
+              >
+                {secondaryActionLabel}
+              </Button>
+            )}
           </CardContent>
         ) : null}
       </Card>

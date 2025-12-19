@@ -17,6 +17,7 @@ export function useGithubAuth() {
   );
   const [user, setUser] = useState<GithubUser | null>(() => cachedGithubStatus?.user ?? null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState<boolean>(() => !!cachedGithubStatus);
 
   const syncCache = useCallback(
     (next: { installed: boolean; authenticated: boolean; user: GithubUser | null }) => {
@@ -24,6 +25,7 @@ export function useGithubAuth() {
       setInstalled(next.installed);
       setAuthenticated(next.authenticated);
       setUser(next.user);
+      setIsInitialized(true);
     },
     []
   );
@@ -70,8 +72,15 @@ export function useGithubAuth() {
   }, [syncCache]);
 
   useEffect(() => {
-    if (cachedGithubStatus) return;
-    checkStatus();
+    // If we have cached status, mark as initialized but still refresh in background
+    if (cachedGithubStatus) {
+      setIsInitialized(true);
+      // Still refresh in background to ensure we have the latest status
+      void checkStatus();
+      return;
+    }
+    // No cache - check status immediately
+    void checkStatus();
   }, [checkStatus]);
 
   return {
@@ -79,6 +88,7 @@ export function useGithubAuth() {
     authenticated,
     user,
     isLoading,
+    isInitialized,
     checkStatus,
     login,
     logout,

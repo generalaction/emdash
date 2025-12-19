@@ -1,46 +1,25 @@
 import { useEffect, useState } from 'react';
+import { subscribeToPrStatus, refreshPrStatus } from '../lib/prStatusStore';
+import type { PrStatus } from '../lib/prStatus';
 
-export type PrStatus = {
-  number: number;
-  url: string;
-  state: 'OPEN' | 'CLOSED' | 'MERGED' | string;
-  isDraft?: boolean;
-  mergeStateStatus?: string;
-  headRefName?: string;
-  baseRefName?: string;
-  title?: string;
-  additions?: number;
-  deletions?: number;
-  changedFiles?: number;
-};
-
-export function usePrStatus(workspacePath?: string) {
+export function usePrStatus(taskPath?: string) {
   const [pr, setPr] = useState<PrStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
-    if (!workspacePath) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await window.electronAPI.getPrStatus({ workspacePath });
-      if (res?.success) {
-        setPr((res.pr as any) || null);
-      } else {
-        setError(res?.error || 'Failed to load PR status');
-      }
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
+    if (!taskPath) return;
+    const result = await refreshPrStatus(taskPath);
+    setPr(result);
   };
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspacePath]);
+    if (!taskPath) {
+      setPr(null);
+      return;
+    }
 
-  return { pr, loading, error, refresh };
+    setPr(null); // Clear stale data before subscribing to new task
+    return subscribeToPrStatus(taskPath, setPr);
+  }, [taskPath]);
+
+  return { pr, refresh };
 }
