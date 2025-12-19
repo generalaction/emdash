@@ -427,10 +427,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                       </TooltipTrigger>
                       <TooltipContent
                         side="left"
-                        className="max-w-xs border-gray-300 bg-gray-900 px-3 py-2 text-sm text-white shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                        className="max-w-xs border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-lg dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                       >
                         <p className="font-medium">Stage file for commit</p>
-                        <p className="mt-0.5 text-xs text-gray-300">
+                        <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
                           Add this file to the staging area so it will be included in the next
                           commit
                         </p>
@@ -457,12 +457,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                     </TooltipTrigger>
                     <TooltipContent
                       side="left"
-                      className="max-w-xs border-gray-300 bg-gray-900 px-3 py-2 text-sm text-white shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                      className="max-w-xs border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-lg dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                     >
                       {change.isStaged ? (
                         <>
                           <p className="font-medium">Unstage file</p>
-                          <p className="mt-0.5 text-xs text-gray-300">
+                          <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
                             Remove this file from staging. Click again to discard all changes to
                             this file.
                           </p>
@@ -470,7 +470,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                       ) : (
                         <>
                           <p className="font-medium">Revert file changes</p>
-                          <p className="mt-0.5 text-xs text-gray-300">
+                          <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
                             Discard all uncommitted changes to this file and restore it to the last
                             committed version
                           </p>
