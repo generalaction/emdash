@@ -1987,7 +1987,6 @@ const AppContent: React.FC = () => {
                   />
                 </ResizablePanel>
                 <ResizableHandle
-                  withHandle
                   className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                 />
                 <ResizablePanel
@@ -2001,7 +2000,6 @@ const AppContent: React.FC = () => {
                   </div>
                 </ResizablePanel>
                 <ResizableHandle
-                  withHandle
                   className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                 />
                 <ResizablePanel
