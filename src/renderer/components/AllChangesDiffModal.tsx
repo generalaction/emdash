@@ -26,10 +26,13 @@ interface AllChangesDiffModalProps {
 interface FileDiffData {
   original: string;
   modified: string;
+  initialModified: string;
   language: string;
   loading: boolean;
   error: string | null;
   expanded: boolean;
+  saving?: boolean;
+  saveError?: string | null;
 }
 
 export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
@@ -46,6 +49,61 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
   const isDark = effectiveTheme === 'dark';
   const editorRefs = useRef<Map<string, monaco.editor.IStandaloneDiffEditor>>(new Map());
+  const changeDisposables = useRef<Map<string, monaco.IDisposable>>(new Map());
+
+  const updateFileData = (filePath: string, updater: (data: FileDiffData) => FileDiffData) => {
+    setFileData((prev) => {
+      const existing = prev.get(filePath);
+      if (!existing) return prev;
+      const next = new Map(prev);
+      next.set(filePath, updater(existing));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      changeDisposables.current.forEach((d) => {
+        try {
+          d.dispose();
+        } catch {
+          // ignore
+        }
+      });
+      changeDisposables.current.clear();
+      editorRefs.current.clear();
+    };
+  }, []);
+
+  const handleSave = async (filePath: string) => {
+    const current = fileData.get(filePath);
+    if (!current || current.loading || current.error) return;
+    updateFileData(filePath, (data) => ({ ...data, saving: true, saveError: null }));
+    try {
+      const res = await window.electronAPI.fsWriteFile(taskPath, filePath, current.modified, true);
+      if (!res?.success) {
+        throw new Error(res?.error || 'Failed to save file');
+      }
+      updateFileData(filePath, (data) => ({
+        ...data,
+        initialModified: data.modified,
+        saving: false,
+        saveError: null,
+      }));
+      toast({ title: 'Saved', description: filePath });
+      if (onRefreshChanges) {
+        await onRefreshChanges();
+      }
+    } catch (error: any) {
+      const message = error?.message || 'Failed to save file';
+      updateFileData(filePath, (data) => ({ ...data, saving: false, saveError: message }));
+      toast({
+        title: 'Save failed',
+        description: message,
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Load file data when modal opens or files change
   useEffect(() => {
@@ -65,6 +123,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           next.set(filePath, {
             original: '',
             modified: '',
+            initialModified: '',
             language: 'plaintext',
             loading: false,
             error: 'Binary file - diff not available',
@@ -81,6 +140,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         next.set(filePath, {
           original: '',
           modified: '',
+          initialModified: '',
           language,
           loading: true,
           error: null,
@@ -145,6 +205,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           next.set(filePath, {
             original: originalContent,
             modified: modifiedContent,
+            initialModified: modifiedContent,
             language,
             loading: false,
             error: null,
@@ -158,6 +219,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           next.set(filePath, {
             original: '',
             modified: '',
+            initialModified: '',
             language,
             loading: false,
             error: error?.message || 'Failed to load file diff',
@@ -392,10 +454,13 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         next.set(filePath, {
           original: '',
           modified: '',
+          initialModified: '',
           language: getMonacoLanguageId(filePath),
           loading: true,
           error: null,
           expanded: true,
+          saving: false,
+          saveError: null,
         });
       }
       return next;
@@ -428,6 +493,21 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     editor: monaco.editor.IStandaloneDiffEditor
   ) => {
     editorRefs.current.set(filePath, editor);
+    try {
+      const modifiedEditor = editor.getModifiedEditor();
+      changeDisposables.current.get(filePath)?.dispose();
+      const disposable = modifiedEditor.onDidChangeModelContent(() => {
+        const value = modifiedEditor.getValue() ?? '';
+        updateFileData(filePath, (data) => ({
+          ...data,
+          modified: value,
+          saveError: null,
+        }));
+      });
+      changeDisposables.current.set(filePath, disposable);
+    } catch {
+      // best effort
+    }
 
     // Define themes when editor is ready and FORCE apply theme
     try {
@@ -553,6 +633,8 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                       const isExpanded = data?.expanded ?? true; // Default to expanded
                       const isLoading = data?.loading ?? true;
                       const hasError = data?.error !== null;
+                      const isDirty = data ? data.modified !== data.initialModified : false;
+                      const isSaving = data?.saving ?? false;
 
                       return (
                         <div
@@ -606,6 +688,29 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                               </div>
                             </button>
                           </div>
+                          {!hasError && (isDirty || isSaving) && (
+                            <div className="flex items-center justify-between px-5 py-2 text-xs text-gray-500 dark:text-gray-400">
+                              <div className="flex items-center gap-2">
+                                <span>{isDirty ? 'Unsaved changes' : 'No unsaved changes'}</span>
+                                {data?.saveError ? (
+                                  <span className="text-rose-500 dark:text-rose-400">
+                                    • {data.saveError}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <button
+                                onClick={() => void handleSave(file.path)}
+                                disabled={!isDirty || isSaving}
+                                className={`inline-flex items-center rounded-md px-3 py-1 text-sm font-medium transition ${
+                                  !isDirty || isSaving
+                                    ? 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                                    : 'bg-gray-600 text-white hover:bg-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600'
+                                }`}
+                              >
+                                {isSaving ? 'Saving…' : 'Save'}
+                              </button>
+                            </div>
+                          )}
 
                           {/* File diff content */}
                           {isExpanded && (
@@ -633,7 +738,8 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                                     modified={data.modified}
                                     theme={isDark ? 'custom-diff-dark' : 'custom-diff-light'}
                                     options={{
-                                      readOnly: true, // Read-only view
+                                      readOnly: false, // Allow edits on modified pane
+                                      originalEditable: false,
                                       renderSideBySide: false, // Unified/inline view
                                       fontSize: 13,
                                       lineHeight: 20,
