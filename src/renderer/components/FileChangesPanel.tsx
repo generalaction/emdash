@@ -8,7 +8,6 @@ import ChangesDiffModal from './ChangesDiffModal';
 import AllChangesDiffModal from './AllChangesDiffModal';
 import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
-import PrStatusSkeleton from './ui/pr-status-skeleton';
 import FileTypeIcon from './ui/file-type-icon';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Plus, Undo2, ArrowUpRight, FileDiff } from 'lucide-react';
@@ -31,7 +30,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
   const hasStagedChanges = fileChanges.some((change) => change.isStaged);
-  const { pr, loading: prLoading, refresh: refreshPr } = usePrStatus(taskId);
+  const { pr, refresh: refreshPr } = usePrStatus(taskId);
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
 
@@ -318,9 +317,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
               <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Changes</span>
             </div>
             <div className="flex items-center gap-2">
-              {prLoading ? (
-                <PrStatusSkeleton />
-              ) : pr ? (
+              {pr ? (
                 <button
                   type="button"
                   onClick={(e) => {

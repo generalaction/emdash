@@ -1,4 +1,4 @@
-import type { PrStatus } from '../hooks/usePrStatus';
+import type { PrStatus } from './prStatus';
 
 type Listener = (pr: PrStatus | null) => void;
 
