@@ -136,15 +136,42 @@ if (process.platform === 'darwin' && !app.isPackaged) {
 // App bootstrap
 app.whenReady().then(async () => {
   // Initialize database
+  let dbInitOk = false;
+  let dbInitErrorType: string | undefined;
   try {
     await databaseService.initialize();
-    // console.log('Database initialized successfully');
+    dbInitOk = true;
+    console.log('Database initialized successfully');
   } catch (error) {
-    // console.error('Failed to initialize database:', error);
+    const err = error as unknown;
+    const asObj = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
+    const code = asObj && typeof asObj.code === 'string' ? asObj.code : undefined;
+    const name = asObj && typeof asObj.name === 'string' ? asObj.name : undefined;
+    dbInitErrorType = code || name || 'unknown';
+    console.error('Failed to initialize database:', error);
+    // Don't prevent app startup, but log the error clearly
   }
 
   // Initialize telemetry (privacy-first, anonymous)
   telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
+  try {
+    const summary = databaseService.getLastMigrationSummary();
+    const toBucket = (n: number) => (n === 0 ? '0' : n === 1 ? '1' : n <= 3 ? '2-3' : '>3');
+    telemetry.capture('db_setup', {
+      outcome: dbInitOk ? 'success' : 'failure',
+      ...(dbInitOk
+        ? {
+            applied_migrations: summary?.appliedCount ?? 0,
+            applied_migrations_bucket: toBucket(summary?.appliedCount ?? 0),
+            recovered: summary?.recovered === true,
+          }
+        : {
+            error_type: dbInitErrorType ?? 'unknown',
+          }),
+    });
+  } catch {
+    // telemetry must never crash the app
+  }
 
   // Best-effort: capture a coarse snapshot of project/task counts (no names/paths)
   try {
