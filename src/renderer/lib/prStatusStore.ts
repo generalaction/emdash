@@ -1,25 +1,16 @@
-import type { PrInfo } from './prStatus';
+import type { PrStatus } from '../hooks/usePrStatus';
 
-type PrData = PrInfo & {
-  mergeStateStatus?: string;
-  headRefName?: string;
-  baseRefName?: string;
-  additions?: number;
-  deletions?: number;
-  changedFiles?: number;
-};
+type Listener = (pr: PrStatus | null) => void;
 
-type Listener = (pr: PrData | null) => void;
-
-const cache = new Map<string, PrData | null>();
+const cache = new Map<string, PrStatus | null>();
 const listeners = new Map<string, Set<Listener>>();
-const pending = new Map<string, Promise<PrData | null>>();
+const pending = new Map<string, Promise<PrStatus | null>>();
 
-async function fetchPrStatus(taskPath: string): Promise<PrData | null> {
+async function fetchPrStatus(taskPath: string): Promise<PrStatus | null> {
   try {
     const res = await window.electronAPI.getPrStatus({ taskPath });
     if (res?.success && res.pr) {
-      return res.pr as PrData;
+      return res.pr as PrStatus;
     }
     return null;
   } catch (error) {
@@ -27,7 +18,7 @@ async function fetchPrStatus(taskPath: string): Promise<PrData | null> {
   }
 }
 
-export async function refreshPrStatus(taskPath: string): Promise<PrData | null> {
+export async function refreshPrStatus(taskPath: string): Promise<PrStatus | null> {
   // Deduplicate concurrent requests
   const inFlight = pending.get(taskPath);
   if (inFlight) return inFlight;
