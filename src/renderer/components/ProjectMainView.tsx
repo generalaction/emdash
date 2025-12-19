@@ -442,7 +442,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     [selectedIds, tasksInProject]
   );
   const remoteBranchSummary =
-    selectedCount === 1 ? normalizeBranchLabel(selectedTasks[0]?.branch) : `${selectedCount} branches`;
+    selectedCount === 1
+      ? normalizeBranchLabel(selectedTasks[0]?.branch)
+      : `${selectedCount} branches`;
   const [deleteStatus, setDeleteStatus] = useState<
     Record<
       string,

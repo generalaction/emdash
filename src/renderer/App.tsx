@@ -1986,9 +1986,7 @@ const AppContent: React.FC = () => {
                     isHomeView={showHomeView}
                   />
                 </ResizablePanel>
-                <ResizableHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
+                <ResizableHandle className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex" />
                 <ResizablePanel
                   className="sidebar-panel sidebar-panel--main"
                   defaultSize={defaultPanelLayout[1]}
@@ -1999,9 +1997,7 @@ const AppContent: React.FC = () => {
                     {renderMainContent()}
                   </div>
                 </ResizablePanel>
-                <ResizableHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
+                <ResizableHandle className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex" />
                 <ResizablePanel
                   ref={rightSidebarPanelRef}
                   className="sidebar-panel sidebar-panel--right"
