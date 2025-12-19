@@ -102,7 +102,9 @@ type TelemetryEvent =
   | 'app_session'
   // Agent usage (provider-level only)
   | 'agent_run_start'
-  | 'agent_run_finish';
+  | 'agent_run_finish'
+  // DB setup (privacy-safe)
+  | 'db_setup';
 
 interface InitOptions {
   installSource?: string;
@@ -223,6 +225,9 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     'duration_ms',
     'session_duration_ms',
     'outcome',
+    'applied_migrations',
+    'applied_migrations_bucket',
+    'recovered',
     'task_count',
     'task_count_bucket',
     'project_count',
