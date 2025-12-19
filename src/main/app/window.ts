@@ -18,7 +18,7 @@ export function createMainWindow(): BrowserWindow {
     height: 900,
     minWidth: 1200,
     minHeight: 800,
-    title: 'emdash',
+    title: 'Emdash',
     ...(iconPath && { icon: iconPath }),
     webPreferences: {
       nodeIntegration: false,

@@ -12,7 +12,7 @@ interface Props {
   onStart: (e: React.MouseEvent) => void | Promise<void>;
   onStop: (e: React.MouseEvent) => void | Promise<void>;
   showStop?: boolean; // optionally hide stop control (e.g., read-only view)
-  workspacePath?: string; // optional: used to detect compose and tweak tooltip copy
+  taskPath?: string; // optional: used to detect compose and tweak tooltip copy
 }
 
 export const ContainerStatusBadge: React.FC<Props> = ({
@@ -24,14 +24,14 @@ export const ContainerStatusBadge: React.FC<Props> = ({
   onStart,
   onStop,
   showStop = true,
-  workspacePath,
+  taskPath,
 }) => {
   const [hasCompose, setHasCompose] = React.useState(false);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        if (!workspacePath) return;
+        if (!taskPath) return;
         const api: any = (window as any).electronAPI;
         const candidates = [
           'docker-compose.yml',
@@ -40,7 +40,7 @@ export const ContainerStatusBadge: React.FC<Props> = ({
           'compose.yaml',
         ];
         for (const file of candidates) {
-          const res = await api?.fsRead?.(workspacePath, file, 1);
+          const res = await api?.fsRead?.(taskPath, file, 1);
           if (!cancelled && res?.success) {
             setHasCompose(true);
             return;
@@ -54,7 +54,7 @@ export const ContainerStatusBadge: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [workspacePath]);
+  }, [taskPath]);
 
   if (!active) {
     return (

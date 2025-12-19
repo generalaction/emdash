@@ -25,7 +25,7 @@ export class WorktreeService {
   private worktrees = new Map<string, WorktreeInfo>();
 
   /**
-   * Slugify workspace name to make it shell-safe
+   * Slugify task name to make it shell-safe
    */
   private slugify(name: string): string {
     return name
@@ -45,16 +45,16 @@ export class WorktreeService {
   }
 
   /**
-   * Create a new Git worktree for an agent workspace
+   * Create a new Git worktree for an agent task
    */
   async createWorktree(
     projectPath: string,
-    workspaceName: string,
+    taskName: string,
     projectId: string,
     autoApprove?: boolean
   ): Promise<WorktreeInfo> {
     try {
-      const sluggedName = this.slugify(workspaceName);
+      const sluggedName = this.slugify(taskName);
       const timestamp = Date.now();
       const { getAppSettings } = await import('../settings');
       const settings = getAppSettings();
@@ -113,7 +113,7 @@ export class WorktreeService {
 
       const worktreeInfo: WorktreeInfo = {
         id: worktreeId,
-        name: workspaceName,
+        name: taskName,
         branch: branchName,
         path: worktreePath,
         projectId,
@@ -123,7 +123,7 @@ export class WorktreeService {
 
       this.worktrees.set(worktreeInfo.id, worktreeInfo);
 
-      log.info(`Created worktree: ${workspaceName} -> ${branchName}`);
+      log.info(`Created worktree: ${taskName} -> ${branchName}`);
 
       // Push the new branch to origin and set upstream so PRs work out of the box
       if (settings?.repository?.pushOnCreate !== false) {
@@ -249,7 +249,7 @@ export class WorktreeService {
     n = n.replace(/^[./-]+/, '').replace(/[./-]+$/, '');
     // Avoid reserved ref names
     if (!n || n === 'HEAD') {
-      n = `agent/${this.slugify('workspace')}-${Date.now()}`;
+      n = `agent/${this.slugify('task')}-${Date.now()}`;
     }
     return n;
   }
@@ -411,9 +411,13 @@ export class WorktreeService {
     untrackedFiles: string[];
   }> {
     try {
-      const { stdout: status } = await execFileAsync('git', ['status', '--porcelain'], {
-        cwd: worktreePath,
-      });
+      const { stdout: status } = await execFileAsync(
+        'git',
+        ['status', '--porcelain', '--untracked-files=all'],
+        {
+          cwd: worktreePath,
+        }
+      );
 
       const stagedFiles: string[] = [];
       const unstagedFiles: string[] = [];
@@ -511,7 +515,7 @@ export class WorktreeService {
     const settings = await projectSettingsService.getProjectSettings(projectId);
     if (!settings) {
       throw new Error(
-        'Project settings not found. Please re-open the project in emdash and try again.'
+        'Project settings not found. Please re-open the project in Emdash and try again.'
       );
     }
 
@@ -768,13 +772,13 @@ export class WorktreeService {
 
   async createWorktreeFromBranch(
     projectPath: string,
-    workspaceName: string,
+    taskName: string,
     branchName: string,
     projectId: string,
     options?: { worktreePath?: string }
   ): Promise<WorktreeInfo> {
-    const normalizedName = workspaceName || branchName.replace(/\//g, '-');
-    const sluggedName = this.slugify(normalizedName) || 'workspace';
+    const normalizedName = taskName || branchName.replace(/\//g, '-');
+    const sluggedName = this.slugify(normalizedName) || 'task';
     const targetPath =
       options?.worktreePath ||
       path.join(projectPath, '..', `worktrees/${sluggedName}-${Date.now()}`);

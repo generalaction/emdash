@@ -17,10 +17,10 @@ import {
 interface Props {
   projects: any[];
   onSelectProject?: (project: any) => void;
-  onSelectWorkspace?: (workspace: any) => void;
+  onSelectTask?: (task: any) => void;
 }
 
-const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectWorkspace }) => {
+const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }) => {
   const [activeRuns, setActiveRuns] = React.useState<ContainerRunState[]>(() =>
     (getAllRunStates() || []).filter((s) => ['building', 'starting', 'ready'].includes(s.status))
   );
@@ -35,18 +35,18 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectWorksp
 
   if (!activeRuns.length) return null;
 
-  // Resolve workspace/project mapping for display and navigation
-  const byId = new Map<string, { project: any | null; workspace: any | null }>();
+  // Resolve task/project mapping for display and navigation
+  const byId = new Map<string, { project: any | null; task: any | null }>();
   for (const s of activeRuns) {
-    let match: { project: any | null; workspace: any | null } | null = null;
+    let match: { project: any | null; task: any | null } | null = null;
     for (const proj of projects) {
-      const ws = (proj.workspaces || []).find((w: any) => w.id === s.workspaceId) || null;
+      const ws = (proj.tasks || []).find((w: any) => w.id === s.taskId) || null;
       if (ws) {
-        match = { project: proj, workspace: ws };
+        match = { project: proj, task: ws };
         break;
       }
     }
-    byId.set(s.workspaceId, match ?? { project: null, workspace: null });
+    byId.set(s.taskId, match ?? { project: null, task: null });
   }
 
   return (
@@ -63,19 +63,19 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectWorksp
       <SidebarGroupContent>
         <SidebarMenu>
           {activeRuns.map((s) => {
-            const info = byId.get(s.workspaceId);
+            const info = byId.get(s.taskId);
             const project = info?.project || null;
-            const ws = info?.workspace || null;
-            const name = ws?.name || s.workspaceId;
+            const ws = info?.task || null;
+            const name = ws?.name || s.taskId;
             const previewUrl = s.previewUrl;
             const onOpen = () => {
               if (project && ws) {
                 onSelectProject?.(project);
-                onSelectWorkspace?.(ws);
+                onSelectTask?.(ws);
               }
             };
             return (
-              <SidebarMenuItem key={`${s.workspaceId}-${s.runId || 'run'}`}>
+              <SidebarMenuItem key={`${s.taskId}-${s.runId || 'run'}`}>
                 <div className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5">
                   <button
                     type="button"
@@ -111,7 +111,7 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectWorksp
                       onClick={async (e) => {
                         e.stopPropagation();
                         try {
-                          await (window as any).electronAPI.stopContainerRun?.(s.workspaceId);
+                          await (window as any).electronAPI.stopContainerRun?.(s.taskId);
                         } catch {}
                       }}
                     >

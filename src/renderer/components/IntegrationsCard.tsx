@@ -75,7 +75,7 @@ const IntegrationsCard: React.FC = () => {
         ...prev,
         checking: false,
         connected: !!status?.connected,
-        detail: status?.workspaceName ?? null,
+        detail: status?.taskName ?? null,
         error: status?.connected ? null : null,
       }));
     } catch (error) {
@@ -148,7 +148,7 @@ const IntegrationsCard: React.FC = () => {
           checking: false,
           loading: false,
           connected: true,
-          detail: result?.workspaceName ?? null,
+          detail: result?.taskName ?? null,
           input: '',
           error: null,
         }));

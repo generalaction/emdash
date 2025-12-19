@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './components/ui/button';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Plus, Download } from 'lucide-react';
 import LeftSidebar from './components/LeftSidebar';
 import ProjectMainView from './components/ProjectMainView';
-import WorkspaceModal from './components/WorkspaceModal';
+import TaskModal from './components/TaskModal';
+import { NewProjectModal } from './components/NewProjectModal';
+import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import ChatInterface from './components/ChatInterface';
-import MultiAgentWorkspace from './components/MultiAgentWorkspace';
+import MultiAgentTask from './components/MultiAgentTask';
 import { Toaster } from './components/ui/toaster';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
-import RequirementsNotice from './components/RequirementsNotice';
 import { useToast } from './hooks/use-toast';
+import { ToastAction } from './components/ui/toast';
 import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -30,8 +32,8 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import FirstLaunchModal from './components/FirstLaunchModal';
-import type { Project, Workspace } from './types/app';
-import type { WorkspaceMetadata as ChatWorkspaceMetadata } from './types/chat';
+import type { Project, Task } from './types/app';
+import type { TaskMetadata } from './types/chat';
 import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import { usePlanToasts } from './hooks/usePlanToasts';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
@@ -78,9 +80,6 @@ const RightSidebarBridge: React.FC<{
   return null;
 };
 
-// Shared types
-type WorkspaceMetadata = ChatWorkspaceMetadata;
-
 const TITLEBAR_HEIGHT = '36px';
 const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
 const DEFAULT_PANEL_LAYOUT: [number, number, number] = [20, 60, 20];
@@ -115,17 +114,20 @@ const AppContent: React.FC = () => {
     user,
     checkStatus,
     login: githubLogin,
+    isInitialized: isGithubInitialized,
   } = useGithubAuth();
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
   const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [showWorkspaceModal, setShowWorkspaceModal] = useState<boolean>(false);
+  const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
+  const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
+  const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
-  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
-  const [activeWorkspaceProvider, setActiveWorkspaceProvider] = useState<Provider | null>(null);
+  const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
   const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
@@ -135,7 +137,7 @@ const AppContent: React.FC = () => {
   const showAgentRequirement =
     Object.keys(installedProviders).length > 0 &&
     Object.values(installedProviders).every((v) => v === false);
-  const deletingWorkspaceIdsRef = useRef<Set<string>>(new Set());
+  const deletingTaskIdsRef = useRef<Set<string>>(new Set());
 
   const normalizePathForComparison = useCallback(
     (input: string | null | undefined) => {
@@ -325,7 +327,7 @@ const AppContent: React.FC = () => {
     })();
     setSelectedProject(project);
     setShowHomeView(false);
-    setActiveWorkspace(null);
+    setActiveTask(null);
   }, []);
 
   const handleRightSidebarCollapsedChange = useCallback((collapsed: boolean) => {
@@ -459,13 +461,13 @@ const AppContent: React.FC = () => {
         // Refresh GH status via hook
         checkStatus();
 
-        const projectsWithWorkspaces = await Promise.all(
+        const projectsWithTasks = await Promise.all(
           initialProjects.map(async (project) => {
-            const workspaces = await window.electronAPI.getWorkspaces(project.id);
-            return withRepoKey({ ...project, workspaces });
+            const tasks = await window.electronAPI.getTasks(project.id);
+            return withRepoKey({ ...project, tasks });
           })
         );
-        const ordered = applyProjectOrder(projectsWithWorkspaces);
+        const ordered = applyProjectOrder(projectsWithTasks);
         setProjects(ordered);
 
         // Prefer cached provider status (populated in the background)
@@ -549,7 +551,7 @@ const AppContent: React.FC = () => {
               branch: gitInfo.branch || undefined,
               baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
             },
-            workspaces: [],
+            tasks: [],
           };
 
           if (isAuthenticated && isGithubRemote) {
@@ -576,10 +578,10 @@ const AppContent: React.FC = () => {
             } else {
               const updateHint =
                 platform === 'darwin'
-                  ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart emdash.'
+                  ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart Emdash.'
                   : platform === 'win32'
-                    ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart emdash.'
-                    : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart emdash.';
+                    ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart Emdash.'
+                    : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart Emdash.';
               toast({
                 title: 'GitHub Connection Failed',
                 description: `Git repository detected but couldn't connect to GitHub: ${githubInfo.error}\n\n${updateHint}`,
@@ -632,6 +634,263 @@ const AppContent: React.FC = () => {
       });
     }
   };
+
+  const handleCloneSuccess = useCallback(
+    async (projectPath: string) => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('project_cloned');
+      try {
+        const gitInfo = await window.electronAPI.getGitInfo(projectPath);
+        const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
+        const repoKey = normalizePathForComparison(canonicalPath);
+        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+
+        if (existingProject) {
+          activateProjectView(existingProject);
+          return;
+        }
+
+        const remoteUrl = gitInfo.remote || '';
+        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+        const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+
+        const baseProject: Project = {
+          id: Date.now().toString(),
+          name: projectName,
+          path: canonicalPath,
+          repoKey,
+          gitInfo: {
+            isGitRepo: true,
+            remote: gitInfo.remote || undefined,
+            branch: gitInfo.branch || undefined,
+            baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
+          },
+          tasks: [],
+        };
+
+        if (isAuthenticated && isGithubRemote) {
+          const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+          if (githubInfo.success) {
+            const projectWithGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: githubInfo.repository || '',
+                connected: true,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_clone_success');
+              captureTelemetry('project_added_success', { source: 'clone' });
+              setProjects((prev) => [...prev, projectWithGithub]);
+              activateProjectView(projectWithGithub);
+            } else {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to save project:', saveResult.error);
+              toast({
+                title: 'Project Cloned',
+                description: 'Repository cloned but failed to save to database.',
+                variant: 'destructive',
+              });
+            }
+          } else {
+            const projectWithoutGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_clone_success');
+              captureTelemetry('project_added_success', { source: 'clone' });
+              setProjects((prev) => [...prev, projectWithoutGithub]);
+              activateProjectView(projectWithoutGithub);
+            }
+          }
+        } else {
+          const projectWithoutGithub = withRepoKey({
+            ...baseProject,
+            githubInfo: {
+              repository: '',
+              connected: false,
+            },
+          });
+
+          const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+          if (saveResult.success) {
+            captureTelemetry('project_clone_success');
+            captureTelemetry('project_added_success', { source: 'clone' });
+            setProjects((prev) => [...prev, projectWithoutGithub]);
+            activateProjectView(projectWithoutGithub);
+          }
+        }
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to load cloned project:', error);
+        toast({
+          title: 'Project Cloned',
+          description: 'Repository cloned but failed to load. Please try opening it manually.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [
+      projects,
+      isAuthenticated,
+      activateProjectView,
+      normalizePathForComparison,
+      toast,
+      computeBaseRef,
+      withRepoKey,
+    ]
+  );
+
+  const handleNewProjectSuccess = useCallback(
+    async (projectPath: string) => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('new_project_created');
+      try {
+        const gitInfo = await window.electronAPI.getGitInfo(projectPath);
+        const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
+        const repoKey = normalizePathForComparison(canonicalPath);
+        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+
+        if (existingProject) {
+          activateProjectView(existingProject);
+          return;
+        }
+
+        const remoteUrl = gitInfo.remote || '';
+        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+        const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+
+        const baseProject: Project = {
+          id: Date.now().toString(),
+          name: projectName,
+          path: canonicalPath,
+          repoKey,
+          gitInfo: {
+            isGitRepo: true,
+            remote: gitInfo.remote || undefined,
+            branch: gitInfo.branch || undefined,
+            baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
+          },
+          tasks: [],
+        };
+
+        if (isAuthenticated && isGithubRemote) {
+          const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+          if (githubInfo.success) {
+            const projectWithGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: githubInfo.repository || '',
+                connected: true,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_create_success');
+              captureTelemetry('project_added_success', { source: 'new_project' });
+              toast({
+                title: 'Project created successfully!',
+                description: `${projectWithGithub.name} has been added to your projects.`,
+              });
+              // Add to beginning of list
+              setProjects((prev) => {
+                const updated = [projectWithGithub, ...prev];
+                saveProjectOrder(updated);
+                return updated;
+              });
+              activateProjectView(projectWithGithub);
+            } else {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to save project:', saveResult.error);
+              toast({
+                title: 'Project Created',
+                description: 'Repository created but failed to save to database.',
+                variant: 'destructive',
+              });
+            }
+          } else {
+            const projectWithoutGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_create_success');
+              captureTelemetry('project_added_success', { source: 'new_project' });
+              toast({
+                title: 'Project created successfully!',
+                description: `${projectWithoutGithub.name} has been added to your projects.`,
+              });
+              // Add to beginning of list
+              setProjects((prev) => {
+                const updated = [projectWithoutGithub, ...prev];
+                saveProjectOrder(updated);
+                return updated;
+              });
+              activateProjectView(projectWithoutGithub);
+            }
+          }
+        } else {
+          const projectWithoutGithub = withRepoKey({
+            ...baseProject,
+            githubInfo: {
+              repository: '',
+              connected: false,
+            },
+          });
+
+          const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+          if (saveResult.success) {
+            captureTelemetry('project_create_success');
+            captureTelemetry('project_added_success', { source: 'new_project' });
+            toast({
+              title: 'Project created successfully!',
+              description: `${projectWithoutGithub.name} has been added to your projects.`,
+            });
+            // Add to beginning of list
+            setProjects((prev) => {
+              const updated = [projectWithoutGithub, ...prev];
+              saveProjectOrder(updated);
+              return updated;
+            });
+            activateProjectView(projectWithoutGithub);
+            setShowTaskModal(true);
+          }
+        }
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to load new project:', error);
+        toast({
+          title: 'Project Created',
+          description: 'Repository created but failed to load. Please try opening it manually.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [
+      projects,
+      isAuthenticated,
+      activateProjectView,
+      normalizePathForComparison,
+      toast,
+      computeBaseRef,
+      withRepoKey,
+      getProjectRepoKey,
+    ]
+  );
 
   const handleGithubConnect = async () => {
     setGithubLoading(true);
@@ -704,8 +963,8 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleCreateWorkspace = async (
-    workspaceName: string,
+  const handleCreateTask = async (
+    taskName: string,
     initialPrompt?: string,
     providerRuns: import('./types/chat').ProviderRun[] = [{ provider: 'claude', runs: 1 }],
     linkedLinearIssue: LinearIssueSummary | null = null,
@@ -715,7 +974,7 @@ const AppContent: React.FC = () => {
   ) => {
     if (!selectedProject) return;
 
-    setIsCreatingWorkspace(true);
+    setIsCreatingTask(true);
     try {
       let preparedPrompt: string | undefined = undefined;
       if (initialPrompt && initialPrompt.trim()) {
@@ -811,7 +1070,7 @@ const AppContent: React.FC = () => {
         preparedPrompt = parts.join('\n');
       }
 
-      const workspaceMetadata: WorkspaceMetadata | null =
+      const taskMetadata: TaskMetadata | null =
         linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
           ? {
               linearIssue: linkedLinearIssue ?? null,
@@ -827,9 +1086,9 @@ const AppContent: React.FC = () => {
       const isMultiAgent = totalRuns > 1;
       const primaryProvider = providerRuns[0]?.provider || 'claude';
 
-      let newWorkspace: Workspace;
+      let newTask: Task;
       if (isMultiAgent) {
-        // Multi-agent workspace: create worktrees for each provider×runs combo
+        // Multi-agent task: create worktrees for each provider×runs combo
         const variants: Array<{
           id: string;
           provider: Provider;
@@ -842,10 +1101,10 @@ const AppContent: React.FC = () => {
         for (const { provider, runs } of providerRuns) {
           for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
             const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
-            const variantName = `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`;
+            const variantName = `${taskName}-${provider.toLowerCase()}${instanceSuffix}`;
             const worktreeResult = await window.electronAPI.worktreeCreate({
               projectPath: selectedProject.path,
-              workspaceName: variantName,
+              taskName: variantName,
               projectId: selectedProject.id,
               autoApprove,
             });
@@ -857,7 +1116,7 @@ const AppContent: React.FC = () => {
             }
             const worktree = worktreeResult.worktree;
             variants.push({
-              id: `${workspaceName}-${provider.toLowerCase()}${instanceSuffix}`,
+              id: `${taskName}-${provider.toLowerCase()}${instanceSuffix}`,
               provider: provider,
               name: variantName,
               branch: worktree.branch,
@@ -867,8 +1126,8 @@ const AppContent: React.FC = () => {
           }
         }
 
-        const multiMeta: WorkspaceMetadata = {
-          ...(workspaceMetadata || {}),
+        const multiMeta: TaskMetadata = {
+          ...(taskMetadata || {}),
           multiAgent: {
             enabled: true,
             maxProviders: 4,
@@ -878,11 +1137,11 @@ const AppContent: React.FC = () => {
           },
         };
 
-        const groupId = `ws-${workspaceName}-${Date.now()}`;
-        newWorkspace = {
+        const groupId = `ws-${taskName}-${Date.now()}`;
+        newTask = {
           id: groupId,
           projectId: selectedProject.id,
-          name: workspaceName,
+          name: taskName,
           branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
           path: variants[0]?.path || selectedProject.path,
           status: 'idle',
@@ -890,23 +1149,23 @@ const AppContent: React.FC = () => {
           metadata: multiMeta,
         };
 
-        const saveResult = await window.electronAPI.saveWorkspace({
-          ...newWorkspace,
+        const saveResult = await window.electronAPI.saveTask({
+          ...newTask,
           agentId: primaryProvider,
           metadata: multiMeta,
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
-          log.error('Failed to save multi-agent workspace:', saveResult?.error);
-          toast({ title: 'Error', description: 'Failed to create multi-agent workspace.' });
-          setIsCreatingWorkspace(false);
+          log.error('Failed to save multi-agent task:', saveResult?.error);
+          toast({ title: 'Error', description: 'Failed to create multi-agent task.' });
+          setIsCreatingTask(false);
           return;
         }
       } else {
         // Create worktree
         const worktreeResult = await window.electronAPI.worktreeCreate({
           projectPath: selectedProject.path,
-          workspaceName,
+          taskName,
           projectId: selectedProject.id,
           autoApprove,
         });
@@ -917,40 +1176,38 @@ const AppContent: React.FC = () => {
 
         const worktree = worktreeResult.worktree;
 
-        newWorkspace = {
+        newTask = {
           id: worktree.id,
           projectId: selectedProject.id,
-          name: workspaceName,
+          name: taskName,
           branch: worktree.branch,
           path: worktree.path,
           status: 'idle',
           agentId: primaryProvider,
-          metadata: workspaceMetadata,
+          metadata: taskMetadata,
         };
 
-        const saveResult = await window.electronAPI.saveWorkspace({
-          ...newWorkspace,
+        const saveResult = await window.electronAPI.saveTask({
+          ...newTask,
           agentId: primaryProvider,
-          metadata: workspaceMetadata,
+          metadata: taskMetadata,
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
-          log.error('Failed to save workspace:', saveResult?.error);
-          toast({ title: 'Error', description: 'Failed to create workspace.' });
-          setIsCreatingWorkspace(false);
+          log.error('Failed to save task:', saveResult?.error);
+          toast({ title: 'Error', description: 'Failed to create task.' });
+          setIsCreatingTask(false);
           return;
         }
       }
 
       {
-        if (workspaceMetadata?.linearIssue) {
+        if (taskMetadata?.linearIssue) {
           try {
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newWorkspace.id
-            );
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
 
             if (convoResult?.success && convoResult.conversation?.id) {
-              const issue = workspaceMetadata.linearIssue;
+              const issue = taskMetadata.linearIssue;
               const detailParts: string[] = [];
               const stateName = issue.state?.name?.trim();
               const assigneeName =
@@ -980,7 +1237,7 @@ const AppContent: React.FC = () => {
               }
 
               await window.electronAPI.saveMessage({
-                id: `linear-context-${newWorkspace.id}`,
+                id: `linear-context-${newTask.id}`,
                 conversationId: convoResult.conversation.id,
                 content: lines.join('\n'),
                 sender: 'agent',
@@ -992,17 +1249,15 @@ const AppContent: React.FC = () => {
             }
           } catch (seedError) {
             const { log } = await import('./lib/logger');
-            log.error('Failed to seed workspace with Linear issue context:', seedError as any);
+            log.error('Failed to seed task with Linear issue context:', seedError as any);
           }
         }
-        if (workspaceMetadata?.githubIssue) {
+        if (taskMetadata?.githubIssue) {
           try {
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newWorkspace.id
-            );
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
 
             if (convoResult?.success && convoResult.conversation?.id) {
-              const issue = workspaceMetadata.githubIssue;
+              const issue = taskMetadata.githubIssue;
               const detailParts: string[] = [];
               const stateName = issue.state?.toString()?.trim();
               const assignees = Array.isArray(issue.assignees)
@@ -1038,7 +1293,7 @@ const AppContent: React.FC = () => {
               }
 
               await window.electronAPI.saveMessage({
-                id: `github-context-${newWorkspace.id}`,
+                id: `github-context-${newTask.id}`,
                 conversationId: convoResult.conversation.id,
                 content: lines.join('\n'),
                 sender: 'agent',
@@ -1050,17 +1305,15 @@ const AppContent: React.FC = () => {
             }
           } catch (seedError) {
             const { log } = await import('./lib/logger');
-            log.error('Failed to seed workspace with GitHub issue context:', seedError as any);
+            log.error('Failed to seed task with GitHub issue context:', seedError as any);
           }
         }
-        if (workspaceMetadata?.jiraIssue) {
+        if (taskMetadata?.jiraIssue) {
           try {
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newWorkspace.id
-            );
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
 
             if (convoResult?.success && convoResult.conversation?.id) {
-              const issue: any = workspaceMetadata.jiraIssue;
+              const issue: any = taskMetadata.jiraIssue;
               const lines: string[] = [];
               const line1 =
                 `Linked Jira issue: ${issue.key || ''}${issue.summary ? ` — ${issue.summary}` : ''}`.trim();
@@ -1075,7 +1328,7 @@ const AppContent: React.FC = () => {
               if (issue.url) lines.push(`URL: ${issue.url}`);
 
               await window.electronAPI.saveMessage({
-                id: `jira-context-${newWorkspace.id}`,
+                id: `jira-context-${newTask.id}`,
                 conversationId: convoResult.conversation.id,
                 content: lines.join('\n'),
                 sender: 'agent',
@@ -1087,7 +1340,7 @@ const AppContent: React.FC = () => {
             }
           } catch (seedError) {
             const { log } = await import('./lib/logger');
-            log.error('Failed to seed workspace with Jira issue context:', seedError as any);
+            log.error('Failed to seed task with Jira issue context:', seedError as any);
           }
         }
 
@@ -1096,7 +1349,7 @@ const AppContent: React.FC = () => {
             project.id === selectedProject.id
               ? {
                   ...project,
-                  workspaces: [newWorkspace, ...(project.workspaces || [])],
+                  tasks: [newTask, ...(project.tasks || [])],
                 }
               : project
           )
@@ -1106,116 +1359,109 @@ const AppContent: React.FC = () => {
           prev
             ? {
                 ...prev,
-                workspaces: [newWorkspace, ...(prev.workspaces || [])],
+                tasks: [newTask, ...(prev.tasks || [])],
               }
             : null
         );
 
-        // Track workspace creation
+        // Track task creation
         const { captureTelemetry } = await import('./lib/telemetryClient');
-        const isMultiAgent = (newWorkspace.metadata as any)?.multiAgent?.enabled;
-        captureTelemetry('workspace_created', {
-          provider: isMultiAgent ? 'multi' : (newWorkspace.agentId as string) || 'codex',
-          has_initial_prompt: !!workspaceMetadata?.initialPrompt,
+        const isMultiAgent = (newTask.metadata as any)?.multiAgent?.enabled;
+        captureTelemetry('task_created', {
+          provider: isMultiAgent ? 'multi' : (newTask.agentId as string) || 'codex',
+          has_initial_prompt: !!taskMetadata?.initialPrompt,
         });
 
-        // Set the active workspace and its provider (none if multi-agent)
-        setActiveWorkspace(newWorkspace);
-        if ((newWorkspace.metadata as any)?.multiAgent?.enabled) {
-          setActiveWorkspaceProvider(null);
+        // Set the active task and its provider (none if multi-agent)
+        setActiveTask(newTask);
+        if ((newTask.metadata as any)?.multiAgent?.enabled) {
+          setActiveTaskProvider(null);
         } else {
-          // Use the saved agentId from the workspace, which should match primaryProvider
-          setActiveWorkspaceProvider(
-            (newWorkspace.agentId as Provider) || primaryProvider || 'codex'
-          );
+          // Use the saved agentId from the task, which should match primaryProvider
+          setActiveTaskProvider((newTask.agentId as Provider) || primaryProvider || 'codex');
         }
       }
     } catch (error) {
       const { log } = await import('./lib/logger');
-      log.error('Failed to create workspace:', error as any);
+      log.error('Failed to create task:', error as any);
       toast({
         title: 'Error',
         description:
           (error as Error)?.message ||
-          'Failed to create workspace. Please check the console for details.',
+          'Failed to create task. Please check the console for details.',
       });
     } finally {
-      setIsCreatingWorkspace(false);
+      setIsCreatingTask(false);
     }
   };
 
   const handleGoHome = () => {
     setSelectedProject(null);
     setShowHomeView(true);
-    setActiveWorkspace(null);
+    setActiveTask(null);
   };
 
   const handleSelectProject = (project: Project) => {
     activateProjectView(project);
   };
 
-  const handleSelectWorkspace = (workspace: Workspace) => {
-    setActiveWorkspace(workspace);
-    // Load provider from workspace.agentId if it exists, otherwise default to null
+  const handleSelectTask = (task: Task) => {
+    setActiveTask(task);
+    // Load provider from task.agentId if it exists, otherwise default to null
     // This ensures the selected provider persists across app restarts
-    if ((workspace.metadata as any)?.multiAgent?.enabled) {
-      setActiveWorkspaceProvider(null);
+    if ((task.metadata as any)?.multiAgent?.enabled) {
+      setActiveTaskProvider(null);
     } else {
-      // Use agentId from workspace if available, otherwise fall back to 'codex' for backwards compatibility
-      setActiveWorkspaceProvider((workspace.agentId as Provider) || 'codex');
+      // Use agentId from task if available, otherwise fall back to 'codex' for backwards compatibility
+      setActiveTaskProvider((task.agentId as Provider) || 'codex');
     }
   };
 
-  const handleStartCreateWorkspaceFromSidebar = useCallback(
+  const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
       activateProjectView(targetProject);
-      setShowWorkspaceModal(true);
+      setShowTaskModal(true);
     },
     [activateProjectView, projects]
   );
 
-  const removeWorkspaceFromState = (projectId: string, workspaceId: string, wasActive: boolean) => {
-    const filterWorkspaces = (list?: Workspace[]) =>
-      (list || []).filter((w) => w.id !== workspaceId);
+  const removeTaskFromState = (projectId: string, taskId: string, wasActive: boolean) => {
+    const filterTasks = (list?: Task[]) => (list || []).filter((w) => w.id !== taskId);
 
     setProjects((prev) =>
       prev.map((project) =>
-        project.id === projectId
-          ? { ...project, workspaces: filterWorkspaces(project.workspaces) }
-          : project
+        project.id === projectId ? { ...project, tasks: filterTasks(project.tasks) } : project
       )
     );
 
     setSelectedProject((prev) =>
-      prev && prev.id === projectId
-        ? { ...prev, workspaces: filterWorkspaces(prev.workspaces) }
-        : prev
+      prev && prev.id === projectId ? { ...prev, tasks: filterTasks(prev.tasks) } : prev
     );
 
     if (wasActive) {
-      setActiveWorkspace(null);
-      setActiveWorkspaceProvider(null);
+      setActiveTask(null);
+      setActiveTaskProvider(null);
     }
   };
 
-  const handleDeleteWorkspace = async (
+  const handleDeleteTask = async (
     targetProject: Project,
-    workspace: Workspace,
+    task: Task,
     options?: { silent?: boolean }
   ): Promise<boolean> => {
-    if (deletingWorkspaceIdsRef.current.has(workspace.id)) {
+    if (deletingTaskIdsRef.current.has(task.id)) {
       toast({
         title: 'Deletion in progress',
-        description: `"${workspace.name}" is already being removed.`,
+        description: `"${task.name}" is already being removed.`,
       });
       return false;
     }
 
-    const wasActive = activeWorkspace?.id === workspace.id;
-    const workspaceSnapshot = { ...workspace };
-    deletingWorkspaceIdsRef.current.add(workspace.id);
-    removeWorkspaceFromState(targetProject.id, workspace.id, wasActive);
+    const wasActive = activeTask?.id === task.id;
+    const taskSnapshot = { ...task };
+    deletingTaskIdsRef.current.add(task.id);
+    removeTaskFromState(targetProject.id, task.id, wasActive);
 
     const runDeletion = async (): Promise<boolean> => {
       try {
@@ -1224,30 +1470,30 @@ const AppContent: React.FC = () => {
           const { initialPromptSentKey } = await import('./lib/keys');
           try {
             // Legacy key (no provider)
-            const legacy = initialPromptSentKey(workspace.id);
+            const legacy = initialPromptSentKey(task.id);
             localStorage.removeItem(legacy);
           } catch {}
           try {
             // Provider-scoped keys
             for (const p of TERMINAL_PROVIDER_IDS) {
-              const k = initialPromptSentKey(workspace.id, p);
+              const k = initialPromptSentKey(task.id, p);
               localStorage.removeItem(k);
             }
           } catch {}
         } catch {}
         try {
-          window.electronAPI.ptyKill?.(`workspace-${workspace.id}`);
+          window.electronAPI.ptyKill?.(`task-${task.id}`);
         } catch {}
         try {
           for (const provider of TERMINAL_PROVIDER_IDS) {
             try {
-              window.electronAPI.ptyKill?.(`${provider}-main-${workspace.id}`);
+              window.electronAPI.ptyKill?.(`${provider}-main-${task.id}`);
             } catch {}
           }
         } catch {}
         const sessionIds = [
-          `workspace-${workspace.id}`,
-          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${workspace.id}`),
+          `task-${task.id}`,
+          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${task.id}`),
         ];
 
         await Promise.allSettled(
@@ -1264,11 +1510,11 @@ const AppContent: React.FC = () => {
         const [removeResult, deleteResult] = await Promise.allSettled([
           window.electronAPI.worktreeRemove({
             projectPath: targetProject.path,
-            worktreeId: workspace.id,
-            worktreePath: workspace.path,
-            branch: workspace.branch,
+            worktreeId: task.id,
+            worktreePath: task.path,
+            branch: task.branch,
           }),
-          window.electronAPI.deleteWorkspace(workspace.id),
+          window.electronAPI.deleteTask(task.id),
         ]);
 
         if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
@@ -1282,84 +1528,76 @@ const AppContent: React.FC = () => {
         if (deleteResult.status !== 'fulfilled' || !deleteResult.value?.success) {
           const errorMsg =
             deleteResult.status === 'fulfilled'
-              ? deleteResult.value?.error || 'Failed to delete workspace'
+              ? deleteResult.value?.error || 'Failed to delete task'
               : deleteResult.reason?.message || String(deleteResult.reason);
           throw new Error(errorMsg);
         }
 
-        // Track workspace deletion
+        // Track task deletion
         const { captureTelemetry } = await import('./lib/telemetryClient');
-        captureTelemetry('workspace_deleted');
+        captureTelemetry('task_deleted');
 
         if (!options?.silent) {
           toast({
             title: 'Task deleted',
-            description: workspace.name,
+            description: task.name,
           });
         }
         return true;
       } catch (error) {
         const { log } = await import('./lib/logger');
-        log.error('Failed to delete workspace:', error as any);
+        log.error('Failed to delete task:', error as any);
         toast({
           title: 'Error',
           description:
             error instanceof Error
               ? error.message
-              : 'Could not delete workspace. Check the console for details.',
+              : 'Could not delete task. Check the console for details.',
           variant: 'destructive',
         });
 
         try {
-          const refreshedWorkspaces = await window.electronAPI.getWorkspaces(targetProject.id);
+          const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
           setProjects((prev) =>
             prev.map((project) =>
-              project.id === targetProject.id
-                ? { ...project, workspaces: refreshedWorkspaces }
-                : project
+              project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
             )
           );
           setSelectedProject((prev) =>
-            prev && prev.id === targetProject.id
-              ? { ...prev, workspaces: refreshedWorkspaces }
-              : prev
+            prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
           );
 
           if (wasActive) {
-            const restored = refreshedWorkspaces.find((w) => w.id === workspace.id);
+            const restored = refreshedTasks.find((w) => w.id === task.id);
             if (restored) {
-              handleSelectWorkspace(restored);
+              handleSelectTask(restored);
             }
           }
         } catch (refreshError) {
-          log.error('Failed to refresh workspaces after delete failure:', refreshError as any);
+          log.error('Failed to refresh tasks after delete failure:', refreshError as any);
 
           setProjects((prev) =>
             prev.map((project) => {
               if (project.id !== targetProject.id) return project;
-              const existing = project.workspaces || [];
-              const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
-              return alreadyPresent
-                ? project
-                : { ...project, workspaces: [workspaceSnapshot, ...existing] };
+              const existing = project.tasks || [];
+              const alreadyPresent = existing.some((w) => w.id === taskSnapshot.id);
+              return alreadyPresent ? project : { ...project, tasks: [taskSnapshot, ...existing] };
             })
           );
           setSelectedProject((prev) => {
             if (!prev || prev.id !== targetProject.id) return prev;
-            const existing = prev.workspaces || [];
-            const alreadyPresent = existing.some((w) => w.id === workspaceSnapshot.id);
-            return alreadyPresent
-              ? prev
-              : { ...prev, workspaces: [workspaceSnapshot, ...existing] };
+            const existing = prev.tasks || [];
+            const alreadyPresent = existing.some((w) => w.id === taskSnapshot.id);
+            return alreadyPresent ? prev : { ...prev, tasks: [taskSnapshot, ...existing] };
           });
 
           if (wasActive) {
-            handleSelectWorkspace(workspaceSnapshot);
+            handleSelectTask(taskSnapshot);
           }
         }
         return false;
       } finally {
-        deletingWorkspaceIdsRef.current.delete(workspace.id);
+        deletingTaskIdsRef.current.delete(task.id);
       }
     };
 
@@ -1379,8 +1617,8 @@ const AppContent: React.FC = () => {
     });
   };
 
-  const needsGhInstall = !ghInstalled;
-  const needsGhAuth = ghInstalled && !isAuthenticated;
+  const needsGhInstall = isGithubInitialized && !ghInstalled;
+  const needsGhAuth = isGithubInitialized && ghInstalled && !isAuthenticated;
 
   const handleReorderProjectsFull = (newOrder: Project[]) => {
     setProjects(() => {
@@ -1400,7 +1638,7 @@ const AppContent: React.FC = () => {
       setProjects((prev) => prev.filter((p) => p.id !== project.id));
       if (selectedProject?.id === project.id) {
         setSelectedProject(null);
-        setActiveWorkspace(null);
+        setActiveTask(null);
         setShowHomeView(true);
       }
       toast({ title: 'Project deleted', description: `"${project.name}" was removed.` });
@@ -1488,11 +1726,11 @@ const AppContent: React.FC = () => {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <KanbanBoard
             project={selectedProject}
-            onOpenWorkspace={(ws: any) => {
-              handleSelectWorkspace(ws);
+            onOpenTask={(ws: any) => {
+              handleSelectTask(ws);
               setShowKanban(false);
             }}
-            onCreateWorkspace={() => setShowWorkspaceModal(true)}
+            onCreateTask={() => setShowTaskModal(true)}
           />
         </div>
       );
@@ -1500,14 +1738,14 @@ const AppContent: React.FC = () => {
     if (showHomeView) {
       return (
         <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-          <div className="container mx-auto flex min-h-full flex-1 flex-col justify-center px-4 py-8">
+          <div className="container mx-auto flex min-h-full max-w-3xl flex-1 flex-col justify-center px-8 py-8">
             <div className="mb-6 text-center">
               <div className="mb-2 flex items-center justify-center">
                 <div className="logo-shimmer-container">
                   <img
                     key={effectiveTheme}
                     src={effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo}
-                    alt="emdash"
+                    alt="Emdash"
                     className="logo-shimmer-image"
                   />
                   <span
@@ -1526,19 +1764,13 @@ const AppContent: React.FC = () => {
                   />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground sm:text-base">
+              <p className="whitespace-nowrap text-xs text-muted-foreground">
                 Run multiple Coding Agents in parallel
               </p>
-              <RequirementsNotice
-                showGithubRequirement={showGithubRequirement}
-                needsGhInstall={needsGhInstall}
-                needsGhAuth={needsGhAuth}
-                showAgentRequirement={showAgentRequirement}
-              />
             </div>
 
-            <div className="flex flex-col justify-center gap-4 sm:flex-row">
-              <Button
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
+              <button
                 onClick={() => {
                   void (async () => {
                     const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -1546,12 +1778,69 @@ const AppContent: React.FC = () => {
                   })();
                   handleOpenProject();
                 }}
-                size="lg"
-                className="min-w-[200px]"
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <FolderOpen className="mr-2 h-5 w-5" />
-                Open Project
-              </Button>
+                <FolderOpen className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Open project</h3>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('./lib/telemetryClient');
+                    captureTelemetry('project_create_clicked');
+                  })();
+                  if (!isAuthenticated || !ghInstalled) {
+                    toast({
+                      title: 'GitHub authentication required',
+                      variant: 'destructive',
+                      action: (
+                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+                          Connect GitHub
+                        </ToastAction>
+                      ),
+                    });
+                    return;
+                  }
+                  setShowNewProjectModal(true);
+                }}
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Plus className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Create New Project</h3>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('./lib/telemetryClient');
+                    captureTelemetry('project_clone_clicked');
+                  })();
+                  if (!isAuthenticated || !ghInstalled) {
+                    toast({
+                      title: 'GitHub authentication required',
+                      variant: 'destructive',
+                      action: (
+                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+                          Connect GitHub
+                        </ToastAction>
+                      ),
+                    });
+                    return;
+                  }
+                  setShowCloneModal(true);
+                }}
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Download className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Clone from GitHub</h3>
+                </div>
+              </button>
             </div>
           </div>
         </div>
@@ -1561,29 +1850,29 @@ const AppContent: React.FC = () => {
     if (selectedProject) {
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {activeWorkspace ? (
-            (activeWorkspace.metadata as any)?.multiAgent?.enabled ? (
-              <MultiAgentWorkspace
-                workspace={activeWorkspace}
+          {activeTask ? (
+            (activeTask.metadata as any)?.multiAgent?.enabled ? (
+              <MultiAgentTask
+                task={activeTask}
                 projectName={selectedProject.name}
                 projectId={selectedProject.id}
               />
             ) : (
               <ChatInterface
-                workspace={activeWorkspace}
+                task={activeTask}
                 projectName={selectedProject.name}
                 className="min-h-0 flex-1"
-                initialProvider={activeWorkspaceProvider || undefined}
+                initialProvider={activeTaskProvider || undefined}
               />
             )
           ) : (
             <ProjectMainView
               project={selectedProject}
-              onCreateWorkspace={() => setShowWorkspaceModal(true)}
-              activeWorkspace={activeWorkspace}
-              onSelectWorkspace={handleSelectWorkspace}
-              onDeleteWorkspace={handleDeleteWorkspace}
-              isCreatingWorkspace={isCreatingWorkspace}
+              onCreateTask={() => setShowTaskModal(true)}
+              activeTask={activeTask}
+              onSelectTask={handleSelectTask}
+              onDeleteTask={handleDeleteTask}
+              isCreatingTask={isCreatingTask}
               onDeleteProject={handleDeleteProject}
             />
           )}
@@ -1591,38 +1880,7 @@ const AppContent: React.FC = () => {
       );
     }
 
-    return (
-      <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-        <div className="container mx-auto flex min-h-full flex-1 flex-col justify-center px-4 py-8">
-          <div className="mb-12 text-center">
-            <div className="mb-4 flex items-center justify-center">
-              <img
-                key={effectiveTheme}
-                src={effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo}
-                alt="emdash"
-                className="h-16"
-              />
-            </div>
-            <p className="mb-6 text-sm text-muted-foreground sm:text-base">
-              Run multiple Coding Agents in parallel
-            </p>
-            <RequirementsNotice
-              showGithubRequirement={showGithubRequirement}
-              needsGhInstall={needsGhInstall}
-              needsGhAuth={needsGhAuth}
-              showAgentRequirement={showAgentRequirement}
-            />
-          </div>
-
-          <div className="mb-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <Button onClick={handleOpenProject} size="lg" className="min-w-[200px]">
-              <FolderOpen className="mr-2 h-5 w-5" />
-              Open Project
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   };
 
   return (
@@ -1654,19 +1912,17 @@ const AppContent: React.FC = () => {
               onToggleSettings={handleToggleSettings}
               isSettingsOpen={showSettings}
               currentPath={
-                activeWorkspace?.metadata?.multiAgent?.enabled
+                activeTask?.metadata?.multiAgent?.enabled
                   ? null
-                  : activeWorkspace?.path || selectedProject?.path || null
+                  : activeTask?.path || selectedProject?.path || null
               }
               defaultPreviewUrl={
-                activeWorkspace?.id
-                  ? getContainerRunState(activeWorkspace.id)?.previewUrl || null
-                  : null
+                activeTask?.id ? getContainerRunState(activeTask.id)?.previewUrl || null : null
               }
-              workspaceId={activeWorkspace?.id || null}
-              workspacePath={activeWorkspace?.path || null}
+              taskId={activeTask?.id || null}
+              taskPath={activeTask?.path || null}
               projectPath={selectedProject?.path || null}
-              isWorkspaceMultiAgent={Boolean(activeWorkspace?.metadata?.multiAgent?.enabled)}
+              isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
               githubUser={user}
               onToggleKanban={handleToggleKanban}
               isKanbanOpen={Boolean(showKanban)}
@@ -1694,8 +1950,9 @@ const AppContent: React.FC = () => {
                     onSelectProject={handleSelectProject}
                     onGoHome={handleGoHome}
                     onOpenProject={handleOpenProject}
-                    onSelectWorkspace={handleSelectWorkspace}
-                    activeWorkspace={activeWorkspace || undefined}
+                    onNewProject={() => setShowNewProjectModal(true)}
+                    onSelectTask={handleSelectTask}
+                    activeTask={activeTask || undefined}
                     onReorderProjects={handleReorderProjects}
                     onReorderProjectsFull={handleReorderProjectsFull}
                     githubInstalled={ghInstalled}
@@ -1704,10 +1961,11 @@ const AppContent: React.FC = () => {
                     onGithubConnect={handleGithubConnect}
                     githubLoading={githubLoading}
                     githubStatusMessage={githubStatusMessage}
+                    githubInitialized={isGithubInitialized}
                     onSidebarContextChange={handleSidebarContextChange}
-                    onCreateWorkspaceForProject={handleStartCreateWorkspaceFromSidebar}
-                    isCreatingWorkspace={isCreatingWorkspace}
-                    onDeleteWorkspace={handleDeleteWorkspace}
+                    onCreateTaskForProject={handleStartCreateTaskFromSidebar}
+                    isCreatingTask={isCreatingTask}
+                    onDeleteTask={handleDeleteTask}
                     onDeleteProject={handleDeleteProject}
                     isHomeView={showHomeView}
                   />
@@ -1741,7 +1999,7 @@ const AppContent: React.FC = () => {
                   order={3}
                 >
                   <RightSidebar
-                    workspace={activeWorkspace}
+                    task={activeTask}
                     projectPath={selectedProject?.path || null}
                     className="lg:border-l-0"
                   />
@@ -1754,19 +2012,29 @@ const AppContent: React.FC = () => {
               onClose={handleCloseCommandPalette}
               projects={projects}
               handleSelectProject={handleSelectProject}
-              handleSelectWorkspace={handleSelectWorkspace}
+              handleSelectTask={handleSelectTask}
               handleGoHome={handleGoHome}
               handleOpenProject={handleOpenProject}
               handleOpenSettings={handleOpenSettings}
             />
-            <WorkspaceModal
-              isOpen={showWorkspaceModal}
-              onClose={() => setShowWorkspaceModal(false)}
-              onCreateWorkspace={handleCreateWorkspace}
+            <TaskModal
+              isOpen={showTaskModal}
+              onClose={() => setShowTaskModal(false)}
+              onCreateTask={handleCreateTask}
               projectName={selectedProject?.name || ''}
               defaultBranch={selectedProject?.gitInfo.branch || 'main'}
-              existingNames={(selectedProject?.workspaces || []).map((w) => w.name)}
+              existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
               projectPath={selectedProject?.path}
+            />
+            <NewProjectModal
+              isOpen={showNewProjectModal}
+              onClose={() => setShowNewProjectModal(false)}
+              onSuccess={handleNewProjectSuccess}
+            />
+            <CloneFromUrlModal
+              isOpen={showCloneModal}
+              onClose={() => setShowCloneModal(false)}
+              onSuccess={handleCloneSuccess}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
             <GithubDeviceFlowModal
@@ -1777,10 +2045,10 @@ const AppContent: React.FC = () => {
             />
             <Toaster />
             <BrowserPane
-              workspaceId={activeWorkspace?.id || null}
-              workspacePath={activeWorkspace?.path || null}
+              taskId={activeTask?.id || null}
+              taskPath={activeTask?.path || null}
               overlayActive={
-                showSettings || showCommandPalette || showWorkspaceModal || showFirstLaunchModal
+                showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
               }
             />
           </RightSidebarProvider>

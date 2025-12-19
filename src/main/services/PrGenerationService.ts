@@ -17,57 +17,55 @@ export interface GeneratedPrContent {
 export class PrGenerationService {
   /**
    * Generate PR title and description based on git changes
-   * @param workspacePath - Path to the workspace
+   * @param taskPath - Path to the task
    * @param baseBranch - Base branch to compare against (default: 'main')
-   * @param preferredProviderId - Optional provider ID to use first (e.g., from workspace.agentId)
+   * @param preferredProviderId - Optional provider ID to use first (e.g., from task.agentId)
    */
   async generatePrContent(
-    workspacePath: string,
+    taskPath: string,
     baseBranch: string = 'main',
     preferredProviderId?: string | null
   ): Promise<GeneratedPrContent> {
     try {
       // Get git diff and commit messages
-      const { diff, commits, changedFiles } = await this.getGitContext(workspacePath, baseBranch);
+      const { diff, commits, changedFiles } = await this.getGitContext(taskPath, baseBranch);
 
       if (!diff && commits.length === 0) {
         return this.generateFallbackContent(changedFiles);
       }
 
-      // Try the workspace's provider first if specified
+      // Try the task's provider first if specified
       if (preferredProviderId && this.isValidProviderId(preferredProviderId)) {
         try {
           const preferredResult = await this.generateWithProvider(
             preferredProviderId as ProviderId,
-            workspacePath,
+            taskPath,
             diff,
             commits
           );
           if (preferredResult) {
-            log.info(`Generated PR content with workspace provider: ${preferredProviderId}`);
-            return preferredResult;
+            log.info(`Generated PR content with task provider: ${preferredProviderId}`);
+            return {
+              title: preferredResult.title,
+              description: this.normalizeMarkdown(preferredResult.description),
+            };
           }
         } catch (error) {
-          log.debug(
-            `Workspace provider ${preferredProviderId} generation failed, trying fallbacks`,
-            {
-              error,
-            }
-          );
+          log.debug(`Task provider ${preferredProviderId} generation failed, trying fallbacks`, {
+            error,
+          });
         }
       }
 
       // Try Claude Code as fallback (preferred default)
       try {
-        const claudeResult = await this.generateWithProvider(
-          'claude',
-          workspacePath,
-          diff,
-          commits
-        );
+        const claudeResult = await this.generateWithProvider('claude', taskPath, diff, commits);
         if (claudeResult) {
           log.info('Generated PR content with Claude Code');
-          return claudeResult;
+          return {
+            title: claudeResult.title,
+            description: this.normalizeMarkdown(claudeResult.description),
+          };
         }
       } catch (error) {
         log.debug('Claude Code generation failed, trying fallback', { error });
@@ -75,10 +73,13 @@ export class PrGenerationService {
 
       // Try Codex as fallback
       try {
-        const codexResult = await this.generateWithProvider('codex', workspacePath, diff, commits);
+        const codexResult = await this.generateWithProvider('codex', taskPath, diff, commits);
         if (codexResult) {
           log.info('Generated PR content with Codex');
-          return codexResult;
+          return {
+            title: codexResult.title,
+            description: this.normalizeMarkdown(codexResult.description),
+          };
         }
       } catch (error) {
         log.debug('Codex generation failed, using heuristic fallback', { error });
@@ -96,7 +97,7 @@ export class PrGenerationService {
    * Get git context (diff, commits, changed files) for PR generation
    */
   private async getGitContext(
-    workspacePath: string,
+    taskPath: string,
     baseBranch: string
   ): Promise<{ diff: string; commits: string[]; changedFiles: string[] }> {
     let diff = '';
@@ -107,11 +108,11 @@ export class PrGenerationService {
       // Check if base branch exists (local or remote)
       let baseBranchExists = false;
       try {
-        await execAsync(`git rev-parse --verify ${baseBranch}`, { cwd: workspacePath });
+        await execAsync(`git rev-parse --verify ${baseBranch}`, { cwd: taskPath });
         baseBranchExists = true;
       } catch {
         try {
-          await execAsync(`git rev-parse --verify origin/${baseBranch}`, { cwd: workspacePath });
+          await execAsync(`git rev-parse --verify origin/${baseBranch}`, { cwd: taskPath });
           baseBranchExists = true;
           baseBranch = `origin/${baseBranch}`;
         } catch {
@@ -120,28 +121,29 @@ export class PrGenerationService {
       }
 
       if (baseBranchExists) {
-        // Get diff between base branch and current HEAD
+        // Get diff between base branch and current HEAD (committed changes)
         try {
           const { stdout: diffOut } = await execAsync(`git diff ${baseBranch}...HEAD --stat`, {
-            cwd: workspacePath,
+            cwd: taskPath,
             maxBuffer: 10 * 1024 * 1024,
           });
           diff = diffOut || '';
 
-          // Get list of changed files
+          // Get list of changed files from commits
           const { stdout: filesOut } = await execAsync(
             `git diff --name-only ${baseBranch}...HEAD`,
-            { cwd: workspacePath }
+            { cwd: taskPath }
           );
-          changedFiles = (filesOut || '')
+          const committedFiles = (filesOut || '')
             .split('\n')
             .map((f) => f.trim())
             .filter(Boolean);
+          changedFiles.push(...committedFiles);
 
           // Get commit messages
           const { stdout: commitsOut } = await execAsync(
             `git log ${baseBranch}..HEAD --pretty=format:"%s"`,
-            { cwd: workspacePath }
+            { cwd: taskPath }
           );
           commits = (commitsOut || '')
             .split('\n')
@@ -152,23 +154,57 @@ export class PrGenerationService {
         }
       }
 
-      // If no commits or diff from base branch, try to get diff of working directory
+      // Also include uncommitted changes (working directory) to capture all changes
+      // This ensures PR description includes changes that will be committed
+      try {
+        const { stdout: workingDiff } = await execAsync('git diff --stat', {
+          cwd: taskPath,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        const workingDiffText = workingDiff || '';
+
+        // If we have both committed and uncommitted changes, combine them
+        if (workingDiffText && diff) {
+          // Combine diff stats (working directory changes will be added)
+          diff = `${diff}\n${workingDiffText}`;
+        } else if (workingDiffText && !diff) {
+          // Only uncommitted changes
+          diff = workingDiffText;
+        }
+
+        // Get uncommitted changed files and merge with committed files
+        const { stdout: filesOut } = await execAsync('git diff --name-only', {
+          cwd: taskPath,
+        });
+        const uncommittedFiles = (filesOut || '')
+          .split('\n')
+          .map((f) => f.trim())
+          .filter(Boolean);
+
+        // Merge file lists, avoiding duplicates
+        const allFiles = new Set([...changedFiles, ...uncommittedFiles]);
+        changedFiles = Array.from(allFiles);
+      } catch (error) {
+        log.debug('Failed to get working directory diff', { error });
+      }
+
+      // Fallback: if we still have no diff or commits, try staged changes
       if (commits.length === 0 && diff.length === 0) {
         try {
-          const { stdout: workingDiff } = await execAsync('git diff --stat', {
-            cwd: workspacePath,
+          const { stdout: stagedDiff } = await execAsync('git diff --cached --stat', {
+            cwd: taskPath,
             maxBuffer: 10 * 1024 * 1024,
           });
-          diff = workingDiff || '';
-
-          // Also get changed files from working directory
-          const { stdout: filesOut } = await execAsync('git diff --name-only', {
-            cwd: workspacePath,
-          });
-          changedFiles = (filesOut || '')
-            .split('\n')
-            .map((f) => f.trim())
-            .filter(Boolean);
+          if (stagedDiff) {
+            diff = stagedDiff;
+            const { stdout: filesOut } = await execAsync('git diff --cached --name-only', {
+              cwd: taskPath,
+            });
+            changedFiles = (filesOut || '')
+              .split('\n')
+              .map((f) => f.trim())
+              .filter(Boolean);
+          }
         } catch {}
       }
     } catch (error) {
@@ -183,7 +219,7 @@ export class PrGenerationService {
    */
   private async generateWithProvider(
     providerId: ProviderId,
-    workspacePath: string,
+    taskPath: string,
     diff: string,
     commits: string[]
   ): Promise<GeneratedPrContent | null> {
@@ -200,7 +236,7 @@ export class PrGenerationService {
     // Check if provider CLI is available
     try {
       await execFileAsync(cliCommand, provider.versionArgs || ['--version'], {
-        cwd: workspacePath,
+        cwd: taskPath,
       });
     } catch {
       log.debug(`Provider ${providerId} CLI not available`);
@@ -238,7 +274,7 @@ export class PrGenerationService {
 
       // Spawn the provider CLI
       const child = spawn(cliCommand, args, {
-        cwd: workspacePath,
+        cwd: taskPath,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
           ...process.env,
@@ -351,7 +387,7 @@ ${commitContext}${diffContext}
 Please respond in the following JSON format:
 {
   "title": "A concise PR title (max 72 chars, use conventional commit format if applicable)",
-  "description": "A clear description of what this PR does, why it's needed, and any important context"
+  "description": "A well-structured markdown description using proper markdown formatting. Use ## for section headers, - or * for lists, \`code\` for inline code, and proper line breaks.\n\nUse actual newlines (\\n in JSON) for line breaks, not literal \\n text. Keep it straightforward and to the point."
 }
 
 Only respond with valid JSON, no other text.`;
@@ -367,9 +403,30 @@ Only respond with valid JSON, no other text.`;
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         if (parsed.title && parsed.description) {
+          let description = String(parsed.description);
+
+          // Handle multiple newline escape scenarios:
+          // 1. Literal backslash-n sequences (from double-escaped JSON like "\\n")
+          // 2. String representations of newlines
+          // Do this before trimming to preserve intentional whitespace
+
+          // First, check if we have literal \n characters (backslash followed by n)
+          // This happens when JSON contains "\\n" which becomes "\n" after parsing
+          if (description.includes('\\n')) {
+            // Replace literal backslash-n with actual newlines
+            description = description.replace(/\\n/g, '\n');
+          }
+
+          // Also handle case where newlines might be represented as literal text "\\n" (double backslash)
+          // This is less common but could happen if the LLM outputs raw text
+          description = description.replace(/\\\\n/g, '\n');
+
+          // Trim after processing newlines
+          description = description.trim();
+
           return {
             title: parsed.title.trim(),
-            description: parsed.description.trim(),
+            description,
           };
         }
       }
@@ -536,6 +593,27 @@ Only respond with valid JSON, no other text.`;
         : 'No changes detected.';
 
     return { title, description };
+  }
+
+  /**
+   * Normalize markdown formatting to ensure proper structure
+   */
+  private normalizeMarkdown(text: string): string {
+    if (!text) return text;
+
+    // Ensure headers have proper spacing (double newline before headers)
+    let normalized = text.replace(/\n(##+ )/g, '\n\n$1');
+
+    // Remove excessive blank lines (more than 2 consecutive)
+    normalized = normalized.replace(/\n{3,}/g, '\n\n');
+
+    // Trim trailing whitespace on each line but preserve intentional spacing
+    normalized = normalized
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .join('\n');
+
+    return normalized.trim();
   }
 
   /**

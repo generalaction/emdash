@@ -5,12 +5,12 @@ import os from 'node:os';
 
 import {
   ContainerConfigLoadError,
-  loadWorkspaceContainerConfig,
+  loadTaskContainerConfig,
 } from '../../main/services/containerConfigService';
 
 let tempDir: string;
 
-function makeWorkspaceDir(name: string): string {
+function makeTaskDir(name: string): string {
   const dir = path.join(tempDir, name);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
@@ -24,12 +24,12 @@ afterEach(() => {
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
-describe('loadWorkspaceContainerConfig', () => {
+describe('loadTaskContainerConfig', () => {
   it('returns defaults when config file is missing', async () => {
-    const workspace = makeWorkspaceDir('missing-config');
-    fs.writeFileSync(path.join(workspace, 'pnpm-lock.yaml'), '', 'utf8');
+    const taskDir = makeTaskDir('missing-config');
+    fs.writeFileSync(path.join(taskDir, 'pnpm-lock.yaml'), '', 'utf8');
 
-    const result = await loadWorkspaceContainerConfig(workspace);
+    const result = await loadTaskContainerConfig(taskDir);
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -45,8 +45,8 @@ describe('loadWorkspaceContainerConfig', () => {
   });
 
   it('parses config file and maintains overrides', async () => {
-    const workspace = makeWorkspaceDir('custom-config');
-    const configDir = path.join(workspace, '.emdash');
+    const taskDir = makeTaskDir('custom-config');
+    const configDir = path.join(taskDir, '.emdash');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(
       path.join(configDir, 'config.json'),
@@ -61,7 +61,7 @@ describe('loadWorkspaceContainerConfig', () => {
       'utf8'
     );
 
-    const result = await loadWorkspaceContainerConfig(workspace);
+    const result = await loadTaskContainerConfig(taskDir);
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -76,8 +76,8 @@ describe('loadWorkspaceContainerConfig', () => {
   });
 
   it('returns validation errors with context when config is invalid', async () => {
-    const workspace = makeWorkspaceDir('invalid-config');
-    const configDir = path.join(workspace, '.emdash');
+    const taskDir = makeTaskDir('invalid-config');
+    const configDir = path.join(taskDir, '.emdash');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(
       path.join(configDir, 'config.json'),
@@ -87,7 +87,7 @@ describe('loadWorkspaceContainerConfig', () => {
       'utf8'
     );
 
-    const result = await loadWorkspaceContainerConfig(workspace);
+    const result = await loadTaskContainerConfig(taskDir);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -99,12 +99,12 @@ describe('loadWorkspaceContainerConfig', () => {
   });
 
   it('surfaces invalid JSON errors', async () => {
-    const workspace = makeWorkspaceDir('invalid-json');
-    const configDir = path.join(workspace, '.emdash');
+    const taskDir = makeTaskDir('invalid-json');
+    const configDir = path.join(taskDir, '.emdash');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(path.join(configDir, 'config.json'), '{ invalid', 'utf8');
 
-    const result = await loadWorkspaceContainerConfig(workspace);
+    const result = await loadTaskContainerConfig(taskDir);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

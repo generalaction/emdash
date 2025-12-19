@@ -7,6 +7,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
+import { homedir } from 'os';
 
 const execAsync = promisify(exec);
 const githubService = new GitHubService();
@@ -260,7 +261,7 @@ export function registerGithubIpc() {
         projectId: string;
         prNumber: number;
         prTitle?: string;
-        workspaceName?: string;
+        taskName?: string;
         branchName?: string;
       }
     ) => {
@@ -271,9 +272,9 @@ export function registerGithubIpc() {
       }
 
       const defaultSlug = slugify(args.prTitle || `pr-${prNumber}`) || `pr-${prNumber}`;
-      const workspaceName =
-        args.workspaceName && args.workspaceName.trim().length > 0
-          ? args.workspaceName.trim()
+      const taskName =
+        args.taskName && args.taskName.trim().length > 0
+          ? args.taskName.trim()
           : `pr-${prNumber}-${defaultSlug}`;
       const branchName = args.branchName || `pr/${prNumber}`;
 
@@ -282,13 +283,13 @@ export function registerGithubIpc() {
         const existing = currentWorktrees.find((wt) => wt.branch === branchName);
 
         if (existing) {
-          return { success: true, worktree: existing, branchName, workspaceName: existing.name };
+          return { success: true, worktree: existing, branchName, taskName: existing.name };
         }
 
         await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
 
         const worktreesDir = path.resolve(projectPath, '..', 'worktrees');
-        const slug = slugify(workspaceName) || `pr-${prNumber}`;
+        const slug = slugify(taskName) || `pr-${prNumber}`;
         let worktreePath = path.join(worktreesDir, slug);
 
         if (fs.existsSync(worktreePath)) {
@@ -297,13 +298,13 @@ export function registerGithubIpc() {
 
         const worktree = await worktreeService.createWorktreeFromBranch(
           projectPath,
-          workspaceName,
+          taskName,
           branchName,
           projectId,
           { worktreePath }
         );
 
-        return { success: true, worktree, branchName, workspaceName };
+        return { success: true, worktree, branchName, taskName };
       } catch (error) {
         log.error('Failed to create PR worktree:', error);
         const message =
@@ -333,4 +334,183 @@ export function registerGithubIpc() {
       };
     }
   });
+
+  ipcMain.handle('github:getOwners', async () => {
+    try {
+      const owners = await githubService.getOwners();
+      return { success: true, owners };
+    } catch (error) {
+      log.error('Failed to get owners:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get owners',
+      };
+    }
+  });
+
+  ipcMain.handle('github:validateRepoName', async (_, name: string, owner: string) => {
+    try {
+      // First validate format
+      const formatValidation = githubService.validateRepositoryName(name);
+      if (!formatValidation.valid) {
+        return {
+          success: true,
+          valid: false,
+          exists: false,
+          error: formatValidation.error,
+        };
+      }
+
+      // Then check if it exists
+      const exists = await githubService.checkRepositoryExists(owner, name);
+      if (exists) {
+        return {
+          success: true,
+          valid: true,
+          exists: true,
+          error: `Repository ${owner}/${name} already exists`,
+        };
+      }
+
+      return {
+        success: true,
+        valid: true,
+        exists: false,
+      };
+    } catch (error) {
+      log.error('Failed to validate repo name:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Validation failed',
+      };
+    }
+  });
+
+  ipcMain.handle(
+    'github:createNewProject',
+    async (
+      _,
+      params: {
+        name: string;
+        description?: string;
+        owner: string;
+        isPrivate: boolean;
+        gitignoreTemplate?: string;
+      }
+    ) => {
+      let githubRepoCreated = false;
+      let localDirCreated = false;
+      let repoUrl: string | undefined;
+      let localPath: string | undefined;
+
+      try {
+        const { name, description, owner, isPrivate, gitignoreTemplate } = params;
+
+        // Validate inputs
+        const formatValidation = githubService.validateRepositoryName(name);
+        if (!formatValidation.valid) {
+          return {
+            success: false,
+            error: formatValidation.error || 'Invalid repository name',
+          };
+        }
+
+        // Check if repo already exists
+        const exists = await githubService.checkRepositoryExists(owner, name);
+        if (exists) {
+          return {
+            success: false,
+            error: `Repository ${owner}/${name} already exists`,
+          };
+        }
+
+        // Get project directory from settings
+        const { getAppSettings } = await import('../settings');
+        const settings = getAppSettings();
+        const projectDir =
+          settings.projects?.defaultDirectory || path.join(homedir(), 'emdash-projects');
+
+        // Ensure project directory exists
+        if (!fs.existsSync(projectDir)) {
+          fs.mkdirSync(projectDir, { recursive: true });
+        }
+
+        localPath = path.join(projectDir, name);
+        if (fs.existsSync(localPath)) {
+          return {
+            success: false,
+            error: `Directory ${localPath} already exists`,
+          };
+        }
+
+        // Create GitHub repository
+        const repoInfo = await githubService.createRepository({
+          name,
+          description,
+          owner,
+          isPrivate,
+        });
+        githubRepoCreated = true;
+        repoUrl = repoInfo.url;
+
+        // Clone repository
+        const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
+        if (!cloneResult.success) {
+          // Cleanup: delete GitHub repo on clone failure
+          try {
+            await execAsync(`gh repo delete ${owner}/${name} --yes`, {
+              timeout: 10000,
+            });
+          } catch (cleanupError) {
+            log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
+          }
+          return {
+            success: false,
+            error: cloneResult.error || 'Failed to clone repository',
+          };
+        }
+        localDirCreated = true;
+
+        // Initialize project (create README, commit, push)
+        await githubService.initializeNewProject({
+          repoUrl,
+          localPath,
+          name,
+          description,
+        });
+
+        // TODO: Add .gitignore if template specified (for future enhancement)
+
+        return {
+          success: true,
+          projectPath: localPath,
+          repoUrl,
+          fullName: repoInfo.fullName,
+          defaultBranch: repoInfo.defaultBranch,
+        };
+      } catch (error) {
+        log.error('Failed to create new project:', error);
+
+        // Cleanup on failure
+        if (localDirCreated && localPath && fs.existsSync(localPath)) {
+          try {
+            fs.rmSync(localPath, { recursive: true, force: true });
+          } catch (cleanupError) {
+            log.warn('Failed to cleanup local directory:', cleanupError);
+          }
+        }
+
+        // Note: We don't delete the GitHub repo automatically here
+        // as the user might want to keep it for manual setup
+        // The error message will inform them
+
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to create project',
+          githubRepoCreated, // Inform frontend about orphaned repo
+          repoUrl,
+        };
+      }
+    }
+  );
 }

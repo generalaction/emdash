@@ -4,7 +4,7 @@ import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 type CreatePROptions = {
-  workspacePath: string;
+  taskPath: string;
   commitMessage?: string;
   createBranchIfOnDefault?: boolean;
   branchPrefix?: string;
@@ -26,8 +26,8 @@ export function useCreatePR() {
 
   const createPR = async (opts: CreatePROptions) => {
     const {
-      workspacePath,
-      commitMessage = 'chore: apply workspace changes',
+      taskPath,
+      commitMessage = 'chore: apply task changes',
       createBranchIfOnDefault = true,
       branchPrefix = 'orch',
       prOptions,
@@ -52,7 +52,7 @@ export function useCreatePR() {
           // Get default branch for comparison
           let defaultBranch = 'main';
           try {
-            const branchStatus = await api.getBranchStatus?.({ workspacePath });
+            const branchStatus = await api.getBranchStatus?.({ taskPath });
             if (branchStatus?.success && branchStatus.defaultBranch) {
               defaultBranch = branchStatus.defaultBranch;
             }
@@ -61,7 +61,7 @@ export function useCreatePR() {
           // Generate PR content
           if (api.generatePrContent) {
             const generated = await api.generatePrContent({
-              workspacePath,
+              taskPath,
               base: finalPrOptions.base || defaultBranch,
             });
 
@@ -78,11 +78,11 @@ export function useCreatePR() {
 
       // Fallback to inferred title if still not set
       if (!finalPrOptions.title) {
-        finalPrOptions.title = workspacePath.split(/[/\\]/).filter(Boolean).pop() || 'Workspace';
+        finalPrOptions.title = taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
       }
 
       const commitRes = await api.gitCommitAndPush({
-        workspacePath,
+        taskPath,
         commitMessage,
         createBranchIfOnDefault,
         branchPrefix,
@@ -98,7 +98,7 @@ export function useCreatePR() {
       }
 
       const res = await api.createPullRequest({
-        workspacePath,
+        taskPath,
         fill: true,
         ...finalPrOptions,
       });
@@ -144,6 +144,10 @@ export function useCreatePR() {
         })();
         const details =
           res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
+        // Offer a browser fallback if org restricts the GitHub CLI app
+        const isOrgRestricted =
+          typeof res?.code === 'string' && res.code === 'ORG_AUTH_APP_RESTRICTED';
+
         toast({
           title: (
             <span className="inline-flex items-center gap-2">
@@ -151,8 +155,41 @@ export function useCreatePR() {
               Failed to Create PR
             </span>
           ),
-          description: (res?.error || 'Unknown error') + details,
+          description:
+            (res?.error || 'Unknown error') +
+            (isOrgRestricted
+              ? '\n\nYour organization restricts OAuth apps. You can either:\n' +
+                '• Approve the GitHub CLI app in your org settings, or\n' +
+                '• Authenticate gh with a Personal Access Token that has repo scope, or\n' +
+                '• Create the PR in your browser.'
+              : '') +
+            details,
           variant: 'destructive',
+          action: isOrgRestricted ? (
+            <ToastAction
+              altText="Open in browser"
+              onClick={() => {
+                void (async () => {
+                  const { captureTelemetry } = await import('../lib/telemetryClient');
+                  captureTelemetry('pr_creation_retry_browser');
+                })();
+                // Retry using web flow
+                void createPR({
+                  taskPath,
+                  commitMessage,
+                  createBranchIfOnDefault,
+                  branchPrefix,
+                  prOptions: { ...(prOptions || {}), web: true, fill: true },
+                  onSuccess,
+                });
+              }}
+            >
+              <span className="inline-flex items-center gap-1">
+                Open in browser
+                <ArrowUpRight className="h-3 w-3" />
+              </span>
+            </ToastAction>
+          ) : undefined,
         });
       }
 

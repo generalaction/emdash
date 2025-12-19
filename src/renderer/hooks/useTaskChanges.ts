@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export interface WorkspaceChange {
+export interface TaskChange {
   path: string;
   status: string;
   additions: number;
@@ -8,18 +8,18 @@ export interface WorkspaceChange {
   diff?: string;
 }
 
-export interface WorkspaceChanges {
-  workspaceId: string;
-  changes: WorkspaceChange[];
+export interface TaskChanges {
+  taskId: string;
+  changes: TaskChange[];
   totalAdditions: number;
   totalDeletions: number;
   isLoading: boolean;
   error?: string;
 }
 
-export function useWorkspaceChanges(workspacePath: string, workspaceId: string) {
-  const [changes, setChanges] = useState<WorkspaceChanges>({
-    workspaceId,
+export function useTaskChanges(taskPath: string, taskId: string) {
+  const [changes, setChanges] = useState<TaskChanges>({
+    taskId,
     changes: [],
     totalAdditions: 0,
     totalDeletions: 0,
@@ -33,7 +33,7 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
           setChanges((prev) => ({ ...prev, isLoading: true, error: undefined }));
         }
 
-        const result = await window.electronAPI.getGitStatus(workspacePath);
+        const result = await window.electronAPI.getGitStatus(taskPath);
 
         if (result.success && result.changes) {
           const filtered = result.changes.filter(
@@ -43,7 +43,7 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
           const totalDeletions = filtered.reduce((sum, change) => sum + (change.deletions || 0), 0);
 
           setChanges({
-            workspaceId,
+            taskId,
             changes: filtered,
             totalAdditions,
             totalDeletions,
@@ -51,7 +51,7 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
           });
         } else {
           setChanges({
-            workspaceId,
+            taskId,
             changes: [],
             totalAdditions: 0,
             totalDeletions: 0,
@@ -61,7 +61,7 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
         }
       } catch (error) {
         setChanges({
-          workspaceId,
+          taskId,
           changes: [],
           totalAdditions: 0,
           totalDeletions: 0,
@@ -70,7 +70,7 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
         });
       }
     },
-    [workspacePath, workspaceId]
+    [taskPath, taskId]
   );
 
   // eslint-disable-next-line react-hooks/set-state-in-effect

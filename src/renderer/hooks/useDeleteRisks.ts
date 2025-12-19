@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isActivePr, PrInfo } from '../lib/prStatus';
+import { refreshPrStatus } from '../lib/prStatusStore';
 
-type WorkspaceRef = { id: string; name: string; path: string };
+type TaskRef = { id: string; name: string; path: string };
 
 type RiskState = Record<
   string,
@@ -11,23 +13,17 @@ type RiskState = Record<
     ahead: number;
     behind: number;
     error?: string;
-    pr?: {
-      number?: number;
-      title?: string;
-      url?: string;
-      state?: string;
-      isDraft?: boolean;
-    } | null;
+    pr?: PrInfo | null;
   }
 >;
 
-export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
+export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
   const [risks, setRisks] = useState<RiskState>({});
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!enabled || workspaces.length === 0) {
+    if (!enabled || tasks.length === 0) {
       setRisks({});
       setLoading(false);
       setLoaded(false);
@@ -37,12 +33,12 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
     const load = async () => {
       setLoading(true);
       const next: RiskState = {};
-      for (const ws of workspaces) {
+      for (const ws of tasks) {
         try {
-          const [statusRes, infoRes, prRes] = await Promise.allSettled([
+          const [statusRes, infoRes, rawPr] = await Promise.allSettled([
             (window as any).electronAPI?.getGitStatus?.(ws.path),
             (window as any).electronAPI?.getGitInfo?.(ws.path),
-            (window as any).electronAPI?.getPrStatus?.({ workspacePath: ws.path }),
+            refreshPrStatus(ws.path),
           ]);
 
           let staged = 0;
@@ -72,8 +68,8 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
             infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
               ? infoRes.value.behindCount
               : 0;
-          const pr =
-            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
+          const prValue = rawPr.status === 'fulfilled' ? rawPr.value : null;
+          const pr = isActivePr(prValue) ? prValue : null;
 
           next[ws.id] = {
             staged,
@@ -109,13 +105,13 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled, workspaces]);
+  }, [enabled, tasks]);
 
   const hasData = loaded && Object.keys(risks).length > 0;
   const summary = useMemo(() => {
     const riskyIds = new Set<string>();
     const summaries: Record<string, string> = {};
-    for (const ws of workspaces) {
+    for (const ws of tasks) {
       const status = risks[ws.id];
       if (!status) continue;
       const dirty =
@@ -124,7 +120,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
         status.untracked > 0 ||
         status.ahead > 0 ||
         !!status.error ||
-        !!status.pr;
+        (status.pr && isActivePr(status.pr));
       if (dirty) {
         riskyIds.add(ws.id);
         const parts = [
@@ -143,7 +139,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
           status.behind > 0
             ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`
             : null,
-          status.pr ? 'PR open' : null,
+          status.pr && isActivePr(status.pr) ? 'PR open' : null,
         ]
           .filter(Boolean)
           .join(', ');
@@ -151,7 +147,7 @@ export function useDeleteRisks(workspaces: WorkspaceRef[], enabled: boolean) {
       }
     }
     return { riskyIds, summaries };
-  }, [risks, workspaces]);
+  }, [risks, tasks]);
 
   return { risks, loading, summary, hasData };
 }

@@ -6,6 +6,7 @@ import { ensureTerminalHost } from './terminalHost';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
+import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '@shared/providers/registry';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -19,7 +20,7 @@ export interface SessionTheme {
 }
 
 export interface TerminalSessionOptions {
-  workspaceId: string;
+  taskId: string;
   cwd?: string;
   shell?: string;
   env?: Record<string, string>;
@@ -60,7 +61,7 @@ export class TerminalSessionManager {
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
 
   constructor(private readonly options: TerminalSessionOptions) {
-    this.id = options.workspaceId;
+    this.id = options.taskId;
 
     this.container = document.createElement('div');
     this.container.className = 'terminal-session-root';
@@ -368,7 +369,7 @@ export class TerminalSessionManager {
   /**
    * Restore the previously captured viewport position.
    * This ensures the terminal stays at the same scroll position when switching
-   * between workspaces or when the terminal is reattached.
+   * between tasks or when the terminal is reattached.
    */
   private restoreViewportPosition() {
     try {
@@ -400,8 +401,8 @@ export class TerminalSessionManager {
   }
 
   private connectPty() {
-    const { workspaceId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
-    const id = workspaceId;
+    const { taskId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
+    const id = taskId;
     void window.electronAPI
       .ptyStart({
         id,
@@ -468,8 +469,30 @@ export class TerminalSessionManager {
     this.disposables.push(offData, offExit);
   }
 
+  /**
+   * Check if this terminal ID is a provider CLI that supports native resume.
+   * Provider CLIs use the format: `${provider}-main-${taskId}`
+   * If the provider has a resumeFlag, we skip snapshot restoration to avoid duplicate history.
+   */
+  private isProviderWithResume(id: string): boolean {
+    const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+    if (!match) return false;
+    const providerId = match[1] as ProviderId;
+    if (!PROVIDER_IDS.includes(providerId)) return false;
+    const provider = PROVIDERS.find((p) => p.id === providerId);
+    return provider?.resumeFlag !== undefined;
+  }
+
   private async restoreSnapshot(): Promise<void> {
     if (!window.electronAPI.ptyGetSnapshot) return;
+
+    // Skip snapshot restoration for providers with native resume capability
+    // The CLI will handle resuming the conversation, so we don't want duplicate history
+    if (this.isProviderWithResume(this.id)) {
+      log.debug('terminalSession:skippingSnapshotForResume', { id: this.id });
+      return;
+    }
+
     try {
       const response = await window.electronAPI.ptyGetSnapshot({ id: this.id });
       if (!response?.ok || !response.snapshot?.data) return;

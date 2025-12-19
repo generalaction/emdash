@@ -31,7 +31,7 @@ export type RunnerResultStatus = 'stopped' | 'failed';
 
 interface RunnerEventEnvelope<T extends RunnerEventType> {
   ts: number;
-  workspaceId: string;
+  taskId: string;
   mode: RunnerMode;
   type: T;
   runId: string;
@@ -85,7 +85,7 @@ export function isRunnerEvent(value: unknown): value is RunnerEvent {
   const candidate = value as Partial<RunnerEvent>;
   if (
     typeof candidate.ts !== 'number' ||
-    typeof candidate.workspaceId !== 'string' ||
+    typeof candidate.taskId !== 'string' ||
     typeof candidate.mode !== 'string' ||
     typeof candidate.type !== 'string' ||
     typeof candidate.runId !== 'string'

@@ -3,6 +3,15 @@
 // We point aliases to the compiled dist tree rather than TS sources.
 import path from 'node:path';
 
+// Ensure app name is set BEFORE any module reads app.getPath('userData').
+// In dev builds, if userData is resolved before app name is set, Electron defaults to
+// ~/Library/Application Support/Electron which leads to confusing "missing DB/migrations" behavior.
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { app } = require('electron');
+  app.setName('Emdash');
+} catch {}
+
 // Install minimal path alias resolver without external deps.
 // Maps:
 //   @shared/* -> dist/main/shared/*

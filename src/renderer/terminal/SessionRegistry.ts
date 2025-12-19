@@ -7,7 +7,7 @@ import {
 const DEFAULT_SCROLLBACK_LINES = 100_000;
 
 interface AttachOptions {
-  workspaceId: string;
+  taskId: string;
   container: HTMLElement;
   cwd?: string;
   shell?: string;
@@ -28,19 +28,19 @@ class SessionRegistry {
     return session;
   }
 
-  detach(workspaceId: string) {
-    this.sessions.get(workspaceId)?.detach();
+  detach(taskId: string) {
+    this.sessions.get(taskId)?.detach();
   }
 
-  dispose(workspaceId: string) {
-    const session = this.sessions.get(workspaceId);
+  dispose(taskId: string) {
+    const session = this.sessions.get(taskId);
     if (!session) return;
     session.dispose();
-    this.sessions.delete(workspaceId);
+    this.sessions.delete(taskId);
   }
 
-  getSession(workspaceId: string): TerminalSessionManager | undefined {
-    return this.sessions.get(workspaceId);
+  getSession(taskId: string): TerminalSessionManager | undefined {
+    return this.sessions.get(taskId);
   }
 
   disposeAll() {
@@ -50,11 +50,11 @@ class SessionRegistry {
   }
 
   private getOrCreate(options: AttachOptions): TerminalSessionManager {
-    const existing = this.sessions.get(options.workspaceId);
+    const existing = this.sessions.get(options.taskId);
     if (existing) return existing;
 
     const sessionOptions: TerminalSessionOptions = {
-      workspaceId: options.workspaceId,
+      taskId: options.taskId,
       cwd: options.cwd,
       shell: options.shell,
       env: options.env,
@@ -67,7 +67,7 @@ class SessionRegistry {
     };
 
     const session = new TerminalSessionManager(sessionOptions);
-    this.sessions.set(options.workspaceId, session);
+    this.sessions.set(options.taskId, session);
     return session;
   }
 }

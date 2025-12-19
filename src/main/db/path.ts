@@ -1,5 +1,5 @@
 import { existsSync, renameSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { app } from 'electron';
 
 const CURRENT_DB_FILENAME = 'emdash.db';
@@ -15,6 +15,28 @@ export function resolveDatabasePath(options: ResolveDatabasePathOptions = {}): s
   const currentPath = join(userDataPath, CURRENT_DB_FILENAME);
   if (existsSync(currentPath)) {
     return currentPath;
+  }
+
+  // Dev safety: prior versions sometimes resolved userData under the default Electron app
+  // (e.g. ~/Library/Application Support/Electron). If we now have a new app name directory,
+  // migrate the old DB over so users don't "lose" their data when running from source.
+  try {
+    const userDataParent = dirname(userDataPath);
+    const legacyDirs = ['Electron', 'emdash', 'Emdash'];
+    for (const dirName of legacyDirs) {
+      const candidateDir = join(userDataParent, dirName);
+      const candidateCurrent = join(candidateDir, CURRENT_DB_FILENAME);
+      if (existsSync(candidateCurrent)) {
+        try {
+          renameSync(candidateCurrent, currentPath);
+          return currentPath;
+        } catch {
+          return candidateCurrent;
+        }
+      }
+    }
+  } catch {
+    // best-effort only
   }
 
   for (const legacyName of LEGACY_DB_FILENAMES) {

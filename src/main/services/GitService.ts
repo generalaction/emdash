@@ -13,18 +13,22 @@ export type GitChange = {
   isStaged: boolean;
 };
 
-export async function getStatus(workspacePath: string): Promise<GitChange[]> {
+export async function getStatus(taskPath: string): Promise<GitChange[]> {
   try {
     await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
-      cwd: workspacePath,
+      cwd: taskPath,
     });
   } catch {
     return [];
   }
 
-  const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain'], {
-    cwd: workspacePath,
-  });
+  const { stdout: statusOutput } = await execFileAsync(
+    'git',
+    ['status', '--porcelain', '--untracked-files=all'],
+    {
+      cwd: taskPath,
+    }
+  );
 
   if (!statusOutput.trim()) return [];
 
@@ -76,20 +80,20 @@ export async function getStatus(workspacePath: string): Promise<GitChange[]> {
 
     try {
       const staged = await execFileAsync('git', ['diff', '--numstat', '--cached', '--', filePath], {
-        cwd: workspacePath,
+        cwd: taskPath,
       });
       if (staged.stdout && staged.stdout.trim()) sumNumstat(staged.stdout);
     } catch {}
 
     try {
       const unstaged = await execFileAsync('git', ['diff', '--numstat', '--', filePath], {
-        cwd: workspacePath,
+        cwd: taskPath,
       });
       if (unstaged.stdout && unstaged.stdout.trim()) sumNumstat(unstaged.stdout);
     } catch {}
 
     if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
-      const absPath = path.join(workspacePath, filePath);
+      const absPath = path.join(taskPath, filePath);
       try {
         const stat = fs.existsSync(absPath) ? fs.statSync(absPath) : undefined;
         if (stat && stat.isFile()) {
@@ -107,12 +111,12 @@ export async function getStatus(workspacePath: string): Promise<GitChange[]> {
   return changes;
 }
 
-export async function stageFile(workspacePath: string, filePath: string): Promise<void> {
-  await execFileAsync('git', ['add', '--', filePath], { cwd: workspacePath });
+export async function stageFile(taskPath: string, filePath: string): Promise<void> {
+  await execFileAsync('git', ['add', '--', filePath], { cwd: taskPath });
 }
 
 export async function revertFile(
-  workspacePath: string,
+  taskPath: string,
   filePath: string
 ): Promise<{ action: 'unstaged' | 'reverted' }> {
   // Check if file is staged
@@ -121,31 +125,54 @@ export async function revertFile(
       'git',
       ['diff', '--cached', '--name-only', '--', filePath],
       {
-        cwd: workspacePath,
+        cwd: taskPath,
       }
     );
 
     if (stagedStatus.trim()) {
       // File is staged, unstage it (but keep working directory changes)
-      await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: workspacePath });
+      await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: taskPath });
       return { action: 'unstaged' };
     }
   } catch {}
 
-  // File is not staged, revert working directory changes
-  await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: workspacePath });
+  // Check if file is tracked in git (exists in HEAD)
+  let fileExistsInHead = false;
+  try {
+    await execFileAsync('git', ['cat-file', '-e', `HEAD:${filePath}`], { cwd: taskPath });
+    fileExistsInHead = true;
+  } catch {
+    // File doesn't exist in HEAD (it's a new/untracked file), delete it
+    const absPath = path.join(taskPath, filePath);
+    if (fs.existsSync(absPath)) {
+      fs.unlinkSync(absPath);
+    }
+    return { action: 'reverted' };
+  }
+
+  // File exists in HEAD, revert it
+  if (fileExistsInHead) {
+    try {
+      await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: taskPath });
+    } catch (error) {
+      // If checkout fails, don't delete the file - throw the error instead
+      throw new Error(
+        `Failed to revert file: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
   return { action: 'reverted' };
 }
 
 export async function getFileDiff(
-  workspacePath: string,
+  taskPath: string,
   filePath: string
 ): Promise<{ lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> }> {
   try {
     const { stdout } = await execFileAsync(
       'git',
       ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
-      { cwd: workspacePath }
+      { cwd: taskPath }
     );
 
     const linesRaw = stdout.split('\n');
@@ -170,13 +197,13 @@ export async function getFileDiff(
 
     if (result.length === 0) {
       try {
-        const abs = path.join(workspacePath, filePath);
+        const abs = path.join(taskPath, filePath);
         if (fs.existsSync(abs)) {
           const content = fs.readFileSync(abs, 'utf8');
           return { lines: content.split('\n').map((l) => ({ right: l, type: 'add' as const })) };
         } else {
           const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
-            cwd: workspacePath,
+            cwd: taskPath,
           });
           return { lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })) };
         }
@@ -188,7 +215,7 @@ export async function getFileDiff(
     return { lines: result };
   } catch {
     try {
-      const abs = path.join(workspacePath, filePath);
+      const abs = path.join(taskPath, filePath);
       const content = fs.readFileSync(abs, 'utf8');
       const lines = content.split('\n');
       return { lines: lines.map((l) => ({ right: l, type: 'add' as const })) };
@@ -197,7 +224,7 @@ export async function getFileDiff(
         const { stdout } = await execFileAsync(
           'git',
           ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
-          { cwd: workspacePath }
+          { cwd: taskPath }
         );
         const linesRaw = stdout.split('\n');
         const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> =
@@ -222,7 +249,7 @@ export async function getFileDiff(
         if (result.length === 0) {
           try {
             const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
-              cwd: workspacePath,
+              cwd: taskPath,
             });
             return { lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })) };
           } catch {

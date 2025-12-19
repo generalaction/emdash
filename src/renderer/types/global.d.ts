@@ -25,6 +25,7 @@ declare global {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        skipResume?: boolean;
       }) => Promise<{ ok: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows: number }) => void;
@@ -47,7 +48,7 @@ declare global {
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;
-        workspaceName: string;
+        taskName: string;
         projectId: string;
         autoApprove?: boolean;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
@@ -101,7 +102,7 @@ declare global {
         rootPath?: string;
         error?: string;
       }>;
-      getGitStatus: (workspacePath: string) => Promise<{
+      getGitStatus: (taskPath: string) => Promise<{
         success: boolean;
         changes?: Array<{
           path: string;
@@ -156,6 +157,35 @@ declare global {
         repoUrl: string,
         localPath: string
       ) => Promise<{ success: boolean; error?: string }>;
+      githubGetOwners: () => Promise<{
+        success: boolean;
+        owners?: Array<{ login: string; type: 'User' | 'Organization' }>;
+        error?: string;
+      }>;
+      githubValidateRepoName: (
+        name: string,
+        owner: string
+      ) => Promise<{
+        success: boolean;
+        valid?: boolean;
+        exists?: boolean;
+        error?: string;
+      }>;
+      githubCreateNewProject: (params: {
+        name: string;
+        description?: string;
+        owner: string;
+        isPrivate: boolean;
+        gitignoreTemplate?: string;
+      }) => Promise<{
+        success: boolean;
+        projectPath?: string;
+        repoUrl?: string;
+        fullName?: string;
+        defaultBranch?: string;
+        githubRepoCreated?: boolean;
+        error?: string;
+      }>;
       githubListPullRequests: (
         projectPath: string
       ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
@@ -164,13 +194,13 @@ declare global {
         projectId: string;
         prNumber: number;
         prTitle?: string;
-        workspaceName?: string;
+        taskName?: string;
         branchName?: string;
       }) => Promise<{
         success: boolean;
         worktree?: any;
         branchName?: string;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
@@ -178,11 +208,11 @@ declare global {
       updateSettings: (settings: any) => Promise<void>;
       linearCheckConnection?: () => Promise<{
         connected: boolean;
-        workspaceName?: string;
+        taskName?: string;
       }>;
       linearSaveToken?: (token: string) => Promise<{
         success: boolean;
-        workspaceName?: string;
+        taskName?: string;
         error?: string;
       }>;
       linearClearToken?: () => Promise<{
@@ -205,10 +235,10 @@ declare global {
       // Database methods
       getProjects: () => Promise<any[]>;
       saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
-      getWorkspaces: (projectId?: string) => Promise<any[]>;
-      saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
+      getTasks: (projectId?: string) => Promise<any[]>;
+      saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-      deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+      deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
     };
   }
 }

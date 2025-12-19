@@ -1,8 +1,8 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Globe, Plus, Terminal, TreePine, X, Bot } from 'lucide-react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Terminal, Plus, X, TreePine, Globe } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
+import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
 import type { Provider } from '../types';
 import { captureTelemetry } from '../lib/telemetryClient';
@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-interface Workspace {
+interface Task {
   id: string;
   name: string;
   branch: string;
@@ -23,39 +23,35 @@ interface Workspace {
 }
 
 interface Props {
-  workspace: Workspace | null;
+  task: Task | null;
   provider?: Provider;
   className?: string;
   projectPath?: string;
 }
 
-const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
-  workspace,
-  provider,
-  className,
-  projectPath,
-}) => {
+const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className, projectPath }) => {
   const { effectiveTheme } = useTheme();
-  const workspaceKey = workspace?.id ?? 'workspace-placeholder';
-  const workspaceTerminals = useWorkspaceTerminals(workspaceKey, workspace?.path);
-  const globalTerminals = useWorkspaceTerminals('global', projectPath, { defaultCwd: projectPath });
-  const [mode, setMode] = useState<'workspace' | 'global'>(workspace ? 'workspace' : 'global');
+
+  const taskKey = task?.id ?? 'task-placeholder';
+  const taskTerminals = useTaskTerminals(taskKey, task?.path);
+  const globalTerminals = useTaskTerminals('global', projectPath, { defaultCwd: projectPath });
+
+  const [mode, setMode] = useState<'task' | 'global'>(task ? 'task' : 'global');
   const [userInitiatedModeChange, setUserInitiatedModeChange] = useState(false);
   const [switchingTerminalId, setSwitchingTerminalId] = useState<string | null>(null);
 
   const handleModeChange = useCallback((value: string) => {
-    if (value === 'workspace' || value === 'global') {
-      setUserInitiatedModeChange(true);
-      setMode(value);
-      // Reset the flag after a short delay to allow future automatic switches
-      setTimeout(() => setUserInitiatedModeChange(false), 1000);
-    }
+    if (value !== 'task' && value !== 'global') return;
+    setUserInitiatedModeChange(true);
+    setMode(value);
+    setTimeout(() => setUserInitiatedModeChange(false), 1000);
   }, []);
+
   useEffect(() => {
-    if (!workspace && mode === 'workspace' && !userInitiatedModeChange) {
+    if (!task && mode === 'task' && !userInitiatedModeChange) {
       setMode('global');
     }
-  }, [workspace, mode, userInitiatedModeChange]);
+  }, [task, mode, userInitiatedModeChange]);
 
   const {
     terminals,
@@ -64,7 +60,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     createTerminal,
     setActiveTerminal,
     closeTerminal,
-  } = mode === 'global' ? globalTerminals : workspaceTerminals;
+  } = mode === 'global' ? globalTerminals : taskTerminals;
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -90,7 +86,6 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     brightWhite?: string;
   } | null>(null);
 
-  // Fetch native terminal theme on mount
   useEffect(() => {
     void (async () => {
       try {
@@ -99,15 +94,12 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
           setNativeTheme(result.config.theme);
         }
       } catch (error) {
-        // Silently fail - fall back to default theme
         console.warn('Failed to load native terminal theme', error);
       }
     })();
   }, []);
 
-  // Optimized theme calculation with native theme merging
   const themeOverride = useMemo(() => {
-    // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
     const isMistral = provider === 'mistral';
     const darkBackground = isMistral ? '#202938' : '#1e1e1e';
 
@@ -160,11 +152,10 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
             brightWhite: '#a5a5a5',
           };
 
-    // Merge native theme with defaults (native theme takes precedence)
     return nativeTheme ? { ...baseTheme, ...nativeTheme } : baseTheme;
   }, [effectiveTheme, provider, nativeTheme]);
 
-  if (!workspace && !projectPath) {
+  if (!task && !projectPath) {
     return (
       <div
         className={`flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 ${className}`}
@@ -181,13 +172,12 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
   return (
     <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
-        {/* Screen reader-only accessibility descriptions */}
         <span id="terminal-scope-description" className="sr-only">
-          Choose between workspace-specific or global terminal scope
+          Choose between task worktree or global terminal scope
         </span>
-        {!workspace && (
-          <span id="workspace-disabled-reason" className="sr-only">
-            Workspace terminal requires an active workspace
+        {!task && (
+          <span id="task-disabled-reason" className="sr-only">
+            Worktree terminal requires an active task
           </span>
         )}
         {!projectPath && (
@@ -200,7 +190,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
           <Select
             value={mode}
             onValueChange={handleModeChange}
-            disabled={!workspace && !projectPath}
+            disabled={!task && !projectPath}
             aria-label="Terminal scope selector"
             aria-describedby="terminal-scope-description"
           >
@@ -212,10 +202,10 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                 'shadow-sm'
               )}
               title={
-                mode === 'workspace'
-                  ? workspace
-                    ? 'Workspace terminal'
-                    : 'No workspace selected'
+                mode === 'task'
+                  ? task
+                    ? 'Worktree terminal'
+                    : 'No task selected'
                   : projectPath
                     ? 'Global terminal at project root'
                     : 'No project selected'
@@ -225,10 +215,10 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem
-                value="workspace"
-                disabled={!workspace}
+                value="task"
+                disabled={!task}
                 className="text-[11px]"
-                aria-describedby={workspace ? '' : 'workspace-disabled-reason'}
+                aria-describedby={!task ? 'task-disabled-reason' : undefined}
               >
                 <div className="flex items-center gap-2">
                   <TreePine className="h-3.5 w-3.5" aria-hidden="true" />
@@ -239,7 +229,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                 value="global"
                 disabled={!projectPath}
                 className="text-[11px]"
-                aria-describedby={projectPath ? '' : 'global-disabled-reason'}
+                aria-describedby={!projectPath ? 'global-disabled-reason' : undefined}
               >
                 <div className="flex items-center gap-2">
                   <Globe className="h-3.5 w-3.5" aria-hidden="true" />
@@ -249,6 +239,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
             </SelectContent>
           </Select>
         </div>
+
         <div className="flex min-w-0 flex-1 items-center space-x-1 overflow-x-auto">
           {terminals.map((terminal) => {
             const isActive = terminal.id === activeTerminalId;
@@ -257,11 +248,10 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                 key={terminal.id}
                 type="button"
                 onClick={() => {
-                  if (switchingTerminalId) return; // Prevent multiple simultaneous switches
+                  if (switchingTerminalId) return;
                   try {
                     setSwitchingTerminalId(terminal.id);
                     setActiveTerminal(terminal.id);
-                    // Focus the terminal after switching for accessibility
                     setTimeout(() => {
                       const terminalElement = document.querySelector(
                         `[data-terminal-id="${terminal.id}"]`
@@ -274,7 +264,6 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                   } catch (error) {
                     console.error('Failed to switch terminal:', error);
                     setSwitchingTerminalId(null);
-                    // Could add user feedback here like a toast notification
                   }
                 }}
                 className={cn(
@@ -287,7 +276,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
                 id={`terminal-tab-${terminal.id}`}
                 aria-label={`${terminal.title} ${isActive ? 'active' : 'inactive'} terminal`}
                 aria-pressed={isActive}
-                aria-controls={terminal.id}
+                aria-controls={`terminal-panel-${terminal.id}`}
                 role="tab"
               >
                 {switchingTerminalId === terminal.id ? (
@@ -314,22 +303,21 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
             );
           })}
         </div>
+
         <button
           type="button"
           onClick={() => {
             captureTelemetry('terminal_new_terminal_created', { scope: mode });
-            const cwd = mode === 'global' ? projectPath : workspace?.path;
+            const cwd = mode === 'global' ? projectPath : task?.path;
             if (!cwd) {
               console.warn('Cannot create terminal: no working directory available');
               return;
             }
-            createTerminal({
-              cwd,
-            });
+            createTerminal({ cwd });
           }}
           className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
-          title={mode === 'global' ? 'New global terminal' : 'New workspace terminal'}
-          disabled={mode === 'workspace' && !workspace}
+          title={mode === 'global' ? 'New global terminal' : 'New worktree terminal'}
+          disabled={mode === 'task' && !task}
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -347,11 +335,12 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
       >
         {terminals.map((terminal) => {
           const cwd =
-            terminal.cwd ||
-            (mode === 'global' ? projectPath || terminal.cwd : workspace?.path || terminal.cwd);
+            terminal.cwd || (mode === 'global' ? projectPath || terminal.cwd : task?.path || terminal.cwd);
+
           return (
             <div
               key={terminal.id}
+              id={`terminal-panel-${terminal.id}`}
               data-terminal-id={terminal.id}
               className={cn(
                 'absolute inset-0 h-full w-full transition-opacity',
@@ -372,6 +361,7 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
             </div>
           );
         })}
+
         {!terminals.length || !activeTerminal ? (
           <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
             <p>No terminal found.</p>
@@ -381,6 +371,6 @@ const WorkspaceTerminalPanelComponent: React.FC<Props> = ({
     </div>
   );
 };
-export const WorkspaceTerminalPanel = React.memo(WorkspaceTerminalPanelComponent);
 
-export default WorkspaceTerminalPanel;
+export const TaskTerminalPanel = React.memo(TaskTerminalPanelComponent);
+export default TaskTerminalPanel;

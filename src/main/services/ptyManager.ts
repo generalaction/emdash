@@ -27,23 +27,53 @@ export function startPty(options: {
   rows?: number;
   autoApprove?: boolean;
   initialPrompt?: string;
+  skipResume?: boolean;
 }): IPty {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
-  const { id, cwd, shell, env, cols = 80, rows = 24, autoApprove, initialPrompt } = options;
+  const {
+    id,
+    cwd,
+    shell,
+    env,
+    cols = 80,
+    rows = 24,
+    autoApprove,
+    initialPrompt,
+    skipResume,
+  } = options;
 
   const defaultShell = getDefaultShell();
   let useShell = shell || defaultShell;
   const useCwd = cwd || process.cwd() || os.homedir();
-  const useEnv = {
+
+  // Build a clean environment instead of inheriting process.env wholesale.
+  //
+  // WHY: When Emdash runs as an AppImage on Linux (or other packaged Electron apps),
+  // the parent process.env contains packaging artifacts like PYTHONHOME, APPDIR,
+  // APPIMAGE, etc. These variables can break user tools, especially Python virtual
+  // environments which fail with "Could not find platform independent libraries"
+  // when PYTHONHOME points to the AppImage's bundled Python.
+  //
+  // SOLUTION: Only pass through essential variables and let login shells (-il)
+  // rebuild the environment from the user's shell configuration files
+  // (.profile, .bashrc, .zshrc, etc.). This is how `sudo -i`, `ssh`, and other
+  // tools create clean user environments.
+  //
+  // See: https://github.com/generalaction/emdash/issues/485
+  const useEnv: Record<string, string> = {
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
     TERM_PROGRAM: 'emdash',
-    ...process.env,
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    SHELL: process.env.SHELL || defaultShell,
+    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
+    ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(env || {}),
   };
-
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
     try {
@@ -112,12 +142,24 @@ export function startPty(options: {
       if (provider) {
         // Build the provider command with flags
         const cliArgs: string[] = [];
+
+        // Add resume flag FIRST if available (unless skipResume is true)
+        if (provider.resumeFlag && !skipResume) {
+          const resumeParts = provider.resumeFlag.split(' ');
+          cliArgs.push(...resumeParts);
+        }
+
+        // Then add default args
         if (provider.defaultArgs?.length) {
           cliArgs.push(...provider.defaultArgs);
         }
+
+        // Then auto-approve flag
         if (autoApprove && provider.autoApproveFlag) {
           cliArgs.push(provider.autoApproveFlag);
         }
+
+        // Finally initial prompt
         if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
           if (provider.initialPromptFlag) {
             cliArgs.push(provider.initialPromptFlag);

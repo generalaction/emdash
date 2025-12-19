@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 
 /**
- * Hook to auto-scroll terminal containers to bottom when workspace switches
+ * Hook to auto-scroll terminal containers to bottom when task switches
  */
 type ScrollOptions = {
   /**
@@ -11,8 +11,8 @@ type ScrollOptions = {
   onlyIfNearTop?: boolean;
 };
 
-export function useAutoScrollOnWorkspaceSwitch(isActive: boolean, workspaceId: string | null) {
-  const previousWorkspaceIdRef = useRef<string | null>(null);
+export function useAutoScrollOnTaskSwitch(isActive: boolean, taskId: string | null) {
+  const previousTaskIdRef = useRef<string | null>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = useCallback((options: ScrollOptions = {}) => {
@@ -49,18 +49,18 @@ export function useAutoScrollOnWorkspaceSwitch(isActive: boolean, workspaceId: s
     });
 
     if (process.env.NODE_ENV === 'development' && !scrolledAny) {
-      console.debug('[useAutoScrollOnWorkspaceSwitch] No scrollable terminal containers found');
+      console.debug('[useAutoScrollOnTaskSwitch] No scrollable terminal containers found');
     }
   }, []);
 
   useEffect(() => {
-    if (!isActive || !workspaceId) {
+    if (!isActive || !taskId) {
       return;
     }
 
-    // Check if workspace actually changed
-    if (previousWorkspaceIdRef.current !== workspaceId) {
-      previousWorkspaceIdRef.current = workspaceId;
+    // Check if task actually changed
+    if (previousTaskIdRef.current !== taskId) {
+      previousTaskIdRef.current = taskId;
 
       // Clear any existing timeout
       if (scrollTimeoutRef.current) {
@@ -79,7 +79,7 @@ export function useAutoScrollOnWorkspaceSwitch(isActive: boolean, workspaceId: s
         scrollTimeoutRef.current = null;
       }
     };
-  }, [isActive, workspaceId, scrollToBottom]);
+  }, [isActive, taskId, scrollToBottom]);
 
   // Expose a manual scroll function for external use
   return { scrollToBottom };

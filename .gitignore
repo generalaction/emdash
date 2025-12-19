@@ -56,10 +56,15 @@ Thumbs.db
 
 # AI assistant instructions
 .notes/
+.claude/
 
 # Local generated worktrees for perf experiments
 worktrees/
 
+# Checkouts directory
+.checkouts/
+
 /container.md
 
 .env
+.cursor

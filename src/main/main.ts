@@ -111,7 +111,7 @@ import * as telemetry from './telemetry';
 import { join } from 'path';
 
 // Set app name for macOS dock and menu bar (especially important in dev mode)
-app.setName('emdash');
+app.setName('Emdash');
 
 // Set dock icon on macOS in development mode
 if (process.platform === 'darwin' && !app.isPackaged) {
@@ -136,31 +136,58 @@ if (process.platform === 'darwin' && !app.isPackaged) {
 // App bootstrap
 app.whenReady().then(async () => {
   // Initialize database
+  let dbInitOk = false;
+  let dbInitErrorType: string | undefined;
   try {
     await databaseService.initialize();
-    // console.log('Database initialized successfully');
+    dbInitOk = true;
+    console.log('Database initialized successfully');
   } catch (error) {
-    // console.error('Failed to initialize database:', error);
+    const err = error as unknown;
+    const asObj = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
+    const code = asObj && typeof asObj.code === 'string' ? asObj.code : undefined;
+    const name = asObj && typeof asObj.name === 'string' ? asObj.name : undefined;
+    dbInitErrorType = code || name || 'unknown';
+    console.error('Failed to initialize database:', error);
+    // Don't prevent app startup, but log the error clearly
   }
 
   // Initialize telemetry (privacy-first, anonymous)
   telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
-
-  // Best-effort: capture a coarse snapshot of project/workspace counts (no names/paths)
   try {
-    const [projects, workspaces] = await Promise.all([
+    const summary = databaseService.getLastMigrationSummary();
+    const toBucket = (n: number) => (n === 0 ? '0' : n === 1 ? '1' : n <= 3 ? '2-3' : '>3');
+    telemetry.capture('db_setup', {
+      outcome: dbInitOk ? 'success' : 'failure',
+      ...(dbInitOk
+        ? {
+            applied_migrations: summary?.appliedCount ?? 0,
+            applied_migrations_bucket: toBucket(summary?.appliedCount ?? 0),
+            recovered: summary?.recovered === true,
+          }
+        : {
+            error_type: dbInitErrorType ?? 'unknown',
+          }),
+    });
+  } catch {
+    // telemetry must never crash the app
+  }
+
+  // Best-effort: capture a coarse snapshot of project/task counts (no names/paths)
+  try {
+    const [projects, tasks] = await Promise.all([
       databaseService.getProjects(),
-      databaseService.getWorkspaces(),
+      databaseService.getTasks(),
     ]);
     const projectCount = projects.length;
-    const workspaceCount = workspaces.length;
+    const taskCount = tasks.length;
     const toBucket = (n: number) =>
       n === 0 ? '0' : n <= 2 ? '1-2' : n <= 5 ? '3-5' : n <= 10 ? '6-10' : '>10';
-    telemetry.capture('workspace_snapshot', {
+    telemetry.capture('task_snapshot', {
       project_count: projectCount,
       project_count_bucket: toBucket(projectCount),
-      workspace_count: workspaceCount,
-      workspace_count_bucket: toBucket(workspaceCount),
+      task_count: taskCount,
+      task_count_bucket: toBucket(taskCount),
     } as any);
   } catch {
     // ignore errors — telemetry is best-effort only

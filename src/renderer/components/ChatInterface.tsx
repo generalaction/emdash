@@ -14,16 +14,16 @@ import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
 import { log } from '@/lib/logger';
 import { logPlanEvent } from '@/lib/planLogs';
 import { type Provider } from '../types';
-import { Workspace } from '../types/chat';
+import { Task } from '../types/chat';
 import {
   getContainerRunState,
-  subscribeToWorkspaceRunState,
+  subscribeToTaskRunState,
   type ContainerRunState,
 } from '@/lib/containerRuns';
 import { useBrowser } from '@/providers/BrowserProvider';
-import { useWorkspaceTerminals } from '@/lib/workspaceTerminalsStore';
+import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
-import { useAutoScrollOnWorkspaceSwitch } from '@/hooks/useAutoScrollOnWorkspaceSwitch';
+import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 
 declare const window: Window & {
   electronAPI: {
@@ -32,14 +32,14 @@ declare const window: Window & {
 };
 
 interface Props {
-  workspace: Workspace;
+  task: Task;
   projectName: string;
   className?: string;
   initialProvider?: Provider;
 }
 
 const ChatInterface: React.FC<Props> = ({
-  workspace,
+  task,
   projectName: _projectName,
   className,
   initialProvider,
@@ -55,33 +55,30 @@ const ChatInterface: React.FC<Props> = ({
   const browser = useBrowser();
   const [cliStartFailed, setCliStartFailed] = useState(false);
   const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
-    getContainerRunState(workspace.id)
+    getContainerRunState(task.id)
   );
   const reduceMotion = useReducedMotion();
-  const terminalId = useMemo(() => `${provider}-main-${workspace.id}`, [provider, workspace.id]);
+  const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
   const [portsExpanded, setPortsExpanded] = useState(false);
-  const { activeTerminalId } = useWorkspaceTerminals(workspace.id, workspace.path);
+  const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
-  // Auto-scroll to bottom when this workspace becomes active
-  useAutoScrollOnWorkspaceSwitch(true, workspace.id);
+  // Auto-scroll to bottom when this task becomes active
+  useAutoScrollOnTaskSwitch(true, task.id);
 
-  // Unified Plan Mode (per workspace)
-  const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(
-    workspace.id,
-    workspace.path
-  );
+  // Unified Plan Mode (per task)
+  const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(task.id, task.path);
 
   // Log transitions for visibility
   useEffect(() => {
-    log.info('[plan] state changed', { workspaceId: workspace.id, enabled: planEnabled });
-  }, [planEnabled, workspace.id]);
+    log.info('[plan] state changed', { taskId: task.id, enabled: planEnabled });
+  }, [planEnabled, task.id]);
 
   // For terminal providers with native plan activation commands
   usePlanActivationTerminal({
     enabled: planEnabled,
     providerId: provider,
-    workspaceId: workspace.id,
-    workspacePath: workspace.path,
+    taskId: task.id,
+    taskPath: task.path,
   });
 
   useEffect(() => {
@@ -126,8 +123,8 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     setCliStartFailed(false);
     setIsProviderInstalled(null);
-    setContainerState(getContainerRunState(workspace.id));
-  }, [workspace.id]);
+    setContainerState(getContainerRunState(task.id));
+  }, [task.id]);
 
   const runInstallCommand = useCallback(
     (cmd: string) => {
@@ -175,11 +172,11 @@ const ChatInterface: React.FC<Props> = ({
     if (!active) setPortsExpanded(false);
   }, [containerState?.status, containerState?.ports?.length]);
 
-  // On workspace change, restore last-selected provider (including Droid).
+  // On task change, restore last-selected provider (including Droid).
   // If a locked provider exists (including Droid), prefer locked.
   useEffect(() => {
     try {
-      const lastKey = `provider:last:${workspace.id}`;
+      const lastKey = `provider:last:${task.id}`;
       const last = window.localStorage.getItem(lastKey) as Provider | null;
 
       if (initialProvider) {
@@ -210,14 +207,14 @@ const ChatInterface: React.FC<Props> = ({
     } catch {
       setProvider(initialProvider || 'codex');
     }
-  }, [workspace.id, initialProvider]);
+  }, [task.id, initialProvider]);
 
-  // Persist last-selected provider per workspace (including Droid)
+  // Persist last-selected provider per task (including Droid)
   useEffect(() => {
     try {
-      window.localStorage.setItem(`provider:last:${workspace.id}`, provider);
+      window.localStorage.setItem(`provider:last:${task.id}`, provider);
     } catch {}
-  }, [provider, workspace.id]);
+  }, [provider, task.id]);
 
   // Track provider switching
   const prevProviderRef = React.useRef<Provider | null>(null);
@@ -225,7 +222,7 @@ const ChatInterface: React.FC<Props> = ({
     if (prevProviderRef.current && prevProviderRef.current !== provider) {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('workspace_provider_switched', { provider });
+        captureTelemetry('task_provider_switched', { provider });
       })();
     }
     prevProviderRef.current = provider;
@@ -303,7 +300,7 @@ const ChatInterface: React.FC<Props> = ({
       cancelled = true;
       off?.();
     };
-  }, [provider, workspace.id]);
+  }, [provider, task.id]);
 
   // If we don't even have a cached status entry for the current provider, pessimistically
   // show the install banner and kick off a background refresh to populate it.
@@ -349,13 +346,15 @@ const ChatInterface: React.FC<Props> = ({
       try {
       } catch {}
     })();
-  }, [provider, workspace.id]);
+  }, [provider, task.id]);
 
   const isTerminal = providerMeta[provider]?.terminalOnly === true;
+  const autoApproveEnabled =
+    Boolean(task.metadata?.autoApprove) && Boolean(providerMeta[provider]?.autoApproveFlag);
 
   const initialInjection = useMemo(() => {
     if (!isTerminal) return null;
-    const md = workspace.metadata || null;
+    const md = task.metadata || null;
     const p = (md?.initialPrompt || '').trim();
     if (p) return p;
     const issue = md?.linearIssue;
@@ -442,32 +441,32 @@ const ChatInterface: React.FC<Props> = ({
       return lines.join('\n');
     }
     return null;
-  }, [isTerminal, workspace.metadata]);
+  }, [isTerminal, task.metadata]);
 
   // Only use keystroke injection for providers WITHOUT CLI flag support
   // Providers with initialPromptFlag use CLI arg injection via TerminalPane instead
   useInitialPromptInjection({
-    workspaceId: workspace.id,
+    taskId: task.id,
     providerId: provider,
     prompt: initialInjection,
     enabled: isTerminal && providerMeta[provider]?.initialPromptFlag === undefined,
   });
 
-  // Ensure a provider is stored for this workspace so fallbacks can subscribe immediately
+  // Ensure a provider is stored for this task so fallbacks can subscribe immediately
   useEffect(() => {
     try {
-      localStorage.setItem(`workspaceProvider:${workspace.id}`, provider);
+      localStorage.setItem(`taskProvider:${task.id}`, provider);
     } catch {}
-  }, [provider, workspace.id]);
+  }, [provider, task.id]);
 
   useEffect(() => {
-    const off = subscribeToWorkspaceRunState(workspace.id, (state) => {
+    const off = subscribeToTaskRunState(task.id, (state) => {
       setContainerState(state);
     });
     return () => {
       off?.();
     };
-  }, [workspace.id]);
+  }, [task.id]);
 
   const containerStatusNode = useMemo(() => {
     const state = containerState;
@@ -502,7 +501,7 @@ const ChatInterface: React.FC<Props> = ({
             const res = await api.resolveServiceIcon({
               service: name,
               allowNetwork: true,
-              workspacePath: workspace.path,
+              taskPath: task.path,
             });
             if (!cancelled && res?.ok && typeof res.dataUrl === 'string') setSrc(res.dataUrl);
           } catch {}
@@ -518,7 +517,7 @@ const ChatInterface: React.FC<Props> = ({
       if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
       return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
     };
-    const isMultiAgent = workspace.metadata?.multiAgent?.enabled === true;
+    const isMultiAgent = task.metadata?.multiAgent?.enabled === true;
     return (
       <div className="mt-4 px-6">
         <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">
@@ -551,7 +550,7 @@ const ChatInterface: React.FC<Props> = ({
                   onClick={() => setPortsExpanded((v) => !v)}
                   className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
                   aria-expanded={portsExpanded}
-                  aria-controls={`chat-ports-${workspace.id}`}
+                  aria-controls={`chat-ports-${task.id}`}
                 >
                   <ChevronDown
                     className={[
@@ -592,7 +591,7 @@ const ChatInterface: React.FC<Props> = ({
           <AnimatePresence initial={false}>
             {portsExpanded && sorted.length ? (
               <motion.div
-                id={`chat-ports-${workspace.id}`}
+                id={`chat-ports-${task.id}`}
                 className="text-xs text-muted-foreground"
                 initial={reduceMotion ? false : { opacity: 0, height: 0, paddingTop: 0 }}
                 animate={{ opacity: 1, height: 'auto', paddingTop: 8 }}
@@ -646,7 +645,7 @@ const ChatInterface: React.FC<Props> = ({
         </div>
       </div>
     );
-  }, [containerState, portsExpanded, reduceMotion, workspace.id, workspace.path]);
+  }, [containerState, portsExpanded, reduceMotion, task.id, task.path]);
 
   if (!isTerminal) {
     return null;
@@ -700,20 +699,21 @@ const ChatInterface: React.FC<Props> = ({
           >
             <TerminalPane
               id={terminalId}
-              cwd={workspace.path}
+              cwd={task.path}
               shell={providerMeta[provider].cli}
+              autoApprove={autoApproveEnabled}
               env={
                 planEnabled
                   ? {
                       EMDASH_PLAN_MODE: '1',
-                      EMDASH_PLAN_FILE: `${workspace.path}/.emdash/planning.md`,
+                      EMDASH_PLAN_FILE: `${task.path}/.emdash/planning.md`,
                     }
                   : undefined
               }
               keepAlive={true}
               onActivity={() => {
                 try {
-                  window.localStorage.setItem(`provider:locked:${workspace.id}`, provider);
+                  window.localStorage.setItem(`provider:locked:${task.id}`, provider);
                 } catch {}
               }}
               onStartError={() => {
@@ -722,11 +722,11 @@ const ChatInterface: React.FC<Props> = ({
               onStartSuccess={() => {
                 setCliStartFailed(false);
                 // Mark initial injection as sent so it won't re-run on restart
-                if (initialInjection && !workspace.metadata?.initialInjectionSent) {
-                  void window.electronAPI.saveWorkspace({
-                    ...workspace,
+                if (initialInjection && !task.metadata?.initialInjectionSent) {
+                  void window.electronAPI.saveTask({
+                    ...task,
                     metadata: {
-                      ...workspace.metadata,
+                      ...task.metadata,
                       initialInjectionSent: true,
                     },
                   });
@@ -747,7 +747,7 @@ const ChatInterface: React.FC<Props> = ({
               }
               initialPrompt={
                 providerMeta[provider]?.initialPromptFlag !== undefined &&
-                !workspace.metadata?.initialInjectionSent
+                !task.metadata?.initialInjectionSent
                   ? (initialInjection ?? undefined)
                   : undefined
               }
@@ -759,15 +759,16 @@ const ChatInterface: React.FC<Props> = ({
 
       <ProviderBar
         provider={provider}
-        workspaceId={workspace.id}
-        linearIssue={workspace.metadata?.linearIssue || null}
-        githubIssue={workspace.metadata?.githubIssue || null}
-        jiraIssue={workspace.metadata?.jiraIssue || null}
+        taskId={task.id}
+        linearIssue={task.metadata?.linearIssue || null}
+        githubIssue={task.metadata?.githubIssue || null}
+        jiraIssue={task.metadata?.jiraIssue || null}
+        autoApprove={autoApproveEnabled}
         planModeEnabled={planEnabled}
         onPlanModeChange={setPlanEnabled}
         onApprovePlan={async () => {
           try {
-            await logPlanEvent(workspace.path, 'Plan approved via UI; exiting Plan Mode');
+            await logPlanEvent(task.path, 'Plan approved via UI; exiting Plan Mode');
           } catch {}
           setPlanEnabled(false);
         }}
