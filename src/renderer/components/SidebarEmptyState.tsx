@@ -30,7 +30,7 @@ const SidebarEmptyState: React.FC<Props> = ({
           ) : null}
         </CardHeader>
         {(actionLabel && onAction) || (secondaryActionLabel && onSecondaryAction) ? (
-          <CardContent className="pt-0 space-y-2">
+          <CardContent className="space-y-2 pt-0">
             {actionLabel && onAction && (
               <Button
                 type="button"

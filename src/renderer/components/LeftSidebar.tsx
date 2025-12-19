@@ -351,7 +351,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </SidebarGroup>
           )}
         </SidebarContent>
-        <SidebarFooter className="border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4 min-w-0 overflow-hidden">
+        <SidebarFooter className="min-w-0 overflow-hidden border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
           <SidebarMenu className="w-full min-w-0">
             <SidebarMenuItem className="min-w-0">
               <SidebarMenuButton
@@ -363,15 +363,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   e.preventDefault();
                   handleGithubProfileClick();
                 }}
-                className={`flex w-full items-center justify-start gap-2 px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 min-w-0 overflow-hidden ${
+                className={`flex w-full min-w-0 items-center justify-start gap-2 overflow-hidden px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
                   githubProfileUrl
                     ? 'hover:bg-black/5 dark:hover:bg-white/5'
                     : 'cursor-default hover:bg-transparent'
                 }`}
                 aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
               >
-                <div className="flex min-w-0 flex-1 flex-col gap-1 text-left w-full overflow-hidden">
-                  <div className="hidden sm:block w-full min-w-0">{renderGithubStatus()}</div>
+                <div className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-hidden text-left">
+                  <div className="hidden w-full min-w-0 sm:block">{renderGithubStatus()}</div>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>

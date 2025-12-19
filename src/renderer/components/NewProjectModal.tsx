@@ -20,11 +20,7 @@ interface Owner {
   type: 'User' | 'Organization';
 }
 
-export const NewProjectModal: React.FC<NewProjectModalProps> = ({
-  isOpen,
-  onClose,
-  onSuccess,
-}) => {
+export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [repoName, setRepoName] = useState('');
   const [description, setDescription] = useState('');
   const [owner, setOwner] = useState<string>('');
@@ -253,9 +249,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       />
                       {touched && (validationError || error) && (
                         <div className="mt-1">
-                          <p className="text-xs text-destructive">
-                            {validationError || error}
-                          </p>
+                          <p className="text-xs text-destructive">{validationError || error}</p>
                         </div>
                       )}
                     </div>
@@ -276,7 +270,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                     <div>
                       <Label className="mb-2 block">Visibility</Label>
                       <div className="flex items-center gap-4">
-                        <label className="flex items-center space-x-2 cursor-pointer">
+                        <label className="flex cursor-pointer items-center space-x-2">
                           <input
                             type="radio"
                             name="visibility"
@@ -284,11 +278,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                             checked={!isPrivate}
                             onChange={(e) => setIsPrivate(e.target.value === 'private')}
                             disabled={isCreating}
-                            className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                            className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
                           />
                           <span className="text-sm">Public</span>
                         </label>
-                        <label className="flex items-center space-x-2 cursor-pointer">
+                        <label className="flex cursor-pointer items-center space-x-2">
                           <input
                             type="radio"
                             name="visibility"
@@ -296,7 +290,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                             checked={isPrivate}
                             onChange={(e) => setIsPrivate(e.target.value === 'private')}
                             disabled={isCreating}
-                            className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                            className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
                           />
                           <span className="text-sm">Private</span>
                         </label>
@@ -351,4 +345,3 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     document.body
   );
 };
-

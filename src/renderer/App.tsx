@@ -644,9 +644,7 @@ const AppContent: React.FC = () => {
         const gitInfo = await window.electronAPI.getGitInfo(projectPath);
         const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
         const repoKey = normalizePathForComparison(canonicalPath);
-        const existingProject = projects.find(
-          (project) => getProjectRepoKey(project) === repoKey
-        );
+        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
 
         if (existingProject) {
           activateProjectView(existingProject);
@@ -655,8 +653,7 @@ const AppContent: React.FC = () => {
 
         const remoteUrl = gitInfo.remote || '';
         const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-        const projectName =
-          canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+        const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
         const baseProject: Project = {
           id: Date.now().toString(),
@@ -742,7 +739,15 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [projects, isAuthenticated, activateProjectView, normalizePathForComparison, toast, computeBaseRef, withRepoKey]
+    [
+      projects,
+      isAuthenticated,
+      activateProjectView,
+      normalizePathForComparison,
+      toast,
+      computeBaseRef,
+      withRepoKey,
+    ]
   );
 
   const handleNewProjectSuccess = useCallback(
@@ -753,9 +758,7 @@ const AppContent: React.FC = () => {
         const gitInfo = await window.electronAPI.getGitInfo(projectPath);
         const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
         const repoKey = normalizePathForComparison(canonicalPath);
-        const existingProject = projects.find(
-          (project) => getProjectRepoKey(project) === repoKey
-        );
+        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
 
         if (existingProject) {
           activateProjectView(existingProject);
@@ -764,8 +767,7 @@ const AppContent: React.FC = () => {
 
         const remoteUrl = gitInfo.remote || '';
         const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-        const projectName =
-          canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+        const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
         const baseProject: Project = {
           id: Date.now().toString(),
@@ -880,7 +882,16 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [projects, isAuthenticated, activateProjectView, normalizePathForComparison, toast, computeBaseRef, withRepoKey, getProjectRepoKey]
+    [
+      projects,
+      isAuthenticated,
+      activateProjectView,
+      normalizePathForComparison,
+      toast,
+      computeBaseRef,
+      withRepoKey,
+      getProjectRepoKey,
+    ]
   );
 
   const handleGithubConnect = async () => {
@@ -1750,7 +1761,7 @@ const AppContent: React.FC = () => {
     if (showHomeView) {
       return (
         <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-          <div className="container mx-auto flex min-h-full flex-1 flex-col justify-center px-8 py-8 max-w-3xl">
+          <div className="container mx-auto flex min-h-full max-w-3xl flex-1 flex-col justify-center px-8 py-8">
             <div className="mb-6 text-center">
               <div className="mb-2 flex items-center justify-center">
                 <div className="logo-shimmer-container">
@@ -1776,7 +1787,7 @@ const AppContent: React.FC = () => {
                   />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground whitespace-nowrap">
+              <p className="whitespace-nowrap text-xs text-muted-foreground">
                 Run multiple Coding Agents in parallel
               </p>
             </div>
@@ -1792,9 +1803,9 @@ const AppContent: React.FC = () => {
                 }}
                 className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <FolderOpen className="h-4 w-4 text-foreground mb-5" />
-                <div className="text-left w-full min-w-0">
-                  <h3 className="text-xs font-semibold truncate">Open project</h3>
+                <FolderOpen className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Open project</h3>
                 </div>
               </button>
 
@@ -1820,9 +1831,9 @@ const AppContent: React.FC = () => {
                 }}
                 className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Plus className="h-4 w-4 text-foreground mb-5" />
-                <div className="text-left w-full min-w-0">
-                  <h3 className="text-xs font-semibold truncate">Create New Project</h3>
+                <Plus className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Create New Project</h3>
                 </div>
               </button>
 
@@ -1848,9 +1859,9 @@ const AppContent: React.FC = () => {
                 }}
                 className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Download className="h-4 w-4 text-foreground mb-5" />
-                <div className="text-left w-full min-w-0">
-                  <h3 className="text-xs font-semibold truncate">Clone from GitHub</h3>
+                <Download className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Clone from GitHub</h3>
                 </div>
               </button>
             </div>

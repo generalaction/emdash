@@ -48,7 +48,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({
       const cleanedUrl = cleanUrl(repoUrl);
       // Try to extract repo name from various URL formats
       let repoName = '';
-      
+
       // Handle https://github.com/owner/repo.git or https://github.com/owner/repo
       const httpsMatch = cleanedUrl.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
       if (httpsMatch) {
@@ -150,10 +150,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({
 
         setProgress(`Cloning to ${localPath}...`);
 
-        const cloneResult = await window.electronAPI.githubCloneRepository(
-          cleanedUrl,
-          localPath
-        );
+        const cloneResult = await window.electronAPI.githubCloneRepository(cleanedUrl, localPath);
 
         if (!cloneResult.success) {
           throw new Error(cloneResult.error || 'Failed to clone repository');
@@ -272,7 +269,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({
                         disabled={isCloning}
                         className="w-full"
                       />
-                      <p className="mt-1 text-[10px] text-muted-foreground pl-0.5">
+                      <p className="mt-1 pl-0.5 text-[10px] text-muted-foreground">
                         Local directory name (auto-detected from URL)
                       </p>
                     </div>
@@ -324,4 +321,3 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({
     document.body
   );
 };
-

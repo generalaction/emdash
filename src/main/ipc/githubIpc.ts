@@ -348,46 +348,43 @@ export function registerGithubIpc() {
     }
   });
 
-  ipcMain.handle(
-    'github:validateRepoName',
-    async (_, name: string, owner: string) => {
-      try {
-        // First validate format
-        const formatValidation = githubService.validateRepositoryName(name);
-        if (!formatValidation.valid) {
-          return {
-            success: true,
-            valid: false,
-            exists: false,
-            error: formatValidation.error,
-          };
-        }
+  ipcMain.handle('github:validateRepoName', async (_, name: string, owner: string) => {
+    try {
+      // First validate format
+      const formatValidation = githubService.validateRepositoryName(name);
+      if (!formatValidation.valid) {
+        return {
+          success: true,
+          valid: false,
+          exists: false,
+          error: formatValidation.error,
+        };
+      }
 
-        // Then check if it exists
-        const exists = await githubService.checkRepositoryExists(owner, name);
-        if (exists) {
-          return {
-            success: true,
-            valid: true,
-            exists: true,
-            error: `Repository ${owner}/${name} already exists`,
-          };
-        }
-
+      // Then check if it exists
+      const exists = await githubService.checkRepositoryExists(owner, name);
+      if (exists) {
         return {
           success: true,
           valid: true,
-          exists: false,
-        };
-      } catch (error) {
-        log.error('Failed to validate repo name:', error);
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Validation failed',
+          exists: true,
+          error: `Repository ${owner}/${name} already exists`,
         };
       }
+
+      return {
+        success: true,
+        valid: true,
+        exists: false,
+      };
+    } catch (error) {
+      log.error('Failed to validate repo name:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Validation failed',
+      };
     }
-  );
+  });
 
   ipcMain.handle(
     'github:createNewProject',
