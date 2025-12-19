@@ -24,7 +24,7 @@ describe('generateMockStartEvents', () => {
     };
 
     const events = await generateMockStartEvents({
-      workspaceId: 'ws_123',
+      taskId: 'ws_123',
       config: baseConfig,
       portAllocator: buildMockPortAllocator([45000, 45001]),
       runId: 'run-1',
@@ -40,9 +40,9 @@ describe('generateMockStartEvents', () => {
       'lifecycle',
     ]);
 
-    const metadata = events.map(({ workspaceId, runId, mode }) => ({ workspaceId, runId, mode }));
+    const metadata = events.map(({ taskId, runId, mode }) => ({ taskId, runId, mode }));
     metadata.forEach((meta) => {
-      expect(meta).toEqual({ workspaceId: 'ws_123', runId: 'run-1', mode: 'container' });
+      expect(meta).toEqual({ taskId: 'ws_123', runId: 'run-1', mode: 'container' });
     });
 
     const portsEvent = events[2];
@@ -73,7 +73,7 @@ describe('generateMockStartEvents', () => {
     const now = vi.fn(() => timestamp);
 
     const events = await generateMockStartEvents({
-      workspaceId: 'ws_abc',
+      taskId: 'ws_abc',
       config: baseConfig,
       portAllocator: buildMockPortAllocator([46000, 46001]),
       now,
@@ -92,7 +92,7 @@ describe('generateMockStartEvents', () => {
     };
 
     const events = await generateMockStartEvents({
-      workspaceId: 'ws_next',
+      taskId: 'ws_next',
       config,
       portAllocator: buildMockPortAllocator([50000, 50001]),
     });

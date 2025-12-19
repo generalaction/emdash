@@ -3,7 +3,7 @@ import React from 'react';
 const KanbanColumn: React.FC<{
   title: string;
   count: number;
-  onDropCard: (workspaceId: string) => void;
+  onDropCard: (taskId: string) => void;
   children: React.ReactNode;
   action?: React.ReactNode;
 }> = ({ title, count, onDropCard, children, action }) => {

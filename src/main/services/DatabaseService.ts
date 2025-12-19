@@ -5,11 +5,11 @@ import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
 import {
   projects as projectsTable,
-  workspaces as workspacesTable,
+  tasks as tasksTable,
   conversations as conversationsTable,
   messages as messagesTable,
   type ProjectRow,
-  type WorkspaceRow,
+  type TaskRow,
   type ConversationRow,
   type MessageRow,
 } from '../db/schema';
@@ -32,7 +32,7 @@ export interface Project {
   updatedAt: string;
 }
 
-export interface Workspace {
+export interface Task {
   id: string;
   projectId: string;
   name: string;
@@ -47,7 +47,7 @@ export interface Workspace {
 
 export interface Conversation {
   id: string;
-  workspaceId: string;
+  taskId: string;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -207,69 +207,65 @@ export class DatabaseService {
     return this.getProjectById(projectId);
   }
 
-  async saveWorkspace(workspace: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<void> {
+  async saveTask(task: Omit<Task, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
     const metadataValue =
-      typeof workspace.metadata === 'string'
-        ? workspace.metadata
-        : workspace.metadata
-          ? JSON.stringify(workspace.metadata)
+      typeof task.metadata === 'string'
+        ? task.metadata
+        : task.metadata
+          ? JSON.stringify(task.metadata)
           : null;
     const { db } = await getDrizzleClient();
     await db
-      .insert(workspacesTable)
+      .insert(tasksTable)
       .values({
-        id: workspace.id,
-        projectId: workspace.projectId,
-        name: workspace.name,
-        branch: workspace.branch,
-        path: workspace.path,
-        status: workspace.status,
-        agentId: workspace.agentId ?? null,
+        id: task.id,
+        projectId: task.projectId,
+        name: task.name,
+        branch: task.branch,
+        path: task.path,
+        status: task.status,
+        agentId: task.agentId ?? null,
         metadata: metadataValue,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
-        target: workspacesTable.id,
+        target: tasksTable.id,
         set: {
-          projectId: workspace.projectId,
-          name: workspace.name,
-          branch: workspace.branch,
-          path: workspace.path,
-          status: workspace.status,
-          agentId: workspace.agentId ?? null,
+          projectId: task.projectId,
+          name: task.name,
+          branch: task.branch,
+          path: task.path,
+          status: task.status,
+          agentId: task.agentId ?? null,
           metadata: metadataValue,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
   }
 
-  async getWorkspaces(projectId?: string): Promise<Workspace[]> {
+  async getTasks(projectId?: string): Promise<Task[]> {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
 
-    const rows: WorkspaceRow[] = projectId
+    const rows: TaskRow[] = projectId
       ? await db
           .select()
-          .from(workspacesTable)
-          .where(eq(workspacesTable.projectId, projectId))
-          .orderBy(desc(workspacesTable.updatedAt))
-      : await db.select().from(workspacesTable).orderBy(desc(workspacesTable.updatedAt));
-    return rows.map((row) => this.mapDrizzleWorkspaceRow(row));
+          .from(tasksTable)
+          .where(eq(tasksTable.projectId, projectId))
+          .orderBy(desc(tasksTable.updatedAt))
+      : await db.select().from(tasksTable).orderBy(desc(tasksTable.updatedAt));
+    return rows.map((row) => this.mapDrizzleTaskRow(row));
   }
 
-  async getWorkspaceByPath(workspacePath: string): Promise<Workspace | null> {
+  async getTaskByPath(taskPath: string): Promise<Task | null> {
     if (this.disabled) return null;
     const { db } = await getDrizzleClient();
 
-    const rows = await db
-      .select()
-      .from(workspacesTable)
-      .where(eq(workspacesTable.path, workspacePath))
-      .limit(1);
+    const rows = await db.select().from(tasksTable).where(eq(tasksTable.path, taskPath)).limit(1);
 
     if (rows.length === 0) return null;
-    return this.mapDrizzleWorkspaceRow(rows[0]);
+    return this.mapDrizzleTaskRow(rows[0]);
   }
 
   async deleteProject(projectId: string): Promise<void> {
@@ -278,10 +274,10 @@ export class DatabaseService {
     await db.delete(projectsTable).where(eq(projectsTable.id, projectId));
   }
 
-  async deleteWorkspace(workspaceId: string): Promise<void> {
+  async deleteTask(taskId: string): Promise<void> {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
-    await db.delete(workspacesTable).where(eq(workspacesTable.id, workspaceId));
+    await db.delete(tasksTable).where(eq(tasksTable.id, taskId));
   }
 
   // Conversation management methods
@@ -293,7 +289,7 @@ export class DatabaseService {
       .insert(conversationsTable)
       .values({
         id: conversation.id,
-        workspaceId: conversation.workspaceId,
+        taskId: conversation.taskId,
         title: conversation.title,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
@@ -306,22 +302,22 @@ export class DatabaseService {
       });
   }
 
-  async getConversations(workspaceId: string): Promise<Conversation[]> {
+  async getConversations(taskId: string): Promise<Conversation[]> {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
     const rows = await db
       .select()
       .from(conversationsTable)
-      .where(eq(conversationsTable.workspaceId, workspaceId))
+      .where(eq(conversationsTable.taskId, taskId))
       .orderBy(desc(conversationsTable.updatedAt));
     return rows.map((row) => this.mapDrizzleConversationRow(row));
   }
 
-  async getOrCreateDefaultConversation(workspaceId: string): Promise<Conversation> {
+  async getOrCreateDefaultConversation(taskId: string): Promise<Conversation> {
     if (this.disabled) {
       return {
-        id: `conv-${workspaceId}-default`,
-        workspaceId,
+        id: `conv-${taskId}-default`,
+        taskId,
         title: 'Default Conversation',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -332,7 +328,7 @@ export class DatabaseService {
     const existingRows = await db
       .select()
       .from(conversationsTable)
-      .where(eq(conversationsTable.workspaceId, workspaceId))
+      .where(eq(conversationsTable.taskId, taskId))
       .orderBy(asc(conversationsTable.createdAt))
       .limit(1);
 
@@ -340,10 +336,10 @@ export class DatabaseService {
       return this.mapDrizzleConversationRow(existingRows[0]);
     }
 
-    const conversationId = `conv-${workspaceId}-${Date.now()}`;
+    const conversationId = `conv-${taskId}-${Date.now()}`;
     await this.saveConversation({
       id: conversationId,
-      workspaceId,
+      taskId,
       title: 'Default Conversation',
     });
 
@@ -359,7 +355,7 @@ export class DatabaseService {
 
     return {
       id: conversationId,
-      workspaceId,
+      taskId,
       title: 'Default Conversation',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -483,18 +479,18 @@ export class DatabaseService {
     };
   }
 
-  private mapDrizzleWorkspaceRow(row: WorkspaceRow): Workspace {
+  private mapDrizzleTaskRow(row: TaskRow): Task {
     return {
       id: row.id,
       projectId: row.projectId,
       name: row.name,
       branch: row.branch,
       path: row.path,
-      status: (row.status as Workspace['status']) ?? 'idle',
+      status: (row.status as Task['status']) ?? 'idle',
       agentId: row.agentId ?? null,
       metadata:
         typeof row.metadata === 'string' && row.metadata.length > 0
-          ? this.parseWorkspaceMetadata(row.metadata, row.id)
+          ? this.parseTaskMetadata(row.metadata, row.id)
           : null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -504,7 +500,7 @@ export class DatabaseService {
   private mapDrizzleConversationRow(row: ConversationRow): Conversation {
     return {
       id: row.id,
-      workspaceId: row.workspaceId,
+      taskId: row.taskId,
       title: row.title,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -522,11 +518,11 @@ export class DatabaseService {
     };
   }
 
-  private parseWorkspaceMetadata(serialized: string, workspaceId: string): any {
+  private parseTaskMetadata(serialized: string, taskId: string): any {
     try {
       return JSON.parse(serialized);
     } catch (error) {
-      console.warn(`Failed to parse workspace metadata for ${workspaceId}`, error);
+      console.warn(`Failed to parse task metadata for ${taskId}`, error);
       return null;
     }
   }

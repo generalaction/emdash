@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { activityStore } from '../lib/activityStore';
 
-export function useWorkspaceBusy(workspaceId: string) {
+export function useTaskBusy(taskId: string) {
   const [busy, setBusy] = useState(false);
-  useEffect(() => activityStore.subscribe(workspaceId, setBusy), [workspaceId]);
+  useEffect(() => activityStore.subscribe(taskId, setBusy), [taskId]);
   return busy;
 }

@@ -45,8 +45,8 @@ const {
   };
 });
 
-const { loadWorkspaceContainerConfigMock } = vi.hoisted(() => ({
-  loadWorkspaceContainerConfigMock: vi.fn(),
+const { loadTaskContainerConfigMock } = vi.hoisted(() => ({
+  loadTaskContainerConfigMock: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -64,7 +64,7 @@ vi.mock('../../main/services/containerConfigService', async () => {
   );
   return {
     ...actual,
-    loadWorkspaceContainerConfig: loadWorkspaceContainerConfigMock,
+    loadTaskContainerConfig: loadTaskContainerConfigMock,
   };
 });
 
@@ -87,7 +87,7 @@ describe('registerContainerIpc', () => {
   beforeEach(() => {
     handlers.clear();
     handleMock.mockClear();
-    loadWorkspaceContainerConfigMock.mockReset();
+    loadTaskContainerConfigMock.mockReset();
     startRunMock.mockReset();
     onRunnerEventMock.mockClear();
     windows.length = 0;
@@ -106,40 +106,40 @@ describe('registerContainerIpc', () => {
           { service: 'api', container: 4000, protocol: 'tcp', preview: false },
         ],
       };
-      loadWorkspaceContainerConfigMock.mockResolvedValue({
+      loadTaskContainerConfigMock.mockResolvedValue({
         ok: true,
         config,
-        sourcePath: '/tmp/workspace/.emdash/config.json',
+        sourcePath: '/tmp/task/.emdash/config.json',
       });
 
       registerContainerIpc();
       const handler = getHandler('container:load-config');
 
-      const result = await handler({}, { workspacePath: '  /tmp/workspace  ' });
+      const result = await handler({}, { taskPath: '  /tmp/task  ' });
 
-      expect(loadWorkspaceContainerConfigMock).toHaveBeenCalledWith('/tmp/workspace');
+      expect(loadTaskContainerConfigMock).toHaveBeenCalledWith('/tmp/task');
       expect(result).toEqual({
         ok: true,
         config,
-        sourcePath: '/tmp/workspace/.emdash/config.json',
+        sourcePath: '/tmp/task/.emdash/config.json',
       });
     });
 
     it('returns serialized validation error when loader fails', async () => {
-      loadWorkspaceContainerConfigMock.mockResolvedValue({
+      loadTaskContainerConfigMock.mockResolvedValue({
         ok: false,
         error: {
           code: 'VALIDATION_FAILED',
           message: '`service` must be a non-empty string',
           configKey: 'ports[0].service',
-          configPath: '/tmp/workspace/.emdash/config.json',
+          configPath: '/tmp/task/.emdash/config.json',
         },
       });
 
       registerContainerIpc();
       const handler = getHandler('container:load-config');
 
-      const result = await handler({}, { workspacePath: '/tmp/workspace' });
+      const result = await handler({}, { taskPath: '/tmp/task' });
 
       expect(result).toEqual({
         ok: false,
@@ -147,12 +147,12 @@ describe('registerContainerIpc', () => {
           code: 'VALIDATION_FAILED',
           message: '`service` must be a non-empty string',
           configKey: 'ports[0].service',
-          configPath: '/tmp/workspace/.emdash/config.json',
+          configPath: '/tmp/task/.emdash/config.json',
         },
       });
     });
 
-    it('rejects missing workspace path', async () => {
+    it('rejects missing task path', async () => {
       registerContainerIpc();
       const handler = getHandler('container:load-config');
 
@@ -162,21 +162,21 @@ describe('registerContainerIpc', () => {
         ok: false,
         error: {
           code: 'INVALID_ARGUMENT',
-          message: '`workspacePath` must be a non-empty string',
+          message: '`taskPath` must be a non-empty string',
           configKey: null,
           configPath: null,
         },
       });
-      expect(loadWorkspaceContainerConfigMock).not.toHaveBeenCalled();
+      expect(loadTaskContainerConfigMock).not.toHaveBeenCalled();
     });
 
     it('handles unexpected loader errors', async () => {
-      loadWorkspaceContainerConfigMock.mockRejectedValue(new Error('boom'));
+      loadTaskContainerConfigMock.mockRejectedValue(new Error('boom'));
 
       registerContainerIpc();
       const handler = getHandler('container:load-config');
 
-      const result = await handler({}, { workspacePath: '/tmp/workspace' });
+      const result = await handler({}, { taskPath: '/tmp/task' });
 
       expect(result).toEqual({
         ok: false,
@@ -203,25 +203,22 @@ describe('registerContainerIpc', () => {
         ok: true,
         runId: 'run-123',
         config,
-        sourcePath: '/tmp/workspace/.emdash/config.json',
+        sourcePath: '/tmp/task/.emdash/config.json',
       });
 
       registerContainerIpc();
       const handler = getHandler('container:start-run');
 
-      const result = await handler(
-        {},
-        { workspaceId: ' ws-1 ', workspacePath: ' /tmp/workspace ' }
-      );
+      const result = await handler({}, { taskId: ' ws-1 ', taskPath: ' /tmp/task ' });
 
       expect(startRunMock).toHaveBeenCalledWith({
-        workspaceId: 'ws-1',
-        workspacePath: '/tmp/workspace',
+        taskId: 'ws-1',
+        taskPath: '/tmp/task',
       });
       expect(result).toEqual({
         ok: true,
         runId: 'run-123',
-        sourcePath: '/tmp/workspace/.emdash/config.json',
+        sourcePath: '/tmp/task/.emdash/config.json',
       });
     });
 
@@ -239,7 +236,7 @@ describe('registerContainerIpc', () => {
       registerContainerIpc();
       const handler = getHandler('container:start-run');
 
-      const result = await handler({}, { workspaceId: 'ws-1', workspacePath: '/tmp/workspace' });
+      const result = await handler({}, { taskId: 'ws-1', taskPath: '/tmp/task' });
 
       expect(result).toEqual({
         ok: false,
@@ -256,13 +253,13 @@ describe('registerContainerIpc', () => {
       registerContainerIpc();
       const handler = getHandler('container:start-run');
 
-      const result = await handler({}, { workspaceId: '', workspacePath: '' });
+      const result = await handler({}, { taskId: '', taskPath: '' });
 
       expect(result).toEqual({
         ok: false,
         error: {
           code: 'INVALID_ARGUMENT',
-          message: '`workspaceId` and `workspacePath` must be provided to start a container run',
+          message: '`taskId` and `taskPath` must be provided to start a container run',
           configKey: null,
           configPath: null,
         },
@@ -281,7 +278,7 @@ describe('registerContainerIpc', () => {
 
     const event: RunnerEvent = {
       ts: 1700000000000,
-      workspaceId: 'ws-1',
+      taskId: 'ws-1',
       runId: 'run-1',
       mode: 'container',
       type: 'lifecycle',

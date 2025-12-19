@@ -18,11 +18,11 @@ import { cn } from '@/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
 import { isActivePr } from '../lib/prStatus';
-import type { Workspace } from '../types/app';
+import type { Task } from '../types/chat';
 
 type Props = {
   projectName: string;
-  workspaces?: Workspace[];
+  tasks?: Task[];
   onConfirm: () => void | Promise<void>;
   className?: string;
   'aria-label'?: string;
@@ -31,7 +31,7 @@ type Props = {
 
 export const ProjectDeleteButton: React.FC<Props> = ({
   projectName,
-  workspaces = [],
+  tasks = [],
   onConfirm,
   className,
   'aria-label': ariaLabel = 'Delete project',
@@ -41,14 +41,14 @@ export const ProjectDeleteButton: React.FC<Props> = ({
   const [acknowledge, setAcknowledge] = React.useState(false);
 
   const targets = useMemo(
-    () => workspaces.map((ws) => ({ id: ws.id, name: ws.name, path: ws.path })),
-    [workspaces]
+    () => tasks.map((ws) => ({ id: ws.id, name: ws.name, path: ws.path })),
+    [tasks]
   );
 
   const { risks, loading, hasData } = useDeleteRisks(targets, open);
 
-  // Workspaces with uncommitted/unpushed changes BUT NO PR
-  const workspacesWithUncommittedWork = workspaces.filter((ws) => {
+  // Tasks with uncommitted/unpushed changes BUT NO PR
+  const tasksWithUncommittedWork = tasks.filter((ws) => {
     const status = risks[ws.id];
     if (!status) return false;
     const hasUncommittedWork =
@@ -58,13 +58,13 @@ export const ProjectDeleteButton: React.FC<Props> = ({
     return hasUncommittedWork && !hasPR;
   });
 
-  // Workspaces with PRs (may or may not have uncommitted work)
-  const workspacesWithPRs = workspaces.filter((ws) => {
+  // Tasks with PRs (may or may not have uncommitted work)
+  const tasksWithPRs = tasks.filter((ws) => {
     const status = risks[ws.id];
     return status?.pr && isActivePr(status.pr);
   });
 
-  const hasRisks = workspacesWithUncommittedWork.length > 0 || workspacesWithPRs.length > 0;
+  const hasRisks = tasksWithUncommittedWork.length > 0 || tasksWithPRs.length > 0;
   const disableDelete = Boolean(isDeleting || loading) || (hasRisks && !acknowledge);
 
   React.useEffect(() => {
@@ -108,7 +108,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete project?</AlertDialogTitle>
           <AlertDialogDescription>
-            {`This removes "${projectName}" from Emdash, including its saved workspaces and conversations. Files on disk are not deleted.`}
+            {`This removes "${projectName}" from Emdash, including its saved tasks and conversations. Files on disk are not deleted.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -127,7 +127,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 <div className="flex min-w-0 flex-col gap-1">
                   <span className="text-sm font-semibold text-foreground">Please wait...</span>
                   <span className="text-xs text-muted-foreground">
-                    Scanning workspaces for uncommitted changes and open pull requests
+                    Scanning tasks for uncommitted changes and open pull requests
                   </span>
                 </div>
               </motion.div>
@@ -135,7 +135,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
           </AnimatePresence>
 
           <AnimatePresence initial={false}>
-            {!loading && workspacesWithUncommittedWork.length > 0 ? (
+            {!loading && tasksWithUncommittedWork.length > 0 ? (
               <motion.div
                 key="project-delete-risk"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -145,12 +145,12 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
               >
                 <p className="font-medium">
-                  {workspacesWithUncommittedWork.length === 1
+                  {tasksWithUncommittedWork.length === 1
                     ? 'Unmerged or unpushed work detected in 1 task'
-                    : `Unmerged or unpushed work detected in ${workspacesWithUncommittedWork.length} tasks`}
+                    : `Unmerged or unpushed work detected in ${tasksWithUncommittedWork.length} tasks`}
                 </p>
                 <ul className="space-y-1.5">
-                  {workspacesWithUncommittedWork.map((ws) => {
+                  {tasksWithUncommittedWork.map((ws) => {
                     const status = risks[ws.id];
                     if (!status) return null;
                     const summary = [
@@ -188,7 +188,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
           </AnimatePresence>
 
           <AnimatePresence initial={false}>
-            {!loading && workspacesWithPRs.length > 0 ? (
+            {!loading && tasksWithPRs.length > 0 ? (
               <motion.div
                 key="project-delete-prs"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -197,8 +197,8 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 transition={{ duration: 0.18, ease: 'easeOut', delay: 0.02 }}
               >
                 <DeletePrNotice
-                  workspaces={
-                    workspacesWithPRs
+                  tasks={
+                    tasksWithPRs
                       .map((ws) => {
                         const pr = risks[ws.id]?.pr;
                         return pr && isActivePr(pr) ? { name: ws.name, pr } : null;
@@ -257,7 +257,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
               {disableDelete && !isDeleting ? (
                 <TooltipContent side="top" className="text-xs">
                   {loading
-                    ? 'Checking workspaces...'
+                    ? 'Checking tasks...'
                     : hasRisks && !acknowledge
                       ? 'Acknowledge the risks to delete'
                       : 'Delete is disabled'}

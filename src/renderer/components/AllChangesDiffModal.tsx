@@ -18,7 +18,7 @@ import { useTheme } from '../hooks/useTheme';
 interface AllChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
-  workspacePath: string;
+  taskPath: string;
   files: FileChange[];
   onRefreshChanges?: () => Promise<void> | void;
 }
@@ -35,7 +35,7 @@ interface FileDiffData {
 export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   open,
   onClose,
-  workspacePath,
+  taskPath,
   files,
   onRefreshChanges,
 }) => {
@@ -91,7 +91,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
       try {
         // Get diff lines
-        const diffRes = await window.electronAPI.getFileDiff({ workspacePath, filePath });
+        const diffRes = await window.electronAPI.getFileDiff({ taskPath, filePath });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
         }
@@ -113,7 +113,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           modifiedContent = '';
         } else if (file.status === 'added') {
           // Read current file content
-          const readRes = await window.electronAPI.fsRead(workspacePath, filePath, 2 * 1024 * 1024);
+          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
           if (readRes?.success && readRes.content) {
             modifiedContent = readRes.content;
             originalContent = '';
@@ -131,11 +131,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(
-              workspacePath,
-              filePath,
-              2 * 1024 * 1024
-            );
+            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -178,7 +174,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         loadFileData(file);
       }
     });
-  }, [open, files, workspacePath]);
+  }, [open, files, taskPath]);
 
   // Add custom scrollbar styles and Monaco theme
   useEffect(() => {

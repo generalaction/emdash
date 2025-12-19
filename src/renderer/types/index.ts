@@ -41,7 +41,7 @@ export interface Settings {
   maxConcurrentRuns: number;
 }
 
-export interface Workspace {
+export interface Task {
   id: string;
   name: string;
   repos: Repo[];

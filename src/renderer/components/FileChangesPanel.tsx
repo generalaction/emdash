@@ -8,17 +8,16 @@ import ChangesDiffModal from './ChangesDiffModal';
 import AllChangesDiffModal from './AllChangesDiffModal';
 import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
-import PrStatusSkeleton from './ui/pr-status-skeleton';
 import FileTypeIcon from './ui/file-type-icon';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Plus, Undo2, ArrowUpRight, FileDiff } from 'lucide-react';
 
 interface FileChangesPanelProps {
-  workspaceId: string;
+  taskId: string;
   className?: string;
 }
 
-const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceId, className }) => {
+const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, className }) => {
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [showAllChangesModal, setShowAllChangesModal] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
@@ -27,24 +26,24 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
-  const { fileChanges, refreshChanges } = useFileChanges(workspaceId);
+  const { fileChanges, refreshChanges } = useFileChanges(taskId);
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
   const hasStagedChanges = fileChanges.some((change) => change.isStaged);
-  const { pr, loading: prLoading, refresh: refreshPr } = usePrStatus(workspaceId);
+  const { pr, refresh: refreshPr } = usePrStatus(taskId);
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!workspaceId || hasChanges) {
+      if (!taskId || hasChanges) {
         setBranchAhead(null);
         return;
       }
       setBranchStatusLoading(true);
       try {
-        const res = await window.electronAPI.getBranchStatus({ workspacePath: workspaceId });
+        const res = await window.electronAPI.getBranchStatus({ taskPath: taskId });
         if (!cancelled) {
           setBranchAhead(res?.success ? (res?.ahead ?? 0) : 0);
         }
@@ -59,7 +58,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, hasChanges]);
+  }, [taskId, hasChanges]);
 
   const handleStageFile = async (filePath: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent opening diff modal
@@ -67,7 +66,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
 
     try {
       const result = await window.electronAPI.stageFile({
-        workspacePath: workspaceId,
+        taskPath: taskId,
         filePath,
       });
 
@@ -101,7 +100,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
 
     try {
       const result = await window.electronAPI.revertFile({
-        workspacePath: workspaceId,
+        taskPath: taskId,
         filePath,
       });
 
@@ -158,7 +157,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
     setIsCommitting(true);
     try {
       const result = await window.electronAPI.gitCommitAndPush({
-        workspacePath: workspaceId,
+        taskPath: taskId,
         commitMessage: commitMessage.trim(),
         createBranchIfOnDefault: true,
         branchPrefix: 'feature',
@@ -177,7 +176,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
         // Proactively load branch status so the Create PR button appears immediately
         try {
           setBranchStatusLoading(true);
-          const bs = await window.electronAPI.getBranchStatus({ workspacePath: workspaceId });
+          const bs = await window.electronAPI.getBranchStatus({ taskPath: taskId });
           setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
         } catch {
           setBranchAhead(0);
@@ -270,7 +269,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                       captureTelemetry('pr_viewed');
                     })();
                     await createPR({
-                      workspacePath: workspaceId,
+                      taskPath: taskId,
                       onSuccess: async () => {
                         await refreshChanges();
                         try {
@@ -318,9 +317,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
               <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Changes</span>
             </div>
             <div className="flex items-center gap-2">
-              {prLoading ? (
-                <PrStatusSkeleton />
-              ) : pr ? (
+              {pr ? (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -350,7 +347,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
                       captureTelemetry('pr_viewed');
                     })();
                     await createPR({
-                      workspacePath: workspaceId,
+                      taskPath: taskId,
                       onSuccess: async () => {
                         await refreshChanges();
                         try {
@@ -491,7 +488,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
         <ChangesDiffModal
           open={showDiffModal}
           onClose={() => setShowDiffModal(false)}
-          workspacePath={workspaceId}
+          taskPath={taskId}
           files={fileChanges}
           initialFile={selectedPath}
           onRefreshChanges={refreshChanges}
@@ -501,7 +498,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ workspaceI
         <AllChangesDiffModal
           open={showAllChangesModal}
           onClose={() => setShowAllChangesModal(false)}
-          workspacePath={workspaceId}
+          taskPath={taskId}
           files={fileChanges}
           onRefreshChanges={refreshChanges}
         />

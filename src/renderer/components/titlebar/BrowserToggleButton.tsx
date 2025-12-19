@@ -15,16 +15,12 @@ import { isReachable, isAppPort, FALLBACK_DELAY_MS, SPINNER_MAX_MS } from '@/lib
 
 interface Props {
   defaultUrl?: string;
-  workspaceId?: string | null;
-  workspacePath?: string | null;
+  taskId?: string | null;
+  taskPath?: string | null;
   parentProjectPath?: string | null;
 }
 
-const BrowserToggleButton: React.FC<Props> = ({
-  workspaceId,
-  workspacePath,
-  parentProjectPath,
-}) => {
+const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectPath }) => {
   const browser = useBrowser();
   async function needsInstall(path?: string | null): Promise<boolean> {
     const p = (path || '').trim();
@@ -46,32 +42,32 @@ const BrowserToggleButton: React.FC<Props> = ({
     }
   }
 
-  // Auto-open when host preview emits a URL for this workspace
+  // Auto-open when host preview emits a URL for this task
   useEffect(() => {
     const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
       try {
-        if (data?.type === 'url' && data?.workspaceId && data?.url) {
-          if (workspaceId && data.workspaceId !== workspaceId) return;
+        if (data?.type === 'url' && data?.taskId && data?.url) {
+          if (taskId && data.taskId !== taskId) return;
           const appPort = Number(window.location.port || 0);
           if (isAppPort(String(data.url), appPort)) return;
           browser.open(String(data.url));
           try {
-            if (workspaceId) {
-              setLastUrl(workspaceId, String(data.url));
-              setRunning(workspaceId, true);
+            if (taskId) {
+              setLastUrl(taskId, String(data.url));
+              setRunning(taskId, true);
             }
           } catch {}
         }
-        if (data?.type === 'setup' && data?.workspaceId && data?.status === 'done') {
-          if (workspaceId && data.workspaceId !== workspaceId) return;
+        if (data?.type === 'setup' && data?.taskId && data?.status === 'done') {
+          if (taskId && data.taskId !== taskId) return;
           try {
-            if (workspaceId) setInstalled(workspaceId, true);
+            if (taskId) setInstalled(taskId, true);
           } catch {}
         }
-        if (data?.type === 'exit' && data?.workspaceId) {
-          if (workspaceId && data.workspaceId !== workspaceId) return;
+        if (data?.type === 'exit' && data?.taskId) {
+          if (taskId && data.taskId !== taskId) return;
           try {
-            if (workspaceId) setRunning(workspaceId, false);
+            if (taskId) setRunning(taskId, false);
           } catch {}
         }
       } catch {}
@@ -81,11 +77,11 @@ const BrowserToggleButton: React.FC<Props> = ({
         off?.();
       } catch {}
     };
-  }, [browser, workspaceId]);
+  }, [browser, taskId]);
 
   const handleClick = React.useCallback(async () => {
-    const id = (workspaceId || '').trim();
-    const wp = (workspacePath || '').trim();
+    const id = (taskId || '').trim();
+    const wp = (taskPath || '').trim();
     const appPort = Number(window.location.port || 0);
     // Open pane immediately with no URL; we will navigate when ready
     browser.showSpinner();
@@ -120,16 +116,16 @@ const BrowserToggleButton: React.FC<Props> = ({
         // If install needed, run setup first (only when sentinel not present)
         if (!installed && (await needsInstall(wp))) {
           await (window as any).electronAPI?.hostPreviewSetup?.({
-            workspaceId: id,
-            workspacePath: wp,
+            taskId: id,
+            taskPath: wp,
           });
           setInstalled(id, true);
         }
         const running = isRunning(id);
         if (!running) {
           await (window as any).electronAPI?.hostPreviewStart?.({
-            workspaceId: id,
-            workspacePath: wp,
+            taskId: id,
+            taskPath: wp,
             parentProjectPath: (parentProjectPath || '').trim(),
           });
         }
@@ -153,7 +149,7 @@ const BrowserToggleButton: React.FC<Props> = ({
     }
     // Fallback: clear spinner after a grace period if nothing arrives
     setTimeout(() => browser.hideSpinner(), SPINNER_MAX_MS);
-  }, [browser, workspaceId, workspacePath, parentProjectPath]);
+  }, [browser, taskId, taskPath, parentProjectPath]);
 
   return (
     <TooltipProvider delayDuration={200}>

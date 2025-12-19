@@ -18,7 +18,7 @@ class ActivityStore {
     api?.onPtyActivity?.((info: { id: string; chunk?: string }) => {
       try {
         const id = String(info?.id || '');
-        // Match any subscribed workspace id by suffix
+        // Match any subscribed task id by suffix
         for (const wsId of this.subscribedIds) {
           if (!id.endsWith(wsId)) continue;
           const prov = id.includes('-main-') ? id.split('-main-')[0] || '' : '';
@@ -102,7 +102,7 @@ class ActivityStore {
     }
   }
 
-  setWorkspaceBusy(wsId: string, busy: boolean) {
+  setTaskBusy(wsId: string, busy: boolean) {
     this.setBusy(wsId, busy, false);
   }
 
@@ -114,7 +114,7 @@ class ActivityStore {
     this.listeners.set(wsId, set);
     // emit current
     fn(this.states.get(wsId) || false);
-    // Fallback: also listen directly to this workspace's main PTY data in case global broadcast is missing
+    // Fallback: also listen directly to this task's main PTY data in case global broadcast is missing
     const offDirect: Array<() => void> = [];
     try {
       const api: any = (window as any).electronAPI;

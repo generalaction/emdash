@@ -20,7 +20,7 @@ export interface SessionTheme {
 }
 
 export interface TerminalSessionOptions {
-  workspaceId: string;
+  taskId: string;
   cwd?: string;
   shell?: string;
   env?: Record<string, string>;
@@ -61,7 +61,7 @@ export class TerminalSessionManager {
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
 
   constructor(private readonly options: TerminalSessionOptions) {
-    this.id = options.workspaceId;
+    this.id = options.taskId;
 
     this.container = document.createElement('div');
     this.container.className = 'terminal-session-root';
@@ -369,7 +369,7 @@ export class TerminalSessionManager {
   /**
    * Restore the previously captured viewport position.
    * This ensures the terminal stays at the same scroll position when switching
-   * between workspaces or when the terminal is reattached.
+   * between tasks or when the terminal is reattached.
    */
   private restoreViewportPosition() {
     try {
@@ -401,8 +401,8 @@ export class TerminalSessionManager {
   }
 
   private connectPty() {
-    const { workspaceId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
-    const id = workspaceId;
+    const { taskId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
+    const id = taskId;
     void window.electronAPI
       .ptyStart({
         id,
@@ -471,7 +471,7 @@ export class TerminalSessionManager {
 
   /**
    * Check if this terminal ID is a provider CLI that supports native resume.
-   * Provider CLIs use the format: `${provider}-main-${workspaceId}`
+   * Provider CLIs use the format: `${provider}-main-${taskId}`
    * If the provider has a resumeFlag, we skip snapshot restoration to avoid duplicate history.
    */
   private isProviderWithResume(id: string): boolean {

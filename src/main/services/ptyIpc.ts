@@ -198,25 +198,25 @@ export function registerPtyIpc(): void {
 
 function parseProviderPty(id: string): {
   providerId: ProviderId;
-  workspaceId: string;
+  taskId: string;
 } | null {
-  // Chat terminals are named `${provider}-main-${workspaceId}`
+  // Chat terminals are named `${provider}-main-${taskId}`
   const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
   if (!match) return null;
   const providerId = match[1] as ProviderId;
   if (!PROVIDER_IDS.includes(providerId)) return null;
-  const workspaceId = match[2];
-  return { providerId, workspaceId };
+  const taskId = match[2];
+  return { providerId, taskId };
 }
 
-function providerRunKey(providerId: ProviderId, workspaceId: string) {
-  return `${providerId}:${workspaceId}`;
+function providerRunKey(providerId: ProviderId, taskId: string) {
+  return `${providerId}:${taskId}`;
 }
 
 function maybeMarkProviderStart(id: string) {
   const parsed = parseProviderPty(id);
   if (!parsed) return;
-  const key = providerRunKey(parsed.providerId, parsed.workspaceId);
+  const key = providerRunKey(parsed.providerId, parsed.taskId);
   if (providerPtyTimers.has(key)) return;
   providerPtyTimers.set(key, Date.now());
   telemetry.capture('agent_run_start', { provider: parsed.providerId });
@@ -229,7 +229,7 @@ function maybeMarkProviderFinish(
 ) {
   const parsed = parseProviderPty(id);
   if (!parsed) return;
-  const key = providerRunKey(parsed.providerId, parsed.workspaceId);
+  const key = providerRunKey(parsed.providerId, parsed.taskId);
   const started = providerPtyTimers.get(key);
   providerPtyTimers.delete(key);
 

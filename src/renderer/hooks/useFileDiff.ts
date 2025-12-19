@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
 
 export function useFileDiff(
-  workspacePath: string | undefined,
+  taskPath: string | undefined,
   filePath: string | undefined,
   refreshKey: number = 0
 ) {
@@ -14,11 +14,11 @@ export function useFileDiff(
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!workspacePath || !filePath) return;
+      if (!taskPath || !filePath) return;
       setLoading(true);
       setError(null);
       try {
-        const res = await window.electronAPI.getFileDiff({ workspacePath, filePath });
+        const res = await window.electronAPI.getFileDiff({ taskPath, filePath });
         if (!cancelled) {
           if (res?.success && res.diff) setLines(res.diff.lines);
           else setError(res?.error || 'Failed to load diff');
@@ -33,7 +33,7 @@ export function useFileDiff(
     return () => {
       cancelled = true;
     };
-  }, [workspacePath, filePath, refreshKey]);
+  }, [taskPath, filePath, refreshKey]);
 
   return { lines, loading, error };
 }

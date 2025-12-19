@@ -125,16 +125,16 @@ async function fetchHttps(
 
 export async function resolveServiceIcon(opts: {
   service: string;
-  workspacePath?: string;
+  taskPath?: string;
   allowNetwork?: boolean;
 }): Promise<{ ok: true; dataUrl: string } | { ok: false }> {
   const service = opts.service?.trim();
   if (!service) return { ok: false };
   const slug = toSlug(service);
 
-  // 1) Workspace overrides
-  if (opts.workspacePath) {
-    const p = path.join(opts.workspacePath, '.emdash', 'service-icons');
+  // 1) Task overrides
+  if (opts.taskPath) {
+    const p = path.join(opts.taskPath, '.emdash', 'service-icons');
     const candidates = ['.svg', '.png', '.jpg', '.jpeg', '.ico'].map((ext) =>
       path.join(p, `${slug}${ext}`)
     );

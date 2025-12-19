@@ -949,7 +949,7 @@ export class GitHubService {
   }
 
   /**
-   * Clone a repository to local workspace
+   * Clone a repository to local task directory
    */
   async cloneRepository(
     repoUrl: string,

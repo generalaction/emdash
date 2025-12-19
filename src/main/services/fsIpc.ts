@@ -155,14 +155,14 @@ export function registerFsIpc(): void {
     }
   );
 
-  // Save an attachment (e.g., image) into a workspace-managed folder
+  // Save an attachment (e.g., image) into a task-managed folder
   ipcMain.handle(
     'fs:save-attachment',
-    async (_event, args: { workspacePath: string; srcPath: string; subdir?: string }) => {
+    async (_event, args: { taskPath: string; srcPath: string; subdir?: string }) => {
       try {
-        const { workspacePath, srcPath } = args;
-        if (!workspacePath || !fs.existsSync(workspacePath))
-          return { success: false, error: 'Invalid workspacePath' };
+        const { taskPath, srcPath } = args;
+        if (!taskPath || !fs.existsSync(taskPath))
+          return { success: false, error: 'Invalid taskPath' };
         if (!srcPath || !fs.existsSync(srcPath))
           return { success: false, error: 'Invalid srcPath' };
 
@@ -171,11 +171,7 @@ export function registerFsIpc(): void {
           return { success: false, error: 'Unsupported attachment type' };
         }
 
-        const baseDir = path.join(
-          workspacePath,
-          '.emdash',
-          args.subdir || DEFAULT_ATTACHMENTS_SUBDIR
-        );
+        const baseDir = path.join(taskPath, '.emdash', args.subdir || DEFAULT_ATTACHMENTS_SUBDIR);
         fs.mkdirSync(baseDir, { recursive: true });
 
         const baseName = path.basename(srcPath);
@@ -191,11 +187,11 @@ export function registerFsIpc(): void {
 
         fs.copyFileSync(srcPath, destAbs);
 
-        const relFromWorkspace = path.relative(workspacePath, destAbs);
+        const relFromTask = path.relative(taskPath, destAbs);
         return {
           success: true,
           absPath: destAbs,
-          relPath: relFromWorkspace,
+          relPath: relFromTask,
           fileName: destName,
         };
       } catch (error) {

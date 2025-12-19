@@ -9,14 +9,14 @@ export interface FileChange {
   diff?: string;
 }
 
-export function useFileChanges(workspacePath: string) {
+export function useFileChanges(taskPath: string) {
   const [fileChanges, setFileChanges] = useState<FileChange[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchFileChanges = async (isInitialLoad = false) => {
-      if (!workspacePath) return;
+      if (!taskPath) return;
 
       if (isInitialLoad) {
         setIsLoading(true);
@@ -25,7 +25,7 @@ export function useFileChanges(workspacePath: string) {
 
       try {
         // Call main process to get git status
-        const result = await window.electronAPI.getGitStatus(workspacePath);
+        const result = await window.electronAPI.getGitStatus(taskPath);
 
         if (result?.success && result.changes && result.changes.length > 0) {
           const changes: FileChange[] = result.changes
@@ -71,12 +71,12 @@ export function useFileChanges(workspacePath: string) {
     const interval = setInterval(() => fetchFileChanges(false), 5000);
 
     return () => clearInterval(interval);
-  }, [workspacePath]);
+  }, [taskPath]);
 
   const refreshChanges = async () => {
     setIsLoading(true);
     try {
-      const result = await window.electronAPI.getGitStatus(workspacePath);
+      const result = await window.electronAPI.getGitStatus(taskPath);
       if (result?.success && result.changes && result.changes.length > 0) {
         const changes: FileChange[] = result.changes
           .map(

@@ -1,14 +1,14 @@
 import React from 'react';
-import type { Workspace } from '../../types/app';
+import type { Task } from '../../types/app';
 import { providerAssets } from '../../providers/assets';
 import { providerMeta, type UiProvider } from '../../providers/meta';
 import { activityStore } from '../../lib/activityStore';
 import ProviderTooltip from './ProviderTooltip';
 import { Spinner } from '../ui/spinner';
 
-function resolveProvider(workspaceId: string): UiProvider | null {
+function resolveProvider(taskId: string): UiProvider | null {
   try {
-    const v = localStorage.getItem(`workspaceProvider:${workspaceId}`);
+    const v = localStorage.getItem(`taskProvider:${taskId}`);
     if (!v) return null;
     const id = v.trim() as UiProvider;
     return id in providerAssets ? id : null;
@@ -18,12 +18,12 @@ function resolveProvider(workspaceId: string): UiProvider | null {
 }
 
 const KanbanCard: React.FC<{
-  ws: Workspace;
-  onOpen?: (ws: Workspace) => void;
+  ws: Task;
+  onOpen?: (ws: Task) => void;
   draggable?: boolean;
 }> = ({ ws, onOpen, draggable = true }) => {
   const SHOW_PROVIDER_LOGOS = false;
-  // Resolve single-provider from legacy localStorage (single‑agent workspaces)
+  // Resolve single-provider from legacy localStorage (single-agent tasks)
   const provider = resolveProvider(ws.id);
   const asset = provider ? providerAssets[provider] : null;
 
@@ -44,8 +44,8 @@ const KanbanCard: React.FC<{
       adminProvider={adminProvider}
       side="top"
       delay={150}
-      workspacePath={ws.path}
-      workspaceName={ws.name}
+      taskPath={ws.path}
+      taskName={ws.name}
     >
       <div
         role="button"
