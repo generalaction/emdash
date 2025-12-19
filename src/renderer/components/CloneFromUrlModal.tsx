@@ -183,7 +183,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({
               onClose();
             }
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm"
           initial={shouldReduceMotion ? undefined : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={shouldReduceMotion ? undefined : { opacity: 0 }}
