@@ -607,11 +607,17 @@ export class DatabaseService {
       `);
       await this.execSql(`DROP TABLE "conversations";`);
       await this.execSql(`ALTER TABLE "__new_conversations" RENAME TO "conversations";`);
-      await this.execSql(`CREATE INDEX IF NOT EXISTS "idx_conversations_task_id" ON "conversations" ("task_id");`);
+      await this.execSql(
+        `CREATE INDEX IF NOT EXISTS "idx_conversations_task_id" ON "conversations" ("task_id");`
+      );
 
       // Mark the workspace->task migration as applied (even if it wasn't tracked).
       // This prevents the hash-based runner from attempting to re-run it against a partially-migrated DB.
-      await this.ensureMigrationMarkedApplied(migrationsPath, applied, '0002_lyrical_impossible_man');
+      await this.ensureMigrationMarkedApplied(
+        migrationsPath,
+        applied,
+        '0002_lyrical_impossible_man'
+      );
       recovered = true;
     }
 
