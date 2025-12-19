@@ -29,7 +29,12 @@ interface Props {
   projectPath?: string;
 }
 
-const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className, projectPath }) => {
+const TaskTerminalPanelComponent: React.FC<Props> = ({
+  task,
+  provider,
+  className,
+  projectPath,
+}) => {
   const { effectiveTheme } = useTheme();
 
   const taskKey = task?.id ?? 'task-placeholder';
@@ -335,7 +340,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, provider, className
       >
         {terminals.map((terminal) => {
           const cwd =
-            terminal.cwd || (mode === 'global' ? projectPath || terminal.cwd : task?.path || terminal.cwd);
+            terminal.cwd ||
+            (mode === 'global' ? projectPath || terminal.cwd : task?.path || terminal.cwd);
 
           return (
             <div
