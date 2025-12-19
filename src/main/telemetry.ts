@@ -35,6 +35,10 @@ type TelemetryEvent =
   // Project management
   | 'project_add_clicked' // left sidebar button to add projects
   | 'project_open_clicked' // button in the center to open Projects (Home View)
+  | 'project_create_clicked' // button in the center to create a new project (Home View)
+  | 'project_clone_clicked' // button in the center to clone a project from GitHub (Home View)
+  | 'project_create_success' // when a project is successfully created from the homepage
+  | 'project_clone_success' // when a project is successfully cloned from the homepage
   | 'project_added_success' // when a project is added successfully (both entrypoint buttons)
   | 'project_deleted'
   | 'project_view_opened' // when a user opens a project and see the Task overview in main screen (not the sidebar)

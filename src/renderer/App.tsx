@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './components/ui/button';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Plus, Download } from 'lucide-react';
 import LeftSidebar from './components/LeftSidebar';
 import ProjectMainView from './components/ProjectMainView';
 import TaskModal from './components/TaskModal';
+import { NewProjectModal } from './components/NewProjectModal';
+import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import ChatInterface from './components/ChatInterface';
 import MultiAgentTask from './components/MultiAgentTask';
 import { Toaster } from './components/ui/toaster';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
-import RequirementsNotice from './components/RequirementsNotice';
 import { useToast } from './hooks/use-toast';
+import { ToastAction } from './components/ui/toast';
 import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -112,6 +114,7 @@ const AppContent: React.FC = () => {
     user,
     checkStatus,
     login: githubLogin,
+    isInitialized: isGithubInitialized,
   } = useGithubAuth();
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
@@ -119,6 +122,8 @@ const AppContent: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
+  const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
+  const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -629,6 +634,263 @@ const AppContent: React.FC = () => {
       });
     }
   };
+
+  const handleCloneSuccess = useCallback(
+    async (projectPath: string) => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('project_cloned');
+      try {
+        const gitInfo = await window.electronAPI.getGitInfo(projectPath);
+        const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
+        const repoKey = normalizePathForComparison(canonicalPath);
+        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+
+        if (existingProject) {
+          activateProjectView(existingProject);
+          return;
+        }
+
+        const remoteUrl = gitInfo.remote || '';
+        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+        const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+
+        const baseProject: Project = {
+          id: Date.now().toString(),
+          name: projectName,
+          path: canonicalPath,
+          repoKey,
+          gitInfo: {
+            isGitRepo: true,
+            remote: gitInfo.remote || undefined,
+            branch: gitInfo.branch || undefined,
+            baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
+          },
+          tasks: [],
+        };
+
+        if (isAuthenticated && isGithubRemote) {
+          const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+          if (githubInfo.success) {
+            const projectWithGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: githubInfo.repository || '',
+                connected: true,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_clone_success');
+              captureTelemetry('project_added_success', { source: 'clone' });
+              setProjects((prev) => [...prev, projectWithGithub]);
+              activateProjectView(projectWithGithub);
+            } else {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to save project:', saveResult.error);
+              toast({
+                title: 'Project Cloned',
+                description: 'Repository cloned but failed to save to database.',
+                variant: 'destructive',
+              });
+            }
+          } else {
+            const projectWithoutGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_clone_success');
+              captureTelemetry('project_added_success', { source: 'clone' });
+              setProjects((prev) => [...prev, projectWithoutGithub]);
+              activateProjectView(projectWithoutGithub);
+            }
+          }
+        } else {
+          const projectWithoutGithub = withRepoKey({
+            ...baseProject,
+            githubInfo: {
+              repository: '',
+              connected: false,
+            },
+          });
+
+          const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+          if (saveResult.success) {
+            captureTelemetry('project_clone_success');
+            captureTelemetry('project_added_success', { source: 'clone' });
+            setProjects((prev) => [...prev, projectWithoutGithub]);
+            activateProjectView(projectWithoutGithub);
+          }
+        }
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to load cloned project:', error);
+        toast({
+          title: 'Project Cloned',
+          description: 'Repository cloned but failed to load. Please try opening it manually.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [
+      projects,
+      isAuthenticated,
+      activateProjectView,
+      normalizePathForComparison,
+      toast,
+      computeBaseRef,
+      withRepoKey,
+    ]
+  );
+
+  const handleNewProjectSuccess = useCallback(
+    async (projectPath: string) => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('new_project_created');
+      try {
+        const gitInfo = await window.electronAPI.getGitInfo(projectPath);
+        const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
+        const repoKey = normalizePathForComparison(canonicalPath);
+        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+
+        if (existingProject) {
+          activateProjectView(existingProject);
+          return;
+        }
+
+        const remoteUrl = gitInfo.remote || '';
+        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+        const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+
+        const baseProject: Project = {
+          id: Date.now().toString(),
+          name: projectName,
+          path: canonicalPath,
+          repoKey,
+          gitInfo: {
+            isGitRepo: true,
+            remote: gitInfo.remote || undefined,
+            branch: gitInfo.branch || undefined,
+            baseRef: computeBaseRef(gitInfo.baseRef, gitInfo.remote, gitInfo.branch),
+          },
+          tasks: [],
+        };
+
+        if (isAuthenticated && isGithubRemote) {
+          const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+          if (githubInfo.success) {
+            const projectWithGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: githubInfo.repository || '',
+                connected: true,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_create_success');
+              captureTelemetry('project_added_success', { source: 'new_project' });
+              toast({
+                title: 'Project created successfully!',
+                description: `${projectWithGithub.name} has been added to your projects.`,
+              });
+              // Add to beginning of list
+              setProjects((prev) => {
+                const updated = [projectWithGithub, ...prev];
+                saveProjectOrder(updated);
+                return updated;
+              });
+              activateProjectView(projectWithGithub);
+            } else {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to save project:', saveResult.error);
+              toast({
+                title: 'Project Created',
+                description: 'Repository created but failed to save to database.',
+                variant: 'destructive',
+              });
+            }
+          } else {
+            const projectWithoutGithub = withRepoKey({
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
+            });
+
+            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+            if (saveResult.success) {
+              captureTelemetry('project_create_success');
+              captureTelemetry('project_added_success', { source: 'new_project' });
+              toast({
+                title: 'Project created successfully!',
+                description: `${projectWithoutGithub.name} has been added to your projects.`,
+              });
+              // Add to beginning of list
+              setProjects((prev) => {
+                const updated = [projectWithoutGithub, ...prev];
+                saveProjectOrder(updated);
+                return updated;
+              });
+              activateProjectView(projectWithoutGithub);
+            }
+          }
+        } else {
+          const projectWithoutGithub = withRepoKey({
+            ...baseProject,
+            githubInfo: {
+              repository: '',
+              connected: false,
+            },
+          });
+
+          const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
+          if (saveResult.success) {
+            captureTelemetry('project_create_success');
+            captureTelemetry('project_added_success', { source: 'new_project' });
+            toast({
+              title: 'Project created successfully!',
+              description: `${projectWithoutGithub.name} has been added to your projects.`,
+            });
+            // Add to beginning of list
+            setProjects((prev) => {
+              const updated = [projectWithoutGithub, ...prev];
+              saveProjectOrder(updated);
+              return updated;
+            });
+            activateProjectView(projectWithoutGithub);
+            setShowTaskModal(true);
+          }
+        }
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to load new project:', error);
+        toast({
+          title: 'Project Created',
+          description: 'Repository created but failed to load. Please try opening it manually.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [
+      projects,
+      isAuthenticated,
+      activateProjectView,
+      normalizePathForComparison,
+      toast,
+      computeBaseRef,
+      withRepoKey,
+      getProjectRepoKey,
+    ]
+  );
 
   const handleGithubConnect = async () => {
     setGithubLoading(true);
@@ -1355,8 +1617,8 @@ const AppContent: React.FC = () => {
     });
   };
 
-  const needsGhInstall = !ghInstalled;
-  const needsGhAuth = ghInstalled && !isAuthenticated;
+  const needsGhInstall = isGithubInitialized && !ghInstalled;
+  const needsGhAuth = isGithubInitialized && ghInstalled && !isAuthenticated;
 
   const handleReorderProjectsFull = (newOrder: Project[]) => {
     setProjects(() => {
@@ -1476,7 +1738,7 @@ const AppContent: React.FC = () => {
     if (showHomeView) {
       return (
         <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-          <div className="container mx-auto flex min-h-full flex-1 flex-col justify-center px-4 py-8">
+          <div className="container mx-auto flex min-h-full max-w-3xl flex-1 flex-col justify-center px-8 py-8">
             <div className="mb-6 text-center">
               <div className="mb-2 flex items-center justify-center">
                 <div className="logo-shimmer-container">
@@ -1502,19 +1764,13 @@ const AppContent: React.FC = () => {
                   />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground sm:text-base">
+              <p className="whitespace-nowrap text-xs text-muted-foreground">
                 Run multiple Coding Agents in parallel
               </p>
-              <RequirementsNotice
-                showGithubRequirement={showGithubRequirement}
-                needsGhInstall={needsGhInstall}
-                needsGhAuth={needsGhAuth}
-                showAgentRequirement={showAgentRequirement}
-              />
             </div>
 
-            <div className="flex flex-col justify-center gap-4 sm:flex-row">
-              <Button
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
+              <button
                 onClick={() => {
                   void (async () => {
                     const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -1522,12 +1778,69 @@ const AppContent: React.FC = () => {
                   })();
                   handleOpenProject();
                 }}
-                size="lg"
-                className="min-w-[200px]"
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <FolderOpen className="mr-2 h-5 w-5" />
-                Open Project
-              </Button>
+                <FolderOpen className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Open project</h3>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('./lib/telemetryClient');
+                    captureTelemetry('project_create_clicked');
+                  })();
+                  if (!isAuthenticated || !ghInstalled) {
+                    toast({
+                      title: 'GitHub authentication required',
+                      variant: 'destructive',
+                      action: (
+                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+                          Connect GitHub
+                        </ToastAction>
+                      ),
+                    });
+                    return;
+                  }
+                  setShowNewProjectModal(true);
+                }}
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Plus className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Create New Project</h3>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('./lib/telemetryClient');
+                    captureTelemetry('project_clone_clicked');
+                  })();
+                  if (!isAuthenticated || !ghInstalled) {
+                    toast({
+                      title: 'GitHub authentication required',
+                      variant: 'destructive',
+                      action: (
+                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+                          Connect GitHub
+                        </ToastAction>
+                      ),
+                    });
+                    return;
+                  }
+                  setShowCloneModal(true);
+                }}
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Download className="mb-5 h-4 w-4 text-foreground" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Clone from GitHub</h3>
+                </div>
+              </button>
             </div>
           </div>
         </div>
@@ -1567,38 +1880,7 @@ const AppContent: React.FC = () => {
       );
     }
 
-    return (
-      <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-        <div className="container mx-auto flex min-h-full flex-1 flex-col justify-center px-4 py-8">
-          <div className="mb-12 text-center">
-            <div className="mb-4 flex items-center justify-center">
-              <img
-                key={effectiveTheme}
-                src={effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo}
-                alt="Emdash"
-                className="h-16"
-              />
-            </div>
-            <p className="mb-6 text-sm text-muted-foreground sm:text-base">
-              Run multiple Coding Agents in parallel
-            </p>
-            <RequirementsNotice
-              showGithubRequirement={showGithubRequirement}
-              needsGhInstall={needsGhInstall}
-              needsGhAuth={needsGhAuth}
-              showAgentRequirement={showAgentRequirement}
-            />
-          </div>
-
-          <div className="mb-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <Button onClick={handleOpenProject} size="lg" className="min-w-[200px]">
-              <FolderOpen className="mr-2 h-5 w-5" />
-              Open Project
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   };
 
   return (
@@ -1668,6 +1950,7 @@ const AppContent: React.FC = () => {
                     onSelectProject={handleSelectProject}
                     onGoHome={handleGoHome}
                     onOpenProject={handleOpenProject}
+                    onNewProject={() => setShowNewProjectModal(true)}
                     onSelectTask={handleSelectTask}
                     activeTask={activeTask || undefined}
                     onReorderProjects={handleReorderProjects}
@@ -1678,6 +1961,7 @@ const AppContent: React.FC = () => {
                     onGithubConnect={handleGithubConnect}
                     githubLoading={githubLoading}
                     githubStatusMessage={githubStatusMessage}
+                    githubInitialized={isGithubInitialized}
                     onSidebarContextChange={handleSidebarContextChange}
                     onCreateTaskForProject={handleStartCreateTaskFromSidebar}
                     isCreatingTask={isCreatingTask}
@@ -1741,6 +2025,16 @@ const AppContent: React.FC = () => {
               defaultBranch={selectedProject?.gitInfo.branch || 'main'}
               existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
               projectPath={selectedProject?.path}
+            />
+            <NewProjectModal
+              isOpen={showNewProjectModal}
+              onClose={() => setShowNewProjectModal(false)}
+              onSuccess={handleNewProjectSuccess}
+            />
+            <CloneFromUrlModal
+              isOpen={showCloneModal}
+              onClose={() => setShowCloneModal(false)}
+              onSuccess={handleCloneSuccess}
             />
             <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
             <GithubDeviceFlowModal

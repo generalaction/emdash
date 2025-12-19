@@ -45,6 +45,9 @@ declare global {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
           };
+          projects?: {
+            defaultDirectory: string;
+          };
         };
         error?: string;
       }>;
@@ -65,6 +68,9 @@ declare global {
             autoGenerateName?: boolean;
             autoApproveByDefault?: boolean;
           };
+          projects?: {
+            defaultDirectory?: string;
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -83,6 +89,9 @@ declare global {
           tasks?: {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
+          };
+          projects?: {
+            defaultDirectory: string;
           };
         };
         error?: string;
@@ -489,6 +498,35 @@ declare global {
         repoUrl: string,
         localPath: string
       ) => Promise<{ success: boolean; error?: string }>;
+      githubGetOwners: () => Promise<{
+        success: boolean;
+        owners?: Array<{ login: string; type: 'User' | 'Organization' }>;
+        error?: string;
+      }>;
+      githubValidateRepoName: (
+        name: string,
+        owner: string
+      ) => Promise<{
+        success: boolean;
+        valid?: boolean;
+        exists?: boolean;
+        error?: string;
+      }>;
+      githubCreateNewProject: (params: {
+        name: string;
+        description?: string;
+        owner: string;
+        isPrivate: boolean;
+        gitignoreTemplate?: string;
+      }) => Promise<{
+        success: boolean;
+        projectPath?: string;
+        repoUrl?: string;
+        fullName?: string;
+        defaultBranch?: string;
+        githubRepoCreated?: boolean;
+        error?: string;
+      }>;
       githubCheckCLIInstalled: () => Promise<boolean>;
       githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
       githubListPullRequests: (

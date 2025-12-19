@@ -51,7 +51,6 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'codex',
     autoApproveFlag: '--full-auto',
     initialPromptFlag: '',
-    resumeFlag: 'resume --last',
     icon: 'openai.png',
     terminalOnly: true,
   },

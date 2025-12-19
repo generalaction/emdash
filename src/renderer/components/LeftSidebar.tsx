@@ -29,6 +29,7 @@ interface LeftSidebarProps {
   onSelectProject: (project: Project) => void;
   onGoHome: () => void;
   onOpenProject?: () => void;
+  onNewProject?: () => void;
   onSelectTask?: (task: Task) => void;
   activeTask?: Task | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
@@ -39,6 +40,7 @@ interface LeftSidebarProps {
   onGithubConnect?: () => void;
   githubLoading?: boolean;
   githubStatusMessage?: string;
+  githubInitialized?: boolean;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;
@@ -57,6 +59,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onSelectProject,
   onGoHome,
   onOpenProject,
+  onNewProject,
   onSelectTask,
   activeTask,
   onReorderProjects,
@@ -67,6 +70,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onGithubConnect,
   githubLoading = false,
   githubStatusMessage,
+  githubInitialized = false,
   onSidebarContextChange,
   onCreateTaskForProject,
   isCreatingTask,
@@ -120,6 +124,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       onConnect={onGithubConnect}
       isLoading={githubLoading}
       statusMessage={githubStatusMessage}
+      isInitialized={githubInitialized}
     />
   );
 
@@ -162,6 +167,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               description="Open a project to start creating worktrees and running coding agents."
               actionLabel={onOpenProject ? 'Open Project' : undefined}
               onAction={onOpenProject}
+              secondaryActionLabel={onNewProject ? 'New Project' : undefined}
+              onSecondaryAction={onNewProject}
             />
           )}
 
@@ -344,9 +351,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </SidebarGroup>
           )}
         </SidebarContent>
-        <SidebarFooter className="border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
-          <SidebarMenu className="w-full">
-            <SidebarMenuItem>
+        <SidebarFooter className="min-w-0 overflow-hidden border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
+          <SidebarMenu className="w-full min-w-0">
+            <SidebarMenuItem className="min-w-0">
               <SidebarMenuButton
                 tabIndex={githubProfileUrl ? 0 : -1}
                 onClick={(e) => {
@@ -356,15 +363,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   e.preventDefault();
                   handleGithubProfileClick();
                 }}
-                className={`flex w-full items-center justify-start gap-2 px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
+                className={`flex w-full min-w-0 items-center justify-start gap-2 overflow-hidden px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
                   githubProfileUrl
                     ? 'hover:bg-black/5 dark:hover:bg-white/5'
                     : 'cursor-default hover:bg-transparent'
                 }`}
                 aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
               >
-                <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
-                  <div className="hidden truncate sm:block">{renderGithubStatus()}</div>
+                <div className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-hidden text-left">
+                  <div className="hidden w-full min-w-0 sm:block">{renderGithubStatus()}</div>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
