@@ -51,10 +51,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   const editorRefs = useRef<Map<string, monaco.editor.IStandaloneDiffEditor>>(new Map());
   const changeDisposables = useRef<Map<string, monaco.IDisposable>>(new Map());
 
-  const updateFileData = (
-    filePath: string,
-    updater: (data: FileDiffData) => FileDiffData
-  ) => {
+  const updateFileData = (filePath: string, updater: (data: FileDiffData) => FileDiffData) => {
     setFileData((prev) => {
       const existing = prev.get(filePath);
       if (!existing) return prev;
