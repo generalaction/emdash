@@ -566,109 +566,110 @@ export class DatabaseService {
     // Many dev DBs were created with foreign_keys=OFF, so legacy data can contain orphans.
     // Enabling FK enforcement mid-migration can cause schema transitions (table rebuilds) to fail.
     await this.execSql('PRAGMA foreign_keys=OFF;');
+    try {
+      // IMPORTANT:
+      // Drizzle's built-in migrator for sqlite-proxy decides what to run based on the latest
+      // `created_at` timestamp in __drizzle_migrations. If a migration is added later but has an
+      // earlier timestamp than the latest applied migration, Drizzle will skip it forever.
+      //
+      // To make migrations robust for dev DBs (and for any DB that may have extra migrations),
+      // we apply migrations by missing hash instead of timestamp ordering.
+      const migrations = readMigrationFiles({ migrationsFolder: migrationsPath });
+      const tagByWhen = await this.tryLoadMigrationTagByWhen(migrationsPath);
 
-    // IMPORTANT:
-    // Drizzle's built-in migrator for sqlite-proxy decides what to run based on the latest
-    // `created_at` timestamp in __drizzle_migrations. If a migration is added later but has an
-    // earlier timestamp than the latest applied migration, Drizzle will skip it forever.
-    //
-    // To make migrations robust for dev DBs (and for any DB that may have extra migrations),
-    // we apply migrations by missing hash instead of timestamp ordering.
-    const migrations = readMigrationFiles({ migrationsFolder: migrationsPath });
-    const tagByWhen = await this.tryLoadMigrationTagByWhen(migrationsPath);
-
-    await this.execSql(`
-      CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
-        id SERIAL PRIMARY KEY,
-        hash text NOT NULL,
-        created_at numeric
-      )
-    `);
-
-    const appliedRows = await this.allSql<{ hash: string }>(
-      `SELECT hash FROM "__drizzle_migrations"`
-    );
-    const applied = new Set(appliedRows.map((r) => r.hash));
-
-    // Recovery: if a previous run partially applied the workspace->task migration, finish it.
-    // Symptom: `tasks` exists, `conversations` still has `workspace_id`, and `__new_conversations` exists.
-    let recovered = false;
-    if (
-      (await this.tableExists('tasks')) &&
-      (await this.tableExists('conversations')) &&
-      (await this.tableExists('__new_conversations')) &&
-      (await this.tableHasColumn('conversations', 'workspace_id')) &&
-      !(await this.tableHasColumn('conversations', 'task_id'))
-    ) {
-      // Populate new conversations table from the old one (FK enforcement is OFF, so orphans won't block)
       await this.execSql(`
-        INSERT INTO "__new_conversations"("id", "task_id", "title", "created_at", "updated_at")
-        SELECT "id", "workspace_id", "title", "created_at", "updated_at" FROM "conversations"
+        CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+          id SERIAL PRIMARY KEY,
+          hash text NOT NULL,
+          created_at numeric
+        )
       `);
-      await this.execSql(`DROP TABLE "conversations";`);
-      await this.execSql(`ALTER TABLE "__new_conversations" RENAME TO "conversations";`);
-      await this.execSql(
-        `CREATE INDEX IF NOT EXISTS "idx_conversations_task_id" ON "conversations" ("task_id");`
+
+      const appliedRows = await this.allSql<{ hash: string }>(
+        `SELECT hash FROM "__drizzle_migrations"`
       );
+      const applied = new Set(appliedRows.map((r) => r.hash));
 
-      // Mark the workspace->task migration as applied (even if it wasn't tracked).
-      // This prevents the hash-based runner from attempting to re-run it against a partially-migrated DB.
-      await this.ensureMigrationMarkedApplied(
-        migrationsPath,
-        applied,
-        '0002_lyrical_impossible_man'
-      );
-      recovered = true;
-    }
-
-    let appliedCount = 0;
-    for (const migration of migrations) {
-      if (applied.has(migration.hash)) continue;
-
-      const tag = tagByWhen?.get(migration.folderMillis);
-      // If the DB already reflects the workspace->task rename (e.g. user manually fixed their DB)
-      // but the migration hash wasn't recorded, mark it as applied and move on.
+      // Recovery: if a previous run partially applied the workspace->task migration, finish it.
+      // Symptom: `tasks` exists, `conversations` still has `workspace_id`, and `__new_conversations` exists.
+      let recovered = false;
       if (
-        tag === '0002_lyrical_impossible_man' &&
         (await this.tableExists('tasks')) &&
-        !(await this.tableExists('workspaces')) &&
         (await this.tableExists('conversations')) &&
-        (await this.tableHasColumn('conversations', 'task_id'))
+        (await this.tableExists('__new_conversations')) &&
+        (await this.tableHasColumn('conversations', 'workspace_id')) &&
+        !(await this.tableHasColumn('conversations', 'task_id'))
       ) {
+        // Populate new conversations table from the old one (FK enforcement is OFF, so orphans won't block)
+        await this.execSql(`
+          INSERT INTO "__new_conversations"("id", "task_id", "title", "created_at", "updated_at")
+          SELECT "id", "workspace_id", "title", "created_at", "updated_at" FROM "conversations"
+        `);
+        await this.execSql(`DROP TABLE "conversations";`);
+        await this.execSql(`ALTER TABLE "__new_conversations" RENAME TO "conversations";`);
+        await this.execSql(
+          `CREATE INDEX IF NOT EXISTS "idx_conversations_task_id" ON "conversations" ("task_id");`
+        );
+
+        // Mark the workspace->task migration as applied (even if it wasn't tracked).
+        // This prevents the hash-based runner from attempting to re-run it against a partially-migrated DB.
+        await this.ensureMigrationMarkedApplied(
+          migrationsPath,
+          applied,
+          '0002_lyrical_impossible_man'
+        );
+        recovered = true;
+      }
+
+      let appliedCount = 0;
+      for (const migration of migrations) {
+        if (applied.has(migration.hash)) continue;
+
+        const tag = tagByWhen?.get(migration.folderMillis);
+        // If the DB already reflects the workspace->task rename (e.g. user manually fixed their DB)
+        // but the migration hash wasn't recorded, mark it as applied and move on.
+        if (
+          tag === '0002_lyrical_impossible_man' &&
+          (await this.tableExists('tasks')) &&
+          !(await this.tableExists('workspaces')) &&
+          (await this.tableExists('conversations')) &&
+          (await this.tableHasColumn('conversations', 'task_id'))
+        ) {
+          await this.execSql(
+            `INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`
+          );
+          applied.add(migration.hash);
+          continue;
+        }
+
+        // Execute each statement chunk (drizzle-kit uses '--> statement-breakpoint')
+        for (const statement of migration.sql) {
+          // We manage FK enforcement ourselves during migrations.
+          const trimmed = statement.trim().toUpperCase();
+          if (trimmed.startsWith('PRAGMA FOREIGN_KEYS=')) continue;
+          await this.execSql(statement);
+        }
+
+        // Record as applied (same schema as Drizzle uses)
         await this.execSql(
           `INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`
         );
+
         applied.add(migration.hash);
-        continue;
+        appliedCount += 1;
       }
 
-      // Execute each statement chunk (drizzle-kit uses '--> statement-breakpoint')
-      for (const statement of migration.sql) {
-        // We manage FK enforcement ourselves during migrations.
-        const trimmed = statement.trim().toUpperCase();
-        if (trimmed.startsWith('PRAGMA FOREIGN_KEYS=')) continue;
-        await this.execSql(statement);
-      }
+      this.lastMigrationSummary = {
+        appliedCount,
+        totalMigrations: migrations.length,
+        recovered,
+      };
 
-      // Record as applied (same schema as Drizzle uses)
-      await this.execSql(
-        `INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`
-      );
-
-      applied.add(migration.hash);
-      appliedCount += 1;
+      DatabaseService.migrationsApplied = true;
+    } finally {
+      // Restore FK enforcement for normal operation (and ensure it's re-enabled on failure).
+      await this.execSql('PRAGMA foreign_keys=ON;');
     }
-
-    this.lastMigrationSummary = {
-      appliedCount,
-      totalMigrations: migrations.length,
-      recovered,
-    };
-
-    // Restore FK enforcement for normal operation.
-    await this.execSql('PRAGMA foreign_keys=ON;');
-
-    DatabaseService.migrationsApplied = true;
   }
 
   private async tryLoadMigrationTagByWhen(
