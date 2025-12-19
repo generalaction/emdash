@@ -12,7 +12,7 @@ export type PrStatus = PrInfo & {
 };
 
 export function usePrStatus(taskPath?: string) {
-  const [pr, setPr] = useState<PrInfo | null>(null);
+  const [pr, setPr] = useState<PrStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,16 +1,25 @@
 import type { PrInfo } from './prStatus';
 
-type Listener = (pr: PrInfo | null) => void;
+type PrData = PrInfo & {
+  mergeStateStatus?: string;
+  headRefName?: string;
+  baseRefName?: string;
+  additions?: number;
+  deletions?: number;
+  changedFiles?: number;
+};
 
-const cache = new Map<string, PrInfo | null>();
+type Listener = (pr: PrData | null) => void;
+
+const cache = new Map<string, PrData | null>();
 const listeners = new Map<string, Set<Listener>>();
-const pending = new Map<string, Promise<PrInfo | null>>();
+const pending = new Map<string, Promise<PrData | null>>();
 
-async function fetchPrStatus(taskPath: string): Promise<PrInfo | null> {
+async function fetchPrStatus(taskPath: string): Promise<PrData | null> {
   try {
     const res = await window.electronAPI.getPrStatus({ taskPath });
-    if (res?.success) {
-      return (res.pr as PrInfo) || null;
+    if (res?.success && res.pr) {
+      return res.pr as PrData;
     }
     return null;
   } catch (error) {
@@ -18,7 +27,7 @@ async function fetchPrStatus(taskPath: string): Promise<PrInfo | null> {
   }
 }
 
-export async function refreshPrStatus(taskPath: string): Promise<PrInfo | null> {
+export async function refreshPrStatus(taskPath: string): Promise<PrData | null> {
   // Deduplicate concurrent requests
   const inFlight = pending.get(taskPath);
   if (inFlight) return inFlight;
@@ -44,10 +53,6 @@ export async function refreshPrStatus(taskPath: string): Promise<PrInfo | null> 
   } finally {
     pending.delete(taskPath);
   }
-}
-
-export function getPrStatus(taskPath: string): PrInfo | null | undefined {
-  return cache.get(taskPath);
 }
 
 export function subscribeToPrStatus(taskPath: string, listener: Listener): () => void {
