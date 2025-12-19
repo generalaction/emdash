@@ -17,6 +17,7 @@ export function usePrStatus(taskPath?: string) {
       return;
     }
 
+    setPr(null); // Clear stale data before subscribing to new task
     return subscribeToPrStatus(taskPath, setPr);
   }, [taskPath]);
 
