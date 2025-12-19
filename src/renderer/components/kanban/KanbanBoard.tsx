@@ -12,6 +12,7 @@ import {
   watchTaskActivity,
 } from '../../lib/taskStatus';
 import { activityStore } from '../../lib/activityStore';
+import { refreshPrStatus } from '../../lib/prStatusStore';
 
 const order: KanbanStatus[] = ['todo', 'in-progress', 'done'];
 const titles: Record<KanbanStatus, string> = {
@@ -175,8 +176,8 @@ const KanbanBoard: React.FC<{
         try {
           let hasPr = false;
           for (const p of paths) {
-            const res = await (window as any).electronAPI?.getPrStatus?.({ taskPath: p });
-            if (res?.success && res?.pr) {
+            const pr = await refreshPrStatus(p);
+            if (pr) {
               hasPr = true;
               break;
             }

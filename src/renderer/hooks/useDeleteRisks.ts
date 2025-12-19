@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isActivePr, PrInfo } from '../lib/prStatus';
+import { refreshPrStatus } from '../lib/prStatusStore';
 
 type TaskRef = { id: string; name: string; path: string };
 
@@ -34,10 +35,10 @@ export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
       const next: RiskState = {};
       for (const ws of tasks) {
         try {
-          const [statusRes, infoRes, prRes] = await Promise.allSettled([
+          const [statusRes, infoRes, rawPr] = await Promise.allSettled([
             (window as any).electronAPI?.getGitStatus?.(ws.path),
             (window as any).electronAPI?.getGitInfo?.(ws.path),
-            (window as any).electronAPI?.getPrStatus?.({ taskPath: ws.path }),
+            refreshPrStatus(ws.path),
           ]);
 
           let staged = 0;
@@ -67,9 +68,8 @@ export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
             infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
               ? infoRes.value.behindCount
               : 0;
-          const rawPr =
-            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
-          const pr = isActivePr(rawPr) ? rawPr : null;
+          const prValue = rawPr.status === 'fulfilled' ? rawPr.value : null;
+          const pr = isActivePr(prValue) ? prValue : null;
 
           next[ws.id] = {
             staged,

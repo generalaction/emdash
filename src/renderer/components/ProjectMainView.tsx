@@ -37,6 +37,7 @@ import {
 import { activityStore } from '../lib/activityStore';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { isActivePr, PrInfo } from '../lib/prStatus';
+import { refreshPrStatus } from '../lib/prStatusStore';
 import type { Project, Task } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -556,10 +557,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
       for (const ws of selectedTasks) {
         try {
-          const [statusRes, infoRes, prRes] = await Promise.allSettled([
+          const [statusRes, infoRes, rawPr] = await Promise.allSettled([
             window.electronAPI.getGitStatus(ws.path),
             window.electronAPI.getGitInfo(ws.path),
-            window.electronAPI.getPrStatus({ taskPath: ws.path }),
+            refreshPrStatus(ws.path),
           ]);
 
           let staged = 0;
@@ -589,9 +590,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
               ? infoRes.value.behindCount
               : 0;
-          const rawPr =
-            prRes.status === 'fulfilled' && prRes.value?.success ? (prRes.value.pr ?? null) : null;
-          const pr = isActivePr(rawPr) ? rawPr : null;
+          const prValue = rawPr.status === 'fulfilled' ? rawPr.value : null;
+          const pr = isActivePr(prValue) ? prValue : null;
 
           next[ws.id] = {
             staged,
