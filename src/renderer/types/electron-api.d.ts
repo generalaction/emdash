@@ -586,6 +586,10 @@ declare global {
       saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
       deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+      getUsageSummary: (range?: {
+        start?: string;
+        end?: string;
+      }) => Promise<{ success: boolean; summary?: any; error?: string }>;
 
       // Message operations
       saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
@@ -914,6 +918,10 @@ export interface ElectronAPI {
   saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+  getUsageSummary: (range?: {
+    start?: string;
+    end?: string;
+  }) => Promise<{ success: boolean; summary?: any; error?: string }>;
 
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;

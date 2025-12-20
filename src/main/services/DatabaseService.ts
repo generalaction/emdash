@@ -1,5 +1,5 @@
 import type sqlite3Type from 'sqlite3';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -61,6 +61,44 @@ export interface Message {
   timestamp: string;
   metadata?: string; // JSON string for additional data
 }
+
+export interface UsageSummary {
+  disabled: boolean;
+  range: {
+    start: string;
+    end: string;
+    days: number;
+  };
+  totals: {
+    projects: number;
+    workspaces: number;
+    conversations: number;
+    messages: number;
+    agentRuns: number;
+  };
+  workspaces: {
+    multiAgent: number;
+  };
+  messages: {
+    user: number;
+    agent: number;
+  };
+  series: {
+    messages: Array<{ date: string; total: number; user: number; agent: number }>;
+    workspaces: Array<{
+      date: string;
+      total: number;
+      multiAgent: number;
+      agentRuns: number;
+    }>;
+  };
+  providers: Array<{ id: string; runs: number }>;
+}
+
+type UsageRange = {
+  start?: string;
+  end?: string;
+};
 
 export class DatabaseService {
   private static migrationsApplied = false;
@@ -282,6 +320,272 @@ export class DatabaseService {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
     await db.delete(workspacesTable).where(eq(workspacesTable.id, workspaceId));
+  }
+
+  async getUsageSummary(range?: UsageRange): Promise<UsageSummary> {
+    const nowDay = new Date().toISOString().slice(0, 10);
+    if (this.disabled) {
+      return {
+        disabled: true,
+        range: { start: nowDay, end: nowDay, days: 1 },
+        totals: {
+          projects: 0,
+          workspaces: 0,
+          conversations: 0,
+          messages: 0,
+          agentRuns: 0,
+        },
+        workspaces: { multiAgent: 0 },
+        messages: { user: 0, agent: 0 },
+        series: { messages: [], workspaces: [] },
+        providers: [],
+      };
+    }
+
+    const { db } = await getDrizzleClient();
+    const normalizeDay = (value?: string) => {
+      if (!value) return undefined;
+      const trimmed = value.trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined;
+    };
+
+    let startDay = normalizeDay(range?.start);
+    let endDay = normalizeDay(range?.end);
+
+    if (!startDay || !endDay) {
+      const [messageBounds, workspaceBounds] = await Promise.all([
+        db
+          .select({
+            min: sql<string>`min(date(${messagesTable.timestamp}))`,
+            max: sql<string>`max(date(${messagesTable.timestamp}))`,
+          })
+          .from(messagesTable),
+        db
+          .select({
+            min: sql<string>`min(date(${workspacesTable.createdAt}))`,
+            max: sql<string>`max(date(${workspacesTable.createdAt}))`,
+          })
+          .from(workspacesTable),
+      ]);
+
+      const minCandidates = [messageBounds?.[0]?.min, workspaceBounds?.[0]?.min].filter(
+        (value): value is string => Boolean(value)
+      );
+      const maxCandidates = [messageBounds?.[0]?.max, workspaceBounds?.[0]?.max].filter(
+        (value): value is string => Boolean(value)
+      );
+      const minDay = minCandidates.sort()[0] ?? nowDay;
+      const maxDay = maxCandidates.sort().slice(-1)[0] ?? nowDay;
+
+      if (!startDay) startDay = minDay;
+      if (!endDay) endDay = maxDay;
+    }
+
+    if (startDay && endDay && startDay > endDay) {
+      [startDay, endDay] = [endDay, startDay];
+    }
+
+    startDay = startDay ?? nowDay;
+    endDay = endDay ?? nowDay;
+
+    const startTimestamp = `${startDay} 00:00:00`;
+    const endTimestamp = `${endDay} 23:59:59`;
+    const buildRangeWhere = (column: any) => {
+      const clauses = [
+        sql`${column} >= ${startTimestamp}`,
+        sql`${column} <= ${endTimestamp}`,
+      ];
+      return clauses;
+    };
+
+    const [projectCountRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(projectsTable)
+      .where(and(...buildRangeWhere(projectsTable.createdAt)));
+    const projectCount = Number(projectCountRow?.count ?? 0);
+
+    const workspaceRows = await db
+      .select()
+      .from(workspacesTable)
+      .where(and(...buildRangeWhere(workspacesTable.createdAt)));
+    const workspaces = workspaceRows.map((row) => this.mapDrizzleWorkspaceRow(row));
+
+    const [conversationCountRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(conversationsTable)
+      .where(and(...buildRangeWhere(conversationsTable.createdAt)));
+    const conversationCount = Number(conversationCountRow?.count ?? 0);
+
+    const senderCounts = await db
+      .select({ sender: messagesTable.sender, count: sql<number>`count(*)` })
+      .from(messagesTable)
+      .where(and(...buildRangeWhere(messagesTable.timestamp)))
+      .groupBy(messagesTable.sender);
+
+    let userMessages = 0;
+    let agentMessages = 0;
+    let totalMessages = 0;
+    for (const row of senderCounts) {
+      const count = Number(row.count ?? 0);
+      totalMessages += count;
+      const sender = typeof row.sender === 'string' ? row.sender.toLowerCase() : '';
+      if (sender === 'user') {
+        userMessages = count;
+      } else if (sender === 'agent') {
+        agentMessages = count;
+      }
+    }
+
+    const providerCounts: Record<string, number> = {};
+    let totalRuns = 0;
+    let multiAgentCount = 0;
+
+    const normalizeRunCount = (runs: number) =>
+      Number.isFinite(runs) && runs > 0 ? Math.floor(runs) : 1;
+
+    const addProviderRun = (providerId: string | null | undefined, runs: number) => {
+      const id = (providerId || 'unknown').toString();
+      const increment = normalizeRunCount(runs);
+      providerCounts[id] = (providerCounts[id] || 0) + increment;
+      totalRuns += increment;
+      return increment;
+    };
+
+    const workspaceRunEntries = (workspace: Workspace) => {
+      const meta = workspace.metadata as any;
+      if (meta?.multiAgent?.enabled) {
+        const providerRuns = Array.isArray(meta?.multiAgent?.providerRuns)
+          ? meta.multiAgent.providerRuns
+          : null;
+        if (providerRuns && providerRuns.length > 0) {
+          return providerRuns.map((entry: any) => ({
+            id: entry?.provider,
+            runs: normalizeRunCount(entry?.runs),
+          }));
+        }
+
+        const providers = Array.isArray(meta?.multiAgent?.providers)
+          ? meta.multiAgent.providers
+          : null;
+        if (providers && providers.length > 0) {
+          return providers.map((providerId: any) => ({ id: providerId, runs: 1 }));
+        }
+
+        const variants = Array.isArray(meta?.multiAgent?.variants)
+          ? meta.multiAgent.variants
+          : null;
+        if (variants && variants.length > 0) {
+          return variants.map((variant: any) => ({ id: variant?.provider, runs: 1 }));
+        }
+      }
+
+      return [{ id: workspace.agentId, runs: 1 }];
+    };
+
+    const workspaceSeriesMap = new Map<
+      string,
+      { total: number; multiAgent: number; agentRuns: number }
+    >();
+
+    for (const workspace of workspaces) {
+      const meta = workspace.metadata as any;
+      if (meta?.multiAgent?.enabled) {
+        multiAgentCount += 1;
+      }
+
+      const entries = workspaceRunEntries(workspace);
+      let workspaceRuns = 0;
+      for (const entry of entries) {
+        workspaceRuns += addProviderRun(entry.id, entry.runs);
+      }
+
+      const createdDay = typeof workspace.createdAt === 'string' ? workspace.createdAt.slice(0, 10) : '';
+      if (createdDay) {
+        const current = workspaceSeriesMap.get(createdDay) || {
+          total: 0,
+          multiAgent: 0,
+          agentRuns: 0,
+        };
+        current.total += 1;
+        if (meta?.multiAgent?.enabled) current.multiAgent += 1;
+        current.agentRuns += workspaceRuns;
+        workspaceSeriesMap.set(createdDay, current);
+      }
+    }
+
+    const messageByDayRows = await db
+      .select({
+        day: sql<string>`date(${messagesTable.timestamp})`,
+        sender: messagesTable.sender,
+        count: sql<number>`count(*)`,
+      })
+      .from(messagesTable)
+      .where(and(...buildRangeWhere(messagesTable.timestamp)))
+      .groupBy(sql`date(${messagesTable.timestamp})`, messagesTable.sender)
+      .orderBy(sql`date(${messagesTable.timestamp})`);
+
+    const messageSeriesMap = new Map<string, { total: number; user: number; agent: number }>();
+    for (const row of messageByDayRows) {
+      const day = typeof row.day === 'string' ? row.day : '';
+      if (!day) continue;
+      const current = messageSeriesMap.get(day) || { total: 0, user: 0, agent: 0 };
+      const count = Number(row.count ?? 0);
+      current.total += count;
+      const sender = typeof row.sender === 'string' ? row.sender.toLowerCase() : '';
+      if (sender === 'user') current.user += count;
+      if (sender === 'agent') current.agent += count;
+      messageSeriesMap.set(day, current);
+    }
+
+    const toDayString = (value: Date) => value.toISOString().slice(0, 10);
+    const startCursor = new Date(`${startDay}T00:00:00.000Z`);
+    const endCursor = new Date(`${endDay}T00:00:00.000Z`);
+    const days: string[] = [];
+    for (
+      let d = new Date(startCursor.getTime());
+      d.getTime() <= endCursor.getTime();
+      d.setUTCDate(d.getUTCDate() + 1)
+    ) {
+      days.push(toDayString(d));
+    }
+
+    const messageSeries = days.map((day) => {
+      const current = messageSeriesMap.get(day) || { total: 0, user: 0, agent: 0 };
+      return { date: day, ...current };
+    });
+
+    const workspaceSeries = days.map((day) => {
+      const current = workspaceSeriesMap.get(day) || { total: 0, multiAgent: 0, agentRuns: 0 };
+      return { date: day, ...current };
+    });
+
+    const providers = Object.entries(providerCounts)
+      .map(([id, runs]) => ({ id, runs }))
+      .sort((a, b) => b.runs - a.runs);
+
+    return {
+      disabled: false,
+      range: { start: startDay, end: endDay, days: days.length },
+      totals: {
+        projects: projectCount,
+        workspaces: workspaces.length,
+        conversations: conversationCount,
+        messages: totalMessages,
+        agentRuns: totalRuns,
+      },
+      workspaces: {
+        multiAgent: multiAgentCount,
+      },
+      messages: {
+        user: userMessages,
+        agent: agentMessages,
+      },
+      series: {
+        messages: messageSeries,
+        workspaces: workspaceSeries,
+      },
+      providers,
+    };
   }
 
   // Conversation management methods

@@ -28,6 +28,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './componen
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import SettingsModal from './components/SettingsModal';
+import UsageDashboardModal from './components/UsageDashboardModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import FirstLaunchModal from './components/FirstLaunchModal';
 import type { Project, Workspace } from './types/app';
@@ -130,6 +131,7 @@ const AppContent: React.FC = () => {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
+  const [showUsageDashboard, setShowUsageDashboard] = useState<boolean>(false);
   const showGithubRequirement = !ghInstalled || !isAuthenticated;
   // Show agent requirements block if we have status data and none of the CLI providers are detected locally.
   const showAgentRequirement =
@@ -342,6 +344,14 @@ const AppContent: React.FC = () => {
 
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
+  }, []);
+
+  const handleOpenUsageDashboard = useCallback(() => {
+    setShowUsageDashboard(true);
+  }, []);
+
+  const handleCloseUsageDashboard = useCallback(() => {
+    setShowUsageDashboard(false);
   }, []);
 
   const handleToggleCommandPalette = useCallback(() => {
@@ -1671,6 +1681,7 @@ const AppContent: React.FC = () => {
               onToggleKanban={handleToggleKanban}
               isKanbanOpen={Boolean(showKanban)}
               kanbanAvailable={Boolean(selectedProject)}
+              onOpenUsage={handleOpenUsageDashboard}
             />
             <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
               <ResizablePanelGroup
@@ -1749,6 +1760,10 @@ const AppContent: React.FC = () => {
               </ResizablePanelGroup>
             </div>
             <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
+            <UsageDashboardModal
+              isOpen={showUsageDashboard}
+              onClose={handleCloseUsageDashboard}
+            />
             <CommandPaletteWrapper
               isOpen={showCommandPalette}
               onClose={handleCloseCommandPalette}
@@ -1758,6 +1773,7 @@ const AppContent: React.FC = () => {
               handleGoHome={handleGoHome}
               handleOpenProject={handleOpenProject}
               handleOpenSettings={handleOpenSettings}
+              handleOpenUsageDashboard={handleOpenUsageDashboard}
             />
             <WorkspaceModal
               isOpen={showWorkspaceModal}

@@ -280,6 +280,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveWorkspace: (workspace: any) => ipcRenderer.invoke('db:saveWorkspace', workspace),
   deleteProject: (projectId: string) => ipcRenderer.invoke('db:deleteProject', projectId),
   deleteWorkspace: (workspaceId: string) => ipcRenderer.invoke('db:deleteWorkspace', workspaceId),
+  getUsageSummary: (range?: { start?: string; end?: string }) =>
+    ipcRenderer.invoke('db:getUsageSummary', range),
 
   // Conversation management
   saveConversation: (conversation: any) => ipcRenderer.invoke('db:saveConversation', conversation),
@@ -630,6 +632,10 @@ export interface ElectronAPI {
   saveWorkspace: (workspace: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
+  getUsageSummary: (range?: {
+    start?: string;
+    end?: string;
+  }) => Promise<{ success: boolean; summary?: any; error?: string }>;
 
   // Conversation management
   saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;

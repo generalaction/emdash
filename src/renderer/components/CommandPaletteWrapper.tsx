@@ -14,6 +14,7 @@ export interface CommandPaletteWrapperProps {
   handleGoHome: () => void;
   handleOpenProject: () => void;
   handleOpenSettings: () => void;
+  handleOpenUsageDashboard: () => void;
 }
 
 const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
@@ -25,6 +26,7 @@ const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
   handleGoHome,
   handleOpenProject,
   handleOpenSettings,
+  handleOpenUsageDashboard,
 }) => {
   const { toggle: toggleLeftSidebar } = useSidebar();
   const { toggle: toggleRightSidebar } = useRightSidebar();
@@ -48,6 +50,7 @@ const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
         }
       }}
       onOpenSettings={handleOpenSettings}
+      onOpenUsageDashboard={handleOpenUsageDashboard}
       onToggleLeftSidebar={toggleLeftSidebar}
       onToggleRightSidebar={toggleRightSidebar}
       onToggleTheme={toggleTheme}

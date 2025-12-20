@@ -128,4 +128,14 @@ export function registerDatabaseIpc() {
       return { success: false, error: (error as Error).message };
     }
   });
+
+  ipcMain.handle('db:getUsageSummary', async (_event, range?: { start?: string; end?: string }) => {
+    try {
+      const summary = await databaseService.getUsageSummary(range);
+      return { success: true, summary };
+    } catch (error) {
+      log.error('Failed to get usage summary:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
 }

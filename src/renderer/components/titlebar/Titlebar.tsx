@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Command, MessageSquare, Settings as SettingsIcon, KanbanSquare } from 'lucide-react';
+import { BarChart3, Command, MessageSquare, Settings as SettingsIcon, KanbanSquare } from 'lucide-react';
 import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
 import { Button } from '../ui/button';
@@ -28,6 +28,7 @@ interface TitlebarProps {
   onToggleKanban?: () => void;
   isKanbanOpen?: boolean;
   kanbanAvailable?: boolean;
+  onOpenUsage?: () => void;
 }
 
 const Titlebar: React.FC<TitlebarProps> = ({
@@ -43,6 +44,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   onToggleKanban,
   isKanbanOpen = false,
   kanbanAvailable = false,
+  onOpenUsage,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -176,6 +178,29 @@ const Titlebar: React.FC<TitlebarProps> = ({
           </TooltipProvider>
           <SidebarLeftToggleButton />
           <SidebarRightToggleButton />
+          {onOpenUsage ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Open usage dashboard"
+                    onClick={onOpenUsage}
+                    className="h-8 w-8 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-background/80"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs font-medium">
+                  <div className="flex flex-col gap-1">
+                    <span>Usage dashboard</span>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>

@@ -16,6 +16,7 @@ import {
   Command as CommandIcon,
   Option,
   Palette,
+  BarChart3,
 } from 'lucide-react';
 import { APP_SHORTCUTS } from '../hooks/useKeyboardShortcuts';
 
@@ -40,6 +41,7 @@ interface CommandPaletteProps {
   onToggleTheme?: () => void;
   onGoHome?: () => void;
   onOpenProject?: () => void;
+  onOpenUsageDashboard?: () => void;
 }
 
 type CommandItem = {
@@ -68,6 +70,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onToggleTheme,
   onGoHome,
   onOpenProject,
+  onOpenUsageDashboard,
 }) => {
   const [search, setSearch] = useState('');
   const shouldReduceMotion = useReducedMotion();
@@ -142,6 +145,18 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         keywords: ['settings', 'preferences', 'config'],
         shortcut: { key: APP_SHORTCUTS.SETTINGS.key, modifier: APP_SHORTCUTS.SETTINGS.modifier },
         onSelect: () => runCommand(onOpenSettings),
+      });
+    }
+
+    if (onOpenUsageDashboard) {
+      items.push({
+        id: 'nav-usage-dashboard',
+        label: 'Usage Dashboard',
+        description: 'View local usage stats',
+        icon: <BarChart3 className="h-4 w-4" />,
+        group: 'Navigation',
+        keywords: ['usage', 'dashboard', 'stats', 'analytics'],
+        onSelect: () => runCommand(onOpenUsageDashboard),
       });
     }
 
@@ -241,6 +256,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     onToggleRightSidebar,
     onToggleTheme,
     runCommand,
+    onOpenUsageDashboard,
   ]);
 
   // Group commands
