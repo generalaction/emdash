@@ -1958,6 +1958,7 @@ const AppContent: React.FC = () => {
                     onGoHome={handleGoHome}
                     onOpenProject={handleOpenProject}
                     onNewProject={() => setShowNewProjectModal(true)}
+                    onCloneProject={() => setShowCloneModal(true)}
                     onSelectTask={handleSelectTask}
                     activeTask={activeTask || undefined}
                     onReorderProjects={handleReorderProjects}

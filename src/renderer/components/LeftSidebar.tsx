@@ -14,7 +14,8 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Home, ChevronDown, Plus, FolderOpen } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Home, ChevronDown, Plus, FolderOpen, Download } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
@@ -30,6 +31,7 @@ interface LeftSidebarProps {
   onGoHome: () => void;
   onOpenProject?: () => void;
   onNewProject?: () => void;
+  onCloneProject?: () => void;
   onSelectTask?: (task: Task) => void;
   activeTask?: Task | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
@@ -60,6 +62,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onGoHome,
   onOpenProject,
   onNewProject,
+  onCloneProject,
   onSelectTask,
   activeTask,
   onReorderProjects,
@@ -78,6 +81,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onDeleteProject,
   isHomeView,
 }) => {
+  const [dropdownOpen, setDropdownOpen] = React.useState(false);
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
 
@@ -115,6 +119,81 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   React.useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
+
+  const handleOpenFolder = React.useCallback(() => {
+    setDropdownOpen(false);
+    if (onOpenProject) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('project_open_clicked');
+      })();
+      onOpenProject();
+    }
+  }, [onOpenProject]);
+
+  const handleCreateNew = React.useCallback(() => {
+    setDropdownOpen(false);
+    if (!githubAuthenticated || !githubInstalled) {
+      // Import toast dynamically to avoid circular imports
+      import('../hooks/use-toast').then(({ toast }) => {
+        toast({
+          title: 'GitHub authentication required',
+          variant: 'destructive',
+          action: (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onGithubConnect?.();
+              }}
+            >
+              Connect GitHub
+            </Button>
+          ),
+        });
+      });
+      return;
+    }
+    if (onNewProject) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('project_create_clicked');
+      })();
+      onNewProject();
+    }
+  }, [githubAuthenticated, githubInstalled, onNewProject, onGithubConnect]);
+
+  const handleCloneFromGithub = React.useCallback(() => {
+    setDropdownOpen(false);
+    if (!githubAuthenticated || !githubInstalled) {
+      // Import toast dynamically to avoid circular imports
+      import('../hooks/use-toast').then(({ toast }) => {
+        toast({
+          title: 'GitHub authentication required',
+          variant: 'destructive',
+          action: (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onGithubConnect?.();
+              }}
+            >
+              Connect GitHub
+            </Button>
+          ),
+        });
+      });
+      return;
+    }
+    if (onCloneProject) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('project_clone_clicked');
+      })();
+      onCloneProject();
+    }
+  }, [githubAuthenticated, githubInstalled, onCloneProject, onGithubConnect]);
 
   const renderGithubStatus = () => (
     <GithubStatus
@@ -334,17 +413,51 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-1 w-full justify-start"
-                        onClick={onOpenProject}
+                    <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-1 w-full justify-start"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          <span className="text-sm font-medium">Add Project</span>
+                          <ChevronDown className="ml-auto h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-48 p-1"
+                        align="start"
+                        sideOffset={4}
                       >
-                        <FolderOpen className="mr-2 h-4 w-4" />
-                        <span className="text-sm font-medium">Add Project</span>
-                      </Button>
-                    </SidebarMenuButton>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                            onClick={handleOpenFolder}
+                          >
+                            <FolderOpen className="h-4 w-4" />
+                            Open folder
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                            onClick={handleCreateNew}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Create new
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                            onClick={handleCloneFromGithub}
+                          >
+                            <Download className="h-4 w-4" />
+                            Clone from GitHub
+                          </button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
