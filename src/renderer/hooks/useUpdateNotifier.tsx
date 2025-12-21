@@ -48,7 +48,7 @@ export function useUpdateNotifier(opts: Options = {}) {
         try {
           toast({
             title: 'Update available',
-            description: 'There is a new update available. Go to Settings to download the new DMG.',
+            description: 'A new version is available. Go to Settings to download.',
             action: (
               <ToastAction altText="Open Settings" onClick={() => onOpenSettings?.()}>
                 Open Settings
@@ -56,6 +56,23 @@ export function useUpdateNotifier(opts: Options = {}) {
             ),
           });
           rememberNotified(v);
+        } catch {}
+      }
+
+      if (evt?.type === 'downloaded') {
+        try {
+          toast({
+            title: 'Update ready to install',
+            description: 'The update will be installed when you quit Emdash.',
+            action: (
+              <ToastAction
+                altText="Restart Now"
+                onClick={() => window.electronAPI.quitAndInstallUpdate?.()}
+              >
+                Restart Now
+              </ToastAction>
+            ),
+          });
         } catch {}
       }
     });

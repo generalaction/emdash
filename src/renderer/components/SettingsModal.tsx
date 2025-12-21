@@ -16,6 +16,7 @@ import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
 import Context7SettingsCard from './Context7SettingsCard';
 import DefaultProviderSettingsCard from './DefaultProviderSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
+import UpdateSettingsCard from './UpdateSettingsCard';
 import { CliProviderStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
@@ -191,6 +192,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
           { title: 'Theme', render: () => <ThemeCard /> },
+          { title: 'Auto-Updates', render: () => <UpdateSettingsCard /> },
           { title: 'Version', render: () => <VersionCard /> },
           {
             title: 'How to use Emdash',

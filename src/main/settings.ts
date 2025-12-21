@@ -39,6 +39,13 @@ export interface AppSettings {
   projects?: {
     defaultDirectory: string;
   };
+  updates?: {
+    autoCheck: boolean;
+    autoDownload: boolean;
+    checkIntervalHours: number;
+    notifyOnAvailable: boolean;
+    notifyOnDownloaded: boolean;
+  };
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -70,6 +77,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
+  },
+  updates: {
+    autoCheck: true,
+    autoDownload: false, // Conservative default - user opt-in required
+    checkIntervalHours: 24, // Daily checks
+    notifyOnAvailable: true,
+    notifyOnDownloaded: true,
   },
 };
 
@@ -122,6 +136,30 @@ export function updateAppSettings(partial: Partial<AppSettings>): AppSettings {
   const next = normalizeSettings(merged);
   persistSettings(next);
   cached = next;
+
+  // Apply auto-download setting if it changed
+  if (partial.updates?.autoDownload !== undefined) {
+    try {
+      const { updateAutoDownloadSetting } = require('./services/updateIpc');
+      updateAutoDownloadSetting(partial.updates.autoDownload);
+    } catch {
+      // Service may not be loaded yet, ignore
+    }
+  }
+
+  // Restart periodic checks if check interval changed
+  if (partial.updates?.checkIntervalHours !== undefined || partial.updates?.autoCheck !== undefined) {
+    try {
+      const { stopPeriodicUpdateChecks, startPeriodicUpdateChecks } = require('./services/updateIpc');
+      stopPeriodicUpdateChecks();
+      if (next.updates?.autoCheck) {
+        startPeriodicUpdateChecks();
+      }
+    } catch {
+      // Service may not be loaded yet, ignore
+    }
+  }
+
   return next;
 }
 
@@ -234,6 +272,26 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.projects = {
     defaultDirectory: defaultDir,
   };
+
+  // Updates
+  const updates = (input as any)?.updates || {};
+  out.updates = {
+    autoCheck: Boolean(updates?.autoCheck ?? DEFAULT_SETTINGS.updates!.autoCheck),
+    autoDownload: Boolean(updates?.autoDownload ?? DEFAULT_SETTINGS.updates!.autoDownload),
+    checkIntervalHours: Number(
+      updates?.checkIntervalHours ?? DEFAULT_SETTINGS.updates!.checkIntervalHours
+    ),
+    notifyOnAvailable: Boolean(
+      updates?.notifyOnAvailable ?? DEFAULT_SETTINGS.updates!.notifyOnAvailable
+    ),
+    notifyOnDownloaded: Boolean(
+      updates?.notifyOnDownloaded ?? DEFAULT_SETTINGS.updates!.notifyOnDownloaded
+    ),
+  };
+
+  // Validate check interval is reasonable (1-168 hours)
+  if (out.updates.checkIntervalHours < 1) out.updates.checkIntervalHours = 1;
+  if (out.updates.checkIntervalHours > 168) out.updates.checkIntervalHours = 168;
 
   return out;
 }

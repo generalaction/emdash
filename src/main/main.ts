@@ -195,6 +195,15 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   registerAllIpc();
+
+  // Start auto-updater (check on startup + periodic checks)
+  const {
+    checkForUpdatesOnStartup,
+    startPeriodicUpdateChecks,
+  } = require('./services/updateIpc');
+  checkForUpdatesOnStartup();
+  startPeriodicUpdateChecks();
+
   // Warm provider installation cache
   try {
     await connectionsService.initProviderStatusCache();
@@ -211,6 +220,10 @@ registerAppLifecycle();
 
 // Graceful shutdown telemetry event
 app.on('before-quit', () => {
+  // Stop periodic update checks
+  const { stopPeriodicUpdateChecks } = require('./services/updateIpc');
+  stopPeriodicUpdateChecks();
+
   // Session summary with duration (no identifiers)
   telemetry.capture('app_session');
   telemetry.capture('app_closed');

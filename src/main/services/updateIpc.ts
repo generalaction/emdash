@@ -1,7 +1,8 @@
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, net } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { log } from '../lib/logger';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
+import { getAppSettings } from '../settings';
 
 // Channels used to notify renderer about update lifecycle
 const UpdateChannels = {
@@ -95,6 +96,15 @@ function getLatestDownloadUrl(): string {
 export function registerUpdateIpc() {
   ensureInitialized();
 
+  // Initialize autoDownload from saved settings
+  try {
+    const settings = getAppSettings();
+    autoUpdater.autoDownload = settings.updates?.autoDownload ?? false;
+    log.info('[autoUpdater] Initialized autoDownload from settings:', autoUpdater.autoDownload);
+  } catch (error) {
+    log.warn('[autoUpdater] Failed to load autoDownload setting, using default (false)');
+  }
+
   ipcMain.handle('update:check', async () => {
     try {
       const dev = !app.isPackaged || process.env.NODE_ENV === 'development';
@@ -140,7 +150,9 @@ export function registerUpdateIpc() {
     try {
       // Slight delay to ensure renderer can process the response
       setTimeout(() => {
-        autoUpdater.quitAndInstall(false, true);
+        // quitAndInstall(isSilent = false)
+        // isSilent=false shows UI dialogs during install (user-friendly)
+        autoUpdater.quitAndInstall(false);
       }, 250);
       return { success: true };
     } catch (error) {
@@ -166,4 +178,114 @@ export function registerUpdateIpc() {
 
   // Expose app version for simple comparisons on renderer
   ipcMain.handle('update:get-version', () => app.getVersion());
+}
+
+// Helper: Check network connectivity
+async function isOnline(): Promise<boolean> {
+  try {
+    const response = await net.fetch('https://api.github.com/zen');
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Helper: Retry logic with exponential backoff
+async function checkForUpdatesWithRetry(maxRetries = 3, delayMs = 5000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await autoUpdater.checkForUpdates();
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+      const backoffDelay = delayMs * attempt; // exponential backoff
+      log.warn(`[autoUpdater] Check failed (attempt ${attempt}/${maxRetries}), retrying in ${backoffDelay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+    }
+  }
+}
+
+// Check for updates on app startup (delayed to avoid blocking startup)
+export function checkForUpdatesOnStartup() {
+  // Wait a bit after app ready to avoid blocking startup
+  setTimeout(async () => {
+    try {
+      const settings = getAppSettings();
+      if (!settings.updates?.autoCheck) {
+        log.debug('[autoUpdater] Auto-check disabled in settings');
+        return;
+      }
+
+      const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+      const forced = process.env.EMDASH_DEV_UPDATES === 'true';
+      if (isDev && !forced) {
+        log.debug('[autoUpdater] Skipping startup check (dev mode)');
+        return;
+      }
+
+      // Check network connectivity first
+      const online = await isOnline();
+      if (!online) {
+        log.debug('[autoUpdater] Offline, skipping startup check');
+        return;
+      }
+
+      log.info('[autoUpdater] Checking for updates on startup...');
+      await checkForUpdatesWithRetry();
+    } catch (error) {
+      log.warn('[autoUpdater] Startup check failed:', error);
+      // Silent failure - don't interrupt user experience
+    }
+  }, 10_000); // 10 second delay after app ready
+}
+
+// Periodic update checking
+let checkInterval: NodeJS.Timeout | null = null;
+
+export function startPeriodicUpdateChecks(intervalMs?: number) {
+  const settings = getAppSettings();
+  if (!settings.updates?.autoCheck) {
+    log.debug('[autoUpdater] Periodic checks disabled in settings');
+    return;
+  }
+
+  // Use setting or provided interval, default to 24 hours
+  const interval = intervalMs ?? (settings.updates?.checkIntervalHours ?? 24) * 60 * 60 * 1000;
+
+  if (checkInterval) clearInterval(checkInterval);
+
+  checkInterval = setInterval(async () => {
+    try {
+      const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+      const forced = process.env.EMDASH_DEV_UPDATES === 'true';
+      if (isDev && !forced) return;
+
+      // Check network connectivity first
+      const online = await isOnline();
+      if (!online) {
+        log.debug('[autoUpdater] Offline, skipping periodic check');
+        return;
+      }
+
+      log.info('[autoUpdater] Periodic update check...');
+      await checkForUpdatesWithRetry();
+    } catch (error) {
+      log.warn('[autoUpdater] Periodic check failed:', error);
+    }
+  }, interval);
+
+  log.info(`[autoUpdater] Periodic checks enabled (interval: ${interval / 1000 / 60 / 60}h)`);
+}
+
+export function stopPeriodicUpdateChecks() {
+  if (checkInterval) {
+    clearInterval(checkInterval);
+    checkInterval = null;
+    log.info('[autoUpdater] Periodic checks stopped');
+  }
+}
+
+// Update autoDownload setting dynamically
+export function updateAutoDownloadSetting(enabled: boolean) {
+  autoUpdater.autoDownload = enabled;
+  log.info('[autoUpdater] autoDownload set to', enabled);
 }

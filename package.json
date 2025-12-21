@@ -115,6 +115,7 @@
   "build": {
     "appId": "com.emdash",
     "productName": "emdash",
+    "electronUpdaterCompatibility": ">=2.16",
     "directories": {
       "output": "release"
     },
