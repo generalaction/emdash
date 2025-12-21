@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Globe, Plus, Terminal, TreePine, X, Bot } from 'lucide-react';
+import { Plus, Terminal, X, Bot } from 'lucide-react';
 import { TerminalPane } from './TerminalPane';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
@@ -226,7 +226,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 aria-describedby={!task ? 'task-disabled-reason' : undefined}
               >
                 <div className="flex items-center gap-2">
-                  <TreePine className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Worktree</span>
                 </div>
               </SelectItem>
@@ -237,7 +236,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 aria-describedby={!projectPath ? 'global-disabled-reason' : undefined}
               >
                 <div className="flex items-center gap-2">
-                  <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Global</span>
                 </div>
               </SelectItem>
