@@ -165,8 +165,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     [repoName, description, owner, isPrivate, validationError, onSuccess, onClose]
   );
 
+  const handleOpenChange = (open: boolean) => {
+    // Prevent closing during async operations
+    if (!open && isCreating) {
+      return;
+    }
+    if (!open) {
+      onClose();
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>New Project</DialogTitle>

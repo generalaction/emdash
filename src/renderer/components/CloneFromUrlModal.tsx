@@ -168,8 +168,18 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({
     [repoUrl, directoryName, onSuccess, onClose]
   );
 
+  const handleOpenChange = (open: boolean) => {
+    // Prevent closing during async operations
+    if (!open && isCloning) {
+      return;
+    }
+    if (!open) {
+      onClose();
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Clone from URL</DialogTitle>
