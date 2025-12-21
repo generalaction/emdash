@@ -1,47 +1,47 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Button } from './components/ui/button';
-import { FolderOpen, Plus, Download } from 'lucide-react';
-import LeftSidebar from './components/LeftSidebar';
-import ProjectMainView from './components/ProjectMainView';
-import TaskModal from './components/TaskModal';
-import { NewProjectModal } from './components/NewProjectModal';
-import { CloneFromUrlModal } from './components/CloneFromUrlModal';
-import ChatInterface from './components/ChatInterface';
-import MultiAgentTask from './components/MultiAgentTask';
-import { Toaster } from './components/ui/toaster';
-import useUpdateNotifier from './hooks/useUpdateNotifier';
-import { useToast } from './hooks/use-toast';
-import { ToastAction } from './components/ui/toast';
-import { useGithubAuth } from './hooks/useGithubAuth';
-import { useTheme } from './hooks/useTheme';
-import { ThemeProvider } from './components/ThemeProvider';
-import ErrorBoundary from './components/ErrorBoundary';
+import { motion } from 'framer-motion';
+import { FolderOpen, Github, Plus } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
 import emdashLogo from '../assets/images/emdash/emdash_logo.svg';
 import emdashLogoWhite from '../assets/images/emdash/emdash_logo_white.svg';
-import Titlebar from './components/titlebar/Titlebar';
-import { SidebarProvider } from './components/ui/sidebar';
-import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sidebar';
-import RightSidebar from './components/RightSidebar';
-import { type Provider } from './types';
-import { type LinearIssueSummary } from './types/linear';
-import { type GitHubIssueSummary } from './types/github';
-import { type JiraIssueSummary } from './types/jira';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
-import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
-import type { ImperativePanelHandle } from 'react-resizable-panels';
-import SettingsModal from './components/SettingsModal';
+import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
+import BrowserPane from './components/BrowserPane';
+import ChatInterface from './components/ChatInterface';
+import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
+import ErrorBoundary from './components/ErrorBoundary';
 import FirstLaunchModal from './components/FirstLaunchModal';
+import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
+import KanbanBoard from './components/kanban/KanbanBoard';
+import LeftSidebar from './components/LeftSidebar';
+import MultiAgentTask from './components/MultiAgentTask';
+import { NewProjectModal } from './components/NewProjectModal';
+import ProjectMainView from './components/ProjectMainView';
+import RightSidebar from './components/RightSidebar';
+import SettingsModal from './components/SettingsModal';
+import TaskModal from './components/TaskModal';
+import { ThemeProvider } from './components/ThemeProvider';
+import Titlebar from './components/titlebar/Titlebar';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from './components/ui/resizable';
+import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sidebar';
+import { SidebarProvider } from './components/ui/sidebar';
+import { ToastAction } from './components/ui/toast';
+import { Toaster } from './components/ui/toaster';
+import { useToast } from './hooks/use-toast';
+import { useGithubAuth } from './hooks/useGithubAuth';
+import { usePlanToasts } from './hooks/usePlanToasts';
+import { useTheme } from './hooks/useTheme';
+import useUpdateNotifier from './hooks/useUpdateNotifier';
+import { getContainerRunState } from './lib/containerRuns';
+import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
+import { BrowserProvider } from './providers/BrowserProvider';
+import { terminalSessionRegistry } from './terminal/SessionRegistry';
+import { type Provider } from './types';
 import type { Project, Task } from './types/app';
 import type { TaskMetadata } from './types/chat';
-import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
-import { usePlanToasts } from './hooks/usePlanToasts';
-import { terminalSessionRegistry } from './terminal/SessionRegistry';
-import BrowserPane from './components/BrowserPane';
-import { BrowserProvider } from './providers/BrowserProvider';
-import { getContainerRunState } from './lib/containerRuns';
-import KanbanBoard from './components/kanban/KanbanBoard';
-import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
+import { type GitHubIssueSummary } from './types/github';
+import { type JiraIssueSummary } from './types/jira';
+import { type LinearIssueSummary } from './types/linear';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -618,6 +618,7 @@ const AppContent: React.FC = () => {
           });
         }
       } else if (result.error) {
+        if (result.error === 'No directory selected') return;
         toast({
           title: 'Failed to Open Project',
           description: result.error,
@@ -1769,8 +1770,10 @@ const AppContent: React.FC = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
-              <button
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-2">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1, ease: 'easeInOut' }}
                 onClick={() => {
                   void (async () => {
                     const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -1778,15 +1781,17 @@ const AppContent: React.FC = () => {
                   })();
                   handleOpenProject();
                 }}
-                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <FolderOpen className="mb-5 h-4 w-4 text-foreground" />
+                <FolderOpen className="mb-5 h-5 w-5 text-foreground opacity-70" />
                 <div className="w-full min-w-0 text-left">
                   <h3 className="truncate text-xs font-semibold">Open project</h3>
                 </div>
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1, ease: 'easeInOut' }}
                 onClick={() => {
                   void (async () => {
                     const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -1806,15 +1811,17 @@ const AppContent: React.FC = () => {
                   }
                   setShowNewProjectModal(true);
                 }}
-                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Plus className="mb-5 h-4 w-4 text-foreground" />
+                <Plus className="mb-5 h-5 w-5 text-foreground opacity-70" />
                 <div className="w-full min-w-0 text-left">
                   <h3 className="truncate text-xs font-semibold">Create New Project</h3>
                 </div>
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1, ease: 'easeInOut' }}
                 onClick={() => {
                   void (async () => {
                     const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -1834,13 +1841,13 @@ const AppContent: React.FC = () => {
                   }
                   setShowCloneModal(true);
                 }}
-                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Download className="mb-5 h-4 w-4 text-foreground" />
+                <Github className="mb-5 h-5 w-5 text-foreground opacity-70" />
                 <div className="w-full min-w-0 text-left">
                   <h3 className="truncate text-xs font-semibold">Clone from GitHub</h3>
                 </div>
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>
