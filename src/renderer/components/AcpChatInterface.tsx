@@ -378,6 +378,15 @@ const statusStyles: Record<string, string> = {
   cancelled: 'text-gray-600 bg-gray-100 border-gray-200',
 };
 
+const THINKING_BUDGET_LEVELS = [
+  { id: 'none', label: 'None', dots: 0 },
+  { id: 'low', label: 'Low', dots: 1 },
+  { id: 'medium', label: 'Medium', dots: 2 },
+  { id: 'high', label: 'High', dots: 3 },
+] as const;
+
+type ThinkingBudgetLevel = (typeof THINKING_BUDGET_LEVELS)[number]['id'];
+
 const AcpChatInterface: React.FC<Props> = ({
   task,
   projectName: _projectName,
@@ -414,6 +423,7 @@ const AcpChatInterface: React.FC<Props> = ({
   }>({});
   const [modelId, setModelId] = useState<string>('gpt-5.2-codex');
   const [planModeEnabled, setPlanModeEnabled] = useState(false);
+  const [thinkingBudget, setThinkingBudget] = useState<ThinkingBudgetLevel>('medium');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [runElapsedMs, setRunElapsedMs] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -430,6 +440,14 @@ const AcpChatInterface: React.FC<Props> = ({
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const cycleThinkingBudget = useCallback(() => {
+    setThinkingBudget((prev) => {
+      const idx = THINKING_BUDGET_LEVELS.findIndex((level) => level.id === prev);
+      const next = THINKING_BUDGET_LEVELS[(idx + 1) % THINKING_BUDGET_LEVELS.length];
+      return next?.id ?? 'medium';
+    });
   }, []);
 
   // Auto-resize textarea based on content
@@ -1060,6 +1078,10 @@ const AcpChatInterface: React.FC<Props> = ({
   const showBottomLoading = isRunning && !latestToolCallId;
 
   const canSend = input.trim().length > 0 || attachments.length > 0;
+  const activeThinkingBudget =
+    THINKING_BUDGET_LEVELS.find((level) => level.id === thinkingBudget) ??
+    THINKING_BUDGET_LEVELS[2];
+  const isThinkingBudgetNone = activeThinkingBudget.id === 'none';
 
   const handleCopyMessage = useCallback(
     async (messageId: string, text: string) => {
@@ -1922,11 +1944,40 @@ const AcpChatInterface: React.FC<Props> = ({
                     }
                     className={`flex h-8 items-center justify-center rounded-md px-2 text-muted-foreground transition ${
                       planModeEnabled
-                        ? 'bg-amber-500/10 text-amber-600'
-                        : 'bg-background/90 hover:bg-muted/40 hover:text-foreground'
+                        ? 'bg-sky-100/70 text-sky-700 hover:bg-sky-100/90 dark:bg-sky-500/10 dark:text-sky-200 dark:hover:bg-sky-500/15'
+                        : 'bg-transparent hover:bg-muted/40 hover:text-foreground'
                     }`}
                   >
                     <Clipboard className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cycleThinkingBudget}
+                    title={`Thinking budget: ${activeThinkingBudget.label}`}
+                    aria-label={`Thinking budget: ${activeThinkingBudget.label}`}
+                    className={`flex h-8 items-center gap-2 rounded-md px-2 text-xs font-medium transition ${
+                      isThinkingBudgetNone
+                        ? 'bg-transparent text-muted-foreground hover:text-foreground'
+                        : 'bg-violet-100/70 text-violet-700 hover:bg-violet-100/90 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15'
+                    }`}
+                  >
+                    <Brain className="h-4 w-4" />
+                    <span
+                      className="flex flex-col-reverse items-center justify-center gap-1"
+                      aria-hidden="true"
+                    >
+                      {Array.from({ length: 3 }).map((_, idx) => (
+                        <span
+                          key={`thinking-dot-${idx}`}
+                          className={`h-1 w-1 rounded-full ${
+                            idx < activeThinkingBudget.dots ? 'bg-current' : 'bg-muted-foreground/30'
+                          }`}
+                        />
+                      ))}
+                    </span>
+                    {!isThinkingBudgetNone ? (
+                      <span className="text-xs font-medium">{activeThinkingBudget.label}</span>
+                    ) : null}
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
