@@ -12,6 +12,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import kilocodeLogo from '../../assets/images/kilocode.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
@@ -34,6 +35,7 @@ export const providerAssets: Record<UiProvider, ProviderAsset> = {
   auggie: { name: 'Augment Code', logo: augmentLogo, alt: 'Auggie CLI' },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Moonshot AI', logo: kimiLogo, alt: 'Kimi CLI' },
+  kilocode: { name: 'Kilo AI', logo: kilocodeLogo, alt: 'Kilocode CLI' },
   kiro: { name: 'Amazon Web Services', logo: kiroLogo, alt: 'Kiro CLI' },
   rovo: { name: 'Atlassian', logo: atlassianLogo, alt: 'Rovo Dev CLI' },
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
