@@ -2,11 +2,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowUp,
+  Brain,
   ChevronDown,
   Circle,
   Clipboard,
+  FileText,
   Paperclip,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
   Square,
+  Terminal,
   Trash2,
 } from 'lucide-react';
 
@@ -72,6 +79,15 @@ type ToolCall = {
   rawOutput?: string;
 };
 
+type DiffPreviewLine = { type: 'context' | 'add' | 'del'; text: string };
+type DiffPreview = {
+  path?: string;
+  lines: DiffPreviewLine[];
+  additions: number;
+  deletions: number;
+  truncated: boolean;
+};
+
 type FeedItem =
   | {
       id: string;
@@ -79,6 +95,7 @@ type FeedItem =
       role: 'user' | 'assistant' | 'system';
       blocks: ContentBlock[];
       streaming?: boolean;
+      messageKind?: 'thought' | 'system';
     }
   | { id: string; type: 'tool'; toolCallId: string }
   | {
@@ -112,6 +129,221 @@ type Props = {
   provider: Provider;
   isProviderInstalled: boolean | null;
   runInstallCommand: (cmd: string) => void;
+};
+
+const DIFF_CONTEXT_LINES = 3;
+const MAX_DIFF_PREVIEW_LINES = 80;
+const MAX_DIFF_SOURCE_LINES = 400;
+const DEFAULT_TRUNCATE_LIMIT = 120;
+
+const normalizeNewlines = (text: string) => text.replace(/\r\n/g, '\n');
+
+const splitLines = (text: string) =>
+  normalizeNewlines(text).split('\n');
+
+const truncateText = (text: string, limit: number = DEFAULT_TRUNCATE_LIMIT) => {
+  if (text.length <= limit) return text;
+  const clipped = Math.max(0, limit - 3);
+  return `${text.slice(0, clipped)}...`;
+};
+
+const commonPrefixLength = (a: string[], b: string[]) => {
+  const max = Math.min(a.length, b.length);
+  let idx = 0;
+  while (idx < max && a[idx] === b[idx]) idx += 1;
+  return idx;
+};
+
+const commonSuffixLength = (a: string[], b: string[], prefix: number) => {
+  let idx = 0;
+  const max = Math.min(a.length, b.length) - prefix;
+  while (idx < max && a[a.length - 1 - idx] === b[b.length - 1 - idx]) idx += 1;
+  return idx;
+};
+
+const estimateLineChanges = (oldLines: string[], newLines: string[]) => {
+  const prefix = commonPrefixLength(oldLines, newLines);
+  const suffix = commonSuffixLength(oldLines, newLines, prefix);
+  const deletions = Math.max(0, oldLines.length - prefix - suffix);
+  const additions = Math.max(0, newLines.length - prefix - suffix);
+  return { additions, deletions };
+};
+
+const myersDiff = (a: string[], b: string[]): DiffPreviewLine[] => {
+  const n = a.length;
+  const m = b.length;
+  const max = n + m;
+  const offset = max;
+  const v = new Array(2 * max + 1).fill(0);
+  const trace: number[][] = [];
+
+  for (let d = 0; d <= max; d += 1) {
+    trace.push(v.slice());
+    for (let k = -d; k <= d; k += 2) {
+      let x: number;
+      if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) {
+        x = v[offset + k + 1];
+      } else {
+        x = v[offset + k - 1] + 1;
+      }
+      let y = x - k;
+      while (x < n && y < m && a[x] === b[y]) {
+        x += 1;
+        y += 1;
+      }
+      v[offset + k] = x;
+      if (x >= n && y >= m) {
+        return buildMyersResult(trace, a, b);
+      }
+    }
+  }
+  return buildMyersResult(trace, a, b);
+};
+
+const buildMyersResult = (trace: number[][], a: string[], b: string[]): DiffPreviewLine[] => {
+  const n = a.length;
+  const m = b.length;
+  const max = n + m;
+  const offset = max;
+  const result: DiffPreviewLine[] = [];
+  let x = n;
+  let y = m;
+
+  for (let d = trace.length - 1; d >= 0; d -= 1) {
+    const v = trace[d];
+    const k = x - y;
+    let prevK: number;
+    if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) {
+      prevK = k + 1;
+    } else {
+      prevK = k - 1;
+    }
+    const prevX = v[offset + prevK];
+    const prevY = prevX - prevK;
+
+    while (x > prevX && y > prevY) {
+      result.push({ type: 'context', text: a[x - 1] ?? '' });
+      x -= 1;
+      y -= 1;
+    }
+    if (d === 0) break;
+    if (x === prevX) {
+      result.push({ type: 'add', text: b[prevY] ?? '' });
+    } else {
+      result.push({ type: 'del', text: a[prevX] ?? '' });
+    }
+    x = prevX;
+    y = prevY;
+  }
+
+  return result.reverse();
+};
+
+const buildFallbackDiffLines = (
+  oldLines: string[],
+  newLines: string[],
+  context: number
+): DiffPreviewLine[] => {
+  const prefix = commonPrefixLength(oldLines, newLines);
+  const suffix = commonSuffixLength(oldLines, newLines, prefix);
+  const beforeStart = Math.max(0, prefix - context);
+  const before = oldLines.slice(beforeStart, prefix);
+  const afterStart = Math.max(prefix, oldLines.length - suffix);
+  const afterEnd = Math.min(oldLines.length, afterStart + context);
+  const after = oldLines.slice(afterStart, afterEnd);
+  const removed = oldLines.slice(prefix, oldLines.length - suffix);
+  const added = newLines.slice(prefix, newLines.length - suffix);
+
+  return [
+    ...before.map((text) => ({ type: 'context' as const, text })),
+    ...removed.map((text) => ({ type: 'del' as const, text })),
+    ...added.map((text) => ({ type: 'add' as const, text })),
+    ...after.map((text) => ({ type: 'context' as const, text })),
+  ];
+};
+
+const trimDiffLines = (
+  lines: DiffPreviewLine[],
+  maxLines: number,
+  context: number
+) => {
+  if (lines.length <= maxLines) {
+    return { lines, truncated: false };
+  }
+  const changeIndexes = lines
+    .map((line, idx) => (line.type === 'context' ? -1 : idx))
+    .filter((idx) => idx >= 0);
+  if (changeIndexes.length === 0) {
+    return { lines: lines.slice(0, maxLines), truncated: true };
+  }
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const idx of changeIndexes) {
+    const start = Math.max(0, idx - context);
+    const end = Math.min(lines.length - 1, idx + context);
+    const last = ranges[ranges.length - 1];
+    if (last && start <= last.end + 1) {
+      last.end = Math.max(last.end, end);
+    } else {
+      ranges.push({ start, end });
+    }
+  }
+
+  const total = ranges.reduce((sum, r) => sum + (r.end - r.start + 1), 0);
+  const output: DiffPreviewLine[] = [];
+
+  if (total <= maxLines) {
+    ranges.forEach((range, idx) => {
+      if (idx > 0) output.push({ type: 'context', text: '...' });
+      output.push(...lines.slice(range.start, range.end + 1));
+    });
+    return { lines: output, truncated: total < lines.length };
+  }
+
+  const first = ranges[0];
+  const last = ranges[ranges.length - 1];
+  if (first.start === last.start && first.end === last.end) {
+    return { lines: lines.slice(first.start, first.end + 1), truncated: true };
+  }
+  const half = Math.max(4, Math.floor((maxLines - 1) / 2));
+  let firstSlice = lines.slice(first.start, first.end + 1);
+  let lastSlice = lines.slice(last.start, last.end + 1);
+  if (firstSlice.length > half) firstSlice = firstSlice.slice(0, half);
+  if (lastSlice.length > half) lastSlice = lastSlice.slice(lastSlice.length - half);
+  return { lines: [...firstSlice, { type: 'context', text: '...' }, ...lastSlice], truncated: true };
+};
+
+const buildDiffPreview = (oldText: string, newText: string) => {
+  const oldLines = splitLines(oldText);
+  const newLines = splitLines(newText);
+  const useFallback = oldLines.length + newLines.length > MAX_DIFF_SOURCE_LINES * 2;
+  const diffLines = useFallback
+    ? buildFallbackDiffLines(oldLines, newLines, DIFF_CONTEXT_LINES)
+    : myersDiff(oldLines, newLines);
+  const { additions, deletions } = useFallback
+    ? estimateLineChanges(oldLines, newLines)
+    : diffLines.reduce(
+        (acc, line) => {
+          if (line.type === 'add') acc.additions += 1;
+          if (line.type === 'del') acc.deletions += 1;
+          return acc;
+        },
+        { additions: 0, deletions: 0 }
+      );
+  const trimmed = trimDiffLines(diffLines, MAX_DIFF_PREVIEW_LINES, DIFF_CONTEXT_LINES);
+  return {
+    lines: trimmed.lines,
+    additions,
+    deletions,
+    truncated: trimmed.truncated,
+  };
+};
+
+const getTailLines = (text: string, maxLines: number) => {
+  const lines = splitLines(text);
+  if (lines.length <= maxLines) {
+    return { lines, truncated: false };
+  }
+  return { lines: lines.slice(lines.length - maxLines), truncated: true };
 };
 
 const statusStyles: Record<string, string> = {
@@ -149,6 +381,7 @@ const AcpChatInterface: React.FC<Props> = ({
   >(null);
   const [input, setInput] = useState('');
   const [showPlan, setShowPlan] = useState(true);
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const [agentId, setAgentId] = useState<string>(String(provider || 'codex'));
   const [promptCaps, setPromptCaps] = useState<{
     image?: boolean;
@@ -164,6 +397,10 @@ const AcpChatInterface: React.FC<Props> = ({
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+  }, []);
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
   // Auto-resize textarea based on content
@@ -309,10 +546,11 @@ const AcpChatInterface: React.FC<Props> = ({
           updateType === 'thought_message' ||
           updateType === 'thought_message_chunk'
         ) {
+          const isThought = updateType.startsWith('thought');
           const role =
             updateType === 'agent_message_chunk' || updateType === 'agent_message'
               ? 'assistant'
-              : updateType.startsWith('thought')
+              : isThought
                 ? 'system'
                 : 'user';
           const blocks = Array.isArray(update.content)
@@ -320,7 +558,10 @@ const AcpChatInterface: React.FC<Props> = ({
             : update.content
               ? [update.content as ContentBlock]
               : [];
-          appendMessage(role, blocks);
+          appendMessage(role, blocks, {
+            streaming: updateType.endsWith('_chunk'),
+            messageKind: isThought ? 'thought' : role === 'system' ? 'system' : undefined,
+          });
           return;
         }
         if (updateType === 'plan') {
@@ -447,13 +688,61 @@ const AcpChatInterface: React.FC<Props> = ({
     ),
   });
 
+  const normalizePath = (value: string) => value.replace(/\\/g, '/');
+
+  const formatPath = (value?: string) => {
+    if (!value) return value;
+    const normalized = normalizePath(value);
+    const root = normalizePath(task.path || '');
+    if (root && normalized.startsWith(root)) {
+      let rel = normalized.slice(root.length);
+      if (rel.startsWith('/')) rel = rel.slice(1);
+      return rel || normalized.split('/').pop() || normalized;
+    }
+    return normalized.split('/').pop() || normalized;
+  };
+
   const toFileUri = (filePath: string) => `file://${encodeURI(filePath)}`;
 
-  const appendMessage = (role: 'user' | 'assistant' | 'system', blocks: ContentBlock[]) => {
+  const fromFileUri = (uri: string) => decodeURIComponent(uri.replace(/^file:\/\//, ''));
+
+  const safeJsonParse = (value?: string) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  };
+
+  const extractPrimaryText = (blocks: ContentBlock[]) => {
+    const textBlock = blocks.find((block) => block.type === 'text' && block.text);
+    if (textBlock?.text) return textBlock.text;
+    const resourceBlock = blocks.find(
+      (block) => block.type === 'resource' && block.resource?.text
+    );
+    return resourceBlock?.resource?.text || '';
+  };
+
+  const appendMessage = (
+    role: 'user' | 'assistant' | 'system',
+    blocks: ContentBlock[],
+    options?: { streaming?: boolean; messageKind?: 'thought' | 'system' }
+  ) => {
     if (!blocks.length) return;
+    const streaming = options?.streaming ?? role === 'assistant';
+    const messageKind = options?.messageKind;
     setFeed((prev) => {
       const last = prev[prev.length - 1];
-      if (last && last.type === 'message' && last.role === role && last.streaming) {
+      if (
+        last &&
+        last.type === 'message' &&
+        last.role === role &&
+        last.streaming &&
+        last.messageKind === messageKind
+      ) {
         const merged = mergeBlocks(last.blocks, blocks);
         const next = [...prev];
         next[next.length - 1] = { ...last, blocks: merged };
@@ -466,7 +755,8 @@ const AcpChatInterface: React.FC<Props> = ({
           type: 'message',
           role,
           blocks,
-          streaming: role === 'assistant',
+          streaming,
+          messageKind,
         },
       ];
     });
@@ -662,12 +952,26 @@ const AcpChatInterface: React.FC<Props> = ({
 
   const canSend = input.trim().length > 0 || attachments.length > 0;
 
-  const renderContentBlocks = (blocks: ContentBlock[]) => {
+  const renderContentBlocks = (
+    blocks: ContentBlock[],
+    options?: { compact?: boolean; maxPreviewChars?: number }
+  ) => {
+    const isCompact = Boolean(options?.compact);
+    const previewLimit = options?.maxPreviewChars ?? 200;
     return blocks.map((block, index) => {
       if (block.type === 'text') {
+        const text = block.text || '';
+        const clipped = isCompact ? truncateText(text, previewLimit) : text;
         return (
-          <p key={index} className="whitespace-pre-wrap text-sm leading-relaxed">
-            {block.text}
+          <p
+            key={index}
+            className={
+              isCompact
+                ? 'whitespace-pre-wrap text-xs text-muted-foreground'
+                : 'whitespace-pre-wrap text-sm leading-relaxed'
+            }
+          >
+            {clipped}
           </p>
         );
       }
@@ -700,14 +1004,21 @@ const AcpChatInterface: React.FC<Props> = ({
           'resource';
         const previewText = (resource.text as string | undefined) || block.text;
         const isFile = uri.startsWith('file://');
+        const filePath = isFile ? fromFileUri(uri) : '';
+        const displayLabel = isFile && filePath ? formatPath(filePath) || label : label;
+        const displayLabelText = truncateText(displayLabel, 160);
         return (
-          <div key={index} className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div
+            key={index}
+            className={`flex items-center justify-between gap-2 text-xs ${
+              isCompact ? 'text-muted-foreground/90' : 'text-muted-foreground'
+            }`}
+          >
             <div className="min-w-0">
-              <div className="truncate">{label}</div>
+              <div className="overflow-hidden whitespace-nowrap">{displayLabelText}</div>
               {block.type === 'resource' && previewText ? (
                 <div className="mt-1 text-[11px] text-muted-foreground/80">
-                  {previewText.slice(0, 200)}
-                  {previewText.length > 200 ? '…' : ''}
+                  {truncateText(previewText, previewLimit)}
                 </div>
               ) : null}
             </div>
@@ -742,131 +1053,278 @@ const AcpChatInterface: React.FC<Props> = ({
     });
   };
 
+  const ActionRow: React.FC<{
+    id: string;
+    icon: React.ReactNode;
+    label: string;
+    target?: string;
+    meta?: React.ReactNode;
+    status?: string;
+    expanded?: boolean;
+    onToggle?: () => void;
+    children?: React.ReactNode;
+  }> = ({ id, icon, label, target, meta, status, expanded, onToggle, children }) => {
+    const showStatus =
+      status !== undefined && ['failed', 'cancelled', 'error'].includes(status);
+    const statusClass =
+      status && statusStyles[status]
+        ? statusStyles[status]
+        : 'text-muted-foreground bg-muted/40 border-border';
+    return (
+      <div data-action-id={id} className="rounded-md">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          className="group flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/30"
+        >
+          <span className="relative flex h-4 w-4 items-center justify-center text-muted-foreground">
+            <span className="transition-opacity group-hover:opacity-0">{icon}</span>
+            <Plus className="absolute inset-0 h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
+          </span>
+          <span className="min-w-0 flex-1 overflow-hidden text-sm">
+            <span className="font-medium text-foreground">{label}</span>
+            {target ? (
+              <span className="ml-2 overflow-hidden whitespace-nowrap text-muted-foreground">
+                {target}
+              </span>
+            ) : null}
+          </span>
+          <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+            {meta}
+            {showStatus ? (
+              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusClass}`}>
+                {status.replace('_', ' ')}
+              </span>
+            ) : null}
+          </span>
+        </button>
+        {expanded && children ? (
+          <div className="px-3 pb-2 pt-1">
+            <div className="inline-block max-w-full rounded-md border border-border/40 bg-muted/10 px-2.5 py-1.5">
+              {children}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderDiffPreview = (diff: DiffPreview) => {
+    if (!diff.lines.length) return null;
+    const pathLabel = diff.path ? truncateText(diff.path, 160) : null;
+    return (
+      <div className="rounded-md px-1">
+        {pathLabel ? (
+          <div className="mb-1 overflow-hidden whitespace-nowrap text-[11px] text-muted-foreground">
+            {pathLabel}
+          </div>
+        ) : null}
+        <div className="space-y-0.5 font-mono text-xs">
+          {diff.lines.map((line, idx) => {
+            const style =
+              line.type === 'add'
+                ? 'text-emerald-700 bg-emerald-50/70 dark:text-emerald-300 dark:bg-emerald-900/30'
+                : line.type === 'del'
+                  ? 'text-red-700 bg-red-50/70 dark:text-red-300 dark:bg-red-900/30'
+                  : 'text-muted-foreground';
+            const prefix = line.type === 'add' ? '+' : line.type === 'del' ? '-' : ' ';
+            return (
+              <div key={idx} className={`flex gap-2 rounded px-1 ${style}`}>
+                <span className="w-3 select-none">{prefix}</span>
+                <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+                  {line.text || ' '}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        {diff.truncated ? (
+          <div className="mt-1 text-[11px] text-muted-foreground">Diff truncated</div>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderToolCall = (toolCallId: string) => {
     const toolCall = toolCalls[toolCallId];
     if (!toolCall) return null;
     const status = toolCall.status || 'pending';
-    const statusClass = statusStyles[status] || 'text-muted-foreground bg-muted/40 border-border';
-    const diffContent = toolCall.content?.filter((item) => item.type === 'diff') as
-      | Array<{ type: 'diff'; path?: string; oldText?: string; newText?: string; original?: string; updated?: string }>
-      | undefined;
+    const expandedKey = `tool-${toolCallId}`;
+    const expanded = Boolean(expandedItems[expandedKey]);
+    const kindLabel = `${toolCall.title || ''} ${toolCall.kind || ''}`.toLowerCase();
+    const diffItems = (toolCall.content?.filter((item) => item.type === 'diff') ||
+      []) as Array<{
+      type: 'diff';
+      path?: string;
+      oldText?: string;
+      newText?: string;
+      original?: string;
+      updated?: string;
+    }>;
+    const terminalItems =
+      (toolCall.content?.filter((item) => item.type === 'terminal') as
+        | Array<{ type: 'terminal'; terminalId: string }>
+        | undefined) || [];
+    const contentBlocks =
+      (toolCall.content?.filter((item) => item.type === 'content') as
+        | Array<{ type: 'content'; content: ContentBlock }>
+        | undefined) || [];
+
+    const diffPreviews: DiffPreview[] = diffItems.map((item) => {
+      const before = (item as any).oldText ?? (item as any).original ?? '';
+      const after = (item as any).newText ?? (item as any).updated ?? '';
+      const preview = buildDiffPreview(String(before ?? ''), String(after ?? ''));
+      return { ...preview, path: formatPath(item.path) };
+    });
+
+    const diffTotals = diffPreviews.reduce(
+      (acc, diff) => ({
+        additions: acc.additions + diff.additions,
+        deletions: acc.deletions + diff.deletions,
+      }),
+      { additions: 0, deletions: 0 }
+    );
+
+    const parsedInput = safeJsonParse(toolCall.rawInput);
+    const command = parsedInput?.command
+      ? [parsedInput.command, ...(Array.isArray(parsedInput.args) ? parsedInput.args : [])].join(' ')
+      : null;
+    const query =
+      parsedInput?.query || parsedInput?.search || parsedInput?.input || parsedInput?.prompt;
+
+    const contentPaths = contentBlocks
+      .map((item) => {
+        const block = item.content;
+        const resource = block.resource || {};
+        const uri = (resource.uri as string | undefined) || block.uri;
+        if (uri?.startsWith('file://')) return formatPath(fromFileUri(uri));
+        return null;
+      })
+      .filter(Boolean) as string[];
+    const locationPath = formatPath(toolCall.locations?.[0]?.path);
+    const diffPath = formatPath(diffItems.find((item) => item.path)?.path);
+    const rawPath = formatPath(parsedInput?.path || parsedInput?.filePath || parsedInput?.filepath);
+    const primaryPath = diffPath || locationPath || contentPaths[0] || rawPath;
+
+    const hasTerminal = terminalItems.length > 0 || Boolean(command);
+    const hasDiff = diffItems.length > 0;
+    const hasHttpResources = contentBlocks.some((item) => {
+      const block = item.content;
+      const resource = block.resource || {};
+      const uri = (resource.uri as string | undefined) || block.uri || '';
+      return uri.startsWith('http://') || uri.startsWith('https://');
+    });
+
+    let action = 'tool';
+    if (hasDiff || /write|edit|modify|update|patch|diff/.test(kindLabel)) {
+      action = 'edit';
+    } else if (hasTerminal || /terminal|run|exec|command/.test(kindLabel)) {
+      action = 'run';
+    } else if (/read|view|open/.test(kindLabel) || primaryPath) {
+      action = 'view';
+    } else if (/search|browse|research|web/.test(kindLabel) || hasHttpResources) {
+      action = 'research';
+    }
+
+    const icon =
+      action === 'edit' ? (
+        <Pencil className="h-4 w-4" />
+      ) : action === 'run' ? (
+        <Terminal className="h-4 w-4" />
+      ) : action === 'view' ? (
+        <FileText className="h-4 w-4" />
+      ) : action === 'research' ? (
+        <Search className="h-4 w-4" />
+      ) : (
+        <Sparkles className="h-4 w-4" />
+      );
+
+    const label = action === 'tool' ? toolCall.title || toolCall.kind || 'Tool' : action;
+    const target =
+      action === 'run'
+        ? command || primaryPath
+        : action === 'research'
+          ? query || toolCall.title || primaryPath
+          : action === 'tool'
+            ? primaryPath || query
+            : primaryPath || toolCall.title || toolCall.kind;
+    const targetWithDiff =
+      hasDiff && target
+        ? `${target} (+${diffTotals.additions} -${diffTotals.deletions})`
+        : target;
+    const displayTarget = targetWithDiff ? truncateText(String(targetWithDiff), 160) : undefined;
+
+    let meta: React.ReactNode = null;
+    if (action === 'view') {
+      const text = extractPrimaryText(contentBlocks.map((item) => item.content));
+      if (text) {
+        const count = splitLines(text).length;
+        meta = <span>{count} lines</span>;
+      }
+    } else if (action === 'research') {
+      const sources = contentBlocks.filter((item) => {
+        const block = item.content;
+        const resource = block.resource || {};
+        const uri = (resource.uri as string | undefined) || block.uri || '';
+        return uri.startsWith('http://') || uri.startsWith('https://');
+      }).length;
+      if (sources) meta = <span>{sources} sources</span>;
+    }
+
     return (
-      <div key={toolCallId} className="rounded-md border border-border bg-background p-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-foreground">
-              {toolCall.title || toolCall.kind || 'Tool call'}
+      <ActionRow
+        key={expandedKey}
+        id={expandedKey}
+        icon={icon}
+        label={label}
+        target={displayTarget}
+        meta={meta}
+        status={status}
+        expanded={expanded}
+        onToggle={() => toggleExpanded(expandedKey)}
+      >
+        <div className="space-y-2 text-sm text-foreground">
+          {diffPreviews.length ? (
+            <div className="space-y-2">
+              {diffPreviews.map((diff, idx) => (
+                <div key={`${diff.path || 'diff'}-${idx}`}>{renderDiffPreview(diff)}</div>
+              ))}
             </div>
-            {toolCall.kind ? <div className="text-xs text-muted-foreground">{toolCall.kind}</div> : null}
-          </div>
-          <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass}`}>
-            {status.replace('_', ' ')}
-          </span>
-        </div>
-        {toolCall.locations?.length ? (
-          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-            {toolCall.locations.map((loc, idx) => (
-              <div key={idx} className="flex items-center justify-between gap-2">
-                <span className="truncate">
-                  {loc.path}
-                  {loc.line ? `:${loc.line}` : ''}
-                </span>
-                <button
-                  type="button"
-                  className="text-xs text-foreground underline"
-                  onClick={() => {
-                    if (!loc.path) return;
-                    window.electronAPI.openIn({ app: 'finder', path: loc.path });
-                  }}
-                >
-                  Reveal
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        {toolCall.content?.length ? (
-          <div className="mt-3 space-y-3 text-sm text-foreground">
-            {toolCall.content.map((item, idx) => {
-              if (item.type === 'content') {
-                return (
-                  <div key={idx} className="rounded-md border border-border bg-muted/30 p-3">
-                    {renderContentBlocks([item.content])}
-                  </div>
-                );
-              }
-              if (item.type === 'diff') {
-                const before = (item as any).oldText ?? (item as any).original ?? '';
-                const after = (item as any).newText ?? (item as any).updated ?? '';
-                return (
-                  <div key={idx} className="rounded-md border border-border bg-muted/20 p-3">
-                    <div className="text-xs font-semibold text-foreground">
-                      Diff {item.path ? `— ${item.path}` : ''}
-                    </div>
-                    <div className="mt-2 grid gap-3 md:grid-cols-2">
-                      <div>
-                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                          Before
-                        </div>
-                        <pre className="mt-1 max-h-56 overflow-auto rounded bg-background px-2 py-1 text-xs">
-                          {before}
-                        </pre>
-                      </div>
-                      <div>
-                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                          After
-                        </div>
-                        <pre className="mt-1 max-h-56 overflow-auto rounded bg-background px-2 py-1 text-xs">
-                          {after}
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-              if (item.type === 'terminal') {
+          ) : null}
+          {contentBlocks.length ? (
+            <div className="space-y-2">
+              {contentBlocks.map((item, idx) => (
+                <div key={idx}>{renderContentBlocks([item.content], { compact: true, maxPreviewChars: 280 })}</div>
+              ))}
+            </div>
+          ) : null}
+          {terminalItems.length ? (
+            <div className="space-y-2">
+              {terminalItems.map((item, idx) => {
                 const output = terminalOutputs[item.terminalId] || '';
+                const tail = getTailLines(output, 60);
                 return (
-                  <div key={idx} className="rounded-md border border-border bg-black/90 p-3 text-xs text-white">
-                    <div className="mb-2 text-[11px] uppercase tracking-wide text-white/70">
-                      Terminal
+                  <div
+                    key={`${item.terminalId}-${idx}`}
+                    className="rounded-md bg-black/90 px-3 py-2 text-xs text-white"
+                  >
+                    <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">
+                      Terminal output
                     </div>
-                    <pre className="max-h-56 overflow-auto whitespace-pre-wrap">{output}</pre>
+                    <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words">
+                      {tail.lines.join('\n')}
+                    </pre>
+                    {tail.truncated ? (
+                      <div className="mt-1 text-[11px] text-white/60">Output truncated</div>
+                    ) : null}
                   </div>
                 );
-              }
-              return null;
-            })}
-          </div>
-        ) : null}
-        {toolCall.rawInput || toolCall.rawOutput || toolCall.rawInput === '' ? (
-          <details className="mt-3 rounded-md border border-border bg-muted/20 p-3 text-xs">
-            <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
-              Details
-            </summary>
-            {toolCall.rawInput ? (
-              <div className="mt-2">
-                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Input
-                </div>
-                <pre className="mt-1 max-h-56 overflow-auto rounded bg-background px-2 py-1 text-xs">
-                  {toolCall.rawInput}
-                </pre>
-              </div>
-            ) : null}
-            {toolCall.rawOutput ? (
-              <div className="mt-2">
-                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Output
-                </div>
-                <pre className="mt-1 max-h-56 overflow-auto rounded bg-background px-2 py-1 text-xs">
-                  {toolCall.rawOutput}
-                </pre>
-              </div>
-            ) : null}
-          </details>
-        ) : null}
-      </div>
+              })}
+            </div>
+          ) : null}
+        </div>
+      </ActionRow>
     );
   };
 
@@ -924,7 +1382,32 @@ const AcpChatInterface: React.FC<Props> = ({
     );
   };
 
+  const renderThoughtMessage = (item: Extract<FeedItem, { type: 'message' }>) => {
+    const expandedKey = `thought-${item.id}`;
+    const expanded = Boolean(expandedItems[expandedKey]);
+    const text = extractPrimaryText(item.blocks).trim();
+    const summary = text ? truncateText(text.split('\n')[0], 120) : 'Thinking...';
+    return (
+      <ActionRow
+        key={expandedKey}
+        id={expandedKey}
+        icon={<Brain className="h-4 w-4" />}
+        label="thinking"
+        target={summary}
+        expanded={expanded}
+        onToggle={() => toggleExpanded(expandedKey)}
+      >
+        <div className={item.streaming ? 'shimmer-text' : ''}>
+          {renderContentBlocks(item.blocks, { compact: true, maxPreviewChars: 800 })}
+        </div>
+      </ActionRow>
+    );
+  };
+
   const renderMessage = (item: Extract<FeedItem, { type: 'message' }>) => {
+    if (item.messageKind === 'thought') {
+      return renderThoughtMessage(item);
+    }
     const isUser = item.role === 'user';
     const isSystem = item.role === 'system';
     const wrapperClass = isSystem
