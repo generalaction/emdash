@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { AppSettings, getAppSettings, updateAppSettings } from '../settings';
 
 export function registerSettingsIpc() {
@@ -14,6 +14,11 @@ export function registerSettingsIpc() {
   ipcMain.handle('settings:update', async (_, partial: Partial<AppSettings>) => {
     try {
       const settings = updateAppSettings(partial || {});
+      try {
+        for (const win of BrowserWindow.getAllWindows()) {
+          win.webContents.send('settings:updated', settings);
+        }
+      } catch {}
       return { success: true, settings };
     } catch (error) {
       return { success: false, error: (error as Error).message };

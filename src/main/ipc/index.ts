@@ -20,6 +20,7 @@ import { registerContainerIpc } from './containerIpc';
 import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
+import { registerAcpIpc } from './acpIpc';
 
 export function registerAllIpc() {
   // Core app/utility IPC
@@ -39,6 +40,7 @@ export function registerAllIpc() {
   registerHostPreviewIpc();
   registerBrowserIpc();
   registerNetIpc();
+  registerAcpIpc();
 
   // Existing modules
   registerPtyIpc();

@@ -31,6 +31,9 @@ export interface AppSettings {
       installHintsDismissed?: Record<string, boolean>;
     };
   };
+  chatUi?: {
+    enabled: boolean;
+  };
   defaultProvider?: ProviderId;
   tasks?: {
     autoGenerateName: boolean;
@@ -62,6 +65,9 @@ const DEFAULT_SETTINGS: AppSettings = {
       enabled: false,
       installHintsDismissed: {},
     },
+  },
+  chatUi: {
+    enabled: true,
   },
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
@@ -160,6 +166,9 @@ function normalizeSettings(input: AppSettings): AppSettings {
         installHintsDismissed: {},
       },
     },
+    chatUi: {
+      enabled: DEFAULT_SETTINGS.chatUi!.enabled,
+    },
   };
 
   // Repository
@@ -202,6 +211,11 @@ function normalizeSettings(input: AppSettings): AppSettings {
           ? { ...c7.installHintsDismissed }
           : {},
     },
+  };
+
+  const chatUi = (input as any)?.chatUi || {};
+  out.chatUi = {
+    enabled: Boolean(chatUi?.enabled ?? DEFAULT_SETTINGS.chatUi!.enabled),
   };
 
   // Default provider

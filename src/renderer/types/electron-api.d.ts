@@ -40,6 +40,9 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          chatUi?: {
+            enabled: boolean;
+          };
           defaultProvider?: string;
           tasks?: {
             autoGenerateName: boolean;
@@ -63,6 +66,9 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          chatUi: {
+            enabled?: boolean;
+          };
           defaultProvider?: string;
           tasks?: {
             autoGenerateName?: boolean;
@@ -85,6 +91,9 @@ declare global {
               installHintsDismissed?: Record<string, boolean>;
             };
           };
+          chatUi?: {
+            enabled: boolean;
+          };
           defaultProvider?: string;
           tasks?: {
             autoGenerateName: boolean;
@@ -96,6 +105,7 @@ declare global {
         };
         error?: string;
       }>;
+      onSettingsUpdated: (listener: (settings: any) => void) => () => void;
 
       // PTY
       ptyStart: (opts: {
@@ -160,6 +170,29 @@ declare global {
         };
         error?: string;
       }>;
+
+      // ACP (Agent Client Protocol)
+      acpStartSession: (args: {
+        taskId: string;
+        providerId: string;
+        cwd: string;
+      }) => Promise<{ success: boolean; sessionId?: string; error?: string }>;
+      acpSendPrompt: (args: {
+        sessionId: string;
+        prompt: Array<{ type: string; [key: string]: any }>;
+      }) => Promise<{ success: boolean; stopReason?: string; error?: string }>;
+      acpCancel: (args: { sessionId: string }) => Promise<{ success: boolean }>;
+      acpDispose: (args: { sessionId: string }) => Promise<{ success: boolean }>;
+      acpRespondPermission: (args: {
+        sessionId: string;
+        requestId: number;
+        outcome: { outcome: 'selected'; optionId: string } | { outcome: 'cancelled' };
+      }) => Promise<{ success: boolean; error?: string }>;
+      acpSetMode: (args: { sessionId: string; modeId: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      onAcpEvent: (listener: (payload: any) => void) => () => void;
 
       // Worktree management
       worktreeCreate: (args: {

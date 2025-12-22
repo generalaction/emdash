@@ -8,6 +8,7 @@ import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { providerMeta } from '../providers/meta';
 import ProviderBar from './ProviderBar';
+import AcpChatInterface from './AcpChatInterface';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { usePlanMode } from '@/hooks/usePlanMode';
 import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
@@ -61,6 +62,7 @@ const ChatInterface: React.FC<Props> = ({
   const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
   const [portsExpanded, setPortsExpanded] = useState(false);
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
+  const [chatUiEnabled, setChatUiEnabled] = useState(true);
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
@@ -73,15 +75,18 @@ const ChatInterface: React.FC<Props> = ({
     log.info('[plan] state changed', { taskId: task.id, enabled: planEnabled });
   }, [planEnabled, task.id]);
 
+  const useAcpChat = provider === 'codex' && chatUiEnabled;
+
   // For terminal providers with native plan activation commands
   usePlanActivationTerminal({
-    enabled: planEnabled,
+    enabled: planEnabled && !useAcpChat,
     providerId: provider,
     taskId: task.id,
     taskPath: task.path,
   });
 
   useEffect(() => {
+    if (useAcpChat) return;
     const meta = providerMeta[provider];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;
 
@@ -118,7 +123,27 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
       clearTimeout(t);
     };
-  }, [provider, terminalId]);
+  }, [provider, terminalId, useAcpChat]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await window.electronAPI.getSettings();
+        if (cancelled) return;
+        if (res?.success) {
+          setChatUiEnabled(Boolean(res.settings?.chatUi?.enabled ?? true));
+        }
+      } catch {}
+    })();
+    const off = window.electronAPI.onSettingsUpdated?.((settings: any) => {
+      setChatUiEnabled(Boolean(settings?.chatUi?.enabled ?? true));
+    });
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }, []);
 
   useEffect(() => {
     setCliStartFailed(false);
@@ -449,7 +474,10 @@ const ChatInterface: React.FC<Props> = ({
     taskId: task.id,
     providerId: provider,
     prompt: initialInjection,
-    enabled: isTerminal && providerMeta[provider]?.initialPromptFlag === undefined,
+    enabled:
+      isTerminal &&
+      !useAcpChat &&
+      providerMeta[provider]?.initialPromptFlag === undefined,
   });
 
   // Ensure a provider is stored for this task so fallbacks can subscribe immediately
@@ -646,6 +674,19 @@ const ChatInterface: React.FC<Props> = ({
       </div>
     );
   }, [containerState, portsExpanded, reduceMotion, task.id, task.path]);
+
+  if (useAcpChat) {
+    return (
+      <AcpChatInterface
+        task={task}
+        projectName={_projectName}
+        className={className}
+        provider={provider}
+        isProviderInstalled={isProviderInstalled}
+        runInstallCommand={runInstallCommand}
+      />
+    );
+  }
 
   if (!isTerminal) {
     return null;

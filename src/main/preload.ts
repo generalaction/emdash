@@ -78,9 +78,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
+  // ACP (Agent Client Protocol)
+  acpStartSession: (args: { taskId: string; providerId: string; cwd: string }) =>
+    ipcRenderer.invoke('acp:start', args),
+  acpSendPrompt: (args: { sessionId: string; prompt: Array<{ type: string; [key: string]: any }> }) =>
+    ipcRenderer.invoke('acp:prompt', args),
+  acpCancel: (args: { sessionId: string }) => ipcRenderer.invoke('acp:cancel', args),
+  acpDispose: (args: { sessionId: string }) => ipcRenderer.invoke('acp:dispose', args),
+  acpRespondPermission: (args: {
+    sessionId: string;
+    requestId: number;
+    outcome: { outcome: 'selected'; optionId: string } | { outcome: 'cancelled' };
+  }) => ipcRenderer.invoke('acp:permission', args),
+  acpSetMode: (args: { sessionId: string; modeId: string }) =>
+    ipcRenderer.invoke('acp:set-mode', args),
+  onAcpEvent: (listener: (payload: any) => void) => {
+    const channel = 'acp:event';
+    const wrapped = (_: Electron.IpcRendererEvent, payload: any) => listener(payload);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   // App settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
+  onSettingsUpdated: (listener: (settings: any) => void) => {
+    const channel = 'settings:updated';
+    const wrapped = (_: Electron.IpcRendererEvent, settings: any) => listener(settings);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 
   // Worktree management
   worktreeCreate: (args: {

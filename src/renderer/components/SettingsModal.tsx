@@ -16,6 +16,7 @@ import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
 import Context7SettingsCard from './Context7SettingsCard';
 import DefaultProviderSettingsCard from './DefaultProviderSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
+import ChatUiSettingsCard from './ChatUiSettingsCard';
 import { CliProviderStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
@@ -187,6 +188,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'Privacy & Telemetry', render: () => <TelemetryCard /> },
           { title: 'Default AI provider', render: () => <DefaultProviderSettingsCard /> },
           { title: 'Tasks', render: () => <TaskSettingsCard /> },
+          { title: 'Chat UI (ACP)', render: () => <ChatUiSettingsCard /> },
           { title: 'Notifications', render: () => <NotificationSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },

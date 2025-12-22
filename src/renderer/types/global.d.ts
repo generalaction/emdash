@@ -206,6 +206,14 @@ declare global {
       githubLogout: () => Promise<void>;
       getSettings: () => Promise<any>;
       updateSettings: (settings: any) => Promise<void>;
+      onSettingsUpdated: (listener: (settings: any) => void) => () => void;
+      acpStartSession?: (args: any) => Promise<any>;
+      acpSendPrompt?: (args: any) => Promise<any>;
+      acpCancel?: (args: any) => Promise<any>;
+      acpDispose?: (args: any) => Promise<any>;
+      acpRespondPermission?: (args: any) => Promise<any>;
+      acpSetMode?: (args: any) => Promise<any>;
+      onAcpEvent?: (listener: (payload: any) => void) => () => void;
       linearCheckConnection?: () => Promise<{
         connected: boolean;
         taskName?: string;
