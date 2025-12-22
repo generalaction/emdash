@@ -4,6 +4,7 @@ import {
   ArrowUp,
   Brain,
   ChevronDown,
+  ChevronRight,
   Circle,
   Clipboard,
   FileText,
@@ -146,6 +147,9 @@ const truncateText = (text: string, limit: number = DEFAULT_TRUNCATE_LIMIT) => {
   const clipped = Math.max(0, limit - 3);
   return `${text.slice(0, clipped)}...`;
 };
+
+const pluralize = (value: number, noun: string) =>
+  value === 1 ? `${value} ${noun}` : `${value} ${noun}s`;
 
 const commonPrefixLength = (a: string[], b: string[]) => {
   const max = Math.min(a.length, b.length);
@@ -1058,12 +1062,13 @@ const AcpChatInterface: React.FC<Props> = ({
     icon: React.ReactNode;
     label: string;
     target?: string;
+    leftMeta?: React.ReactNode;
     meta?: React.ReactNode;
     status?: string;
     expanded?: boolean;
     onToggle?: () => void;
     children?: React.ReactNode;
-  }> = ({ id, icon, label, target, meta, status, expanded, onToggle, children }) => {
+  }> = ({ id, icon, label, target, leftMeta, meta, status, expanded, onToggle, children }) => {
     const showStatus =
       status !== undefined && ['failed', 'cancelled', 'error'].includes(status);
     const statusClass =
@@ -1084,9 +1089,12 @@ const AcpChatInterface: React.FC<Props> = ({
           </span>
           <span className="min-w-0 flex-1 overflow-hidden text-sm">
             <span className="font-medium text-foreground">{label}</span>
-            {target ? (
-              <span className="ml-2 overflow-hidden whitespace-nowrap text-muted-foreground">
-                {target}
+            {(target || leftMeta) ? (
+              <span className="ml-2 inline-flex min-w-0 items-center gap-2 overflow-hidden text-muted-foreground">
+                {target ? (
+                  <span className="overflow-hidden whitespace-nowrap">{target}</span>
+                ) : null}
+                {leftMeta ? <span className="flex items-center gap-2">{leftMeta}</span> : null}
               </span>
             ) : null}
           </span>
@@ -1249,11 +1257,13 @@ const AcpChatInterface: React.FC<Props> = ({
           : action === 'tool'
             ? primaryPath || query
             : primaryPath || toolCall.title || toolCall.kind;
-    const targetWithDiff =
-      hasDiff && target
-        ? `${target} (+${diffTotals.additions} -${diffTotals.deletions})`
-        : target;
-    const displayTarget = targetWithDiff ? truncateText(String(targetWithDiff), 160) : undefined;
+    const displayTarget = target ? truncateText(String(target), 160) : undefined;
+    const leftMeta = hasDiff ? (
+      <>
+        <span className="text-emerald-600">+{diffTotals.additions}</span>
+        <span className="text-red-600">-{diffTotals.deletions}</span>
+      </>
+    ) : null;
 
     let meta: React.ReactNode = null;
     if (action === 'view') {
@@ -1279,6 +1289,7 @@ const AcpChatInterface: React.FC<Props> = ({
         icon={icon}
         label={label}
         target={displayTarget}
+        leftMeta={leftMeta}
         meta={meta}
         status={status}
         expanded={expanded}
@@ -1378,6 +1389,49 @@ const AcpChatInterface: React.FC<Props> = ({
             </div>
           </div>
         </div>
+      </div>
+    );
+  };
+
+  const renderToolThoughtGroup = (
+    groupId: string,
+    buffer: FeedItem[],
+    expanded: boolean
+  ) => {
+    const toolCount = buffer.filter((item) => item.type === 'tool').length;
+    const thoughtCount = buffer.filter(
+      (item) => item.type === 'message' && item.messageKind === 'thought'
+    ).length;
+    if (!toolCount && !thoughtCount) return null;
+    const parts: string[] = [];
+    if (toolCount) parts.push(pluralize(toolCount, 'tool call'));
+    if (thoughtCount) parts.push(pluralize(thoughtCount, 'thought'));
+    return (
+      <div key={groupId} className="rounded-md">
+        <button
+          type="button"
+          onClick={() => toggleExpanded(groupId)}
+          aria-expanded={expanded}
+          className="group flex items-center gap-2 rounded-md px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
+        >
+          <ChevronRight
+            className={`h-3.5 w-3.5 transition-transform ${
+              expanded ? 'rotate-90' : ''
+            }`}
+          />
+          <span>{parts.join(', ')}</span>
+        </button>
+        {expanded ? (
+          <div className="mt-1 space-y-2">
+            {buffer.map((item) => {
+              if (item.type === 'tool') return renderToolCall(item.toolCallId);
+              if (item.type === 'message' && item.messageKind === 'thought') {
+                return renderThoughtMessage(item);
+              }
+              return null;
+            })}
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -1486,18 +1540,80 @@ const AcpChatInterface: React.FC<Props> = ({
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-6">
           <div className="mx-auto flex max-w-4xl flex-col gap-3 pb-8">
-            {feed.map((item) => {
-              if (item.type === 'message') return renderMessage(item);
-              if (item.type === 'tool') return renderToolCall(item.toolCallId);
-              if (item.type === 'plan') {
-                return null;
-              }
-              if (item.type === 'permission') {
-                const request = permissions[item.requestId];
-                return request ? renderPermission(request) : null;
-              }
-              return null;
-            })}
+            {(() => {
+              const rendered: React.ReactNode[] = [];
+              let buffer: FeedItem[] = [];
+
+              const flushInline = () => {
+                if (!buffer.length) return;
+                buffer.forEach((item) => {
+                  if (item.type === 'tool') rendered.push(renderToolCall(item.toolCallId));
+                  if (item.type === 'message' && item.messageKind === 'thought') {
+                    rendered.push(renderThoughtMessage(item));
+                  }
+                });
+                buffer = [];
+              };
+
+              const canCollapseBuffer = (
+                assistantItem: Extract<FeedItem, { type: 'message' }>
+              ) => {
+                if (!buffer.length) return false;
+                if (assistantItem.streaming) return false;
+                for (const item of buffer) {
+                  if (item.type === 'tool') {
+                    const status = toolCalls[item.toolCallId]?.status;
+                    if (!status || !['completed', 'failed', 'cancelled'].includes(status)) {
+                      return false;
+                    }
+                  }
+                  if (item.type === 'message' && item.messageKind === 'thought') {
+                    if (item.streaming) return false;
+                  }
+                }
+                return true;
+              };
+
+              feed.forEach((item) => {
+                if (
+                  (item.type === 'tool') ||
+                  (item.type === 'message' && item.messageKind === 'thought')
+                ) {
+                  buffer.push(item);
+                  return;
+                }
+
+                if (item.type === 'message' && item.role === 'assistant') {
+                  const shouldCollapse = canCollapseBuffer(item);
+                  if (!shouldCollapse) {
+                    flushInline();
+                  }
+                  rendered.push(renderMessage(item));
+                  if (shouldCollapse) {
+                    const groupId = `tools-${item.id}`;
+                    const expanded = Boolean(expandedItems[groupId]);
+                    rendered.push(renderToolThoughtGroup(groupId, buffer, expanded));
+                    buffer = [];
+                  }
+                  return;
+                }
+
+                flushInline();
+
+                if (item.type === 'message') {
+                  rendered.push(renderMessage(item));
+                  return;
+                }
+                if (item.type === 'permission') {
+                  const request = permissions[item.requestId];
+                  rendered.push(request ? renderPermission(request) : null);
+                  return;
+                }
+              });
+
+              flushInline();
+              return rendered;
+            })()}
             <div ref={bottomRef} />
           </div>
         </div>
