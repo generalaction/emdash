@@ -23,6 +23,7 @@ import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogo from '../../assets/images/augmentcode.png';
 import gooseLogo from '../../assets/images/goose.png';
 import kimiLogo from '../../assets/images/kimi.png';
+import kilocodeLogo from '../../assets/images/kilocode.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
@@ -128,6 +129,7 @@ export const ProviderBar: React.FC<Props> = ({
     auggie: { name: 'Auggie', logo: augmentLogo },
     goose: { name: 'Goose', logo: gooseLogo },
     kimi: { name: 'Kimi', logo: kimiLogo },
+    kilocode: { name: 'Kilocode', logo: kilocodeLogo },
     kiro: { name: 'Kiro', logo: kiroLogo },
     rovo: { name: 'Rovo Dev', logo: atlassianLogo },
     cline: { name: 'Cline', logo: clineLogo },
