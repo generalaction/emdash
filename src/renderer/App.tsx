@@ -510,7 +510,7 @@ const AppContent: React.FC = () => {
       try {
         const result = await window.electronAPI.getSettings();
         if (result.success && result.settings) {
-          const enabled = Boolean(result.settings.features?.kanban?.enabled ?? true);
+          const enabled = result.settings.features?.kanban?.enabled ?? true;
           setKanbanEnabled(enabled);
         }
       } catch (error) {

@@ -4,48 +4,13 @@ import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
+import type { AppSettings } from '../../types/settings';
+
+// Re-export AppSettings for convenience
+export type { AppSettings } from '../../types/settings';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 const DEFAULT_KANBAN_ENABLED = true;
-
-export interface RepositorySettings {
-  branchTemplate: string; // e.g., 'agent/{slug}-{timestamp}'
-  pushOnCreate: boolean;
-}
-
-export interface AppSettings {
-  repository: RepositorySettings;
-  projectPrep: {
-    autoInstallOnOpenInEditor: boolean;
-  };
-  browserPreview?: {
-    enabled: boolean;
-    engine: 'chromium';
-  };
-  notifications?: {
-    enabled: boolean;
-    sound: boolean;
-  };
-  mcp?: {
-    context7?: {
-      enabled: boolean;
-      installHintsDismissed?: Record<string, boolean>;
-    };
-  };
-  defaultProvider?: ProviderId;
-  tasks?: {
-    autoGenerateName: boolean;
-    autoApproveByDefault: boolean;
-  };
-  projects?: {
-    defaultDirectory: string;
-  };
-  features?: {
-    kanban?: {
-      enabled: boolean;
-    };
-  };
-}
 
 const DEFAULT_SETTINGS: AppSettings = {
   repository: {
@@ -189,27 +154,28 @@ function normalizeSettings(input: AppSettings): AppSettings {
 
   out.repository.branchTemplate = template;
   out.repository.pushOnCreate = push;
+
   // Project prep
-  const prep = (input as any)?.projectPrep || {};
+  const prep = input.projectPrep;
   out.projectPrep.autoInstallOnOpenInEditor = Boolean(
     prep?.autoInstallOnOpenInEditor ?? DEFAULT_SETTINGS.projectPrep.autoInstallOnOpenInEditor
   );
 
-  const bp = (input as any)?.browserPreview || {};
+  const bp = input.browserPreview;
   out.browserPreview = {
     enabled: Boolean(bp?.enabled ?? DEFAULT_SETTINGS.browserPreview!.enabled),
     engine: 'chromium',
   };
 
-  const notif = (input as any)?.notifications || {};
+  const notif = input.notifications;
   out.notifications = {
     enabled: Boolean(notif?.enabled ?? DEFAULT_SETTINGS.notifications!.enabled),
     sound: Boolean(notif?.sound ?? DEFAULT_SETTINGS.notifications!.sound),
   };
 
   // MCP
-  const mcp = (input as any)?.mcp || {};
-  const c7 = mcp?.context7 || {};
+  const mcp = input.mcp;
+  const c7 = mcp?.context7;
   out.mcp = {
     context7: {
       enabled: Boolean(c7?.enabled ?? DEFAULT_SETTINGS.mcp!.context7!.enabled),
@@ -221,13 +187,13 @@ function normalizeSettings(input: AppSettings): AppSettings {
   };
 
   // Default provider
-  const defaultProvider = (input as any)?.defaultProvider;
+  const defaultProvider = input.defaultProvider;
   out.defaultProvider = isValidProviderId(defaultProvider)
     ? defaultProvider
     : DEFAULT_SETTINGS.defaultProvider!;
 
   // Tasks
-  const tasks = (input as any)?.tasks || {};
+  const tasks = input.tasks;
   out.tasks = {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
     autoApproveByDefault: Boolean(
@@ -236,7 +202,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
   };
 
   // Projects
-  const projects = (input as any)?.projects || {};
+  const projects = input.projects;
   let defaultDir = String(
     projects?.defaultDirectory ?? DEFAULT_SETTINGS.projects!.defaultDirectory
   ).trim();
@@ -252,8 +218,8 @@ function normalizeSettings(input: AppSettings): AppSettings {
   };
 
   // Features
-  const features = (input as any)?.features || {};
-  const kanban = features?.kanban || {};
+  const features = input.features;
+  const kanban = features?.kanban;
   out.features = {
     kanban: {
       enabled: Boolean(kanban?.enabled ?? DEFAULT_KANBAN_ENABLED),

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
+import type { AppSettings, AppSettingsUpdate } from '../types/settings';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -80,10 +81,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
-  updateSettings: (settings: unknown) => ipcRenderer.invoke('settings:update', settings),
-  onSettingsUpdated: (listener: (settings: unknown) => void) => {
+  updateSettings: (settings: AppSettingsUpdate) => ipcRenderer.invoke('settings:update', settings),
+  onSettingsUpdated: (listener: (settings: AppSettings) => void) => {
     const channel = 'settings-updated';
-    const wrapped = (_: Electron.IpcRendererEvent, settings: unknown) => listener(settings);
+    const wrapped = (_: Electron.IpcRendererEvent, settings: AppSettings) => listener(settings);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },

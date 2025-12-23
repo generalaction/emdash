@@ -13,7 +13,7 @@ const KanbanSettingsCard: React.FC = () => {
       try {
         const result = await window.electronAPI.getSettings();
         if (result.success && result.settings) {
-          const isEnabled = Boolean(result.settings.features?.kanban?.enabled ?? true);
+          const isEnabled = result.settings.features?.kanban?.enabled ?? true;
           setEnabled(isEnabled);
         }
       } catch (error) {
@@ -35,7 +35,7 @@ const KanbanSettingsCard: React.FC = () => {
       console.error('Failed to update kanban enabled setting:', error);
       toast({
         title: 'Failed to update setting',
-        description: (error as Error).message || 'Could not save Kanban setting',
+        description: error instanceof Error ? error.message : 'Could not save Kanban setting',
         variant: 'destructive',
       });
     } finally {

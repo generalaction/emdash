@@ -1,6 +1,17 @@
 import { ipcMain, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
-import { AppSettings, getAppSettings, updateAppSettings } from '../settings';
+import type { AppSettings } from '../../types/settings';
+import { getAppSettings, updateAppSettings } from '../settings';
 
+/**
+ * Register IPC handlers for application settings management.
+ *
+ * Handlers:
+ * - `settings:get` - Get current application settings
+ * - `settings:update` - Update application settings (partial updates supported)
+ *
+ * The `settings:update` handler broadcasts changes to all renderer processes
+ * via the `settings-updated` event.
+ */
 export function registerSettingsIpc() {
   ipcMain.handle('settings:get', async () => {
     try {

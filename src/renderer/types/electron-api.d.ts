@@ -1,58 +1,6 @@
 // Updated for Codex integration
 import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
-
-type AppSettings = {
-  repository: { branchTemplate: string; pushOnCreate: boolean };
-  projectPrep?: { autoInstallOnOpenInEditor: boolean };
-  browserPreview?: { enabled: boolean; engine: 'chromium' };
-  notifications?: { enabled: boolean; sound: boolean };
-  mcp?: {
-    context7?: {
-      enabled: boolean;
-      installHintsDismissed?: Record<string, boolean>;
-    };
-  };
-  defaultProvider?: string;
-  tasks?: {
-    autoGenerateName: boolean;
-    autoApproveByDefault: boolean;
-  };
-  projects?: {
-    defaultDirectory: string;
-  };
-  features?: {
-    kanban?: {
-      enabled: boolean;
-    };
-  };
-};
-
-// Settings update type - allows partial updates at all nesting levels
-type AppSettingsUpdate = {
-  repository?: { branchTemplate?: string; pushOnCreate?: boolean };
-  projectPrep?: { autoInstallOnOpenInEditor?: boolean };
-  browserPreview?: { enabled?: boolean; engine?: 'chromium' };
-  notifications?: { enabled?: boolean; sound?: boolean };
-  mcp?: {
-    context7?: {
-      enabled?: boolean;
-      installHintsDismissed?: Record<string, boolean>;
-    };
-  };
-  defaultProvider?: string;
-  tasks?: {
-    autoGenerateName?: boolean;
-    autoApproveByDefault?: boolean;
-  };
-  projects?: {
-    defaultDirectory?: string;
-  };
-  features?: {
-    kanban?: {
-      enabled?: boolean;
-    };
-  };
-};
+import type { AppSettings, AppSettingsUpdate } from '../../../types/settings';
 
 type ProjectSettingsPayload = {
   projectId: string;
