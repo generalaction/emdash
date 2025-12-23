@@ -827,7 +827,7 @@ class AcpService {
         state.models = nextModels;
       }
       const nextCurrentModelId = extractCurrentModelId(params?.update);
-      if (nextCurrentModelId) {
+      if (nextCurrentModelId != null) {
         state.currentModelId = nextCurrentModelId;
       }
       emitEvent({
