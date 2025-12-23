@@ -1,5 +1,6 @@
 // Updated for Codex integration
 import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
+import type { ProviderId } from '../../shared/providers/registry';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -8,6 +9,14 @@ type ProjectSettingsPayload = {
   gitRemote?: string;
   gitBranch?: string;
   baseRef?: string;
+};
+
+type CustomSlashCommand = {
+  name: string;
+  description?: string;
+  source: 'project' | 'global';
+  provider: ProviderId;
+  filePath: string;
 };
 
 export {};
@@ -205,6 +214,11 @@ declare global {
         error?: string;
       }>;
       onAcpEvent: (listener: (payload: any) => void) => () => void;
+      scanCustomCommands: (args: { projectPath: string; providerId: string }) => Promise<{
+        success: boolean;
+        commands?: CustomSlashCommand[];
+        error?: string;
+      }>;
 
       // Worktree management
       worktreeCreate: (args: {

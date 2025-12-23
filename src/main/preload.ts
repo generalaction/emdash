@@ -81,8 +81,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ACP (Agent Client Protocol)
   acpStartSession: (args: { taskId: string; providerId: string; cwd: string }) =>
     ipcRenderer.invoke('acp:start', args),
-  acpSendPrompt: (args: { sessionId: string; prompt: Array<{ type: string; [key: string]: any }> }) =>
-    ipcRenderer.invoke('acp:prompt', args),
+  acpSendPrompt: (args: {
+    sessionId: string;
+    prompt: Array<{ type: string; [key: string]: any }>;
+  }) => ipcRenderer.invoke('acp:prompt', args),
   acpCancel: (args: { sessionId: string }) => ipcRenderer.invoke('acp:cancel', args),
   acpDispose: (args: { sessionId: string }) => ipcRenderer.invoke('acp:dispose', args),
   acpRespondPermission: (args: {
@@ -102,6 +104,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  scanCustomCommands: (args: { projectPath: string; providerId: string }) =>
+    ipcRenderer.invoke('custom-commands:scan', args),
 
   // App settings
   getSettings: () => ipcRenderer.invoke('settings:get'),

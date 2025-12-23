@@ -474,10 +474,7 @@ const ChatInterface: React.FC<Props> = ({
     taskId: task.id,
     providerId: provider,
     prompt: initialInjection,
-    enabled:
-      isTerminal &&
-      !useAcpChat &&
-      providerMeta[provider]?.initialPromptFlag === undefined,
+    enabled: isTerminal && !useAcpChat && providerMeta[provider]?.initialPromptFlag === undefined,
   });
 
   // Ensure a provider is stored for this task so fallbacks can subscribe immediately

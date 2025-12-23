@@ -19,6 +19,12 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react';
+import { Task } from '../types/chat';
+import { type Provider } from '../types';
+import InstallBanner from './InstallBanner';
+import { Button } from './ui/button';
+import { getInstallCommandForProvider } from '@shared/providers/registry';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 // OpenAI logo SVG component
 const OpenAIIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -31,21 +37,9 @@ const OpenAIIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
     <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z" />
   </svg>
 );
-import { Task } from '../types/chat';
-import { type Provider } from '../types';
-import InstallBanner from './InstallBanner';
-import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
-import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { extractCurrentModelId, extractModelsFromPayload } from '@shared/acpUtils';
 import type { AcpConfigOption, AcpModel } from '@shared/types/acp';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
 
 type ContentBlock = {
   type: string;
@@ -145,8 +139,7 @@ const DEFAULT_TRUNCATE_LIMIT = 120;
 
 const normalizeNewlines = (text: string) => text.replace(/\r\n/g, '\n');
 
-const splitLines = (text: string) =>
-  normalizeNewlines(text).split('\n');
+const splitLines = (text: string) => normalizeNewlines(text).split('\n');
 
 const truncateText = (text: string, limit: number = DEFAULT_TRUNCATE_LIMIT) => {
   if (text.length <= limit) return text;
@@ -288,11 +281,7 @@ const buildFallbackDiffLines = (
   ];
 };
 
-const trimDiffLines = (
-  lines: DiffPreviewLine[],
-  maxLines: number,
-  context: number
-) => {
+const trimDiffLines = (lines: DiffPreviewLine[], maxLines: number, context: number) => {
   if (lines.length <= maxLines) {
     return { lines, truncated: false };
   }
@@ -335,7 +324,10 @@ const trimDiffLines = (
   let lastSlice = lines.slice(last.start, last.end + 1);
   if (firstSlice.length > half) firstSlice = firstSlice.slice(0, half);
   if (lastSlice.length > half) lastSlice = lastSlice.slice(lastSlice.length - half);
-  return { lines: [...firstSlice, { type: 'context', text: '...' }, ...lastSlice], truncated: true };
+  return {
+    lines: [...firstSlice, { type: 'context', text: '...' }, ...lastSlice],
+    truncated: true,
+  };
 };
 
 const buildDiffPreview = (oldText: string, newText: string) => {
@@ -372,6 +364,22 @@ const getTailLines = (text: string, maxLines: number) => {
   return { lines: lines.slice(lines.length - maxLines), truncated: true };
 };
 
+// Truncate text to last N lines to prevent unbounded state growth.
+// Uses a buffer (maxLines + 10) to avoid truncating on every chunk.
+const truncateToTailLines = (text: string, maxLines: number): string => {
+  const lines = splitLines(text);
+  if (lines.length <= maxLines) {
+    return text;
+  }
+  // Add a small buffer to avoid truncating on every chunk
+  const buffer = 10;
+  const limit = maxLines + buffer;
+  if (lines.length <= limit) {
+    return text;
+  }
+  return lines.slice(lines.length - maxLines).join('\n');
+};
+
 const statusStyles: Record<string, string> = {
   pending: 'text-amber-700 bg-amber-50 border-amber-200',
   in_progress: 'text-blue-700 bg-blue-50 border-blue-200',
@@ -380,37 +388,11 @@ const statusStyles: Record<string, string> = {
   cancelled: 'text-gray-600 bg-gray-100 border-gray-200',
 };
 
-type AcpConfigOption = {
-  id?: string;
-  name?: string;
-  label?: string;
-  description?: string;
-  type?: string;
-  value?: unknown;
-  currentValue?: unknown;
-  current_value?: unknown;
-  selectedValue?: unknown;
-  options?: any[];
-  possibleValues?: any[];
-  values?: any[];
-  allowedValues?: any[];
-};
-
 type ConfigChoice = {
   value: unknown;
   label?: string;
   name?: string;
   description?: string;
-};
-
-type AcpModel = {
-  id?: string;
-  name?: string;
-  label?: string;
-  displayName?: string;
-  title?: string;
-  description?: string;
-  model?: string;
 };
 
 type ModelOption = {
@@ -757,9 +739,12 @@ const AcpChatInterface: React.FC<Props> = ({
   const [commands, setCommands] = useState<
     Array<{ name: string; description?: string; hint?: string }>
   >([]);
-  const [plan, setPlan] = useState<
-    Array<{ content?: string; status?: string; priority?: string }> | null
-  >(null);
+
+  const [plan, setPlan] = useState<Array<{
+    content?: string;
+    status?: string;
+    priority?: string;
+  }> | null>(null);
   const [input, setInput] = useState('');
   const [showPlan, setShowPlan] = useState(true);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
@@ -884,6 +869,33 @@ const AcpChatInterface: React.FC<Props> = ({
     };
   }, [sessionId, uiLog]);
 
+  // Scan for custom slash commands when project or provider changes
+  useEffect(() => {
+    const loadCustomCommands = async () => {
+      if (!task.path || !provider) {
+        return;
+      }
+      uiLog('scanCustomCommands', { projectPath: task.path, provider });
+      const result = await window.electronAPI.scanCustomCommands({
+        projectPath: task.path,
+        providerId: provider,
+      });
+      uiLog('scanCustomCommands:response', result);
+      if (result.success && result.commands && result.commands.length > 0) {
+        const mappedCommands = result.commands.map((cmd) => ({
+          name: cmd.name,
+          description: cmd.description,
+          hint: undefined,
+        }));
+        setCommands(mappedCommands);
+      } else {
+        // Clear commands when scan fails or returns no results to prevent stale commands
+        setCommands([]);
+      }
+    };
+    loadCustomCommands();
+  }, [task.path, provider, uiLog]);
+
   useEffect(() => {
     const off = window.electronAPI.onAcpEvent((payload: any) => {
       if (!payload || payload.taskId !== task.id) return;
@@ -987,7 +999,7 @@ const AcpChatInterface: React.FC<Props> = ({
         if (!chunk) return;
         setTerminalOutputs((prev) => ({
           ...prev,
-          [terminalId]: (prev[terminalId] || '') + chunk,
+          [terminalId]: truncateToTailLines((prev[terminalId] || '') + chunk, 60),
         }));
         return;
       }
@@ -1034,9 +1046,7 @@ const AcpChatInterface: React.FC<Props> = ({
           setFeed((prev) => {
             const existing = prev.find((item) => item.type === 'plan');
             if (existing) {
-              return prev.map((item) =>
-                item.type === 'plan' ? { ...item, entries } : item
-              );
+              return prev.map((item) => (item.type === 'plan' ? { ...item, entries } : item));
             }
             return [...prev, { id: `plan-${Date.now()}`, type: 'plan', entries }];
           });
@@ -1054,42 +1064,32 @@ const AcpChatInterface: React.FC<Props> = ({
             } else if (payloadUpdate.content) {
               content = [...content, payloadUpdate.content];
             }
-            const rawInput =
-              payloadUpdate.rawInput ?? payloadUpdate.input ?? undefined;
-            const rawOutput =
-              payloadUpdate.rawOutput ?? payloadUpdate.output ?? undefined;
+            const rawInput = payloadUpdate.rawInput ?? payloadUpdate.input ?? undefined;
+            const rawOutput = payloadUpdate.rawOutput ?? payloadUpdate.output ?? undefined;
             const next: ToolCall = {
               ...existing,
               ...payloadUpdate,
               toolCallId,
               content,
-              rawInput:
-                rawInput === undefined ? existing.rawInput : normalizeRawValue(rawInput),
+              rawInput: rawInput === undefined ? existing.rawInput : normalizeRawValue(rawInput),
               rawOutput:
                 rawOutput === undefined ? existing.rawOutput : normalizeRawValue(rawOutput),
             };
             return { ...prev, [toolCallId]: next };
           });
           setFeed((prev) => {
-            const already = prev.some((item) => item.type === 'tool' && item.toolCallId === toolCallId);
+            const already = prev.some(
+              (item) => item.type === 'tool' && item.toolCallId === toolCallId
+            );
             if (already) return prev;
             return [...prev, { id: `tool-${toolCallId}`, type: 'tool', toolCallId }];
           });
           return;
         }
+        // We use our own custom command scanner instead of available_commands_update
+        // This ensures we only show user-created commands from .codex/prompts, etc.
         if (updateType === 'available_commands_update') {
-          const cmds = Array.isArray(update.availableCommands)
-            ? update.availableCommands
-            : Array.isArray(update.commands)
-              ? update.commands
-              : [];
-          setCommands(
-            cmds.map((cmd: any) => ({
-              name: String(cmd.name || '').replace(/^\//, ''),
-              description: cmd.description || cmd.summary,
-              hint: cmd.input?.hint || cmd.inputHint,
-            }))
-          );
+          // Ignore agent-provided commands - we use our scanner as the source of truth
           return;
         }
       }
@@ -1184,9 +1184,7 @@ const AcpChatInterface: React.FC<Props> = ({
   const extractPrimaryText = (blocks: ContentBlock[]) => {
     const textBlock = blocks.find((block) => block.type === 'text' && block.text);
     if (textBlock?.text) return textBlock.text;
-    const resourceBlock = blocks.find(
-      (block) => block.type === 'resource' && block.resource?.text
-    );
+    const resourceBlock = blocks.find((block) => block.type === 'resource' && block.resource?.text);
     return resourceBlock?.resource?.text || '';
   };
 
@@ -1319,7 +1317,9 @@ const AcpChatInterface: React.FC<Props> = ({
       delete next[requestId];
       return next;
     });
-    setFeed((prev) => prev.filter((item) => !(item.type === 'permission' && item.requestId === requestId)));
+    setFeed((prev) =>
+      prev.filter((item) => !(item.type === 'permission' && item.requestId === requestId))
+    );
   };
 
   const handleAttachClick = () => {
@@ -1337,8 +1337,7 @@ const AcpChatInterface: React.FC<Props> = ({
       const isImage = mimeType.startsWith('image/');
       const isAudio = mimeType.startsWith('audio/');
       const isText =
-        mimeType.startsWith('text/') ||
-        /\.(md|txt|ts|tsx|js|jsx|json|yml|yaml)$/i.test(name);
+        mimeType.startsWith('text/') || /\.(md|txt|ts|tsx|js|jsx|json|yml|yaml)$/i.test(name);
       const supportsImage = Boolean(promptCaps.image);
       const supportsAudio = Boolean(promptCaps.audio);
       const supportsEmbedded = Boolean(promptCaps.embeddedContext);
@@ -1423,11 +1422,11 @@ const AcpChatInterface: React.FC<Props> = ({
   };
 
   const commandSuggestions = useMemo(() => {
-    if (!input.startsWith('/')) return [];
+    if (!input.startsWith('/')) {
+      return [];
+    }
     const query = input.slice(1).toLowerCase();
-    return commands
-      .filter((cmd) => cmd.name && cmd.name.toLowerCase().includes(query))
-      .slice(0, 6);
+    return commands.filter((cmd) => cmd.name && cmd.name.toLowerCase().includes(query)).slice(0, 6);
   }, [commands, input]);
 
   const commandHint = useMemo(() => {
@@ -1791,12 +1790,7 @@ const AcpChatInterface: React.FC<Props> = ({
         const resource = block.resource || {};
         const uri = (resource.uri as string | undefined) || block.uri || '';
         const label =
-          resource.title ||
-          resource.name ||
-          block.title ||
-          block.name ||
-          uri ||
-          'resource';
+          resource.title || resource.name || block.title || block.name || uri || 'resource';
         const previewText = (resource.text as string | undefined) || block.text;
         const isFile = uri.startsWith('file://');
         const filePath = isFile ? fromFileUri(uri) : '';
@@ -1860,8 +1854,7 @@ const AcpChatInterface: React.FC<Props> = ({
     onToggle?: () => void;
     children?: React.ReactNode;
   }> = ({ id, icon, label, target, leftMeta, meta, status, expanded, onToggle, children }) => {
-    const showStatus =
-      status !== undefined && ['failed', 'cancelled', 'error'].includes(status);
+    const showStatus = status !== undefined && ['failed', 'cancelled', 'error'].includes(status);
     const statusClass =
       status && statusStyles[status]
         ? statusStyles[status]
@@ -1880,7 +1873,7 @@ const AcpChatInterface: React.FC<Props> = ({
           </span>
           <span className="min-w-0 flex-1 overflow-hidden text-sm">
             <span className="font-medium text-foreground">{label}</span>
-            {(target || leftMeta) ? (
+            {target || leftMeta ? (
               <span className="ml-2 inline-flex min-w-0 items-center gap-2 overflow-hidden text-muted-foreground">
                 {target ? (
                   <span className="overflow-hidden whitespace-nowrap">{target}</span>
@@ -1892,7 +1885,9 @@ const AcpChatInterface: React.FC<Props> = ({
           <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
             {meta}
             {showStatus ? (
-              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusClass}`}>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusClass}`}
+              >
                 {status.replace('_', ' ')}
               </span>
             ) : null}
@@ -1945,15 +1940,38 @@ const AcpChatInterface: React.FC<Props> = ({
     );
   };
 
-  const renderToolCall = (toolCallId: string, options?: { showLoading?: boolean }) => {
+  // Memoize diff previews to avoid re-computing Myers diff on every render
+  const diffPreviewsByToolCall = useMemo(() => {
+    const result: Record<string, DiffPreview[]> = {};
+    for (const [toolCallId, toolCall] of Object.entries(toolCalls)) {
+      const diffItems = (toolCall.content?.filter((item) => item.type === 'diff') || []) as Array<{
+        type: 'diff';
+        path?: string;
+        oldText?: string;
+        newText?: string;
+        original?: string;
+        updated?: string;
+      }>;
+      if (diffItems.length > 0) {
+        result[toolCallId] = diffItems.map((item) => {
+          const before = (item as any).oldText ?? (item as any).original ?? '';
+          const after = (item as any).newText ?? (item as any).updated ?? '';
+          const preview = buildDiffPreview(String(before ?? ''), String(after ?? ''));
+          return { ...preview, path: formatPath(item.path) } as DiffPreview;
+        });
+      }
+    }
+    return result;
+  }, [toolCalls]);
+
+  const renderToolCall = (toolCallId: string) => {
     const toolCall = toolCalls[toolCallId];
     if (!toolCall) return null;
     const status = toolCall.status || 'pending';
     const expandedKey = `tool-${toolCallId}`;
     const expanded = Boolean(expandedItems[expandedKey]);
     const kindLabel = `${toolCall.title || ''} ${toolCall.kind || ''}`.toLowerCase();
-    const diffItems = (toolCall.content?.filter((item) => item.type === 'diff') ||
-      []) as Array<{
+    const diffItems = (toolCall.content?.filter((item) => item.type === 'diff') || []) as Array<{
       type: 'diff';
       path?: string;
       oldText?: string;
@@ -1970,12 +1988,8 @@ const AcpChatInterface: React.FC<Props> = ({
         | Array<{ type: 'content'; content: ContentBlock }>
         | undefined) || [];
 
-    const diffPreviews: DiffPreview[] = diffItems.map((item) => {
-      const before = (item as any).oldText ?? (item as any).original ?? '';
-      const after = (item as any).newText ?? (item as any).updated ?? '';
-      const preview = buildDiffPreview(String(before ?? ''), String(after ?? ''));
-      return { ...preview, path: formatPath(item.path) };
-    });
+    // Use memoized diff previews to avoid re-computing Myers diff on every render
+    const diffPreviews: DiffPreview[] = diffPreviewsByToolCall[toolCallId] || [];
 
     const diffTotals = diffPreviews.reduce(
       (acc, diff) => ({
@@ -1987,7 +2001,9 @@ const AcpChatInterface: React.FC<Props> = ({
 
     const parsedInput = safeJsonParse(toolCall.rawInput);
     const command = parsedInput?.command
-      ? [parsedInput.command, ...(Array.isArray(parsedInput.args) ? parsedInput.args : [])].join(' ')
+      ? [parsedInput.command, ...(Array.isArray(parsedInput.args) ? parsedInput.args : [])].join(
+          ' '
+        )
       : null;
     const query =
       parsedInput?.query || parsedInput?.search || parsedInput?.input || parsedInput?.prompt;
@@ -2078,66 +2094,62 @@ const AcpChatInterface: React.FC<Props> = ({
     const showLoading = Boolean(options?.showLoading);
 
     return (
-      <div key={expandedKey} className="space-y-1">
-        <ActionRow
-          id={expandedKey}
-          icon={icon}
-          label={label}
-          target={displayTarget}
-          leftMeta={leftMeta}
-          meta={meta}
-          status={status}
-          expanded={expanded}
-          onToggle={() => toggleExpanded(expandedKey)}
-        >
-          <div className="space-y-2 text-sm text-foreground">
-            {diffPreviews.length ? (
-              <div className="space-y-2">
-                {diffPreviews.map((diff, idx) => (
-                  <div key={`${diff.path || 'diff'}-${idx}`}>{renderDiffPreview(diff)}</div>
-                ))}
-              </div>
-            ) : null}
-            {contentBlocks.length ? (
-              <div className="space-y-2">
-                {contentBlocks.map((item, idx) => (
-                  <div key={idx}>
-                    {renderContentBlocks([item.content], {
-                      compact: true,
-                      maxPreviewChars: 280,
-                    })}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {terminalItems.length ? (
-              <div className="space-y-2">
-                {terminalItems.map((item, idx) => {
-                  const output = terminalOutputs[item.terminalId] || '';
-                  const tail = getTailLines(output, 60);
-                  return (
-                    <div
-                      key={`${item.terminalId}-${idx}`}
-                      className="rounded-md bg-black/90 px-3 py-2 text-xs text-white"
-                    >
-                      <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">
-                        Terminal output
-                      </div>
-                      <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words">
-                        {tail.lines.join('\n')}
-                      </pre>
-                      {tail.truncated ? (
-                        <div className="mt-1 text-[11px] text-white/60">Output truncated</div>
-                      ) : null}
+      <ActionRow
+        key={expandedKey}
+        id={expandedKey}
+        icon={icon}
+        label={label}
+        target={displayTarget}
+        leftMeta={leftMeta}
+        meta={meta}
+        status={status}
+        expanded={expanded}
+        onToggle={() => toggleExpanded(expandedKey)}
+      >
+        <div className="space-y-2 text-sm text-foreground">
+          {diffPreviews.length ? (
+            <div className="space-y-2">
+              {diffPreviews.map((diff, idx) => (
+                <div key={`${diff.path || 'diff'}-${idx}`}>{renderDiffPreview(diff)}</div>
+              ))}
+            </div>
+          ) : null}
+          {contentBlocks.length ? (
+            <div className="space-y-2">
+              {contentBlocks.map((item, idx) => (
+                <div key={idx}>
+                  {renderContentBlocks([item.content], { compact: true, maxPreviewChars: 280 })}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {terminalItems.length ? (
+            <div className="space-y-2">
+              {terminalItems.map((item, idx) => {
+                const output = terminalOutputs[item.terminalId] || '';
+                const tail = getTailLines(output, 60);
+                return (
+                  <div
+                    key={`${item.terminalId}-${idx}`}
+                    className="rounded-md bg-black/90 px-3 py-2 text-xs text-white"
+                  >
+                    <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">
+                      Terminal output
                     </div>
-                  );
-                })}
+                    <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words">
+                      {tail.lines.join('\n')}
+                    </pre>
+                    {tail.truncated ? (
+                      <div className="mt-1 text-[11px] text-white/60">Output truncated</div>
+                    ) : null}
+                  </div>
+                );
+              })}
               </div>
             ) : null}
           </div>
-        </ActionRow>
         {showLoading ? <LoadingTimer label={runTimerLabel} /> : null}
-      </div>
+      </ActionRow>
     );
   };
 
@@ -2148,7 +2160,10 @@ const AcpChatInterface: React.FC<Props> = ({
       (request as any).title ||
       'Permission required';
     return (
-      <div key={request.requestId} className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+      <div
+        key={request.requestId}
+        className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+      >
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-4 w-4" />
           <div className="space-y-1">
@@ -2218,9 +2233,7 @@ const AcpChatInterface: React.FC<Props> = ({
           className="group flex items-center gap-2 rounded-md px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
         >
           <ChevronRight
-            className={`h-3.5 w-3.5 transition-transform ${
-              expanded ? 'rotate-90' : ''
-            }`}
+            className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-90' : ''}`}
           />
           <span>{parts.join(', ')}</span>
         </button>
@@ -2393,9 +2406,7 @@ const AcpChatInterface: React.FC<Props> = ({
                 buffer = [];
               };
 
-              const canCollapseBuffer = (
-                assistantItem: Extract<FeedItem, { type: 'message' }>
-              ) => {
+              const canCollapseBuffer = (assistantItem: Extract<FeedItem, { type: 'message' }>) => {
                 if (!buffer.length) return false;
                 if (assistantItem.streaming) return false;
                 for (const item of buffer) {
@@ -2414,7 +2425,7 @@ const AcpChatInterface: React.FC<Props> = ({
 
               feed.forEach((item) => {
                 if (
-                  (item.type === 'tool') ||
+                  item.type === 'tool' ||
                   (item.type === 'message' && item.messageKind === 'thought')
                 ) {
                   buffer.push(item);
@@ -2469,7 +2480,7 @@ const AcpChatInterface: React.FC<Props> = ({
         <div className="bg-transparent px-6 py-4">
           <div className="mx-auto max-w-4xl space-y-3">
             {commandSuggestions.length ? (
-              <div className="rounded-lg border border-border/60 bg-background/90 p-2 text-xs text-muted-foreground shadow-sm">
+              <div className="rounded-lg border border-border bg-background p-2 text-xs shadow-lg">
                 {commandSuggestions.map((cmd) => (
                   <button
                     key={cmd.name}
@@ -2590,11 +2601,7 @@ const AcpChatInterface: React.FC<Props> = ({
                     type="button"
                     onClick={() => setPlanModeEnabled((prev) => !prev)}
                     aria-pressed={planModeEnabled}
-                    title={
-                      planModeEnabled
-                        ? 'Plan mode: read-only'
-                        : 'Full access'
-                    }
+                    title={planModeEnabled ? 'Plan mode: read-only' : 'Full access'}
                     className={`flex h-8 items-center justify-center rounded-md px-2 text-muted-foreground transition ${
                       planModeEnabled
                         ? 'bg-sky-100/70 text-sky-700 hover:bg-sky-100/90 dark:bg-sky-500/10 dark:text-sky-200 dark:hover:bg-sky-500/15'
@@ -2653,19 +2660,13 @@ const AcpChatInterface: React.FC<Props> = ({
                     disabled={!sessionId || (isRunning ? false : !canSend)}
                     variant={isRunning ? 'secondary' : 'default'}
                   >
-                    {isRunning ? (
-                      <Square className="h-4 w-4" />
-                    ) : (
-                      <ArrowUp className="h-4 w-4" />
-                    )}
+                    {isRunning ? <Square className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
             </div>
             {commandHint ? (
-              <div className="text-xs text-muted-foreground">
-                Hint: {commandHint}
-              </div>
+              <div className="text-xs text-muted-foreground">Hint: {commandHint}</div>
             ) : null}
           </div>
         </div>

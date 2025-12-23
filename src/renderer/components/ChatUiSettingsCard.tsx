@@ -20,7 +20,7 @@ const ChatUiSettingsCard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingNext, setPendingNext] = useState<boolean | null>(null);
-  const [taskCount, setTaskCount] = useState<number | null>(null);
+  const [taskCount, setTaskCount] = useState<number | undefined | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +74,7 @@ const ChatUiSettingsCard: React.FC = () => {
     setError(null);
     setCheckingTasks(true);
     let hasTasks = false;
-    let count = 0;
+    let count: number | undefined = 0;
     try {
       const tasks = await window.electronAPI.getTasks();
       count = Array.isArray(tasks) ? tasks.length : 0;
@@ -82,6 +82,7 @@ const ChatUiSettingsCard: React.FC = () => {
     } catch {
       // Fail-safe: show warning if we can't determine task state
       hasTasks = true;
+      count = undefined; // Sentinel to indicate unknown count
     } finally {
       setCheckingTasks(false);
     }
@@ -137,9 +138,11 @@ const ChatUiSettingsCard: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Switch chat UI?</AlertDialogTitle>
             <AlertDialogDescription>
-              {taskCount && taskCount > 0
+              {typeof taskCount === 'number' && taskCount > 0
                 ? `You currently have ${taskCount} task${taskCount === 1 ? '' : 's'} open.`
-                : 'You currently have open tasks.'}
+                : taskCount === undefined
+                  ? 'You currently have an unknown number of tasks open.'
+                  : 'You currently have open tasks.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
 

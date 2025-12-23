@@ -21,6 +21,7 @@ import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
 import { registerAcpIpc } from './acpIpc';
+import { registerCustomCommandsHandlers } from './customCommandsIpc';
 
 export function registerAllIpc() {
   // Core app/utility IPC
@@ -41,6 +42,7 @@ export function registerAllIpc() {
   registerBrowserIpc();
   registerNetIpc();
   registerAcpIpc();
+  registerCustomCommandsHandlers();
 
   // Existing modules
   registerPtyIpc();
