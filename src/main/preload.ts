@@ -92,6 +92,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }) => ipcRenderer.invoke('acp:permission', args),
   acpSetMode: (args: { sessionId: string; modeId: string }) =>
     ipcRenderer.invoke('acp:set-mode', args),
+  acpSetModel: (args: { sessionId: string; modelId: string }) =>
+    ipcRenderer.invoke('acp:set-model', args),
+  acpSetConfigOption: (args: { sessionId: string; configId: string; value: unknown }) =>
+    ipcRenderer.invoke('acp:set-config-option', args),
   onAcpEvent: (listener: (payload: any) => void) => {
     const channel = 'acp:event';
     const wrapped = (_: Electron.IpcRendererEvent, payload: any) => listener(payload);
