@@ -38,6 +38,7 @@ import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { extractCurrentModelId, extractModelsFromPayload } from '@shared/acpUtils';
+import type { AcpConfigOption, AcpModel } from '@shared/types/acp';
 import {
   Select,
   SelectContent,
@@ -379,37 +380,11 @@ const statusStyles: Record<string, string> = {
   cancelled: 'text-gray-600 bg-gray-100 border-gray-200',
 };
 
-type AcpConfigOption = {
-  id?: string;
-  name?: string;
-  label?: string;
-  description?: string;
-  type?: string;
-  value?: unknown;
-  currentValue?: unknown;
-  current_value?: unknown;
-  selectedValue?: unknown;
-  options?: any[];
-  possibleValues?: any[];
-  values?: any[];
-  allowedValues?: any[];
-};
-
 type ConfigChoice = {
   value: unknown;
   label?: string;
   name?: string;
   description?: string;
-};
-
-type AcpModel = {
-  id?: string;
-  name?: string;
-  label?: string;
-  displayName?: string;
-  title?: string;
-  description?: string;
-  model?: string;
 };
 
 type ModelOption = {

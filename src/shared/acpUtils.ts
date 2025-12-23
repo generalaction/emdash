@@ -1,4 +1,6 @@
-export const extractModelsFromPayload = (payload: any): any[] => {
+import type { AcpModel } from './types/acp';
+
+export const extractModelsFromPayload = (payload: any): AcpModel[] => {
   if (!payload) return [];
   const direct =
     payload.models ??
@@ -8,14 +10,14 @@ export const extractModelsFromPayload = (payload: any): any[] => {
     payload.model_list ??
     payload.modelOptions ??
     payload.model_options;
-  if (Array.isArray(direct)) return direct;
+  if (Array.isArray(direct)) return direct as AcpModel[];
   const nested =
     payload.models?.available ??
     payload.models?.availableModels ??
     payload.models?.models ??
     payload.modelOptions?.options ??
     payload.model_options?.options;
-  if (Array.isArray(nested)) return nested;
+  if (Array.isArray(nested)) return nested as AcpModel[];
   return [];
 };
 
