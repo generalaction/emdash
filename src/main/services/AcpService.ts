@@ -3,6 +3,7 @@ import { app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { extractCurrentModelId, extractModelsFromPayload } from '../../shared/acpUtils';
 import { log } from '../lib/logger';
 
 type JsonRpcMessage = {
@@ -163,53 +164,6 @@ function extractConfigOptions(payload: any): any[] {
   return [];
 }
 
-function extractModels(payload: any): any[] {
-  if (!payload) return [];
-  const direct =
-    payload.models ??
-    payload.availableModels ??
-    payload.available_models ??
-    payload.modelList ??
-    payload.model_list ??
-    payload.modelOptions ??
-    payload.model_options;
-  if (Array.isArray(direct)) return direct;
-  const nested =
-    payload.models?.available ??
-    payload.models?.availableModels ??
-    payload.models?.models ??
-    payload.modelOptions?.options ??
-    payload.model_options?.options;
-  if (Array.isArray(nested)) return nested;
-  return [];
-}
-
-function extractCurrentModelId(payload: any): string | null {
-  if (!payload) return null;
-  const nestedModels = payload.models ?? payload.modelOptions ?? payload.model_options;
-  const nestedCurrent =
-    nestedModels?.currentModelId ??
-    nestedModels?.current_model_id ??
-    nestedModels?.modelId ??
-    nestedModels?.model_id ??
-    nestedModels?.currentModel ??
-    nestedModels?.current_model;
-  if (nestedCurrent) return String(nestedCurrent);
-  const direct =
-    payload.currentModelId ??
-    payload.modelId ??
-    payload.model ??
-    payload.current_model_id ??
-    payload.current_model ??
-    payload.activeModelId ??
-    payload.active_model_id;
-  if (typeof direct === 'string' || typeof direct === 'number') return String(direct);
-  if (direct && typeof direct === 'object') {
-    const nested = direct.id ?? direct.name ?? direct.modelId ?? direct.model_id;
-    if (nested) return String(nested);
-  }
-  return null;
-}
 
 function sessionKey(taskId: string, providerId: string): SessionKey {
   return `${taskId}:${providerId}`;
@@ -422,7 +376,7 @@ class AcpService {
       acpLog('session/new:response', { taskId, providerId, sessionRes });
       const sessionId = sessionRes?.sessionId as string | undefined;
       const configOptions = extractConfigOptions(sessionRes);
-      const models = extractModels(sessionRes);
+      const models = extractModelsFromPayload(sessionRes);
       const currentModelId = extractCurrentModelId(sessionRes);
       acpLog('session/new:config', {
         taskId,
@@ -571,7 +525,7 @@ class AcpService {
         sessionId,
         modelId,
       });
-      const models = extractModels(res);
+      const models = extractModelsFromPayload(res);
       const currentModelId = extractCurrentModelId(res) ?? modelId;
       if (models.length) state.models = models;
       state.currentModelId = currentModelId;
@@ -618,7 +572,7 @@ class AcpService {
         value,
       });
       const configOptions = extractConfigOptions(res);
-      const models = extractModels(res);
+      const models = extractModelsFromPayload(res);
       const currentModelId = extractCurrentModelId(res);
       if (configOptions.length) {
         state.configOptions = configOptions;
@@ -868,7 +822,7 @@ class AcpService {
           state.configOptions = nextOptions;
         }
       }
-      const nextModels = extractModels(params?.update);
+      const nextModels = extractModelsFromPayload(params?.update);
       if (nextModels.length) {
         state.models = nextModels;
       }
