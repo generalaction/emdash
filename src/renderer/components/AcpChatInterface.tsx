@@ -1560,7 +1560,7 @@ const AcpChatInterface: React.FC<Props> = ({
         );
       }
       void window.electronAPI.acpSetConfigOption?.({
-        sessionId: sessionId ?? '',
+        sessionId,
         configId: thinkingConfigId,
         value: targetValue,
       }).then((res) => {
@@ -1579,7 +1579,7 @@ const AcpChatInterface: React.FC<Props> = ({
       if (!targetVariant) return;
       setCurrentModelId(targetVariant.id);
       void window.electronAPI.acpSetModel?.({
-        sessionId: sessionId ?? '',
+        sessionId,
         modelId: targetVariant.id,
       }).then((res) => {
         if (!res?.success) {
@@ -1593,7 +1593,7 @@ const AcpChatInterface: React.FC<Props> = ({
     if (!configId) return;
     const targetValue = next;
     void window.electronAPI.acpSetConfigOption?.({
-      sessionId: sessionId ?? '',
+      sessionId,
       configId,
       value: targetValue,
     }).then((res) => {
