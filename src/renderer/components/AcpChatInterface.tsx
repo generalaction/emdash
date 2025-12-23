@@ -858,8 +858,8 @@ const AcpChatInterface: React.FC<Props> = ({
             : Array.isArray(payload.config_options)
               ? payload.config_options.length
               : 0,
-          models: nextModels.length,
-          currentModelId: nextCurrentModelId,
+          models: extractModelsFromPayload(payload).length,
+          currentModelId: extractCurrentModelId(payload),
         });
         return;
       }
