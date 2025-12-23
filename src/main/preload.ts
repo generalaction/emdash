@@ -8,6 +8,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:getAppVersion'),
   getElectronVersion: () => ipcRenderer.invoke('app:getElectronVersion'),
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
+  // Window state
+  getFullScreenState: () => ipcRenderer.invoke('window:get-fullscreen-state'),
+  onFullScreenChange: (callback: (isFullScreen: boolean) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, isFullScreen: boolean) => callback(isFullScreen);
+    ipcRenderer.on('window:fullscreen-changed', listener);
+    return () => ipcRenderer.removeListener('window:fullscreen-changed', listener);
+  },
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
@@ -398,6 +405,9 @@ export interface ElectronAPI {
   // App info
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
+  // Window state
+  getFullScreenState: () => Promise<boolean>;
+  onFullScreenChange: (callback: (isFullScreen: boolean) => void) => () => void;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;

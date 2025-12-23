@@ -12,15 +12,29 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarFooter,
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Home, ChevronRight, Plus, FolderOpen, Github } from 'lucide-react';
+import {
+  Home,
+  ChevronRight,
+  Plus,
+  FolderOpen,
+  Github,
+  MessageSquare,
+  Settings as SettingsIcon,
+  Command,
+} from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
+import GithubStatus from './GithubStatus';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import FeedbackModal from './FeedbackModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { ShortcutHint } from './ui/shortcut-hint';
 import type { Project } from '../types/app';
 import type { Task } from '../types/chat';
 
@@ -36,6 +50,19 @@ interface LeftSidebarProps {
   activeTask?: Task | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
   onReorderProjectsFull?: (newOrder: Project[]) => void;
+  githubInstalled?: boolean;
+  githubAuthenticated?: boolean;
+  githubUser?: {
+    login?: string;
+    name?: string;
+    avatar_url?: string;
+    html_url?: string;
+    email?: string;
+  } | null;
+  onGithubConnect?: () => void;
+  githubLoading?: boolean;
+  githubStatusMessage?: string;
+  githubInitialized?: boolean;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;
@@ -46,6 +73,8 @@ interface LeftSidebarProps {
   onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   isHomeView?: boolean;
+  onToggleSettings?: () => void;
+  isSettingsOpen?: boolean;
 }
 
 interface MenuItemButtonProps {
@@ -99,12 +128,21 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   activeTask,
   onReorderProjects,
   onReorderProjectsFull,
+  githubInstalled = true,
+  githubAuthenticated = false,
+  githubUser,
+  onGithubConnect,
+  githubLoading = false,
+  githubStatusMessage,
+  githubInitialized = false,
   onSidebarContextChange,
   onCreateTaskForProject,
   isCreatingTask,
   onDeleteTask,
   onDeleteProject,
   isHomeView,
+  onToggleSettings,
+  isSettingsOpen = false,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
@@ -124,9 +162,92 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     [onDeleteProject]
   );
 
+  const githubProfileUrl = React.useMemo(() => {
+    if (!githubAuthenticated) {
+      return null;
+    }
+    const login = githubUser?.login?.trim();
+    return login ? `https://github.com/${login}` : null;
+  }, [githubAuthenticated, githubUser?.login]);
+
+  const handleGithubProfileClick = React.useCallback(() => {
+    if (!githubProfileUrl || typeof window === 'undefined') {
+      return;
+    }
+    const api = (window as any).electronAPI;
+    api?.openExternal?.(githubProfileUrl);
+  }, [githubProfileUrl]);
+
   React.useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
+
+  const [isFeedbackOpen, setIsFeedbackOpen] = React.useState(false);
+  const feedbackButtonRef = React.useRef<HTMLButtonElement | null>(null);
+
+  const handleOpenFeedback = React.useCallback(async () => {
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('toolbar_feedback_clicked');
+    });
+    setIsFeedbackOpen(true);
+  }, []);
+
+  const handleCloseFeedback = React.useCallback(() => {
+    setIsFeedbackOpen(false);
+    feedbackButtonRef.current?.blur();
+  }, []);
+
+  // Broadcast overlay state so the preview pane can hide while feedback is open
+  React.useEffect(() => {
+    try {
+      const open = Boolean(isFeedbackOpen);
+      window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open } }));
+    } catch {}
+  }, [isFeedbackOpen]);
+
+  React.useEffect(() => {
+    const handleGlobalShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tagName = target.tagName;
+        const isEditable =
+          target.getAttribute('contenteditable') === 'true' ||
+          tagName === 'INPUT' ||
+          tagName === 'TEXTAREA' ||
+          tagName === 'SELECT';
+        if (isEditable) {
+          return;
+        }
+      }
+
+      const isMeta = event.metaKey || event.ctrlKey;
+      if (isMeta && event.shiftKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        handleOpenFeedback();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalShortcut);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalShortcut);
+    };
+  }, [handleOpenFeedback]);
+
+  const renderGithubStatus = () => (
+    <GithubStatus
+      installed={githubInstalled}
+      authenticated={githubAuthenticated}
+      user={githubUser}
+      onConnect={onGithubConnect}
+      isLoading={githubLoading}
+      statusMessage={githubStatusMessage}
+      isInitialized={githubInitialized}
+    />
+  );
 
   return (
     <div className="relative h-full">
@@ -378,7 +499,95 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </SidebarGroup>
           )}
         </SidebarContent>
+        <SidebarFooter className="min-w-0 overflow-hidden border-t border-border px-2 py-2 sm:px-3 sm:py-3">
+          <div className="flex w-full items-center justify-between gap-2">
+            {/* Left: GitHub Status */}
+            <div
+              className={`flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                githubProfileUrl ? 'cursor-pointer' : 'cursor-default'
+              }`}
+              onClick={(e) => {
+                if (!githubProfileUrl) {
+                  return;
+                }
+                e.preventDefault();
+                handleGithubProfileClick();
+              }}
+              tabIndex={githubProfileUrl ? 0 : -1}
+              role={githubProfileUrl ? 'button' : undefined}
+              aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
+            >
+              {renderGithubStatus()}
+            </div>
+
+            {/* Right: Feedback & Settings Buttons */}
+            <div className="flex items-center gap-1">
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Open feedback"
+                      onClick={handleOpenFeedback}
+                      ref={feedbackButtonRef}
+                      className="h-8 w-8 text-muted-foreground hover:bg-background/80"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs font-medium">
+                    <div className="flex flex-col gap-1">
+                      <span>Open feedback</span>
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Command className="h-3 w-3" aria-hidden="true" />
+                        <span>⇧</span>
+                        <span>F</span>
+                      </span>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {onToggleSettings && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant={isSettingsOpen ? 'secondary' : 'ghost'}
+                        size="icon"
+                        aria-label="Open settings"
+                        aria-pressed={isSettingsOpen}
+                        onClick={async () => {
+                          void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+                            captureTelemetry('toolbar_settings_clicked');
+                          });
+                          onToggleSettings();
+                        }}
+                        className="h-8 w-8 text-muted-foreground hover:bg-background/80"
+                      >
+                        <SettingsIcon className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs font-medium">
+                      <div className="flex flex-col gap-1">
+                        <span>Open settings</span>
+                        <ShortcutHint settingsKey="settings" />
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+          </div>
+        </SidebarFooter>
       </Sidebar>
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={handleCloseFeedback}
+        githubUser={githubUser}
+      />
     </div>
   );
 };

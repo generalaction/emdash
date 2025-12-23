@@ -1,6 +1,7 @@
 import { registerPtyIpc } from '../services/ptyIpc';
 import { registerWorktreeIpc } from '../services/worktreeIpc';
 import { registerFsIpc } from '../services/fsIpc';
+import { registerWindowIpc } from '../services/windowIpc';
 
 import { registerAppIpc } from './appIpc';
 import { registerProjectIpc } from './projectIpc';
@@ -29,6 +30,7 @@ export function registerAllIpc() {
   registerTelemetryIpc();
   registerUpdateIpc();
   registerSettingsIpc();
+  registerWindowIpc();
 
   // Domain IPC
   registerProjectIpc();

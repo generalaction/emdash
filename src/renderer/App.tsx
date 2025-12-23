@@ -1943,8 +1943,6 @@ const AppContent: React.FC = () => {
                 setCollapsedRef={rightSidebarSetCollapsedRef}
               />
               <Titlebar
-                onToggleSettings={handleToggleSettings}
-                isSettingsOpen={showSettings}
                 currentPath={
                   activeTask?.metadata?.multiAgent?.enabled
                     ? null
@@ -1957,10 +1955,11 @@ const AppContent: React.FC = () => {
                 taskPath={activeTask?.path || null}
                 projectPath={selectedProject?.path || null}
                 isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
-                githubUser={user}
                 onToggleKanban={handleToggleKanban}
                 isKanbanOpen={Boolean(showKanban)}
                 kanbanAvailable={Boolean(selectedProject)}
+                platform={platform}
+                isFullscreen={isFullscreen}
               />
               <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
                 <ResizablePanelGroup
@@ -1990,12 +1989,21 @@ const AppContent: React.FC = () => {
                       activeTask={activeTask || undefined}
                       onReorderProjects={handleReorderProjects}
                       onReorderProjectsFull={handleReorderProjectsFull}
+                      githubInstalled={ghInstalled}
+                      githubAuthenticated={isAuthenticated}
+                      githubUser={user}
+                      onGithubConnect={handleGithubConnect}
+                      githubLoading={githubLoading}
+                      githubStatusMessage={githubStatusMessage}
+                      githubInitialized={isGithubInitialized}
                       onSidebarContextChange={handleSidebarContextChange}
                       onCreateTaskForProject={handleStartCreateTaskFromSidebar}
                       isCreatingTask={isCreatingTask}
                       onDeleteTask={handleDeleteTask}
                       onDeleteProject={handleDeleteProject}
                       isHomeView={showHomeView}
+                      onToggleSettings={handleToggleSettings}
+                      isSettingsOpen={showSettings}
                     />
                   </ResizablePanel>
                   <ResizableHandle
