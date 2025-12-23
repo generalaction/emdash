@@ -4,10 +4,10 @@ import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
-import type { AppSettings } from '../../types/settings';
+import type { AppSettings } from '../types/settings';
 
 // Re-export AppSettings for convenience
-export type { AppSettings } from '../../types/settings';
+export type { AppSettings } from '../types/settings';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 const DEFAULT_KANBAN_ENABLED = true;
