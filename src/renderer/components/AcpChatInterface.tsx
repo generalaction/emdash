@@ -763,6 +763,23 @@ const AcpChatInterface: React.FC<Props> = ({
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
+  const handleConfigAndModelUpdates = useCallback((payload: any) => {
+    if (!payload) return;
+    if (Array.isArray(payload.configOptions)) {
+      setConfigOptions(payload.configOptions);
+    } else if (Array.isArray(payload.config_options)) {
+      setConfigOptions(payload.config_options);
+    }
+    const nextModels = extractModelsFromPayload(payload);
+    if (nextModels.length) {
+      setModels(nextModels);
+    }
+    const nextCurrentModelId = extractCurrentModelId(payload);
+    if (nextCurrentModelId) {
+      setCurrentModelId(nextCurrentModelId);
+    }
+  }, []);
+
   // Auto-resize textarea based on content
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -834,19 +851,7 @@ const AcpChatInterface: React.FC<Props> = ({
         if (caps) {
           setPromptCaps(normalizePromptCaps(caps));
         }
-        if (Array.isArray(payload.configOptions)) {
-          setConfigOptions(payload.configOptions);
-        } else if (Array.isArray(payload.config_options)) {
-          setConfigOptions(payload.config_options);
-        }
-        const nextModels = extractModelsFromPayload(payload);
-        if (nextModels.length) {
-          setModels(nextModels);
-        }
-        const nextCurrentModelId = extractCurrentModelId(payload);
-        if (nextCurrentModelId) {
-          setCurrentModelId(nextCurrentModelId);
-        }
+        handleConfigAndModelUpdates(payload);
         uiLog('session_started:config', {
           configOptions: Array.isArray(payload.configOptions)
             ? payload.configOptions.length
@@ -924,29 +929,10 @@ const AcpChatInterface: React.FC<Props> = ({
         if (!updateType) return;
         uiLog('session_update', { updateType, update });
         if (updateType === 'config_option_update' || updateType === 'config_options_update') {
-          if (Array.isArray(update.configOptions)) {
-            setConfigOptions(update.configOptions);
-          } else if (Array.isArray(update.config_options)) {
-            setConfigOptions(update.config_options);
-          }
-          const nextModels = extractModelsFromPayload(update);
-          if (nextModels.length) {
-            setModels(nextModels);
-          }
-          const nextCurrentModelId = extractCurrentModelId(update);
-          if (nextCurrentModelId) {
-            setCurrentModelId(nextCurrentModelId);
-          }
+          handleConfigAndModelUpdates(update);
           return;
         }
-        const nextModels = extractModelsFromPayload(update);
-        if (nextModels.length) {
-          setModels(nextModels);
-        }
-        const nextCurrentModelId = extractCurrentModelId(update);
-        if (nextCurrentModelId) {
-          setCurrentModelId(nextCurrentModelId);
-        }
+        handleConfigAndModelUpdates(update);
         if (
           updateType === 'agent_message_chunk' ||
           updateType === 'user_message_chunk' ||
