@@ -80,7 +80,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
-  updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
+  updateSettings: (settings: unknown) => ipcRenderer.invoke('settings:update', settings),
+  onSettingsUpdated: (listener: (settings: unknown) => void) => {
+    const channel = 'settings-updated';
+    const wrapped = (_: Electron.IpcRendererEvent, settings: unknown) => listener(settings);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 
   // Worktree management
   worktreeCreate: (args: {

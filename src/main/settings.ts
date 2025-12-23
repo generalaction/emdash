@@ -6,6 +6,7 @@ import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
+const DEFAULT_KANBAN_ENABLED = true;
 
 export interface RepositorySettings {
   branchTemplate: string; // e.g., 'agent/{slug}-{timestamp}'
@@ -39,6 +40,11 @@ export interface AppSettings {
   projects?: {
     defaultDirectory: string;
   };
+  features?: {
+    kanban?: {
+      enabled: boolean;
+    };
+  };
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -70,6 +76,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
+  },
+  features: {
+    kanban: {
+      enabled: DEFAULT_KANBAN_ENABLED,
+    },
   },
 };
 
@@ -160,6 +171,11 @@ function normalizeSettings(input: AppSettings): AppSettings {
         installHintsDismissed: {},
       },
     },
+    features: {
+      kanban: {
+        enabled: DEFAULT_KANBAN_ENABLED,
+      },
+    },
   };
 
   // Repository
@@ -233,6 +249,15 @@ function normalizeSettings(input: AppSettings): AppSettings {
   }
   out.projects = {
     defaultDirectory: defaultDir,
+  };
+
+  // Features
+  const features = (input as any)?.features || {};
+  const kanban = features?.kanban || {};
+  out.features = {
+    kanban: {
+      enabled: Boolean(kanban?.enabled ?? DEFAULT_KANBAN_ENABLED),
+    },
   };
 
   return out;

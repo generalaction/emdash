@@ -132,6 +132,7 @@ const AppContent: React.FC = () => {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
+  const [kanbanEnabled, setKanbanEnabled] = useState<boolean>(true);
   const showGithubRequirement = !ghInstalled || !isAuthenticated;
   // Show agent requirements block if we have status data and none of the CLI providers are detected locally.
   const showAgentRequirement =
@@ -501,6 +502,34 @@ const AppContent: React.FC = () => {
 
     loadAppData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load kanban enabled setting
+  useEffect(() => {
+    const loadKanbanSetting = async () => {
+      try {
+        const result = await window.electronAPI.getSettings();
+        if (result.success && result.settings) {
+          const enabled = Boolean(result.settings.features?.kanban?.enabled ?? true);
+          setKanbanEnabled(enabled);
+        }
+      } catch (error) {
+        console.error('Failed to load kanban setting:', error);
+      }
+    };
+
+    loadKanbanSetting();
+
+    // Listen for settings updates
+    const cleanup = window.electronAPI.onSettingsUpdated?.((updatedSettings) => {
+      if (updatedSettings.features?.kanban?.enabled !== undefined) {
+        setKanbanEnabled(updatedSettings.features.kanban.enabled);
+      }
+    });
+
+    return () => {
+      cleanup?.();
+    };
   }, []);
 
   const handleOpenProject = async () => {
@@ -1933,7 +1962,7 @@ const AppContent: React.FC = () => {
               githubUser={user}
               onToggleKanban={handleToggleKanban}
               isKanbanOpen={Boolean(showKanban)}
-              kanbanAvailable={Boolean(selectedProject)}
+              kanbanAvailable={kanbanEnabled && Boolean(selectedProject)}
             />
             <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
               <ResizablePanelGroup

@@ -1,6 +1,59 @@
 // Updated for Codex integration
 import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
 
+type AppSettings = {
+  repository: { branchTemplate: string; pushOnCreate: boolean };
+  projectPrep?: { autoInstallOnOpenInEditor: boolean };
+  browserPreview?: { enabled: boolean; engine: 'chromium' };
+  notifications?: { enabled: boolean; sound: boolean };
+  mcp?: {
+    context7?: {
+      enabled: boolean;
+      installHintsDismissed?: Record<string, boolean>;
+    };
+  };
+  defaultProvider?: string;
+  tasks?: {
+    autoGenerateName: boolean;
+    autoApproveByDefault: boolean;
+  };
+  projects?: {
+    defaultDirectory: string;
+  };
+  features?: {
+    kanban?: {
+      enabled: boolean;
+    };
+  };
+};
+
+// Settings update type - allows partial updates at all nesting levels
+type AppSettingsUpdate = {
+  repository?: { branchTemplate?: string; pushOnCreate?: boolean };
+  projectPrep?: { autoInstallOnOpenInEditor?: boolean };
+  browserPreview?: { enabled?: boolean; engine?: 'chromium' };
+  notifications?: { enabled?: boolean; sound?: boolean };
+  mcp?: {
+    context7?: {
+      enabled?: boolean;
+      installHintsDismissed?: Record<string, boolean>;
+    };
+  };
+  defaultProvider?: string;
+  tasks?: {
+    autoGenerateName?: boolean;
+    autoApproveByDefault?: boolean;
+  };
+  projects?: {
+    defaultDirectory?: string;
+  };
+  features?: {
+    kanban?: {
+      enabled?: boolean;
+    };
+  };
+};
+
 type ProjectSettingsPayload = {
   projectId: string;
   name: string;
@@ -27,75 +80,9 @@ declare global {
       onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
 
       // App settings
-      getSettings: () => Promise<{
-        success: boolean;
-        settings?: {
-          repository: { branchTemplate: string; pushOnCreate: boolean };
-          projectPrep?: { autoInstallOnOpenInEditor: boolean };
-          browserPreview?: { enabled: boolean; engine: 'chromium' };
-          notifications?: { enabled: boolean; sound: boolean };
-          mcp?: {
-            context7?: {
-              enabled: boolean;
-              installHintsDismissed?: Record<string, boolean>;
-            };
-          };
-          defaultProvider?: string;
-          tasks?: {
-            autoGenerateName: boolean;
-            autoApproveByDefault: boolean;
-          };
-          projects?: {
-            defaultDirectory: string;
-          };
-        };
-        error?: string;
-      }>;
-      updateSettings: (
-        settings: Partial<{
-          repository: { branchTemplate?: string; pushOnCreate?: boolean };
-          projectPrep: { autoInstallOnOpenInEditor?: boolean };
-          browserPreview: { enabled?: boolean; engine?: 'chromium' };
-          notifications: { enabled?: boolean; sound?: boolean };
-          mcp: {
-            context7?: {
-              enabled?: boolean;
-              installHintsDismissed?: Record<string, boolean>;
-            };
-          };
-          defaultProvider?: string;
-          tasks?: {
-            autoGenerateName?: boolean;
-            autoApproveByDefault?: boolean;
-          };
-          projects?: {
-            defaultDirectory?: string;
-          };
-        }>
-      ) => Promise<{
-        success: boolean;
-        settings?: {
-          repository: { branchTemplate: string; pushOnCreate: boolean };
-          projectPrep?: { autoInstallOnOpenInEditor: boolean };
-          browserPreview?: { enabled: boolean; engine: 'chromium' };
-          notifications?: { enabled: boolean; sound: boolean };
-          mcp?: {
-            context7?: {
-              enabled: boolean;
-              installHintsDismissed?: Record<string, boolean>;
-            };
-          };
-          defaultProvider?: string;
-          tasks?: {
-            autoGenerateName: boolean;
-            autoApproveByDefault: boolean;
-          };
-          projects?: {
-            defaultDirectory: string;
-          };
-        };
-        error?: string;
-      }>;
+      getSettings: () => Promise<{ success: boolean; settings?: AppSettings; error?: string }>;
+      updateSettings: (settings: AppSettingsUpdate) => Promise<{ success: boolean; settings?: AppSettings; error?: string }>;
+      onSettingsUpdated: (listener: (settings: AppSettings) => void) => () => void;
 
       // PTY
       ptyStart: (opts: {
