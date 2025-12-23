@@ -507,6 +507,21 @@ const stripEffortSuffix = (label?: string | null): string | null => {
   return label.replace(/\s*\([^)]+\)\s*$/, '').trim();
 };
 
+const formatModelLabel = (label: string): string => {
+  const parts = label.split(/[-\s]+/).filter(Boolean);
+  if (!parts.length) return label;
+  const formatted = parts.map((part) => {
+    const lower = part.toLowerCase();
+    if (lower === 'gpt') return 'GPT';
+    if (lower === 'codex') return 'Codex';
+    if (lower === 'mini') return 'Mini';
+    if (lower === 'max') return 'Max';
+    if (/^\d+(\.\d+)?$/.test(part)) return part;
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  });
+  return formatted.join('-');
+};
+
 const splitModelId = (modelId?: string | null, label?: string | null) => {
   if (!modelId) {
     return {
@@ -1437,17 +1452,18 @@ const AcpChatInterface: React.FC<Props> = ({
       const parts = splitModelId(variant.id, variant.label);
       const baseId = parts.baseId || variant.id;
       const baseLabel = stripEffortSuffix(variant.label) ?? baseId;
+      const formattedLabel = formatModelLabel(baseLabel);
       const entry =
         map.get(baseId) ?? {
           baseId,
-          label: baseLabel,
+          label: formattedLabel,
           description: variant.description,
           variants: [],
           efforts: new Set<string>(),
         };
       entry.variants.push({ ...variant, baseId, effort: parts.effort });
       if (parts.effort) entry.efforts.add(parts.effort);
-      if (!entry.label && baseLabel) entry.label = baseLabel;
+      if (!entry.label && formattedLabel) entry.label = formattedLabel;
       map.set(baseId, entry);
     }
     return map;
@@ -1518,6 +1534,8 @@ const AcpChatInterface: React.FC<Props> = ({
   const activeBudgetLabel = EFFORT_LABELS[activeBudgetLevel];
   const activeBudgetIndex = Math.max(0, availableBudgetLevels.indexOf(activeBudgetLevel));
   const dotCount = Math.max(1, availableBudgetLevels.length);
+  const dotSize = dotCount >= 4 ? 3 : 4;
+  const dotGap = dotCount >= 4 ? 2 : 3;
   const canSetThinkingBudget =
     Boolean(sessionId) &&
     (Boolean(thinkingConfigId) || Boolean(selectedModelEntry?.variants.length) || Boolean(fallbackThinkingConfigId));
@@ -2357,13 +2375,15 @@ const AcpChatInterface: React.FC<Props> = ({
                   >
                     <Brain className="h-4 w-4" />
                     <span
-                      className="flex flex-col-reverse items-center justify-center gap-1"
+                      className="flex flex-col-reverse items-center justify-center"
+                      style={{ gap: `${dotGap}px` }}
                       aria-hidden="true"
                     >
                       {Array.from({ length: dotCount }).map((_, idx) => (
                         <span
                           key={`thinking-dot-${idx}`}
-                          className={`h-1 w-1 rounded-full ${
+                          style={{ width: `${dotSize}px`, height: `${dotSize}px` }}
+                          className={`rounded-full ${
                             idx <= activeBudgetIndex ? 'bg-current' : 'bg-muted-foreground/30'
                           }`}
                         />
