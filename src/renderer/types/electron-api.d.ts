@@ -29,7 +29,9 @@ declare global {
 
       // App settings
       getSettings: () => Promise<{ success: boolean; settings?: AppSettings; error?: string }>;
-      updateSettings: (settings: AppSettingsUpdate) => Promise<{ success: boolean; settings?: AppSettings; error?: string }>;
+      updateSettings: (
+        settings: AppSettingsUpdate
+      ) => Promise<{ success: boolean; settings?: AppSettings; error?: string }>;
       onSettingsUpdated: (listener: (settings: AppSettings) => void) => () => void;
 
       // PTY

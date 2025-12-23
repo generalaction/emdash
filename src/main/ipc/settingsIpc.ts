@@ -22,19 +22,22 @@ export function registerSettingsIpc() {
     }
   });
 
-  ipcMain.handle('settings:update', async (_event: IpcMainInvokeEvent, partial: Partial<AppSettings>) => {
-    try {
-      const settings = updateAppSettings(partial || {});
+  ipcMain.handle(
+    'settings:update',
+    async (_event: IpcMainInvokeEvent, partial: Partial<AppSettings>) => {
+      try {
+        const settings = updateAppSettings(partial || {});
 
-      // Notify all renderer processes about settings update
-      const windows = BrowserWindow.getAllWindows();
-      for (const win of windows) {
-        win.webContents.send('settings-updated', settings);
+        // Notify all renderer processes about settings update
+        const windows = BrowserWindow.getAllWindows();
+        for (const win of windows) {
+          win.webContents.send('settings-updated', settings);
+        }
+
+        return { success: true, settings };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
       }
-
-      return { success: true, settings };
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
     }
-  });
+  );
 }
