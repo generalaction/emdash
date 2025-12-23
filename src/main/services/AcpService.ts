@@ -4,6 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { extractCurrentModelId, extractModelsFromPayload } from '../../shared/acpUtils';
+import type { AcpConfigOption, AcpModel } from '../../shared/types/acp';
 import { log } from '../lib/logger';
 
 type JsonRpcMessage = {
@@ -45,8 +46,8 @@ type AcpSessionState = {
   cwd: string;
   proc: ChildProcessWithoutNullStreams;
   sessionId: string;
-  configOptions?: any[];
-  models?: any[];
+  configOptions?: AcpConfigOption[];
+  models?: AcpModel[];
   currentModelId?: string | null;
   pending: Map<number, PendingRequest>;
   pendingMeta: Map<number, { method: string; createdAt: number }>;
@@ -146,7 +147,7 @@ function maybeLogRaw(label: string, payload: any) {
   }
 }
 
-function extractConfigOptions(payload: any): any[] {
+function extractConfigOptions(payload: any): AcpConfigOption[] {
   if (!payload) return [];
   const direct =
     payload.configOptions ??
@@ -154,13 +155,13 @@ function extractConfigOptions(payload: any): any[] {
     payload.configs ??
     payload.options ??
     payload.config?.options;
-  if (Array.isArray(direct)) return direct;
+  if (Array.isArray(direct)) return direct as AcpConfigOption[];
   const nested =
     payload.configOptions?.options ??
     payload.config_options?.options ??
     payload.config?.configOptions ??
     payload.config?.config_options;
-  if (Array.isArray(nested)) return nested;
+  if (Array.isArray(nested)) return nested as AcpConfigOption[];
   return [];
 }
 

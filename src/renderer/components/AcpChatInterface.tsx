@@ -3,9 +3,12 @@ import {
   AlertTriangle,
   ArrowUp,
   Brain,
+  Check,
   ChevronDown,
+  ChevronRight,
   Circle,
   Clipboard,
+  Copy,
   FileText,
   Paperclip,
   Pencil,
@@ -32,8 +35,10 @@ import { Task } from '../types/chat';
 import { type Provider } from '../types';
 import InstallBanner from './InstallBanner';
 import { Button } from './ui/button';
+import { Spinner } from './ui/spinner';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { extractCurrentModelId, extractModelsFromPayload } from '@shared/acpUtils';
+import type { AcpConfigOption, AcpModel } from '@shared/types/acp';
 import {
   Select,
   SelectContent,
@@ -97,6 +102,7 @@ type FeedItem =
       blocks: ContentBlock[];
       streaming?: boolean;
       messageKind?: 'thought' | 'system';
+      runDurationMs?: number;
     }
   | { id: string; type: 'tool'; toolCallId: string }
   | {
@@ -147,6 +153,25 @@ const truncateText = (text: string, limit: number = DEFAULT_TRUNCATE_LIMIT) => {
   const clipped = Math.max(0, limit - 3);
   return `${text.slice(0, clipped)}...`;
 };
+
+const pluralize = (value: number, noun: string) =>
+  value === 1 ? `${value} ${noun}` : `${value} ${noun}s`;
+
+const collapseWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const formatDuration = (ms: number) => {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+};
+
+const LoadingTimer: React.FC<{ label: string }> = ({ label }) => (
+  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <Spinner size="sm" className="text-muted-foreground/70" aria-hidden="true" />
+    <span className="tabular-nums">{label}</span>
+  </div>
+);
 
 const commonPrefixLength = (a: string[], b: string[]) => {
   const max = Math.min(a.length, b.length);
@@ -751,6 +776,11 @@ const AcpChatInterface: React.FC<Props> = ({
   const [models, setModels] = useState<AcpModel[]>([]);
   const [currentModelId, setCurrentModelId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [runElapsedMs, setRunElapsedMs] = useState(0);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const runStartedAtRef = useRef<number | null>(null);
+  const lastAssistantMessageIdRef = useRef<string | null>(null);
+  const copyResetRef = useRef<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -794,6 +824,24 @@ const AcpChatInterface: React.FC<Props> = ({
   useEffect(() => {
     scrollToBottom('auto');
   }, [feed.length, scrollToBottom]);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetRef.current !== null) {
+        window.clearTimeout(copyResetRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isRunning || runStartedAtRef.current === null) return;
+    setRunElapsedMs(Date.now() - runStartedAtRef.current);
+    const interval = window.setInterval(() => {
+      if (runStartedAtRef.current === null) return;
+      setRunElapsedMs(Date.now() - runStartedAtRef.current);
+    }, 250);
+    return () => window.clearInterval(interval);
+  }, [isRunning]);
 
   useEffect(() => {
     setAgentId(String(provider || 'codex'));
@@ -867,11 +915,13 @@ const AcpChatInterface: React.FC<Props> = ({
         uiLog('session_error', payload.error);
         setSessionError(payload.error || 'ACP session error');
         setIsRunning(false);
+        runStartedAtRef.current = null;
         return;
       }
       if (payload.type === 'session_exit') {
         uiLog('session_exit', payload);
         setIsRunning(false);
+        runStartedAtRef.current = null;
         if (!sessionError) {
           setSessionError('ACP session ended.');
         }
@@ -879,12 +929,32 @@ const AcpChatInterface: React.FC<Props> = ({
       }
       if (payload.type === 'prompt_end') {
         uiLog('prompt_end', payload);
+        const durationMs =
+          runStartedAtRef.current !== null ? Date.now() - runStartedAtRef.current : runElapsedMs;
         setIsRunning(false);
-        setFeed((prev) =>
-          prev.map((item) =>
-            item.type === 'message' && item.streaming ? { ...item, streaming: false } : item
-          )
-        );
+        runStartedAtRef.current = null;
+        setRunElapsedMs(durationMs);
+        setFeed((prev) => {
+          const lastAssistantId = lastAssistantMessageIdRef.current;
+          const next = prev.map((item) => {
+            return item.type === 'message' && item.streaming
+              ? { ...item, streaming: false }
+              : item;
+          });
+          if (lastAssistantId && Number.isFinite(durationMs)) {
+            const targetIndex = next.findIndex(
+              (item) => item.type === 'message' && item.id === lastAssistantId
+            );
+            if (targetIndex >= 0) {
+              const target = next[targetIndex];
+              if (target.type === 'message') {
+                next[targetIndex] = { ...target, runDurationMs: durationMs };
+              }
+            }
+          }
+          return next;
+        });
+        lastAssistantMessageIdRef.current = null;
         if (payload.stopReason) {
           const stopReason = String(payload.stopReason).trim();
           if (stopReason && stopReason !== 'end_turn') {
@@ -1120,6 +1190,20 @@ const AcpChatInterface: React.FC<Props> = ({
     return resourceBlock?.resource?.text || '';
   };
 
+  const buildCopyText = (blocks: ContentBlock[]) => {
+    const parts: string[] = [];
+    blocks.forEach((block) => {
+      if (block.type === 'text' && block.text) {
+        parts.push(block.text);
+        return;
+      }
+      if (block.type === 'resource' && block.resource?.text) {
+        parts.push(block.resource.text);
+      }
+    });
+    return parts.join('\n\n').trim();
+  };
+
   const appendMessage = (
     role: 'user' | 'assistant' | 'system',
     blocks: ContentBlock[],
@@ -1140,18 +1224,25 @@ const AcpChatInterface: React.FC<Props> = ({
         const merged = mergeBlocks(last.blocks, blocks);
         const next = [...prev];
         next[next.length - 1] = { ...last, blocks: merged };
+        if (role === 'assistant' && messageKind !== 'thought') {
+          lastAssistantMessageIdRef.current = last.id;
+        }
         return next;
+      }
+      const newItem = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'message' as const,
+        role,
+        blocks,
+        streaming,
+        messageKind,
+      };
+      if (role === 'assistant' && messageKind !== 'thought') {
+        lastAssistantMessageIdRef.current = newItem.id;
       }
       return [
         ...prev,
-        {
-          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          type: 'message',
-          role,
-          blocks,
-          streaming,
-          messageKind,
-        },
+        newItem,
       ];
     });
   };
@@ -1164,6 +1255,9 @@ const AcpChatInterface: React.FC<Props> = ({
     const promptBlocks = buildPromptBlocks(trimmed);
     appendMessage('user', promptBlocks);
     setAttachments([]);
+    runStartedAtRef.current = Date.now();
+    lastAssistantMessageIdRef.current = null;
+    setRunElapsedMs(0);
     setIsRunning(true);
     uiLog('sendPrompt', { sessionId, blocks: promptBlocks });
     const res = await window.electronAPI.acpSendPrompt({
@@ -1174,6 +1268,8 @@ const AcpChatInterface: React.FC<Props> = ({
     if (!res?.success) {
       setSessionError(res?.error || 'Failed to send prompt.');
       setIsRunning(false);
+      runStartedAtRef.current = null;
+      setRunElapsedMs(0);
     }
   };
 
@@ -1182,6 +1278,7 @@ const AcpChatInterface: React.FC<Props> = ({
     uiLog('cancelSession', { sessionId });
     await window.electronAPI.acpCancel({ sessionId });
     setIsRunning(false);
+    runStartedAtRef.current = null;
     setToolCalls((prev) => {
       const next: Record<string, ToolCall> = {};
       for (const [id, call] of Object.entries(prev)) {
@@ -1343,6 +1440,19 @@ const AcpChatInterface: React.FC<Props> = ({
     const match = commands.find((cmd) => cmd.name.toLowerCase() === name.toLowerCase());
     return match?.hint || null;
   }, [commands, input]);
+
+  const runTimerLabel = useMemo(() => formatDuration(runElapsedMs), [runElapsedMs]);
+
+  const latestToolCallId = useMemo(() => {
+    for (let i = feed.length - 1; i >= 0; i -= 1) {
+      const item = feed[i];
+      if (item.type === 'tool') return item.toolCallId;
+    }
+    return null;
+  }, [feed]);
+
+  const showInlineToolLoading = isRunning && Boolean(latestToolCallId);
+  const showBottomLoading = isRunning && !latestToolCallId;
 
   const canSend = input.trim().length > 0 || attachments.length > 0;
   const modelConfigOption = useMemo(
@@ -1612,6 +1722,31 @@ const AcpChatInterface: React.FC<Props> = ({
     uiLog,
   ]);
 
+  const handleCopyMessage = useCallback(
+    async (messageId: string, text: string) => {
+      if (!text) return;
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+        console.error('Clipboard API not available in this environment');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopiedMessageId(messageId);
+        if (copyResetRef.current !== null) {
+          window.clearTimeout(copyResetRef.current);
+        }
+        copyResetRef.current = window.setTimeout(() => {
+          setCopiedMessageId(null);
+          copyResetRef.current = null;
+        }, 2000);
+      } catch (error) {
+        console.error('Failed to copy message', error);
+        setCopiedMessageId(null);
+      }
+    },
+    [] // eslint-disable-line react-hooks/exhaustive-deps -- Intentionally empty to avoid recreating callback; uses latest state via setState
+  );
+
   const renderContentBlocks = (
     blocks: ContentBlock[],
     options?: { compact?: boolean; maxPreviewChars?: number }
@@ -1718,12 +1853,13 @@ const AcpChatInterface: React.FC<Props> = ({
     icon: React.ReactNode;
     label: string;
     target?: string;
+    leftMeta?: React.ReactNode;
     meta?: React.ReactNode;
     status?: string;
     expanded?: boolean;
     onToggle?: () => void;
     children?: React.ReactNode;
-  }> = ({ id, icon, label, target, meta, status, expanded, onToggle, children }) => {
+  }> = ({ id, icon, label, target, leftMeta, meta, status, expanded, onToggle, children }) => {
     const showStatus =
       status !== undefined && ['failed', 'cancelled', 'error'].includes(status);
     const statusClass =
@@ -1744,9 +1880,12 @@ const AcpChatInterface: React.FC<Props> = ({
           </span>
           <span className="min-w-0 flex-1 overflow-hidden text-sm">
             <span className="font-medium text-foreground">{label}</span>
-            {target ? (
-              <span className="ml-2 overflow-hidden whitespace-nowrap text-muted-foreground">
-                {target}
+            {(target || leftMeta) ? (
+              <span className="ml-2 inline-flex min-w-0 items-center gap-2 overflow-hidden text-muted-foreground">
+                {target ? (
+                  <span className="overflow-hidden whitespace-nowrap">{target}</span>
+                ) : null}
+                {leftMeta ? <span className="flex items-center gap-2">{leftMeta}</span> : null}
               </span>
             ) : null}
           </span>
@@ -1806,7 +1945,7 @@ const AcpChatInterface: React.FC<Props> = ({
     );
   };
 
-  const renderToolCall = (toolCallId: string) => {
+  const renderToolCall = (toolCallId: string, options?: { showLoading?: boolean }) => {
     const toolCall = toolCalls[toolCallId];
     if (!toolCall) return null;
     const status = toolCall.status || 'pending';
@@ -1909,11 +2048,15 @@ const AcpChatInterface: React.FC<Props> = ({
           : action === 'tool'
             ? primaryPath || query
             : primaryPath || toolCall.title || toolCall.kind;
-    const targetWithDiff =
-      hasDiff && target
-        ? `${target} (+${diffTotals.additions} -${diffTotals.deletions})`
-        : target;
-    const displayTarget = targetWithDiff ? truncateText(String(targetWithDiff), 160) : undefined;
+    const displayTarget = target
+      ? truncateText(collapseWhitespace(String(target)), 160)
+      : undefined;
+    const leftMeta = hasDiff ? (
+      <>
+        <span className="text-emerald-600">+{diffTotals.additions}</span>
+        <span className="text-red-600">-{diffTotals.deletions}</span>
+      </>
+    ) : null;
 
     let meta: React.ReactNode = null;
     if (action === 'view') {
@@ -1932,59 +2075,69 @@ const AcpChatInterface: React.FC<Props> = ({
       if (sources) meta = <span>{sources} sources</span>;
     }
 
+    const showLoading = Boolean(options?.showLoading);
+
     return (
-      <ActionRow
-        key={expandedKey}
-        id={expandedKey}
-        icon={icon}
-        label={label}
-        target={displayTarget}
-        meta={meta}
-        status={status}
-        expanded={expanded}
-        onToggle={() => toggleExpanded(expandedKey)}
-      >
-        <div className="space-y-2 text-sm text-foreground">
-          {diffPreviews.length ? (
-            <div className="space-y-2">
-              {diffPreviews.map((diff, idx) => (
-                <div key={`${diff.path || 'diff'}-${idx}`}>{renderDiffPreview(diff)}</div>
-              ))}
-            </div>
-          ) : null}
-          {contentBlocks.length ? (
-            <div className="space-y-2">
-              {contentBlocks.map((item, idx) => (
-                <div key={idx}>{renderContentBlocks([item.content], { compact: true, maxPreviewChars: 280 })}</div>
-              ))}
-            </div>
-          ) : null}
-          {terminalItems.length ? (
-            <div className="space-y-2">
-              {terminalItems.map((item, idx) => {
-                const output = terminalOutputs[item.terminalId] || '';
-                const tail = getTailLines(output, 60);
-                return (
-                  <div
-                    key={`${item.terminalId}-${idx}`}
-                    className="rounded-md bg-black/90 px-3 py-2 text-xs text-white"
-                  >
-                    <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">
-                      Terminal output
-                    </div>
-                    <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words">
-                      {tail.lines.join('\n')}
-                    </pre>
-                    {tail.truncated ? (
-                      <div className="mt-1 text-[11px] text-white/60">Output truncated</div>
-                    ) : null}
+      <div key={expandedKey} className="space-y-1">
+        <ActionRow
+          id={expandedKey}
+          icon={icon}
+          label={label}
+          target={displayTarget}
+          leftMeta={leftMeta}
+          meta={meta}
+          status={status}
+          expanded={expanded}
+          onToggle={() => toggleExpanded(expandedKey)}
+        >
+          <div className="space-y-2 text-sm text-foreground">
+            {diffPreviews.length ? (
+              <div className="space-y-2">
+                {diffPreviews.map((diff, idx) => (
+                  <div key={`${diff.path || 'diff'}-${idx}`}>{renderDiffPreview(diff)}</div>
+                ))}
+              </div>
+            ) : null}
+            {contentBlocks.length ? (
+              <div className="space-y-2">
+                {contentBlocks.map((item, idx) => (
+                  <div key={idx}>
+                    {renderContentBlocks([item.content], {
+                      compact: true,
+                      maxPreviewChars: 280,
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
-      </ActionRow>
+                ))}
+              </div>
+            ) : null}
+            {terminalItems.length ? (
+              <div className="space-y-2">
+                {terminalItems.map((item, idx) => {
+                  const output = terminalOutputs[item.terminalId] || '';
+                  const tail = getTailLines(output, 60);
+                  return (
+                    <div
+                      key={`${item.terminalId}-${idx}`}
+                      className="rounded-md bg-black/90 px-3 py-2 text-xs text-white"
+                    >
+                      <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">
+                        Terminal output
+                      </div>
+                      <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words">
+                        {tail.lines.join('\n')}
+                      </pre>
+                      {tail.truncated ? (
+                        <div className="mt-1 text-[11px] text-white/60">Output truncated</div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </ActionRow>
+        {showLoading ? <LoadingTimer label={runTimerLabel} /> : null}
+      </div>
     );
   };
 
@@ -2042,6 +2195,59 @@ const AcpChatInterface: React.FC<Props> = ({
     );
   };
 
+  const renderToolThoughtGroup = (
+    groupId: string,
+    buffer: FeedItem[],
+    expanded: boolean,
+    showLoading: boolean
+  ) => {
+    const toolCount = buffer.filter((item) => item.type === 'tool').length;
+    const thoughtCount = buffer.filter(
+      (item) => item.type === 'message' && item.messageKind === 'thought'
+    ).length;
+    if (!toolCount && !thoughtCount) return null;
+    const parts: string[] = [];
+    if (toolCount) parts.push(pluralize(toolCount, 'tool call'));
+    if (thoughtCount) parts.push(pluralize(thoughtCount, 'thought'));
+    return (
+      <div key={groupId} className="rounded-md">
+        <button
+          type="button"
+          onClick={() => toggleExpanded(groupId)}
+          aria-expanded={expanded}
+          className="group flex items-center gap-2 rounded-md px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
+        >
+          <ChevronRight
+            className={`h-3.5 w-3.5 transition-transform ${
+              expanded ? 'rotate-90' : ''
+            }`}
+          />
+          <span>{parts.join(', ')}</span>
+        </button>
+        {expanded ? (
+          <div className="mt-1 space-y-2">
+            {buffer.map((item) => {
+              if (item.type === 'tool') {
+                return renderToolCall(item.toolCallId, {
+                  showLoading: showLoading && item.toolCallId === latestToolCallId,
+                });
+              }
+              if (item.type === 'message' && item.messageKind === 'thought') {
+                return renderThoughtMessage(item);
+              }
+              return null;
+            })}
+          </div>
+        ) : null}
+        {showLoading && !expanded ? (
+          <div className="mt-1">
+            <LoadingTimer label={runTimerLabel} />
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderThoughtMessage = (item: Extract<FeedItem, { type: 'message' }>) => {
     const expandedKey = `thought-${item.id}`;
     const expanded = Boolean(expandedItems[expandedKey]);
@@ -2080,12 +2286,32 @@ const AcpChatInterface: React.FC<Props> = ({
       : isUser
         ? 'max-w-[75%] rounded-2xl border border-sky-500/40 bg-sky-600 px-4 py-3 text-white shadow-sm dark:bg-sky-500/80'
         : 'max-w-[80%] text-sm text-foreground';
+    const showFooter =
+      item.role === 'assistant' &&
+      !item.messageKind &&
+      typeof item.runDurationMs === 'number';
+    const messageText = showFooter ? buildCopyText(item.blocks) : '';
+    const CopyIcon = copiedMessageId === item.id ? Check : Copy;
     return (
       <div key={item.id} className={wrapperClass}>
         <div className={base}>
           <div className={item.streaming && !isUser ? 'shimmer-text' : ''}>
             {renderContentBlocks(item.blocks)}
           </div>
+          {showFooter ? (
+            <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="tabular-nums">{formatDuration(item.runDurationMs ?? 0)}</span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded border border-border/60 bg-background/80 px-2 py-0.5 text-[11px] text-foreground hover:bg-background"
+                onClick={() => handleCopyMessage(item.id, messageText)}
+                disabled={!messageText}
+              >
+                <CopyIcon className="h-3 w-3" />
+                <span>{copiedMessageId === item.id ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -2146,18 +2372,96 @@ const AcpChatInterface: React.FC<Props> = ({
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-6">
           <div className="mx-auto flex max-w-4xl flex-col gap-3 pb-8">
-            {feed.map((item) => {
-              if (item.type === 'message') return renderMessage(item);
-              if (item.type === 'tool') return renderToolCall(item.toolCallId);
-              if (item.type === 'plan') {
-                return null;
-              }
-              if (item.type === 'permission') {
-                const request = permissions[item.requestId];
-                return request ? renderPermission(request) : null;
-              }
-              return null;
-            })}
+            {(() => {
+              const rendered: React.ReactNode[] = [];
+              let buffer: FeedItem[] = [];
+
+              const flushInline = () => {
+                if (!buffer.length) return;
+                buffer.forEach((item) => {
+                  if (item.type === 'tool') {
+                    rendered.push(
+                      renderToolCall(item.toolCallId, {
+                        showLoading: showInlineToolLoading && item.toolCallId === latestToolCallId,
+                      })
+                    );
+                  }
+                  if (item.type === 'message' && item.messageKind === 'thought') {
+                    rendered.push(renderThoughtMessage(item));
+                  }
+                });
+                buffer = [];
+              };
+
+              const canCollapseBuffer = (
+                assistantItem: Extract<FeedItem, { type: 'message' }>
+              ) => {
+                if (!buffer.length) return false;
+                if (assistantItem.streaming) return false;
+                for (const item of buffer) {
+                  if (item.type === 'tool') {
+                    const status = toolCalls[item.toolCallId]?.status;
+                    if (!status || !['completed', 'failed', 'cancelled'].includes(status)) {
+                      return false;
+                    }
+                  }
+                  if (item.type === 'message' && item.messageKind === 'thought') {
+                    if (item.streaming) return false;
+                  }
+                }
+                return true;
+              };
+
+              feed.forEach((item) => {
+                if (
+                  (item.type === 'tool') ||
+                  (item.type === 'message' && item.messageKind === 'thought')
+                ) {
+                  buffer.push(item);
+                  return;
+                }
+
+                if (item.type === 'message' && item.role === 'assistant') {
+                  const shouldCollapse = canCollapseBuffer(item);
+                  if (!shouldCollapse) {
+                    flushInline();
+                  } else {
+                    const groupId = `tools-${item.id}`;
+                    const expanded = Boolean(expandedItems[groupId]);
+                    const hasLatest =
+                      showInlineToolLoading &&
+                      Boolean(
+                        latestToolCallId &&
+                          buffer.some(
+                            (buffered) =>
+                              buffered.type === 'tool' &&
+                              buffered.toolCallId === latestToolCallId
+                          )
+                      );
+                    rendered.push(renderToolThoughtGroup(groupId, buffer, expanded, hasLatest));
+                    buffer = [];
+                  }
+                  rendered.push(renderMessage(item));
+                  return;
+                }
+
+                flushInline();
+
+                if (item.type === 'message') {
+                  rendered.push(renderMessage(item));
+                  return;
+                }
+                if (item.type === 'permission') {
+                  const request = permissions[item.requestId];
+                  rendered.push(request ? renderPermission(request) : null);
+                  return;
+                }
+              });
+
+              flushInline();
+              return rendered;
+            })()}
+            {showBottomLoading ? <LoadingTimer label={runTimerLabel} /> : null}
             <div ref={bottomRef} />
           </div>
         </div>
