@@ -583,7 +583,7 @@ class AcpService {
       if (currentModelId) {
         state.currentModelId = currentModelId;
       }
-      if (configOptions.length || models.length || currentModelId) {
+      if (configOptions.length || models.length || currentModelId != null) {
         emitEvent({
           type: 'session_update',
           taskId: state.taskId,
