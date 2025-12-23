@@ -44,6 +44,9 @@ type AcpSessionState = {
   cwd: string;
   proc: ChildProcessWithoutNullStreams;
   sessionId: string;
+  configOptions?: any[];
+  models?: any[];
+  currentModelId?: string | null;
   pending: Map<number, PendingRequest>;
   pendingMeta: Map<number, { method: string; createdAt: number }>;
   pendingPermissions: Set<number>;
@@ -140,6 +143,72 @@ function maybeLogRaw(label: string, payload: any) {
   } catch {
     acpLog(label, '[unserializable]');
   }
+}
+
+function extractConfigOptions(payload: any): any[] {
+  if (!payload) return [];
+  const direct =
+    payload.configOptions ??
+    payload.config_options ??
+    payload.configs ??
+    payload.options ??
+    payload.config?.options;
+  if (Array.isArray(direct)) return direct;
+  const nested =
+    payload.configOptions?.options ??
+    payload.config_options?.options ??
+    payload.config?.configOptions ??
+    payload.config?.config_options;
+  if (Array.isArray(nested)) return nested;
+  return [];
+}
+
+function extractModels(payload: any): any[] {
+  if (!payload) return [];
+  const direct =
+    payload.models ??
+    payload.availableModels ??
+    payload.available_models ??
+    payload.modelList ??
+    payload.model_list ??
+    payload.modelOptions ??
+    payload.model_options;
+  if (Array.isArray(direct)) return direct;
+  const nested =
+    payload.models?.available ??
+    payload.models?.availableModels ??
+    payload.models?.models ??
+    payload.modelOptions?.options ??
+    payload.model_options?.options;
+  if (Array.isArray(nested)) return nested;
+  return [];
+}
+
+function extractCurrentModelId(payload: any): string | null {
+  if (!payload) return null;
+  const nestedModels = payload.models ?? payload.modelOptions ?? payload.model_options;
+  const nestedCurrent =
+    nestedModels?.currentModelId ??
+    nestedModels?.current_model_id ??
+    nestedModels?.modelId ??
+    nestedModels?.model_id ??
+    nestedModels?.currentModel ??
+    nestedModels?.current_model;
+  if (nestedCurrent) return String(nestedCurrent);
+  const direct =
+    payload.currentModelId ??
+    payload.modelId ??
+    payload.model ??
+    payload.current_model_id ??
+    payload.current_model ??
+    payload.activeModelId ??
+    payload.active_model_id;
+  if (typeof direct === 'string' || typeof direct === 'number') return String(direct);
+  if (direct && typeof direct === 'object') {
+    const nested = direct.id ?? direct.name ?? direct.modelId ?? direct.model_id;
+    if (nested) return String(nested);
+  }
+  return null;
 }
 
 function sessionKey(taskId: string, providerId: string): SessionKey {
@@ -264,6 +333,9 @@ class AcpService {
       cwd,
       proc,
       sessionId: '',
+      configOptions: [],
+      models: [],
+      currentModelId: null,
       pending: new Map(),
       pendingMeta: new Map(),
       pendingPermissions: new Set(),
@@ -349,6 +421,16 @@ class AcpService {
       });
       acpLog('session/new:response', { taskId, providerId, sessionRes });
       const sessionId = sessionRes?.sessionId as string | undefined;
+      const configOptions = extractConfigOptions(sessionRes);
+      const models = extractModels(sessionRes);
+      const currentModelId = extractCurrentModelId(sessionRes);
+      acpLog('session/new:config', {
+        taskId,
+        providerId,
+        configOptionsCount: configOptions.length,
+        modelsCount: models.length,
+        currentModelId,
+      });
       let modes: any[] = [];
       let currentModeId: string | null =
         sessionRes?.currentModeId ?? sessionRes?.modeId ?? sessionRes?.current_mode_id ?? null;
@@ -368,6 +450,9 @@ class AcpService {
         throw new Error('Missing sessionId from ACP agent');
       }
       state.sessionId = sessionId;
+      state.configOptions = configOptions;
+      state.models = models;
+      state.currentModelId = currentModelId ?? null;
       this.sessionById.set(sessionId, state);
 
       emitEvent({
@@ -379,6 +464,9 @@ class AcpService {
         agentCapabilities: state.agentCapabilities,
         modes,
         currentModeId,
+        configOptions,
+        models,
+        currentModelId,
       });
       acpLog('session_started', { taskId, providerId, sessionId });
       return { success: true, sessionId };
@@ -467,6 +555,94 @@ class AcpService {
         sessionId,
         modeId,
       });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  async setModel(sessionId: string, modelId: string): Promise<{ success: boolean; error?: string }> {
+    const state = this.sessionById.get(sessionId);
+    acpLog('setModel', { sessionId, modelId, taskId: state?.taskId, providerId: state?.providerId });
+    if (!state) return { success: false, error: 'Session not found' };
+    if (!modelId) return { success: false, error: 'Missing modelId' };
+    try {
+      const res = await this.sendRequest(state, 'session/set_model', {
+        sessionId,
+        modelId,
+      });
+      const models = extractModels(res);
+      const currentModelId = extractCurrentModelId(res) ?? modelId;
+      if (models.length) state.models = models;
+      state.currentModelId = currentModelId;
+      const configOptions = extractConfigOptions(res);
+      if (configOptions.length) {
+        state.configOptions = configOptions;
+      }
+      emitEvent({
+        type: 'session_update',
+        taskId: state.taskId,
+        providerId: state.providerId,
+        sessionId: state.sessionId,
+        update: {
+          sessionUpdate: 'model_update',
+          models: state.models,
+          currentModelId: state.currentModelId,
+          configOptions: configOptions.length ? configOptions : undefined,
+        },
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  async setConfigOption(
+    sessionId: string,
+    configId: string,
+    value: unknown
+  ): Promise<{ success: boolean; error?: string }> {
+    const state = this.sessionById.get(sessionId);
+    acpLog('setConfigOption', {
+      sessionId,
+      configId,
+      taskId: state?.taskId,
+      providerId: state?.providerId,
+    });
+    if (!state) return { success: false, error: 'Session not found' };
+    if (!configId) return { success: false, error: 'Missing configId' };
+    try {
+      const res = await this.sendRequest(state, 'session/set_config_option', {
+        sessionId,
+        configId,
+        value,
+      });
+      const configOptions = extractConfigOptions(res);
+      const models = extractModels(res);
+      const currentModelId = extractCurrentModelId(res);
+      if (configOptions.length) {
+        state.configOptions = configOptions;
+      }
+      if (models.length) {
+        state.models = models;
+      }
+      if (currentModelId) {
+        state.currentModelId = currentModelId;
+      }
+      if (configOptions.length || models.length || currentModelId) {
+        emitEvent({
+          type: 'session_update',
+          taskId: state.taskId,
+          providerId: state.providerId,
+          sessionId: state.sessionId,
+          update: {
+            sessionUpdate: 'config_option_update',
+            configOptions: configOptions.length ? configOptions : undefined,
+            models: models.length ? models : undefined,
+            currentModelId: currentModelId ?? undefined,
+          },
+        });
+      }
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error?.message || String(error) };
@@ -684,6 +860,22 @@ class AcpService {
   private handleNotification(state: AcpSessionState, method: string, params: any) {
     if (method === 'session/update') {
       acpLog('session/update', { sessionId: params?.sessionId, updateType: params?.update?.sessionUpdate || params?.update?.type || params?.update?.kind });
+      const updateType =
+        params?.update?.sessionUpdate || params?.update?.type || params?.update?.kind;
+      if (updateType === 'config_option_update' || updateType === 'config_options_update') {
+        const nextOptions = extractConfigOptions(params?.update);
+        if (nextOptions.length) {
+          state.configOptions = nextOptions;
+        }
+      }
+      const nextModels = extractModels(params?.update);
+      if (nextModels.length) {
+        state.models = nextModels;
+      }
+      const nextCurrentModelId = extractCurrentModelId(params?.update);
+      if (nextCurrentModelId) {
+        state.currentModelId = nextCurrentModelId;
+      }
       emitEvent({
         type: 'session_update',
         taskId: state.taskId,

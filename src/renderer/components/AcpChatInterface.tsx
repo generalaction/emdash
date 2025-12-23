@@ -378,14 +378,393 @@ const statusStyles: Record<string, string> = {
   cancelled: 'text-gray-600 bg-gray-100 border-gray-200',
 };
 
-const THINKING_BUDGET_LEVELS = [
-  { id: 'none', label: 'None', dots: 0 },
-  { id: 'low', label: 'Low', dots: 1 },
-  { id: 'medium', label: 'Medium', dots: 2 },
-  { id: 'high', label: 'High', dots: 3 },
-] as const;
+type AcpConfigOption = {
+  id?: string;
+  name?: string;
+  label?: string;
+  description?: string;
+  type?: string;
+  value?: unknown;
+  currentValue?: unknown;
+  current_value?: unknown;
+  selectedValue?: unknown;
+  options?: any[];
+  possibleValues?: any[];
+  values?: any[];
+  allowedValues?: any[];
+};
 
-type ThinkingBudgetLevel = (typeof THINKING_BUDGET_LEVELS)[number]['id'];
+type ConfigChoice = {
+  value: unknown;
+  label?: string;
+  name?: string;
+  description?: string;
+};
+
+type AcpModel = {
+  id?: string;
+  name?: string;
+  label?: string;
+  displayName?: string;
+  title?: string;
+  description?: string;
+  model?: string;
+};
+
+type ModelOption = {
+  id: string;
+  label: string;
+  description?: string;
+};
+
+type ModelVariant = ModelOption & {
+  baseId: string;
+  effort?: string | null;
+};
+
+type ThinkingBudgetLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+
+const EFFORT_ORDER: ThinkingBudgetLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+const EFFORT_LABELS: Record<ThinkingBudgetLevel, string> = {
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra High',
+};
+
+const flattenConfigChoices = (choices: any[]): any[] => {
+  const flat: any[] = [];
+  for (const choice of choices) {
+    if (choice && Array.isArray(choice.options)) {
+      flat.push(...choice.options);
+    } else {
+      flat.push(choice);
+    }
+  }
+  return flat;
+};
+
+const normalizeConfigChoice = (choice: any): ConfigChoice | null => {
+  if (choice === null || choice === undefined) return null;
+  if (typeof choice === 'string' || typeof choice === 'number' || typeof choice === 'boolean') {
+    return { value: choice, label: String(choice) };
+  }
+  if (typeof choice === 'object') {
+    const value =
+      choice.value ??
+      choice.id ??
+      choice.key ??
+      choice.name ??
+      choice.label ??
+      choice.option;
+    return {
+      value,
+      label: choice.label ?? choice.name ?? (value !== undefined ? String(value) : undefined),
+      name: choice.name,
+      description: choice.description,
+    };
+  }
+  return null;
+};
+
+const extractConfigChoices = (option?: AcpConfigOption | null): ConfigChoice[] => {
+  if (!option) return [];
+  const raw =
+    (Array.isArray(option.options) && option.options) ||
+    (Array.isArray(option.possibleValues) && option.possibleValues) ||
+    (Array.isArray(option.values) && option.values) ||
+    (Array.isArray(option.allowedValues) && option.allowedValues) ||
+    [];
+  const flat = flattenConfigChoices(raw);
+  return flat.map(normalizeConfigChoice).filter(Boolean) as ConfigChoice[];
+};
+
+const getConfigOptionId = (option?: AcpConfigOption | null): string | null => {
+  if (!option) return null;
+  const id =
+    option.id ??
+    (option as any).configId ??
+    (option as any).config_id ??
+    (option as any).key ??
+    option.name;
+  return id ? String(id) : null;
+};
+
+const getConfigOptionValue = (option?: AcpConfigOption | null): unknown => {
+  if (!option) return null;
+  return (
+    option.currentValue ??
+    option.current_value ??
+    option.value ??
+    option.selectedValue ??
+    (option as any).selected ??
+    null
+  );
+};
+
+const normalizeBudgetText = (value: unknown) => String(value ?? '').toLowerCase();
+
+const normalizeEffort = (raw: unknown): string | null => {
+  if (raw === null || raw === undefined) return null;
+  const cleaned = String(raw).toLowerCase().replace(/\s+/g, '').replace(/[_-]/g, '');
+  if (!cleaned) return null;
+  if (['xhigh', 'extrahigh', 'xtra', 'xtrahigh'].includes(cleaned)) return 'xhigh';
+  if (['high'].includes(cleaned)) return 'high';
+  if (['medium', 'med'].includes(cleaned)) return 'medium';
+  if (['low'].includes(cleaned)) return 'low';
+  if (['minimal', 'min', 'none', 'off', 'disabled'].includes(cleaned)) return 'minimal';
+  return null;
+};
+
+const parseEffortFromLabel = (label?: string | null): string | null => {
+  if (!label) return null;
+  const match = label.match(/\(([^)]+)\)\s*$/);
+  if (!match) return null;
+  return normalizeEffort(match[1]);
+};
+
+const stripEffortSuffix = (label?: string | null): string | null => {
+  if (!label) return null;
+  const effort = parseEffortFromLabel(label);
+  if (!effort) return label;
+  return label.replace(/\s*\([^)]+\)\s*$/, '').trim();
+};
+
+const splitModelId = (modelId?: string | null, label?: string | null) => {
+  if (!modelId) {
+    return {
+      baseId: '',
+      effort: parseEffortFromLabel(label),
+    };
+  }
+  if (modelId.includes('/')) {
+    const parts = modelId.split('/');
+    const tail = parts[parts.length - 1];
+    const effort = normalizeEffort(tail);
+    if (effort) {
+      return {
+        baseId: parts.slice(0, -1).join('/'),
+        effort,
+      };
+    }
+  }
+  return {
+    baseId: modelId,
+    effort: parseEffortFromLabel(label),
+  };
+};
+
+const detectBudgetLevel = (text: string): ThinkingBudgetLevel | null => {
+  if (/\bminimal\b/.test(text) || /\b(none|off|disabled|disable|zero)\b/.test(text)) return 'minimal';
+  if (/\blow\b/.test(text) || text === '1') return 'low';
+  if (/\bmedium\b/.test(text) || text === '2') return 'medium';
+  if (/\bhigh\b/.test(text) || text === '3') return 'high';
+  if (/\b(xhigh|extra\s*high)\b/.test(text) || text === '4') return 'xhigh';
+  return null;
+};
+
+const budgetFromEffort = (effort?: string | null): ThinkingBudgetLevel | null => {
+  const normalized = normalizeEffort(effort);
+  if (!normalized) return null;
+  if (
+    normalized === 'minimal' ||
+    normalized === 'low' ||
+    normalized === 'medium' ||
+    normalized === 'high' ||
+    normalized === 'xhigh'
+  ) {
+    return normalized;
+  }
+  return null;
+};
+
+const chooseEffortForBudget = (
+  budget: ThinkingBudgetLevel,
+  available: Set<string>
+): ThinkingBudgetLevel | null => {
+  const normalizedAvailable = new Set(
+    Array.from(available)
+      .map((entry) => normalizeEffort(entry))
+      .filter(Boolean) as ThinkingBudgetLevel[]
+  );
+  if (normalizedAvailable.has(budget)) return budget;
+  const idx = EFFORT_ORDER.indexOf(budget);
+  for (let i = idx; i >= 0; i -= 1) {
+    const level = EFFORT_ORDER[i];
+    if (normalizedAvailable.has(level)) return level;
+  }
+  for (let i = idx + 1; i < EFFORT_ORDER.length; i += 1) {
+    const level = EFFORT_ORDER[i];
+    if (normalizedAvailable.has(level)) return level;
+  }
+  return null;
+};
+
+const buildBudgetMapping = (option?: AcpConfigOption | null) => {
+  const choices = extractConfigChoices(option);
+  const budgetToChoice = new Map<ThinkingBudgetLevel, ConfigChoice>();
+  const valueToBudget = new Map<string, ThinkingBudgetLevel>();
+  const availableLevels = new Set<ThinkingBudgetLevel>();
+  for (const choice of choices) {
+    const label = normalizeBudgetText(
+      [choice.label, choice.name, choice.value, choice.description].filter(Boolean).join(' ')
+    );
+    const level = detectBudgetLevel(label);
+    if (level && !budgetToChoice.has(level)) {
+      budgetToChoice.set(level, choice);
+    }
+    if (level && choice.value !== undefined) {
+      valueToBudget.set(String(choice.value), level);
+    }
+    if (level) {
+      availableLevels.add(level);
+    }
+  }
+  return { choices, budgetToChoice, valueToBudget, availableLevels };
+};
+
+const getBudgetFromConfig = (option?: AcpConfigOption | null): ThinkingBudgetLevel | null => {
+  if (!option) return null;
+  const currentValue = getConfigOptionValue(option);
+  if (currentValue === null || currentValue === undefined) return null;
+  const { valueToBudget } = buildBudgetMapping(option);
+  const direct = valueToBudget.get(String(currentValue));
+  if (direct) return direct;
+  const inferred = detectBudgetLevel(normalizeBudgetText(currentValue));
+  return inferred;
+};
+
+const findThinkingConfigOption = (options: AcpConfigOption[]): AcpConfigOption | null => {
+  let best: { option: AcpConfigOption; score: number } | null = null;
+  for (const option of options) {
+    const haystack = normalizeBudgetText(
+      [option.id, option.name, option.label, option.description].filter(Boolean).join(' ')
+    );
+    if (!/(reason|thinking|effort|budget)/.test(haystack)) continue;
+    const { choices } = buildBudgetMapping(option);
+    const hasChoices = choices.length > 0;
+    const hasKnownLevels = choices.some((choice) =>
+      Boolean(detectBudgetLevel(normalizeBudgetText(choice.label ?? choice.name ?? choice.value)))
+    );
+    let score = 0;
+    if (option.type === 'select' || option.type === 'enum') score += 2;
+    if (hasChoices) score += 2;
+    if (hasKnownLevels) score += 2;
+    if (/(reason|thinking)/.test(haystack)) score += 1;
+    if (!best || score > best.score) best = { option, score };
+  }
+  return best?.option ?? null;
+};
+
+const findModelConfigOption = (options: AcpConfigOption[]): AcpConfigOption | null => {
+  let best: { option: AcpConfigOption; score: number } | null = null;
+  for (const option of options) {
+    const haystack = normalizeBudgetText(
+      [option.id, option.name, option.label, option.description].filter(Boolean).join(' ')
+    );
+    if (!/model/.test(haystack)) continue;
+    if (/(reason|thinking|effort|budget)/.test(haystack)) continue;
+    const choices = extractConfigChoices(option);
+    const hasChoices = choices.length > 0;
+    let score = 0;
+    if (option.type === 'select' || option.type === 'enum') score += 2;
+    if (hasChoices) score += 2;
+    if (/(model)/.test(haystack)) score += 1;
+    if (!best || score > best.score) best = { option, score };
+  }
+  return best?.option ?? null;
+};
+
+const normalizeModelOption = (model: any): ModelOption | null => {
+  if (!model) return null;
+  if (typeof model === 'string') {
+    return { id: model, label: model };
+  }
+  if (typeof model === 'object') {
+    const id =
+      model.id ??
+      model.modelId ??
+      model.model_id ??
+      model.model ??
+      model.name ??
+      model.value ??
+      model.slug ??
+      model.key;
+    if (!id) return null;
+    const label =
+      model.displayName ??
+      model.label ??
+      model.title ??
+      model.name ??
+      model.modelId ??
+      String(id);
+    return {
+      id: String(id),
+      label: String(label),
+      description: model.description ? String(model.description) : undefined,
+    };
+  }
+  return null;
+};
+
+const extractModelsFromPayload = (payload: any): AcpModel[] => {
+  if (!payload) return [];
+  const direct =
+    payload.models ??
+    payload.availableModels ??
+    payload.available_models ??
+    payload.modelList ??
+    payload.model_list ??
+    payload.modelOptions ??
+    payload.model_options;
+  if (Array.isArray(direct)) return direct;
+  const nested =
+    payload.models?.available ??
+    payload.models?.availableModels ??
+    payload.models?.models ??
+    payload.modelOptions?.options ??
+    payload.model_options?.options;
+  if (Array.isArray(nested)) return nested;
+  return [];
+};
+
+const extractCurrentModelId = (payload: any): string | null => {
+  if (!payload) return null;
+  const nestedModels = payload.models ?? payload.modelOptions ?? payload.model_options;
+  const nestedCurrent =
+    nestedModels?.currentModelId ??
+    nestedModels?.current_model_id ??
+    nestedModels?.modelId ??
+    nestedModels?.model_id ??
+    nestedModels?.currentModel ??
+    nestedModels?.current_model;
+  if (nestedCurrent) return String(nestedCurrent);
+  const direct =
+    payload.currentModelId ??
+    payload.modelId ??
+    payload.model ??
+    payload.current_model_id ??
+    payload.current_model ??
+    payload.activeModelId ??
+    payload.active_model_id;
+  if (typeof direct === 'string' || typeof direct === 'number') return String(direct);
+  if (direct && typeof direct === 'object') {
+    const nested = direct.id ?? direct.modelId ?? direct.model_id ?? direct.name;
+    if (nested) return String(nested);
+  }
+  return null;
+};
+
+const nextBudgetLevel = (
+  current: ThinkingBudgetLevel,
+  levels: ThinkingBudgetLevel[]
+): ThinkingBudgetLevel => {
+  if (!levels.length) return current;
+  const idx = levels.indexOf(current);
+  const next = levels[(idx + 1) % levels.length];
+  return next ?? levels[0] ?? current;
+};
 
 const AcpChatInterface: React.FC<Props> = ({
   task,
@@ -424,6 +803,9 @@ const AcpChatInterface: React.FC<Props> = ({
   const [modelId, setModelId] = useState<string>('gpt-5.2-codex');
   const [planModeEnabled, setPlanModeEnabled] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState<ThinkingBudgetLevel>('medium');
+  const [configOptions, setConfigOptions] = useState<AcpConfigOption[]>([]);
+  const [models, setModels] = useState<AcpModel[]>([]);
+  const [currentModelId, setCurrentModelId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [runElapsedMs, setRunElapsedMs] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -440,14 +822,6 @@ const AcpChatInterface: React.FC<Props> = ({
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
-
-  const cycleThinkingBudget = useCallback(() => {
-    setThinkingBudget((prev) => {
-      const idx = THINKING_BUDGET_LEVELS.findIndex((level) => level.id === prev);
-      const next = THINKING_BUDGET_LEVELS[(idx + 1) % THINKING_BUDGET_LEVELS.length];
-      return next?.id ?? 'medium';
-    });
   }, []);
 
   // Auto-resize textarea based on content
@@ -491,6 +865,9 @@ const AcpChatInterface: React.FC<Props> = ({
     let cancelled = false;
     (async () => {
       setSessionError(null);
+      setConfigOptions([]);
+      setModels([]);
+      setCurrentModelId(null);
       uiLog('startSession', { taskId: task.id, provider, cwd: task.path });
       const res = await window.electronAPI.acpStartSession({
         taskId: task.id,
@@ -536,6 +913,28 @@ const AcpChatInterface: React.FC<Props> = ({
         if (caps) {
           setPromptCaps(normalizePromptCaps(caps));
         }
+        if (Array.isArray(payload.configOptions)) {
+          setConfigOptions(payload.configOptions);
+        } else if (Array.isArray(payload.config_options)) {
+          setConfigOptions(payload.config_options);
+        }
+        const nextModels = extractModelsFromPayload(payload);
+        if (nextModels.length) {
+          setModels(nextModels);
+        }
+        const nextCurrentModelId = extractCurrentModelId(payload);
+        if (nextCurrentModelId) {
+          setCurrentModelId(nextCurrentModelId);
+        }
+        uiLog('session_started:config', {
+          configOptions: Array.isArray(payload.configOptions)
+            ? payload.configOptions.length
+            : Array.isArray(payload.config_options)
+              ? payload.config_options.length
+              : 0,
+          models: nextModels.length,
+          currentModelId: nextCurrentModelId,
+        });
         return;
       }
       if (payload.type === 'session_error') {
@@ -625,6 +1024,30 @@ const AcpChatInterface: React.FC<Props> = ({
           (update.sessionUpdate as string) || (update.type as string) || (update.kind as string);
         if (!updateType) return;
         uiLog('session_update', { updateType, update });
+        if (updateType === 'config_option_update' || updateType === 'config_options_update') {
+          if (Array.isArray(update.configOptions)) {
+            setConfigOptions(update.configOptions);
+          } else if (Array.isArray(update.config_options)) {
+            setConfigOptions(update.config_options);
+          }
+          const nextModels = extractModelsFromPayload(update);
+          if (nextModels.length) {
+            setModels(nextModels);
+          }
+          const nextCurrentModelId = extractCurrentModelId(update);
+          if (nextCurrentModelId) {
+            setCurrentModelId(nextCurrentModelId);
+          }
+          return;
+        }
+        const nextModels = extractModelsFromPayload(update);
+        if (nextModels.length) {
+          setModels(nextModels);
+        }
+        const nextCurrentModelId = extractCurrentModelId(update);
+        if (nextCurrentModelId) {
+          setCurrentModelId(nextCurrentModelId);
+        }
         if (
           updateType === 'agent_message_chunk' ||
           updateType === 'user_message_chunk' ||
@@ -1078,10 +1501,269 @@ const AcpChatInterface: React.FC<Props> = ({
   const showBottomLoading = isRunning && !latestToolCallId;
 
   const canSend = input.trim().length > 0 || attachments.length > 0;
-  const activeThinkingBudget =
-    THINKING_BUDGET_LEVELS.find((level) => level.id === thinkingBudget) ??
-    THINKING_BUDGET_LEVELS[2];
-  const isThinkingBudgetNone = activeThinkingBudget.id === 'none';
+  const modelConfigOption = useMemo(
+    () => findModelConfigOption(configOptions),
+    [configOptions]
+  );
+  const modelConfigId = useMemo(
+    () => getConfigOptionId(modelConfigOption),
+    [modelConfigOption]
+  );
+  const modelConfigChoices = useMemo(
+    () => extractConfigChoices(modelConfigOption),
+    [modelConfigOption]
+  );
+  const configModelValue = useMemo(
+    () => getConfigOptionValue(modelConfigOption),
+    [modelConfigOption]
+  );
+  const configModelId =
+    configModelValue !== null && configModelValue !== undefined
+      ? String(configModelValue)
+      : null;
+  const rawModelVariants = useMemo<ModelOption[]>(() => {
+    if (modelConfigChoices.length) {
+      return modelConfigChoices
+        .map((choice) => {
+          if (choice.value === undefined || choice.value === null) return null;
+          return {
+            id: String(choice.value),
+            label: choice.label ?? choice.name ?? String(choice.value),
+            description: choice.description,
+          };
+        })
+        .filter(Boolean) as ModelOption[];
+    }
+    return models.map(normalizeModelOption).filter(Boolean) as ModelOption[];
+  }, [modelConfigChoices, models]);
+
+  const modelCatalog = useMemo(() => {
+    const map = new Map<
+      string,
+      { baseId: string; label: string; description?: string; variants: ModelVariant[]; efforts: Set<string> }
+    >();
+    for (const variant of rawModelVariants) {
+      const parts = splitModelId(variant.id, variant.label);
+      const baseId = parts.baseId || variant.id;
+      const baseLabel = stripEffortSuffix(variant.label) ?? baseId;
+      const entry =
+        map.get(baseId) ?? {
+          baseId,
+          label: baseLabel,
+          description: variant.description,
+          variants: [],
+          efforts: new Set<string>(),
+        };
+      entry.variants.push({ ...variant, baseId, effort: parts.effort });
+      if (parts.effort) entry.efforts.add(parts.effort);
+      if (!entry.label && baseLabel) entry.label = baseLabel;
+      map.set(baseId, entry);
+    }
+    return map;
+  }, [rawModelVariants]);
+
+  const modelOptions = useMemo<ModelOption[]>(() => {
+    return Array.from(modelCatalog.values()).map((entry) => ({
+      id: entry.baseId,
+      label: entry.label,
+      description: entry.description,
+    }));
+  }, [modelCatalog]);
+
+  const rawSelectedModelId =
+    configModelId ?? currentModelId ?? (modelId ? String(modelId) : null);
+  const selectedModelParts = splitModelId(rawSelectedModelId, null);
+  const selectedBaseId =
+    (selectedModelParts.baseId && modelCatalog.has(selectedModelParts.baseId)
+      ? selectedModelParts.baseId
+      : modelOptions[0]?.id) ?? '';
+  const selectedModelEntry = selectedBaseId ? modelCatalog.get(selectedBaseId) : undefined;
+  const currentEffort = selectedModelParts.effort;
+  const fallbackModelId = selectedBaseId || modelId;
+  const resolvedModelValue = modelOptions.some((option) => option.id === fallbackModelId)
+    ? fallbackModelId
+    : undefined;
+  const canSetModel = Boolean(sessionId) && (Boolean(modelConfigId) || modelOptions.length > 0);
+  const thinkingConfigOption = useMemo(
+    () => findThinkingConfigOption(configOptions),
+    [configOptions]
+  );
+  const thinkingConfigId = useMemo(
+    () => getConfigOptionId(thinkingConfigOption),
+    [thinkingConfigOption]
+  );
+  const thinkingConfigMapping = useMemo(
+    () => buildBudgetMapping(thinkingConfigOption),
+    [thinkingConfigOption]
+  );
+  const configDrivenBudget = useMemo(
+    () => getBudgetFromConfig(thinkingConfigOption),
+    [thinkingConfigOption]
+  );
+  const modelDrivenBudget = useMemo(
+    () => budgetFromEffort(currentEffort),
+    [currentEffort]
+  );
+  const fallbackThinkingConfigId = provider === 'codex' ? 'model_reasoning_effort' : null;
+  const availableBudgetLevels = useMemo(() => {
+    if (thinkingConfigMapping.availableLevels.size) {
+      return EFFORT_ORDER.filter((level) => thinkingConfigMapping.availableLevels.has(level));
+    }
+    if (selectedModelEntry?.efforts?.size) {
+      const normalized = new Set(
+        Array.from(selectedModelEntry.efforts)
+          .map((entry) => normalizeEffort(entry))
+          .filter(Boolean) as ThinkingBudgetLevel[]
+      );
+      return EFFORT_ORDER.filter((level) => normalized.has(level));
+    }
+    return ['low', 'medium', 'high'] as ThinkingBudgetLevel[];
+  }, [selectedModelEntry?.efforts, thinkingConfigMapping.availableLevels]);
+  const resolvedBudget: ThinkingBudgetLevel =
+    configDrivenBudget ?? modelDrivenBudget ?? thinkingBudget ?? availableBudgetLevels[0] ?? 'medium';
+  const activeBudgetLevel = availableBudgetLevels.includes(resolvedBudget)
+    ? resolvedBudget
+    : availableBudgetLevels[0] ?? 'medium';
+  const activeBudgetLabel = EFFORT_LABELS[activeBudgetLevel];
+  const activeBudgetIndex = Math.max(0, availableBudgetLevels.indexOf(activeBudgetLevel));
+  const dotCount = Math.max(1, availableBudgetLevels.length);
+  const canSetThinkingBudget =
+    Boolean(sessionId) &&
+    (Boolean(thinkingConfigId) || Boolean(selectedModelEntry?.variants.length) || Boolean(fallbackThinkingConfigId));
+
+  const handleModelChange = useCallback(
+    (value: string) => {
+      setModelId(value);
+      if (!sessionId || !canSetModel) return;
+
+      const entry = modelCatalog.get(value);
+      const availableEfforts = entry?.efforts ?? new Set<string>();
+      const preferredEffort =
+        (activeBudgetLevel && chooseEffortForBudget(activeBudgetLevel, availableEfforts)) ||
+        currentEffort;
+      const targetVariant =
+        entry?.variants.find((variant) => variant.effort === preferredEffort) ??
+        entry?.variants[0];
+      const targetModelId = targetVariant?.id ?? value;
+
+      if (modelConfigId) {
+        const choice = modelConfigChoices.find((item) => String(item.value) === targetModelId);
+        const targetValue = choice?.value ?? targetModelId;
+        setConfigOptions((prev) =>
+          prev.map((option) =>
+            getConfigOptionId(option) === modelConfigId
+              ? { ...option, value: targetValue, currentValue: targetValue }
+              : option
+          )
+        );
+        void window.electronAPI.acpSetConfigOption?.({
+          sessionId,
+          configId: modelConfigId,
+          value: targetValue,
+        }).then((res) => {
+          if (!res?.success) {
+            uiLog('model:setFailed', { modelId: targetModelId, error: res?.error });
+          }
+        });
+        return;
+      }
+
+      setCurrentModelId(targetModelId);
+      void window.electronAPI.acpSetModel?.({
+        sessionId,
+        modelId: targetModelId,
+      }).then((res) => {
+        if (!res?.success) {
+          uiLog('model:setFailed', { modelId: targetModelId, error: res?.error });
+        }
+      });
+    },
+    [
+      activeBudgetLevel,
+      canSetModel,
+      currentEffort,
+      modelCatalog,
+      modelConfigChoices,
+      modelConfigId,
+      sessionId,
+      uiLog,
+    ]
+  );
+
+  const handleThinkingBudgetClick = useCallback(() => {
+    const next = nextBudgetLevel(activeBudgetLevel, availableBudgetLevels);
+    setThinkingBudget(next);
+
+    if (!canSetThinkingBudget) return;
+    if (thinkingConfigId) {
+      const targetChoice = thinkingConfigMapping.budgetToChoice.get(next);
+      const targetValue = targetChoice?.value ?? next;
+      if (targetValue === undefined) {
+        uiLog('thinkingBudget:missingOption', { next, configId: thinkingConfigId });
+        return;
+      }
+      if (targetChoice) {
+        setConfigOptions((prev) =>
+          prev.map((option) =>
+            getConfigOptionId(option) === thinkingConfigId
+              ? { ...option, value: targetChoice.value, currentValue: targetChoice.value }
+              : option
+          )
+        );
+      }
+      void window.electronAPI.acpSetConfigOption?.({
+        sessionId: sessionId ?? '',
+        configId: thinkingConfigId,
+        value: targetValue,
+      }).then((res) => {
+        if (!res?.success) {
+          uiLog('thinkingBudget:setFailed', { configId: thinkingConfigId, error: res?.error });
+        }
+      });
+      return;
+    }
+
+    if (selectedModelEntry && selectedModelEntry.variants.length) {
+      const desiredEffort = chooseEffortForBudget(next, selectedModelEntry.efforts);
+      const targetVariant =
+        selectedModelEntry.variants.find((variant) => variant.effort === desiredEffort) ??
+        selectedModelEntry.variants[0];
+      if (!targetVariant) return;
+      setCurrentModelId(targetVariant.id);
+      void window.electronAPI.acpSetModel?.({
+        sessionId: sessionId ?? '',
+        modelId: targetVariant.id,
+      }).then((res) => {
+        if (!res?.success) {
+          uiLog('thinkingBudget:setFailed', { modelId: targetVariant.id, error: res?.error });
+        }
+      });
+      return;
+    }
+
+    const configId = fallbackThinkingConfigId;
+    if (!configId) return;
+    const targetValue = next;
+    void window.electronAPI.acpSetConfigOption?.({
+      sessionId: sessionId ?? '',
+      configId,
+      value: targetValue,
+    }).then((res) => {
+      if (!res?.success) {
+        uiLog('thinkingBudget:setFailed', { configId, error: res?.error });
+      }
+    });
+  }, [
+    activeBudgetLevel,
+    canSetThinkingBudget,
+    fallbackThinkingConfigId,
+    availableBudgetLevels,
+    sessionId,
+    thinkingConfigId,
+    thinkingConfigMapping.budgetToChoice,
+    selectedModelEntry,
+    uiLog,
+  ]);
 
   const handleCopyMessage = useCallback(
     async (messageId: string, text: string) => {
@@ -1924,13 +2606,27 @@ const AcpChatInterface: React.FC<Props> = ({
                     <OpenAIIcon className="h-3.5 w-3.5" />
                     <span>Codex</span>
                   </button>
-                  <Select value={modelId} onValueChange={setModelId}>
-                    <SelectTrigger className="h-8 w-auto rounded-md border border-border/60 bg-background/90 px-2.5 text-xs text-foreground shadow-sm">
-                      <SelectValue placeholder="Model" />
+                  <Select value={resolvedModelValue} onValueChange={handleModelChange}>
+                    <SelectTrigger
+                      disabled={!canSetModel || modelOptions.length === 0}
+                      className="h-8 w-auto rounded-md border border-border/60 bg-background/90 px-2.5 text-xs text-foreground shadow-sm"
+                    >
+                      <SelectValue
+                        placeholder={modelOptions.length ? 'Model' : 'Model (not supported)'}
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gpt-5.2-codex">GPT-5.2-Codex</SelectItem>
-                      <SelectItem value="gpt-5.2-mini">GPT-5.2-mini</SelectItem>
+                      {modelOptions.length ? (
+                        modelOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__empty" disabled>
+                          No models available
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   <button
@@ -1952,32 +2648,31 @@ const AcpChatInterface: React.FC<Props> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={cycleThinkingBudget}
-                    title={`Thinking budget: ${activeThinkingBudget.label}`}
-                    aria-label={`Thinking budget: ${activeThinkingBudget.label}`}
-                    className={`flex h-8 items-center gap-2 rounded-md px-2 text-xs font-medium transition ${
-                      isThinkingBudgetNone
-                        ? 'bg-transparent text-muted-foreground hover:text-foreground'
-                        : 'bg-violet-100/70 text-violet-700 hover:bg-violet-100/90 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15'
-                    }`}
+                    onClick={handleThinkingBudgetClick}
+                    title={
+                      canSetThinkingBudget
+                        ? `Thinking budget: ${activeBudgetLabel}`
+                        : `Thinking budget: ${activeBudgetLabel} (not supported)`
+                    }
+                    aria-label={`Thinking budget: ${activeBudgetLabel}`}
+                    disabled={!canSetThinkingBudget}
+                    className="flex h-8 items-center gap-2 rounded-md bg-violet-100/70 px-2 text-xs font-medium text-violet-700 transition hover:bg-violet-100/90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
                   >
                     <Brain className="h-4 w-4" />
                     <span
                       className="flex flex-col-reverse items-center justify-center gap-1"
                       aria-hidden="true"
                     >
-                      {Array.from({ length: 3 }).map((_, idx) => (
+                      {Array.from({ length: dotCount }).map((_, idx) => (
                         <span
                           key={`thinking-dot-${idx}`}
                           className={`h-1 w-1 rounded-full ${
-                            idx < activeThinkingBudget.dots ? 'bg-current' : 'bg-muted-foreground/30'
+                            idx <= activeBudgetIndex ? 'bg-current' : 'bg-muted-foreground/30'
                           }`}
                         />
                       ))}
                     </span>
-                    {!isThinkingBudgetNone ? (
-                      <span className="text-xs font-medium">{activeThinkingBudget.label}</span>
-                    ) : null}
+                    <span className="text-xs font-medium">{activeBudgetLabel}</span>
                   </button>
                 </div>
                 <div className="flex items-center gap-2">

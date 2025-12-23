@@ -213,6 +213,8 @@ declare global {
       acpDispose?: (args: any) => Promise<any>;
       acpRespondPermission?: (args: any) => Promise<any>;
       acpSetMode?: (args: any) => Promise<any>;
+      acpSetModel?: (args: any) => Promise<any>;
+      acpSetConfigOption?: (args: any) => Promise<any>;
       onAcpEvent?: (listener: (payload: any) => void) => () => void;
       linearCheckConnection?: () => Promise<{
         connected: boolean;
