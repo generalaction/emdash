@@ -928,11 +928,10 @@ const AcpChatInterface: React.FC<Props> = ({
           (update.sessionUpdate as string) || (update.type as string) || (update.kind as string);
         if (!updateType) return;
         uiLog('session_update', { updateType, update });
-        if (updateType === 'config_option_update' || updateType === 'config_options_update') {
-          handleConfigAndModelUpdates(update);
+        handleConfigAndModelUpdates(update);
+        if (updateType === 'config_option_update' || updateType === 'config_options_update' || updateType === 'model_update') {
           return;
         }
-        handleConfigAndModelUpdates(update);
         if (
           updateType === 'agent_message_chunk' ||
           updateType === 'user_message_chunk' ||
