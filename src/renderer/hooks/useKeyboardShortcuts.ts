@@ -213,10 +213,10 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
     case 'shift':
       return event.shiftKey;
     case 'cmd+shift':
-      // Require both Command and Shift
+      // Require both Command and Shift on macOS, or Ctrl and Shift on other platforms
       return isMacPlatform
         ? event.metaKey && event.shiftKey
-        : (event.metaKey || event.ctrlKey) && event.shiftKey;
+        : event.ctrlKey && event.shiftKey;
     case 'ctrl+shift':
       // Require both Control and Shift
       return event.ctrlKey && event.shiftKey && !event.metaKey;
