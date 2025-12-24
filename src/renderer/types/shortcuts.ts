@@ -1,4 +1,11 @@
-export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+export type ShortcutModifier =
+  | 'cmd'
+  | 'ctrl'
+  | 'shift'
+  | 'alt'
+  | 'option'
+  | 'cmd+shift'
+  | 'ctrl+shift';
 
 export interface ShortcutBinding {
   key: string;
@@ -12,6 +19,7 @@ export interface KeyboardSettings {
   toggleRightSidebar?: ShortcutBinding;
   toggleTheme?: ShortcutBinding;
   toggleKanban?: ShortcutBinding;
+  feedback?: ShortcutBinding;
   closeModal?: ShortcutBinding;
   nextProject?: ShortcutBinding;
   prevProject?: ShortcutBinding;
@@ -64,6 +72,9 @@ export interface GlobalShortcutHandlers {
 
   // Kanban
   onToggleKanban?: () => void;
+
+  // Feedback
+  onOpenFeedback?: () => void;
 
   // Project navigation
   onNextProject?: () => void;

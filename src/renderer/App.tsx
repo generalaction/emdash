@@ -41,6 +41,7 @@ import {
   normalizePathForComparison,
   withRepoKey,
 } from './lib/projectUtils';
+import { isLinux, isMac, isWindows } from './lib/platform';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
 import { type Provider } from './types';
@@ -136,6 +137,7 @@ const AppContent: React.FC = () => {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
@@ -279,6 +281,17 @@ const AppContent: React.FC = () => {
 
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
+  }, []);
+
+  const handleOpenFeedback = useCallback(() => {
+    void import('./lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('toolbar_feedback_clicked');
+    });
+    setShowFeedback(true);
+  }, []);
+
+  const handleCloseFeedback = useCallback(() => {
+    setShowFeedback(false);
   }, []);
 
   const handleToggleCommandPalette = useCallback(() => {
@@ -540,12 +553,11 @@ const AppContent: React.FC = () => {
                 log.error('Failed to save project:', saveResult.error);
               }
             } else {
-              const updateHint =
-                platform === 'darwin'
-                  ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart Emdash.'
-                  : platform === 'win32'
-                    ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart Emdash.'
-                    : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart Emdash.';
+              const updateHint = isMac(platform)
+                ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart Emdash.'
+                : isWindows(platform)
+                  ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart Emdash.'
+                  : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart Emdash.';
               toast({
                 title: 'GitHub Connection Failed',
                 description: `Git repository detected but couldn't connect to GitHub: ${githubInfo.error}\n\n${updateHint}`,
@@ -917,11 +929,11 @@ const AppContent: React.FC = () => {
       if (!cliInstalled) {
         // Detect platform for better messaging
         let installMessage = 'Installing GitHub CLI...';
-        if (platform === 'darwin') {
+        if (isMac(platform)) {
           installMessage = 'Installing GitHub CLI via Homebrew...';
-        } else if (platform === 'linux') {
+        } else if (isLinux(platform)) {
           installMessage = 'Installing GitHub CLI via apt...';
-        } else if (platform === 'win32') {
+        } else if (isWindows(platform)) {
           installMessage = 'Installing GitHub CLI via winget...';
         }
 
@@ -1937,6 +1949,7 @@ const AppContent: React.FC = () => {
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
                 handleNewTask={handleNewTask}
+                handleOpenFeedback={handleOpenFeedback}
               />
               <RightSidebarBridge
                 onCollapsedChange={handleRightSidebarCollapsedChange}
@@ -2004,6 +2017,9 @@ const AppContent: React.FC = () => {
                       isHomeView={showHomeView}
                       onToggleSettings={handleToggleSettings}
                       isSettingsOpen={showSettings}
+                      isFeedbackOpen={showFeedback}
+                      onOpenFeedback={handleOpenFeedback}
+                      onCloseFeedback={handleCloseFeedback}
                     />
                   </ResizablePanel>
                   <ResizableHandle

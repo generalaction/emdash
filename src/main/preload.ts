@@ -11,7 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Window state
   getFullScreenState: () => ipcRenderer.invoke('window:get-fullscreen-state'),
   onFullScreenChange: (callback: (isFullScreen: boolean) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, isFullScreen: boolean) => callback(isFullScreen);
+    const listener = (_: Electron.IpcRendererEvent, isFullScreen: boolean) =>
+      callback(isFullScreen);
     ipcRenderer.on('window:fullscreen-changed', listener);
     return () => ipcRenderer.removeListener('window:fullscreen-changed', listener);
   },
