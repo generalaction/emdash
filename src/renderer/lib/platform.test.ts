@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { isMac, isWindows, isLinux, PLATFORM_MAC, PLATFORM_WINDOWS, PLATFORM_LINUX } from './platform';
+import {
+  isMac,
+  isWindows,
+  isLinux,
+  PLATFORM_MAC,
+  PLATFORM_WINDOWS,
+  PLATFORM_LINUX,
+} from './platform';
 
 describe('isMac', () => {
   it('returns true for darwin platform', () => {
