@@ -819,7 +819,10 @@ const AcpChatInterface: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
-    if (!isRunning || runStartedAtRef.current === null) return;
+    if (!isRunning) return;
+    if (runStartedAtRef.current === null) {
+      runStartedAtRef.current = Date.now();
+    }
     setRunElapsedMs(Date.now() - runStartedAtRef.current);
     const interval = window.setInterval(() => {
       if (runStartedAtRef.current === null) return;
@@ -895,6 +898,81 @@ const AcpChatInterface: React.FC<Props> = ({
     };
     loadCustomCommands();
   }, [task.path, provider, uiLog]);
+
+  const mergeBlocks = (base: ContentBlock[], incoming: ContentBlock[]) => {
+    const next = [...base];
+    for (const block of incoming) {
+      if (block.type === 'text') {
+        const last = next[next.length - 1];
+        if (last && last.type === 'text') {
+          last.text = (last.text || '') + (block.text || '');
+        } else {
+          next.push({ ...block });
+        }
+      } else {
+        next.push({ ...block });
+      }
+    }
+    return next;
+  };
+
+  const normalizeRawValue = (value: any): string | undefined => {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const normalizePromptCaps = (caps: any) => ({
+    image: Boolean(caps?.image ?? caps?.images ?? caps?.supportsImage ?? caps?.supportsImages),
+    audio: Boolean(caps?.audio ?? caps?.supportsAudio ?? caps?.supportsAudioInput),
+    embeddedContext: Boolean(
+      caps?.embeddedContext ?? caps?.embedded_context ?? caps?.supportsEmbeddedContext
+    ),
+  });
+
+  const appendMessage = (
+    role: 'user' | 'assistant' | 'system',
+    blocks: ContentBlock[],
+    options?: { streaming?: boolean; messageKind?: 'thought' | 'system' }
+  ) => {
+    if (!blocks.length) return;
+    const streaming = options?.streaming ?? role === 'assistant';
+    const messageKind = options?.messageKind;
+    setFeed((prev) => {
+      const last = prev[prev.length - 1];
+      if (
+        last &&
+        last.type === 'message' &&
+        last.role === role &&
+        last.streaming &&
+        last.messageKind === messageKind
+      ) {
+        const merged = mergeBlocks(last.blocks, blocks);
+        const next = [...prev];
+        next[next.length - 1] = { ...last, blocks: merged };
+        if (role === 'assistant' && messageKind !== 'thought') {
+          lastAssistantMessageIdRef.current = last.id;
+        }
+        return next;
+      }
+      const newItem = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'message' as const,
+        role,
+        blocks,
+        streaming,
+        messageKind,
+      };
+      if (role === 'assistant' && messageKind !== 'thought') {
+        lastAssistantMessageIdRef.current = newItem.id;
+      }
+      return [...prev, newItem];
+    });
+  };
 
   useEffect(() => {
     const off = window.electronAPI.onAcpEvent((payload: any) => {
@@ -1117,54 +1195,22 @@ const AcpChatInterface: React.FC<Props> = ({
     };
   }, [task.id, uiLog]);
 
-  const mergeBlocks = (base: ContentBlock[], incoming: ContentBlock[]) => {
-    const next = [...base];
-    for (const block of incoming) {
-      if (block.type === 'text') {
-        const last = next[next.length - 1];
-        if (last && last.type === 'text') {
-          last.text = (last.text || '') + (block.text || '');
-        } else {
-          next.push({ ...block });
-        }
-      } else {
-        next.push({ ...block });
-      }
-    }
-    return next;
-  };
-
-  const normalizeRawValue = (value: any): string | undefined => {
-    if (value === undefined || value === null) return undefined;
-    if (typeof value === 'string') return value;
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return String(value);
-    }
-  };
-
-  const normalizePromptCaps = (caps: any) => ({
-    image: Boolean(caps?.image ?? caps?.images ?? caps?.supportsImage ?? caps?.supportsImages),
-    audio: Boolean(caps?.audio ?? caps?.supportsAudio ?? caps?.supportsAudioInput),
-    embeddedContext: Boolean(
-      caps?.embeddedContext ?? caps?.embedded_context ?? caps?.supportsEmbeddedContext
-    ),
-  });
-
   const normalizePath = (value: string) => value.replace(/\\/g, '/');
 
-  const formatPath = (value?: string) => {
-    if (!value) return value;
-    const normalized = normalizePath(value);
-    const root = normalizePath(task.path || '');
-    if (root && normalized.startsWith(root)) {
-      let rel = normalized.slice(root.length);
-      if (rel.startsWith('/')) rel = rel.slice(1);
-      return rel || normalized.split('/').pop() || normalized;
-    }
-    return normalized.split('/').pop() || normalized;
-  };
+  const formatPath = useCallback(
+    (value?: string) => {
+      if (!value) return value;
+      const normalized = normalizePath(value);
+      const root = normalizePath(task.path || '');
+      if (root && normalized.startsWith(root)) {
+        let rel = normalized.slice(root.length);
+        if (rel.startsWith('/')) rel = rel.slice(1);
+        return rel || normalized.split('/').pop() || normalized;
+      }
+      return normalized.split('/').pop() || normalized;
+    },
+    [task.path]
+  );
 
   const toFileUri = (filePath: string) => `file://${encodeURI(filePath)}`;
 
@@ -1202,49 +1248,6 @@ const AcpChatInterface: React.FC<Props> = ({
     return parts.join('\n\n').trim();
   };
 
-  const appendMessage = (
-    role: 'user' | 'assistant' | 'system',
-    blocks: ContentBlock[],
-    options?: { streaming?: boolean; messageKind?: 'thought' | 'system' }
-  ) => {
-    if (!blocks.length) return;
-    const streaming = options?.streaming ?? role === 'assistant';
-    const messageKind = options?.messageKind;
-    setFeed((prev) => {
-      const last = prev[prev.length - 1];
-      if (
-        last &&
-        last.type === 'message' &&
-        last.role === role &&
-        last.streaming &&
-        last.messageKind === messageKind
-      ) {
-        const merged = mergeBlocks(last.blocks, blocks);
-        const next = [...prev];
-        next[next.length - 1] = { ...last, blocks: merged };
-        if (role === 'assistant' && messageKind !== 'thought') {
-          lastAssistantMessageIdRef.current = last.id;
-        }
-        return next;
-      }
-      const newItem = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        type: 'message' as const,
-        role,
-        blocks,
-        streaming,
-        messageKind,
-      };
-      if (role === 'assistant' && messageKind !== 'thought') {
-        lastAssistantMessageIdRef.current = newItem.id;
-      }
-      return [
-        ...prev,
-        newItem,
-      ];
-    });
-  };
-
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!sessionId) return;
@@ -1253,7 +1256,6 @@ const AcpChatInterface: React.FC<Props> = ({
     const promptBlocks = buildPromptBlocks(trimmed);
     appendMessage('user', promptBlocks);
     setAttachments([]);
-    runStartedAtRef.current = Date.now();
     lastAssistantMessageIdRef.current = null;
     setRunElapsedMs(0);
     setIsRunning(true);
@@ -1532,6 +1534,7 @@ const AcpChatInterface: React.FC<Props> = ({
       ? selectedModelParts.baseId
       : modelOptions[0]?.id) ?? '';
   const selectedModelEntry = selectedBaseId ? modelCatalog.get(selectedBaseId) : undefined;
+  const selectedEfforts = selectedModelEntry?.efforts;
   const currentEffort = selectedModelParts.effort;
   const fallbackModelId = selectedBaseId || modelId;
   const resolvedModelValue = modelOptions.some((option) => option.id === fallbackModelId)
@@ -1563,16 +1566,16 @@ const AcpChatInterface: React.FC<Props> = ({
     if (thinkingConfigMapping.availableLevels.size) {
       return EFFORT_ORDER.filter((level) => thinkingConfigMapping.availableLevels.has(level));
     }
-    if (selectedModelEntry?.efforts?.size) {
+    if (selectedEfforts?.size) {
       const normalized = new Set(
-        Array.from(selectedModelEntry.efforts)
+        Array.from(selectedEfforts)
           .map((entry) => normalizeEffort(entry))
           .filter(Boolean) as ThinkingBudgetLevel[]
       );
       return EFFORT_ORDER.filter((level) => normalized.has(level));
     }
     return ['low', 'medium', 'high'] as ThinkingBudgetLevel[];
-  }, [selectedModelEntry?.efforts, thinkingConfigMapping.availableLevels]);
+  }, [selectedEfforts, thinkingConfigMapping.availableLevels]);
   const resolvedBudget: ThinkingBudgetLevel =
     configDrivenBudget ?? modelDrivenBudget ?? thinkingBudget ?? availableBudgetLevels[0] ?? 'medium';
   const activeBudgetLevel = availableBudgetLevels.includes(resolvedBudget)
@@ -1650,7 +1653,7 @@ const AcpChatInterface: React.FC<Props> = ({
     const next = nextBudgetLevel(activeBudgetLevel, availableBudgetLevels);
     setThinkingBudget(next);
 
-    if (!canSetThinkingBudget) return;
+    if (!canSetThinkingBudget || !sessionId) return;
     if (thinkingConfigId) {
       const targetChoice = thinkingConfigMapping.budgetToChoice.get(next);
       const targetValue = targetChoice?.value ?? next;
@@ -1962,9 +1965,12 @@ const AcpChatInterface: React.FC<Props> = ({
       }
     }
     return result;
-  }, [toolCalls]);
+  }, [toolCalls, formatPath]);
 
-  const renderToolCall = (toolCallId: string) => {
+  const renderToolCall = (
+    toolCallId: string,
+    options?: { showLoading?: boolean }
+  ) => {
     const toolCall = toolCalls[toolCallId];
     if (!toolCall) return null;
     const status = toolCall.status || 'pending';

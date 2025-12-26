@@ -273,6 +273,15 @@ export class GitHubService {
     }
   }
 
+  private async isGhAuthenticated(): Promise<boolean> {
+    try {
+      await execAsync('gh auth status -h github.com');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Request a device code from GitHub for Device Flow authentication
    */
@@ -567,7 +576,7 @@ export class GitHubService {
   async authenticateWithToken(token: string): Promise<AuthResult> {
     try {
       // Test the token by getting user info
-      const user = await this.getUserInfo(token);
+      const user = await this.getUserInfoWithToken(token);
 
       if (user) {
         // Store token securely
@@ -590,6 +599,19 @@ export class GitHubService {
    */
   async isAuthenticated(): Promise<boolean> {
     try {
+      if (await this.isGhAuthenticated()) {
+        try {
+          const { stdout } = await execAsync('gh auth token -h github.com');
+          const token = (stdout || '').trim();
+          if (token) {
+            await this.storeToken(token);
+          }
+        } catch {
+          // Non-fatal; gh is authenticated even if token capture fails
+        }
+        return true;
+      }
+
       const token = await this.getStoredToken();
 
       if (!token) {
@@ -598,7 +620,7 @@ export class GitHubService {
       }
 
       // Test the token by making a simple API call
-      const user = await this.getUserInfo(token);
+      const user = await this.getUserInfoWithToken(token);
       return !!user;
     } catch (error) {
       console.error('Authentication check failed:', error);
@@ -609,21 +631,59 @@ export class GitHubService {
   /**
    * Get user information using GitHub CLI
    */
-  async getUserInfo(_token: string): Promise<GitHubUser | null> {
+  async getUserInfo(token?: string): Promise<GitHubUser | null> {
     try {
-      // Use gh CLI to get user info
-      const { stdout } = await this.execGH('gh api user');
-      const userData = JSON.parse(stdout);
+      if (await this.isGhAuthenticated()) {
+        // Use gh CLI to get user info
+        const { stdout } = await this.execGH('gh api user');
+        const userData = JSON.parse(stdout);
 
+        return {
+          id: userData.id,
+          login: userData.login,
+          name: userData.name || userData.login,
+          email: userData.email || '',
+          avatar_url: userData.avatar_url,
+        };
+      }
+
+      if (token) {
+        return await this.getUserInfoWithToken(token);
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Failed to get user info:', error);
+      return null;
+    }
+  }
+
+  private async getUserInfoWithToken(token: string): Promise<GitHubUser | null> {
+    try {
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `token ${token}`,
+        },
+      });
+
+      if (!response.ok) return null;
+      const userData = (await response.json()) as {
+        id: number;
+        login: string;
+        name?: string | null;
+        email?: string | null;
+        avatar_url?: string | null;
+      };
       return {
         id: userData.id,
         login: userData.login,
         name: userData.name || userData.login,
         email: userData.email || '',
-        avatar_url: userData.avatar_url,
+        avatar_url: userData.avatar_url || '',
       };
     } catch (error) {
-      console.error('Failed to get user info:', error);
+      console.error('Failed to get user info via token:', error);
       return null;
     }
   }
@@ -631,7 +691,7 @@ export class GitHubService {
   /**
    * Get user's repositories using GitHub CLI
    */
-  async getRepositories(_token: string): Promise<GitHubRepo[]> {
+  async getRepositories(_token?: string): Promise<GitHubRepo[]> {
     try {
       // Use gh CLI to get repositories with correct field names
       const { stdout } = await this.execGH(

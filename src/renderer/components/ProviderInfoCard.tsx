@@ -77,6 +77,11 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
       'Kimi CLI by Moonshot AI — a shell-like coding agent with raw shell execution, Zsh integration, ACP and MCP support (technical preview).',
     hostingNote: 'macOS/Linux only; first run on macOS may take ~10s due to security checks.',
   },
+  kilocode: {
+    title: 'Kilocode',
+    description:
+      'Kilo AI coding assistant with multiple modes (architect, code, debug, ask, orchestrator). Supports hundreds of models with bring-your-own-keys for OpenRouter and AI gateways. Features keyboard-first navigation and checkpoint management.',
+  },
   kiro: {
     title: 'Kiro',
     description:
