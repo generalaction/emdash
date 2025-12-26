@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trash, Folder } from 'lucide-react';
 import { Spinner } from './ui/spinner';
+import { Switch } from './ui/switch';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +24,8 @@ type Props = {
   taskName: string;
   taskId: string;
   taskPath: string;
-  onConfirm: () => void | Promise<void | boolean>;
+  taskBranch?: string;
+  onConfirm: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
@@ -33,6 +35,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
   taskName,
   taskId,
   taskPath,
+  taskBranch,
   onConfirm,
   className,
   'aria-label': ariaLabel = 'Delete Task',
@@ -40,6 +43,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
 }) => {
   const [open, setOpen] = React.useState(false);
   const [acknowledge, setAcknowledge] = React.useState(false);
+  const [deleteRemoteBranch, setDeleteRemoteBranch] = React.useState(false);
   const targets = useMemo(
     () => [{ id: taskId, name: taskName, path: taskPath }],
     [taskId, taskName, taskPath]
@@ -67,8 +71,14 @@ export const TaskDeleteButton: React.FC<Props> = ({
   React.useEffect(() => {
     if (!open) {
       setAcknowledge(false);
+      setDeleteRemoteBranch(false);
     }
   }, [open]);
+
+  const remoteBranchLabel = (taskBranch || '')
+    .replace(/^refs\/heads\//, '')
+    .replace(/^refs\/remotes\/origin\//, 'origin/')
+    .replace(/^origin\//, '');
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
@@ -176,6 +186,28 @@ export const TaskDeleteButton: React.FC<Props> = ({
             ) : null}
           </AnimatePresence>
         </div>
+        {taskBranch ? (
+          <motion.label
+            className="flex items-center justify-between gap-3 rounded-xl bg-muted/15 px-4 py-3"
+            initial={{ opacity: 0, y: 6, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.18, ease: 'easeOut', delay: 0.02 }}
+          >
+            <span className="min-w-0">
+              <span className="block text-sm leading-tight text-foreground">
+                Also delete GitHub branch
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {remoteBranchLabel}
+              </span>
+            </span>
+            <Switch
+              checked={deleteRemoteBranch}
+              disabled={isDeleting || loading || !hasData}
+              onCheckedChange={setDeleteRemoteBranch}
+            />
+          </motion.label>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
@@ -185,7 +217,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
               e.stopPropagation();
               setOpen(false);
               try {
-                await onConfirm();
+                await onConfirm({ deleteRemoteBranch });
               } catch {}
             }}
           >

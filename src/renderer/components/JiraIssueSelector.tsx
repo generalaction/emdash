@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Search } from 'lucide-react';
 import jiraLogo from '../../assets/images/jira.png';
 import { type JiraIssueSummary } from '../types/jira';

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import net from 'node:net';
 
 import type { ResolvedContainerPortConfig } from './config';

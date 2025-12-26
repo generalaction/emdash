@@ -13,7 +13,8 @@ type ProjectSettingsPayload = {
 declare global {
   interface Window {
     electronAPI: {
-      getVersion: () => Promise<string>;
+      getAppVersion: () => Promise<string>;
+      getElectronVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
       // PTY management
       ptyStart: (opts: {

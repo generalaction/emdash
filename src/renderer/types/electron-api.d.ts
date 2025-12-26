@@ -176,7 +176,14 @@ declare global {
         worktreeId: string;
         worktreePath?: string;
         branch?: string;
-      }) => Promise<{ success: boolean; error?: string }>;
+        deleteRemoteBranch?: boolean;
+      }) => Promise<{
+        success: boolean;
+        error?: string;
+        localBranchDeleted?: boolean | null;
+        remoteBranchDeleted?: boolean | null;
+        remoteBranchDeleteError?: string;
+      }>;
       worktreeStatus: (args: {
         worktreePath: string;
       }) => Promise<{ success: boolean; status?: any; error?: string }>;
@@ -643,7 +650,8 @@ declare global {
 // Explicit type export for better TypeScript recognition
 export interface ElectronAPI {
   // App info
-  getVersion: () => Promise<string>;
+  getAppVersion: () => Promise<string>;
+  getElectronVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
@@ -699,7 +707,14 @@ export interface ElectronAPI {
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
+    deleteRemoteBranch?: boolean;
+  }) => Promise<{
+    success: boolean;
+    error?: string;
+    localBranchDeleted?: boolean | null;
+    remoteBranchDeleted?: boolean | null;
+    remoteBranchDeleteError?: string;
+  }>;
   worktreeStatus: (args: {
     worktreePath: string;
   }) => Promise<{ success: boolean; status?: any; error?: string }>;

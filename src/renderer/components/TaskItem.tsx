@@ -19,7 +19,7 @@ interface Task {
 
 interface TaskItemProps {
   task: Task;
-  onDelete?: () => void | Promise<void | boolean>;
+  onDelete?: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
   showDelete?: boolean;
 }
 
@@ -46,10 +46,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onDelete, showDelete }
             taskName={task.name}
             taskId={task.id}
             taskPath={task.path}
-            onConfirm={async () => {
+            taskBranch={task.branch}
+            onConfirm={async (opts) => {
               try {
                 setIsDeleting(true);
-                await onDelete();
+                await onDelete(opts);
               } finally {
                 setIsDeleting(false);
               }
