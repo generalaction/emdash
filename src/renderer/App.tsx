@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Download, FolderOpen, Github, Plus } from 'lucide-react';
+import { FolderOpen, Github, Plus } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import emdashLogo from '../assets/images/emdash/emdash_logo.svg';
