@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openIn: (args: {
     app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
     path: string;
+    ensureDir?: boolean;
   }) => ipcRenderer.invoke('app:openIn', args),
 
   // PTY management

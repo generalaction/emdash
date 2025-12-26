@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
-import { X, Settings2, Cable, RefreshCw, GitBranch, Puzzle } from 'lucide-react';
+import { X, Settings2, Cable, RefreshCw, GitBranch, Puzzle, MessageSquare } from 'lucide-react';
 import VersionCard from './VersionCard';
 import IntegrationsCard from './IntegrationsCard';
 import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
@@ -17,6 +17,7 @@ import Context7SettingsCard from './Context7SettingsCard';
 import DefaultProviderSettingsCard from './DefaultProviderSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
 import ChatUiSettingsCard from './ChatUiSettingsCard';
+import AcpCommandsSettingsCard from './AcpCommandsSettingsCard';
 import { CliProviderStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
@@ -76,7 +77,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general' | 'repository' | 'connections' | 'mcp';
+type SettingsTab = 'general' | 'acp' | 'repository' | 'connections' | 'mcp';
 
 interface SettingsSection {
   title: string;
@@ -85,7 +86,7 @@ interface SettingsSection {
   render?: () => React.ReactNode;
 }
 
-const ORDERED_TABS: SettingsTab[] = ['general', 'repository', 'mcp', 'connections'];
+const ORDERED_TABS: SettingsTab[] = ['general', 'acp', 'repository', 'mcp', 'connections'];
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -188,7 +189,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'Privacy & Telemetry', render: () => <TelemetryCard /> },
           { title: 'Default AI provider', render: () => <DefaultProviderSettingsCard /> },
           { title: 'Tasks', render: () => <TaskSettingsCard /> },
-          { title: 'Chat UI (ACP)', render: () => <ChatUiSettingsCard /> },
           { title: 'Notifications', render: () => <NotificationSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
@@ -214,6 +214,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               </div>
             ),
           },
+        ],
+      },
+      acp: {
+        icon: MessageSquare,
+        label: 'ACP',
+        title: 'Agent Client Protocol (ACP)',
+        sections: [
+          { title: 'Chat UI (ACP)', render: () => <ChatUiSettingsCard /> },
+          { title: 'Slash commands', render: () => <AcpCommandsSettingsCard /> },
         ],
       },
       repository: {

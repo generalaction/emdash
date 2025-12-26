@@ -110,14 +110,13 @@ const ChatUiSettingsCard: React.FC = () => {
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
-      <div className="mb-3 text-sm text-muted-foreground">
-        Toggle the ACP chat interface for supported agents.
-        <div className="mt-1 text-[11px] text-muted-foreground/70">
-          Currently affects: Codex CLI
-        </div>
-      </div>
       <label className="flex items-center justify-between gap-2">
-        <span className="text-sm">Enable chat UI (ACP)</span>
+        <div className="space-y-1">
+          <span className="text-sm">Enable chat UI (ACP)</span>
+          <div className="text-xs text-muted-foreground/70">
+            Supported by: Codex CLI
+          </div>
+        </div>
         <Switch
           checked={enabled}
           disabled={loading || saving || checkingTasks}
