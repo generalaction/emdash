@@ -198,7 +198,9 @@ async function checkForUpdatesWithRetry(maxRetries = 3, delayMs = 5000) {
     } catch (error) {
       if (attempt === maxRetries) throw error;
       const backoffDelay = delayMs * attempt; // exponential backoff
-      log.warn(`[autoUpdater] Check failed (attempt ${attempt}/${maxRetries}), retrying in ${backoffDelay}ms...`);
+      log.warn(
+        `[autoUpdater] Check failed (attempt ${attempt}/${maxRetries}), retrying in ${backoffDelay}ms...`
+      );
       await new Promise((resolve) => setTimeout(resolve, backoffDelay));
     }
   }

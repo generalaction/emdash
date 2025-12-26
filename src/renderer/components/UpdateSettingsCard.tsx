@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Switch } from './ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const UpdateSettingsCard: React.FC = () => {
   const [autoCheck, setAutoCheck] = useState(true);
@@ -115,8 +109,8 @@ const UpdateSettingsCard: React.FC = () => {
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
       <div className="mb-4 text-sm text-muted-foreground">
-        Control how Emdash checks for and downloads updates. Updates are installed when you quit
-        the app.
+        Control how Emdash checks for and downloads updates. Updates are installed when you quit the
+        app.
       </div>
       <div className="space-y-3">
         <label className="flex items-center justify-between gap-2">

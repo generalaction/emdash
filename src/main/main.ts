@@ -197,10 +197,7 @@ app.whenReady().then(async () => {
   registerAllIpc();
 
   // Start auto-updater (check on startup + periodic checks)
-  const {
-    checkForUpdatesOnStartup,
-    startPeriodicUpdateChecks,
-  } = require('./services/updateIpc');
+  const { checkForUpdatesOnStartup, startPeriodicUpdateChecks } = require('./services/updateIpc');
   checkForUpdatesOnStartup();
   startPeriodicUpdateChecks();
 

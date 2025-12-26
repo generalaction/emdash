@@ -148,9 +148,15 @@ export function updateAppSettings(partial: Partial<AppSettings>): AppSettings {
   }
 
   // Restart periodic checks if check interval changed
-  if (partial.updates?.checkIntervalHours !== undefined || partial.updates?.autoCheck !== undefined) {
+  if (
+    partial.updates?.checkIntervalHours !== undefined ||
+    partial.updates?.autoCheck !== undefined
+  ) {
     try {
-      const { stopPeriodicUpdateChecks, startPeriodicUpdateChecks } = require('./services/updateIpc');
+      const {
+        stopPeriodicUpdateChecks,
+        startPeriodicUpdateChecks,
+      } = require('./services/updateIpc');
       stopPeriodicUpdateChecks();
       if (next.updates?.autoCheck) {
         startPeriodicUpdateChecks();
