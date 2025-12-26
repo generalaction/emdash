@@ -48,13 +48,6 @@ declare global {
           projects?: {
             defaultDirectory: string;
           };
-          updates?: {
-            autoCheck: boolean;
-            autoDownload: boolean;
-            checkIntervalHours: number;
-            notifyOnAvailable: boolean;
-            notifyOnDownloaded: boolean;
-          };
         };
         error?: string;
       }>;
@@ -78,13 +71,6 @@ declare global {
           projects?: {
             defaultDirectory?: string;
           };
-          updates?: {
-            autoCheck?: boolean;
-            autoDownload?: boolean;
-            checkIntervalHours?: number;
-            notifyOnAvailable?: boolean;
-            notifyOnDownloaded?: boolean;
-          };
         }>
       ) => Promise<{
         success: boolean;
@@ -106,13 +92,6 @@ declare global {
           };
           projects?: {
             defaultDirectory: string;
-          };
-          updates?: {
-            autoCheck: boolean;
-            autoDownload: boolean;
-            checkIntervalHours: number;
-            notifyOnAvailable: boolean;
-            notifyOnDownloaded: boolean;
           };
         };
         error?: string;

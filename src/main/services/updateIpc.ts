@@ -2,7 +2,6 @@ import { app, ipcMain, net } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { log } from '../lib/logger';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
-import { getAppSettings } from '../settings';
 
 // Channels used to notify renderer about update lifecycle
 const UpdateChannels = {
@@ -95,15 +94,6 @@ function getLatestDownloadUrl(): string {
 
 export function registerUpdateIpc() {
   ensureInitialized();
-
-  // Initialize autoDownload from saved settings
-  try {
-    const settings = getAppSettings();
-    autoUpdater.autoDownload = settings.updates?.autoDownload ?? false;
-    log.info('[autoUpdater] Initialized autoDownload from settings:', autoUpdater.autoDownload);
-  } catch (error) {
-    log.warn('[autoUpdater] Failed to load autoDownload setting, using default (false)');
-  }
 
   ipcMain.handle('update:check', async () => {
     try {
@@ -211,12 +201,6 @@ export function checkForUpdatesOnStartup() {
   // Wait a bit after app ready to avoid blocking startup
   setTimeout(async () => {
     try {
-      const settings = getAppSettings();
-      if (!settings.updates?.autoCheck) {
-        log.debug('[autoUpdater] Auto-check disabled in settings');
-        return;
-      }
-
       const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
       const forced = process.env.EMDASH_DEV_UPDATES === 'true';
       if (isDev && !forced) {
@@ -244,14 +228,7 @@ export function checkForUpdatesOnStartup() {
 let checkInterval: NodeJS.Timeout | null = null;
 
 export function startPeriodicUpdateChecks(intervalMs?: number) {
-  const settings = getAppSettings();
-  if (!settings.updates?.autoCheck) {
-    log.debug('[autoUpdater] Periodic checks disabled in settings');
-    return;
-  }
-
-  // Use setting or provided interval, default to 24 hours
-  const interval = intervalMs ?? (settings.updates?.checkIntervalHours ?? 24) * 60 * 60 * 1000;
+  const interval = intervalMs ?? 24 * 60 * 60 * 1000;
 
   if (checkInterval) clearInterval(checkInterval);
 
@@ -284,10 +261,4 @@ export function stopPeriodicUpdateChecks() {
     checkInterval = null;
     log.info('[autoUpdater] Periodic checks stopped');
   }
-}
-
-// Update autoDownload setting dynamically
-export function updateAutoDownloadSetting(enabled: boolean) {
-  autoUpdater.autoDownload = enabled;
-  log.info('[autoUpdater] autoDownload set to', enabled);
 }
