@@ -55,6 +55,45 @@ interface LeftSidebarProps {
   isHomeView?: boolean;
 }
 
+interface MenuItemButtonProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  ariaLabel: string;
+  onClick: () => void;
+}
+
+const MenuItemButton: React.FC<MenuItemButtonProps> = ({
+  icon: Icon,
+  label,
+  ariaLabel,
+  onClick,
+}) => {
+  const handleKeyDown = React.useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick();
+      }
+    },
+    [onClick]
+  );
+
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      tabIndex={0}
+      aria-label={ariaLabel}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  );
+};
+
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
   projects,
   selectedProject,
@@ -404,57 +443,24 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       </PopoverTrigger>
                       <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
                         <div className="space-y-1">
-                          <button
-                            type="button"
-                            role="menuitem"
-                            tabIndex={0}
-                            aria-label="Open folder"
-                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                          <MenuItemButton
+                            icon={FolderOpen}
+                            label="Open folder"
+                            ariaLabel="Open folder"
                             onClick={handleOpenFolder}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleOpenFolder();
-                              }
-                            }}
-                          >
-                            <FolderOpen className="h-4 w-4" />
-                            Open folder
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            tabIndex={0}
-                            aria-label="Create new project"
-                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                          />
+                          <MenuItemButton
+                            icon={Plus}
+                            label="Create new"
+                            ariaLabel="Create new project"
                             onClick={handleCreateNew}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleCreateNew();
-                              }
-                            }}
-                          >
-                            <Plus className="h-4 w-4" />
-                            Create new
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            tabIndex={0}
-                            aria-label="Clone project from GitHub"
-                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                          />
+                          <MenuItemButton
+                            icon={Download}
+                            label="Clone from GitHub"
+                            ariaLabel="Clone project from GitHub"
                             onClick={handleCloneFromGithub}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleCloneFromGithub();
-                              }
-                            }}
-                          >
-                            <Download className="h-4 w-4" />
-                            Clone from GitHub
-                          </button>
+                          />
                         </div>
                       </PopoverContent>
                     </Popover>
