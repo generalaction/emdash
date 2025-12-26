@@ -680,6 +680,13 @@ declare global {
       saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
       deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
+      getConversations: (taskId: string) => Promise<{
+        success: boolean;
+        conversations?: any[];
+        error?: string;
+      }>;
+      deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
 
       // Message operations
       saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
@@ -1008,6 +1015,13 @@ export interface ElectronAPI {
   saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
+  getConversations: (taskId: string) => Promise<{
+    success: boolean;
+    conversations?: any[];
+    error?: string;
+  }>;
+  deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;

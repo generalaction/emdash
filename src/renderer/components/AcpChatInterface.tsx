@@ -65,7 +65,7 @@ type ContentBlock = {
 
 type ToolCallContent =
   | { type: 'content'; content: ContentBlock }
-  | { type: 'diff'; path?: string; oldText?: string; newText?: string }
+  | { type: 'diff'; path?: string; oldText?: string; newText?: string; preview?: DiffPreview }
   | { type: 'terminal'; terminalId: string };
 
 type ToolCall = {
@@ -106,6 +106,55 @@ type FeedItem =
     }
   | { id: string; type: 'permission'; requestId: number };
 
+type AcpMetaType = 'message' | 'tool' | 'plan';
+
+type AcpMessageItem = {
+  role: 'user' | 'assistant' | 'system';
+  blocks: ContentBlock[];
+  messageKind?: 'thought' | 'system';
+  runDurationMs?: number;
+};
+
+type AcpToolItem = {
+  toolCallId: string;
+  title?: string;
+  kind?: string;
+  status?: string;
+  locations?: Array<{ path: string; line?: number }>;
+  content?: ToolCallContent[];
+  rawInput?: string;
+  terminalPreview?: Array<{ terminalId: string; lines: string[]; truncated: boolean }>;
+};
+
+type AcpPlanItem = {
+  entries: Array<{ content?: string; status?: string; priority?: string }>;
+};
+
+type AcpMetaEnvelope = {
+  acp: {
+    version: 1;
+    type: AcpMetaType;
+    feedId: string;
+    sequence: number;
+    createdAt: string;
+    providerId?: string;
+    sessionId?: string;
+    taskId?: string;
+    item: AcpMessageItem | AcpToolItem | AcpPlanItem;
+  };
+};
+
+type AcpHydratedState = {
+  feedItems: FeedItem[];
+  toolMap: Record<string, ToolCall>;
+  terminalMap: Record<string, string>;
+  latestPlan: AcpPlanItem | null;
+  savedMessageIds: Set<string>;
+  savedToolIds: Set<string>;
+  metaMap: Record<string, { sequence: number; createdAt: string }>;
+  nextSequence: number;
+};
+
 type PermissionRequest = {
   requestId: number;
   toolCall?: ToolCall;
@@ -136,6 +185,12 @@ const DIFF_CONTEXT_LINES = 3;
 const MAX_DIFF_PREVIEW_LINES = 80;
 const MAX_DIFF_SOURCE_LINES = 400;
 const DEFAULT_TRUNCATE_LIMIT = 120;
+const MAX_PERSISTED_BLOCKS = 40;
+const MAX_PERSISTED_TEXT_CHARS = 4000;
+const MAX_PERSISTED_RESOURCE_CHARS = 1200;
+const MAX_PERSISTED_MESSAGE_CHARS = 12000;
+const MAX_PERSISTED_TOOL_INPUT_CHARS = 4000;
+const MAX_PERSISTED_TERMINAL_LINES = 120;
 
 const normalizeNewlines = (text: string) => text.replace(/\r\n/g, '\n');
 
@@ -281,7 +336,11 @@ const buildFallbackDiffLines = (
   ];
 };
 
-const trimDiffLines = (lines: DiffPreviewLine[], maxLines: number, context: number) => {
+const trimDiffLines = (
+  lines: DiffPreviewLine[],
+  maxLines: number,
+  context: number
+): { lines: DiffPreviewLine[]; truncated: boolean } => {
   if (lines.length <= maxLines) {
     return { lines, truncated: false };
   }
@@ -330,7 +389,7 @@ const trimDiffLines = (lines: DiffPreviewLine[], maxLines: number, context: numb
   };
 };
 
-const buildDiffPreview = (oldText: string, newText: string) => {
+const buildDiffPreview = (oldText: string, newText: string): DiffPreview => {
   const oldLines = splitLines(oldText);
   const newLines = splitLines(newText);
   const useFallback = oldLines.length + newLines.length > MAX_DIFF_SOURCE_LINES * 2;
@@ -763,12 +822,23 @@ const AcpChatInterface: React.FC<Props> = ({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [runElapsedMs, setRunElapsedMs] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [historyReady, setHistoryReady] = useState(false);
   const runStartedAtRef = useRef<number | null>(null);
   const lastAssistantMessageIdRef = useRef<string | null>(null);
   const copyResetRef = useRef<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hydratingRef = useRef(false);
+  const sequenceRef = useRef(0);
+  const feedMetaRef = useRef<Record<string, { sequence: number; createdAt: string }>>({});
+  const savedMessageIdsRef = useRef<Set<string>>(new Set());
+  const savedToolCallIdsRef = useRef<Set<string>>(new Set());
+  const lastSavedPlanHashRef = useRef<string | null>(null);
+  const persistedModelRef = useRef<string | null>(null);
+
+  const acpConversationId = useMemo(() => `conv-${task.id}-acp`, [task.id]);
+  const modelStorageKey = useMemo(() => `acp:model:${acpConversationId}`, [acpConversationId]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
@@ -794,6 +864,418 @@ const AcpChatInterface: React.FC<Props> = ({
       setCurrentModelId(nextCurrentModelId);
     }
   }, []);
+
+  const ensureFeedMeta = useCallback(
+    (id: string, overrides?: { sequence?: number; createdAt?: string }) => {
+      const existing = feedMetaRef.current[id];
+      if (existing) return existing;
+      const createdAt = overrides?.createdAt ?? new Date().toISOString();
+      const sequence = overrides?.sequence ?? sequenceRef.current++;
+      const next = { sequence, createdAt };
+      feedMetaRef.current[id] = next;
+      return next;
+    },
+    []
+  );
+
+  const safeJsonParse = useCallback((value?: string) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const readLocalStorage = useCallback((key: string) => {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const writeLocalStorage = useCallback((key: string, value: string | null | undefined) => {
+    if (!value) return;
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {}
+  }, []);
+
+  const sanitizeBlocks = useCallback((blocks: ContentBlock[]) => {
+    const sanitized: ContentBlock[] = [];
+    for (const block of blocks) {
+      if (block.type === 'text') {
+        const text = block.text ? truncateText(String(block.text), MAX_PERSISTED_TEXT_CHARS) : '';
+        if (text) sanitized.push({ type: 'text', text });
+        continue;
+      }
+      if (block.type === 'resource' || block.type === 'resource_link') {
+        const resource = block.resource || {};
+        const uri = (resource.uri as string | undefined) || block.uri;
+        const name = resource.name || block.name;
+        const title = resource.title || block.title;
+        const description = resource.description || block.description;
+        const mimeType = resource.mimeType || block.mimeType;
+        const size = resource.size || block.size;
+        if (block.type === 'resource') {
+          const textValue = resource.text || block.text;
+          const text = textValue
+            ? truncateText(String(textValue), MAX_PERSISTED_RESOURCE_CHARS)
+            : undefined;
+          sanitized.push({
+            type: 'resource',
+            uri,
+            name,
+            title,
+            description,
+            mimeType,
+            size,
+            resource: {
+              uri,
+              name,
+              title,
+              description,
+              mimeType,
+              size,
+              text,
+            },
+          });
+        } else {
+          sanitized.push({
+            type: 'resource_link',
+            uri,
+            name,
+            title,
+            mimeType,
+            size,
+          });
+        }
+        continue;
+      }
+      if (block.type === 'image') {
+        sanitized.push({
+          type: 'text',
+          text: '[image omitted]',
+        });
+      }
+      if (block.type === 'audio') {
+        sanitized.push({
+          type: 'text',
+          text: '[audio omitted]',
+        });
+      }
+    }
+    return sanitized.slice(0, MAX_PERSISTED_BLOCKS);
+  }, []);
+
+  const sanitizeRawInput = useCallback(
+    (rawInput?: string) => {
+      if (!rawInput) return undefined;
+      const parsed = safeJsonParse(rawInput);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const allowedKeys = [
+          'command',
+          'args',
+          'path',
+          'filePath',
+          'filepath',
+          'query',
+          'search',
+          'input',
+          'prompt',
+        ];
+        const subset: Record<string, any> = {};
+        for (const key of allowedKeys) {
+          if (parsed[key] !== undefined) subset[key] = parsed[key];
+        }
+        const serialized = JSON.stringify(subset, null, 2);
+        return truncateText(serialized, MAX_PERSISTED_TOOL_INPUT_CHARS);
+      }
+      return truncateText(rawInput, MAX_PERSISTED_TOOL_INPUT_CHARS);
+    },
+    [safeJsonParse]
+  );
+
+  const buildPersistedContent = useCallback(
+    (blocks: ContentBlock[]) => {
+      const parts: string[] = [];
+      blocks.forEach((block) => {
+        if (block.type === 'text' && block.text) {
+          parts.push(block.text);
+          return;
+        }
+        if (block.type === 'resource' && block.resource?.text) {
+          parts.push(block.resource.text);
+        }
+      });
+      const text = parts.join('\n\n').trim();
+      if (text) return truncateText(text, MAX_PERSISTED_MESSAGE_CHARS);
+      const resourceLabel = blocks.find(
+        (block) => block.type === 'resource' || block.type === 'resource_link'
+      );
+      if (!resourceLabel) return '';
+      const label =
+        resourceLabel.title ||
+        resourceLabel.name ||
+        resourceLabel.resource?.title ||
+        resourceLabel.resource?.name ||
+        resourceLabel.uri ||
+        resourceLabel.resource?.uri ||
+        'resource';
+      return truncateText(`[attachment] ${label}`, MAX_PERSISTED_MESSAGE_CHARS);
+    },
+    []
+  );
+
+  const buildToolCallSnapshot = useCallback(
+    (toolCall: ToolCall): AcpToolItem => {
+      const content: ToolCallContent[] = [];
+      const diffItems = (toolCall.content?.filter((item) => item.type === 'diff') ||
+        []) as Array<{
+        type: 'diff';
+        path?: string;
+        oldText?: string;
+        newText?: string;
+        original?: string;
+        updated?: string;
+        preview?: DiffPreview;
+      }>;
+      diffItems.forEach((item) => {
+        if (item.preview) {
+          content.push({
+            type: 'diff',
+            path: item.path,
+            preview: item.preview,
+          });
+          return;
+        }
+        const before = (item as any).oldText ?? (item as any).original ?? '';
+        const after = (item as any).newText ?? (item as any).updated ?? '';
+        const preview = buildDiffPreview(String(before ?? ''), String(after ?? ''));
+        content.push({
+          type: 'diff',
+          path: item.path,
+          preview,
+        });
+      });
+
+      const contentBlocks =
+        (toolCall.content?.filter((item) => item.type === 'content') as
+          | Array<{ type: 'content'; content: ContentBlock }>
+          | undefined) || [];
+      const sanitizedBlocks = sanitizeBlocks(
+        contentBlocks.map((item) => item.content)
+      ).slice(0, MAX_PERSISTED_BLOCKS);
+      sanitizedBlocks.forEach((block) => {
+        content.push({ type: 'content', content: block });
+      });
+
+      const terminalItems =
+        (toolCall.content?.filter((item) => item.type === 'terminal') as
+          | Array<{ type: 'terminal'; terminalId: string }>
+          | undefined) || [];
+      const terminalPreview: Array<{ terminalId: string; lines: string[]; truncated: boolean }> = [];
+      const seenTerminalIds = new Set<string>();
+      terminalItems.forEach((item) => {
+        if (!item.terminalId || seenTerminalIds.has(item.terminalId)) return;
+        seenTerminalIds.add(item.terminalId);
+        content.push({ type: 'terminal', terminalId: item.terminalId });
+        const output = terminalOutputs[item.terminalId] || '';
+        const tail = getTailLines(output, MAX_PERSISTED_TERMINAL_LINES);
+        terminalPreview.push({
+          terminalId: item.terminalId,
+          lines: tail.lines,
+          truncated: tail.truncated,
+        });
+      });
+
+      return {
+        toolCallId: toolCall.toolCallId,
+        title: toolCall.title,
+        kind: toolCall.kind,
+        status: toolCall.status,
+        locations: toolCall.locations?.map((loc) => ({
+          path: loc.path,
+          line: loc.line,
+        })),
+        content,
+        rawInput: sanitizeRawInput(toolCall.rawInput),
+        terminalPreview: terminalPreview.length ? terminalPreview : undefined,
+      };
+    },
+    [sanitizeBlocks, sanitizeRawInput, terminalOutputs]
+  );
+
+  const persistAcpMessage = useCallback(
+    async (args: {
+      messageId: string;
+      feedId: string;
+      type: AcpMetaType;
+      item: AcpMessageItem | AcpToolItem | AcpPlanItem;
+      sender: 'user' | 'agent';
+      content: string;
+    }) => {
+      if (!window.electronAPI?.saveMessage) return;
+      const meta = ensureFeedMeta(args.feedId);
+      const payload: AcpMetaEnvelope = {
+        acp: {
+          version: 1,
+          type: args.type,
+          feedId: args.feedId,
+          sequence: meta.sequence,
+          createdAt: meta.createdAt,
+          providerId: String(provider || 'codex'),
+          sessionId: sessionId ?? undefined,
+          taskId: task.id,
+          item: args.item,
+        },
+      };
+      try {
+        const res = await window.electronAPI.saveMessage({
+          id: args.messageId,
+          conversationId: acpConversationId,
+          content: args.content || '',
+          sender: args.sender,
+          metadata: payload,
+        });
+        if (!res?.success) {
+          uiLog('persistMessage:failed', res?.error);
+        }
+      } catch (error) {
+        uiLog('persistMessage:error', error);
+      }
+    },
+    [acpConversationId, ensureFeedMeta, provider, sessionId, task.id, uiLog]
+  );
+
+  const hydrateAcpHistory = useCallback((rows: any[]): AcpHydratedState => {
+    const feedItems: FeedItem[] = [];
+    const toolMap: Record<string, ToolCall> = {};
+    const terminalMap: Record<string, string> = {};
+    let latestPlan: AcpPlanItem | null = null;
+    const savedMessageIds = new Set<string>();
+    const savedToolIds = new Set<string>();
+    const metaMap: Record<string, { sequence: number; createdAt: string }> = {};
+
+    const parsed = rows
+      .map((row) => {
+        if (!row?.metadata) return null;
+        try {
+          const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+          const acp = metadata?.acp;
+          if (!acp || acp.version !== 1) return null;
+          return { row, acp };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean) as Array<{ row: any; acp: AcpMetaEnvelope['acp'] }>;
+
+    parsed.sort((a, b) => {
+      const aSeq = Number.isFinite(a.acp.sequence) ? a.acp.sequence : null;
+      const bSeq = Number.isFinite(b.acp.sequence) ? b.acp.sequence : null;
+      if (aSeq !== null && bSeq !== null && aSeq !== bSeq) return aSeq - bSeq;
+      const aTime = Date.parse(a.row.timestamp || a.acp.createdAt || '') || 0;
+      const bTime = Date.parse(b.row.timestamp || b.acp.createdAt || '') || 0;
+      return aTime - bTime;
+    });
+
+    let nextSequence = 0;
+    parsed.forEach(({ row, acp }) => {
+      const feedId = acp.feedId || row.id;
+      const createdAt = acp.createdAt || row.timestamp || new Date().toISOString();
+      const sequence = Number.isFinite(acp.sequence) ? acp.sequence : nextSequence;
+      nextSequence = Math.max(nextSequence, sequence + 1);
+      metaMap[feedId] = { sequence, createdAt };
+
+      if (acp.type === 'message') {
+        const item = acp.item as AcpMessageItem;
+        const blocks =
+          Array.isArray(item?.blocks) && item.blocks.length
+            ? item.blocks
+            : row.content
+              ? [{ type: 'text', text: String(row.content) }]
+              : [];
+        if (!blocks.length) return;
+        const role = item?.role || (row.sender === 'user' ? 'user' : 'assistant');
+        feedItems.push({
+          id: feedId,
+          type: 'message',
+          role,
+          blocks,
+          streaming: false,
+          messageKind: item?.messageKind,
+          runDurationMs: item?.runDurationMs,
+        });
+        savedMessageIds.add(feedId);
+        return;
+      }
+      if (acp.type === 'tool') {
+        const item = acp.item as AcpToolItem;
+        if (!item?.toolCallId) return;
+        toolMap[item.toolCallId] = {
+          toolCallId: item.toolCallId,
+          title: item.title,
+          kind: item.kind,
+          status: item.status,
+          locations: item.locations,
+          content: item.content,
+          rawInput: item.rawInput,
+        };
+        if (item.terminalPreview?.length) {
+          item.terminalPreview.forEach((preview) => {
+            terminalMap[preview.terminalId] = preview.lines.join('\n');
+          });
+        }
+        if (!feedItems.some((entry) => entry.type === 'tool' && entry.toolCallId === item.toolCallId)) {
+          feedItems.push({ id: feedId, type: 'tool', toolCallId: item.toolCallId });
+        }
+        savedToolIds.add(item.toolCallId);
+        return;
+      }
+      if (acp.type === 'plan') {
+        const item = acp.item as AcpPlanItem;
+        if (item?.entries?.length) {
+          latestPlan = item;
+        }
+      }
+    });
+
+    return {
+      feedItems,
+      toolMap,
+      terminalMap,
+      latestPlan,
+      savedMessageIds,
+      savedToolIds,
+      metaMap,
+      nextSequence,
+    };
+  }, []);
+
+  const maybePersistPlan = useCallback(
+    (entries: Array<{ content?: string; status?: string; priority?: string }>) => {
+      if (hydratingRef.current) return;
+      if (!entries?.length) return;
+      const hash = JSON.stringify(entries);
+      if (lastSavedPlanHashRef.current === hash) return;
+      lastSavedPlanHashRef.current = hash;
+      const feedId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      ensureFeedMeta(feedId);
+      void persistAcpMessage({
+        messageId: `acp-${feedId}`,
+        feedId,
+        type: 'plan',
+        item: { entries },
+        sender: 'agent',
+        content: 'Plan updated',
+      });
+    },
+    [ensureFeedMeta, persistAcpMessage]
+  );
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -837,6 +1319,66 @@ const AcpChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false;
+    hydratingRef.current = true;
+    setHistoryReady(false);
+    setFeed([]);
+    setToolCalls({});
+    setPermissions({});
+    setTerminalOutputs({});
+    setPlan(null);
+    setExpandedItems({});
+    savedMessageIdsRef.current = new Set();
+    savedToolCallIdsRef.current = new Set();
+    feedMetaRef.current = {};
+    sequenceRef.current = 0;
+    lastSavedPlanHashRef.current = null;
+    (async () => {
+      try {
+        await window.electronAPI?.saveConversation?.({
+          id: acpConversationId,
+          taskId: task.id,
+          title: 'ACP Chat',
+        });
+        const res = await window.electronAPI?.getMessages?.(acpConversationId);
+        if (cancelled) return;
+        if (res?.success && Array.isArray(res.messages) && res.messages.length) {
+          const hydrated = hydrateAcpHistory(res.messages);
+          feedMetaRef.current = hydrated.metaMap;
+          sequenceRef.current = hydrated.nextSequence;
+          savedMessageIdsRef.current = hydrated.savedMessageIds;
+          savedToolCallIdsRef.current = hydrated.savedToolIds;
+          setFeed(hydrated.feedItems);
+          setToolCalls(hydrated.toolMap);
+          setTerminalOutputs(hydrated.terminalMap);
+          if (hydrated.latestPlan?.entries?.length) {
+            setPlan(hydrated.latestPlan.entries);
+            lastSavedPlanHashRef.current = JSON.stringify(hydrated.latestPlan.entries);
+          }
+          const hasHistoryMessages = hydrated.feedItems.some((item) => item.type === 'message');
+          if (hasHistoryMessages) {
+            const storedModel = readLocalStorage(modelStorageKey);
+            if (storedModel) {
+              setModelId(storedModel);
+            }
+          }
+        }
+      } catch (error) {
+        uiLog('hydrateHistory:error', error);
+      } finally {
+        if (!cancelled) {
+          hydratingRef.current = false;
+          setHistoryReady(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [acpConversationId, hydrateAcpHistory, task.id, uiLog, modelStorageKey, readLocalStorage]);
+
+  useEffect(() => {
+    if (!historyReady) return;
+    let cancelled = false;
     (async () => {
       setSessionError(null);
       setConfigOptions([]);
@@ -860,7 +1402,7 @@ const AcpChatInterface: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [task.id, task.path, provider, uiLog]);
+  }, [historyReady, task.id, task.path, provider, uiLog]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -959,8 +1501,10 @@ const AcpChatInterface: React.FC<Props> = ({
         }
         return next;
       }
+      const id = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      ensureFeedMeta(id);
       const newItem = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id,
         type: 'message' as const,
         role,
         blocks,
@@ -1048,10 +1592,12 @@ const AcpChatInterface: React.FC<Props> = ({
         if (payload.stopReason) {
           const stopReason = String(payload.stopReason).trim();
           if (stopReason && stopReason !== 'end_turn') {
+            const stopId = `stop-${Date.now()}`;
+            ensureFeedMeta(stopId);
             setFeed((prev) => [
               ...prev,
               {
-                id: `stop-${Date.now()}`,
+                id: stopId,
                 type: 'message',
                 role: 'system',
                 blocks: [
@@ -1121,6 +1667,7 @@ const AcpChatInterface: React.FC<Props> = ({
         if (updateType === 'plan') {
           const entries = Array.isArray(update.entries) ? update.entries : [];
           setPlan(entries);
+          maybePersistPlan(entries);
           setFeed((prev) => {
             const existing = prev.find((item) => item.type === 'plan');
             if (existing) {
@@ -1160,7 +1707,9 @@ const AcpChatInterface: React.FC<Props> = ({
               (item) => item.type === 'tool' && item.toolCallId === toolCallId
             );
             if (already) return prev;
-            return [...prev, { id: `tool-${toolCallId}`, type: 'tool', toolCallId }];
+            const feedId = `tool-${toolCallId}`;
+            ensureFeedMeta(feedId);
+            return [...prev, { id: feedId, type: 'tool', toolCallId }];
           });
           return;
         }
@@ -1193,7 +1742,63 @@ const AcpChatInterface: React.FC<Props> = ({
     return () => {
       off?.();
     };
-  }, [task.id, uiLog]);
+  }, [task.id, uiLog, handleConfigAndModelUpdates, maybePersistPlan, ensureFeedMeta]);
+
+  useEffect(() => {
+    if (hydratingRef.current) return;
+    if (!feed.length) return;
+    feed.forEach((item) => {
+      if (item.type !== 'message') return;
+      if (item.streaming) return;
+      if (savedMessageIdsRef.current.has(item.id)) return;
+      const blocks = sanitizeBlocks(item.blocks);
+      if (!blocks.length) return;
+      const content = buildPersistedContent(blocks);
+      const messageId = `acp-${item.id}`;
+      void persistAcpMessage({
+        messageId,
+        feedId: item.id,
+        type: 'message',
+        item: {
+          role: item.role,
+          blocks,
+          messageKind: item.messageKind,
+          runDurationMs: item.runDurationMs,
+        },
+        sender: item.role === 'user' ? 'user' : 'agent',
+        content,
+      });
+      savedMessageIdsRef.current.add(item.id);
+    });
+  }, [
+    feed,
+    persistAcpMessage,
+    sanitizeBlocks,
+    buildPersistedContent,
+  ]);
+
+  useEffect(() => {
+    if (hydratingRef.current) return;
+    const terminalStatuses = new Set(['completed', 'failed', 'cancelled']);
+    Object.values(toolCalls).forEach((call) => {
+      if (!call.toolCallId) return;
+      if (!call.status || !terminalStatuses.has(call.status)) return;
+      if (savedToolCallIdsRef.current.has(call.toolCallId)) return;
+      const feedId = `tool-${call.toolCallId}`;
+      ensureFeedMeta(feedId);
+      const snapshot = buildToolCallSnapshot(call);
+      const label = call.title || call.kind || 'Tool call';
+      void persistAcpMessage({
+        messageId: `acp-tool-${call.toolCallId}`,
+        feedId,
+        type: 'tool',
+        item: snapshot,
+        sender: 'agent',
+        content: label,
+      });
+      savedToolCallIdsRef.current.add(call.toolCallId);
+    });
+  }, [toolCalls, terminalOutputs, persistAcpMessage, buildToolCallSnapshot, ensureFeedMeta]);
 
   const normalizePath = (value: string) => value.replace(/\\/g, '/');
 
@@ -1215,17 +1820,6 @@ const AcpChatInterface: React.FC<Props> = ({
   const toFileUri = (filePath: string) => `file://${encodeURI(filePath)}`;
 
   const fromFileUri = (uri: string) => decodeURIComponent(uri.replace(/^file:\/\//, ''));
-
-  const safeJsonParse = (value?: string) => {
-    if (!value) return null;
-    const trimmed = value.trim();
-    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return null;
-    }
-  };
 
   const extractPrimaryText = (blocks: ContentBlock[]) => {
     const textBlock = blocks.find((block) => block.type === 'text' && block.text);
@@ -1540,6 +2134,8 @@ const AcpChatInterface: React.FC<Props> = ({
   const resolvedModelValue = modelOptions.some((option) => option.id === fallbackModelId)
     ? fallbackModelId
     : undefined;
+  const persistedModelValue =
+    resolvedModelValue || selectedBaseId || modelId || currentModelId || '';
   const canSetModel = Boolean(sessionId) && (Boolean(modelConfigId) || modelOptions.length > 0);
   const thinkingConfigOption = useMemo(
     () => findThinkingConfigOption(configOptions),
@@ -1593,6 +2189,7 @@ const AcpChatInterface: React.FC<Props> = ({
   const handleModelChange = useCallback(
     (value: string) => {
       setModelId(value);
+      writeLocalStorage(modelStorageKey, value);
       if (!sessionId || !canSetModel) return;
 
       const entry = modelCatalog.get(value);
@@ -1641,13 +2238,30 @@ const AcpChatInterface: React.FC<Props> = ({
       activeBudgetLevel,
       canSetModel,
       currentEffort,
+      modelStorageKey,
       modelCatalog,
       modelConfigChoices,
       modelConfigId,
       sessionId,
       uiLog,
+      writeLocalStorage,
     ]
   );
+
+  useEffect(() => {
+    if (persistedModelValue) {
+      persistedModelRef.current = persistedModelValue;
+    }
+  }, [persistedModelValue]);
+
+  useEffect(() => {
+    return () => {
+      if (savedMessageIdsRef.current.size === 0) return;
+      const value = persistedModelRef.current;
+      if (!value) return;
+      writeLocalStorage(modelStorageKey, value);
+    };
+  }, [modelStorageKey, writeLocalStorage]);
 
   const handleThinkingBudgetClick = useCallback(() => {
     const next = nextBudgetLevel(activeBudgetLevel, availableBudgetLevels);
@@ -1954,9 +2568,14 @@ const AcpChatInterface: React.FC<Props> = ({
         newText?: string;
         original?: string;
         updated?: string;
+        preview?: DiffPreview;
       }>;
       if (diffItems.length > 0) {
         result[toolCallId] = diffItems.map((item) => {
+          if (item.preview) {
+            const path = item.path || item.preview.path;
+            return { ...item.preview, path: formatPath(path) } as DiffPreview;
+          }
           const before = (item as any).oldText ?? (item as any).original ?? '';
           const after = (item as any).newText ?? (item as any).updated ?? '';
           const preview = buildDiffPreview(String(before ?? ''), String(after ?? ''));
@@ -1984,6 +2603,7 @@ const AcpChatInterface: React.FC<Props> = ({
       newText?: string;
       original?: string;
       updated?: string;
+      preview?: DiffPreview;
     }>;
     const terminalItems =
       (toolCall.content?.filter((item) => item.type === 'terminal') as
@@ -2024,7 +2644,8 @@ const AcpChatInterface: React.FC<Props> = ({
       })
       .filter(Boolean) as string[];
     const locationPath = formatPath(toolCall.locations?.[0]?.path);
-    const diffPath = formatPath(diffItems.find((item) => item.path)?.path);
+    const diffSource = diffItems.find((item) => item.path || item.preview?.path);
+    const diffPath = formatPath(diffSource?.path ?? diffSource?.preview?.path);
     const rawPath = formatPath(parsedInput?.path || parsedInput?.filePath || parsedInput?.filepath);
     const primaryPath = diffPath || locationPath || contentPaths[0] || rawPath;
 
@@ -2483,7 +3104,7 @@ const AcpChatInterface: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="bg-transparent px-6 py-4">
+        <div className="bg-transparent px-4 pb-4">
           <div className="mx-auto max-w-4xl space-y-3">
             {commandSuggestions.length ? (
               <div className="rounded-lg border border-border bg-background p-2 text-xs shadow-lg">
