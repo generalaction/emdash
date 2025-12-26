@@ -54,6 +54,14 @@ export const APP_SHORTCUTS = {
     category: 'Navigation',
   },
 
+  // Feedback
+  FEEDBACK: {
+    key: 'f',
+    modifier: 'cmd+shift' as const,
+    description: 'Open feedback',
+    category: 'Navigation',
+  },
+
   // Modal Controls
   CLOSE_MODAL: {
     key: 'Escape',
@@ -69,17 +77,24 @@ export const APP_SHORTCUTS = {
  */
 
 export function formatShortcut(shortcut: ShortcutConfig): string {
-  const modifier = shortcut.modifier
-    ? shortcut.modifier === 'cmd'
-      ? '⌘'
-      : shortcut.modifier === 'option'
-        ? '⌥'
-        : shortcut.modifier === 'shift'
-          ? '⇧'
-          : shortcut.modifier === 'alt'
-            ? 'Alt'
-            : 'Ctrl'
-    : '';
+  let modifier = '';
+  if (shortcut.modifier) {
+    if (shortcut.modifier === 'cmd+shift') {
+      modifier = '⌘⇧';
+    } else if (shortcut.modifier === 'ctrl+shift') {
+      modifier = 'Ctrl⇧';
+    } else if (shortcut.modifier === 'cmd') {
+      modifier = '⌘';
+    } else if (shortcut.modifier === 'option') {
+      modifier = '⌥';
+    } else if (shortcut.modifier === 'shift') {
+      modifier = '⇧';
+    } else if (shortcut.modifier === 'alt') {
+      modifier = 'Alt';
+    } else {
+      modifier = 'Ctrl';
+    }
+  }
 
   const key = shortcut.key === 'Escape' ? 'Esc' : shortcut.key.toUpperCase();
 
@@ -128,6 +143,12 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
       return event.altKey;
     case 'shift':
       return event.shiftKey;
+    case 'cmd+shift':
+      // Require both Command and Shift on macOS, or Ctrl and Shift on other platforms
+      return isMacPlatform ? event.metaKey && event.shiftKey : event.ctrlKey && event.shiftKey;
+    case 'ctrl+shift':
+      // Require both Control and Shift
+      return event.ctrlKey && event.shiftKey && !event.metaKey;
     default:
       return false;
   }
@@ -179,6 +200,12 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       {
         config: APP_SHORTCUTS.TOGGLE_KANBAN,
         handler: () => handlers.onToggleKanban?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: APP_SHORTCUTS.FEEDBACK,
+        handler: () => handlers.onOpenFeedback?.(),
         priority: 'global',
         requiresClosed: true,
       },

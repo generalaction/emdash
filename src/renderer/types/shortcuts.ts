@@ -1,4 +1,11 @@
-export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+export type ShortcutModifier =
+  | 'cmd'
+  | 'ctrl'
+  | 'shift'
+  | 'alt'
+  | 'option'
+  | 'cmd+shift'
+  | 'ctrl+shift';
 
 export interface ShortcutConfig {
   key: string;
@@ -45,6 +52,9 @@ export interface GlobalShortcutHandlers {
 
   // Kanban
   onToggleKanban?: () => void;
+
+  // Feedback
+  onOpenFeedback?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;

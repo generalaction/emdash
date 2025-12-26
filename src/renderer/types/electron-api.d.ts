@@ -19,6 +19,9 @@ declare global {
       getAppVersion: () => Promise<string>;
       getElectronVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
+      // Window state
+      getFullScreenState: () => Promise<boolean>;
+      onFullScreenChange: (callback: (isFullScreen: boolean) => void) => () => void;
       // Updater
       checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -645,6 +648,9 @@ export interface ElectronAPI {
   // App info
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
+  // Window state
+  getFullScreenState: () => Promise<boolean>;
+  onFullScreenChange: (callback: (isFullScreen: boolean) => void) => () => void;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;

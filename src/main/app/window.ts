@@ -74,6 +74,15 @@ export function createMainWindow(): BrowserWindow {
     mainWindow = null;
   });
 
+  // Notify renderer when entering/leaving native fullscreen (for macOS titlebar padding)
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow?.webContents.send('window:fullscreen-changed', true);
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow?.webContents.send('window:fullscreen-changed', false);
+  });
+
   return mainWindow;
 }
 

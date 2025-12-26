@@ -12,6 +12,7 @@ export interface AppKeyboardShortcutsProps {
   handleCloseCommandPalette: () => void;
   handleCloseSettings: () => void;
   handleToggleKanban: () => void;
+  handleOpenFeedback?: () => void;
 }
 
 const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
@@ -22,6 +23,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
   handleCloseCommandPalette,
   handleCloseSettings,
   handleToggleKanban,
+  handleOpenFeedback,
 }) => {
   const { toggle: toggleLeftSidebar } = useSidebar();
   const { toggle: toggleRightSidebar } = useRightSidebar();
@@ -34,6 +36,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
     onToggleRightSidebar: toggleRightSidebar,
     onToggleTheme: toggleTheme,
     onToggleKanban: handleToggleKanban,
+    onOpenFeedback: handleOpenFeedback,
     onCloseModal: showCommandPalette
       ? handleCloseCommandPalette
       : showSettings
