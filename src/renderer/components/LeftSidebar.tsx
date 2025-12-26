@@ -396,21 +396,13 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   <SidebarMenuItem>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-1 w-full justify-start"
-                        >
+                        <Button variant="outline" size="sm" className="mt-1 w-full justify-start">
                           <Plus className="mr-2 h-4 w-4" />
                           <span className="text-sm font-medium">Add Project</span>
                           <ChevronDown className="ml-auto h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent
-                        className="w-48 p-1"
-                        align="start"
-                        sideOffset={4}
-                      >
+                      <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
                         <div className="space-y-1">
                           <button
                             type="button"
