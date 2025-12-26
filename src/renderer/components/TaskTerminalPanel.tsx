@@ -1,11 +1,18 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus, Terminal, X, Bot } from 'lucide-react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import type { Provider } from '../types';
+import { captureTelemetry } from '../lib/telemetryClient';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Task {
   id: string;
@@ -29,15 +36,27 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   projectPath,
 }) => {
   const { effectiveTheme } = useTheme();
+
   const taskKey = task?.id ?? 'task-placeholder';
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
   const globalTerminals = useTaskTerminals('global', projectPath, { defaultCwd: projectPath });
+
   const [mode, setMode] = useState<'task' | 'global'>(task ? 'task' : 'global');
+  const [userInitiatedModeChange, setUserInitiatedModeChange] = useState(false);
+  const [switchingTerminalId, setSwitchingTerminalId] = useState<string | null>(null);
+
+  const handleModeChange = useCallback((value: string) => {
+    if (value !== 'task' && value !== 'global') return;
+    setUserInitiatedModeChange(true);
+    setMode(value);
+    setTimeout(() => setUserInitiatedModeChange(false), 1000);
+  }, []);
+
   useEffect(() => {
-    if (!task && mode === 'task') {
+    if (!task && mode === 'task' && !userInitiatedModeChange) {
       setMode('global');
     }
-  }, [task, mode]);
+  }, [task, mode, userInitiatedModeChange]);
 
   const {
     terminals,
@@ -72,7 +91,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     brightWhite?: string;
   } | null>(null);
 
-  // Fetch native terminal theme on mount
   useEffect(() => {
     void (async () => {
       try {
@@ -81,78 +99,66 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           setNativeTheme(result.config.theme);
         }
       } catch (error) {
-        // Silently fail - fall back to default theme
         console.warn('Failed to load native terminal theme', error);
       }
     })();
   }, []);
 
-  // Default theme (VS Code inspired)
-  const defaultTheme = useMemo(() => {
-    // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
+  const themeOverride = useMemo(() => {
     const isMistral = provider === 'mistral';
     const darkBackground = isMistral ? '#202938' : '#1e1e1e';
 
-    return effectiveTheme === 'dark'
-      ? {
-          background: darkBackground,
-          foreground: '#d4d4d4',
-          cursor: '#aeafad',
-          cursorAccent: darkBackground,
-          selectionBackground: '#264f78',
-          black: '#000000',
-          red: '#cd3131',
-          green: '#0dbc79',
-          yellow: '#e5e510',
-          blue: '#2472c8',
-          magenta: '#bc3fbc',
-          cyan: '#11a8cd',
-          white: '#e5e5e5',
-          brightBlack: '#666666',
-          brightRed: '#f14c4c',
-          brightGreen: '#23d18b',
-          brightYellow: '#f5f543',
-          brightBlue: '#3b8eea',
-          brightMagenta: '#d670d6',
-          brightCyan: '#29b8db',
-          brightWhite: '#ffffff',
-        }
-      : {
-          background: '#ffffff',
-          foreground: '#1e1e1e',
-          cursor: '#1e1e1e',
-          cursorAccent: '#ffffff',
-          selectionBackground: '#add6ff',
-          black: '#000000',
-          red: '#cd3131',
-          green: '#0dbc79',
-          yellow: '#bf8803',
-          blue: '#0451a5',
-          magenta: '#bc05bc',
-          cyan: '#0598bc',
-          white: '#e5e5e5',
-          brightBlack: '#666666',
-          brightRed: '#cd3131',
-          brightGreen: '#14ce14',
-          brightYellow: '#b5ba00',
-          brightBlue: '#0451a5',
-          brightMagenta: '#bc05bc',
-          brightCyan: '#0598bc',
-          brightWhite: '#a5a5a5',
-        };
-  }, [effectiveTheme, provider]);
+    const baseTheme =
+      effectiveTheme === 'dark'
+        ? {
+            background: darkBackground,
+            foreground: '#d4d4d4',
+            cursor: '#aeafad',
+            cursorAccent: darkBackground,
+            selectionBackground: '#264f78',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#0dbc79',
+            yellow: '#e5e510',
+            blue: '#2472c8',
+            magenta: '#bc3fbc',
+            cyan: '#11a8cd',
+            white: '#e5e5e5',
+            brightBlack: '#666666',
+            brightRed: '#f14c4c',
+            brightGreen: '#23d18b',
+            brightYellow: '#f5f543',
+            brightBlue: '#3b8eea',
+            brightMagenta: '#d670d6',
+            brightCyan: '#29b8db',
+            brightWhite: '#ffffff',
+          }
+        : {
+            background: '#ffffff',
+            foreground: '#1e1e1e',
+            cursor: '#1e1e1e',
+            cursorAccent: '#ffffff',
+            selectionBackground: '#add6ff',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#0dbc79',
+            yellow: '#bf8803',
+            blue: '#0451a5',
+            magenta: '#bc05bc',
+            cyan: '#0598bc',
+            white: '#e5e5e5',
+            brightBlack: '#666666',
+            brightRed: '#cd3131',
+            brightGreen: '#14ce14',
+            brightYellow: '#b5ba00',
+            brightBlue: '#0451a5',
+            brightMagenta: '#bc05bc',
+            brightCyan: '#0598bc',
+            brightWhite: '#a5a5a5',
+          };
 
-  // Merge native theme with defaults (native theme takes precedence)
-  const themeOverride = useMemo(() => {
-    if (!nativeTheme) {
-      return defaultTheme;
-    }
-    // Merge: native theme values override defaults, but we keep defaults for missing values
-    return {
-      ...defaultTheme,
-      ...nativeTheme,
-    };
-  }, [nativeTheme, defaultTheme]);
+    return nativeTheme ? { ...baseTheme, ...nativeTheme } : baseTheme;
+  }, [effectiveTheme, provider, nativeTheme]);
 
   if (!task && !projectPath) {
     return (
@@ -171,66 +177,72 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   return (
     <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
+        <span id="terminal-scope-description" className="sr-only">
+          Choose between task worktree or global terminal scope
+        </span>
+        {!task && (
+          <span id="task-disabled-reason" className="sr-only">
+            Worktree terminal requires an active task
+          </span>
+        )}
+        {!projectPath && (
+          <span id="global-disabled-reason" className="sr-only">
+            Global terminal requires a project path
+          </span>
+        )}
+
         <div className="flex items-center gap-1">
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              {!task ? (
-                <>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block">
-                      <button
-                        type="button"
-                        className={cn(
-                          'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-                          mode === 'task'
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:bg-background/70',
-                          'cursor-not-allowed opacity-50'
-                        )}
-                        disabled={true}
-                        onClick={() => setMode('task')}
-                      >
-                        Worktree
-                      </button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[200px]">
-                    <p className="text-xs">Select a task to access its worktree terminal.</p>
-                  </TooltipContent>
-                </>
-              ) : (
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-                      mode === 'task'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:bg-background/70'
-                    )}
-                    onClick={() => setMode('task')}
-                  >
-                    Worktree
-                  </button>
-                </TooltipTrigger>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-          <button
-            type="button"
-            className={cn(
-              'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-              mode === 'global'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-background/70'
-            )}
-            disabled={!projectPath}
-            onClick={() => setMode('global')}
-            title={projectPath ? 'Global terminal at project root' : 'No project selected'}
+          <Select
+            value={mode}
+            onValueChange={handleModeChange}
+            disabled={!task && !projectPath}
+            aria-label="Terminal scope selector"
+            aria-describedby="terminal-scope-description"
           >
-            Global
-          </button>
+            <SelectTrigger
+              className={cn(
+                'h-auto w-[110px] px-2 py-1 text-[11px] font-semibold transition-colors',
+                'rounded border border-border/50 bg-transparent hover:bg-background/70',
+                'focus:ring-0 focus:ring-offset-0 data-[placeholder]:text-muted-foreground',
+                'shadow-sm'
+              )}
+              title={
+                mode === 'task'
+                  ? task
+                    ? 'Worktree terminal'
+                    : 'No task selected'
+                  : projectPath
+                    ? 'Global terminal at project root'
+                    : 'No project selected'
+              }
+            >
+              <SelectValue placeholder="Select mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                value="task"
+                disabled={!task}
+                className="text-[11px]"
+                aria-describedby={!task ? 'task-disabled-reason' : undefined}
+              >
+                <div className="flex items-center gap-2">
+                  <span>Worktree</span>
+                </div>
+              </SelectItem>
+              <SelectItem
+                value="global"
+                disabled={!projectPath}
+                className="text-[11px]"
+                aria-describedby={!projectPath ? 'global-disabled-reason' : undefined}
+              >
+                <div className="flex items-center gap-2">
+                  <span>Global</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+
         <div className="flex min-w-0 flex-1 items-center space-x-1 overflow-x-auto">
           {terminals.map((terminal) => {
             const isActive = terminal.id === activeTerminalId;
@@ -238,7 +250,25 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               <button
                 key={terminal.id}
                 type="button"
-                onClick={() => setActiveTerminal(terminal.id)}
+                onClick={() => {
+                  if (switchingTerminalId) return;
+                  try {
+                    setSwitchingTerminalId(terminal.id);
+                    setActiveTerminal(terminal.id);
+                    setTimeout(() => {
+                      const terminalElement = document.querySelector(
+                        `[data-terminal-id="${terminal.id}"]`
+                      );
+                      if (terminalElement instanceof HTMLElement) {
+                        terminalElement.focus();
+                      }
+                      setSwitchingTerminalId(null);
+                    }, 100);
+                  } catch (error) {
+                    console.error('Failed to switch terminal:', error);
+                    setSwitchingTerminalId(null);
+                  }
+                }}
                 className={cn(
                   'group flex items-center space-x-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                   isActive
@@ -246,8 +276,17 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     : 'text-muted-foreground hover:bg-background/70 dark:hover:bg-gray-800'
                 )}
                 title={terminal.title}
+                id={`terminal-tab-${terminal.id}`}
+                aria-label={`${terminal.title} ${isActive ? 'active' : 'inactive'} terminal`}
+                aria-pressed={isActive}
+                aria-controls={`terminal-panel-${terminal.id}`}
+                role="tab"
               >
-                <Terminal className="h-3.5 w-3.5 shrink-0" />
+                {switchingTerminalId === terminal.id ? (
+                  <div className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border border-current border-t-transparent" />
+                ) : (
+                  <Terminal className="h-3.5 w-3.5 shrink-0" />
+                )}
                 <span className="max-w-[130px] truncate">{terminal.title}</span>
                 {terminals.length > 1 ? (
                   <span
@@ -255,10 +294,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     tabIndex={-1}
                     onClick={(event) => {
                       event.stopPropagation();
-                      void (async () => {
-                        const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('terminal_deleted');
-                      })();
+                      captureTelemetry('terminal_deleted');
                       closeTerminal(terminal.id);
                     }}
                     className="flex h-4 w-4 items-center justify-center rounded opacity-60 transition-opacity hover:bg-muted hover:opacity-100"
@@ -270,19 +306,20 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             );
           })}
         </div>
+
         <button
           type="button"
           onClick={() => {
-            void (async () => {
-              const { captureTelemetry } = await import('../lib/telemetryClient');
-              captureTelemetry('terminal_new_terminal_created', { scope: mode });
-            })();
-            createTerminal({
-              cwd: mode === 'global' ? projectPath : task?.path,
-            });
+            captureTelemetry('terminal_new_terminal_created', { scope: mode });
+            const cwd = mode === 'global' ? projectPath : task?.path;
+            if (!cwd) {
+              console.warn('Cannot create terminal: no working directory available');
+              return;
+            }
+            createTerminal({ cwd });
           }}
           className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
-          title={mode === 'global' ? 'New global terminal' : 'New task terminal'}
+          title={mode === 'global' ? 'New global terminal' : 'New worktree terminal'}
           disabled={mode === 'task' && !task}
         >
           <Plus className="h-4 w-4" />
@@ -303,13 +340,19 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           const cwd =
             terminal.cwd ||
             (mode === 'global' ? projectPath || terminal.cwd : task?.path || terminal.cwd);
+
           return (
             <div
               key={terminal.id}
+              id={`terminal-panel-${terminal.id}`}
+              data-terminal-id={terminal.id}
               className={cn(
                 'absolute inset-0 h-full w-full transition-opacity',
                 terminal.id === activeTerminalId ? 'opacity-100' : 'pointer-events-none opacity-0'
               )}
+              role="tabpanel"
+              aria-labelledby={`terminal-tab-${terminal.id}`}
+              tabIndex={terminal.id === activeTerminalId ? 0 : -1}
             >
               <TerminalPane
                 id={terminal.id}
@@ -322,6 +365,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             </div>
           );
         })}
+
         {!terminals.length || !activeTerminal ? (
           <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
             <p>No terminal found.</p>
@@ -331,6 +375,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     </div>
   );
 };
-export const TaskTerminalPanel = React.memo(TaskTerminalPanelComponent);
 
+export const TaskTerminalPanel = React.memo(TaskTerminalPanelComponent);
 export default TaskTerminalPanel;

@@ -73,17 +73,6 @@ jobs:
             npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
           done
 
-      - name: Rebuild native modules (per-arch)
-        run: |
-          set -euo pipefail
-          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          ARCH_INPUT="${{ github.event.inputs.arch }}"
-          if [ -z "$ARCH_INPUT" ] || [ "$ARCH_INPUT" = "both" ]; then ARGS=(x64 arm64); else ARGS=("$ARCH_INPUT"); fi
-          echo "Rebuilding sqlite3,node-pty,keytar for Electron $ELECTRON_VERSION: ${ARGS[*]}"
-          for A in "${ARGS[@]}"; do
-            npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
-          done
-
       - name: Inject PostHog config (dev build job)
         env:
           PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
