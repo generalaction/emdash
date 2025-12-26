@@ -81,7 +81,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onDeleteProject,
   isHomeView,
 }) => {
-  const [dropdownOpen, setDropdownOpen] = React.useState(false);
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
 
@@ -120,8 +119,32 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
 
+  const checkGithubAuth = React.useCallback((): boolean => {
+    if (!githubAuthenticated || !githubInstalled) {
+      void (async () => {
+        const { toast } = await import('../hooks/use-toast');
+        toast({
+          title: 'GitHub authentication required',
+          variant: 'destructive',
+          action: (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onGithubConnect?.();
+              }}
+            >
+              Connect GitHub
+            </Button>
+          ),
+        });
+      })();
+      return false;
+    }
+    return true;
+  }, [githubAuthenticated, githubInstalled, onGithubConnect]);
+
   const handleOpenFolder = React.useCallback(() => {
-    setDropdownOpen(false);
     if (onOpenProject) {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -132,68 +155,26 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   }, [onOpenProject]);
 
   const handleCreateNew = React.useCallback(() => {
-    setDropdownOpen(false);
-    if (!githubAuthenticated || !githubInstalled) {
-      // Import toast dynamically to avoid circular imports
-      import('../hooks/use-toast').then(({ toast }) => {
-        toast({
-          title: 'GitHub authentication required',
-          variant: 'destructive',
-          action: (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                onGithubConnect?.();
-              }}
-            >
-              Connect GitHub
-            </Button>
-          ),
-        });
-      });
+    if (!checkGithubAuth()) {
       return;
     }
-    if (onNewProject) {
-      void (async () => {
-        const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('project_create_clicked');
-      })();
-      onNewProject();
-    }
-  }, [githubAuthenticated, githubInstalled, onNewProject, onGithubConnect]);
+    void (async () => {
+      const { captureTelemetry } = await import('../lib/telemetryClient');
+      captureTelemetry('project_create_clicked');
+    })();
+    onNewProject?.();
+  }, [checkGithubAuth, onNewProject]);
 
   const handleCloneFromGithub = React.useCallback(() => {
-    setDropdownOpen(false);
-    if (!githubAuthenticated || !githubInstalled) {
-      // Import toast dynamically to avoid circular imports
-      import('../hooks/use-toast').then(({ toast }) => {
-        toast({
-          title: 'GitHub authentication required',
-          variant: 'destructive',
-          action: (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                onGithubConnect?.();
-              }}
-            >
-              Connect GitHub
-            </Button>
-          ),
-        });
-      });
+    if (!checkGithubAuth()) {
       return;
     }
-    if (onCloneProject) {
-      void (async () => {
-        const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('project_clone_clicked');
-      })();
-      onCloneProject();
-    }
-  }, [githubAuthenticated, githubInstalled, onCloneProject, onGithubConnect]);
+    void (async () => {
+      const { captureTelemetry } = await import('../lib/telemetryClient');
+      captureTelemetry('project_clone_clicked');
+    })();
+    onCloneProject?.();
+  }, [checkGithubAuth, onCloneProject]);
 
   const renderGithubStatus = () => (
     <GithubStatus
@@ -413,7 +394,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                    <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
@@ -433,24 +414,51 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         <div className="space-y-1">
                           <button
                             type="button"
+                            role="menuitem"
+                            tabIndex={0}
+                            aria-label="Open folder"
                             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                             onClick={handleOpenFolder}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleOpenFolder();
+                              }
+                            }}
                           >
                             <FolderOpen className="h-4 w-4" />
                             Open folder
                           </button>
                           <button
                             type="button"
+                            role="menuitem"
+                            tabIndex={0}
+                            aria-label="Create new project"
                             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                             onClick={handleCreateNew}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleCreateNew();
+                              }
+                            }}
                           >
                             <Plus className="h-4 w-4" />
                             Create new
                           </button>
                           <button
                             type="button"
+                            role="menuitem"
+                            tabIndex={0}
+                            aria-label="Clone project from GitHub"
                             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                             onClick={handleCloneFromGithub}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleCloneFromGithub();
+                              }
+                            }}
                           >
                             <Download className="h-4 w-4" />
                             Clone from GitHub
