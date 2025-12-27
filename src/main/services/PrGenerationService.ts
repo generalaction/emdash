@@ -136,13 +136,10 @@ export class PrGenerationService {
       if (baseBranchExists) {
         // Get diff between base branch and current HEAD (committed changes)
         try {
-          const { stdout: diffOut } = await execAsync(
-            `git diff ${baseBranchRef}...HEAD --stat`,
-            {
-              cwd: taskPath,
-              maxBuffer: 10 * 1024 * 1024,
-            }
-          );
+          const { stdout: diffOut } = await execAsync(`git diff ${baseBranchRef}...HEAD --stat`, {
+            cwd: taskPath,
+            maxBuffer: 10 * 1024 * 1024,
+          });
           diff = diffOut || '';
 
           // Get list of changed files from commits
