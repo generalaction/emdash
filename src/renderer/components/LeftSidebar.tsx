@@ -158,63 +158,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
 
-  const checkGithubAuth = React.useCallback((): boolean => {
-    if (!githubAuthenticated || !githubInstalled) {
-      void (async () => {
-        const { toast } = await import('../hooks/use-toast');
-        toast({
-          title: 'GitHub authentication required',
-          variant: 'destructive',
-          action: (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                onGithubConnect?.();
-              }}
-            >
-              Connect GitHub
-            </Button>
-          ),
-        });
-      })();
-      return false;
-    }
-    return true;
-  }, [githubAuthenticated, githubInstalled, onGithubConnect]);
-
-  const handleOpenFolder = React.useCallback(() => {
-    if (onOpenProject) {
-      void (async () => {
-        const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('project_open_clicked');
-      })();
-      onOpenProject();
-    }
-  }, [onOpenProject]);
-
-  const handleCreateNew = React.useCallback(() => {
-    if (!checkGithubAuth()) {
-      return;
-    }
-    void (async () => {
-      const { captureTelemetry } = await import('../lib/telemetryClient');
-      captureTelemetry('project_create_clicked');
-    })();
-    onNewProject?.();
-  }, [checkGithubAuth, onNewProject]);
-
-  const handleCloneFromGithub = React.useCallback(() => {
-    if (!checkGithubAuth()) {
-      return;
-    }
-    void (async () => {
-      const { captureTelemetry } = await import('../lib/telemetryClient');
-      captureTelemetry('project_clone_clicked');
-    })();
-    onCloneProject?.();
-  }, [checkGithubAuth, onCloneProject]);
-
   const renderGithubStatus = () => (
     <GithubStatus
       installed={githubInstalled}
@@ -446,19 +389,19 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             icon={FolderOpen}
                             label="Open Folder"
                             ariaLabel="Open Folder"
-                            onClick={handleOpenFolder}
+                            onClick={() => onOpenProject?.()}
                           />
                           <MenuItemButton
                             icon={Plus}
                             label="Create New"
                             ariaLabel="Create New Project"
-                            onClick={handleCreateNew}
+                            onClick={() => onNewProject?.()}
                           />
                           <MenuItemButton
                             icon={Github}
                             label="Clone from GitHub"
                             ariaLabel="Clone from GitHub"
-                            onClick={handleCloneFromGithub}
+                            onClick={() => onCloneProject?.()}
                           />
                         </div>
                       </PopoverContent>
