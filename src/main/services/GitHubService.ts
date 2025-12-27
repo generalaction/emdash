@@ -475,6 +475,12 @@ export class GitHubService {
   > {
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
     try {
+      // Check if repo has GitHub remote before attempting to list issues
+      const hasGitHubRemote = await this.hasGitHubRemote(projectPath);
+      if (!hasGitHubRemote) {
+        return []; // No GitHub remote, return empty array
+      }
+
       const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
       const { stdout } = await this.execGH(
         `gh issue list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
@@ -485,7 +491,7 @@ export class GitHubService {
       return list;
     } catch (error) {
       console.error('Failed to list GitHub issues:', error);
-      throw error;
+      return []; // Return empty array instead of throwing
     }
   }
 
@@ -508,6 +514,13 @@ export class GitHubService {
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
     const term = String(searchTerm || '').trim();
     if (!term) return [];
+
+    // Check if repo has GitHub remote before attempting to search issues
+    const hasGitHubRemote = await this.hasGitHubRemote(projectPath);
+    if (!hasGitHubRemote) {
+      return []; // No GitHub remote, return empty array
+    }
+
     try {
       const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
       const { stdout } = await this.execGH(
@@ -590,6 +603,13 @@ export class GitHubService {
    */
   async isAuthenticated(): Promise<boolean> {
     try {
+      // First check if gh CLI is authenticated system-wide
+      const isGHAuth = await this.isGHCLIAuthenticated();
+      if (isGHAuth) {
+        return true;
+      }
+
+      // Fall back to checking stored token
       const token = await this.getStoredToken();
 
       if (!token) {
@@ -602,6 +622,34 @@ export class GitHubService {
       return !!user;
     } catch (error) {
       console.error('Authentication check failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if gh CLI is authenticated system-wide
+   */
+  private async isGHCLIAuthenticated(): Promise<boolean> {
+    try {
+      // gh auth status exits with 0 if authenticated, non-zero otherwise
+      await execAsync('gh auth status');
+      return true;
+    } catch (error) {
+      // Not authenticated or gh CLI not installed
+      return false;
+    }
+  }
+
+  /**
+   * Check if repository has a GitHub remote
+   */
+  private async hasGitHubRemote(projectPath: string): Promise<boolean> {
+    try {
+      const { stdout } = await execAsync('git remote -v', { cwd: projectPath });
+      // Check if any remote URL contains github.com
+      return stdout.includes('github.com');
+    } catch (error) {
+      // Not a git repo or no remotes
       return false;
     }
   }
