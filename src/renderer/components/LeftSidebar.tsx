@@ -14,7 +14,8 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Home, ChevronDown, Plus, FolderOpen } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Home, ChevronDown, Plus, FolderOpen, Github } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
@@ -30,6 +31,7 @@ interface LeftSidebarProps {
   onGoHome: () => void;
   onOpenProject?: () => void;
   onNewProject?: () => void;
+  onCloneProject?: () => void;
   onSelectTask?: (task: Task) => void;
   activeTask?: Task | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
@@ -53,6 +55,45 @@ interface LeftSidebarProps {
   isHomeView?: boolean;
 }
 
+interface MenuItemButtonProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  ariaLabel: string;
+  onClick: () => void;
+}
+
+const MenuItemButton: React.FC<MenuItemButtonProps> = ({
+  icon: Icon,
+  label,
+  ariaLabel,
+  onClick,
+}) => {
+  const handleKeyDown = React.useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick();
+      }
+    },
+    [onClick]
+  );
+
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      tabIndex={0}
+      aria-label={ariaLabel}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  );
+};
+
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
   projects,
   selectedProject,
@@ -60,6 +101,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onGoHome,
   onOpenProject,
   onNewProject,
+  onCloneProject,
   onSelectTask,
   activeTask,
   onReorderProjects,
@@ -334,17 +376,36 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-1 w-full justify-start"
-                        onClick={onOpenProject}
-                      >
-                        <FolderOpen className="mr-2 h-4 w-4" />
-                        <span className="text-sm font-medium">Add Project</span>
-                      </Button>
-                    </SidebarMenuButton>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="mt-1 w-full justify-start">
+                          <Plus className="mr-2 h-4 w-4" />
+                          <span className="text-sm font-medium">Add Project</span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
+                        <div className="space-y-1">
+                          <MenuItemButton
+                            icon={FolderOpen}
+                            label="Open Folder"
+                            ariaLabel="Open Folder"
+                            onClick={() => onOpenProject?.()}
+                          />
+                          <MenuItemButton
+                            icon={Plus}
+                            label="Create New"
+                            ariaLabel="Create New Project"
+                            onClick={() => onNewProject?.()}
+                          />
+                          <MenuItemButton
+                            icon={Github}
+                            label="Clone from GitHub"
+                            ariaLabel="Clone from GitHub"
+                            onClick={() => onCloneProject?.()}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>

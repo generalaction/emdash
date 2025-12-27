@@ -636,6 +636,46 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleNewProjectClick = async () => {
+    const { captureTelemetry } = await import('./lib/telemetryClient');
+    captureTelemetry('project_create_clicked');
+
+    if (!isAuthenticated || !ghInstalled) {
+      toast({
+        title: 'GitHub authentication required',
+        variant: 'destructive',
+        action: (
+          <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+            Connect GitHub
+          </ToastAction>
+        ),
+      });
+      return;
+    }
+
+    setShowNewProjectModal(true);
+  };
+
+  const handleCloneProjectClick = async () => {
+    const { captureTelemetry } = await import('./lib/telemetryClient');
+    captureTelemetry('project_clone_clicked');
+
+    if (!isAuthenticated || !ghInstalled) {
+      toast({
+        title: 'GitHub authentication required',
+        variant: 'destructive',
+        action: (
+          <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+            Connect GitHub
+          </ToastAction>
+        ),
+      });
+      return;
+    }
+
+    setShowCloneModal(true);
+  };
+
   const handleCloneSuccess = useCallback(
     async (projectPath: string) => {
       const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -1792,25 +1832,7 @@ const AppContent: React.FC = () => {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.1, ease: 'easeInOut' }}
-                onClick={() => {
-                  void (async () => {
-                    const { captureTelemetry } = await import('./lib/telemetryClient');
-                    captureTelemetry('project_create_clicked');
-                  })();
-                  if (!isAuthenticated || !ghInstalled) {
-                    toast({
-                      title: 'GitHub authentication required',
-                      variant: 'destructive',
-                      action: (
-                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
-                          Connect GitHub
-                        </ToastAction>
-                      ),
-                    });
-                    return;
-                  }
-                  setShowNewProjectModal(true);
-                }}
+                onClick={handleNewProjectClick}
                 className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Plus className="mb-5 h-5 w-5 text-foreground opacity-70" />
@@ -1822,25 +1844,7 @@ const AppContent: React.FC = () => {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.1, ease: 'easeInOut' }}
-                onClick={() => {
-                  void (async () => {
-                    const { captureTelemetry } = await import('./lib/telemetryClient');
-                    captureTelemetry('project_clone_clicked');
-                  })();
-                  if (!isAuthenticated || !ghInstalled) {
-                    toast({
-                      title: 'GitHub authentication required',
-                      variant: 'destructive',
-                      action: (
-                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
-                          Connect GitHub
-                        </ToastAction>
-                      ),
-                    });
-                    return;
-                  }
-                  setShowCloneModal(true);
-                }}
+                onClick={handleCloneProjectClick}
                 className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Github className="mb-5 h-5 w-5 text-foreground opacity-70" />
@@ -1957,7 +1961,8 @@ const AppContent: React.FC = () => {
                     onSelectProject={handleSelectProject}
                     onGoHome={handleGoHome}
                     onOpenProject={handleOpenProject}
-                    onNewProject={() => setShowNewProjectModal(true)}
+                    onNewProject={handleNewProjectClick}
+                    onCloneProject={handleCloneProjectClick}
                     onSelectTask={handleSelectTask}
                     activeTask={activeTask || undefined}
                     onReorderProjects={handleReorderProjects}
