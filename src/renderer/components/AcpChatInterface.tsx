@@ -18,6 +18,7 @@ import {
   Square,
   Terminal,
   Trash2,
+  X,
 } from 'lucide-react';
 import { Task } from '../types/chat';
 import { type Provider } from '../types';
@@ -38,6 +39,9 @@ const OpenAIIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
   </svg>
 );
 import { Spinner } from './ui/spinner';
+import { AnimatePresence, motion } from 'motion/react';
+import { Badge } from './ui/badge';
+import { cn } from '@/lib/utils';
 import { extractCurrentModelId, extractModelsFromPayload } from '@shared/acpUtils';
 import type { AcpConfigOption, AcpModel } from '@shared/types/acp';
 import { usePlanMode } from '@/hooks/usePlanMode';
@@ -822,6 +826,7 @@ const AcpChatInterface: React.FC<Props> = ({
   );
   const [planModePromptSent, setPlanModePromptSent] = useState(false);
   const [lastUserPlanModeSent, setLastUserPlanModeSent] = useState(false);
+  const [planBannerDismissed, setPlanBannerDismissed] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState<ThinkingBudgetLevel>('medium');
   const [configOptions, setConfigOptions] = useState<AcpConfigOption[]>([]);
   const [models, setModels] = useState<AcpModel[]>([]);
@@ -3060,7 +3065,13 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
   };
 
   return (
-    <div className={`flex h-full flex-col bg-white dark:bg-gray-900 ${className || ''}`}>
+    <div
+      className={cn(
+        "flex h-full flex-col bg-white dark:bg-gray-900 transition-colors duration-300",
+        planModeEnabled && "bg-sky-50/30 dark:bg-sky-950/20",
+        className || ''
+      )}
+    >
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="px-6">
           <div className="mx-auto max-w-4xl space-y-2">
@@ -3111,6 +3122,43 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
             </div>
           </div>
         ) : null}
+
+        {/* Plan Mode Info Banner */}
+        <AnimatePresence initial={false}>
+          {planModeEnabled && !planBannerDismissed && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: '0.75rem' }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="px-6"
+            >
+              <div className="mx-auto max-w-4xl">
+                <div className="flex items-start gap-3 rounded-md border border-sky-200/60 bg-sky-50/80 px-3 py-2.5 text-xs shadow-sm dark:border-sky-700/40 dark:bg-sky-950/40">
+                  <div className="mt-0.5 flex-shrink-0">
+                    <svg className="h-4 w-4 text-sky-600 dark:text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-sky-900 dark:text-sky-100">Plan Mode Active</div>
+                    <div className="mt-0.5 text-sky-700 dark:text-sky-300">
+                      Ask questions and explore changes. When ready, approve the plan to apply modifications.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPlanBannerDismissed(true)}
+                    className="flex-shrink-0 rounded-sm p-0.5 text-sky-600 hover:bg-sky-200/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:text-sky-400 dark:hover:bg-sky-800/50"
+                    aria-label="Dismiss plan mode banner"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-6">
           <div className="mx-auto flex max-w-4xl flex-col gap-3 pb-8">
@@ -3228,7 +3276,30 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                 ))}
               </div>
             ) : null}
-            <div className="relative rounded-xl border border-border/60 bg-background/90 shadow-sm backdrop-blur-sm">
+            <div
+              className={cn(
+                "relative rounded-xl border shadow-sm backdrop-blur-sm transition-all duration-300",
+                "border-border/60 bg-background/90",
+                planModeEnabled && "border-sky-400/60 bg-sky-50/50 dark:border-sky-500/50 dark:bg-sky-950/30"
+              )}
+            >
+              {/* Plan Mode Badge - top-left overlay when active */}
+              <AnimatePresence initial={false}>
+                {planModeEnabled && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, x: -4 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, x: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute -top-2.5 left-4 z-10"
+                  >
+                    <Badge variant="outline" className="border-sky-300/60 bg-sky-50/90 text-sky-700 dark:border-sky-600/50 dark:bg-sky-950/80 dark:text-sky-300">
+                      <Clipboard className="h-3 w-3" aria-hidden="true" />
+                      <span>Plan Mode</span>
+                    </Badge>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               {sessionError ? (
                 <div className="absolute -top-16 left-4 right-4 z-10 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/95 px-3 py-2 text-xs text-destructive-foreground shadow-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4" />
@@ -3268,7 +3339,7 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                   ref={textareaRef}
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
-                  placeholder="Ask to make changes..."
+                  placeholder={planModeEnabled ? "Ask questions or explore changes (Plan Mode)..." : "Ask to make changes..."}
                   rows={1}
                   className="w-full resize-none overflow-y-auto bg-transparent text-sm leading-relaxed text-foreground selection:bg-primary/20 placeholder:text-muted-foreground focus:outline-none"
                   style={{ minHeight: '40px', maxHeight: '200px' }}
