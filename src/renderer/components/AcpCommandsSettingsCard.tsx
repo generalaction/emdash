@@ -15,11 +15,15 @@ const AcpCommandsSettingsCard: React.FC = () => {
         {/* Global commands */}
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/80 px-3 py-2.5">
           <div className="flex items-center gap-2">
-            <Home className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <Home className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
             <div className="flex flex-wrap items-center gap-1.5 text-sm">
-              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs">~/.codex/commands</code>
+              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs">
+                ~/.codex/commands
+              </code>
               <span className="text-muted-foreground">or</span>
-              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs">~/.codex/prompts</code>
+              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs">
+                ~/.codex/prompts
+              </code>
             </div>
           </div>
           <OpenInMenu path={GLOBAL_COMMANDS_PATH} ensureDir={true} />
@@ -28,12 +32,16 @@ const AcpCommandsSettingsCard: React.FC = () => {
         {/* Project commands */}
         <div className="rounded-lg border border-border/60 bg-background/80 px-3 py-2.5">
           <div className="flex items-center gap-2 text-sm">
-            <FolderOpen className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <FolderOpen className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
             <div className="flex flex-wrap items-center gap-1.5">
-              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs">.codex/commands</code>
+              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs">
+                .codex/commands
+              </code>
               <span className="text-muted-foreground">or</span>
-              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs">.codex/prompts</code>
-              <span className="text-muted-foreground/70 text-xs">(repo root)</span>
+              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs">
+                .codex/prompts
+              </code>
+              <span className="text-xs text-muted-foreground/70">(repo root)</span>
             </div>
           </div>
         </div>

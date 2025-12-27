@@ -109,7 +109,11 @@ async function readDirectory(dirPath: string, extension: string): Promise<string
  *
  * For .toml files, parses TOML and looks for a description field
  */
-function extractDescription(content: string, extension: string, logger?: Logger): string | undefined {
+function extractDescription(
+  content: string,
+  extension: string,
+  logger?: Logger
+): string | undefined {
   // Handle TOML files
   if (extension === '.toml') {
     try {
@@ -120,7 +124,7 @@ function extractDescription(content: string, extension: string, logger?: Logger)
     } catch (error: unknown) {
       // If TOML parsing fails, log the error and fall through to generic text handling
       logger?.error('customCommands:toml:parseFailed', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
     // Fall through to text-based extraction if TOML parsing fails or no description found
@@ -180,7 +184,7 @@ async function scanCommandsDirectory(
       // Skip files we can't read, but log for debugging
       logger?.error('customCommands:file:readFailed', {
         filePath,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }

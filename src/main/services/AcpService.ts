@@ -157,7 +157,6 @@ function extractConfigOptions(payload: any): AcpConfigOption[] {
   return [];
 }
 
-
 function sessionKey(taskId: string, providerId: string): SessionKey {
   return `${taskId}:${providerId}`;
 }
@@ -538,9 +537,17 @@ class AcpService {
     }
   }
 
-  async setModel(sessionId: string, modelId: string): Promise<{ success: boolean; error?: string }> {
+  async setModel(
+    sessionId: string,
+    modelId: string
+  ): Promise<{ success: boolean; error?: string }> {
     const state = this.sessionById.get(sessionId);
-    log.debug('acp:setModel', { sessionId, modelId, taskId: state?.taskId, providerId: state?.providerId });
+    log.debug('acp:setModel', {
+      sessionId,
+      modelId,
+      taskId: state?.taskId,
+      providerId: state?.providerId,
+    });
     if (!state) return { success: false, error: 'Session not found' };
     if (!modelId) return { success: false, error: 'Missing modelId' };
     try {
@@ -897,7 +904,10 @@ class AcpService {
 
   private handleNotification(state: AcpSessionState, method: string, params: any) {
     if (method === 'session/update') {
-      log.debug('acp:session/update', { sessionId: params?.sessionId, updateType: params?.update?.sessionUpdate || params?.update?.type || params?.update?.kind });
+      log.debug('acp:session/update', {
+        sessionId: params?.sessionId,
+        updateType: params?.update?.sessionUpdate || params?.update?.type || params?.update?.kind,
+      });
       const updateType =
         params?.update?.sessionUpdate || params?.update?.type || params?.update?.kind;
       if (updateType === 'config_option_update' || updateType === 'config_options_update') {
@@ -1090,7 +1100,10 @@ class AcpService {
       try {
         record.proc.write(data);
       } catch (err) {
-log.debug('terminal:write:failed', { terminalId, error: err instanceof Error ? err.message : String(err) });
+        log.debug('terminal:write:failed', {
+          terminalId,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
   }

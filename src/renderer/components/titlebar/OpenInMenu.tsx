@@ -22,11 +22,7 @@ interface OpenInMenuProps {
 const menuItemBase =
   'flex w-full cursor-pointer select-none items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground';
 
-const OpenInMenu: React.FC<OpenInMenuProps> = ({
-  path,
-  align = 'right',
-  ensureDir = false,
-}) => {
+const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right', ensureDir = false }) => {
   const [open, setOpen] = React.useState(false);
   const [menuStyle, setMenuStyle] = React.useState<{
     top: number;
@@ -55,7 +51,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
 
     let top = anchorRect.bottom + spacing;
     let placement: 'top' | 'bottom' = 'bottom';
-    if (top + menuHeight > viewportHeight - gutter && anchorRect.top - spacing - menuHeight > gutter) {
+    if (
+      top + menuHeight > viewportHeight - gutter &&
+      anchorRect.top - spacing - menuHeight > gutter
+    ) {
       top = anchorRect.top - spacing - menuHeight;
       placement = 'top';
     }
@@ -159,68 +158,60 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   };
 
   const menu = createPortal(
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              ref={menuRef}
-              id="open-in-menu"
-              role="menu"
-              className="fixed z-[130] min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md"
-              style={{ ...menuStyle }}
-              initial={shouldReduceMotion ? false : { opacity: 0, y: 6, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={
-                shouldReduceMotion
-                  ? { opacity: 1, y: 0, scale: 1 }
-                  : { opacity: 0, y: 4, scale: 0.98 }
-              }
-              transition={
-                shouldReduceMotion
-                  ? { duration: 0 }
-                  : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
-              }
-            >
-              <button className={menuItemBase} role="menuitem" onClick={() => callOpen('finder')}>
-                <img src={finderLogo} alt="Finder" className="h-4 w-4 rounded" />
-                <span>Finder</span>
-              </button>
-              <button className={menuItemBase} role="menuitem" onClick={() => callOpen('cursor')}>
-                <img src={cursorLogo} alt="Cursor" className="h-4 w-4" />
-                <span>Cursor</span>
-              </button>
-              <button className={menuItemBase} role="menuitem" onClick={() => callOpen('vscode')}>
-                <img src={vscodeLogo} alt="VS Code" className="h-4 w-4 rounded" />
-                <span>VS Code</span>
-              </button>
-              <button
-                className={menuItemBase}
-                role="menuitem"
-                onClick={() => callOpen('terminal')}
-              >
-                <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
-                <span>Terminal</span>
-              </button>
-              <button className={menuItemBase} role="menuitem" onClick={() => callOpen('warp')}>
-                <img src={warpLogo} alt="Warp" className="h-4 w-4 rounded" />
-                <span>Warp</span>
-              </button>
-              <button className={menuItemBase} role="menuitem" onClick={() => callOpen('iterm2')}>
-                <img src={iterm2Logo} alt="iTerm2" className="h-4 w-4 rounded" />
-                <span>iTerm2</span>
-              </button>
-              <button className={menuItemBase} role="menuitem" onClick={() => callOpen('ghostty')}>
-                <img src={ghosttyLogo} alt="Ghostty" className="h-4 w-4 rounded" />
-                <span>Ghostty</span>
-              </button>
-              <button className={menuItemBase} role="menuitem" onClick={() => callOpen('zed')}>
-                <img src={zedLogo} alt="Zed" className="h-4 w-4 rounded" />
-                <span>Zed</span>
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      );
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          ref={menuRef}
+          id="open-in-menu"
+          role="menu"
+          className="fixed z-[130] min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md"
+          style={{ ...menuStyle }}
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 6, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={
+            shouldReduceMotion ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 4, scale: 0.98 }
+          }
+          transition={
+            shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
+          }
+        >
+          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('finder')}>
+            <img src={finderLogo} alt="Finder" className="h-4 w-4 rounded" />
+            <span>Finder</span>
+          </button>
+          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('cursor')}>
+            <img src={cursorLogo} alt="Cursor" className="h-4 w-4" />
+            <span>Cursor</span>
+          </button>
+          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('vscode')}>
+            <img src={vscodeLogo} alt="VS Code" className="h-4 w-4 rounded" />
+            <span>VS Code</span>
+          </button>
+          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('terminal')}>
+            <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
+            <span>Terminal</span>
+          </button>
+          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('warp')}>
+            <img src={warpLogo} alt="Warp" className="h-4 w-4 rounded" />
+            <span>Warp</span>
+          </button>
+          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('iterm2')}>
+            <img src={iterm2Logo} alt="iTerm2" className="h-4 w-4 rounded" />
+            <span>iTerm2</span>
+          </button>
+          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('ghostty')}>
+            <img src={ghosttyLogo} alt="Ghostty" className="h-4 w-4 rounded" />
+            <span>Ghostty</span>
+          </button>
+          <button className={menuItemBase} role="menuitem" onClick={() => callOpen('zed')}>
+            <img src={zedLogo} alt="Zed" className="h-4 w-4 rounded" />
+            <span>Zed</span>
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
 
   return (
     <div ref={containerRef} className="relative">

@@ -58,10 +58,7 @@ export function registerAppIpc() {
               };
             }
           } catch (error: unknown) {
-            if (
-              error instanceof Error &&
-              (error as ErrnoException).code === 'ENOENT'
-            ) {
+            if (error instanceof Error && (error as ErrnoException).code === 'ENOENT') {
               await fsPromises.mkdir(resolvedTarget, { recursive: true });
             } else {
               throw error;

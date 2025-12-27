@@ -113,9 +113,7 @@ const ChatUiSettingsCard: React.FC = () => {
       <label className="flex items-center justify-between gap-2">
         <div className="space-y-1">
           <span className="text-sm">Enable chat UI (ACP)</span>
-          <div className="text-xs text-muted-foreground/70">
-            Supported by: Codex CLI
-          </div>
+          <div className="text-xs text-muted-foreground/70">Supported by: Codex CLI</div>
         </div>
         <Switch
           checked={enabled}

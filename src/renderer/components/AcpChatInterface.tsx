@@ -20,6 +20,9 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { getMentionKeyAction } from '../lib/fileMentions';
+import { useFileMentions } from '../hooks/useFileMentions';
+import FileMentionDropdown from './FileMentionDropdown';
 import { Task } from '../types/chat';
 import { type Provider } from '../types';
 import InstallBanner from './InstallBanner';
@@ -521,12 +524,7 @@ const normalizeConfigChoice = (choice: any): ConfigChoice | null => {
   }
   if (typeof choice === 'object') {
     const value =
-      choice.value ??
-      choice.id ??
-      choice.key ??
-      choice.name ??
-      choice.label ??
-      choice.option;
+      choice.value ?? choice.id ?? choice.key ?? choice.name ?? choice.label ?? choice.option;
     return {
       value,
       label: choice.label ?? choice.name ?? (value !== undefined ? String(value) : undefined),
@@ -640,7 +638,8 @@ const splitModelId = (modelId?: string | null, label?: string | null) => {
 };
 
 const detectBudgetLevel = (text: string): ThinkingBudgetLevel | null => {
-  if (/\bminimal\b/.test(text) || /\b(none|off|disabled|disable|zero)\b/.test(text)) return 'minimal';
+  if (/\bminimal\b/.test(text) || /\b(none|off|disabled|disable|zero)\b/.test(text))
+    return 'minimal';
   if (/\blow\b/.test(text) || text === '1') return 'low';
   if (/\bmedium\b/.test(text) || text === '2') return 'medium';
   if (/\bhigh\b/.test(text) || text === '3') return 'high';
@@ -777,12 +776,7 @@ const normalizeModelOption = (model: any): ModelOption | null => {
       model.key;
     if (!id) return null;
     const label =
-      model.displayName ??
-      model.label ??
-      model.title ??
-      model.name ??
-      model.modelId ??
-      String(id);
+      model.displayName ?? model.label ?? model.title ?? model.name ?? model.modelId ?? String(id);
     return {
       id: String(id),
       label: String(label),
@@ -878,9 +872,125 @@ const AcpChatInterface: React.FC<Props> = ({
     [acpConversationId]
   );
 
+  // Track cursor position for mention detection
+  const [cursorPosition, setCursorPosition] = useState(0);
+
+  // Calculate caret coordinates for dropdown positioning
+  const getCaretCoordinates = useCallback(
+    (textarea: HTMLTextAreaElement, position: number): DOMRect | null => {
+      const { offsetLeft, offsetTop } = textarea;
+      const div = document.createElement('div');
+      const style = getComputedStyle(textarea);
+
+      div.textContent = textarea.value.substring(0, position);
+      Object.assign(div.style, {
+        position: 'absolute',
+        visibility: 'hidden',
+        whiteSpace: 'pre-wrap',
+        wordWrap: 'break-word',
+        top: '0px',
+        left: '0px',
+        font: style.font,
+        padding: style.padding,
+        border: style.border,
+        width: style.width,
+        height: style.height,
+      });
+
+      let coordinates: DOMRect | null = null;
+      try {
+        document.body.appendChild(div);
+        const span = document.createElement('span');
+        span.textContent = textarea.value.substring(position) || '.';
+        div.appendChild(span);
+
+        coordinates = new DOMRect(
+          span.offsetLeft + offsetLeft,
+          span.offsetTop + offsetTop + parseInt(style.lineHeight || '0'),
+          0,
+          parseInt(style.lineHeight || '0')
+        );
+      } finally {
+        document.body.removeChild(div);
+      }
+      return coordinates;
+    },
+    []
+  );
+
+  const [caretPosition, setCaretPosition] = useState<DOMRect | null>(null);
+
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
   }, []);
+
+  // File mention autocomplete
+  const handleMentionSelect = useCallback(
+    (filePath: string, startIndex: number, endIndex: number) => {
+      // Insert the mention at the cursor position
+      const before = input.slice(0, startIndex);
+      const after = input.slice(endIndex);
+      const mention = `@${filePath}`;
+      const needsTrailingSpace =
+        !filePath.endsWith('/') && (after.length === 0 || !/^\s/.test(after));
+      const suffix = needsTrailingSpace ? ' ' : '';
+      setInput(before + mention + suffix + after);
+
+      // Move cursor to after the inserted mention
+      setTimeout(() => {
+        const newCursorPos = startIndex + mention.length + suffix.length;
+        textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+        setCursorPosition(newCursorPos);
+        textareaRef.current?.focus();
+      }, 0);
+    },
+    [input]
+  );
+
+  const fileMentions = useFileMentions({
+    input,
+    cursorPosition,
+    rootPath: task.path,
+    onSelect: handleMentionSelect,
+  });
+
+  // Update caret position when mention is active
+  useEffect(() => {
+    if (fileMentions.active && textareaRef.current) {
+      const coords = getCaretCoordinates(textareaRef.current, cursorPosition);
+      setCaretPosition(coords);
+    } else {
+      setCaretPosition(null);
+    }
+  }, [fileMentions.active, fileMentions.query, cursorPosition, getCaretCoordinates]);
+
+  // Handle dropdown item selection
+  const handleMentionDropdownSelect = useCallback(
+    (index: number) => {
+      fileMentions.selectItem(index);
+    },
+    [fileMentions]
+  );
+
+  // Close dropdown when clicking outside (Popover renders via Portal, so we check clicks outside textarea)
+  useEffect(() => {
+    if (!fileMentions.active) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      // Close if click is outside the textarea (Popover handles its own portal)
+      if (
+        event.target &&
+        textareaRef.current &&
+        !textareaRef.current.contains(event.target as Node)
+      ) {
+        // Close dropdown by invalidating the active trigger
+        setCursorPosition(0);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [fileMentions.active]);
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -1022,42 +1132,38 @@ const AcpChatInterface: React.FC<Props> = ({
     [safeJsonParse]
   );
 
-  const buildPersistedContent = useCallback(
-    (blocks: ContentBlock[]) => {
-      const parts: string[] = [];
-      blocks.forEach((block) => {
-        if (block.type === 'text' && block.text) {
-          parts.push(block.text);
-          return;
-        }
-        if (block.type === 'resource' && block.resource?.text) {
-          parts.push(block.resource.text);
-        }
-      });
-      const text = parts.join('\n\n').trim();
-      if (text) return truncateText(text, MAX_PERSISTED_MESSAGE_CHARS);
-      const resourceLabel = blocks.find(
-        (block) => block.type === 'resource' || block.type === 'resource_link'
-      );
-      if (!resourceLabel) return '';
-      const label =
-        resourceLabel.title ||
-        resourceLabel.name ||
-        resourceLabel.resource?.title ||
-        resourceLabel.resource?.name ||
-        resourceLabel.uri ||
-        resourceLabel.resource?.uri ||
-        'resource';
-      return truncateText(`[attachment] ${label}`, MAX_PERSISTED_MESSAGE_CHARS);
-    },
-    []
-  );
+  const buildPersistedContent = useCallback((blocks: ContentBlock[]) => {
+    const parts: string[] = [];
+    blocks.forEach((block) => {
+      if (block.type === 'text' && block.text) {
+        parts.push(block.text);
+        return;
+      }
+      if (block.type === 'resource' && block.resource?.text) {
+        parts.push(block.resource.text);
+      }
+    });
+    const text = parts.join('\n\n').trim();
+    if (text) return truncateText(text, MAX_PERSISTED_MESSAGE_CHARS);
+    const resourceLabel = blocks.find(
+      (block) => block.type === 'resource' || block.type === 'resource_link'
+    );
+    if (!resourceLabel) return '';
+    const label =
+      resourceLabel.title ||
+      resourceLabel.name ||
+      resourceLabel.resource?.title ||
+      resourceLabel.resource?.name ||
+      resourceLabel.uri ||
+      resourceLabel.resource?.uri ||
+      'resource';
+    return truncateText(`[attachment] ${label}`, MAX_PERSISTED_MESSAGE_CHARS);
+  }, []);
 
   const buildToolCallSnapshot = useCallback(
     (toolCall: ToolCall): AcpToolItem => {
       const content: ToolCallContent[] = [];
-      const diffItems = (toolCall.content?.filter((item) => item.type === 'diff') ||
-        []) as Array<{
+      const diffItems = (toolCall.content?.filter((item) => item.type === 'diff') || []) as Array<{
         type: 'diff';
         path?: string;
         oldText?: string;
@@ -1089,9 +1195,10 @@ const AcpChatInterface: React.FC<Props> = ({
         (toolCall.content?.filter((item) => item.type === 'content') as
           | Array<{ type: 'content'; content: ContentBlock }>
           | undefined) || [];
-      const sanitizedBlocks = sanitizeBlocks(
-        contentBlocks.map((item) => item.content)
-      ).slice(0, MAX_PERSISTED_BLOCKS);
+      const sanitizedBlocks = sanitizeBlocks(contentBlocks.map((item) => item.content)).slice(
+        0,
+        MAX_PERSISTED_BLOCKS
+      );
       sanitizedBlocks.forEach((block) => {
         content.push({ type: 'content', content: block });
       });
@@ -1100,7 +1207,8 @@ const AcpChatInterface: React.FC<Props> = ({
         (toolCall.content?.filter((item) => item.type === 'terminal') as
           | Array<{ type: 'terminal'; terminalId: string }>
           | undefined) || [];
-      const terminalPreview: Array<{ terminalId: string; lines: string[]; truncated: boolean }> = [];
+      const terminalPreview: Array<{ terminalId: string; lines: string[]; truncated: boolean }> =
+        [];
       const seenTerminalIds = new Set<string>();
       terminalItems.forEach((item) => {
         if (!item.terminalId || seenTerminalIds.has(item.terminalId)) return;
@@ -1187,7 +1295,8 @@ const AcpChatInterface: React.FC<Props> = ({
       .map((row) => {
         if (!row?.metadata) return null;
         try {
-          const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+          const metadata =
+            typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
           const acp = metadata?.acp;
           if (!acp || acp.version !== 1) return null;
           return { row, acp };
@@ -1253,7 +1362,9 @@ const AcpChatInterface: React.FC<Props> = ({
             terminalMap[preview.terminalId] = preview.lines.join('\n');
           });
         }
-        if (!feedItems.some((entry) => entry.type === 'tool' && entry.toolCallId === item.toolCallId)) {
+        if (
+          !feedItems.some((entry) => entry.type === 'tool' && entry.toolCallId === item.toolCallId)
+        ) {
           feedItems.push({ id: feedId, type: 'tool', toolCallId: item.toolCallId });
         }
         savedToolIds.add(item.toolCallId);
@@ -1612,9 +1723,7 @@ const AcpChatInterface: React.FC<Props> = ({
         setFeed((prev) => {
           const lastAssistantId = lastAssistantMessageIdRef.current;
           const next = prev.map((item) => {
-            return item.type === 'message' && item.streaming
-              ? { ...item, streaming: false }
-              : item;
+            return item.type === 'message' && item.streaming ? { ...item, streaming: false } : item;
           });
           if (lastAssistantId && Number.isFinite(durationMs)) {
             const targetIndex = next.findIndex(
@@ -1676,7 +1785,11 @@ const AcpChatInterface: React.FC<Props> = ({
         if (!updateType) return;
         uiLog('session_update', { updateType, update });
         handleConfigAndModelUpdates(update);
-        if (updateType === 'config_option_update' || updateType === 'config_options_update' || updateType === 'model_update') {
+        if (
+          updateType === 'config_option_update' ||
+          updateType === 'config_options_update' ||
+          updateType === 'model_update'
+        ) {
           return;
         }
         if (
@@ -1811,12 +1924,7 @@ const AcpChatInterface: React.FC<Props> = ({
       });
       savedMessageIdsRef.current.add(item.id);
     });
-  }, [
-    feed,
-    persistAcpMessage,
-    sanitizeBlocks,
-    buildPersistedContent,
-  ]);
+  }, [feed, persistAcpMessage, sanitizeBlocks, buildPersistedContent]);
 
   useEffect(() => {
     if (hydratingRef.current) return;
@@ -2127,7 +2235,8 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
 
     const agentBlocks: ContentBlock[] = [];
     if (planMode) {
-      if (includePlanInstruction) agentBlocks.push({ type: 'text', text: PLAN_MODE_FULL_INSTRUCTION });
+      if (includePlanInstruction)
+        agentBlocks.push({ type: 'text', text: PLAN_MODE_FULL_INSTRUCTION });
       else agentBlocks.push({ type: 'text', text: PLAN_MODE_REMINDER });
     }
     agentBlocks.push(...contentBlocks);
@@ -2172,14 +2281,8 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
   const showBottomLoading = isRunning && !latestToolCallId;
 
   const canSend = input.trim().length > 0 || attachments.length > 0;
-  const modelConfigOption = useMemo(
-    () => findModelConfigOption(configOptions),
-    [configOptions]
-  );
-  const modelConfigId = useMemo(
-    () => getConfigOptionId(modelConfigOption),
-    [modelConfigOption]
-  );
+  const modelConfigOption = useMemo(() => findModelConfigOption(configOptions), [configOptions]);
+  const modelConfigId = useMemo(() => getConfigOptionId(modelConfigOption), [modelConfigOption]);
   const modelConfigChoices = useMemo(
     () => extractConfigChoices(modelConfigOption),
     [modelConfigOption]
@@ -2189,9 +2292,7 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
     [modelConfigOption]
   );
   const configModelId =
-    configModelValue !== null && configModelValue !== undefined
-      ? String(configModelValue)
-      : null;
+    configModelValue !== null && configModelValue !== undefined ? String(configModelValue) : null;
   const rawModelVariants = useMemo<ModelOption[]>(() => {
     if (modelConfigChoices.length) {
       return modelConfigChoices
@@ -2211,21 +2312,26 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
   const modelCatalog = useMemo(() => {
     const map = new Map<
       string,
-      { baseId: string; label: string; description?: string; variants: ModelVariant[]; efforts: Set<string> }
+      {
+        baseId: string;
+        label: string;
+        description?: string;
+        variants: ModelVariant[];
+        efforts: Set<string>;
+      }
     >();
     for (const variant of rawModelVariants) {
       const parts = splitModelId(variant.id, variant.label);
       const baseId = parts.baseId || variant.id;
       const baseLabel = stripEffortSuffix(variant.label) ?? baseId;
       const formattedLabel = formatModelLabel(baseLabel);
-      const entry =
-        map.get(baseId) ?? {
-          baseId,
-          label: formattedLabel,
-          description: variant.description,
-          variants: [],
-          efforts: new Set<string>(),
-        };
+      const entry = map.get(baseId) ?? {
+        baseId,
+        label: formattedLabel,
+        description: variant.description,
+        variants: [],
+        efforts: new Set<string>(),
+      };
       entry.variants.push({ ...variant, baseId, effort: parts.effort });
       if (parts.effort) entry.efforts.add(parts.effort);
       if (!entry.label && formattedLabel) entry.label = formattedLabel;
@@ -2242,8 +2348,7 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
     }));
   }, [modelCatalog]);
 
-  const rawSelectedModelId =
-    configModelId ?? currentModelId ?? (modelId ? String(modelId) : null);
+  const rawSelectedModelId = configModelId ?? currentModelId ?? (modelId ? String(modelId) : null);
   const selectedModelParts = splitModelId(rawSelectedModelId, null);
   const selectedBaseId =
     (selectedModelParts.baseId && modelCatalog.has(selectedModelParts.baseId)
@@ -2275,10 +2380,7 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
     () => getBudgetFromConfig(thinkingConfigOption),
     [thinkingConfigOption]
   );
-  const modelDrivenBudget = useMemo(
-    () => budgetFromEffort(currentEffort),
-    [currentEffort]
-  );
+  const modelDrivenBudget = useMemo(() => budgetFromEffort(currentEffort), [currentEffort]);
   const fallbackThinkingConfigId = provider === 'codex' ? 'model_reasoning_effort' : null;
   const availableBudgetLevels = useMemo(() => {
     if (thinkingConfigMapping.availableLevels.size) {
@@ -2295,10 +2397,14 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
     return ['low', 'medium', 'high'] as ThinkingBudgetLevel[];
   }, [selectedEfforts, thinkingConfigMapping.availableLevels]);
   const resolvedBudget: ThinkingBudgetLevel =
-    configDrivenBudget ?? modelDrivenBudget ?? thinkingBudget ?? availableBudgetLevels[0] ?? 'medium';
+    configDrivenBudget ??
+    modelDrivenBudget ??
+    thinkingBudget ??
+    availableBudgetLevels[0] ??
+    'medium';
   const activeBudgetLevel = availableBudgetLevels.includes(resolvedBudget)
     ? resolvedBudget
-    : availableBudgetLevels[0] ?? 'medium';
+    : (availableBudgetLevels[0] ?? 'medium');
   const activeBudgetLabel = EFFORT_LABELS[activeBudgetLevel];
   const activeBudgetIndex = Math.max(0, availableBudgetLevels.indexOf(activeBudgetLevel));
   const dotCount = Math.max(1, availableBudgetLevels.length);
@@ -2306,7 +2412,9 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
   const dotGap = dotCount >= 4 ? 2 : 3;
   const canSetThinkingBudget =
     Boolean(sessionId) &&
-    (Boolean(thinkingConfigId) || Boolean(selectedModelEntry?.variants.length) || Boolean(fallbackThinkingConfigId));
+    (Boolean(thinkingConfigId) ||
+      Boolean(selectedModelEntry?.variants.length) ||
+      Boolean(fallbackThinkingConfigId));
 
   const handleModelChange = useCallback(
     (value: string) => {
@@ -2320,8 +2428,7 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
         (activeBudgetLevel && chooseEffortForBudget(activeBudgetLevel, availableEfforts)) ||
         currentEffort;
       const targetVariant =
-        entry?.variants.find((variant) => variant.effort === preferredEffort) ??
-        entry?.variants[0];
+        entry?.variants.find((variant) => variant.effort === preferredEffort) ?? entry?.variants[0];
       const targetModelId = targetVariant?.id ?? value;
 
       if (modelConfigId) {
@@ -2334,27 +2441,31 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
               : option
           )
         );
-        void window.electronAPI.acpSetConfigOption?.({
-          sessionId,
-          configId: modelConfigId,
-          value: targetValue,
-        }).then((res) => {
-          if (!res?.success) {
-            uiLog('model:setFailed', { modelId: targetModelId, error: res?.error });
-          }
-        });
+        void window.electronAPI
+          .acpSetConfigOption?.({
+            sessionId,
+            configId: modelConfigId,
+            value: targetValue,
+          })
+          .then((res) => {
+            if (!res?.success) {
+              uiLog('model:setFailed', { modelId: targetModelId, error: res?.error });
+            }
+          });
         return;
       }
 
       setCurrentModelId(targetModelId);
-      void window.electronAPI.acpSetModel?.({
-        sessionId,
-        modelId: targetModelId,
-      }).then((res) => {
-        if (!res?.success) {
-          uiLog('model:setFailed', { modelId: targetModelId, error: res?.error });
-        }
-      });
+      void window.electronAPI
+        .acpSetModel?.({
+          sessionId,
+          modelId: targetModelId,
+        })
+        .then((res) => {
+          if (!res?.success) {
+            uiLog('model:setFailed', { modelId: targetModelId, error: res?.error });
+          }
+        });
     },
     [
       activeBudgetLevel,
@@ -2415,15 +2526,17 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
           )
         );
       }
-      void window.electronAPI.acpSetConfigOption?.({
-        sessionId,
-        configId: thinkingConfigId,
-        value: targetValue,
-      }).then((res) => {
-        if (!res?.success) {
-          uiLog('thinkingBudget:setFailed', { configId: thinkingConfigId, error: res?.error });
-        }
-      });
+      void window.electronAPI
+        .acpSetConfigOption?.({
+          sessionId,
+          configId: thinkingConfigId,
+          value: targetValue,
+        })
+        .then((res) => {
+          if (!res?.success) {
+            uiLog('thinkingBudget:setFailed', { configId: thinkingConfigId, error: res?.error });
+          }
+        });
       return;
     }
 
@@ -2434,29 +2547,33 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
         selectedModelEntry.variants[0];
       if (!targetVariant) return;
       setCurrentModelId(targetVariant.id);
-      void window.electronAPI.acpSetModel?.({
-        sessionId,
-        modelId: targetVariant.id,
-      }).then((res) => {
-        if (!res?.success) {
-          uiLog('thinkingBudget:setFailed', { modelId: targetVariant.id, error: res?.error });
-        }
-      });
+      void window.electronAPI
+        .acpSetModel?.({
+          sessionId,
+          modelId: targetVariant.id,
+        })
+        .then((res) => {
+          if (!res?.success) {
+            uiLog('thinkingBudget:setFailed', { modelId: targetVariant.id, error: res?.error });
+          }
+        });
       return;
     }
 
     const configId = fallbackThinkingConfigId;
     if (!configId) return;
     const targetValue = next;
-    void window.electronAPI.acpSetConfigOption?.({
-      sessionId,
-      configId,
-      value: targetValue,
-    }).then((res) => {
-      if (!res?.success) {
-        uiLog('thinkingBudget:setFailed', { configId, error: res?.error });
-      }
-    });
+    void window.electronAPI
+      .acpSetConfigOption?.({
+        sessionId,
+        configId,
+        value: targetValue,
+      })
+      .then((res) => {
+        if (!res?.success) {
+          uiLog('thinkingBudget:setFailed', { configId, error: res?.error });
+        }
+      });
   }, [
     activeBudgetLevel,
     canSetThinkingBudget,
@@ -2718,10 +2835,7 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
     return result;
   }, [toolCalls, formatPath]);
 
-  const renderToolCall = (
-    toolCallId: string,
-    options?: { showLoading?: boolean }
-  ) => {
+  const renderToolCall = (toolCallId: string, options?: { showLoading?: boolean }) => {
     const toolCall = toolCalls[toolCallId];
     if (!toolCall) return null;
     const status = toolCall.status || 'pending';
@@ -2904,9 +3018,9 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                   </div>
                 );
               })}
-              </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
+        </div>
         {showLoading ? <LoadingTimer label={runTimerLabel} /> : null}
       </ActionRow>
     );
@@ -3059,9 +3173,7 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
         ? 'max-w-[75%] rounded-2xl border border-sky-500/40 bg-sky-600 px-4 py-3 text-white shadow-sm dark:bg-sky-500/80'
         : 'max-w-[80%] text-sm text-foreground';
     const showFooter =
-      item.role === 'assistant' &&
-      !item.messageKind &&
-      typeof item.runDurationMs === 'number';
+      item.role === 'assistant' && !item.messageKind && typeof item.runDurationMs === 'number';
     const messageText = showFooter ? buildCopyText(item.blocks) : '';
     const CopyIcon = copiedMessageId === item.id ? Check : Copy;
     return (
@@ -3092,8 +3204,8 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
   return (
     <div
       className={cn(
-        "flex h-full flex-col bg-white dark:bg-gray-900 transition-colors duration-300",
-        planModeEnabled && "bg-sky-50/30 dark:bg-sky-950/20",
+        'flex h-full flex-col bg-white transition-colors duration-300 dark:bg-gray-900',
+        planModeEnabled && 'bg-sky-50/30 dark:bg-sky-950/20',
         className || ''
       )}
     >
@@ -3161,14 +3273,28 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
               <div className="mx-auto max-w-4xl">
                 <div className="flex items-start gap-3 rounded-md border border-sky-200/60 bg-sky-50/80 px-3 py-2.5 text-xs shadow-sm dark:border-sky-700/40 dark:bg-sky-950/40">
                   <div className="mt-0.5 flex-shrink-0">
-                    <svg className="h-4 w-4 text-sky-600 dark:text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="h-4 w-4 text-sky-600 dark:text-sky-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold text-sky-900 dark:text-sky-100">Plan Mode Active</div>
+                    <div className="font-semibold text-sky-900 dark:text-sky-100">
+                      Plan Mode Active
+                    </div>
                     <div className="mt-0.5 text-sky-700 dark:text-sky-300">
-                      Ask questions and explore changes. When ready, approve the plan to apply modifications.
+                      Ask questions and explore changes. When ready, approve the plan to apply
+                      modifications.
                     </div>
                   </div>
                   <button
@@ -3247,8 +3373,7 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                         latestToolCallId &&
                           buffer.some(
                             (buffered) =>
-                              buffered.type === 'tool' &&
-                              buffered.toolCallId === latestToolCallId
+                              buffered.type === 'tool' && buffered.toolCallId === latestToolCallId
                           )
                       );
                     rendered.push(renderToolThoughtGroup(groupId, buffer, expanded, hasLatest));
@@ -3301,11 +3426,24 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                 ))}
               </div>
             ) : null}
+            {fileMentions.active && (
+              <FileMentionDropdown
+                items={fileMentions.items}
+                query={fileMentions.query}
+                selectedIndex={fileMentions.selectedIndex}
+                onSelect={handleMentionDropdownSelect}
+                getDisplayName={fileMentions.getDisplayName}
+                anchorRect={caretPosition}
+                error={fileMentions.error}
+                loading={fileMentions.loading}
+              />
+            )}
             <div
               className={cn(
-                "relative rounded-xl border shadow-sm backdrop-blur-sm transition-all duration-300",
-                "border-border/60 bg-background/90",
-                planModeEnabled && "border-sky-400/60 bg-sky-50/50 dark:border-sky-500/50 dark:bg-sky-950/30"
+                'relative rounded-xl border shadow-sm backdrop-blur-sm transition-all duration-300',
+                'border-border/60 bg-background/90',
+                planModeEnabled &&
+                  'border-sky-400/60 bg-sky-50/50 dark:border-sky-500/50 dark:bg-sky-950/30'
               )}
             >
               {/* Plan Mode Badge - top-left overlay when active */}
@@ -3318,7 +3456,10 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                     transition={{ duration: 0.15 }}
                     className="absolute -top-2.5 left-4 z-10"
                   >
-                    <Badge variant="outline" className="border-sky-300/60 bg-sky-50/90 text-sky-700 dark:border-sky-600/50 dark:bg-sky-950/80 dark:text-sky-300">
+                    <Badge
+                      variant="outline"
+                      className="border-sky-300/60 bg-sky-50/90 text-sky-700 dark:border-sky-600/50 dark:bg-sky-950/80 dark:text-sky-300"
+                    >
                       <Clipboard className="h-3 w-3" aria-hidden="true" />
                       <span>Plan Mode</span>
                     </Badge>
@@ -3363,12 +3504,47 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                 <textarea
                   ref={textareaRef}
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder={planModeEnabled ? "Ask questions or explore changes (Plan Mode)..." : "Ask to make changes..."}
+                  onChange={(event) => {
+                    setInput(event.currentTarget.value);
+                    // Track cursor position for mention detection
+                    setCursorPosition(event.currentTarget.selectionStart || 0);
+                  }}
+                  onSelect={(event) => {
+                    // Update cursor position when user clicks or drags
+                    setCursorPosition(event.currentTarget.selectionStart || 0);
+                  }}
+                  placeholder={
+                    planModeEnabled
+                      ? 'Ask questions or explore changes (Plan Mode)...'
+                      : 'Ask to make changes...'
+                  }
                   rows={1}
                   className="w-full resize-none overflow-y-auto bg-transparent text-sm leading-relaxed text-foreground selection:bg-primary/20 placeholder:text-muted-foreground focus:outline-none"
                   style={{ minHeight: '40px', maxHeight: '200px' }}
                   onKeyDown={(event) => {
+                    const mentionKeyAction = getMentionKeyAction({
+                      active: fileMentions.active,
+                      hasItems: fileMentions.items.length > 0,
+                      key: event.key,
+                      shiftKey: event.shiftKey,
+                    });
+
+                    if (mentionKeyAction !== 'none') {
+                      event.preventDefault();
+                      if (mentionKeyAction === 'next') {
+                        fileMentions.selectNext();
+                      } else if (mentionKeyAction === 'prev') {
+                        fileMentions.selectPrevious();
+                      } else if (mentionKeyAction === 'select') {
+                        fileMentions.selectItem(fileMentions.selectedIndex);
+                      } else if (mentionKeyAction === 'close') {
+                        // Close dropdown by clearing trigger (handled by hook state)
+                        setCursorPosition(0);
+                      }
+                      return;
+                    }
+
+                    // Normal send behavior when dropdown is closed
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
                       void handleSend();

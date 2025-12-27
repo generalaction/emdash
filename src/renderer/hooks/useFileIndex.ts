@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Item = { path: string; type: 'file' | 'dir' };
 
@@ -7,56 +7,52 @@ export function useFileIndex(rootPath: string | undefined) {
   const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const loadRequestedRef = useRef(false);
+  const loadRequestedForRef = useRef<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  useEffect(() => {
-    if (!rootPath) return;
-    // Only load once per rootPath (lazy); can be reloaded manually
-    if (loadedFor === rootPath || loadRequestedRef.current) return;
-    loadRequestedRef.current = true;
-    setLoading(true);
-    setError(null);
-    (async () => {
-      try {
-        const res = await window.electronAPI.fsList(rootPath, {
-          includeDirs: true,
-          maxEntries: 5000,
-        });
-        if (res.success && res.items) {
-          setItems(res.items);
-          setLoadedFor(rootPath);
-        } else {
-          setError(res.error || 'Failed to load files');
-        }
-      } catch (e) {
-        setError('Failed to load files');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [rootPath, loadedFor]);
-
-  const reload = async () => {
-    if (!rootPath) return;
+  const loadFiles = useCallback(async (pathToLoad: string) => {
+    const requestId = ++requestIdRef.current;
+    loadRequestedForRef.current = pathToLoad;
     setLoading(true);
     setError(null);
     try {
-      const res = await window.electronAPI.fsList(rootPath, {
+      const res = await window.electronAPI.fsList(pathToLoad, {
         includeDirs: true,
         maxEntries: 5000,
       });
+      if (requestId !== requestIdRef.current || loadRequestedForRef.current !== pathToLoad) {
+        return;
+      }
       if (res.success && res.items) {
         setItems(res.items);
-        setLoadedFor(rootPath);
+        setLoadedFor(pathToLoad);
       } else {
         setError(res.error || 'Failed to load files');
       }
     } catch (e) {
+      if (requestId !== requestIdRef.current || loadRequestedForRef.current !== pathToLoad) {
+        return;
+      }
       setError('Failed to load files');
     } finally {
+      if (requestId !== requestIdRef.current || loadRequestedForRef.current !== pathToLoad) {
+        return;
+      }
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!rootPath) return;
+    // Only load once per rootPath (lazy); can be reloaded manually
+    if (loadedFor === rootPath || loadRequestedForRef.current === rootPath) return;
+    void loadFiles(rootPath);
+  }, [rootPath, loadedFor, loadFiles]);
+
+  const reload = useCallback(async () => {
+    if (!rootPath) return;
+    await loadFiles(rootPath);
+  }, [rootPath, loadFiles]);
 
   const search = (query: string, limit = 12): Item[] => {
     if (!query) return items.slice(0, limit);

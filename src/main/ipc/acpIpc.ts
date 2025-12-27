@@ -118,19 +118,13 @@ export function registerAcpIpc() {
     return acpService.setMode(args.sessionId, args.modeId);
   });
 
-  ipcMain.handle(
-    'acp:set-model',
-    async (_event, args: { sessionId: string; modelId: string }) => {
-      return acpService.setModel(args.sessionId, args.modelId);
-    }
-  );
+  ipcMain.handle('acp:set-model', async (_event, args: { sessionId: string; modelId: string }) => {
+    return acpService.setModel(args.sessionId, args.modelId);
+  });
 
   ipcMain.handle(
     'acp:set-config-option',
-    async (
-      _event,
-      args: { sessionId: string; configId: string; value: unknown }
-    ) => {
+    async (_event, args: { sessionId: string; configId: string; value: unknown }) => {
       return acpService.setConfigOption(args.sessionId, args.configId, args.value);
     }
   );

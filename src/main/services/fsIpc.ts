@@ -62,7 +62,7 @@ function listFiles(root: string, includeDirs: boolean, maxEntries: number): Item
       if (rel !== '.' && DEFAULT_IGNORES.has(name)) continue;
 
       if (rel !== '.' && includeDirs) {
-        items.push({ path: rel, type: 'dir' });
+        items.push({ path: rel.replace(/\\/g, '/'), type: 'dir' });
         if (items.length >= maxEntries) break;
       }
 
@@ -80,7 +80,7 @@ function listFiles(root: string, includeDirs: boolean, maxEntries: number): Item
         stack.push(nextRel);
       }
     } else if (stat.isFile()) {
-      items.push({ path: rel, type: 'file' });
+      items.push({ path: rel.replace(/\\/g, '/'), type: 'file' });
       if (items.length >= maxEntries) break;
     }
   }
