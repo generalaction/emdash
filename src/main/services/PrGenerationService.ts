@@ -105,16 +105,29 @@ export class PrGenerationService {
     let changedFiles: string[] = [];
 
     try {
-      // Check if base branch exists (local or remote)
-      let baseBranchExists = false;
+      // Fetch remote to ensure we have latest state (prevents comparing against stale local branches)
+      // This is critical: if local main is behind remote, we'd incorrectly include others' commits
       try {
-        await execAsync(`git rev-parse --verify ${baseBranch}`, { cwd: taskPath });
+        await execAsync('git fetch origin --quiet', { cwd: taskPath });
+      } catch (fetchError) {
+        log.debug('Failed to fetch remote, continuing with existing refs', { fetchError });
+      }
+
+      // Always prefer remote branch to avoid stale local branch issues
+      let baseBranchRef = baseBranch;
+      let baseBranchExists = false;
+
+      // First try remote branch (most reliable - always up to date)
+      try {
+        await execAsync(`git rev-parse --verify origin/${baseBranch}`, { cwd: taskPath });
         baseBranchExists = true;
+        baseBranchRef = `origin/${baseBranch}`;
       } catch {
+        // Fall back to local branch only if remote doesn't exist
         try {
-          await execAsync(`git rev-parse --verify origin/${baseBranch}`, { cwd: taskPath });
+          await execAsync(`git rev-parse --verify ${baseBranch}`, { cwd: taskPath });
           baseBranchExists = true;
-          baseBranch = `origin/${baseBranch}`;
+          baseBranchRef = baseBranch;
         } catch {
           // Base branch doesn't exist, will use working directory diff
         }
@@ -123,7 +136,7 @@ export class PrGenerationService {
       if (baseBranchExists) {
         // Get diff between base branch and current HEAD (committed changes)
         try {
-          const { stdout: diffOut } = await execAsync(`git diff ${baseBranch}...HEAD --stat`, {
+          const { stdout: diffOut } = await execAsync(`git diff ${baseBranchRef}...HEAD --stat`, {
             cwd: taskPath,
             maxBuffer: 10 * 1024 * 1024,
           });
@@ -131,7 +144,7 @@ export class PrGenerationService {
 
           // Get list of changed files from commits
           const { stdout: filesOut } = await execAsync(
-            `git diff --name-only ${baseBranch}...HEAD`,
+            `git diff --name-only ${baseBranchRef}...HEAD`,
             { cwd: taskPath }
           );
           const committedFiles = (filesOut || '')
@@ -142,7 +155,7 @@ export class PrGenerationService {
 
           // Get commit messages
           const { stdout: commitsOut } = await execAsync(
-            `git log ${baseBranch}..HEAD --pretty=format:"%s"`,
+            `git log ${baseBranchRef}..HEAD --pretty=format:"%s"`,
             { cwd: taskPath }
           );
           commits = (commitsOut || '')
