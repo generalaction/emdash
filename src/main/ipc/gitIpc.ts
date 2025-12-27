@@ -674,10 +674,18 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
 
       try {
+        // Check if remote exists before attempting to fetch
         try {
-          await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
-        } catch (fetchError) {
-          log.warn('Failed to fetch remote before listing branches', fetchError);
+          await execAsync(`git remote get-url ${remote}`, { cwd: projectPath });
+          // Remote exists, try to fetch
+          try {
+            await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
+          } catch (fetchError) {
+            log.warn('Failed to fetch remote before listing branches', fetchError);
+          }
+        } catch {
+          // Remote doesn't exist, skip fetch and continue to list local branches
+          log.debug(`Remote '${remote}' not found, skipping fetch`);
         }
 
         const { stdout } = await execAsync(
