@@ -821,6 +821,7 @@ const AcpChatInterface: React.FC<Props> = ({
     task.path
   );
   const [planModePromptSent, setPlanModePromptSent] = useState(false);
+  const [lastUserPlanModeSent, setLastUserPlanModeSent] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState<ThinkingBudgetLevel>('medium');
   const [configOptions, setConfigOptions] = useState<AcpConfigOption[]>([]);
   const [models, setModels] = useState<AcpModel[]>([]);
@@ -1324,11 +1325,17 @@ const AcpChatInterface: React.FC<Props> = ({
   }, [provider]);
 
   useEffect(() => {
-    if (!planModeEnabled) setPlanModePromptSent(false);
+    if (!planModeEnabled) {
+      setPlanModePromptSent(false);
+      setLastUserPlanModeSent(false);
+    }
   }, [planModeEnabled]);
 
   useEffect(() => {
-    if (sessionId) setPlanModePromptSent(false);
+    if (sessionId) {
+      setPlanModePromptSent(false);
+      setLastUserPlanModeSent(false);
+    }
   }, [sessionId]);
 
   useEffect(() => {
@@ -1861,6 +1868,7 @@ const AcpChatInterface: React.FC<Props> = ({
     if (!sessionId) return;
     if (!trimmed && attachments.length === 0) return;
     setInput('');
+    setLastUserPlanModeSent(planModeEnabled);
     const includePlanInstruction = planModeEnabled && !planModePromptSent;
     const promptBlocks = buildPromptBlocks(trimmed, planModeEnabled, includePlanInstruction);
     appendMessage('user', promptBlocks.display);
@@ -1870,6 +1878,37 @@ const AcpChatInterface: React.FC<Props> = ({
     setRunElapsedMs(0);
     setIsRunning(true);
     uiLog('sendPrompt', { sessionId, blocks: promptBlocks.agent, planModeEnabled });
+    const res = await window.electronAPI.acpSendPrompt({
+      sessionId,
+      prompt: promptBlocks.agent,
+    });
+    uiLog('sendPrompt:response', res);
+    if (!res?.success) {
+      setSessionError(res?.error || 'Failed to send prompt.');
+      setIsRunning(false);
+      runStartedAtRef.current = null;
+      setRunElapsedMs(0);
+    }
+  };
+
+  const handleApprovePlan = async () => {
+    if (!planModeEnabled || !lastUserPlanModeSent) return;
+    const approvedText = 'approved';
+    if (!sessionId || isRunning) {
+      setPlanModeEnabled(false);
+      return;
+    }
+    try {
+      await logPlanEvent(task.path, 'Plan approved via UI; exiting Plan Mode');
+    } catch {}
+    setPlanModeEnabled(false);
+    const promptBlocks = buildPromptBlocks(approvedText, false, false, []);
+    appendMessage('user', promptBlocks.display);
+    runStartedAtRef.current = Date.now();
+    lastAssistantMessageIdRef.current = null;
+    setRunElapsedMs(0);
+    setIsRunning(true);
+    uiLog('sendPrompt', { sessionId, blocks: promptBlocks.agent, planModeEnabled: false });
     const res = await window.electronAPI.acpSendPrompt({
       sessionId,
       prompt: promptBlocks.agent,
@@ -2021,13 +2060,15 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
   const buildPromptBlocks = (
     text: string,
     planMode: boolean,
-    includePlanInstruction: boolean
+    includePlanInstruction: boolean,
+    overrideAttachments?: Attachment[]
   ): { display: ContentBlock[]; agent: ContentBlock[] } => {
     const contentBlocks: ContentBlock[] = [];
     const supportsImage = Boolean(promptCaps.image);
     const supportsAudio = Boolean(promptCaps.audio);
     const supportsEmbedded = Boolean(promptCaps.embeddedContext);
-    attachments.forEach((att) => {
+    const activeAttachments = overrideAttachments ?? attachments;
+    activeAttachments.forEach((att) => {
       if (att.kind === 'image' && att.data && supportsImage) {
         contentBlocks.push({ type: 'image', mimeType: att.mimeType, data: att.data });
         return;
@@ -3197,6 +3238,20 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                   </div>
                 </div>
               ) : null}
+              {planModeEnabled && lastUserPlanModeSent ? (
+                <div className="absolute -top-4 right-4 z-20">
+                  <button
+                    type="button"
+                    onClick={handleApprovePlan}
+                    disabled={isRunning}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground shadow-md hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Approve Plan & Exit"
+                  >
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Approve Plan</span>
+                  </button>
+                </div>
+              ) : null}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -3298,22 +3353,6 @@ You may optionally share your plan structure using the ACP plan protocol (sessio
                   >
                     <Clipboard className="h-4 w-4" />
                   </button>
-                  {planModeEnabled ? (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await logPlanEvent(task.path, 'Plan approved via UI; exiting Plan Mode');
-                        } catch {}
-                        setPlanModeEnabled(false);
-                      }}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 text-xs text-foreground hover:bg-accent/15 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
-                      title="Approve Plan & Exit"
-                    >
-                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span className="font-medium">Exit Plan Mode</span>
-                    </button>
-                  ) : null}
                   <button
                     type="button"
                     onClick={handleThinkingBudgetClick}
