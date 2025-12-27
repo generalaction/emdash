@@ -15,7 +15,7 @@ import {
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Home, ChevronDown, Plus, FolderOpen, Download } from 'lucide-react';
+import { Home, ChevronDown, Plus, FolderOpen, Github } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
@@ -438,27 +438,26 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         <Button variant="outline" size="sm" className="mt-1 w-full justify-start">
                           <Plus className="mr-2 h-4 w-4" />
                           <span className="text-sm font-medium">Add Project</span>
-                          <ChevronDown className="ml-auto h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
                         <div className="space-y-1">
                           <MenuItemButton
                             icon={FolderOpen}
-                            label="Open folder"
-                            ariaLabel="Open folder"
+                            label="Open Folder"
+                            ariaLabel="Open Folder"
                             onClick={handleOpenFolder}
                           />
                           <MenuItemButton
                             icon={Plus}
-                            label="Create new"
-                            ariaLabel="Create new project"
+                            label="Create New"
+                            ariaLabel="Create New Project"
                             onClick={handleCreateNew}
                           />
                           <MenuItemButton
-                            icon={Download}
+                            icon={Github}
                             label="Clone from GitHub"
-                            ariaLabel="Clone project from GitHub"
+                            ariaLabel="Clone from GitHub"
                             onClick={handleCloneFromGithub}
                           />
                         </div>
