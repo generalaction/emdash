@@ -34,6 +34,12 @@ import { useTheme } from './hooks/useTheme';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import { getContainerRunState } from './lib/containerRuns';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
+import {
+  computeBaseRef,
+  getProjectRepoKey,
+  normalizePathForComparison,
+  withRepoKey,
+} from './lib/projectUtils';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
 import { type Provider } from './types';
@@ -128,82 +134,10 @@ const AppContent: React.FC = () => {
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
-  const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
-  const showGithubRequirement = !ghInstalled || !isAuthenticated;
-  // Show agent requirements block if we have status data and none of the CLI providers are detected locally.
-  const showAgentRequirement =
-    Object.keys(installedProviders).length > 0 &&
-    Object.values(installedProviders).every((v) => v === false);
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
-
-  const normalizePathForComparison = useCallback(
-    (input: string | null | undefined) => {
-      if (!input) return '';
-
-      let normalized = input.replace(/\\/g, '/');
-      normalized = normalized.replace(/\/+/g, '/');
-
-      if (normalized.length > 1 && normalized.endsWith('/')) {
-        normalized = normalized.replace(/\/+$/, '');
-      }
-
-      const platformKey =
-        platform && platform.length > 0
-          ? platform
-          : typeof process !== 'undefined'
-            ? process.platform
-            : '';
-      return platformKey.toLowerCase().startsWith('win') ? normalized.toLowerCase() : normalized;
-    },
-    [platform]
-  );
-
-  const computeBaseRef = useCallback(
-    (baseRef?: string | null, remote?: string | null, branch?: string | null) => {
-      const remoteName = (() => {
-        const trimmed = (remote ?? '').trim();
-        if (!trimmed) return 'origin';
-        if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) return trimmed;
-        return 'origin';
-      })();
-      const normalize = (value?: string | null): string | undefined => {
-        if (!value) return undefined;
-        const trimmed = value.trim();
-        if (!trimmed || trimmed.includes('://')) return undefined;
-        if (trimmed.includes('/')) {
-          const [head, ...rest] = trimmed.split('/');
-          const branchPart = rest.join('/').replace(/^\/+/, '');
-          if (head && branchPart) return `${head}/${branchPart}`;
-          if (!head && branchPart) return `${remoteName}/${branchPart}`;
-          return undefined;
-        }
-        const suffix = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
-        return `${remoteName}/${suffix}`;
-      };
-      return normalize(baseRef) ?? normalize(branch) ?? `${remoteName}/main`;
-    },
-    []
-  );
-
-  const getProjectRepoKey = useCallback(
-    (project: Pick<Project, 'path' | 'repoKey'>) =>
-      project.repoKey ?? normalizePathForComparison(project.path),
-    [normalizePathForComparison]
-  );
-
-  const withRepoKey = useCallback(
-    (project: Project): Project => {
-      const repoKey = getProjectRepoKey(project);
-      if (project.repoKey === repoKey) {
-        return project;
-      }
-      return { ...project, repoKey };
-    },
-    [getProjectRepoKey]
-  );
 
   // Show toast on update availability and kick off a background check
   useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => setShowSettings(true) });
@@ -455,7 +389,7 @@ const AppContent: React.FC = () => {
 
         setVersion(appVersion);
         setPlatform(appPlatform);
-        const initialProjects = applyProjectOrder(projects.map(withRepoKey));
+        const initialProjects = applyProjectOrder(projects.map((p) => withRepoKey(p, appPlatform)));
         setProjects(initialProjects);
 
         // Refresh GH status via hook
@@ -464,35 +398,11 @@ const AppContent: React.FC = () => {
         const projectsWithTasks = await Promise.all(
           initialProjects.map(async (project) => {
             const tasks = await window.electronAPI.getTasks(project.id);
-            return withRepoKey({ ...project, tasks });
+            return withRepoKey({ ...project, tasks }, appPlatform);
           })
         );
         const ordered = applyProjectOrder(projectsWithTasks);
         setProjects(ordered);
-
-        // Prefer cached provider status (populated in the background)
-        let providerInstalls: Record<string, boolean> = {};
-        try {
-          type ProviderStatusEntry = {
-            installed: boolean;
-            path?: string | null;
-            version?: string | null;
-            lastChecked: number;
-          };
-          const statusResponse =
-            ((await (window as any).electronAPI.getProviderStatuses?.()) as
-              | { success?: boolean; statuses?: Record<string, ProviderStatusEntry> }
-              | undefined) ?? (await window.electronAPI.getProviderStatuses?.());
-          if (statusResponse?.success && statusResponse.statuses) {
-            providerInstalls = Object.fromEntries(
-              Object.entries(statusResponse.statuses).map(([id, s]) => [id, s?.installed === true])
-            );
-          }
-        } catch {
-          // ignore and fall back to direct checks
-        }
-
-        setInstalledProviders(providerInstalls);
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to load app data:', error as any);
@@ -512,9 +422,9 @@ const AppContent: React.FC = () => {
         try {
           const gitInfo = await window.electronAPI.getGitInfo(result.path);
           const canonicalPath = gitInfo.rootPath || gitInfo.path || result.path;
-          const repoKey = normalizePathForComparison(canonicalPath);
+          const repoKey = normalizePathForComparison(canonicalPath, platform);
           const existingProject = projects.find(
-            (project) => getProjectRepoKey(project) === repoKey
+            (project) => getProjectRepoKey(project, platform) === repoKey
           );
 
           if (existingProject) {
@@ -557,13 +467,16 @@ const AppContent: React.FC = () => {
           if (isAuthenticated && isGithubRemote) {
             const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
             if (githubInfo.success) {
-              const projectWithGithub = withRepoKey({
-                ...baseProject,
-                githubInfo: {
-                  repository: githubInfo.repository || '',
-                  connected: true,
+              const projectWithGithub = withRepoKey(
+                {
+                  ...baseProject,
+                  githubInfo: {
+                    repository: githubInfo.repository || '',
+                    connected: true,
+                  },
                 },
-              });
+                platform
+              );
 
               const saveResult = await window.electronAPI.saveProject(projectWithGithub);
               if (saveResult.success) {
@@ -589,13 +502,16 @@ const AppContent: React.FC = () => {
               });
             }
           } else {
-            const projectWithoutGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: isGithubRemote ? '' : '',
-                connected: false,
+            const projectWithoutGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: isGithubRemote ? '' : '',
+                  connected: false,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
@@ -683,8 +599,10 @@ const AppContent: React.FC = () => {
       try {
         const gitInfo = await window.electronAPI.getGitInfo(projectPath);
         const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
-        const repoKey = normalizePathForComparison(canonicalPath);
-        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+        const repoKey = normalizePathForComparison(canonicalPath, platform);
+        const existingProject = projects.find(
+          (project) => getProjectRepoKey(project, platform) === repoKey
+        );
 
         if (existingProject) {
           activateProjectView(existingProject);
@@ -712,13 +630,16 @@ const AppContent: React.FC = () => {
         if (isAuthenticated && isGithubRemote) {
           const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
           if (githubInfo.success) {
-            const projectWithGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: githubInfo.repository || '',
-                connected: true,
+            const projectWithGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: githubInfo.repository || '',
+                  connected: true,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithGithub);
             if (saveResult.success) {
@@ -736,13 +657,16 @@ const AppContent: React.FC = () => {
               });
             }
           } else {
-            const projectWithoutGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: '',
-                connected: false,
+            const projectWithoutGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: '',
+                  connected: false,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
@@ -753,13 +677,16 @@ const AppContent: React.FC = () => {
             }
           }
         } else {
-          const projectWithoutGithub = withRepoKey({
-            ...baseProject,
-            githubInfo: {
-              repository: '',
-              connected: false,
+          const projectWithoutGithub = withRepoKey(
+            {
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
             },
-          });
+            platform
+          );
 
           const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
           if (saveResult.success) {
@@ -779,15 +706,7 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [
-      projects,
-      isAuthenticated,
-      activateProjectView,
-      normalizePathForComparison,
-      toast,
-      computeBaseRef,
-      withRepoKey,
-    ]
+    [projects, isAuthenticated, activateProjectView, platform, toast]
   );
 
   const handleNewProjectSuccess = useCallback(
@@ -797,8 +716,10 @@ const AppContent: React.FC = () => {
       try {
         const gitInfo = await window.electronAPI.getGitInfo(projectPath);
         const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
-        const repoKey = normalizePathForComparison(canonicalPath);
-        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+        const repoKey = normalizePathForComparison(canonicalPath, platform);
+        const existingProject = projects.find(
+          (project) => getProjectRepoKey(project, platform) === repoKey
+        );
 
         if (existingProject) {
           activateProjectView(existingProject);
@@ -826,13 +747,16 @@ const AppContent: React.FC = () => {
         if (isAuthenticated && isGithubRemote) {
           const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
           if (githubInfo.success) {
-            const projectWithGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: githubInfo.repository || '',
-                connected: true,
+            const projectWithGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: githubInfo.repository || '',
+                  connected: true,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithGithub);
             if (saveResult.success) {
@@ -859,13 +783,16 @@ const AppContent: React.FC = () => {
               });
             }
           } else {
-            const projectWithoutGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: '',
-                connected: false,
+            const projectWithoutGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: '',
+                  connected: false,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
@@ -885,13 +812,16 @@ const AppContent: React.FC = () => {
             }
           }
         } else {
-          const projectWithoutGithub = withRepoKey({
-            ...baseProject,
-            githubInfo: {
-              repository: '',
-              connected: false,
+          const projectWithoutGithub = withRepoKey(
+            {
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
             },
-          });
+            platform
+          );
 
           const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
           if (saveResult.success) {
@@ -921,16 +851,7 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [
-      projects,
-      isAuthenticated,
-      activateProjectView,
-      normalizePathForComparison,
-      toast,
-      computeBaseRef,
-      withRepoKey,
-      getProjectRepoKey,
-    ]
+    [projects, isAuthenticated, activateProjectView, platform, toast]
   );
 
   const handleGithubConnect = async () => {
