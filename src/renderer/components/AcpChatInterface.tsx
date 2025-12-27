@@ -40,6 +40,8 @@ const OpenAIIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
 import { Spinner } from './ui/spinner';
 import { extractCurrentModelId, extractModelsFromPayload } from '@shared/acpUtils';
 import type { AcpConfigOption, AcpModel } from '@shared/types/acp';
+import { usePlanMode } from '@/hooks/usePlanMode';
+import { logPlanEvent } from '@/lib/planLogs';
 
 type ContentBlock = {
   type: string;
@@ -814,7 +816,11 @@ const AcpChatInterface: React.FC<Props> = ({
     embeddedContext?: boolean;
   }>({});
   const [modelId, setModelId] = useState<string>('gpt-5.2-codex');
-  const [planModeEnabled, setPlanModeEnabled] = useState(false);
+  const { enabled: planModeEnabled, setEnabled: setPlanModeEnabled } = usePlanMode(
+    task.id,
+    task.path
+  );
+  const [planModePromptSent, setPlanModePromptSent] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState<ThinkingBudgetLevel>('medium');
   const [configOptions, setConfigOptions] = useState<AcpConfigOption[]>([]);
   const [models, setModels] = useState<AcpModel[]>([]);
@@ -1316,6 +1322,14 @@ const AcpChatInterface: React.FC<Props> = ({
   useEffect(() => {
     setAgentId(String(provider || 'codex'));
   }, [provider]);
+
+  useEffect(() => {
+    if (!planModeEnabled) setPlanModePromptSent(false);
+  }, [planModeEnabled]);
+
+  useEffect(() => {
+    if (sessionId) setPlanModePromptSent(false);
+  }, [sessionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1847,16 +1861,18 @@ const AcpChatInterface: React.FC<Props> = ({
     if (!sessionId) return;
     if (!trimmed && attachments.length === 0) return;
     setInput('');
-    const promptBlocks = buildPromptBlocks(trimmed);
-    appendMessage('user', promptBlocks);
+    const includePlanInstruction = planModeEnabled && !planModePromptSent;
+    const promptBlocks = buildPromptBlocks(trimmed, planModeEnabled, includePlanInstruction);
+    appendMessage('user', promptBlocks.display);
+    if (includePlanInstruction) setPlanModePromptSent(true);
     setAttachments([]);
     lastAssistantMessageIdRef.current = null;
     setRunElapsedMs(0);
     setIsRunning(true);
-    uiLog('sendPrompt', { sessionId, blocks: promptBlocks });
+    uiLog('sendPrompt', { sessionId, blocks: promptBlocks.agent, planModeEnabled });
     const res = await window.electronAPI.acpSendPrompt({
       sessionId,
-      prompt: promptBlocks,
+      prompt: promptBlocks.agent,
     });
     uiLog('sendPrompt:response', res);
     if (!res?.success) {
@@ -1971,22 +1987,57 @@ const AcpChatInterface: React.FC<Props> = ({
     }
   };
 
-  const buildPromptBlocks = (text: string): ContentBlock[] => {
-    const blocks: ContentBlock[] = [];
+  // Plan mode prompt constants
+  const PLAN_MODE_FULL_INSTRUCTION = `SYSTEM: PLAN MODE (READ-ONLY)
+
+You are in PLAN MODE. Your job is to research, analyze, and propose a plan. You must not take any action that changes the user's machine or repo.
+
+## Allowed (read-only)
+- Read files and inspect code, project structure, and dependencies
+- Search the codebase (e.g. rg/grep) and analyze behavior
+- Browse the internet / external documentation for reference
+- Run strictly read-only commands that only output information (e.g. ls, cat, rg/grep, git status/log/diff)
+- Ask clarifying questions and outline implementation steps
+
+## Not allowed (no changes)
+- Write/modify/delete any files (including patches, formatters, generators, or creating new files)
+- Run commands that might change state or write to disk (e.g. npm install, build steps that emit artifacts, tests that write snapshots/caches, git commit/push/checkout/reset/clean, rm/mv)
+- Change configuration, environment variables, system settings, or external services
+
+## Command safety rule
+- If you are not 100% sure a command is read-only, do not run it. Propose it for after approval instead.
+
+## Output expectations
+- Provide a concrete, numbered plan including which files you would change and how you would validate the result after approval
+- Call out assumptions, risks, and any information you still need from the user
+
+Stay in plan mode until the user explicitly approves execution (for example by turning plan mode off).
+
+You may optionally share your plan structure using the ACP plan protocol (session/update with type="plan").`;
+
+  const PLAN_MODE_REMINDER =
+    'REMINDER: Plan mode is still active (read-only). Continue researching and planning. Do not make any changes until the user approves execution (e.g. turns plan mode off).';
+
+  const buildPromptBlocks = (
+    text: string,
+    planMode: boolean,
+    includePlanInstruction: boolean
+  ): { display: ContentBlock[]; agent: ContentBlock[] } => {
+    const contentBlocks: ContentBlock[] = [];
     const supportsImage = Boolean(promptCaps.image);
     const supportsAudio = Boolean(promptCaps.audio);
     const supportsEmbedded = Boolean(promptCaps.embeddedContext);
     attachments.forEach((att) => {
       if (att.kind === 'image' && att.data && supportsImage) {
-        blocks.push({ type: 'image', mimeType: att.mimeType, data: att.data });
+        contentBlocks.push({ type: 'image', mimeType: att.mimeType, data: att.data });
         return;
       }
       if (att.kind === 'audio' && att.data && supportsAudio) {
-        blocks.push({ type: 'audio', mimeType: att.mimeType, data: att.data });
+        contentBlocks.push({ type: 'audio', mimeType: att.mimeType, data: att.data });
         return;
       }
       if (att.textContent && supportsEmbedded && att.path) {
-        blocks.push({
+        contentBlocks.push({
           type: 'resource',
           resource: {
             uri: toFileUri(att.path),
@@ -1997,7 +2048,7 @@ const AcpChatInterface: React.FC<Props> = ({
         return;
       }
       if (att.path) {
-        blocks.push({
+        contentBlocks.push({
           type: 'resource_link',
           uri: toFileUri(att.path),
           name: att.name,
@@ -2008,9 +2059,19 @@ const AcpChatInterface: React.FC<Props> = ({
       }
     });
     if (text) {
-      blocks.push({ type: 'text', text });
+      contentBlocks.push({ type: 'text', text });
     }
-    return blocks;
+
+    const displayBlocks = [...contentBlocks];
+
+    const agentBlocks: ContentBlock[] = [];
+    if (planMode) {
+      if (includePlanInstruction) agentBlocks.push({ type: 'text', text: PLAN_MODE_FULL_INSTRUCTION });
+      else agentBlocks.push({ type: 'text', text: PLAN_MODE_REMINDER });
+    }
+    agentBlocks.push(...contentBlocks);
+
+    return { display: displayBlocks, agent: agentBlocks };
   };
 
   const removeAttachment = (id: string) => {
@@ -3237,6 +3298,22 @@ const AcpChatInterface: React.FC<Props> = ({
                   >
                     <Clipboard className="h-4 w-4" />
                   </button>
+                  {planModeEnabled ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await logPlanEvent(task.path, 'Plan approved via UI; exiting Plan Mode');
+                        } catch {}
+                        setPlanModeEnabled(false);
+                      }}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 text-xs text-foreground hover:bg-accent/15 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
+                      title="Approve Plan & Exit"
+                    >
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="font-medium">Exit Plan Mode</span>
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={handleThinkingBudgetClick}

@@ -36,22 +36,6 @@ export function usePlanMode(taskId: string, taskPath: string) {
         log.warn('[plan] failed to write hidden planning.md', resHidden?.error);
       }
 
-      // Root-level helper for agents that don't read hidden dirs
-      const rootRel = 'PLANNING.md';
-      log.info('[plan] writing policy (root helper)', { taskPath, rootRel });
-      const rootHeader = '# Plan Mode (Read-only)\n\n';
-      const rootBody = `${rootHeader}${PLANNING_MD}`;
-      const resRoot = await (window as any).electronAPI.fsWriteFile(
-        taskPath,
-        rootRel,
-        rootBody,
-        true
-      );
-      if (!resRoot?.success) {
-        log.warn('[plan] failed to write root PLANNING.md', resRoot?.error);
-      }
-      await logPlanEvent(taskPath, 'planning.md written (hidden + root helper)');
-
       // Root-level helper only for non-worktree repos and only if it doesn't exist.
       let wroteRootHelper = false;
       try {
