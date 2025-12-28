@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
@@ -24,7 +24,6 @@ export function GithubDeviceFlowModal({
   // Presentational state - updated via IPC events from main process
   const [userCode, setUserCode] = useState<string>('');
   const [verificationUri, setVerificationUri] = useState<string>('');
-  const [expiresIn, setExpiresIn] = useState<number>(900);
   const [timeRemaining, setTimeRemaining] = useState<number>(900);
   const [copied, setCopied] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -37,6 +36,59 @@ export function GithubDeviceFlowModal({
   const hasAutocopied = useRef(false);
   const hasOpenedBrowser = useRef(false);
 
+  const copyToClipboard = useCallback(
+    async (code: string, isAutomatic = false) => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+        } else {
+          // Fallback for older browsers
+          const textArea = document.createElement('textarea');
+          textArea.value = code;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        }
+
+        setCopied(true);
+
+        if (!isAutomatic) {
+          toast({
+            title: '✓ Code copied',
+            description: 'Paste it in GitHub to authorize',
+          });
+        }
+
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        if (!isAutomatic) {
+          toast({
+            title: 'Copy failed',
+            description: 'Please copy the code manually',
+            variant: 'destructive',
+          });
+        }
+      }
+    },
+    [toast]
+  );
+
+  const openGitHub = useCallback(() => {
+    if (verificationUri) {
+      window.electronAPI.openExternal(verificationUri);
+    }
+  }, [verificationUri]);
+
+  const handleClose = useCallback(() => {
+    // Cancel auth flow in main process (polling continues in background)
+    window.electronAPI.githubCancelAuth();
+    onClose();
+  }, [onClose]);
+
   // Subscribe to auth events from main process
   useEffect(() => {
     if (!open) return;
@@ -45,7 +97,6 @@ export function GithubDeviceFlowModal({
     const cleanupDeviceCode = window.electronAPI.onGithubAuthDeviceCode((data) => {
       setUserCode(data.userCode);
       setVerificationUri(data.verificationUri);
-      setExpiresIn(data.expiresIn);
       setTimeRemaining(data.expiresIn);
 
       // Auto-copy code
@@ -115,7 +166,7 @@ export function GithubDeviceFlowModal({
       cleanupSuccess();
       cleanupError();
     };
-  }, [open, onSuccess, onError, onClose, toast]);
+  }, [copyToClipboard, open, onSuccess, onError, onClose, toast]);
 
   // Countdown timer for code expiration
   useEffect(() => {
@@ -152,56 +203,6 @@ export function GithubDeviceFlowModal({
     }
   }, [open]);
 
-  const copyToClipboard = async (code: string, isAutomatic = false) => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(code);
-      } else {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = code;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-      }
-
-      setCopied(true);
-
-      if (!isAutomatic) {
-        toast({
-          title: '✓ Code copied',
-          description: 'Paste it in GitHub to authorize',
-        });
-      }
-
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      if (!isAutomatic) {
-        toast({
-          title: 'Copy failed',
-          description: 'Please copy the code manually',
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
-  const openGitHub = () => {
-    if (verificationUri) {
-      window.electronAPI.openExternal(verificationUri);
-    }
-  };
-
-  const handleClose = () => {
-    // Cancel auth flow in main process (polling continues in background)
-    window.electronAPI.githubCancelAuth();
-    onClose();
-  };
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -228,7 +229,7 @@ export function GithubDeviceFlowModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, userCode]);
+  }, [copyToClipboard, handleClose, open, openGitHub, userCode]);
 
   if (!open) return null;
 

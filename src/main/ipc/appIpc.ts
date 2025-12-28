@@ -32,7 +32,8 @@ export function registerAppIpc() {
       }
       try {
         const platform = process.platform;
-        const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
+        const quotedPosix = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
+        const quotedWin = (p: string) => `"${p.replace(/"/g, '""')}"`;
 
         if (which === 'warp') {
           const urls = [
@@ -58,11 +59,11 @@ export function registerAppIpc() {
           switch (which) {
             case 'finder':
               // Open directory in Finder
-              command = `open ${quoted(target)}`;
+              command = `open ${quotedPosix(target)}`;
               break;
             case 'cursor':
               // Prefer CLI when available to ensure the folder opens in-app
-              command = `command -v cursor >/dev/null 2>&1 && cursor ${quoted(target)} || open -a "Cursor" ${quoted(target)}`;
+              command = `command -v cursor >/dev/null 2>&1 && cursor ${quotedPosix(target)} || open -a "Cursor" ${quotedPosix(target)}`;
               break;
             case 'vscode':
               command = [
@@ -74,14 +75,14 @@ export function registerAppIpc() {
             case 'terminal':
               // Open Terminal app at the target directory
               // This should open a new tab/window with CWD set to target
-              command = `open -a Terminal ${quoted(target)}`;
+              command = `open -a Terminal ${quotedPosix(target)}`;
               break;
             case 'iterm2':
               // iTerm2 by bundle id, then by app name
               command = [
-                `open -b com.googlecode.iterm2 ${quoted(target)}`,
-                `open -a "iTerm" ${quoted(target)}`,
-                `open -a "iTerm2" ${quoted(target)}`,
+                `open -b com.googlecode.iterm2 ${quotedPosix(target)}`,
+                `open -a "iTerm" ${quotedPosix(target)}`,
+                `open -a "iTerm2" ${quotedPosix(target)}`,
               ].join(' || ');
               break;
             case 'ghostty':
@@ -93,46 +94,47 @@ export function registerAppIpc() {
               ].join(' || ');
               break;
             case 'zed':
-              command = `command -v zed >/dev/null 2>&1 && zed ${quoted(target)} || open -a "Zed" ${quoted(target)}`;
+              command = `command -v zed >/dev/null 2>&1 && zed ${quotedPosix(target)} || open -a "Zed" ${quotedPosix(target)}`;
               break;
           }
         } else if (platform === 'win32') {
           switch (which) {
             case 'finder':
-              command = `explorer ${quoted(target)}`;
+              command = `explorer ${quotedWin(target)}`;
               break;
             case 'cursor':
-              command = `start "" cursor ${quoted(target)}`;
+              command = `start "" cursor ${quotedWin(target)}`;
               break;
             case 'vscode':
-              command = `start "" code ${quoted(target)} || start "" code-insiders ${quoted(target)}`;
+              command = `start "" code ${quotedWin(target)} || start "" code-insiders ${quotedWin(target)}`;
               break;
             case 'terminal':
-              command = `wt -d ${quoted(target)} || start cmd /K "cd /d ${target}"`;
+              command = `wt -d ${quotedWin(target)} || start cmd /K "cd /d ${quotedWin(target)}"`;
               break;
             case 'ghostty':
             case 'zed':
               return { success: false, error: `${which} is not supported on Windows` } as any;
           }
         } else {
+          // Linux: use proper quoting for shell commands
           switch (which) {
             case 'finder':
-              command = `xdg-open ${quoted(target)}`;
+              command = `xdg-open ${quotedPosix(target)}`;
               break;
             case 'cursor':
-              command = `cursor ${quoted(target)}`;
+              command = `cursor ${quotedPosix(target)}`;
               break;
             case 'vscode':
-              command = `code ${quoted(target)} || code-insiders ${quoted(target)}`;
+              command = `code ${quotedPosix(target)} || code-insiders ${quotedPosix(target)}`;
               break;
             case 'terminal':
-              command = `x-terminal-emulator --working-directory=${quoted(target)} || gnome-terminal --working-directory=${quoted(target)} || konsole --workdir ${quoted(target)}`;
+              command = `x-terminal-emulator --working-directory=${quotedPosix(target)} || gnome-terminal --working-directory=${quotedPosix(target)} || konsole --workdir ${quotedPosix(target)}`;
               break;
             case 'ghostty':
               command = `ghostty --working-directory=${quoted(target)} || x-terminal-emulator --working-directory=${quoted(target)}`;
               break;
             case 'zed':
-              command = `zed ${quoted(target)} || xdg-open ${quoted(target)}`;
+              command = `zed ${quotedPosix(target)} || xdg-open ${quotedPosix(target)}`;
               break;
             case 'iterm2':
               return { success: false, error: 'iTerm2 is only available on macOS' } as any;
@@ -186,22 +188,42 @@ export function registerAppIpc() {
   // App metadata
   ipcMain.handle('app:getAppVersion', () => {
     try {
-      // Try multiple possible paths for package.json
-      const possiblePaths = [
-        join(__dirname, '../../package.json'), // from dist/main/ipc
-        join(__dirname, '../../../package.json'), // alternative path
-        join(app.getAppPath(), 'package.json'), // production build
-      ];
-
-      for (const packageJsonPath of possiblePaths) {
+      const readVersion = (packageJsonPath: string) => {
         try {
           const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
           if (packageJson.name === 'emdash' && packageJson.version) {
-            return packageJson.version;
+            return packageJson.version as string;
           }
         } catch {
-          continue;
+          // ignore parse/fs errors and continue
         }
+        return null;
+      };
+
+      // Walk upward from a base directory to find package.json (helps in dev where the
+      // compiled code lives in dist/main/main/**).
+      const collectCandidates = (base: string | undefined, maxDepth = 6) => {
+        if (!base) return [];
+        const paths: string[] = [];
+        let current = base;
+        for (let i = 0; i < maxDepth; i++) {
+          paths.push(join(current, 'package.json'));
+          const parent = join(current, '..');
+          if (parent === current) break;
+          current = parent;
+        }
+        return paths;
+      };
+
+      const possiblePaths = [
+        ...collectCandidates(__dirname),
+        ...collectCandidates(app.getAppPath()),
+        join(process.cwd(), 'package.json'),
+      ];
+
+      for (const packageJsonPath of possiblePaths) {
+        const version = readVersion(packageJsonPath);
+        if (version) return version;
       }
       return app.getVersion();
     } catch {

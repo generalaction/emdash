@@ -1410,7 +1410,7 @@ const AppContent: React.FC = () => {
   const handleDeleteTask = async (
     targetProject: Project,
     task: Task,
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; deleteRemoteBranch?: boolean }
   ): Promise<boolean> => {
     if (deletingTaskIdsRef.current.has(task.id)) {
       toast({
@@ -1475,6 +1475,7 @@ const AppContent: React.FC = () => {
             worktreeId: task.id,
             worktreePath: task.path,
             branch: task.branch,
+            deleteRemoteBranch: options?.deleteRemoteBranch,
           }),
           window.electronAPI.deleteTask(task.id),
         ]);
@@ -1495,15 +1496,30 @@ const AppContent: React.FC = () => {
           throw new Error(errorMsg);
         }
 
+        const remoteBranchWarning =
+          !!options?.deleteRemoteBranch && removeResult.status === 'fulfilled'
+            ? removeResult.value?.remoteBranchDeleted === false
+            : false;
+
         // Track task deletion
         const { captureTelemetry } = await import('./lib/telemetryClient');
         captureTelemetry('task_deleted');
 
         if (!options?.silent) {
           toast({
-            title: 'Task deleted',
+            title: remoteBranchWarning ? 'Task deleted (branch not deleted)' : 'Task deleted',
             description: task.name,
           });
+          if (remoteBranchWarning) {
+            toast({
+              title: 'Could not delete remote branch',
+              description:
+                (removeResult.status === 'fulfilled'
+                  ? removeResult.value?.remoteBranchDeleteError
+                  : null) || 'Check GitHub authentication and try again.',
+              variant: 'destructive',
+            });
+          }
         }
         return true;
       } catch (error) {
@@ -1903,10 +1919,7 @@ const AppContent: React.FC = () => {
                     isHomeView={showHomeView}
                   />
                 </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
+                <ResizableHandle className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex" />
                 <ResizablePanel
                   className="sidebar-panel sidebar-panel--main"
                   defaultSize={defaultPanelLayout[1]}
@@ -1917,10 +1930,7 @@ const AppContent: React.FC = () => {
                     {renderMainContent()}
                   </div>
                 </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
+                <ResizableHandle className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex" />
                 <ResizablePanel
                   ref={rightSidebarPanelRef}
                   className="sidebar-panel sidebar-panel--right"

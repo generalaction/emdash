@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
+import { Switch } from './ui/switch';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -46,6 +47,14 @@ const normalizeBaseRef = (ref?: string | null): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const normalizeBranchLabel = (branch?: string | null): string => {
+  return String(branch || '')
+    .trim()
+    .replace(/^refs\/heads\//, '')
+    .replace(/^refs\/remotes\/origin\//, 'origin/')
+    .replace(/^origin\//, '');
+};
+
 function TaskRow({
   ws,
   active,
@@ -58,7 +67,7 @@ function TaskRow({
   ws: Task;
   active: boolean;
   onClick: () => void;
-  onDelete: () => void | Promise<void | boolean>;
+  onDelete: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
   isSelectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -352,10 +361,11 @@ function TaskRow({
               taskName={ws.name}
               taskId={ws.id}
               taskPath={ws.path}
-              onConfirm={async () => {
+              taskBranch={ws.branch}
+              onConfirm={async (opts) => {
                 try {
                   setIsDeleting(true);
-                  await onDelete();
+                  await onDelete(opts);
                 } finally {
                   setIsDeleting(false);
                 }
@@ -392,7 +402,7 @@ interface ProjectMainViewProps {
   onDeleteTask: (
     project: Project,
     task: Task,
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; deleteRemoteBranch?: boolean }
   ) => void | Promise<void | boolean>;
   isCreatingTask?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
@@ -423,6 +433,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
+  const [alsoDeleteRemoteBranches, setAlsoDeleteRemoteBranches] = useState(false);
 
   const tasksInProject = project.tasks ?? [];
   const selectedCount = selectedIds.size;
@@ -430,6 +441,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     () => tasksInProject.filter((ws) => selectedIds.has(ws.id)),
     [selectedIds, tasksInProject]
   );
+  const remoteBranchSummary =
+    selectedCount === 1
+      ? normalizeBranchLabel(selectedTasks[0]?.branch)
+      : `${selectedCount} branches`;
   const [deleteStatus, setDeleteStatus] = useState<
     Record<
       string,
@@ -509,7 +524,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     const deletedNames: string[] = [];
     for (const ws of toDelete) {
       try {
-        const result = await onDeleteTask(project, ws, { silent: true });
+        const result = await onDeleteTask(project, ws, {
+          silent: true,
+          deleteRemoteBranch: alsoDeleteRemoteBranches,
+        });
         if (result !== false) {
           deletedNames.push(ws.name);
         }
@@ -547,6 +565,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     if (!showDeleteDialog) {
       setDeleteStatus({});
       setAcknowledgeDirtyDelete(false);
+      setAlsoDeleteRemoteBranches(false);
       return;
     }
 
@@ -847,7 +866,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       onToggleSelect={() => toggleSelect(ws.id)}
                       active={activeTask?.id === ws.id}
                       onClick={() => onSelectTask(ws)}
-                      onDelete={() => onDeleteTask(project, ws)}
+                      onDelete={(opts) => onDeleteTask(project, ws, opts)}
                     />
                   ))}
                 </div>
@@ -955,6 +974,33 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     onCheckedChange={(val) => setAcknowledgeDirtyDelete(val === true)}
                   />
                   <span className="leading-tight">Delete tasks anyway</span>
+                </motion.label>
+              ) : null}
+            </AnimatePresence>
+
+            <AnimatePresence initial={false}>
+              {selectedCount > 0 ? (
+                <motion.label
+                  key="bulk-delete-remote-branches"
+                  className="flex items-center justify-between gap-3 rounded-xl bg-muted/15 px-4 py-3"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.18, ease: 'easeOut', delay: 0.02 }}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm leading-tight text-foreground">
+                      Also delete GitHub branches
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {remoteBranchSummary}
+                    </span>
+                  </span>
+                  <Switch
+                    checked={alsoDeleteRemoteBranches}
+                    disabled={isDeleting || deleteStatusLoading}
+                    onCheckedChange={setAlsoDeleteRemoteBranches}
+                  />
                 </motion.label>
               ) : null}
             </AnimatePresence>

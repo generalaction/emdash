@@ -10,7 +10,7 @@ export async function probeLocalUrls(
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), perProbeMs);
     try {
-      const res = await fetch(u, { method: 'GET', mode: 'no-cors', signal: c.signal });
+      await fetch(u, { method: 'GET', mode: 'no-cors', signal: c.signal });
       // mode: 'no-cors' will resolve regardless of CORS; if it resolves, the server is there.
       clearTimeout(t);
       return true;

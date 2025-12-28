@@ -50,16 +50,18 @@ export function registerWorktreeIpc(): void {
         worktreeId: string;
         worktreePath?: string;
         branch?: string;
+        deleteRemoteBranch?: boolean;
       }
     ) => {
       try {
-        await worktreeService.removeWorktree(
+        const result = await worktreeService.removeWorktree(
           args.projectPath,
           args.worktreeId,
           args.worktreePath,
-          args.branch
+          args.branch,
+          { deleteRemoteBranch: args.deleteRemoteBranch }
         );
-        return { success: true };
+        return { success: true, ...result };
       } catch (error) {
         console.error('Failed to remove worktree:', error);
         return { success: false, error: (error as Error).message };

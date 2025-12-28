@@ -23,7 +23,6 @@ export function useInitialPromptInjection(opts: {
 
     const ptyId = `${providerId}-main-${taskId}`;
     let sent = false;
-    let idleSeen = false;
     let silenceTimer: any = null;
     const send = () => {
       try {
@@ -45,7 +44,6 @@ export function useInitialPromptInjection(opts: {
       try {
         const signal = classifyActivity(providerId, chunk);
         if (signal === 'idle' && !sent) {
-          idleSeen = true;
           setTimeout(send, 250);
         }
       } catch {

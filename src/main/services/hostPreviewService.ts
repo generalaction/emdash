@@ -217,7 +217,7 @@ class HostPreviewService extends EventEmitter {
       } catch {}
     }
     const cmd = pm;
-    let args: string[] = pm === 'npm' ? ['run', script] : [script];
+    const args: string[] = pm === 'npm' ? ['run', script] : [script];
     const env = { ...process.env } as Record<string, string>;
 
     // Auto-install if package.json exists and node_modules is missing
