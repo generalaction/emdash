@@ -372,7 +372,10 @@ declare global {
         path: string;
       }) => Promise<{ success: boolean; error?: string }>;
       checkInstalledApps: () => Promise<
-        Record<'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp', boolean>
+        Record<
+          'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
+          boolean
+        >
       >;
       connectToGitHub: (projectPath: string) => Promise<{
         success: boolean;

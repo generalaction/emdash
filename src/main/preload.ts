@@ -40,7 +40,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Check which apps are installed
   checkInstalledApps: () =>
     ipcRenderer.invoke('app:checkInstalledApps') as Promise<
-      Record<'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp', boolean>
+      Record<
+        'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
+        boolean
+      >
     >,
 
   // PTY management
