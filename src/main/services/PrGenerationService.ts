@@ -107,10 +107,18 @@ export class PrGenerationService {
     try {
       // Fetch remote to ensure we have latest state (prevents comparing against stale local branches)
       // This is critical: if local main is behind remote, we'd incorrectly include others' commits
+      // Only fetch if remote exists
       try {
-        await execAsync('git fetch origin --quiet', { cwd: taskPath });
-      } catch (fetchError) {
-        log.debug('Failed to fetch remote, continuing with existing refs', { fetchError });
+        await execAsync('git remote get-url origin', { cwd: taskPath });
+        // Remote exists, try to fetch
+        try {
+          await execAsync('git fetch origin --quiet', { cwd: taskPath });
+        } catch (fetchError) {
+          log.debug('Failed to fetch remote, continuing with existing refs', { fetchError });
+        }
+      } catch {
+        // Remote doesn't exist, skip fetch
+        log.debug('Remote origin not found, skipping fetch');
       }
 
       // Always prefer remote branch to avoid stale local branch issues
@@ -265,7 +273,6 @@ export class PrGenerationService {
       const timeout = 30000; // 30 second timeout
       let stdout = '';
       let stderr = '';
-      let timeoutId: NodeJS.Timeout;
 
       // Build command arguments
       const args: string[] = [];
@@ -298,7 +305,7 @@ export class PrGenerationService {
       });
 
       // Set timeout
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         try {
           child.kill('SIGTERM');
         } catch {}

@@ -440,14 +440,22 @@ export class DatabaseService {
           return `${head}/${branchPart}`;
         }
         if (!head && branchPart) {
-          return `${remoteName}/${branchPart}`;
+          // Leading slash - prepend remote if available
+          return remoteName ? `${remoteName}/${branchPart}` : branchPart;
         }
         return undefined;
       }
-      return `${remoteName}/${trimmed.replace(/^\/+/, '')}`;
+
+      // Plain branch name - prepend remote only if one exists
+      const suffix = trimmed.replace(/^\/+/, '');
+      return remoteName ? `${remoteName}/${suffix}` : suffix;
     };
 
-    return normalize(preferred) ?? normalize(branch) ?? `${remoteName}/${this.defaultBranchName()}`;
+    // Default: use origin/main if remote exists, otherwise just 'main'
+    const defaultBranch = remoteName
+      ? `${remoteName}/${this.defaultBranchName()}`
+      : this.defaultBranchName();
+    return normalize(preferred) ?? normalize(branch) ?? defaultBranch;
   }
 
   private defaultRemoteName(): string {
@@ -457,7 +465,7 @@ export class DatabaseService {
   private getRemoteAlias(remote?: string | null): string {
     if (!remote) return this.defaultRemoteName();
     const trimmed = remote.trim();
-    if (!trimmed) return this.defaultRemoteName();
+    if (!trimmed) return ''; // Empty string indicates no remote (local-only repo)
     if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) {
       return trimmed;
     }
