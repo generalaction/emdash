@@ -18,13 +18,34 @@ interface OpenInMenuProps {
 }
 
 const menuItemBase =
-  'flex w-full cursor-pointer select-none items-center gap-2 rounded px-2.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground';
+  'flex w-full select-none items-center gap-2 rounded px-2.5 py-2 text-sm transition-colors';
+
+const getMenuItemClasses = (isAvailable: boolean) => {
+  if (!isAvailable) {
+    return `${menuItemBase} cursor-not-allowed opacity-40`;
+  }
+  return `${menuItemBase} cursor-pointer hover:bg-accent hover:text-accent-foreground`;
+};
 
 const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const [open, setOpen] = React.useState(false);
+  const [availability, setAvailability] = React.useState<Record<string, boolean>>({});
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
+
+  // Fetch app availability on mount
+  React.useEffect(() => {
+    const fetchAvailability = async () => {
+      try {
+        const apps = await (window as any).electronAPI?.checkInstalledApps?.();
+        if (apps) setAvailability(apps);
+      } catch (e) {
+        console.error('Failed to check installed apps:', e);
+      }
+    };
+    void fetchAvailability();
+  }, []);
 
   React.useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -38,6 +59,11 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const callOpen = async (
     app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp'
   ) => {
+    // Check if app is available
+    if (availability[app] === false) {
+      return; // Don't proceed if app is not installed
+    }
+
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('toolbar_open_in_selected', { app });
     });
@@ -138,35 +164,83 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('finder')}>
+            <button
+              className={getMenuItemClasses(availability.finder !== false)}
+              role="menuitem"
+              onClick={() => callOpen('finder')}
+              disabled={availability.finder === false}
+              title={availability.finder === false ? 'Not installed' : undefined}
+            >
               <img src={finderLogo} alt="Finder" className="h-4 w-4 rounded" />
               <span>Finder</span>
             </button>
-            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('cursor')}>
+            <button
+              className={getMenuItemClasses(availability.cursor !== false)}
+              role="menuitem"
+              onClick={() => callOpen('cursor')}
+              disabled={availability.cursor === false}
+              title={availability.cursor === false ? 'Not installed' : undefined}
+            >
               <img src={cursorLogo} alt="Cursor" className="h-4 w-4" />
               <span>Cursor</span>
             </button>
-            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('vscode')}>
+            <button
+              className={getMenuItemClasses(availability.vscode !== false)}
+              role="menuitem"
+              onClick={() => callOpen('vscode')}
+              disabled={availability.vscode === false}
+              title={availability.vscode === false ? 'Not installed' : undefined}
+            >
               <img src={vscodeLogo} alt="VS Code" className="h-4 w-4 rounded" />
               <span>VS Code</span>
             </button>
-            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('terminal')}>
+            <button
+              className={getMenuItemClasses(availability.terminal !== false)}
+              role="menuitem"
+              onClick={() => callOpen('terminal')}
+              disabled={availability.terminal === false}
+              title={availability.terminal === false ? 'Not installed' : undefined}
+            >
               <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
               <span>Terminal</span>
             </button>
-            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('warp')}>
+            <button
+              className={getMenuItemClasses(availability.warp !== false)}
+              role="menuitem"
+              onClick={() => callOpen('warp')}
+              disabled={availability.warp === false}
+              title={availability.warp === false ? 'Not installed' : undefined}
+            >
               <img src={warpLogo} alt="Warp" className="h-4 w-4 rounded" />
               <span>Warp</span>
             </button>
-            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('iterm2')}>
+            <button
+              className={getMenuItemClasses(availability.iterm2 !== false)}
+              role="menuitem"
+              onClick={() => callOpen('iterm2')}
+              disabled={availability.iterm2 === false}
+              title={availability.iterm2 === false ? 'Not installed' : undefined}
+            >
               <img src={iterm2Logo} alt="iTerm2" className="h-4 w-4 rounded" />
               <span>iTerm2</span>
             </button>
-            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('ghostty')}>
+            <button
+              className={getMenuItemClasses(availability.ghostty !== false)}
+              role="menuitem"
+              onClick={() => callOpen('ghostty')}
+              disabled={availability.ghostty === false}
+              title={availability.ghostty === false ? 'Not installed' : undefined}
+            >
               <img src={ghosttyLogo} alt="Ghostty" className="h-4 w-4 rounded" />
               <span>Ghostty</span>
             </button>
-            <button className={menuItemBase} role="menuitem" onClick={() => callOpen('zed')}>
+            <button
+              className={getMenuItemClasses(availability.zed !== false)}
+              role="menuitem"
+              onClick={() => callOpen('zed')}
+              disabled={availability.zed === false}
+              title={availability.zed === false ? 'Not installed' : undefined}
+            >
               <img src={zedLogo} alt="Zed" className="h-4 w-4 rounded" />
               <span>Zed</span>
             </button>
