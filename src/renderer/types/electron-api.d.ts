@@ -371,6 +371,12 @@ declare global {
         app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
         path: string;
       }) => Promise<{ success: boolean; error?: string }>;
+      checkInstalledApps: () => Promise<
+        Record<
+          'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
+          boolean
+        >
+      >;
       connectToGitHub: (projectPath: string) => Promise<{
         success: boolean;
         repository?: string;
