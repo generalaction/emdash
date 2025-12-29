@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import ReorderList from './ReorderList';
 import { Button } from './ui/button';
 import {
@@ -257,8 +258,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
                             }`}
                           >
-                            <button
+                            <motion.button
                               type="button"
+                              whileTap={{ scale: 0.97 }}
+                              transition={{ duration: 0.1, ease: 'easeInOut' }}
                               className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -269,7 +272,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               <span className="hidden truncate text-xs text-muted-foreground sm:block">
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
-                            </button>
+                            </motion.button>
                             <div className="relative flex flex-shrink-0 items-center pl-6">
                               {showProjectDelete ? (
                                 <ProjectDeleteButton
@@ -301,8 +304,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           <CollapsibleContent asChild>
                             <div className="ml-7 mt-2 min-w-0">
                               <div className="bg-sidebar pb-1">
-                                <button
+                                <motion.button
                                   type="button"
+                                  whileTap={{ scale: 0.97 }}
+                                  transition={{ duration: 0.1, ease: 'easeInOut' }}
                                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -324,7 +329,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     aria-hidden
                                   />
                                   <span className="truncate">Add Task</span>
-                                </button>
+                                </motion.button>
                               </div>
                               <div className="hidden min-w-0 space-y-1 sm:block">
                                 {typedProject.tasks?.map((task) => {

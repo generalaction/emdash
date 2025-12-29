@@ -24,6 +24,7 @@ import { useBrowser } from '@/providers/BrowserProvider';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
 declare const window: Window & {
   electronAPI: {
@@ -64,6 +65,19 @@ const ChatInterface: React.FC<Props> = ({
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
+
+  // Auto-focus terminal when switching to this task
+  useEffect(() => {
+    // Small delay to ensure terminal is mounted and attached
+    const timer = setTimeout(() => {
+      const session = terminalSessionRegistry.getSession(terminalId);
+      if (session) {
+        session.focus();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [task.id, terminalId]);
 
   // Unified Plan Mode (per task)
   const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(task.id, task.path);
