@@ -28,7 +28,10 @@ export function normalizePathForComparison(
 
 /**
  * Computes the base ref for a git repository.
- * Priority: baseRef > branch > default to origin/main
+ * Priority: baseRef > branch > default to origin/main (or just 'main' if no remote)
+ *
+ * When a value doesn't contain a '/', it's assumed to be a branch name and will be
+ * prefixed with the remote name (unless remote is empty, indicating local-only repo)
  */
 export function computeBaseRef(
   baseRef?: string | null,
@@ -37,7 +40,7 @@ export function computeBaseRef(
 ): string {
   const remoteName = (() => {
     const trimmed = (remote ?? '').trim();
-    if (!trimmed) return 'origin';
+    if (!trimmed) return ''; // Empty string indicates no remote
     if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) return trimmed;
     return 'origin';
   })();
@@ -46,18 +49,27 @@ export function computeBaseRef(
     if (!value) return undefined;
     const trimmed = value.trim();
     if (!trimmed || trimmed.includes('://')) return undefined;
+
+    // If already contains '/', use as-is (e.g., "origin/main" or "main/feature")
     if (trimmed.includes('/')) {
       const [head, ...rest] = trimmed.split('/');
       const branchPart = rest.join('/').replace(/^\/+/, '');
       if (head && branchPart) return `${head}/${branchPart}`;
-      if (!head && branchPart) return `${remoteName}/${branchPart}`;
+      if (!head && branchPart) {
+        // Leading slash - prepend remote if available
+        return remoteName ? `${remoteName}/${branchPart}` : branchPart;
+      }
       return undefined;
     }
+
+    // Plain branch name - prepend remote only if one exists
     const suffix = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
-    return `${remoteName}/${suffix}`;
+    return remoteName ? `${remoteName}/${suffix}` : suffix;
   };
 
-  return normalize(baseRef) ?? normalize(branch) ?? `${remoteName}/main`;
+  // Default: use origin/main if remote exists, otherwise just 'main'
+  const defaultBranch = remoteName ? `${remoteName}/main` : 'main';
+  return normalize(baseRef) ?? normalize(branch) ?? defaultBranch;
 }
 
 /**
