@@ -65,11 +65,8 @@ export function registerAppIpc() {
               command = `command -v cursor >/dev/null 2>&1 && cursor ${quoted(target)} || open -a "Cursor" ${quoted(target)}`;
               break;
             case 'vscode':
-              command = [
-                `open -b com.microsoft.VSCode --args ${quoted(target)}`,
-                `open -b com.microsoft.VSCodeInsiders --args ${quoted(target)}`,
-                `open -a "Visual Studio Code" ${quoted(target)}`,
-              ].join(' || ');
+              // Prefer CLI when available to open when VS Code is already running
+              command = `command -v code >/dev/null 2>&1 && code ${quoted(target)} || open -n -b com.microsoft.VSCode --args ${quoted(target)} || open -n -a "Visual Studio Code" ${quoted(target)}`;
               break;
             case 'terminal':
               // Open Terminal app at the target directory
