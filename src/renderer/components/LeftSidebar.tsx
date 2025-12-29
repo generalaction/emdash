@@ -258,8 +258,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
                             }`}
                           >
-                            <button
+                            <motion.button
                               type="button"
+                              whileTap={{ scale: 0.97 }}
+                              transition={{ duration: 0.1, ease: 'easeInOut' }}
                               className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -270,7 +272,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               <span className="hidden truncate text-xs text-muted-foreground sm:block">
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
-                            </button>
+                            </motion.button>
                             <div className="relative flex flex-shrink-0 items-center pl-6">
                               {showProjectDelete ? (
                                 <ProjectDeleteButton
