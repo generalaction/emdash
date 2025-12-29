@@ -136,7 +136,9 @@ export class WorktreeService {
               cwd: worktreePath,
             }
           );
-          log.info(`Pushed branch ${branchName} to ${fetchedBaseRef.remote} with upstream tracking`);
+          log.info(
+            `Pushed branch ${branchName} to ${fetchedBaseRef.remote} with upstream tracking`
+          );
         } catch (pushErr) {
           log.warn('Initial push of worktree branch failed:', pushErr as any);
           // Don't fail worktree creation if push fails - user can push manually later
