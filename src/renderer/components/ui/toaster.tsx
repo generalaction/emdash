@@ -36,9 +36,11 @@ export function Toaster() {
         const focusIsOnBody = currentFocus === document.body;
 
         // Only restore if focus is on toast/body AND we have a valid saved element
-        if ((focusIsOnToast || focusIsOnBody) &&
-            previousActiveElement.current &&
-            document.body.contains(previousActiveElement.current)) {
+        if (
+          (focusIsOnToast || focusIsOnBody) &&
+          previousActiveElement.current &&
+          document.body.contains(previousActiveElement.current)
+        ) {
           previousActiveElement.current.focus();
         }
       });
