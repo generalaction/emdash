@@ -69,6 +69,13 @@ export function createMainWindow(): BrowserWindow {
     });
   });
 
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow?.webContents.send('window:fullscreen-changed', true);
+  });
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow?.webContents.send('window:fullscreen-changed', false);
+  });
+
   // Cleanup reference on close
   mainWindow.on('closed', () => {
     mainWindow = null;

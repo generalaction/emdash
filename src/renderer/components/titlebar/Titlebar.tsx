@@ -30,6 +30,25 @@ interface TitlebarProps {
   kanbanAvailable?: boolean;
 }
 
+const useFullscreen = () => {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api?.onFullscreenChange) return;
+
+    const cleanup = api.onFullscreenChange((fullscreen: boolean) => {
+      setIsFullscreen(fullscreen);
+    });
+
+    return cleanup;
+  }, []);
+
+  return isFullscreen;
+};
+
+const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+
 const Titlebar: React.FC<TitlebarProps> = ({
   onToggleSettings,
   isSettingsOpen = false,
@@ -46,6 +65,8 @@ const Titlebar: React.FC<TitlebarProps> = ({
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
+  const isFullscreen = useFullscreen();
+  const trafficLightPadding = isMacOS && !isFullscreen ? 'pl-[72px]' : 'pl-2';
 
   const handleOpenFeedback = useCallback(async () => {
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -101,7 +122,12 @@ const Titlebar: React.FC<TitlebarProps> = ({
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-gray-50 pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-gray-900">
+      <header
+        className={`fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,48px)] items-center justify-between bg-gray-50 pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-gray-900 ${trafficLightPadding}`}
+      >
+        <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
+          <SidebarLeftToggleButton />
+        </div>
         <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
           {currentPath ? <OpenInMenu path={currentPath} align="right" /> : null}
           {kanbanAvailable ? (
@@ -174,7 +200,6 @@ const Titlebar: React.FC<TitlebarProps> = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <SidebarLeftToggleButton />
           <SidebarRightToggleButton />
           <TooltipProvider delayDuration={200}>
             <Tooltip>

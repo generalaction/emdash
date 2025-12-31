@@ -25,6 +25,7 @@ import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
+import TerminalTabBar from './TerminalTabBar';
 
 declare const window: Window & {
   electronAPI: {
@@ -59,9 +60,10 @@ const ChatInterface: React.FC<Props> = ({
     getContainerRunState(task.id)
   );
   const reduceMotion = useReducedMotion();
-  const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
   const [portsExpanded, setPortsExpanded] = useState(false);
-  const { activeTerminalId } = useTaskTerminals(task.id, task.path);
+  const { terminals, activeTerminalId, createTerminal, setActiveTerminal, closeTerminal } =
+    useTaskTerminals(task.id, task.path);
+  const terminalId = activeTerminalId || `${provider}-main-${task.id}`;
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
@@ -667,39 +669,31 @@ const ChatInterface: React.FC<Props> = ({
 
   return (
     <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
+      <TerminalTabBar
+        terminals={terminals}
+        activeTerminalId={activeTerminalId}
+        onSelectTerminal={setActiveTerminal}
+        onCreateTerminal={() => createTerminal({ title: `Session ${terminals.length + 1}` })}
+        onCloseTerminal={closeTerminal}
+      />
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="px-6 pt-4">
-          <div className="mx-auto max-w-4xl space-y-2">
-            {(() => {
-              if (isProviderInstalled !== true) {
-                return (
-                  <InstallBanner
-                    provider={provider as any}
-                    terminalId={terminalId}
-                    installCommand={getInstallCommandForProvider(provider as any)}
-                    onRunInstall={runInstallCommand}
-                    onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                  />
-                );
-              }
-              if (cliStartFailed) {
-                return (
-                  <InstallBanner
-                    provider={provider as any}
-                    terminalId={terminalId}
-                    onRunInstall={runInstallCommand}
-                    onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                  />
-                );
-              }
-              return null;
-            })()}
+        {(isProviderInstalled !== true || cliStartFailed) && (
+          <div className="px-6 pt-4">
+            <div className="mx-auto max-w-4xl">
+              <InstallBanner
+                provider={provider as any}
+                terminalId={terminalId}
+                installCommand={getInstallCommandForProvider(provider as any)}
+                onRunInstall={runInstallCommand}
+                onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+              />
+            </div>
           </div>
-        </div>
+        )}
         {containerStatusNode}
-        <div className="mt-4 min-h-0 flex-1 px-6">
+        <div className="min-h-0 flex-1">
           <div
-            className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+            className={`flex h-full flex-col overflow-hidden ${
               provider === 'charm'
                 ? effectiveTheme === 'dark'
                   ? 'bg-gray-800'
@@ -765,7 +759,7 @@ const ChatInterface: React.FC<Props> = ({
                   ? (initialInjection ?? undefined)
                   : undefined
               }
-              className="h-full w-full"
+              className="min-h-0 flex-1"
             />
           </div>
         </div>

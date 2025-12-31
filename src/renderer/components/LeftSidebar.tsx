@@ -375,49 +375,40 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-
-          {projects.length > 0 && onOpenProject && (
-            <SidebarGroup className="mt-2">
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="mt-1 w-full justify-start">
-                          <Plus className="mr-2 h-4 w-4" />
-                          <span className="text-sm font-medium">Add Project</span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
-                        <div className="space-y-1">
-                          <MenuItemButton
-                            icon={FolderOpen}
-                            label="Open Folder"
-                            ariaLabel="Open Folder"
-                            onClick={() => onOpenProject?.()}
-                          />
-                          <MenuItemButton
-                            icon={Plus}
-                            label="Create New"
-                            ariaLabel="Create New Project"
-                            onClick={() => onNewProject?.()}
-                          />
-                          <MenuItemButton
-                            icon={Github}
-                            label="Clone from GitHub"
-                            ariaLabel="Clone from GitHub"
-                            onClick={() => onCloneProject?.()}
-                          />
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
         </SidebarContent>
         <SidebarFooter className="min-w-0 overflow-hidden border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
+          {projects.length > 0 && onOpenProject && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="mb-2 w-full justify-start">
+                  <Plus className="mr-2 h-4 w-4" />
+                  <span className="text-sm font-medium">Add Project</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
+                <div className="space-y-1">
+                  <MenuItemButton
+                    icon={FolderOpen}
+                    label="Open Folder"
+                    ariaLabel="Open Folder"
+                    onClick={() => onOpenProject?.()}
+                  />
+                  <MenuItemButton
+                    icon={Plus}
+                    label="Create New"
+                    ariaLabel="Create New Project"
+                    onClick={() => onNewProject?.()}
+                  />
+                  <MenuItemButton
+                    icon={Github}
+                    label="Clone from GitHub"
+                    ariaLabel="Clone from GitHub"
+                    onClick={() => onCloneProject?.()}
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
           <SidebarMenu className="w-full min-w-0">
             <SidebarMenuItem className="min-w-0">
               <SidebarMenuButton

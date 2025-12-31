@@ -378,6 +378,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Lightweight TCP probe for localhost ports to avoid noisy fetches
   netProbePorts: (host: string, ports: number[], timeoutMs?: number) =>
     ipcRenderer.invoke('net:probePorts', host, ports, timeoutMs),
+
+  onFullscreenChange: (listener: (isFullscreen: boolean) => void) => {
+    const channel = 'window:fullscreen-changed';
+    const wrapped = (_: Electron.IpcRendererEvent, isFullscreen: boolean) => listener(isFullscreen);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 });
 
 // Type definitions for the exposed API

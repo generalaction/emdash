@@ -170,7 +170,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   return (
     <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
-      <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
+      <div className="flex h-12 items-center gap-2 border-b border-border bg-gray-50 px-2 dark:bg-gray-900">
         <div className="flex items-center gap-1">
           <TooltipProvider delayDuration={200}>
             <Tooltip>

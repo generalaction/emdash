@@ -86,14 +86,14 @@ const RightSidebarBridge: React.FC<{
   return null;
 };
 
-const TITLEBAR_HEIGHT = '36px';
+const TITLEBAR_HEIGHT = '48px';
 const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
 const DEFAULT_PANEL_LAYOUT: [number, number, number] = [20, 60, 20];
-const LEFT_SIDEBAR_MIN_SIZE = 16;
-const LEFT_SIDEBAR_MAX_SIZE = 30;
+const LEFT_SIDEBAR_MIN_SIZE = 12;
+const LEFT_SIDEBAR_MAX_SIZE = 40;
 const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
-const RIGHT_SIDEBAR_MIN_SIZE = 16;
-const RIGHT_SIDEBAR_MAX_SIZE = 50;
+const RIGHT_SIDEBAR_MIN_SIZE = 12;
+const RIGHT_SIDEBAR_MAX_SIZE = 60;
 const clampLeftSidebarSize = (value: number) =>
   Math.min(
     Math.max(Number.isFinite(value) ? value : DEFAULT_PANEL_LAYOUT[0], LEFT_SIDEBAR_MIN_SIZE),

@@ -438,7 +438,7 @@ const BrowserPane: React.FC<{
         isOpen ? 'pointer-events-auto' : 'pointer-events-none'
       )}
       // Offset below the app titlebar so the pane’s toolbar is visible
-      style={{ top: 'var(--tb, 36px)' }}
+      style={{ top: 'var(--tb, 48px)' }}
       aria-hidden={!isOpen}
     >
       <div

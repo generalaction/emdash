@@ -132,7 +132,7 @@ function createDefaultState(taskId: string, taskPath?: string): TaskTerminalsSta
   const terminalId = makeTerminalId(taskId);
   const firstTerminal: TaskTerminal = {
     id: terminalId,
-    title: 'Terminal 1',
+    title: 'Session 1',
     cwd: taskPath,
     createdAt: Date.now(),
   };
@@ -253,7 +253,7 @@ function createTerminal(
       ...draft.terminals,
       {
         id,
-        title: options?.title || `Terminal ${nextIndex}`,
+        title: options?.title || `Session ${nextIndex}`,
         cwd: options?.cwd || taskPath,
         createdAt: Date.now(),
       },
