@@ -1,6 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight, Folder } from 'lucide-react';
+import {
+  GitBranch,
+  Plus,
+  Loader2,
+  ChevronDown,
+  ArrowUpRight,
+  Folder,
+  AlertCircle,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -730,19 +738,24 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
                     <div className="flex items-center gap-2 sm:self-start">
                       {project.githubInfo?.connected && project.githubInfo.repository ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs font-medium"
-                          onClick={() =>
-                            window.electronAPI.openExternal(
-                              `https://github.com/${project.githubInfo?.repository}`
-                            )
-                          }
+                        <motion.div
+                          whileTap={{ scale: 0.97 }}
+                          transition={{ duration: 0.1, ease: 'easeInOut' }}
                         >
-                          View on GitHub
-                          <ArrowUpRight className="size-3" />
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1 px-3 text-xs font-medium"
+                            onClick={() =>
+                              window.electronAPI.openExternal(
+                                `https://github.com/${project.githubInfo?.repository}`
+                              )
+                            }
+                          >
+                            View on GitHub
+                            <ArrowUpRight className="size-3" />
+                          </Button>
+                        </motion.div>
                       ) : null}
                       {onDeleteProject ? (
                         <ProjectDeleteButton
@@ -775,6 +788,36 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               <Separator className="my-2" />
             </div>
 
+            {(() => {
+              const directTasks = tasksInProject.filter((task) => task.useWorktree === false);
+              if (directTasks.length === 0) return null;
+
+              return (
+                <Alert className="border-border bg-muted/50">
+                  <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                  <AlertTitle className="text-sm font-medium text-foreground">
+                    Direct branch mode
+                  </AlertTitle>
+                  <AlertDescription className="text-xs text-muted-foreground">
+                    {directTasks.length === 1 ? (
+                      <>
+                        <span className="font-medium text-foreground">{directTasks[0].name}</span>{' '}
+                        is running directly on your current branch.
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium text-foreground">
+                          {directTasks.map((t) => t.name).join(', ')}
+                        </span>{' '}
+                        are running directly on your current branch.
+                      </>
+                    )}{' '}
+                    Changes will affect your working directory.
+                  </AlertDescription>
+                </Alert>
+              );
+            })()}
+
             <div className="space-y-6">
               <div className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -785,26 +828,31 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     </p>
                   </div>
                   {!isSelectMode && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="h-9 px-4 text-sm font-semibold shadow-sm"
-                      onClick={onCreateTask}
-                      disabled={isCreatingTask}
-                      aria-busy={isCreatingTask}
+                    <motion.div
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ duration: 0.1, ease: 'easeInOut' }}
                     >
-                      {isCreatingTask ? (
-                        <>
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                          Starting…
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-2 size-4" />
-                          Start New Task
-                        </>
-                      )}
-                    </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-9 px-4 text-sm font-semibold shadow-sm"
+                        onClick={onCreateTask}
+                        disabled={isCreatingTask}
+                        aria-busy={isCreatingTask}
+                      >
+                        {isCreatingTask ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Starting…
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 size-4" />
+                            Start New Task
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
                   )}
                 </div>
                 {tasksInProject.length > 0 && (

@@ -37,6 +37,7 @@ export const tasks = sqliteTable(
     status: text('status').notNull().default('idle'),
     agentId: text('agent_id'),
     metadata: text('metadata'),
+    useWorktree: integer('use_worktree').notNull().default(1),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

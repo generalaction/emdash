@@ -355,6 +355,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                       <TaskItem
                                         task={task}
                                         showDelete
+                                        showDirectBadge={false}
                                         onDelete={
                                           onDeleteTask
                                             ? () => onDeleteTask(typedProject, task)
@@ -420,26 +421,31 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         <SidebarFooter className="min-w-0 overflow-hidden border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
           <SidebarMenu className="w-full min-w-0">
             <SidebarMenuItem className="min-w-0">
-              <SidebarMenuButton
-                tabIndex={githubProfileUrl ? 0 : -1}
-                onClick={(e) => {
-                  if (!githubProfileUrl) {
-                    return;
-                  }
-                  e.preventDefault();
-                  handleGithubProfileClick();
-                }}
-                className={`flex w-full min-w-0 items-center justify-start gap-2 overflow-hidden px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
-                  githubProfileUrl
-                    ? 'hover:bg-black/5 dark:hover:bg-white/5'
-                    : 'cursor-default hover:bg-transparent'
-                }`}
-                aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
+              <motion.div
+                whileTap={githubProfileUrl ? { scale: 0.97 } : undefined}
+                transition={{ duration: 0.1, ease: 'easeInOut' }}
               >
-                <div className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-hidden text-left">
-                  <div className="hidden w-full min-w-0 sm:block">{renderGithubStatus()}</div>
-                </div>
-              </SidebarMenuButton>
+                <SidebarMenuButton
+                  tabIndex={githubProfileUrl ? 0 : -1}
+                  onClick={(e) => {
+                    if (!githubProfileUrl) {
+                      return;
+                    }
+                    e.preventDefault();
+                    handleGithubProfileClick();
+                  }}
+                  className={`flex w-full min-w-0 items-center justify-start gap-2 overflow-hidden px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
+                    githubProfileUrl
+                      ? 'hover:bg-black/5 dark:hover:bg-white/5'
+                      : 'cursor-default hover:bg-transparent'
+                  }`}
+                  aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
+                >
+                  <div className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-hidden text-left">
+                    <div className="hidden w-full min-w-0 sm:block">{renderGithubStatus()}</div>
+                  </div>
+                </SidebarMenuButton>
+              </motion.div>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
