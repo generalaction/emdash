@@ -823,26 +823,31 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     </p>
                   </div>
                   {!isSelectMode && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="h-9 px-4 text-sm font-semibold shadow-sm"
-                      onClick={onCreateTask}
-                      disabled={isCreatingTask}
-                      aria-busy={isCreatingTask}
+                    <motion.div
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ duration: 0.1, ease: 'easeInOut' }}
                     >
-                      {isCreatingTask ? (
-                        <>
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                          Starting…
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-2 size-4" />
-                          Start New Task
-                        </>
-                      )}
-                    </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-9 px-4 text-sm font-semibold shadow-sm"
+                        onClick={onCreateTask}
+                        disabled={isCreatingTask}
+                        aria-busy={isCreatingTask}
+                      >
+                        {isCreatingTask ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Starting…
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 size-4" />
+                            Start New Task
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
                   )}
                 </div>
                 {tasksInProject.length > 0 && (
