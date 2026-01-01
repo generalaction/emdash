@@ -16,6 +16,7 @@ import kimiLogo from '../../assets/images/kimi.png';
 import kilocodeLogo from '../../assets/images/kilocode.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
+import continueLogo from '../../assets/images/continue.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
 
@@ -42,6 +43,7 @@ export const providerConfig: Record<Provider, ProviderInfo> = {
   kilocode: { name: 'Kilocode', logo: kilocodeLogo, alt: 'Kilocode CLI' },
   kiro: { name: 'Kiro', logo: kiroLogo, alt: 'Kiro CLI' },
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
+  continue: { name: 'Continue', logo: continueLogo, alt: 'Continue CLI' },
   codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
   // Without initial prompt support
   amp: { name: 'Amp', logo: ampLogo, alt: 'Amp Code' },

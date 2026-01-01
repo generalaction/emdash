@@ -97,6 +97,11 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     description:
       'Cline CLI runs AI coding agents directly in your terminal. Supports multiple model providers, runs multiple instances simultaneously for parallel development, and integrates into existing shell workflows.',
   },
+  continue: {
+    title: 'Continue',
+    description:
+      'Continue CLI (cn) is a modular coding agent for the command line. Features battle-tested agent loop, customizable models and rules, MCP tool support, and both interactive and headless modes for automation.',
+  },
   codebuff: {
     title: 'Codebuff',
     description:
