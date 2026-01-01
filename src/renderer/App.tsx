@@ -932,7 +932,8 @@ const AppContent: React.FC = () => {
     linkedLinearIssue: LinearIssueSummary | null = null,
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
-    autoApprove?: boolean
+    autoApprove?: boolean,
+    useWorktree: boolean = true
   ) => {
     if (!selectedProject) return;
 
@@ -1064,26 +1065,42 @@ const AppContent: React.FC = () => {
           for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
             const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
             const variantName = `${taskName}-${provider.toLowerCase()}${instanceSuffix}`;
-            const worktreeResult = await window.electronAPI.worktreeCreate({
-              projectPath: selectedProject.path,
-              taskName: variantName,
-              projectId: selectedProject.id,
-              autoApprove,
-            });
-            if (!worktreeResult?.success || !worktreeResult.worktree) {
-              throw new Error(
-                worktreeResult?.error ||
-                  `Failed to create worktree for ${provider}${instanceSuffix}`
-              );
+
+            let branch: string;
+            let path: string;
+            let worktreeId: string;
+
+            if (useWorktree) {
+              const worktreeResult = await window.electronAPI.worktreeCreate({
+                projectPath: selectedProject.path,
+                taskName: variantName,
+                projectId: selectedProject.id,
+                autoApprove,
+              });
+              if (!worktreeResult?.success || !worktreeResult.worktree) {
+                throw new Error(
+                  worktreeResult?.error ||
+                    `Failed to create worktree for ${provider}${instanceSuffix}`
+                );
+              }
+              const worktree = worktreeResult.worktree;
+              branch = worktree.branch;
+              path = worktree.path;
+              worktreeId = worktree.id;
+            } else {
+              // Direct branch mode - use current project path and branch
+              branch = selectedProject.gitInfo.branch || 'main';
+              path = selectedProject.path;
+              worktreeId = `direct-${taskName}-${provider.toLowerCase()}${instanceSuffix}`;
             }
-            const worktree = worktreeResult.worktree;
+
             variants.push({
               id: `${taskName}-${provider.toLowerCase()}${instanceSuffix}`,
               provider: provider,
               name: variantName,
-              branch: worktree.branch,
-              path: worktree.path,
-              worktreeId: worktree.id,
+              branch,
+              path,
+              worktreeId,
             });
           }
         }
@@ -1115,6 +1132,7 @@ const AppContent: React.FC = () => {
           ...newTask,
           agentId: primaryProvider,
           metadata: multiMeta,
+          useWorktree,
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
@@ -1124,26 +1142,40 @@ const AppContent: React.FC = () => {
           return;
         }
       } else {
-        // Create worktree
-        const worktreeResult = await window.electronAPI.worktreeCreate({
-          projectPath: selectedProject.path,
-          taskName,
-          projectId: selectedProject.id,
-          autoApprove,
-        });
+        let branch: string;
+        let path: string;
+        let taskId: string;
 
-        if (!worktreeResult.success) {
-          throw new Error(worktreeResult.error || 'Failed to create worktree');
+        if (useWorktree) {
+          // Create worktree
+          const worktreeResult = await window.electronAPI.worktreeCreate({
+            projectPath: selectedProject.path,
+            taskName,
+            projectId: selectedProject.id,
+            autoApprove,
+          });
+
+          if (!worktreeResult.success) {
+            throw new Error(worktreeResult.error || 'Failed to create worktree');
+          }
+
+          const worktree = worktreeResult.worktree;
+          branch = worktree.branch;
+          path = worktree.path;
+          taskId = worktree.id;
+        } else {
+          // Direct branch mode - use current project path and branch
+          branch = selectedProject.gitInfo.branch || 'main';
+          path = selectedProject.path;
+          taskId = `direct-${taskName}-${Date.now()}`;
         }
 
-        const worktree = worktreeResult.worktree;
-
         newTask = {
-          id: worktree.id,
+          id: taskId,
           projectId: selectedProject.id,
           name: taskName,
-          branch: worktree.branch,
-          path: worktree.path,
+          branch,
+          path,
           status: 'idle',
           agentId: primaryProvider,
           metadata: taskMetadata,
@@ -1153,6 +1185,7 @@ const AppContent: React.FC = () => {
           ...newTask,
           agentId: primaryProvider,
           metadata: taskMetadata,
+          useWorktree,
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
@@ -1469,24 +1502,38 @@ const AppContent: React.FC = () => {
           })
         );
 
-        const [removeResult, deleteResult] = await Promise.allSettled([
-          window.electronAPI.worktreeRemove({
-            projectPath: targetProject.path,
-            worktreeId: task.id,
-            worktreePath: task.path,
-            branch: task.branch,
-          }),
-          window.electronAPI.deleteTask(task.id),
-        ]);
+        // Only remove worktree if the task was created with one
+        const shouldRemoveWorktree = task.useWorktree !== false;
 
-        if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
-          const errorMsg =
-            removeResult.status === 'fulfilled'
-              ? removeResult.value?.error || 'Failed to remove worktree'
-              : removeResult.reason?.message || String(removeResult.reason);
-          throw new Error(errorMsg);
+        const promises: Promise<any>[] = [window.electronAPI.deleteTask(task.id)];
+
+        if (shouldRemoveWorktree) {
+          promises.unshift(
+            window.electronAPI.worktreeRemove({
+              projectPath: targetProject.path,
+              worktreeId: task.id,
+              worktreePath: task.path,
+              branch: task.branch,
+            })
+          );
         }
 
+        const results = await Promise.allSettled(promises);
+
+        // Check worktree removal result (if applicable)
+        if (shouldRemoveWorktree) {
+          const removeResult = results[0];
+          if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
+            const errorMsg =
+              removeResult.status === 'fulfilled'
+                ? removeResult.value?.error || 'Failed to remove worktree'
+                : removeResult.reason?.message || String(removeResult.reason);
+            throw new Error(errorMsg);
+          }
+        }
+
+        // Check task deletion result
+        const deleteResult = shouldRemoveWorktree ? results[1] : results[0];
         if (deleteResult.status !== 'fulfilled' || !deleteResult.value?.success) {
           const errorMsg =
             deleteResult.status === 'fulfilled'

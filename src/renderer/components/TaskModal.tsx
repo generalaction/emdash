@@ -42,7 +42,8 @@ interface TaskModalProps {
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null,
-    autoApprove?: boolean
+    autoApprove?: boolean,
+    useWorktree?: boolean
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -90,6 +91,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [jiraToken, setJiraToken] = useState('');
   const [jiraConnectionError, setJiraConnectionError] = useState<string | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [useWorktree, setUseWorktree] = useState(true);
   const autoNameInitializedRef = useRef(false);
 
   // GitHub connection state
@@ -180,6 +182,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     setSelectedGithubIssue(null);
     setSelectedJiraIssue(null);
     setAutoApprove(false);
+    setUseWorktree(true);
     setShowAdvanced(false);
     setLinearSetupOpen(false);
     setLinearApiKey('');
@@ -432,7 +435,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           selectedLinearIssue,
                           selectedGithubIssue,
                           selectedJiraIssue,
-                          hasAutoApproveSupport ? autoApprove : false
+                          hasAutoApproveSupport ? autoApprove : false,
+                          useWorktree
                         );
                         onClose();
                       } catch (error) {
@@ -522,6 +526,31 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="task-advanced">
                         <div className="flex flex-col gap-4 p-2">
+                          <div className="flex items-center gap-4">
+                            <Label className="w-32 shrink-0">Run in worktree</Label>
+                            <div className="min-w-0 flex-1">
+                              <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
+                                <input
+                                  type="checkbox"
+                                  checked={useWorktree}
+                                  onChange={(e) => setUseWorktree(e.target.checked)}
+                                  className="mt-[1px] h-4 w-4 shrink-0"
+                                />
+                                <div className="space-y-1">
+                                  <span className="text-muted-foreground">
+                                    {useWorktree
+                                      ? 'Create isolated Git worktree (recommended)'
+                                      : 'Work directly on current branch'}
+                                  </span>
+                                  {!useWorktree && (
+                                    <p className="text-xs text-destructive">
+                                      ⚠️ Changes will affect your current working directory
+                                    </p>
+                                  )}
+                                </div>
+                              </label>
+                            </div>
+                          </div>
                           {hasAutoApproveSupport ? (
                             <div className="flex items-center gap-4">
                               <Label className="w-32 shrink-0">Auto-approve</Label>

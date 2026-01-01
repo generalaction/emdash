@@ -41,6 +41,7 @@ export interface Task {
   status: 'active' | 'idle' | 'running';
   agentId?: string | null;
   metadata?: any;
+  useWorktree?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -238,6 +239,7 @@ export class DatabaseService {
         status: task.status,
         agentId: task.agentId ?? null,
         metadata: metadataValue,
+        useWorktree: task.useWorktree !== false ? 1 : 0,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
@@ -250,6 +252,7 @@ export class DatabaseService {
           status: task.status,
           agentId: task.agentId ?? null,
           metadata: metadataValue,
+          useWorktree: task.useWorktree !== false ? 1 : 0,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
@@ -511,6 +514,7 @@ export class DatabaseService {
         typeof row.metadata === 'string' && row.metadata.length > 0
           ? this.parseTaskMetadata(row.metadata, row.id)
           : null,
+      useWorktree: row.useWorktree === 1,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
