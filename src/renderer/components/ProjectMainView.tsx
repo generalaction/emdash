@@ -738,19 +738,24 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
                     <div className="flex items-center gap-2 sm:self-start">
                       {project.githubInfo?.connected && project.githubInfo.repository ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs font-medium"
-                          onClick={() =>
-                            window.electronAPI.openExternal(
-                              `https://github.com/${project.githubInfo?.repository}`
-                            )
-                          }
+                        <motion.div
+                          whileTap={{ scale: 0.97 }}
+                          transition={{ duration: 0.1, ease: 'easeInOut' }}
                         >
-                          View on GitHub
-                          <ArrowUpRight className="size-3" />
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1 px-3 text-xs font-medium"
+                            onClick={() =>
+                              window.electronAPI.openExternal(
+                                `https://github.com/${project.githubInfo?.repository}`
+                              )
+                            }
+                          >
+                            View on GitHub
+                            <ArrowUpRight className="size-3" />
+                          </Button>
+                        </motion.div>
                       ) : null}
                       {onDeleteProject ? (
                         <ProjectDeleteButton
