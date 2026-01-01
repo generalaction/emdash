@@ -15,6 +15,7 @@ import kimiLogo from '../../assets/images/kimi.png';
 import kilocodeLogo from '../../assets/images/kilocode.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import clineLogo from '../../assets/images/cline.png';
+import continueLogo from '../../assets/images/continue.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
 import type { UiProvider } from './meta';
@@ -39,6 +40,7 @@ export const providerAssets: Record<UiProvider, ProviderAsset> = {
   kiro: { name: 'Amazon Web Services', logo: kiroLogo, alt: 'Kiro CLI' },
   rovo: { name: 'Atlassian', logo: atlassianLogo, alt: 'Rovo Dev CLI' },
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
+  continue: { name: 'Continue', logo: continueLogo, alt: 'Continue CLI' },
   codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
   mistral: { name: 'Mistral AI', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
 };

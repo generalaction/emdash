@@ -17,6 +17,7 @@ import kilocodeIcon from '../../assets/images/kilocode.png';
 import kiroIcon from '../../assets/images/kiro.png';
 import atlassianIcon from '../../assets/images/atlassian.png';
 import clineIcon from '../../assets/images/cline.png';
+import continueIcon from '../../assets/images/continue.png';
 import codebuffIcon from '../../assets/images/codebuff.png';
 import mistralIcon from '../../assets/images/mistral.png';
 
@@ -40,6 +41,7 @@ const ICONS: Record<string, string> = {
   'kiro.png': kiroIcon,
   'atlassian.png': atlassianIcon,
   'cline.png': clineIcon,
+  'continue.png': continueIcon,
   'codebuff.png': codebuffIcon,
   'mistral.png': mistralIcon,
 };

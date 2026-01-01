@@ -16,6 +16,7 @@ export const PROVIDER_IDS = [
   'kiro',
   'rovo',
   'cline',
+  'continue',
   'codebuff',
   'mistral',
 ] as const;
@@ -257,6 +258,19 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'cline',
     initialPromptFlag: '',
     icon: 'cline.png',
+    terminalOnly: true,
+  },
+  {
+    id: 'continue',
+    name: 'Continue',
+    docUrl: 'https://docs.continue.dev/guides/cli',
+    installCommand: 'npm i -g @continuedev/cli',
+    commands: ['cn'],
+    versionArgs: ['--version'],
+    cli: 'cn',
+    initialPromptFlag: '-p',
+    resumeFlag: '--resume',
+    icon: 'continue.png',
     terminalOnly: true,
   },
   {
