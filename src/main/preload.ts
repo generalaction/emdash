@@ -308,6 +308,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteConversation: (conversationId: string) =>
     ipcRenderer.invoke('db:deleteConversation', conversationId),
 
+  // Line comments management
+  lineCommentsCreate: (input: any) => ipcRenderer.invoke('lineComments:create', input),
+  lineCommentsGet: (args: { taskId: string; filePath?: string }) =>
+    ipcRenderer.invoke('lineComments:get', args),
+  lineCommentsUpdate: (input: { id: string; content: string }) =>
+    ipcRenderer.invoke('lineComments:update', input),
+  lineCommentsDelete: (id: string) => ipcRenderer.invoke('lineComments:delete', id),
+  lineCommentsGetFormatted: (taskId: string) =>
+    ipcRenderer.invoke('lineComments:getFormatted', taskId),
+  lineCommentsMarkSent: (commentIds: string[]) =>
+    ipcRenderer.invoke('lineComments:markSent', commentIds),
+  lineCommentsGetUnsent: (taskId: string) =>
+    ipcRenderer.invoke('lineComments:getUnsent', taskId),
+
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>
     ipcRenderer.invoke('debug:append-log', filePath, content, options ?? {}),

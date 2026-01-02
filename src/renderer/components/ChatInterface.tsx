@@ -63,6 +63,27 @@ const ChatInterface: React.FC<Props> = ({
   const [portsExpanded, setPortsExpanded] = useState(false);
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
+  // Fetch formatted line comments for agent context injection
+  const [commentsContext, setCommentsContext] = useState<string>('');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await window.electronAPI.lineCommentsGetFormatted(task.id);
+        if (!cancelled && result.success && result.formatted) {
+          setCommentsContext(result.formatted);
+        } else if (!cancelled) {
+          setCommentsContext('');
+        }
+      } catch {
+        if (!cancelled) setCommentsContext('');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [task.id]);
+
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
 
@@ -391,7 +412,12 @@ const ChatInterface: React.FC<Props> = ({
         const body = trimmed.length > max ? trimmed.slice(0, max) + '\n…' : trimmed;
         parts.push('', 'Issue Description:', body);
       }
-      return parts.join('\n');
+      const linearContent = parts.join('\n');
+      // Prepend comments if any
+      if (commentsContext) {
+        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${linearContent}`;
+      }
+      return linearContent;
     }
 
     const gh = (md as any)?.githubIssue as
@@ -437,7 +463,12 @@ const ChatInterface: React.FC<Props> = ({
         const clipped = body.length > max ? body.slice(0, max) + '\n…' : body;
         parts.push('', 'Issue Description:', clipped);
       }
-      return parts.join('\n');
+      const ghContent = parts.join('\n');
+      // Prepend comments if any
+      if (commentsContext) {
+        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${ghContent}`;
+      }
+      return ghContent;
     }
 
     const j = md?.jiraIssue as any;
@@ -452,10 +483,21 @@ const ChatInterface: React.FC<Props> = ({
       if (j.project?.key) details.push(`Project: ${j.project.key}`);
       if (details.length) lines.push(`Details: ${details.join(' • ')}`);
       if (j.url) lines.push(`URL: ${j.url}`);
-      return lines.join('\n');
+      const jiraContent = lines.join('\n');
+      // Prepend comments if any
+      if (commentsContext) {
+        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${jiraContent}`;
+      }
+      return jiraContent;
     }
+
+    // If we have comments but no other context, return just the comments
+    if (commentsContext) {
+      return `The user has left the following comments on the code changes:\n\n${commentsContext}`;
+    }
+
     return null;
-  }, [isTerminal, task.metadata]);
+  }, [isTerminal, task.metadata, commentsContext]);
 
   // Only use keystroke injection for providers WITHOUT CLI flag support
   // Providers with initialPromptFlag use CLI arg injection via TerminalPane instead

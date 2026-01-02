@@ -18,6 +18,7 @@ import { useTheme } from '../hooks/useTheme';
 interface AllChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
+  taskId: string;
   taskPath: string;
   files: FileChange[];
   onRefreshChanges?: () => Promise<void> | void;
@@ -38,6 +39,7 @@ interface FileDiffData {
 export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   open,
   onClose,
+  taskId,
   taskPath,
   files,
   onRefreshChanges,

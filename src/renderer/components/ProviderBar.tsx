@@ -1,6 +1,8 @@
 import React from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, MessageSquare } from 'lucide-react';
 import { type Provider } from '../types';
+import { CommentsPopover } from './CommentsPopover';
+import { LINE_COMMENTS_CHANGED_EVENT, dispatchCommentsChanged } from '../hooks/useLineComments';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
@@ -10,6 +12,7 @@ import linearLogo from '../../assets/images/linear.png';
 import githubLogo from '../../assets/images/github.png';
 import jiraLogo from '../../assets/images/jira.png';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Button } from './ui/button';
 import { Check } from 'lucide-react';
 import claudeLogo from '../../assets/images/claude.png';
 import factoryLogo from '../../assets/images/factorydroid.png';
@@ -34,6 +37,8 @@ import context7Logo from '../../assets/images/context7.png';
 import Context7Tooltip from './Context7Tooltip';
 import { providerMeta } from '../providers/meta';
 import { getContext7InvocationForProvider } from '../mcp/context7';
+import { usePendingInjection } from '../hooks/usePendingInjection';
+import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
 
 type Props = {
   provider: Provider;
@@ -45,6 +50,19 @@ type Props = {
   onPlanModeChange?: (next: boolean) => void;
   onApprovePlan?: () => void;
   autoApprove?: boolean;
+};
+
+type LineComment = {
+  id: string;
+  taskId: string;
+  filePath: string;
+  lineNumber: number;
+  lineContent?: string | null;
+  side: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  sentAt?: string | null;
 };
 
 export const ProviderBar: React.FC<Props> = ({
@@ -61,6 +79,106 @@ export const ProviderBar: React.FC<Props> = ({
   const [c7Enabled, setC7Enabled] = React.useState<boolean>(false);
   const [c7Busy, setC7Busy] = React.useState<boolean>(false);
   const [c7TaskEnabled, setC7TaskEnabled] = React.useState<boolean>(false);
+  const [unsentCommentCount, setUnsentCommentCount] = React.useState<number>(0);
+  const [unsentComments, setUnsentComments] = React.useState<LineComment[]>([]);
+  const [selectedCommentIds, setSelectedCommentIds] = React.useState<Set<string>>(new Set());
+  const { setPending, clear, onInjectionUsed } = usePendingInjection();
+  const pendingIdsRef = React.useRef<string[]>([]);
+  const hasCustomSelectionRef = React.useRef(false);
+  const lastUnsentIdsRef = React.useRef<Set<string>>(new Set());
+
+  // Fetch unsent comment count
+  const fetchUnsentCount = React.useCallback(async () => {
+    try {
+      const result = await window.electronAPI.lineCommentsGetUnsent(taskId);
+      if (result.success && result.comments) {
+        const nextComments = result.comments as LineComment[];
+        const nextIds = new Set(nextComments.map((comment) => comment.id));
+
+        setUnsentComments(nextComments);
+        setUnsentCommentCount(nextComments.length);
+        setSelectedCommentIds((prev) => {
+          if (!hasCustomSelectionRef.current) {
+            return new Set(nextIds);
+          }
+          const next = new Set(Array.from(prev).filter((id) => nextIds.has(id)));
+          for (const id of nextIds) {
+            if (!lastUnsentIdsRef.current.has(id)) {
+              next.add(id);
+            }
+          }
+          return next;
+        });
+
+        lastUnsentIdsRef.current = nextIds;
+      }
+    } catch {
+      setUnsentCommentCount(0);
+      setUnsentComments([]);
+      setSelectedCommentIds(new Set());
+      lastUnsentIdsRef.current = new Set();
+    }
+  }, [taskId]);
+
+  const handleSelectedChange = React.useCallback((next: Set<string>) => {
+    hasCustomSelectionRef.current = true;
+    setSelectedCommentIds(next);
+  }, []);
+
+  React.useEffect(() => {
+    const selectedComments = unsentComments.filter((comment) =>
+      selectedCommentIds.has(comment.id)
+    );
+
+    if (selectedComments.length === 0) {
+      pendingIdsRef.current = [];
+      clear();
+      return;
+    }
+
+    const formatted = formatCommentsForAgent(selectedComments, { includeIntro: false });
+    if (!formatted) {
+      pendingIdsRef.current = [];
+      clear();
+      return;
+    }
+
+    pendingIdsRef.current = selectedComments.map((comment) => comment.id);
+    setPending(formatted);
+  }, [clear, selectedCommentIds, setPending, unsentComments]);
+
+  React.useEffect(() => {
+    return onInjectionUsed(() => {
+      const sentIds = pendingIdsRef.current;
+      if (sentIds.length === 0) return;
+
+      pendingIdsRef.current = [];
+      void (async () => {
+        await window.electronAPI.lineCommentsMarkSent(sentIds);
+        dispatchCommentsChanged(taskId);
+        fetchUnsentCount();
+      })();
+    });
+  }, [fetchUnsentCount, onInjectionUsed, taskId]);
+
+  React.useEffect(() => {
+    fetchUnsentCount();
+  }, [fetchUnsentCount]);
+
+  // Listen for comment changes from diff modal
+  React.useEffect(() => {
+    const handleCommentsChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.taskId === taskId) {
+        fetchUnsentCount();
+      }
+    };
+
+    window.addEventListener(LINE_COMMENTS_CHANGED_EVENT, handleCommentsChanged);
+    return () => {
+      window.removeEventListener(LINE_COMMENTS_CHANGED_EVENT, handleCommentsChanged);
+    };
+  }, [taskId, fetchUnsentCount]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -437,6 +555,35 @@ export const ProviderBar: React.FC<Props> = ({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              {/* Line Comments Popover - only shown when there are unsent comments */}
+              {unsentCommentCount > 0 && (
+                <CommentsPopover
+                  comments={unsentComments}
+                  selectedIds={selectedCommentIds}
+                  onSelectedChange={handleSelectedChange}
+                  onOpenChange={(isOpen) => {
+                    if (isOpen) {
+                      fetchUnsentCount();
+                    }
+                  }}
+                  tooltipContent="Selected comments are appended to your next agent message."
+                  tooltipDelay={300}
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="relative h-7 gap-1.5 border-blue-500/50 bg-blue-500/10 px-2 text-xs text-foreground hover:bg-blue-500/15"
+                    title={`${unsentCommentCount} unsent comment${unsentCommentCount > 1 ? 's' : ''} ready to append`}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="font-medium">Comments</span>
+                    <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">
+                      {unsentCommentCount}
+                    </span>
+                  </Button>
+                </CommentsPopover>
+              )}
             </div>
           </div>
         </div>
