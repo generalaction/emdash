@@ -14,6 +14,10 @@ on:
         description: 'Build signed+stapled but DO NOT publish a GitHub Release (artifacts only)'
         required: false
         default: 'false'
+      draft:
+        description: 'Create as DRAFT release (invisible to public, for testing only)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -35,6 +39,16 @@ jobs:
             *) DRY=false ;;
           esac
           echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+
+          # Normalize draft flag
+          DRAFT=${{ inputs.draft || '' }}
+          if [ -z "$DRAFT" ]; then DRAFT=${{ github.event.inputs.draft || '' }}; fi
+          DRAFT=$(printf "%s" "$DRAFT" | tr '[:upper:]' '[:lower:]')
+          case "$DRAFT" in
+            true|1|yes) DRAFT=true ;;
+            *) DRAFT=false ;;
+          esac
+          echo "draft=$DRAFT" >> "$GITHUB_OUTPUT"
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -207,11 +221,23 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          # Create if missing, or publish if draft
+          DRAFT="${{ steps.init.outputs.draft }}"
+
+          # Create if missing, or edit if exists
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft=false --prerelease=false
+            # Release exists - update draft status
+            if [ "$DRAFT" = "true" ]; then
+              gh release edit "$TAG" --draft=true
+            else
+              gh release edit "$TAG" --draft=false --prerelease=false
+            fi
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest
+            # Create new release
+            if [ "$DRAFT" = "true" ]; then
+              gh release create "$TAG" --title "$TAG" --generate-notes --draft
+            else
+              gh release create "$TAG" --title "$TAG" --generate-notes --latest
+            fi
           fi
           # Upload Linux packages and metadata
           FILES=(release/emdash-*.AppImage release/emdash-*.deb)
@@ -239,6 +265,16 @@ jobs:
             *) DRY=false ;;
           esac
           echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+
+          # Normalize draft flag
+          DRAFT=${{ inputs.draft || '' }}
+          if [ -z "$DRAFT" ]; then DRAFT=${{ github.event.inputs.draft || '' }}; fi
+          DRAFT=$(printf "%s" "$DRAFT" | tr '[:upper:]' '[:lower:]')
+          case "$DRAFT" in
+            true|1|yes) DRAFT=true ;;
+            *) DRAFT=false ;;
+          esac
+          echo "draft=$DRAFT" >> "$GITHUB_OUTPUT"
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -483,11 +519,23 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          # Create if missing, or publish if draft
+          DRAFT="${{ steps.init.outputs.draft }}"
+
+          # Create if missing, or edit if exists
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft=false --prerelease=false
+            # Release exists - update draft status
+            if [ "$DRAFT" = "true" ]; then
+              gh release edit "$TAG" --draft=true
+            else
+              gh release edit "$TAG" --draft=false --prerelease=false
+            fi
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest
+            # Create new release
+            if [ "$DRAFT" = "true" ]; then
+              gh release create "$TAG" --title "$TAG" --generate-notes --draft
+            else
+              gh release create "$TAG" --title "$TAG" --generate-notes --latest
+            fi
           fi
           # Upload stapled DMGs and update files used for autoupdate if present
           FILES=(release/emdash-*.dmg)

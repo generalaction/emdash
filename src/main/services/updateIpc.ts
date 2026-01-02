@@ -30,10 +30,10 @@ autoUpdater.logger = {
 } as any;
 
 // Enable dev update testing if explicitly opted in
-const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-if (isDev && process.env.EMDASH_DEV_UPDATES === 'true') {
+// Check EMDASH_DEV_UPDATES flag even in packaged apps for testing
+if (process.env.EMDASH_DEV_UPDATES === 'true') {
   try {
-    // Allow using dev-app-update.yml when not packaged
+    // Allow using dev-app-update.yml for testing
     // See: https://www.electron.build/auto-update#testing-in-development
     (autoUpdater as any).forceDevUpdateConfig = true;
     if (process.env.EMDASH_DEV_UPDATE_CONFIG) {

@@ -68,3 +68,10 @@ worktrees/
 
 .env
 .cursor
+
+# Auto-update testing artifacts
+test-updates/
+dev-app-update.yml
+run-with-dev-updates.sh
+test-auto-update.sh
+test-updates.sh
