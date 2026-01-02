@@ -438,7 +438,6 @@ export class DatabaseService {
       filePath: input.filePath,
       lineNumber: input.lineNumber,
       lineContent: input.lineContent ?? null,
-      side: input.side ?? 'modified',
       content: input.content,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     });

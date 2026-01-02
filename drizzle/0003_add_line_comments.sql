@@ -4,10 +4,10 @@ CREATE TABLE `line_comments` (
 	`file_path` text NOT NULL,
 	`line_number` integer NOT NULL,
 	`line_content` text,
-	`side` text DEFAULT 'modified' NOT NULL,
 	`content` text NOT NULL,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`sent_at` text,
 	FOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint

@@ -10,6 +10,18 @@ type ProjectSettingsPayload = {
   baseRef?: string;
 };
 
+export type LineComment = {
+  id: string;
+  taskId: string;
+  filePath: string;
+  lineNumber: number;
+  lineContent?: string | null;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  sentAt?: string | null;
+};
+
 export {};
 
 declare global {
@@ -649,18 +661,7 @@ declare global {
         filePath?: string;
       }) => Promise<{
         success: boolean;
-        comments?: Array<{
-          id: string;
-          taskId: string;
-          filePath: string;
-          lineNumber: number;
-          lineContent?: string | null;
-          side: string;
-          content: string;
-          createdAt: string;
-          updatedAt: string;
-          sentAt?: string | null;
-        }>;
+        comments?: LineComment[];
         error?: string;
       }>;
       lineCommentsCreate: (args: {
@@ -668,7 +669,6 @@ declare global {
         filePath: string;
         lineNumber: number;
         lineContent?: string;
-        side: string;
         content: string;
       }) => Promise<{
         success: boolean;
@@ -697,18 +697,7 @@ declare global {
       }>;
       lineCommentsGetUnsent: (taskId: string) => Promise<{
         success: boolean;
-        comments?: Array<{
-          id: string;
-          taskId: string;
-          filePath: string;
-          lineNumber: number;
-          lineContent?: string | null;
-          side: string;
-          content: string;
-          createdAt: string;
-          updatedAt: string;
-          sentAt?: string | null;
-        }>;
+        comments?: LineComment[];
         error?: string;
       }>;
     };
@@ -1046,18 +1035,7 @@ export interface ElectronAPI {
     filePath?: string;
   }) => Promise<{
     success: boolean;
-    comments?: Array<{
-      id: string;
-      taskId: string;
-      filePath: string;
-      lineNumber: number;
-      lineContent?: string | null;
-      side: string;
-      content: string;
-      createdAt: string;
-      updatedAt: string;
-      sentAt?: string | null;
-    }>;
+    comments?: LineComment[];
     error?: string;
   }>;
   lineCommentsCreate: (args: {
@@ -1065,7 +1043,6 @@ export interface ElectronAPI {
     filePath: string;
     lineNumber: number;
     lineContent?: string;
-    side: string;
     content: string;
   }) => Promise<{
     success: boolean;
@@ -1094,18 +1071,7 @@ export interface ElectronAPI {
   }>;
   lineCommentsGetUnsent: (taskId: string) => Promise<{
     success: boolean;
-    comments?: Array<{
-      id: string;
-      taskId: string;
-      filePath: string;
-      lineNumber: number;
-      lineContent?: string | null;
-      side: string;
-      content: string;
-      createdAt: string;
-      updatedAt: string;
-      sentAt?: string | null;
-    }>;
+    comments?: LineComment[];
     error?: string;
   }>;
 }

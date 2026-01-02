@@ -1,65 +1,143 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-
-interface LineComment {
-  id: string;
-  taskId: string;
-  filePath: string;
-  lineNumber: number;
-  lineContent?: string | null;
-  side: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  sentAt?: string | null;
-}
+import { useTaskScope } from './TaskScopeContext';
+import { usePendingInjection } from '../hooks/usePendingInjection';
+import { useTaskComments } from '../hooks/useLineComments';
+import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
+import type { LineComment } from '../types/electron-api';
 
 interface CommentsPopoverProps {
-  comments: LineComment[];
-  selectedIds: Set<string>;
-  onSelectedChange: (next: Set<string>) => void;
+  taskId?: string;
   children: React.ReactNode;
   tooltipContent?: string;
   tooltipDelay?: number;
   onOpenChange?: (open: boolean) => void;
+  onSelectedCountChange?: (count: number) => void;
 }
 
 export function CommentsPopover({
-  comments,
-  selectedIds,
-  onSelectedChange,
+  taskId,
   children,
   tooltipContent,
   tooltipDelay = 300,
   onOpenChange,
+  onSelectedCountChange,
 }: CommentsPopoverProps) {
+  const { taskId: scopedTaskId } = useTaskScope();
+  const resolvedTaskId = taskId ?? scopedTaskId ?? '';
+  const { unsentComments, markSent, refresh } = useTaskComments(resolvedTaskId);
+  const { setPending, clear, onInjectionUsed } = usePendingInjection();
   const [open, setOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const pendingIdsRef = useRef<string[]>([]);
+  const hasCustomSelectionRef = useRef(false);
+  const lastUnsentIdsRef = useRef<Set<string>>(new Set());
+
+  const emitSelectedCount = React.useCallback(
+    (next: Set<string>) => {
+      onSelectedCountChange?.(next.size);
+    },
+    [onSelectedCountChange]
+  );
+
+  React.useEffect(() => {
+    hasCustomSelectionRef.current = false;
+    lastUnsentIdsRef.current = new Set();
+    pendingIdsRef.current = [];
+    setSelectedIds(new Set());
+    setOpen(false);
+    clear();
+    onSelectedCountChange?.(0);
+  }, [clear, onSelectedCountChange, resolvedTaskId]);
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
+    if (nextOpen && resolvedTaskId) {
+      void refresh();
+    }
     onOpenChange?.(nextOpen);
   };
 
+  React.useEffect(() => {
+    if (!resolvedTaskId) return;
+    const nextIds = new Set(unsentComments.map((comment) => comment.id));
+    setSelectedIds((prev) => {
+      if (!hasCustomSelectionRef.current) {
+        const next = new Set(nextIds);
+        emitSelectedCount(next);
+        return next;
+      }
+      const next = new Set(Array.from(prev).filter((id) => nextIds.has(id)));
+      for (const id of nextIds) {
+        if (!lastUnsentIdsRef.current.has(id)) {
+          next.add(id);
+        }
+      }
+      emitSelectedCount(next);
+      return next;
+    });
+    lastUnsentIdsRef.current = nextIds;
+  }, [emitSelectedCount, resolvedTaskId, unsentComments]);
+
+  const handleSelectedChange = React.useCallback((next: Set<string>) => {
+    hasCustomSelectionRef.current = true;
+    setSelectedIds(next);
+    emitSelectedCount(next);
+  }, [emitSelectedCount]);
+
+  React.useEffect(() => {
+    if (!resolvedTaskId) return;
+    const selectedComments = unsentComments.filter((comment) => selectedIds.has(comment.id));
+
+    if (selectedComments.length === 0) {
+      pendingIdsRef.current = [];
+      clear();
+      return;
+    }
+
+    const formatted = formatCommentsForAgent(selectedComments, {
+      includeIntro: false,
+      leadingNewline: true,
+    });
+    if (!formatted) {
+      pendingIdsRef.current = [];
+      clear();
+      return;
+    }
+
+    pendingIdsRef.current = selectedComments.map((comment) => comment.id);
+    setPending(formatted);
+  }, [clear, selectedIds, setPending, unsentComments, resolvedTaskId]);
+
+  React.useEffect(() => {
+    return onInjectionUsed(() => {
+      const sentIds = pendingIdsRef.current;
+      if (sentIds.length === 0) return;
+      pendingIdsRef.current = [];
+      void markSent(sentIds);
+    });
+  }, [markSent, onInjectionUsed]);
+
   const groupedComments = useMemo(() => {
     const groups = new Map<string, LineComment[]>();
-    for (const c of comments) {
+    for (const c of unsentComments) {
       const existing = groups.get(c.filePath) ?? [];
       existing.push(c);
       groups.set(c.filePath, existing);
     }
     return groups;
-  }, [comments]);
+  }, [unsentComments]);
 
-  const allSelected = comments.length > 0 && selectedIds.size === comments.length;
+  const allSelected = unsentComments.length > 0 && selectedIds.size === unsentComments.length;
   const toggleSelectAll = () => {
     if (allSelected) {
-      onSelectedChange(new Set());
+      handleSelectedChange(new Set());
     } else {
-      onSelectedChange(new Set(comments.map((c) => c.id)));
+      handleSelectedChange(new Set(unsentComments.map((c) => c.id)));
     }
   };
 
@@ -84,7 +162,7 @@ export function CommentsPopover({
           <div className="flex flex-col">
             <span className="text-sm font-semibold">Review comments</span>
             <span className="text-xs text-muted-foreground">
-              {comments.length} unsent • {selectedIds.size} selected
+              {unsentComments.length} unsent • {selectedIds.size} selected
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -119,7 +197,7 @@ export function CommentsPopover({
                           } else {
                             next.delete(comment.id);
                           }
-                          onSelectedChange(next);
+                          handleSelectedChange(next);
                         }}
                         className="mt-0.5"
                       />
@@ -136,14 +214,13 @@ export function CommentsPopover({
                 </div>
               </div>
             ))}
-            {comments.length === 0 && (
+            {unsentComments.length === 0 && (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                 No unsent comments.
               </div>
             )}
           </div>
         </ScrollArea>
-
       </PopoverContent>
     </Popover>
   );

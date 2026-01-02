@@ -1,32 +1,18 @@
 import type * as monaco from 'monaco-editor';
 import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
-import { CommentWidget } from '../components/diff/CommentWidget';
-import { CommentInput } from '../components/diff/CommentInput';
-import { CommentContextBridge } from '../components/diff/CommentContextBridge';
-
-interface LineComment {
-  id: string;
-  taskId: string;
-  filePath: string;
-  lineNumber: number;
-  lineContent?: string | null;
-  side: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { CommentWidget } from '../components/diff/comments/CommentWidget';
+import { CommentInput } from '../components/diff/comments/CommentInput';
+import type { LineComment } from '../types/electron-api';
 
 interface MonacoCommentManagerOptions {
   onAddComment: (
     lineNumber: number,
-    side: 'original' | 'modified',
     content: string,
     lineContent?: string
   ) => Promise<string | null | undefined>;
   onEditComment: (id: string, content: string) => Promise<boolean>;
   onDeleteComment: (id: string) => Promise<boolean>;
-  theme: 'light' | 'dark';
 }
 
 export class MonacoCommentManager {
@@ -46,6 +32,9 @@ export class MonacoCommentManager {
   private inputDomNode: HTMLElement | null = null;
   private activeInputLine: number | null = null;
   private disposed = false;
+  private gutterClickDisposable: monaco.IDisposable | null = null;
+  private hoverMoveDisposable: monaco.IDisposable | null = null;
+  private hoverLeaveDisposable: monaco.IDisposable | null = null;
 
   constructor(editor: monaco.editor.IStandaloneDiffEditor, options: MonacoCommentManagerOptions) {
     this.editor = editor;
@@ -57,7 +46,7 @@ export class MonacoCommentManager {
   private setupGutterClickHandler() {
     const modifiedEditor = this.editor.getModifiedEditor();
 
-    modifiedEditor.onMouseDown((e) => {
+    this.gutterClickDisposable = modifiedEditor.onMouseDown((e) => {
       if (e.target.type !== 2) return;
       const targetElement = e.target.element;
       if (!targetElement?.classList.contains('comment-hover-icon')) return;
@@ -70,14 +59,14 @@ export class MonacoCommentManager {
 
       const model = modifiedEditor.getModel();
       const lineContent = model?.getLineContent(lineNumber) ?? '';
-      this.showInputAt(lineNumber, 'modified', lineContent);
+      this.showInputAt(lineNumber, lineContent);
     });
   }
 
   private setupHoverHandler() {
     const modifiedEditor = this.editor.getModifiedEditor();
 
-    modifiedEditor.onMouseMove((e) => {
+    this.hoverMoveDisposable = modifiedEditor.onMouseMove((e) => {
       if (this.disposed) return;
       const targetElement = e.target.element as HTMLElement | null;
       if (targetElement?.closest?.('.comment-view-zone')) {
@@ -107,7 +96,7 @@ export class MonacoCommentManager {
       }
     });
 
-    modifiedEditor.onMouseLeave(() => {
+    this.hoverLeaveDisposable = modifiedEditor.onMouseLeave(() => {
       if (this.disposed) return;
       this.clearHoverDecoration();
       this.hoveredLine = null;
@@ -179,12 +168,6 @@ export class MonacoCommentManager {
     }
   }
 
-  setTheme(theme: 'light' | 'dark') {
-    this.options.theme = theme;
-    // Re-render all widgets with new theme
-    // This will be handled by setComments being called again
-  }
-
   setComments(comments: LineComment[]) {
     if (this.disposed) return;
 
@@ -193,19 +176,16 @@ export class MonacoCommentManager {
     // Group comments by line
     const commentsByLine = new Map<number, LineComment[]>();
     for (const comment of comments) {
-      if (comment.side === 'modified') {
-        const existing = commentsByLine.get(comment.lineNumber) ?? [];
-        existing.push(comment);
-        commentsByLine.set(comment.lineNumber, existing);
-      }
+      const existing = commentsByLine.get(comment.lineNumber) ?? [];
+      existing.push(comment);
+      commentsByLine.set(comment.lineNumber, existing);
     }
 
     // Update decorations (glyph margin icons)
     this.updateDecorations(commentsByLine);
 
-    const nextComments = comments.filter((comment) => comment.side === 'modified');
     const nextById = new Map<string, LineComment>(
-      nextComments.map((comment) => [comment.id, comment])
+      comments.map((comment) => [comment.id, comment])
     );
 
     // Update view zones with minimal churn to avoid flicker.
@@ -220,7 +200,7 @@ export class MonacoCommentManager {
       }
 
       // Add or update zones for current comments
-      for (const comment of nextComments) {
+      for (const comment of comments) {
         const existing = this.viewZoneRoots.get(comment.id);
         if (existing) {
           existing.domNode.dataset.lineNumber = String(comment.lineNumber);
@@ -229,16 +209,11 @@ export class MonacoCommentManager {
           existing.domNode.className = 'comment-view-zone bg-muted/40 border border-border';
 
           existing.root.render(
-            React.createElement(
-              CommentContextBridge,
-              { value: { theme: this.options.theme } },
-              React.createElement(CommentWidget, {
-                comment,
-                theme: this.options.theme,
-                onEdit: (content) => this.options.onEditComment(comment.id, content),
-                onDelete: () => this.options.onDeleteComment(comment.id),
-              })
-            )
+            React.createElement(CommentWidget, {
+              comment,
+              onEdit: (content) => this.options.onEditComment(comment.id, content),
+              onDelete: () => this.options.onDeleteComment(comment.id),
+            })
           );
 
           if (existing.lineNumber !== comment.lineNumber) {
@@ -271,16 +246,11 @@ export class MonacoCommentManager {
 
         const root = createRoot(domNode);
         root.render(
-          React.createElement(
-            CommentContextBridge,
-            { value: { theme: this.options.theme } },
-            React.createElement(CommentWidget, {
-              comment,
-              theme: this.options.theme,
-              onEdit: (content) => this.options.onEditComment(comment.id, content),
-              onDelete: () => this.options.onDeleteComment(comment.id),
-            })
-          )
+          React.createElement(CommentWidget, {
+            comment,
+            onEdit: (content) => this.options.onEditComment(comment.id, content),
+            onDelete: () => this.options.onDeleteComment(comment.id),
+          })
         );
 
         const zoneId = accessor.addZone({
@@ -315,7 +285,7 @@ export class MonacoCommentManager {
     this.decorationIds = modifiedEditor.deltaDecorations(this.decorationIds, []);
   }
 
-  showInputAt(lineNumber: number, side: 'original' | 'modified', lineContent: string) {
+  showInputAt(lineNumber: number, lineContent: string) {
     if (this.activeInputLine === lineNumber && this.inputDomNode) {
       this.focusInputTextarea();
       return;
@@ -331,21 +301,14 @@ export class MonacoCommentManager {
     this.inputRoot = createRoot(this.inputDomNode);
 
     this.inputRoot.render(
-      React.createElement(
-        CommentContextBridge,
-        { value: { theme: this.options.theme } },
-        React.createElement(CommentInput, {
-          lineNumber,
-          lineContent,
-          side,
-          theme: this.options.theme,
-          onSubmit: async (content) => {
-            await this.options.onAddComment(lineNumber, side, content, lineContent);
-            this.hideInput();
-          },
-          onCancel: () => this.hideInput(),
-        })
-      )
+      React.createElement(CommentInput, {
+        lineNumber,
+        onSubmit: async (content) => {
+          await this.options.onAddComment(lineNumber, content, lineContent);
+          this.hideInput();
+        },
+        onCancel: () => this.hideInput(),
+      })
     );
 
     this.inputDomNode.style.padding = '12px';
@@ -409,6 +372,12 @@ export class MonacoCommentManager {
 
   dispose() {
     this.disposed = true;
+    this.gutterClickDisposable?.dispose();
+    this.gutterClickDisposable = null;
+    this.hoverMoveDisposable?.dispose();
+    this.hoverMoveDisposable = null;
+    this.hoverLeaveDisposable?.dispose();
+    this.hoverLeaveDisposable = null;
     this.hideInput();
 
     // Cleanup view zones

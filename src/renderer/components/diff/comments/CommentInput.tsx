@@ -1,18 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { Check, X } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Textarea } from '../ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Button } from '../../ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/tooltip';
+import { Comment, useTextareaAutoFocus } from './CommentCard';
 
 interface CommentInputProps {
   lineNumber: number;
-  lineContent?: string;
-  side: 'original' | 'modified';
   existingContent?: string;
   onSubmit: (content: string) => void;
   onCancel: () => void;
-  theme: 'light' | 'dark';
 }
 
 export const CommentInput: React.FC<CommentInputProps> = ({
@@ -24,30 +20,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   const [content, setContent] = useState(existingContent || '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    const focusTextarea = () => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-      textarea.focus();
-      textarea.select();
-    };
-
-    let raf2: number | null = null;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        focusTextarea();
-      });
-    });
-    const timer = setTimeout(() => {
-      focusTextarea();
-    }, 80);
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2 !== null) cancelAnimationFrame(raf2);
-      clearTimeout(timer);
-    };
-  }, []);
+  useTextareaAutoFocus(textareaRef, true);
 
   const handleSubmit = () => {
     if (content.trim()) {
@@ -66,16 +39,14 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   };
 
   return (
-    <Card className="flex h-[140px] w-full flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-2">
-        <CardTitle className="text-sm font-semibold leading-none">
+    <Comment.Root>
+      <Comment.Header>
+        <Comment.Title>
           {existingContent ? 'Edit comment' : 'Add comment'}
-          <span className="ml-2 text-xs font-normal text-muted-foreground">
-            (Line {lineNumber})
-          </span>
-        </CardTitle>
+          <Comment.Meta className="ml-2">(Line {lineNumber})</Comment.Meta>
+        </Comment.Title>
         <TooltipProvider delayDuration={400}>
-          <div className="flex items-center gap-1.5">
+          <Comment.Actions>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -107,21 +78,20 @@ export const CommentInput: React.FC<CommentInputProps> = ({
                 Submit (⌘+Enter)
               </TooltipContent>
             </Tooltip>
-          </div>
+          </Comment.Actions>
         </TooltipProvider>
-      </CardHeader>
+      </Comment.Header>
 
-      <CardContent className="flex-1 overflow-hidden px-3 pb-3 pt-0">
-        <Textarea
+      <Comment.Body>
+        <Comment.Textarea
           ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Add a note about this line…"
-          className="h-full resize-none text-sm"
           autoFocus
         />
-      </CardContent>
-    </Card>
+      </Comment.Body>
+    </Comment.Root>
   );
 };

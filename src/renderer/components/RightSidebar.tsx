@@ -7,6 +7,7 @@ import { useRightSidebar } from './ui/right-sidebar';
 import { providerAssets } from '@/providers/assets';
 import { providerMeta } from '@/providers/meta';
 import type { Provider } from '../types';
+import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 
 export interface RightSidebarTask {
   id: string;
@@ -73,9 +74,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
       aria-hidden={collapsed}
       {...rest}
     >
-      <div className="flex h-full w-full min-w-0 flex-col">
-        {task || projectPath ? (
-          <div className="flex h-full flex-col">
+      <TaskScopeProvider
+        value={{ taskId: task?.id, taskPath: task?.path, projectPath }}
+      >
+        <div className="flex h-full w-full min-w-0 flex-col">
+          {task || projectPath ? (
+            <div className="flex h-full flex-col">
             {task && variants.length > 1 ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {variants.map((v, i) => (
@@ -140,11 +144,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
               })()
             ) : task ? (
               <>
-                <FileChangesPanel
-                  taskId={task.id}
-                  taskPath={task.path}
-                  className="min-h-0 flex-1 border-b border-border"
-                />
+                <FileChangesPanel className="min-h-0 flex-1 border-b border-border" />
                 <TaskTerminalPanel
                   task={task}
                   provider={task.agentId as Provider}
@@ -172,9 +172,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
                 />
               </>
             )}
-          </div>
-        ) : (
-          <div className="flex h-full flex-col text-sm text-muted-foreground">
+            </div>
+          ) : (
+            <div className="flex h-full flex-col text-sm text-muted-foreground">
             <div className="flex h-1/2 flex-col border-b border-border bg-background">
               <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
                 <span className="whitespace-nowrap">Changes</span>
@@ -195,9 +195,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
                 </span>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      </TaskScopeProvider>
     </aside>
   );
 };
@@ -210,12 +211,11 @@ const VariantChangesIfAny: React.FC<{ path: string; taskId: string; className?: 
   className,
 }) => {
   const { fileChanges } = useFileChanges(path);
+  const { projectPath } = useTaskScope();
   if (!fileChanges || fileChanges.length === 0) return null;
   return (
-    <FileChangesPanel
-      taskId={taskId}
-      taskPath={path}
-      className={className || 'min-h-0'}
-    />
+    <TaskScopeProvider value={{ taskId, taskPath: path, projectPath }}>
+      <FileChangesPanel className={className || 'min-h-0'} />
+    </TaskScopeProvider>
   );
 };

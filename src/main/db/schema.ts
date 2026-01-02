@@ -99,7 +99,6 @@ export const lineComments = sqliteTable(
     filePath: text('file_path').notNull(),
     lineNumber: integer('line_number').notNull(),
     lineContent: text('line_content'),
-    side: text('side').notNull().default('modified'),
     content: text('content').notNull(),
     createdAt: text('created_at')
       .notNull()

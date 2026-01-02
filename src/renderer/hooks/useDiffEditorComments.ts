@@ -2,7 +2,6 @@ import { useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import type * as monaco from 'monaco-editor';
 import { MonacoCommentManager } from '../lib/MonacoCommentManager';
 import { useLineComments } from './useLineComments';
-import { useTheme } from './useTheme';
 
 interface UseDiffEditorCommentsOptions {
   editor: monaco.editor.IStandaloneDiffEditor | null;
@@ -16,7 +15,6 @@ export function useDiffEditorComments({ editor, taskId, filePath }: UseDiffEdito
     filePath,
     { includeSent: false }
   );
-  const { effectiveTheme } = useTheme();
   const managerRef = useRef<MonacoCommentManager | null>(null);
 
   // Memoize callbacks to pass to manager
@@ -42,7 +40,6 @@ export function useDiffEditorComments({ editor, taskId, filePath }: UseDiffEdito
 
     const manager = new MonacoCommentManager(editor, {
       ...callbacks,
-      theme: effectiveTheme as 'light' | 'dark',
     });
     managerRef.current = manager;
 
@@ -53,17 +50,12 @@ export function useDiffEditorComments({ editor, taskId, filePath }: UseDiffEdito
       manager.dispose();
       managerRef.current = null;
     };
-  }, [editor, callbacks, effectiveTheme]);
+  }, [editor, callbacks]);
 
   // Update comments in manager when they change
   useEffect(() => {
     managerRef.current?.setComments(comments);
   }, [comments]);
-
-  // Update theme in manager when it changes
-  useEffect(() => {
-    managerRef.current?.setTheme(effectiveTheme as 'light' | 'dark');
-  }, [effectiveTheme]);
 
   return { comments };
 }

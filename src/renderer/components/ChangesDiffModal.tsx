@@ -15,13 +15,14 @@ import {
 } from '../lib/diffUtils';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 import { useDiffEditorComments } from '../hooks/useDiffEditorComments';
-import { useTaskCommentCounts } from '../hooks/useTaskCommentCounts';
+import { useTaskComments } from '../hooks/useLineComments';
+import { useTaskScope } from './TaskScopeContext';
 
 interface ChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
-  taskId: string;
-  taskPath: string;
+  taskId?: string;
+  taskPath?: string;
   files: FileChange[];
   initialFile?: string;
   onRefreshChanges?: () => Promise<void> | void;
@@ -36,6 +37,12 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   initialFile,
   onRefreshChanges,
 }) => {
+  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
+  const resolvedTaskId = taskId ?? scopedTaskId;
+  const resolvedTaskPath = taskPath ?? scopedTaskPath;
+  const safeTaskId = resolvedTaskId ?? '';
+  const safeTaskPath = resolvedTaskPath ?? '';
+
   const [selected, setSelected] = useState<string | undefined>(initialFile || files[0]?.path);
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
@@ -47,19 +54,14 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   const changeDisposableRef = useRef<monaco.IDisposable | null>(null);
 
   // Integrate line comments - use state (not ref) so hook re-runs when editor mounts
-  const { comments } = useDiffEditorComments({
+  useDiffEditorComments({
     editor: editorInstance,
-    taskId,
+    taskId: safeTaskId,
     filePath: selected || '',
   });
 
   // Get comment counts for all files in this task (for sidebar display)
-  const { counts: commentCounts, refreshCounts } = useTaskCommentCounts(taskId);
-
-  // Refresh comment counts when comments change for the current file
-  useEffect(() => {
-    refreshCounts();
-  }, [comments, refreshCounts]);
+  const { countsByFile: commentCounts } = useTaskComments(safeTaskId);
 
   // File data state for Monaco editor
   const [fileData, setFileData] = useState<{
@@ -76,7 +78,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
   // Load file data when selected file changes
   useEffect(() => {
-    if (!open || !selected) {
+    if (!open || !selected || !safeTaskPath) {
       setFileData(null);
       setModifiedDraft('');
       setSaveError(null);
@@ -134,7 +136,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
       try {
         // Get diff lines
-        const diffRes = await window.electronAPI.getFileDiff({ taskPath, filePath });
+        if (!safeTaskPath) return;
+        const diffRes = await window.electronAPI.getFileDiff({ taskPath: safeTaskPath, filePath });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
         }
@@ -149,7 +152,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
           originalContent = converted.original;
           modifiedContent = '';
         } else if (selectedFile.status === 'added') {
-          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+          const readRes = await window.electronAPI.fsRead(safeTaskPath, filePath, 2 * 1024 * 1024);
           if (readRes?.success && readRes.content) {
             modifiedContent = readRes.content;
             originalContent = '';
@@ -166,7 +169,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+            const readRes = await window.electronAPI.fsRead(safeTaskPath, filePath, 2 * 1024 * 1024);
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -210,7 +213,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selected, taskPath]); // Removed 'files' to prevent constant reloading - files array changes every 5s
+  }, [open, selected, safeTaskPath]); // Removed 'files' to prevent constant reloading - files array changes every 5s
 
   // Add Monaco theme and styles
   useEffect(() => {
@@ -475,11 +478,11 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   };
 
   const handleSave = async () => {
-    if (!selected || !fileData) return;
+    if (!selected || !fileData || !safeTaskPath) return;
     setIsSaving(true);
     setSaveError(null);
     try {
-      const res = await window.electronAPI.fsWriteFile(taskPath, selected, modifiedDraft, true);
+      const res = await window.electronAPI.fsWriteFile(safeTaskPath, selected, modifiedDraft, true);
       if (!res?.success) {
         throw new Error(res?.error || 'Failed to save file');
       }

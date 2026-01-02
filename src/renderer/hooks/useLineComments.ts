@@ -1,25 +1,243 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import type { LineComment } from '../types/electron-api';
+import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
 
-interface LineComment {
-  id: string;
-  taskId: string;
+type TaskState = {
+  comments: LineComment[];
+  isLoading: boolean;
+  error: string | null;
+  hasLoaded: boolean;
+};
+
+type CreateCommentInput = {
   filePath: string;
   lineNumber: number;
-  lineContent?: string | null;
-  side: string;
+  lineContent?: string;
   content: string;
-  createdAt: string;
-  updatedAt: string;
-  sentAt?: string | null;
+};
+
+const EMPTY_STATE: TaskState = {
+  comments: [],
+  isLoading: false,
+  error: null,
+  hasLoaded: false,
+};
+
+class LineCommentsStore {
+  private states = new Map<string, TaskState>();
+  private listeners = new Map<string, Set<() => void>>();
+  private inFlight = new Map<string, Promise<void>>();
+
+  private ensureState(taskId: string): TaskState {
+    if (!taskId) return EMPTY_STATE;
+    const existing = this.states.get(taskId);
+    if (existing) return existing;
+    const next = { ...EMPTY_STATE };
+    this.states.set(taskId, next);
+    return next;
+  }
+
+  getSnapshot(taskId: string): TaskState {
+    return this.ensureState(taskId);
+  }
+
+  subscribe(taskId: string, listener: () => void): () => void {
+    if (!taskId) return () => {};
+    const set = this.listeners.get(taskId) ?? new Set<() => void>();
+    set.add(listener);
+    this.listeners.set(taskId, set);
+    return () => {
+      const current = this.listeners.get(taskId);
+      if (!current) return;
+      current.delete(listener);
+      if (current.size === 0) this.listeners.delete(taskId);
+    };
+  }
+
+  private emit(taskId: string) {
+    const set = this.listeners.get(taskId);
+    if (!set) return;
+    for (const listener of set) {
+      try {
+        listener();
+      } catch {}
+    }
+  }
+
+  private setState(taskId: string, updater: (prev: TaskState) => TaskState) {
+    const prev = this.ensureState(taskId);
+    const next = updater(prev);
+    this.states.set(taskId, next);
+    this.emit(taskId);
+  }
+
+  refresh(taskId: string): Promise<void> {
+    if (!taskId) return Promise.resolve();
+    const inflight = this.inFlight.get(taskId);
+    if (inflight) return inflight;
+
+    const request = (async () => {
+      this.setState(taskId, (prev) => ({ ...prev, isLoading: true, error: null }));
+      try {
+        const result = await window.electronAPI.lineCommentsGet({ taskId });
+        if (result.success && result.comments) {
+          const nextComments = result.comments ?? [];
+          this.setState(taskId, (prev) => ({
+            ...prev,
+            comments: nextComments,
+            isLoading: false,
+            error: null,
+            hasLoaded: true,
+          }));
+        } else {
+          this.setState(taskId, (prev) => ({
+            ...prev,
+            isLoading: false,
+            error: result.error ?? 'Failed to load comments',
+            hasLoaded: true,
+          }));
+        }
+      } catch (err) {
+        this.setState(taskId, (prev) => ({
+          ...prev,
+          isLoading: false,
+          error: (err as Error).message,
+          hasLoaded: true,
+        }));
+      }
+    })();
+
+    this.inFlight.set(taskId, request);
+    request.finally(() => {
+      this.inFlight.delete(taskId);
+    });
+    return request;
+  }
+
+  async createComment(taskId: string, input: CreateCommentInput): Promise<string | null> {
+    if (!taskId) return null;
+    const result = await window.electronAPI.lineCommentsCreate({
+      taskId,
+      filePath: input.filePath,
+      lineNumber: input.lineNumber,
+      lineContent: input.lineContent,
+      content: input.content,
+    });
+
+    if (result.success) {
+      await this.refresh(taskId);
+      return result.id ?? null;
+    }
+    return null;
+  }
+
+  async updateComment(taskId: string, id: string, content: string): Promise<boolean> {
+    if (!taskId) return false;
+    const result = await window.electronAPI.lineCommentsUpdate({ id, content });
+    if (result.success) {
+      await this.refresh(taskId);
+      return true;
+    }
+    return false;
+  }
+
+  async deleteComment(taskId: string, id: string): Promise<boolean> {
+    if (!taskId) return false;
+    const result = await window.electronAPI.lineCommentsDelete(id);
+    if (result.success) {
+      await this.refresh(taskId);
+      return true;
+    }
+    return false;
+  }
+
+  async markSent(taskId: string, commentIds: string[]): Promise<boolean> {
+    if (!taskId || commentIds.length === 0) return false;
+    const result = await window.electronAPI.lineCommentsMarkSent(commentIds);
+    if (result.success) {
+      await this.refresh(taskId);
+      return true;
+    }
+    return false;
+  }
 }
 
-// Custom event for syncing comment changes across components
-export const LINE_COMMENTS_CHANGED_EVENT = 'line-comments-changed';
+const store = new LineCommentsStore();
 
-export function dispatchCommentsChanged(taskId: string) {
-  window.dispatchEvent(
-    new CustomEvent(LINE_COMMENTS_CHANGED_EVENT, { detail: { taskId } })
+export function useTaskComments(taskId?: string) {
+  const resolvedTaskId = taskId ?? '';
+  const state = useSyncExternalStore(
+    useCallback((listener) => store.subscribe(resolvedTaskId, listener), [resolvedTaskId]),
+    useCallback(() => store.getSnapshot(resolvedTaskId), [resolvedTaskId]),
+    useCallback(() => store.getSnapshot(resolvedTaskId), [resolvedTaskId])
   );
+
+  useEffect(() => {
+    if (!taskId) return;
+    void store.refresh(taskId);
+  }, [taskId]);
+
+  const comments = state.comments;
+  const unsentComments = useMemo(
+    () => comments.filter((comment) => !comment.sentAt),
+    [comments]
+  );
+
+  const countsByFile = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const comment of unsentComments) {
+      counts[comment.filePath] = (counts[comment.filePath] || 0) + 1;
+    }
+    return counts;
+  }, [unsentComments]);
+
+  const formatted = useMemo(
+    () => formatCommentsForAgent(comments, { includeIntro: false }),
+    [comments]
+  );
+  const formattedUnsent = useMemo(
+    () => formatCommentsForAgent(unsentComments, { includeIntro: false }),
+    [unsentComments]
+  );
+
+  const refresh = useCallback(() => store.refresh(resolvedTaskId), [resolvedTaskId]);
+
+  const createComment = useCallback(
+    (input: CreateCommentInput) => store.createComment(resolvedTaskId, input),
+    [resolvedTaskId]
+  );
+
+  const updateComment = useCallback(
+    (id: string, content: string) => store.updateComment(resolvedTaskId, id, content),
+    [resolvedTaskId]
+  );
+
+  const deleteComment = useCallback(
+    (id: string) => store.deleteComment(resolvedTaskId, id),
+    [resolvedTaskId]
+  );
+
+  const markSent = useCallback(
+    (commentIds: string[]) => store.markSent(resolvedTaskId, commentIds),
+    [resolvedTaskId]
+  );
+
+  return {
+    comments,
+    unsentComments,
+    unsentCount: unsentComments.length,
+    countsByFile,
+    formatted,
+    formattedUnsent,
+    isLoading: state.isLoading,
+    error: state.error,
+    hasLoaded: state.hasLoaded,
+    refresh,
+    createComment,
+    updateComment,
+    deleteComment,
+    markSent,
+  };
 }
 
 export function useLineComments(
@@ -27,102 +245,37 @@ export function useLineComments(
   filePath?: string,
   opts?: { includeSent?: boolean }
 ) {
-  const [comments, setComments] = useState<LineComment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const includeSent = opts?.includeSent ?? true;
+  const taskComments = useTaskComments(taskId);
+  const {
+    createComment,
+    updateComment,
+    deleteComment,
+    refresh,
+    isLoading,
+    error,
+  } = taskComments;
 
-  const fetchComments = useCallback(async () => {
-    if (!taskId) return;
-
-    try {
-      const result = await window.electronAPI.lineCommentsGet({ taskId, filePath });
-      if (result.success && result.comments) {
-        const next = includeSent
-          ? result.comments
-          : result.comments.filter((comment) => !comment.sentAt);
-        setComments(next);
-        setError(null);
-      } else {
-        setError(result.error ?? 'Failed to load comments');
-      }
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [taskId, filePath, includeSent]);
-
-  useEffect(() => {
-    fetchComments();
-  }, [fetchComments]);
-
-  useEffect(() => {
-    const handleCommentsChanged = (event: Event) => {
-      const detail = (event as CustomEvent).detail;
-      if (detail?.taskId === taskId) {
-        fetchComments();
-      }
-    };
-
-    window.addEventListener(LINE_COMMENTS_CHANGED_EVENT, handleCommentsChanged);
-    return () => {
-      window.removeEventListener(LINE_COMMENTS_CHANGED_EVENT, handleCommentsChanged);
-    };
-  }, [taskId, fetchComments]);
+  const comments = useMemo(() => {
+    if (!filePath) return [] as LineComment[];
+    return taskComments.comments.filter((comment) => {
+      if (comment.filePath !== filePath) return false;
+      if (!includeSent && comment.sentAt) return false;
+      return true;
+    });
+  }, [filePath, includeSent, taskComments.comments]);
 
   const addComment = useCallback(
-    async (
-      lineNumber: number,
-      side: 'original' | 'modified',
-      content: string,
-      lineContent?: string
-    ) => {
-      if (!taskId || !filePath) return null;
-
-      const result = await window.electronAPI.lineCommentsCreate({
-        taskId,
+    (lineNumber: number, content: string, lineContent?: string) => {
+      if (!filePath) return Promise.resolve(null);
+      return createComment({
         filePath,
         lineNumber,
         lineContent,
-        side,
         content,
       });
-
-      if (result.success) {
-        await fetchComments();
-        dispatchCommentsChanged(taskId);
-        return result.id;
-      }
-      return null;
     },
-    [taskId, filePath, fetchComments]
-  );
-
-  const updateComment = useCallback(
-    async (id: string, content: string) => {
-      const result = await window.electronAPI.lineCommentsUpdate({ id, content });
-      if (result.success) {
-        await fetchComments();
-        dispatchCommentsChanged(taskId);
-        return true;
-      }
-      return false;
-    },
-    [taskId, fetchComments]
-  );
-
-  const deleteComment = useCallback(
-    async (id: string) => {
-      const result = await window.electronAPI.lineCommentsDelete(id);
-      if (result.success) {
-        await fetchComments();
-        dispatchCommentsChanged(taskId);
-        return true;
-      }
-      return false;
-    },
-    [taskId, fetchComments]
+    [createComment, filePath]
   );
 
   return {
@@ -132,6 +285,6 @@ export function useLineComments(
     addComment,
     updateComment,
     deleteComment,
-    refreshComments: fetchComments,
+    refreshComments: refresh,
   };
 }

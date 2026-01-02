@@ -1,65 +1,28 @@
-import React, { useState } from 'react';
-import { Check, X, Pencil, Trash2 } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Textarea } from '../ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { RelativeTime } from '../ui/relative-time';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-
-interface LineComment {
-  id: string;
-  taskId: string;
-  filePath: string;
-  lineNumber: number;
-  lineContent?: string | null;
-  side: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import React, { useRef, useState } from 'react';
+import { Check, Pencil, Trash2, X } from 'lucide-react';
+import { Button } from '../../ui/button';
+import { RelativeTime } from '../../ui/relative-time';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/tooltip';
+import { Comment, useTextareaAutoFocus } from './CommentCard';
+import type { LineComment } from '../../../types/electron-api';
 
 interface CommentWidgetProps {
   comment: LineComment;
   onEdit: (content: string) => void;
   onDelete: () => void;
-  theme: 'light' | 'dark';
 }
 
-export const CommentWidget: React.FC<CommentWidgetProps> = ({
-  comment,
-  onEdit,
-  onDelete,
-}) => {
+export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, onDelete }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
-  const editTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  useTextareaAutoFocus(editTextareaRef, isEditing);
   React.useEffect(() => {
-    if (!isEditing) return;
-
-    const focusTextarea = () => {
-      const textarea = editTextareaRef.current;
-      if (!textarea) return;
-      textarea.focus();
-      textarea.select();
-    };
-
-    let raf2: number | null = null;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        focusTextarea();
-      });
-    });
-    const timer = setTimeout(() => {
-      focusTextarea();
-    }, 80);
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2 !== null) cancelAnimationFrame(raf2);
-      clearTimeout(timer);
-    };
-  }, [isEditing]);
+    if (!isEditing) {
+      setEditContent(comment.content);
+    }
+  }, [comment.content, isEditing]);
 
   const handleSave = () => {
     if (editContent.trim()) {
@@ -90,11 +53,11 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({
   };
 
   return (
-    <Card className="flex h-[140px] w-full flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-2">
-        <CardTitle className="text-sm font-semibold leading-none">
+    <Comment.Root>
+      <Comment.Header>
+        <Comment.Title>
           {isEditing ? 'Edit comment' : 'Comment'}
-          <span className="ml-2 text-xs font-normal text-muted-foreground">
+          <Comment.Meta className="ml-2">
             (Line {comment.lineNumber}
             {!isEditing && (
               <>
@@ -103,10 +66,10 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({
               </>
             )}
             )
-          </span>
-        </CardTitle>
+          </Comment.Meta>
+        </Comment.Title>
         <TooltipProvider delayDuration={400}>
-          <div className="flex items-center gap-1.5">
+          <Comment.Actions>
             {isEditing ? (
               <>
                 <Tooltip>
@@ -175,33 +138,30 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({
                 </Tooltip>
               </>
             )}
-          </div>
+          </Comment.Actions>
         </TooltipProvider>
-      </CardHeader>
+      </Comment.Header>
 
-      <CardContent className="flex-1 overflow-hidden px-3 pb-3 pt-0">
+      <Comment.Body>
         {!isEditing ? (
-          <Textarea
+          <Comment.Textarea
             readOnly
             value={comment.content}
-            className="h-full resize-none text-sm"
             onDoubleClick={() => setIsEditing(true)}
             tabIndex={-1}
             onMouseDown={(event) => event.preventDefault()}
             onFocus={(event) => event.currentTarget.blur()}
           />
         ) : (
-          <Textarea
+          <Comment.Textarea
             ref={editTextareaRef}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Update the note…"
-            className="h-full resize-none text-sm"
           />
         )}
-      </CardContent>
-
-    </Card>
+      </Comment.Body>
+    </Comment.Root>
   );
 };

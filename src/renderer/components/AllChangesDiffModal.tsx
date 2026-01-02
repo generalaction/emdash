@@ -14,12 +14,12 @@ import {
 import { useToast } from '../hooks/use-toast';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 import { useTheme } from '../hooks/useTheme';
+import { useTaskScope } from './TaskScopeContext';
 
 interface AllChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
-  taskId: string;
-  taskPath: string;
+  taskPath?: string;
   files: FileChange[];
   onRefreshChanges?: () => Promise<void> | void;
 }
@@ -39,11 +39,12 @@ interface FileDiffData {
 export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   open,
   onClose,
-  taskId,
   taskPath,
   files,
   onRefreshChanges,
 }) => {
+  const { taskPath: scopedTaskPath } = useTaskScope();
+  const resolvedTaskPath = taskPath ?? scopedTaskPath ?? '';
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
@@ -79,10 +80,15 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
   const handleSave = async (filePath: string) => {
     const current = fileData.get(filePath);
-    if (!current || current.loading || current.error) return;
+    if (!current || current.loading || current.error || !resolvedTaskPath) return;
     updateFileData(filePath, (data) => ({ ...data, saving: true, saveError: null }));
     try {
-      const res = await window.electronAPI.fsWriteFile(taskPath, filePath, current.modified, true);
+      const res = await window.electronAPI.fsWriteFile(
+        resolvedTaskPath,
+        filePath,
+        current.modified,
+        true
+      );
       if (!res?.success) {
         throw new Error(res?.error || 'Failed to save file');
       }
@@ -109,7 +115,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
   // Load file data when modal opens or files change
   useEffect(() => {
-    if (!open || files.length === 0) {
+    if (!open || files.length === 0 || !resolvedTaskPath) {
       setFileData(new Map());
       return;
     }
@@ -153,7 +159,8 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
       try {
         // Get diff lines
-        const diffRes = await window.electronAPI.getFileDiff({ taskPath, filePath });
+        if (!resolvedTaskPath) return;
+        const diffRes = await window.electronAPI.getFileDiff({ taskPath: resolvedTaskPath, filePath });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
         }
@@ -175,7 +182,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           modifiedContent = '';
         } else if (file.status === 'added') {
           // Read current file content
-          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+          const readRes = await window.electronAPI.fsRead(
+            resolvedTaskPath,
+            filePath,
+            2 * 1024 * 1024
+          );
           if (readRes?.success && readRes.content) {
             modifiedContent = readRes.content;
             originalContent = '';
@@ -193,7 +204,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+            const readRes = await window.electronAPI.fsRead(
+              resolvedTaskPath,
+              filePath,
+              2 * 1024 * 1024
+            );
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -238,7 +253,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         loadFileData(file);
       }
     });
-  }, [open, files, taskPath]);
+  }, [open, files, resolvedTaskPath]);
 
   // Add custom scrollbar styles and Monaco theme
   useEffect(() => {

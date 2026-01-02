@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { databaseService } from '../services/DatabaseService';
-import type { LineCommentRow } from '../db/schema';
+import { formatCommentsForAgent } from '../../shared/lineComments';
 
 export function registerLineCommentsIpc() {
   ipcMain.handle('lineComments:create', async (_, input) => {
@@ -74,27 +74,4 @@ export function registerLineCommentsIpc() {
       return { success: false, error: (error as Error).message };
     }
   });
-}
-
-function formatCommentsForAgent(comments: LineCommentRow[]): string {
-  if (!comments.length) return '';
-
-  const byFile = new Map<string, LineCommentRow[]>();
-  for (const c of comments) {
-    const existing = byFile.get(c.filePath) ?? [];
-    existing.push(c);
-    byFile.set(c.filePath, existing);
-  }
-
-  const sections: string[] = ['<user_comments>'];
-  for (const [filePath, fileComments] of byFile) {
-    sections.push(`  <file path="${filePath}">`);
-    for (const c of fileComments.sort((a, b) => a.lineNumber - b.lineNumber)) {
-      const side = c.side === 'original' ? 'deleted' : 'current';
-      sections.push(`    <comment line="${c.lineNumber}" side="${side}">${c.content}</comment>`);
-    }
-    sections.push('  </file>');
-  }
-  sections.push('</user_comments>');
-  return sections.join('\n');
 }

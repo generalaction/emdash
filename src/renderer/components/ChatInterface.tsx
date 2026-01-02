@@ -9,6 +9,7 @@ import InstallBanner from './InstallBanner';
 import { providerMeta } from '../providers/meta';
 import ProviderBar from './ProviderBar';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
+import { useTaskComments } from '../hooks/useLineComments';
 import { usePlanMode } from '@/hooks/usePlanMode';
 import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
 import { log } from '@/lib/logger';
@@ -25,6 +26,7 @@ import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
+import { TaskScopeProvider } from './TaskScopeContext';
 
 declare const window: Window & {
   electronAPI: {
@@ -63,26 +65,8 @@ const ChatInterface: React.FC<Props> = ({
   const [portsExpanded, setPortsExpanded] = useState(false);
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
-  // Fetch formatted line comments for agent context injection
-  const [commentsContext, setCommentsContext] = useState<string>('');
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const result = await window.electronAPI.lineCommentsGetFormatted(task.id);
-        if (!cancelled && result.success && result.formatted) {
-          setCommentsContext(result.formatted);
-        } else if (!cancelled) {
-          setCommentsContext('');
-        }
-      } catch {
-        if (!cancelled) setCommentsContext('');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [task.id]);
+  // Line comments for agent context injection
+  const { formatted: commentsContext } = useTaskComments(task.id);
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
@@ -708,7 +692,8 @@ const ChatInterface: React.FC<Props> = ({
   }
 
   return (
-    <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
+    <TaskScopeProvider value={{ taskId: task.id, taskPath: task.path }}>
+      <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="px-6 pt-4">
           <div className="mx-auto max-w-4xl space-y-2">
@@ -815,7 +800,6 @@ const ChatInterface: React.FC<Props> = ({
 
       <ProviderBar
         provider={provider}
-        taskId={task.id}
         linearIssue={task.metadata?.linearIssue || null}
         githubIssue={task.metadata?.githubIssue || null}
         jiraIssue={task.metadata?.jiraIssue || null}
@@ -829,7 +813,8 @@ const ChatInterface: React.FC<Props> = ({
           setPlanEnabled(false);
         }}
       />
-    </div>
+      </div>
+    </TaskScopeProvider>
   );
 };
 
