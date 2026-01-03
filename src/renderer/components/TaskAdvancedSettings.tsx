@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ExternalLink, Settings } from 'lucide-react';
 import { Button } from './ui/button';
+import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
@@ -224,11 +225,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 <Label className="w-32 shrink-0">Run in worktree</Label>
                 <div className="min-w-0 flex-1">
                   <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={useWorktree}
-                      onChange={(e) => onUseWorktreeChange(e.target.checked)}
-                      className="mt-[1px] h-4 w-4 shrink-0"
+                      onCheckedChange={(checked) => onUseWorktreeChange(checked === true)}
+                      className="mt-[1px]"
                     />
                     <div className="space-y-1">
                       <span className="text-muted-foreground">
@@ -252,11 +252,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                   <Label className="w-32 shrink-0">Auto-approve</Label>
                   <div className="min-w-0 flex-1">
                     <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={autoApprove}
-                        onChange={(e) => onAutoApproveChange(e.target.checked)}
-                        className="mt-[1px] h-4 w-4 shrink-0"
+                        onCheckedChange={(checked) => onAutoApproveChange(checked === true)}
+                        className="mt-[1px]"
                       />
                       <div className="space-y-1">
                         <span className="text-muted-foreground">
