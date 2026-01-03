@@ -279,7 +279,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   onConfirm={() => handleDeleteProject(typedProject)}
                                   isDeleting={isDeletingProject}
                                   aria-label={`Delete project ${typedProject.name}`}
-                                  className={`text-muted-foreground ${
+                                  className={`bg-accent text-muted-foreground ${
                                     isDeletingProject
                                       ? ''
                                       : 'opacity-0 group-hover/project:opacity-100'
