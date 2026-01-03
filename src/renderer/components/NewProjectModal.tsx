@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
 
@@ -239,32 +240,25 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
 
             <div>
               <Label className="mb-2 block">Visibility</Label>
-              <div className="flex items-center gap-4">
-                <label className="flex cursor-pointer items-center space-x-2">
-                  <input
-                    type="radio"
-                    name="visibility"
-                    value="public"
-                    checked={!isPrivate}
-                    onChange={(e) => setIsPrivate(e.target.value === 'private')}
-                    disabled={isCreating}
-                    className="h-4 w-4 border-border text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm">Public</span>
-                </label>
-                <label className="flex cursor-pointer items-center space-x-2">
-                  <input
-                    type="radio"
-                    name="visibility"
-                    value="private"
-                    checked={isPrivate}
-                    onChange={(e) => setIsPrivate(e.target.value === 'private')}
-                    disabled={isCreating}
-                    className="h-4 w-4 border-border text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm">Private</span>
-                </label>
-              </div>
+              <RadioGroup
+                value={isPrivate ? 'private' : 'public'}
+                onValueChange={(value: string) => setIsPrivate(value === 'private')}
+                disabled={isCreating}
+                className="flex items-center gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="public" id="visibility-public" />
+                  <Label htmlFor="visibility-public" className="cursor-pointer font-normal">
+                    Public
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="private" id="visibility-private" />
+                  <Label htmlFor="visibility-private" className="cursor-pointer font-normal">
+                    Private
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
 
             {error && !validationError && (
