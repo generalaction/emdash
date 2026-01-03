@@ -73,6 +73,14 @@ declare global {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
           };
         };
         error?: string;
@@ -122,6 +130,14 @@ declare global {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
           };
         }>
       ) => Promise<{
@@ -167,6 +183,14 @@ declare global {
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
             toggleKanban?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };

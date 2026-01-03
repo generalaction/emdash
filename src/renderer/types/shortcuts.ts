@@ -13,6 +13,8 @@ export interface KeyboardSettings {
   toggleTheme?: ShortcutBinding;
   toggleKanban?: ShortcutBinding;
   closeModal?: ShortcutBinding;
+  nextProject?: ShortcutBinding;
+  prevProject?: ShortcutBinding;
 }
 
 export interface ShortcutConfig {
@@ -61,6 +63,10 @@ export interface GlobalShortcutHandlers {
 
   // Kanban
   onToggleKanban?: () => void;
+
+  // Project navigation
+  onNextProject?: () => void;
+  onPrevProject?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;

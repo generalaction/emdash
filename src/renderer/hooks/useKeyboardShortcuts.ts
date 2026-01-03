@@ -15,7 +15,9 @@ export type ShortcutSettingsKey =
   | 'toggleRightSidebar'
   | 'toggleTheme'
   | 'toggleKanban'
-  | 'closeModal';
+  | 'closeModal'
+  | 'nextProject'
+  | 'prevProject';
 
 export interface AppShortcut {
   key: string;
@@ -90,6 +92,24 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     category: 'Navigation',
     settingsKey: 'closeModal',
     hideFromSettings: true,
+  },
+
+  NEXT_TASK: {
+    key: ']',
+    modifier: 'cmd',
+    label: 'Next Task',
+    description: 'Switch to the next task',
+    category: 'Navigation',
+    settingsKey: 'nextProject',
+  },
+
+  PREV_TASK: {
+    key: '[',
+    modifier: 'cmd',
+    label: 'Previous Task',
+    description: 'Switch to the previous task',
+    category: 'Navigation',
+    settingsKey: 'prevProject',
   },
 };
 
@@ -210,6 +230,8 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       toggleTheme: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_THEME, custom),
       toggleKanban: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_KANBAN, custom),
       closeModal: getEffectiveConfig(APP_SHORTCUTS.CLOSE_MODAL, custom),
+      nextProject: getEffectiveConfig(APP_SHORTCUTS.NEXT_TASK, custom),
+      prevProject: getEffectiveConfig(APP_SHORTCUTS.PREV_TASK, custom),
     };
   }, [handlers.customKeyboardSettings]);
 
@@ -256,6 +278,18 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         config: effectiveShortcuts.closeModal,
         handler: () => handlers.onCloseModal?.(),
         priority: 'modal',
+      },
+      {
+        config: effectiveShortcuts.nextProject,
+        handler: () => handlers.onNextProject?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.prevProject,
+        handler: () => handlers.onPrevProject?.(),
+        priority: 'global',
+        requiresClosed: true,
       },
     ];
 
