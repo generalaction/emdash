@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
+import { Textarea } from './ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { LinearIssueSelector } from './LinearIssueSelector';
 import { GitHubIssueSelector } from './GitHubIssueSelector';
@@ -395,13 +396,13 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 Initial prompt
               </Label>
               <div className="min-w-0 flex-1">
-                <textarea
+                <Textarea
                   id="initial-prompt"
                   value={initialPrompt}
                   onChange={(e) => onInitialPromptChange(e.target.value)}
                   disabled={!hasInitialPromptSupport}
                   placeholder={getInitialPromptPlaceholder()}
-                  className={`min-h-[80px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none ${!hasInitialPromptSupport ? 'opacity-50' : ''}`}
+                  className="resize-none"
                   rows={3}
                 />
               </div>

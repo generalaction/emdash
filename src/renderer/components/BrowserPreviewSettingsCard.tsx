@@ -6,6 +6,7 @@ import atlasLogo from '../../assets/images/atlas.png';
 import chromiumLogo from '../../assets/images/chromium.png';
 import diaLogo from '../../assets/images/dia.png';
 import cometLogo from '../../assets/images/comet.png';
+import { Checkbox } from './ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 export default function BrowserPreviewSettingsCard() {
@@ -77,12 +78,10 @@ export default function BrowserPreviewSettingsCard() {
         Preview UI changes using the built-in browser view.
       </div>
       <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="h-4 w-4"
+        <Checkbox
           checked={enabled}
           disabled={loading}
-          onChange={(e) => update(e.target.checked)}
+          onCheckedChange={(checked) => update(checked === true)}
         />
         Enable in‑app browser preview
       </label>
