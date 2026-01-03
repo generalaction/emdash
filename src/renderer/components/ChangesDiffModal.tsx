@@ -14,11 +14,15 @@ import {
   isBinaryFile,
 } from '../lib/diffUtils';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
+import { useDiffEditorComments } from '../hooks/useDiffEditorComments';
+import { useTaskComments } from '../hooks/useLineComments';
+import { useTaskScope } from './TaskScopeContext';
 
 interface ChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
-  taskPath: string;
+  taskId?: string;
+  taskPath?: string;
   files: FileChange[];
   initialFile?: string;
   onRefreshChanges?: () => Promise<void> | void;
@@ -27,19 +31,39 @@ interface ChangesDiffModalProps {
 export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   open,
   onClose,
+  taskId,
   taskPath,
   files,
   initialFile,
   onRefreshChanges,
 }) => {
+  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
+  const resolvedTaskId = taskId ?? scopedTaskId;
+  const resolvedTaskPath = taskPath ?? scopedTaskPath;
+  const safeTaskId = resolvedTaskId ?? '';
+  const safeTaskPath = resolvedTaskPath ?? '';
+
   const [selected, setSelected] = useState<string | undefined>(initialFile || files[0]?.path);
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'dark';
+  const [editorInstance, setEditorInstance] = useState<monaco.editor.IStandaloneDiffEditor | null>(
+    null
+  );
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const changeDisposableRef = useRef<monaco.IDisposable | null>(null);
+
+  // Integrate line comments - use state (not ref) so hook re-runs when editor mounts
+  useDiffEditorComments({
+    editor: editorInstance,
+    taskId: safeTaskId,
+    filePath: selected || '',
+  });
+
+  // Get comment counts for all files in this task (for sidebar display)
+  const { countsByFile: commentCounts } = useTaskComments(safeTaskId);
 
   // File data state for Monaco editor
   const [fileData, setFileData] = useState<{
@@ -56,7 +80,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
   // Load file data when selected file changes
   useEffect(() => {
-    if (!open || !selected) {
+    if (!open || !selected || !safeTaskPath) {
       setFileData(null);
       setModifiedDraft('');
       setSaveError(null);
@@ -114,7 +138,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
       try {
         // Get diff lines
-        const diffRes = await window.electronAPI.getFileDiff({ taskPath, filePath });
+        if (!safeTaskPath) return;
+        const diffRes = await window.electronAPI.getFileDiff({ taskPath: safeTaskPath, filePath });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
         }
@@ -129,7 +154,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
           originalContent = converted.original;
           modifiedContent = '';
         } else if (selectedFile.status === 'added') {
-          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+          const readRes = await window.electronAPI.fsRead(safeTaskPath, filePath, 2 * 1024 * 1024);
           if (readRes?.success && readRes.content) {
             modifiedContent = readRes.content;
             originalContent = '';
@@ -146,7 +171,11 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+            const readRes = await window.electronAPI.fsRead(
+              safeTaskPath,
+              filePath,
+              2 * 1024 * 1024
+            );
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -190,7 +219,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selected, taskPath]); // Removed 'files' to prevent constant reloading - files array changes every 5s
+  }, [open, selected, safeTaskPath]); // Removed 'files' to prevent constant reloading - files array changes every 5s
 
   // Add Monaco theme and styles
   useEffect(() => {
@@ -252,42 +281,86 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
       .monaco-diff-editor .monaco-editor-background {
         margin-left: 0 !important;
       }
-      /* Hide Monaco's default scrollbar and use custom */
-      .monaco-diff-editor .monaco-scrollable-element > .scrollbar {
-        margin: 0 !important;
-        background: transparent !important;
-      }
-      .monaco-diff-editor .monaco-scrollable-element > .scrollbar > .slider {
-        background: transparent !important;
-      }
-      /* Apple-like scrollbar for Monaco editor - only show on hover */
-      .monaco-diff-editor:hover .monaco-scrollable-element > .scrollbar > .slider {
-        background: ${isDark ? 'rgba(156, 163, 175, 0.2)' : 'rgba(107, 114, 128, 0.2)'} !important;
-        border-radius: 6px !important;
-        border: 2.5px solid transparent !important;
-        background-clip: padding-box !important;
-      }
-      .monaco-diff-editor .monaco-scrollable-element > .scrollbar > .slider:hover {
-        background: ${isDark ? 'rgba(156, 163, 175, 0.4)' : 'rgba(107, 114, 128, 0.4)'} !important;
-        background-clip: padding-box !important;
-      }
-      .monaco-diff-editor .monaco-scrollable-element > .scrollbar > .slider:active {
-        background: ${isDark ? 'rgba(156, 163, 175, 0.6)' : 'rgba(107, 114, 128, 0.6)'} !important;
-        background-clip: padding-box !important;
-      }
-      .monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical {
-        width: 4px !important;
-        right: 0 !important;
-      }
-      .monaco-diff-editor .monaco-scrollable-element > .scrollbar.horizontal {
-        height: 4px !important;
-        bottom: 0 !important;
+      /* Hide diff viewport indicator (the grey bar in overview ruler) */
+      .monaco-diff-editor .diffViewport {
+        display: none !important;
       }
       .monaco-diff-editor .monaco-scrollable-element {
         box-shadow: none !important;
       }
       .monaco-diff-editor .overflow-guard {
         box-shadow: none !important;
+      }
+      /* Hover indicator for adding comments (plus icon) - shown dynamically via decoration */
+      /* Icon only appears when mouse is in gutter area (via JS), so always use active color */
+      .comment-hover-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        margin: 1px auto;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        background: transparent;
+        box-sizing: border-box;
+        cursor: pointer;
+        pointer-events: auto;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+      }
+      .comment-hover-icon::before {
+        content: '';
+        display: block;
+        width: 12px;
+        height: 12px;
+        background-color: hsl(var(--muted-foreground));
+        mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+        mask-size: contain;
+        mask-repeat: no-repeat;
+        mask-position: center;
+      }
+      .comment-hover-icon:hover,
+      .comment-hover-icon.comment-hover-icon-pinned {
+        background-color: hsl(var(--foreground) / 0.08);
+        border-color: hsl(var(--border));
+      }
+      .comment-hover-icon:hover::before,
+      .comment-hover-icon.comment-hover-icon-pinned::before {
+        background-color: hsl(var(--foreground));
+      }
+      /* Remove any borders from glyph margin items */
+      .monaco-editor .glyph-margin > div {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      /* Remove borders from diff editor revert/undo decorations */
+      .monaco-diff-editor .margin-view-overlays .cgmr,
+      .monaco-diff-editor .margin-view-overlays .codicon,
+      .monaco-diff-editor .glyph-margin-widgets .codicon,
+      .monaco-diff-editor .line-decorations .codicon,
+      .monaco-diff-editor .margin-view-overlays [class*="codicon-"] {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      .monaco-diff-editor .dirty-diff-deleted-indicator,
+      .monaco-diff-editor .dirty-diff-modified-indicator,
+      .monaco-diff-editor .dirty-diff-added-indicator {
+        border: none !important;
+        box-shadow: none !important;
+      }
+      /* Hide the revert arrow that shows on hover in diff gutter */
+      .monaco-diff-editor .glyph-margin .codicon-arrow-left,
+      .monaco-diff-editor .glyph-margin .codicon-discard {
+        display: none !important;
+      }
+      /* Ensure view zones (comment widgets) are interactive */
+      .monaco-editor .view-zones {
+        pointer-events: auto !important;
+      }
+      .monaco-editor .view-zone {
+        pointer-events: auto !important;
       }
     `;
     document.head.appendChild(style);
@@ -360,6 +433,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
   const handleEditorDidMount = async (editor: monaco.editor.IStandaloneDiffEditor) => {
     editorRef.current = editor;
+    setEditorInstance(editor); // Trigger re-render so useDiffEditorComments sees the editor
 
     // Define themes when editor is ready
     try {
@@ -410,11 +484,11 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   };
 
   const handleSave = async () => {
-    if (!selected || !fileData) return;
+    if (!selected || !fileData || !safeTaskPath) return;
     setIsSaving(true);
     setSaveError(null);
     try {
-      const res = await window.electronAPI.fsWriteFile(taskPath, selected, modifiedDraft, true);
+      const res = await window.electronAPI.fsWriteFile(safeTaskPath, selected, modifiedDraft, true);
       if (!res?.success) {
         throw new Error(res?.error || 'Failed to save file');
       }
@@ -498,6 +572,13 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                   <div className="truncate font-medium">{f.path}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {f.status} • +{f.additions} / -{f.deletions}
+                    {commentCounts[f.path] > 0 && (
+                      <span className="text-blue-600 dark:text-blue-400">
+                        {' '}
+                        • {commentCounts[f.path]}{' '}
+                        {commentCounts[f.path] === 1 ? 'comment' : 'comments'}
+                      </span>
+                    )}
                   </div>
                 </button>
               ))}
@@ -599,12 +680,13 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                           lineNumbers: 'on',
                           lineNumbersMinChars: 2,
                           renderIndicators: false, // Hide +/- indicators
-                          overviewRulerLanes: 3, // Show overview ruler with change indicators
-                          renderOverviewRuler: true, // Show overview ruler
+                          overviewRulerLanes: 3,
+                          renderOverviewRuler: true,
+                          overviewRulerBorder: false,
                           automaticLayout: true,
                           scrollbar: {
-                            vertical: 'visible',
-                            horizontal: 'visible',
+                            vertical: 'auto',
+                            horizontal: 'auto',
                             useShadows: false,
                             verticalScrollbarSize: 4,
                             horizontalScrollbarSize: 4,
@@ -623,7 +705,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                           smoothScrolling: true,
                           cursorSmoothCaretAnimation: 'on',
                           padding: { top: 8, bottom: 8 },
-                          glyphMargin: false,
+                          glyphMargin: true,
                           lineDecorationsWidth: 16,
                           folding: false,
                         }}

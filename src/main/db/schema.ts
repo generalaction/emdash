@@ -90,6 +90,30 @@ export const messages = sqliteTable(
   })
 );
 
+export const lineComments = sqliteTable(
+  'line_comments',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    filePath: text('file_path').notNull(),
+    lineNumber: integer('line_number').notNull(),
+    lineContent: text('line_content'),
+    content: text('content').notNull(),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    sentAt: text('sent_at'), // NULL = unsent, timestamp = when injected to chat
+  },
+  (table) => ({
+    taskFileIdx: index('idx_line_comments_task_file').on(table.taskId, table.filePath),
+  })
+);
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   tasks: many(tasks),
 }));
@@ -100,6 +124,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
     references: [projects.id],
   }),
   conversations: many(conversations),
+  lineComments: many(lineComments),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -117,7 +142,16 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
+export const lineCommentsRelations = relations(lineComments, ({ one }) => ({
+  task: one(tasks, {
+    fields: [lineComments.taskId],
+    references: [tasks.id],
+  }),
+}));
+
 export type ProjectRow = typeof projects.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
+export type LineCommentRow = typeof lineComments.$inferSelect;
+export type LineCommentInsert = typeof lineComments.$inferInsert;
