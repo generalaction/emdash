@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
+import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
@@ -198,14 +199,15 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="repo-name" className="mb-2 block">
-                Repository name *
+                Repository name <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <SlugInput
                 id="repo-name"
                 value={repoName}
-                onChange={(e) => setRepoName(e.target.value)}
+                onChange={setRepoName}
                 onBlur={() => setTouched(true)}
                 placeholder="my-awesome-project"
+                maxLength={100}
                 className={`w-full ${
                   touched && (error || validationError)
                     ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive'
