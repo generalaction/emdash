@@ -12,6 +12,17 @@ export interface RepositorySettings {
   pushOnCreate: boolean;
 }
 
+export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+
+export interface ShortcutBinding {
+  key: string;
+  modifier: ShortcutModifier;
+}
+
+export interface KeyboardSettings {
+  commandPalette: ShortcutBinding;
+}
+
 export interface AppSettings {
   repository: RepositorySettings;
   projectPrep: {
@@ -39,6 +50,7 @@ export interface AppSettings {
   projects?: {
     defaultDirectory: string;
   };
+  keyboard?: KeyboardSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -70,6 +82,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
+  },
+  keyboard: {
+    commandPalette: { key: 'k', modifier: 'cmd' },
   },
 };
 
@@ -233,6 +248,22 @@ function normalizeSettings(input: AppSettings): AppSettings {
   }
   out.projects = {
     defaultDirectory: defaultDir,
+  };
+
+  // Keyboard
+  const keyboard = (input as any)?.keyboard || {};
+  const validModifiers: ShortcutModifier[] = ['cmd', 'ctrl', 'shift', 'alt', 'option'];
+  const normalizeBinding = (
+    binding: any,
+    defaultBinding: { key: string; modifier: ShortcutModifier }
+  ): { key: string; modifier: ShortcutModifier } => {
+    if (!binding || typeof binding !== 'object') return defaultBinding;
+    const key = typeof binding.key === 'string' && binding.key.length === 1 ? binding.key.toLowerCase() : defaultBinding.key;
+    const modifier = validModifiers.includes(binding.modifier) ? binding.modifier : defaultBinding.modifier;
+    return { key, modifier };
+  };
+  out.keyboard = {
+    commandPalette: normalizeBinding(keyboard.commandPalette, DEFAULT_SETTINGS.keyboard!.commandPalette),
   };
 
   return out;

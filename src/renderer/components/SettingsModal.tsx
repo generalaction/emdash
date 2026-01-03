@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
-import { X, Settings2, Cable, RefreshCw, GitBranch, Puzzle } from 'lucide-react';
+import { X, Settings2, Cable, RefreshCw, GitBranch, Puzzle, PanelLeft } from 'lucide-react';
 import VersionCard from './VersionCard';
 import IntegrationsCard from './IntegrationsCard';
 import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
@@ -16,6 +16,7 @@ import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
 import Context7SettingsCard from './Context7SettingsCard';
 import DefaultProviderSettingsCard from './DefaultProviderSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
+import KeyboardSettingsCard from './KeyboardSettingsCard';
 import { CliProviderStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
@@ -75,7 +76,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general' | 'repository' | 'connections' | 'mcp';
+type SettingsTab = 'general' | 'interface' | 'repository' | 'connections' | 'mcp';
 
 interface SettingsSection {
   title: string;
@@ -84,7 +85,7 @@ interface SettingsSection {
   render?: () => React.ReactNode;
 }
 
-const ORDERED_TABS: SettingsTab[] = ['general', 'repository', 'mcp', 'connections'];
+const ORDERED_TABS: SettingsTab[] = ['general', 'interface', 'repository', 'mcp', 'connections'];
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -187,10 +188,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'Privacy & Telemetry', render: () => <TelemetryCard /> },
           { title: 'Default AI provider', render: () => <DefaultProviderSettingsCard /> },
           { title: 'Tasks', render: () => <TaskSettingsCard /> },
-          { title: 'Notifications', render: () => <NotificationSettingsCard /> },
-          { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
-          { title: 'Theme', render: () => <ThemeCard /> },
           { title: 'Version', render: () => <VersionCard /> },
           {
             title: 'How to use Emdash',
@@ -212,6 +210,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               </div>
             ),
           },
+        ],
+      },
+      interface: {
+        icon: PanelLeft,
+        label: 'Interface',
+        title: 'Interface',
+        description: '',
+        sections: [
+          { title: 'Theme', render: () => <ThemeCard /> },
+          { title: 'Keyboard shortcuts', render: () => <KeyboardSettingsCard /> },
+          { title: 'Notifications', render: () => <NotificationSettingsCard /> },
+          { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
         ],
       },
       repository: {

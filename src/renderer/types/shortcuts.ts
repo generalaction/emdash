@@ -1,5 +1,14 @@
 export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
 
+export interface ShortcutBinding {
+  key: string;
+  modifier: ShortcutModifier;
+}
+
+export interface KeyboardSettings {
+  commandPalette: ShortcutBinding;
+}
+
 export interface ShortcutConfig {
   key: string;
   modifier?: ShortcutModifier;
@@ -49,4 +58,7 @@ export interface GlobalShortcutHandlers {
   // State checks
   isCommandPaletteOpen?: boolean;
   isSettingsOpen?: boolean;
+
+  // Custom keyboard settings
+  customKeyboardSettings?: KeyboardSettings;
 }

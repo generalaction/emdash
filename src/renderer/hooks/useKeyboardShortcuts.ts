@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import type {
   ShortcutConfig,
   GlobalShortcutHandlers,
@@ -144,11 +144,25 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
  * Call this once in your App component with all handlers
  */
 export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
+  // Compute effective command palette shortcut (custom or default)
+  const commandPaletteConfig = useMemo((): ShortcutConfig => {
+    const custom = handlers.customKeyboardSettings?.commandPalette;
+    if (custom) {
+      return {
+        key: custom.key,
+        modifier: custom.modifier,
+        description: APP_SHORTCUTS.COMMAND_PALETTE.description,
+        category: APP_SHORTCUTS.COMMAND_PALETTE.category,
+      };
+    }
+    return APP_SHORTCUTS.COMMAND_PALETTE;
+  }, [handlers.customKeyboardSettings?.commandPalette]);
+
   useEffect(() => {
     // Build dynamic shortcut mappings from config
     const shortcuts: ShortcutMapping[] = [
       {
-        config: APP_SHORTCUTS.COMMAND_PALETTE,
+        config: commandPaletteConfig,
         handler: () => handlers.onToggleCommandPalette?.(),
         priority: 'global',
       },
@@ -210,7 +224,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         // Global shortcuts
         if (shortcut.priority === 'global') {
           // Command palette toggle always works
-          if (shortcut.config.key === APP_SHORTCUTS.COMMAND_PALETTE.key) {
+          if (shortcut.config === commandPaletteConfig) {
             event.preventDefault();
             shortcut.handler();
             return;
@@ -243,5 +257,5 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlers]);
+  }, [handlers, commandPaletteConfig]);
 }
