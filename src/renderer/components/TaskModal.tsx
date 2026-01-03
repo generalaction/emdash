@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
+import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { X, GitBranch, ExternalLink, Settings } from 'lucide-react';
+import { X, ExternalLink, Settings } from 'lucide-react';
 import { MultiProviderDropdown } from './MultiProviderDropdown';
 import { type Provider } from '../types';
 import { type ProviderRun } from '../types/chat';
@@ -452,12 +452,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     <Label htmlFor="task-name" className="mb-2 block">
                       Task name
                     </Label>
-                    <Input
+                    <SlugInput
                       id="task-name"
                       value={taskName}
-                      onChange={(e) => onChange(e.target.value)}
+                      onChange={onChange}
                       onBlur={() => setTouched(true)}
                       placeholder="refactor-api-routes"
+                      maxLength={MAX_TASK_NAME_LENGTH}
                       className={`w-full ${touched && error ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
                       aria-invalid={touched && !!error}
                       aria-describedby="task-name-error"
