@@ -1,6 +1,8 @@
 import React from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, MessageSquare } from 'lucide-react';
 import { type Provider } from '../types';
+import { CommentsPopover } from './CommentsPopover';
+import { useTaskComments } from '../hooks/useLineComments';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
@@ -10,7 +12,7 @@ import linearLogo from '../../assets/images/linear.png';
 import githubLogo from '../../assets/images/github.png';
 import jiraLogo from '../../assets/images/jira.png';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { Check } from 'lucide-react';
+import { Button } from './ui/button';
 import claudeLogo from '../../assets/images/claude.png';
 import factoryLogo from '../../assets/images/factorydroid.png';
 import geminiLogo from '../../assets/images/gemini.png';
@@ -35,10 +37,11 @@ import context7Logo from '../../assets/images/context7.png';
 import Context7Tooltip from './Context7Tooltip';
 import { providerMeta } from '../providers/meta';
 import { getContext7InvocationForProvider } from '../mcp/context7';
+import { useTaskScope } from './TaskScopeContext';
 
 type Props = {
   provider: Provider;
-  taskId: string;
+  taskId?: string;
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
@@ -62,6 +65,14 @@ export const ProviderBar: React.FC<Props> = ({
   const [c7Enabled, setC7Enabled] = React.useState<boolean>(false);
   const [c7Busy, setC7Busy] = React.useState<boolean>(false);
   const [c7TaskEnabled, setC7TaskEnabled] = React.useState<boolean>(false);
+  const { taskId: scopedTaskId } = useTaskScope();
+  const resolvedTaskId = taskId ?? scopedTaskId;
+  const { unsentCount } = useTaskComments(resolvedTaskId);
+  const [selectedCount, setSelectedCount] = React.useState(0);
+
+  React.useEffect(() => {
+    setSelectedCount(0);
+  }, [resolvedTaskId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -80,34 +91,50 @@ export const ProviderBar: React.FC<Props> = ({
 
   // Per-task default OFF
   React.useEffect(() => {
+    if (!resolvedTaskId) return;
     try {
-      const key = `c7:ws:${taskId}`;
+      const key = `c7:ws:${resolvedTaskId}`;
       setC7TaskEnabled(localStorage.getItem(key) === '1');
     } catch {
       setC7TaskEnabled(false);
     }
-  }, [taskId]);
+  }, [resolvedTaskId]);
+
+  const handlePlanModeChange = React.useCallback(
+    (next: boolean) => {
+      if (next) {
+        onPlanModeChange?.(true);
+        return;
+      }
+      if (onApprovePlan) {
+        onApprovePlan();
+      } else {
+        onPlanModeChange?.(false);
+      }
+    },
+    [onApprovePlan, onPlanModeChange]
+  );
 
   const handleContext7Click = async () => {
     setC7Busy(true);
     try {
-      if (!c7Enabled) return;
+      if (!c7Enabled || !resolvedTaskId) return;
 
       if (!c7TaskEnabled) {
         // Enable for this task and send invocation once
         try {
-          localStorage.setItem(`c7:ws:${taskId}`, '1');
+          localStorage.setItem(`c7:ws:${resolvedTaskId}`, '1');
         } catch {}
         setC7TaskEnabled(true);
 
         const isTerminal = providerMeta[provider]?.terminalOnly === true;
         if (!isTerminal) return;
         const phrase = getContext7InvocationForProvider(provider) || 'use context7';
-        const ptyId = `${provider}-main-${taskId}`;
+        const ptyId = `${provider}-main-${resolvedTaskId}`;
         (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: `${phrase}\n` });
       } else {
         try {
-          localStorage.removeItem(`c7:ws:${taskId}`);
+          localStorage.removeItem(`c7:ws:${resolvedTaskId}`);
         } catch {}
         setC7TaskEnabled(false);
       }
@@ -371,31 +398,8 @@ export const ProviderBar: React.FC<Props> = ({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              <PlanModeToggle value={!!planModeEnabled} onChange={onPlanModeChange} />
+              <PlanModeToggle value={!!planModeEnabled} onChange={handlePlanModeChange} />
               <AutoApproveIndicator enabled={!!autoApprove} />
-              {planModeEnabled ? (
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (onApprovePlan) onApprovePlan();
-                          else onPlanModeChange?.(false);
-                        }}
-                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 text-xs text-foreground hover:bg-accent/15 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
-                        title="Approve Plan & Exit"
-                      >
-                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span className="font-medium">Exit Plan Mode</span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-xs">
-                      Approve the plan and exit Plan Mode
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : null}
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -439,6 +443,39 @@ export const ProviderBar: React.FC<Props> = ({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              {/* Line Comments Popover - only shown when there are unsent comments */}
+              {resolvedTaskId && unsentCount > 0 && (
+                <CommentsPopover
+                  tooltipContent="Selected comments are appended to your next agent message."
+                  tooltipDelay={300}
+                  onSelectedCountChange={setSelectedCount}
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={[
+                      'relative h-7 gap-1.5 px-2 text-xs text-foreground',
+                      selectedCount > 0
+                        ? 'border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/15'
+                        : 'border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700',
+                    ].join(' ')}
+                    title={
+                      selectedCount > 0
+                        ? `${selectedCount} selected comment${selectedCount === 1 ? '' : 's'} ready to append`
+                        : 'Review or select comments to append'
+                    }
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="font-medium">Comments</span>
+                    {selectedCount > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">
+                        {selectedCount}
+                      </span>
+                    )}
+                  </Button>
+                </CommentsPopover>
+              )}
             </div>
           </div>
         </div>

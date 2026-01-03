@@ -39,10 +39,10 @@ const PlanModeToggle: React.FC<Props> = ({
             onClick={toggle}
             title={label}
             className={
-              'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-offset-0 ' +
+              'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs text-foreground ' +
               (active
-                ? 'border border-accent/60 bg-accent/10 text-foreground ring-1 ring-inset ring-accent/25 hover:bg-accent/15 focus-visible:ring-accent/40'
-                : 'border border-gray-200 bg-gray-100 text-foreground hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600') +
+                ? 'border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/15'
+                : 'border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700') +
               (className ? ' ' + className : '')
             }
           >

@@ -7,6 +7,7 @@ import { useRightSidebar } from './ui/right-sidebar';
 import { providerAssets } from '@/providers/assets';
 import { providerMeta } from '@/providers/meta';
 import type { Provider } from '../types';
+import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 
 export interface RightSidebarTask {
   id: string;
@@ -73,140 +74,146 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
       aria-hidden={collapsed}
       {...rest}
     >
-      <div className="flex h-full w-full min-w-0 flex-col">
-        {task || projectPath ? (
-          <div className="flex h-full flex-col">
-            {task && variants.length > 1 ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {variants.map((v, i) => (
-                  <div
-                    key={`${v.provider}-${i}`}
-                    className="mb-2 border-b border-border last:mb-0 last:border-b-0"
-                  >
-                    <div className="flex min-w-0 items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
-                      <span className="inline-flex min-w-0 items-center gap-2">
-                        {(() => {
-                          const asset = (providerAssets as any)[v.provider] as
-                            | { logo: string; alt: string; name: string; invertInDark?: boolean }
-                            | undefined;
-                          const meta = (providerMeta as any)[v.provider] as
-                            | { label?: string }
-                            | undefined;
-                          return (
-                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
-                              {asset?.logo ? (
-                                <img
-                                  src={asset.logo}
-                                  alt={asset.alt || meta?.label || String(v.provider)}
-                                  className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
-                                />
-                              ) : null}
-                              {getVariantDisplayLabel(v)}
-                            </span>
-                          );
-                        })()}
-                        <span className="truncate" title={v.name}>
-                          {v.name}
+      <TaskScopeProvider value={{ taskId: task?.id, taskPath: task?.path, projectPath }}>
+        <div className="flex h-full w-full min-w-0 flex-col">
+          {task || projectPath ? (
+            <div className="flex h-full flex-col">
+              {task && variants.length > 1 ? (
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {variants.map((v, i) => (
+                    <div
+                      key={`${v.provider}-${i}`}
+                      className="mb-2 border-b border-border last:mb-0 last:border-b-0"
+                    >
+                      <div className="flex min-w-0 items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          {(() => {
+                            const asset = (providerAssets as any)[v.provider] as
+                              | { logo: string; alt: string; name: string; invertInDark?: boolean }
+                              | undefined;
+                            const meta = (providerMeta as any)[v.provider] as
+                              | { label?: string }
+                              | undefined;
+                            return (
+                              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
+                                {asset?.logo ? (
+                                  <img
+                                    src={asset.logo}
+                                    alt={asset.alt || meta?.label || String(v.provider)}
+                                    className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                                  />
+                                ) : null}
+                                {getVariantDisplayLabel(v)}
+                              </span>
+                            );
+                          })()}
+                          <span className="truncate" title={v.name}>
+                            {v.name}
+                          </span>
                         </span>
+                      </div>
+                      <VariantChangesIfAny path={v.path} taskId={task.id} />
+                    </div>
+                  ))}
+                </div>
+              ) : task && variants.length === 1 ? (
+                (() => {
+                  const v = variants[0];
+                  const derived = {
+                    ...task,
+                    path: v.path,
+                    name: v.name || task.name,
+                  } as any;
+                  return (
+                    <>
+                      <VariantChangesIfAny
+                        path={v.path}
+                        taskId={task.id}
+                        className="min-h-0 flex-1 border-b border-border"
+                      />
+                      <TaskTerminalPanel
+                        task={derived}
+                        provider={v.provider}
+                        projectPath={projectPath || task?.path}
+                        className="min-h-0 flex-1"
+                      />
+                    </>
+                  );
+                })()
+              ) : task ? (
+                <>
+                  <FileChangesPanel className="min-h-0 flex-1 border-b border-border" />
+                  <TaskTerminalPanel
+                    task={task}
+                    provider={task.agentId as Provider}
+                    projectPath={projectPath || task?.path}
+                    className="min-h-0 flex-1"
+                  />
+                </>
+              ) : (
+                <>
+                  <div className="flex h-1/2 flex-col border-b border-border bg-background">
+                    <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
+                      <span className="whitespace-nowrap">Changes</span>
+                    </div>
+                    <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                      <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                        Select a task to review file changes.
                       </span>
                     </div>
-                    <VariantChangesIfAny path={v.path} />
                   </div>
-                ))}
-              </div>
-            ) : task && variants.length === 1 ? (
-              (() => {
-                const v = variants[0];
-                const derived = {
-                  ...task,
-                  path: v.path,
-                  name: v.name || task.name,
-                } as any;
-                return (
-                  <>
-                    <VariantChangesIfAny
-                      path={v.path}
-                      className="min-h-0 flex-1 border-b border-border"
-                    />
-                    <TaskTerminalPanel
-                      task={derived}
-                      provider={v.provider}
-                      projectPath={projectPath || task?.path}
-                      className="min-h-0 flex-1"
-                    />
-                  </>
-                );
-              })()
-            ) : task ? (
-              <>
-                <FileChangesPanel
-                  taskId={task.path}
-                  className="min-h-0 flex-1 border-b border-border"
-                />
-                <TaskTerminalPanel
-                  task={task}
-                  provider={task.agentId as Provider}
-                  projectPath={projectPath || task?.path}
-                  className="min-h-0 flex-1"
-                />
-              </>
-            ) : (
-              <>
-                <div className="flex h-1/2 flex-col border-b border-border bg-background">
-                  <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
-                    <span className="whitespace-nowrap">Changes</span>
-                  </div>
-                  <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                      Select a task to review file changes.
-                    </span>
-                  </div>
+                  <TaskTerminalPanel
+                    task={null}
+                    provider={undefined}
+                    projectPath={projectPath || undefined}
+                    className="h-1/2 min-h-0"
+                  />
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="flex h-full flex-col text-sm text-muted-foreground">
+              <div className="flex h-1/2 flex-col border-b border-border bg-background">
+                <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
+                  <span className="whitespace-nowrap">Changes</span>
                 </div>
-                <TaskTerminalPanel
-                  task={null}
-                  provider={undefined}
-                  projectPath={projectPath || undefined}
-                  className="h-1/2 min-h-0"
-                />
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="flex h-full flex-col text-sm text-muted-foreground">
-            <div className="flex h-1/2 flex-col border-b border-border bg-background">
-              <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
-                <span className="whitespace-nowrap">Changes</span>
+                <div className="flex flex-1 items-center justify-center px-4 text-center">
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                    Select a task to review file changes.
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-1 items-center justify-center px-4 text-center">
-                <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                  Select a task to review file changes.
-                </span>
+              <div className="flex h-1/2 flex-col bg-background">
+                <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
+                  <span className="whitespace-nowrap">Terminal</span>
+                </div>
+                <div className="flex flex-1 items-center justify-center px-4 text-center">
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                    Select a task to open its terminal.
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="flex h-1/2 flex-col bg-background">
-              <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
-                <span className="whitespace-nowrap">Terminal</span>
-              </div>
-              <div className="flex flex-1 items-center justify-center px-4 text-center">
-                <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                  Select a task to open its terminal.
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </TaskScopeProvider>
     </aside>
   );
 };
 
 export default RightSidebar;
 
-const VariantChangesIfAny: React.FC<{ path: string; className?: string }> = ({
+const VariantChangesIfAny: React.FC<{ path: string; taskId: string; className?: string }> = ({
   path,
+  taskId,
   className,
 }) => {
   const { fileChanges } = useFileChanges(path);
+  const { projectPath } = useTaskScope();
   if (!fileChanges || fileChanges.length === 0) return null;
-  return <FileChangesPanel taskId={path} className={className || 'min-h-0'} />;
+  return (
+    <TaskScopeProvider value={{ taskId, taskPath: path, projectPath }}>
+      <FileChangesPanel className={className || 'min-h-0'} />
+    </TaskScopeProvider>
+  );
 };
