@@ -266,8 +266,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 onSelectProject(typedProject);
                               }}
                             >
-                              <span className="block truncate">{typedProject.name}</span>
-                              <span className="hidden truncate text-xs text-muted-foreground sm:block">
+                              <span className="block w-full truncate">{typedProject.name}</span>
+                              <span className="hidden w-full truncate text-xs text-muted-foreground sm:block">
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
                             </motion.button>
