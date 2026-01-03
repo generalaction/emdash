@@ -1,5 +1,5 @@
 import type sqlite3Type from 'sqlite3';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -8,10 +8,13 @@ import {
   tasks as tasksTable,
   conversations as conversationsTable,
   messages as messagesTable,
+  lineComments as lineCommentsTable,
   type ProjectRow,
   type TaskRow,
   type ConversationRow,
   type MessageRow,
+  type LineCommentRow,
+  type LineCommentInsert,
 } from '../db/schema';
 
 export interface Project {
@@ -423,6 +426,87 @@ export class DatabaseService {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
     await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  }
+
+  // Line comment management methods
+  async saveLineComment(
+    input: Omit<LineCommentInsert, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<string> {
+    if (this.disabled) return '';
+    const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const { db } = await getDrizzleClient();
+    await db.insert(lineCommentsTable).values({
+      id,
+      taskId: input.taskId,
+      filePath: input.filePath,
+      lineNumber: input.lineNumber,
+      lineContent: input.lineContent ?? null,
+      content: input.content,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    });
+    return id;
+  }
+
+  async getLineComments(taskId: string, filePath?: string): Promise<LineCommentRow[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+
+    if (filePath) {
+      const rows = await db
+        .select()
+        .from(lineCommentsTable)
+        .where(
+          sql`${lineCommentsTable.taskId} = ${taskId} AND ${lineCommentsTable.filePath} = ${filePath}`
+        )
+        .orderBy(asc(lineCommentsTable.lineNumber));
+      return rows;
+    }
+
+    const rows = await db
+      .select()
+      .from(lineCommentsTable)
+      .where(eq(lineCommentsTable.taskId, taskId))
+      .orderBy(asc(lineCommentsTable.lineNumber));
+    return rows;
+  }
+
+  async updateLineComment(id: string, content: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(lineCommentsTable)
+      .set({
+        content,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(lineCommentsTable.id, id));
+  }
+
+  async deleteLineComment(id: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db.delete(lineCommentsTable).where(eq(lineCommentsTable.id, id));
+  }
+
+  async markCommentsSent(commentIds: string[]): Promise<void> {
+    if (this.disabled || commentIds.length === 0) return;
+    const { db } = await getDrizzleClient();
+    const now = new Date().toISOString();
+    await db
+      .update(lineCommentsTable)
+      .set({ sentAt: now })
+      .where(inArray(lineCommentsTable.id, commentIds));
+  }
+
+  async getUnsentComments(taskId: string): Promise<LineCommentRow[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(lineCommentsTable)
+      .where(and(eq(lineCommentsTable.taskId, taskId), isNull(lineCommentsTable.sentAt)))
+      .orderBy(asc(lineCommentsTable.filePath), asc(lineCommentsTable.lineNumber));
+    return rows;
   }
 
   private computeBaseRef(
