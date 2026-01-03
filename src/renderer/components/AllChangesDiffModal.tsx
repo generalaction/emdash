@@ -160,7 +160,10 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
       try {
         // Get diff lines
         if (!resolvedTaskPath) return;
-        const diffRes = await window.electronAPI.getFileDiff({ taskPath: resolvedTaskPath, filePath });
+        const diffRes = await window.electronAPI.getFileDiff({
+          taskPath: resolvedTaskPath,
+          filePath,
+        });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
         }

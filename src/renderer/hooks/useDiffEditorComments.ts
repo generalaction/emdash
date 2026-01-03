@@ -10,11 +10,9 @@ interface UseDiffEditorCommentsOptions {
 }
 
 export function useDiffEditorComments({ editor, taskId, filePath }: UseDiffEditorCommentsOptions) {
-  const { comments, addComment, updateComment, deleteComment } = useLineComments(
-    taskId,
-    filePath,
-    { includeSent: false }
-  );
+  const { comments, addComment, updateComment, deleteComment } = useLineComments(taskId, filePath, {
+    includeSent: false,
+  });
   const managerRef = useRef<MonacoCommentManager | null>(null);
 
   // Memoize callbacks to pass to manager

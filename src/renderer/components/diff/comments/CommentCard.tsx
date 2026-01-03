@@ -3,10 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Textarea, type TextareaProps } from '../../ui/textarea';
 import { cn } from '@/lib/utils';
 
-export function useTextareaAutoFocus(
-  ref: React.RefObject<HTMLTextAreaElement>,
-  active: boolean
-) {
+export function useTextareaAutoFocus(ref: React.RefObject<HTMLTextAreaElement>, active: boolean) {
   React.useEffect(() => {
     if (!active) return;
     const focusTextarea = () => {
@@ -45,25 +42,19 @@ const CommentHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <CardHeader
       ref={ref}
-      className={cn(
-        'flex flex-row items-center justify-between space-y-0 px-3 py-2',
-        className
-      )}
+      className={cn('flex flex-row items-center justify-between space-y-0 px-3 py-2', className)}
       {...props}
     />
   )
 );
 CommentHeader.displayName = 'CommentHeader';
 
-const CommentTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <CardTitle
-      ref={ref}
-      className={cn('text-sm font-semibold leading-none', className)}
-      {...props}
-    />
-  )
-);
+const CommentTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <CardTitle ref={ref} className={cn('text-sm font-semibold leading-none', className)} {...props} />
+));
 CommentTitle.displayName = 'CommentTitle';
 
 const CommentMeta = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(

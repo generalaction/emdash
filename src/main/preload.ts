@@ -319,8 +319,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('lineComments:getFormatted', taskId),
   lineCommentsMarkSent: (commentIds: string[]) =>
     ipcRenderer.invoke('lineComments:markSent', commentIds),
-  lineCommentsGetUnsent: (taskId: string) =>
-    ipcRenderer.invoke('lineComments:getUnsent', taskId),
+  lineCommentsGetUnsent: (taskId: string) => ipcRenderer.invoke('lineComments:getUnsent', taskId),
 
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>

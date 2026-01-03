@@ -49,7 +49,9 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'dark';
-  const [editorInstance, setEditorInstance] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
+  const [editorInstance, setEditorInstance] = useState<monaco.editor.IStandaloneDiffEditor | null>(
+    null
+  );
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const changeDisposableRef = useRef<monaco.IDisposable | null>(null);
 
@@ -169,7 +171,11 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(safeTaskPath, filePath, 2 * 1024 * 1024);
+            const readRes = await window.electronAPI.fsRead(
+              safeTaskPath,
+              filePath,
+              2 * 1024 * 1024
+            );
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -568,7 +574,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                     {f.status} • +{f.additions} / -{f.deletions}
                     {commentCounts[f.path] > 0 && (
                       <span className="text-blue-600 dark:text-blue-400">
-                        {' '}• {commentCounts[f.path]}{' '}
+                        {' '}
+                        • {commentCounts[f.path]}{' '}
                         {commentCounts[f.path] === 1 ? 'comment' : 'comments'}
                       </span>
                     )}

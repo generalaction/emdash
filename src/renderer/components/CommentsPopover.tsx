@@ -83,11 +83,14 @@ export function CommentsPopover({
     lastUnsentIdsRef.current = nextIds;
   }, [emitSelectedCount, resolvedTaskId, unsentComments]);
 
-  const handleSelectedChange = React.useCallback((next: Set<string>) => {
-    hasCustomSelectionRef.current = true;
-    setSelectedIds(next);
-    emitSelectedCount(next);
-  }, [emitSelectedCount]);
+  const handleSelectedChange = React.useCallback(
+    (next: Set<string>) => {
+      hasCustomSelectionRef.current = true;
+      setSelectedIds(next);
+      emitSelectedCount(next);
+    },
+    [emitSelectedCount]
+  );
 
   React.useEffect(() => {
     if (!resolvedTaskId) return;

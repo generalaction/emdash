@@ -14,10 +14,15 @@ const COMMENT_LINE = (c: LineCommentLike) => {
 };
 
 const FILE_BLOCK = (filePath: string, comments: LineCommentLike[]) => `  <file path="${filePath}">
-${comments.sort((a, b) => a.lineNumber - b.lineNumber).map(COMMENT_LINE).join('\n')}
+${comments
+  .sort((a, b) => a.lineNumber - b.lineNumber)
+  .map(COMMENT_LINE)
+  .join('\n')}
   </file>`;
 
-const COMMENTS_WRAPPER = (fileBlocks: string[]) => `The user has left the following comments on the code changes:
+const COMMENTS_WRAPPER = (
+  fileBlocks: string[]
+) => `The user has left the following comments on the code changes:
 
 <user_comments>
 ${fileBlocks.join('\n')}

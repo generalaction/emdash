@@ -656,10 +656,7 @@ declare global {
       ) => Promise<{ success: boolean; error?: string }>;
 
       // Line comments
-      lineCommentsGet: (args: {
-        taskId: string;
-        filePath?: string;
-      }) => Promise<{
+      lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
         success: boolean;
         comments?: LineComment[];
         error?: string;
@@ -675,10 +672,7 @@ declare global {
         id?: string;
         error?: string;
       }>;
-      lineCommentsUpdate: (args: {
-        id: string;
-        content: string;
-      }) => Promise<{
+      lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
         success: boolean;
         error?: string;
       }>;
@@ -1030,10 +1024,7 @@ export interface ElectronAPI {
   ) => Promise<{ success: boolean; error?: string }>;
 
   // Line comments
-  lineCommentsGet: (args: {
-    taskId: string;
-    filePath?: string;
-  }) => Promise<{
+  lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
     success: boolean;
     comments?: LineComment[];
     error?: string;
@@ -1049,10 +1040,7 @@ export interface ElectronAPI {
     id?: string;
     error?: string;
   }>;
-  lineCommentsUpdate: (args: {
-    id: string;
-    content: string;
-  }) => Promise<{
+  lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
     success: boolean;
     error?: string;
   }>;

@@ -178,10 +178,7 @@ export function useTaskComments(taskId?: string) {
   }, [taskId]);
 
   const comments = state.comments;
-  const unsentComments = useMemo(
-    () => comments.filter((comment) => !comment.sentAt),
-    [comments]
-  );
+  const unsentComments = useMemo(() => comments.filter((comment) => !comment.sentAt), [comments]);
 
   const countsByFile = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -247,14 +244,7 @@ export function useLineComments(
 ) {
   const includeSent = opts?.includeSent ?? true;
   const taskComments = useTaskComments(taskId);
-  const {
-    createComment,
-    updateComment,
-    deleteComment,
-    refresh,
-    isLoading,
-    error,
-  } = taskComments;
+  const { createComment, updateComment, deleteComment, refresh, isLoading, error } = taskComments;
 
   const comments = useMemo(() => {
     if (!filePath) return [] as LineComment[];

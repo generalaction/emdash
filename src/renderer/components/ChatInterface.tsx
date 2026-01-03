@@ -694,125 +694,125 @@ const ChatInterface: React.FC<Props> = ({
   return (
     <TaskScopeProvider value={{ taskId: task.id, taskPath: task.path }}>
       <div className={`flex h-full flex-col bg-white dark:bg-gray-800 ${className}`}>
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="px-6 pt-4">
-          <div className="mx-auto max-w-4xl space-y-2">
-            {(() => {
-              if (isProviderInstalled !== true) {
-                return (
-                  <InstallBanner
-                    provider={provider as any}
-                    terminalId={terminalId}
-                    installCommand={getInstallCommandForProvider(provider as any)}
-                    onRunInstall={runInstallCommand}
-                    onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                  />
-                );
-              }
-              if (cliStartFailed) {
-                return (
-                  <InstallBanner
-                    provider={provider as any}
-                    terminalId={terminalId}
-                    onRunInstall={runInstallCommand}
-                    onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                  />
-                );
-              }
-              return null;
-            })()}
-          </div>
-        </div>
-        {containerStatusNode}
-        <div className="mt-4 min-h-0 flex-1 px-6">
-          <div
-            className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-              provider === 'charm'
-                ? effectiveTheme === 'dark'
-                  ? 'bg-gray-800'
-                  : 'bg-white'
-                : provider === 'mistral'
-                  ? effectiveTheme === 'dark'
-                    ? 'bg-[#202938]'
-                    : 'bg-white'
-                  : ''
-            }`}
-          >
-            <TerminalPane
-              id={terminalId}
-              cwd={task.path}
-              shell={providerMeta[provider].cli}
-              autoApprove={autoApproveEnabled}
-              env={
-                planEnabled
-                  ? {
-                      EMDASH_PLAN_MODE: '1',
-                      EMDASH_PLAN_FILE: `${task.path}/.emdash/planning.md`,
-                    }
-                  : undefined
-              }
-              keepAlive={true}
-              onActivity={() => {
-                try {
-                  window.localStorage.setItem(`provider:locked:${task.id}`, provider);
-                } catch {}
-              }}
-              onStartError={() => {
-                setCliStartFailed(true);
-              }}
-              onStartSuccess={() => {
-                setCliStartFailed(false);
-                // Mark initial injection as sent so it won't re-run on restart
-                if (initialInjection && !task.metadata?.initialInjectionSent) {
-                  void window.electronAPI.saveTask({
-                    ...task,
-                    metadata: {
-                      ...task.metadata,
-                      initialInjectionSent: true,
-                    },
-                  });
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="px-6 pt-4">
+            <div className="mx-auto max-w-4xl space-y-2">
+              {(() => {
+                if (isProviderInstalled !== true) {
+                  return (
+                    <InstallBanner
+                      provider={provider as any}
+                      terminalId={terminalId}
+                      installCommand={getInstallCommandForProvider(provider as any)}
+                      onRunInstall={runInstallCommand}
+                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                    />
+                  );
                 }
-              }}
-              variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
-              themeOverride={
+                if (cliStartFailed) {
+                  return (
+                    <InstallBanner
+                      provider={provider as any}
+                      terminalId={terminalId}
+                      onRunInstall={runInstallCommand}
+                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                    />
+                  );
+                }
+                return null;
+              })()}
+            </div>
+          </div>
+          {containerStatusNode}
+          <div className="mt-4 min-h-0 flex-1 px-6">
+            <div
+              className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                 provider === 'charm'
-                  ? { background: effectiveTheme === 'dark' ? '#1f2937' : '#ffffff' }
+                  ? effectiveTheme === 'dark'
+                    ? 'bg-gray-800'
+                    : 'bg-white'
                   : provider === 'mistral'
-                    ? { background: effectiveTheme === 'dark' ? '#202938' : '#ffffff' }
+                    ? effectiveTheme === 'dark'
+                      ? 'bg-[#202938]'
+                      : 'bg-white'
+                    : ''
+              }`}
+            >
+              <TerminalPane
+                id={terminalId}
+                cwd={task.path}
+                shell={providerMeta[provider].cli}
+                autoApprove={autoApproveEnabled}
+                env={
+                  planEnabled
+                    ? {
+                        EMDASH_PLAN_MODE: '1',
+                        EMDASH_PLAN_FILE: `${task.path}/.emdash/planning.md`,
+                      }
                     : undefined
-              }
-              contentFilter={
-                provider === 'charm' && effectiveTheme !== 'dark'
-                  ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
-                  : undefined
-              }
-              initialPrompt={
-                providerMeta[provider]?.initialPromptFlag !== undefined &&
-                !task.metadata?.initialInjectionSent
-                  ? (initialInjection ?? undefined)
-                  : undefined
-              }
-              className="h-full w-full"
-            />
+                }
+                keepAlive={true}
+                onActivity={() => {
+                  try {
+                    window.localStorage.setItem(`provider:locked:${task.id}`, provider);
+                  } catch {}
+                }}
+                onStartError={() => {
+                  setCliStartFailed(true);
+                }}
+                onStartSuccess={() => {
+                  setCliStartFailed(false);
+                  // Mark initial injection as sent so it won't re-run on restart
+                  if (initialInjection && !task.metadata?.initialInjectionSent) {
+                    void window.electronAPI.saveTask({
+                      ...task,
+                      metadata: {
+                        ...task.metadata,
+                        initialInjectionSent: true,
+                      },
+                    });
+                  }
+                }}
+                variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
+                themeOverride={
+                  provider === 'charm'
+                    ? { background: effectiveTheme === 'dark' ? '#1f2937' : '#ffffff' }
+                    : provider === 'mistral'
+                      ? { background: effectiveTheme === 'dark' ? '#202938' : '#ffffff' }
+                      : undefined
+                }
+                contentFilter={
+                  provider === 'charm' && effectiveTheme !== 'dark'
+                    ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
+                    : undefined
+                }
+                initialPrompt={
+                  providerMeta[provider]?.initialPromptFlag !== undefined &&
+                  !task.metadata?.initialInjectionSent
+                    ? (initialInjection ?? undefined)
+                    : undefined
+                }
+                className="h-full w-full"
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      <ProviderBar
-        provider={provider}
-        linearIssue={task.metadata?.linearIssue || null}
-        githubIssue={task.metadata?.githubIssue || null}
-        jiraIssue={task.metadata?.jiraIssue || null}
-        autoApprove={autoApproveEnabled}
-        planModeEnabled={planEnabled}
-        onPlanModeChange={setPlanEnabled}
-        onApprovePlan={async () => {
-          try {
-            await logPlanEvent(task.path, 'Plan approved via UI; exiting Plan Mode');
-          } catch {}
-          setPlanEnabled(false);
-        }}
-      />
+        <ProviderBar
+          provider={provider}
+          linearIssue={task.metadata?.linearIssue || null}
+          githubIssue={task.metadata?.githubIssue || null}
+          jiraIssue={task.metadata?.jiraIssue || null}
+          autoApprove={autoApproveEnabled}
+          planModeEnabled={planEnabled}
+          onPlanModeChange={setPlanEnabled}
+          onApprovePlan={async () => {
+            try {
+              await logPlanEvent(task.path, 'Plan approved via UI; exiting Plan Mode');
+            } catch {}
+            setPlanEnabled(false);
+          }}
+        />
       </div>
     </TaskScopeProvider>
   );

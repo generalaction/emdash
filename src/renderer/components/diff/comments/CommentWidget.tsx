@@ -74,12 +74,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={handleCancel}
-                    >
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCancel}>
                       <X className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>

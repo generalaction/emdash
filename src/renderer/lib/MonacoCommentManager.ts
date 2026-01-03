@@ -118,10 +118,9 @@ export class MonacoCommentManager {
       },
     };
 
-    this.hoverDecorationIds = modifiedEditor.deltaDecorations(
-      this.hoverDecorationIds,
-      [decoration]
-    );
+    this.hoverDecorationIds = modifiedEditor.deltaDecorations(this.hoverDecorationIds, [
+      decoration,
+    ]);
   }
 
   private setPinnedDecoration(lineNumber: number) {
@@ -139,26 +138,19 @@ export class MonacoCommentManager {
       },
     };
 
-    this.pinnedDecorationIds = modifiedEditor.deltaDecorations(
-      this.pinnedDecorationIds,
-      [decoration]
-    );
+    this.pinnedDecorationIds = modifiedEditor.deltaDecorations(this.pinnedDecorationIds, [
+      decoration,
+    ]);
   }
 
   private clearHoverDecoration() {
     const modifiedEditor = this.editor.getModifiedEditor();
-    this.hoverDecorationIds = modifiedEditor.deltaDecorations(
-      this.hoverDecorationIds,
-      []
-    );
+    this.hoverDecorationIds = modifiedEditor.deltaDecorations(this.hoverDecorationIds, []);
   }
 
   private clearPinnedDecoration() {
     const modifiedEditor = this.editor.getModifiedEditor();
-    this.pinnedDecorationIds = modifiedEditor.deltaDecorations(
-      this.pinnedDecorationIds,
-      []
-    );
+    this.pinnedDecorationIds = modifiedEditor.deltaDecorations(this.pinnedDecorationIds, []);
   }
 
   private focusInputTextarea() {
@@ -184,9 +176,7 @@ export class MonacoCommentManager {
     // Update decorations (glyph margin icons)
     this.updateDecorations(commentsByLine);
 
-    const nextById = new Map<string, LineComment>(
-      comments.map((comment) => [comment.id, comment])
-    );
+    const nextById = new Map<string, LineComment>(comments.map((comment) => [comment.id, comment]));
 
     // Update view zones with minimal churn to avoid flicker.
     modifiedEditor.changeViewZones((accessor) => {
