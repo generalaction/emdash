@@ -1,7 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 import { toast } from '../hooks/use-toast';
-import { APP_SHORTCUTS, type AppShortcut, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';
+import {
+  APP_SHORTCUTS,
+  type AppShortcut,
+  type ShortcutSettingsKey,
+} from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
 
 interface ShortcutBinding {
@@ -107,7 +111,8 @@ const KeyboardSettingsCard: React.FC = () => {
         if (!result.success) {
           throw new Error(result.error || 'Failed to update settings.');
         }
-        const savedBinding = result.settings?.keyboard?.[settingsKey as keyof typeof result.settings.keyboard];
+        const savedBinding =
+          result.settings?.keyboard?.[settingsKey as keyof typeof result.settings.keyboard];
         if (savedBinding) {
           setBindings((prev) => ({
             ...prev,

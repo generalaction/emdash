@@ -264,20 +264,31 @@ function normalizeSettings(input: AppSettings): AppSettings {
   // Keyboard
   const keyboard = (input as any)?.keyboard || {};
   const validModifiers: ShortcutModifier[] = ['cmd', 'ctrl', 'shift', 'alt', 'option'];
-  const normalizeBinding = (
-    binding: any,
-    defaultBinding: ShortcutBinding
-  ): ShortcutBinding => {
+  const normalizeBinding = (binding: any, defaultBinding: ShortcutBinding): ShortcutBinding => {
     if (!binding || typeof binding !== 'object') return defaultBinding;
-    const key = typeof binding.key === 'string' && binding.key.length === 1 ? binding.key.toLowerCase() : defaultBinding.key;
-    const modifier = validModifiers.includes(binding.modifier) ? binding.modifier : defaultBinding.modifier;
+    const key =
+      typeof binding.key === 'string' && binding.key.length === 1
+        ? binding.key.toLowerCase()
+        : defaultBinding.key;
+    const modifier = validModifiers.includes(binding.modifier)
+      ? binding.modifier
+      : defaultBinding.modifier;
     return { key, modifier };
   };
   out.keyboard = {
-    commandPalette: normalizeBinding(keyboard.commandPalette, DEFAULT_SETTINGS.keyboard!.commandPalette!),
+    commandPalette: normalizeBinding(
+      keyboard.commandPalette,
+      DEFAULT_SETTINGS.keyboard!.commandPalette!
+    ),
     settings: normalizeBinding(keyboard.settings, DEFAULT_SETTINGS.keyboard!.settings!),
-    toggleLeftSidebar: normalizeBinding(keyboard.toggleLeftSidebar, DEFAULT_SETTINGS.keyboard!.toggleLeftSidebar!),
-    toggleRightSidebar: normalizeBinding(keyboard.toggleRightSidebar, DEFAULT_SETTINGS.keyboard!.toggleRightSidebar!),
+    toggleLeftSidebar: normalizeBinding(
+      keyboard.toggleLeftSidebar,
+      DEFAULT_SETTINGS.keyboard!.toggleLeftSidebar!
+    ),
+    toggleRightSidebar: normalizeBinding(
+      keyboard.toggleRightSidebar,
+      DEFAULT_SETTINGS.keyboard!.toggleRightSidebar!
+    ),
     toggleTheme: normalizeBinding(keyboard.toggleTheme, DEFAULT_SETTINGS.keyboard!.toggleTheme!),
     toggleKanban: normalizeBinding(keyboard.toggleKanban, DEFAULT_SETTINGS.keyboard!.toggleKanban!),
   };
