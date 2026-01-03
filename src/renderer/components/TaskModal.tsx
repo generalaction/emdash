@@ -87,9 +87,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   // Computed values
   const activeProviders = useMemo(() => providerRuns.map((pr) => pr.provider), [providerRuns]);
-  const hasAutoApproveSupport = activeProviders.every(
-    (id) => !!providerMeta[id]?.autoApproveFlag
-  );
+  const hasAutoApproveSupport = activeProviders.every((id) => !!providerMeta[id]?.autoApproveFlag);
   const hasInitialPromptSupport = activeProviders.every(
     (id) => providerMeta[id]?.initialPromptFlag !== undefined
   );
@@ -253,9 +251,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
               aria-invalid={touched && !!error}
               autoFocus
             />
-            {touched && error && (
-              <p className="mt-1 text-xs text-destructive">{error}</p>
-            )}
+            {touched && error && <p className="mt-1 text-xs text-destructive">{error}</p>}
           </div>
 
           <div className="flex items-center gap-4">
