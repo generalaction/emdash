@@ -260,7 +260,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               type="button"
                               whileTap={{ scale: 0.97 }}
                               transition={{ duration: 0.1, ease: 'easeInOut' }}
-                              className="flex min-w-0 flex-1 flex-col bg-transparent text-left outline-none focus-visible:outline-none"
+                              className="flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent text-left outline-none focus-visible:outline-none"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onSelectProject(typedProject);
