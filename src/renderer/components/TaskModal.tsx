@@ -226,7 +226,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isCreating && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isCreating && onClose()} modal={false}>
       <DialogContent className="max-h-[calc(100vh-48px)] max-w-md overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Task</DialogTitle>
