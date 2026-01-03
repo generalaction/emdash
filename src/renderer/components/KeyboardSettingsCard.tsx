@@ -288,10 +288,6 @@ const KeyboardSettingsCard: React.FC = () => {
           </div>
         ))}
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
-        <p className="text-xs text-muted-foreground">
-          Click a shortcut button and press a new key combination. Requires a modifier key
-          (Cmd/Ctrl/Alt/Shift) + a letter or number.
-        </p>
       </div>
     </div>
   );
