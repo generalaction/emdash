@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { CornerDownLeft, Paperclip, X } from 'lucide-react';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
+import { Textarea } from './ui/textarea';
 import { useToast } from '../hooks/use-toast';
 
 const DISCORD_WEBHOOK_URL =
@@ -233,11 +235,11 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                 <label htmlFor="feedback-details" className="sr-only">
                   Feedback details
                 </label>
-                <textarea
+                <Textarea
                   id="feedback-details"
                   rows={5}
                   placeholder="What do you like? How can we improve?"
-                  className="w-full resize-none rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground shadow-sm outline-none transition focus:border-border focus:ring-2 focus:ring-gray-200 dark:border-border dark:bg-background dark:text-foreground dark:focus:border-border dark:focus:ring-gray-700"
+                  className="resize-none"
                   value={feedbackDetails}
                   onChange={(event) => {
                     setFeedbackDetails(event.target.value);
@@ -253,11 +255,10 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                 <label htmlFor="feedback-contact" className="sr-only">
                   Contact email
                 </label>
-                <input
+                <Input
                   id="feedback-contact"
                   type="text"
                   placeholder="productive@example.com (optional)"
-                  className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground shadow-sm outline-none transition focus:border-border focus:ring-2 focus:ring-gray-200 dark:border-border dark:bg-background dark:text-foreground dark:focus:border-border dark:focus:ring-gray-700"
                   value={contactEmail}
                   onChange={(event) => {
                     setContactEmail(event.target.value);

@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Repo } from '../types';
 import { useToast } from '../hooks/use-toast';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { Label } from './ui/label';
 
 interface RunLauncherProps {
   repo: Repo;
@@ -46,40 +50,34 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-muted-foreground">
-            AI Provider
-          </label>
-          <div className="flex gap-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="claude-code"
-                checked={provider === 'claude-code'}
-                onChange={(e) => setProvider(e.target.value as 'claude-code')}
-                className="mr-2"
-              />
-              <span className="text-white">Claude Code</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="openai-agents"
-                checked={provider === 'openai-agents'}
-                onChange={(e) => setProvider(e.target.value as 'openai-agents')}
-                className="mr-2"
-              />
-              <span className="text-white">OpenAI Agents</span>
-            </label>
-          </div>
+          <Label className="mb-2 block text-sm font-medium text-gray-300">AI Provider</Label>
+          <RadioGroup
+            value={provider}
+            onValueChange={(value: string) => setProvider(value as 'claude-code' | 'openai-agents')}
+            className="flex gap-4"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="claude-code" id="provider-claude" />
+              <Label htmlFor="provider-claude" className="cursor-pointer font-normal text-white">
+                Claude Code
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="openai-agents" id="provider-openai" />
+              <Label htmlFor="provider-openai" className="cursor-pointer font-normal text-white">
+                OpenAI Agents
+              </Label>
+            </div>
+          </RadioGroup>
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-muted-foreground">Prompt</label>
-          <textarea
+          <Label className="mb-2 block text-sm font-medium text-gray-300">Prompt</Label>
+          <Textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Describe what you want the coding agents to do..."
-            className="h-32 w-full rounded border border-border bg-muted p-3 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
+            className="h-32"
             required
           />
         </div>
@@ -102,14 +100,11 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-muted-foreground">
-            Base Branch
-          </label>
-          <input
+          <Label className="mb-2 block text-sm font-medium text-gray-300">Base Branch</Label>
+          <Input
             type="text"
             value={baseBranch}
             onChange={(e) => setBaseBranch(e.target.value)}
-            className="w-full rounded border border-border bg-muted p-3 text-white focus:border-blue-500 focus:outline-none"
             placeholder="main"
           />
         </div>
