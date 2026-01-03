@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { RotateCcw } from 'lucide-react';
 import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from '../hooks/use-toast';
 import {
   APP_SHORTCUTS,
@@ -249,6 +251,27 @@ const KeyboardSettingsCard: React.FC = () => {
                 </>
               ) : (
                 <>
+                  {isModified(shortcut) ? (
+                    <TooltipProvider delayDuration={150}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleReset(shortcut)}
+                            disabled={loading || saving}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Reset to default shortcut</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
@@ -259,17 +282,6 @@ const KeyboardSettingsCard: React.FC = () => {
                   >
                     <ShortcutDisplay binding={bindings[shortcut.settingsKey]} />
                   </Button>
-                  {isModified(shortcut) ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleReset(shortcut)}
-                      disabled={loading || saving}
-                    >
-                      Reset
-                    </Button>
-                  ) : null}
                 </>
               )}
             </div>
