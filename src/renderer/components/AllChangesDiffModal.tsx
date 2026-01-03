@@ -613,9 +613,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
               {/* Header */}
               <div className="flex items-center justify-between border-b border-border bg-muted px-5 py-3 dark:border-border dark:bg-background">
                 <div className="flex items-center gap-4">
-                  <h2 className="text-lg font-semibold text-foreground">
-                    All Changes
-                  </h2>
+                  <h2 className="text-lg font-semibold text-foreground">All Changes</h2>
                   <div className="flex items-center gap-3 text-sm">
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-muted/50 dark:text-muted-foreground">
                       {files.length} {files.length === 1 ? 'file' : 'files'}
@@ -659,9 +657,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                       return (
                         <div
                           key={file.path}
-                          className={`${
-                            index === 0 ? '' : 'border-t border-border/50'
-                          } bg-muted`}
+                          className={`${index === 0 ? '' : 'border-t border-border/50'} bg-muted`}
                         >
                           {/* File header */}
                           <div className="group flex items-center border-b border-border bg-muted dark:border-border/50 dark:bg-card">
@@ -724,7 +720,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                                 className={`inline-flex items-center rounded-md px-3 py-1 text-sm font-medium transition ${
                                   !isDirty || isSaving
                                     ? 'cursor-not-allowed bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground'
-                                    : 'bg-muted text-white hover:bg-accent dark:bg-muted0 dark:hover:bg-muted'
+                                    : 'dark:bg-muted0 bg-muted text-white hover:bg-accent dark:hover:bg-muted'
                                 }`}
                               >
                                 {isSaving ? 'Saving…' : 'Save'}

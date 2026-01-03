@@ -588,9 +588,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex items-center justify-between border-b border-border bg-white/80 px-4 py-2.5 dark:border-border dark:bg-muted/50">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate font-mono text-sm text-foreground">
-                    {selected}
-                  </span>
+                  <span className="truncate font-mono text-sm text-foreground">{selected}</span>
                   {selected && (
                     <button
                       onClick={async () => {
@@ -632,7 +630,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       className={`inline-flex items-center rounded-md px-3 py-1 text-sm font-medium transition ${
                         !isDirty || isSaving
                           ? 'cursor-not-allowed bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground'
-                          : 'bg-muted text-white hover:bg-accent dark:bg-muted0 dark:hover:bg-muted'
+                          : 'dark:bg-muted0 bg-muted text-white hover:bg-accent dark:hover:bg-muted'
                       }`}
                     >
                       {isSaving ? 'Saving…' : 'Save'}

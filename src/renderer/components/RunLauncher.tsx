@@ -46,7 +46,9 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-muted-foreground">AI Provider</label>
+          <label className="mb-2 block text-sm font-medium text-muted-foreground">
+            AI Provider
+          </label>
           <div className="flex gap-4">
             <label className="flex items-center">
               <input
@@ -83,7 +85,9 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-muted-foreground">Number of Agents</label>
+          <label className="mb-2 block text-sm font-medium text-muted-foreground">
+            Number of Agents
+          </label>
           <select
             value={numAgents}
             onChange={(e) => setNumAgents(parseInt(e.target.value))}
@@ -98,7 +102,9 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-muted-foreground">Base Branch</label>
+          <label className="mb-2 block text-sm font-medium text-muted-foreground">
+            Base Branch
+          </label>
           <input
             type="text"
             value={baseBranch}
@@ -127,7 +133,7 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
           <button
             type="button"
             onClick={onCancel}
-            className="rounded bg-muted px-4 py-3 text-white transition-colors hover:bg-muted0"
+            className="hover:bg-muted0 rounded bg-muted px-4 py-3 text-white transition-colors"
           >
             Cancel
           </button>

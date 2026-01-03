@@ -157,9 +157,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   if (!task && !projectPath) {
     return (
-      <div
-        className={`flex h-full flex-col items-center justify-center bg-muted ${className}`}
-      >
+      <div className={`flex h-full flex-col items-center justify-center bg-muted ${className}`}>
         <Bot className="mb-2 h-8 w-8 text-muted-foreground" />
         <h3 className="mb-1 text-sm text-muted-foreground">No Task Selected</h3>
         <p className="text-center text-xs text-muted-foreground dark:text-muted-foreground">
