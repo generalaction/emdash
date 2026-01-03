@@ -56,7 +56,7 @@ export const StreamingAction: React.FC<{
   return (
     <div
       ref={ref}
-      className={cn('mt-2 origin-top text-[13px] text-gray-600 dark:text-gray-300', className)}
+      className={cn('mt-2 origin-top text-[13px] text-muted-foreground', className)}
     >
       <span className="shimmer-text">{display}</span>
       <span aria-hidden className="ml-1">

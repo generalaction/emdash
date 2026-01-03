@@ -36,17 +36,17 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
   };
 
   return (
-    <div className="w-full max-w-2xl rounded-lg border border-gray-700 bg-gray-800 p-6">
+    <div className="w-full max-w-2xl rounded-lg border border-border bg-card p-6">
       <div className="mb-6 flex items-center justify-between">
         <h3 className="text-xl font-semibold text-white">Start New Run</h3>
-        <button className="text-xl text-gray-400 hover:text-white" onClick={onCancel}>
+        <button className="text-xl text-muted-foreground hover:text-white" onClick={onCancel}>
           ×
         </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-300">AI Provider</label>
+          <label className="mb-2 block text-sm font-medium text-muted-foreground">AI Provider</label>
           <div className="flex gap-4">
             <label className="flex items-center">
               <input
@@ -72,22 +72,22 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-300">Prompt</label>
+          <label className="mb-2 block text-sm font-medium text-muted-foreground">Prompt</label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Describe what you want the coding agents to do..."
-            className="h-32 w-full rounded border border-gray-600 bg-gray-700 p-3 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
+            className="h-32 w-full rounded border border-border bg-muted p-3 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
             required
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-300">Number of Agents</label>
+          <label className="mb-2 block text-sm font-medium text-muted-foreground">Number of Agents</label>
           <select
             value={numAgents}
             onChange={(e) => setNumAgents(parseInt(e.target.value))}
-            className="w-full rounded border border-gray-600 bg-gray-700 p-3 text-white focus:border-blue-500 focus:outline-none"
+            className="w-full rounded border border-border bg-muted p-3 text-white focus:border-blue-500 focus:outline-none"
           >
             <option value={1}>1 Agent</option>
             <option value={2}>2 Agents</option>
@@ -98,21 +98,21 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-300">Base Branch</label>
+          <label className="mb-2 block text-sm font-medium text-muted-foreground">Base Branch</label>
           <input
             type="text"
             value={baseBranch}
             onChange={(e) => setBaseBranch(e.target.value)}
-            className="w-full rounded border border-gray-600 bg-gray-700 p-3 text-white focus:border-blue-500 focus:outline-none"
+            className="w-full rounded border border-border bg-muted p-3 text-white focus:border-blue-500 focus:outline-none"
             placeholder="main"
           />
         </div>
 
-        <div className="rounded bg-gray-700 p-3">
-          <div className="text-sm text-gray-300">
+        <div className="rounded bg-muted p-3">
+          <div className="text-sm text-muted-foreground">
             <strong>Repository:</strong> {repo.path.split('/').pop()}
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-muted-foreground">
             <strong>Origin:</strong> {repo.origin}
           </div>
         </div>
@@ -127,7 +127,7 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
           <button
             type="button"
             onClick={onCancel}
-            className="rounded bg-gray-600 px-4 py-3 text-white transition-colors hover:bg-gray-500"
+            className="rounded bg-muted px-4 py-3 text-white transition-colors hover:bg-muted0"
           >
             Cancel
           </button>

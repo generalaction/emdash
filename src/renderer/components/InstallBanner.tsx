@@ -71,7 +71,7 @@ export const InstallBanner: React.FC<Props> = ({
   }, []);
 
   return (
-    <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+    <div className="rounded-md border border-border bg-muted p-3 text-sm text-foreground dark:border-border dark:bg-background dark:text-foreground">
       <div className="space-y-2">
         <div className="text-foreground" aria-label={`${baseLabel} status`}>
           <span className="font-normal">
@@ -94,7 +94,7 @@ export const InstallBanner: React.FC<Props> = ({
 
         {command ? (
           <div className="flex flex-wrap items-center gap-1.5">
-            <code className="inline-flex h-7 items-center rounded bg-gray-200 px-2 font-mono text-xs leading-none">
+            <code className="inline-flex h-7 items-center rounded bg-muted px-2 font-mono text-xs leading-none">
               {command}
             </code>
             <Button

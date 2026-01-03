@@ -86,7 +86,7 @@ const MenuItemButton: React.FC<MenuItemButtonProps> = ({
       role="menuitem"
       tabIndex={0}
       aria-label={ariaLabel}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
       onClick={onClick}
       onKeyDown={handleKeyDown}
     >
@@ -188,7 +188,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   aria-label="Home"
                   className="w-full justify-start"
                 >
-                  <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
+                  <Home className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
                   <span className="hidden text-sm font-medium sm:inline">Home</span>
                 </Button>
               </SidebarMenuButton>

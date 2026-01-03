@@ -552,25 +552,25 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
             transition={
               shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
             }
-            className="flex h-[82vh] w-[92vw] transform-gpu overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl will-change-transform dark:border-gray-700 dark:bg-gray-800"
+            className="flex h-[82vh] w-[92vw] transform-gpu overflow-hidden rounded-xl border border-border bg-white shadow-2xl will-change-transform dark:border-border dark:bg-card"
           >
             {/* Left sidebar - file list */}
-            <div className="w-72 overflow-y-auto border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-              <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <div className="w-72 overflow-y-auto border-r border-border bg-muted dark:border-border dark:bg-muted/40">
+              <div className="px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
                 Changed Files
               </div>
               {files.map((f) => (
                 <button
                   key={f.path}
-                  className={`w-full border-b border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-700 ${
+                  className={`w-full border-b border-border px-3 py-2 text-left text-sm hover:bg-muted dark:border-border dark:hover:bg-accent ${
                     selected === f.path
-                      ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-gray-100'
-                      : 'text-gray-700 dark:text-gray-300'
+                      ? 'bg-muted text-foreground dark:bg-muted dark:text-foreground'
+                      : 'text-foreground'
                   }`}
                   onClick={() => setSelected(f.path)}
                 >
                   <div className="truncate font-medium">{f.path}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="text-xs text-muted-foreground">
                     {f.status} • +{f.additions} / -{f.deletions}
                     {commentCounts[f.path] > 0 && (
                       <span className="text-blue-600 dark:text-blue-400">
@@ -586,9 +586,9 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
             {/* Right side - Monaco diff editor */}
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex items-center justify-between border-b border-gray-200 bg-white/80 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-900/50">
+              <div className="flex items-center justify-between border-b border-border bg-white/80 px-4 py-2.5 dark:border-border dark:bg-muted/50">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate font-mono text-sm text-gray-700 dark:text-gray-200">
+                  <span className="truncate font-mono text-sm text-foreground">
                     {selected}
                   </span>
                   {selected && (
@@ -612,7 +612,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                           });
                         }
                       }}
-                      className="rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-muted-foreground"
                       title="Copy file path"
                       aria-label="Copy file path"
                     >
@@ -631,8 +631,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       disabled={!isDirty || isSaving}
                       className={`inline-flex items-center rounded-md px-3 py-1 text-sm font-medium transition ${
                         !isDirty || isSaving
-                          ? 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                          : 'bg-gray-600 text-white hover:bg-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600'
+                          ? 'cursor-not-allowed bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground'
+                          : 'bg-muted text-white hover:bg-accent dark:bg-muted0 dark:hover:bg-muted'
                       }`}
                     >
                       {isSaving ? 'Saving…' : 'Save'}
@@ -640,7 +640,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                   )}
                   <button
                     onClick={onClose}
-                    className="rounded-md p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    className="rounded-md p-1 text-muted-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -649,14 +649,14 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
 
               <div className="relative flex-1 overflow-hidden">
                 {fileData?.loading ? (
-                  <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
                     <div className="flex items-center gap-2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-600 dark:border-t-gray-400"></div>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-gray-600 dark:border-border dark:border-t-gray-400"></div>
                       <span className="text-sm">Loading diff...</span>
                     </div>
                   </div>
                 ) : fileData?.error ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-gray-500 dark:text-gray-400">
+                  <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-muted-foreground">
                     <span className="text-sm">{fileData.error}</span>
                   </div>
                 ) : fileData ? (
