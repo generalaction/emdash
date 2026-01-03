@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useSidebar } from '../components/ui/sidebar';
 import { useRightSidebar } from '../components/ui/right-sidebar';
 import { useTheme } from '../hooks/useTheme';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import type { KeyboardSettings } from '../types/shortcuts';
+import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 
 export interface AppKeyboardShortcutsProps {
   showCommandPalette: boolean;
@@ -31,25 +31,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
   const { toggle: toggleLeftSidebar } = useSidebar();
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
-  const [keyboardSettings, setKeyboardSettings] = useState<KeyboardSettings | undefined>(undefined);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const result = await window.electronAPI.getSettings();
-        if (cancelled) return;
-        if (result.success && result.settings?.keyboard) {
-          setKeyboardSettings(result.settings.keyboard);
-        }
-      } catch {
-        // Use defaults on error
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { settings: keyboardSettings } = useKeyboardSettings();
 
   useKeyboardShortcuts({
     onToggleCommandPalette: handleToggleCommandPalette,
@@ -67,7 +49,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
         : undefined,
     isCommandPaletteOpen: showCommandPalette,
     isSettingsOpen: showSettings,
-    customKeyboardSettings: keyboardSettings,
+    customKeyboardSettings: keyboardSettings ?? undefined,
   });
 
   return null;
