@@ -17,7 +17,7 @@ import {
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Home, ChevronDown, Plus, FolderOpen, Github } from 'lucide-react';
+import { Home, ChevronRight, Plus, FolderOpen, Github } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import GithubStatus from './GithubStatus';
@@ -292,9 +292,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   size="icon-sm"
                                   aria-label={`Toggle tasks for ${typedProject.name}`}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="text-muted-foreground"
+                                  className="text-muted-foreground opacity-0 group-hover/project:opacity-100 group-data-[state=open]/collapsible:opacity-100"
                                 >
-                                  <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                                  <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                                 </Button>
                               </CollapsibleTrigger>
                             </div>
