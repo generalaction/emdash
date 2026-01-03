@@ -6,7 +6,13 @@ export interface ShortcutBinding {
 }
 
 export interface KeyboardSettings {
-  commandPalette: ShortcutBinding;
+  commandPalette?: ShortcutBinding;
+  settings?: ShortcutBinding;
+  toggleLeftSidebar?: ShortcutBinding;
+  toggleRightSidebar?: ShortcutBinding;
+  toggleTheme?: ShortcutBinding;
+  toggleKanban?: ShortcutBinding;
+  closeModal?: ShortcutBinding;
 }
 
 export interface ShortcutConfig {
@@ -29,7 +35,8 @@ export interface ShortcutMapping {
   config: ShortcutConfig;
   handler: () => void;
   priority: 'modal' | 'global';
-  requiresClosed?: boolean; // Execute after closing modal
+  requiresClosed?: boolean;
+  isCommandPalette?: boolean;
 }
 
 /**

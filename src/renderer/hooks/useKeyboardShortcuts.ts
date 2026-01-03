@@ -4,63 +4,94 @@ import type {
   GlobalShortcutHandlers,
   ShortcutMapping,
   ShortcutModifier,
+  KeyboardSettings,
 } from '../types/shortcuts';
 
-export const APP_SHORTCUTS = {
-  // Command Palette
+// Settings keys for keyboard shortcuts
+export type ShortcutSettingsKey =
+  | 'commandPalette'
+  | 'settings'
+  | 'toggleLeftSidebar'
+  | 'toggleRightSidebar'
+  | 'toggleTheme'
+  | 'toggleKanban'
+  | 'closeModal';
+
+export interface AppShortcut {
+  key: string;
+  modifier?: ShortcutModifier;
+  label: string;
+  description: string;
+  category: string;
+  settingsKey: ShortcutSettingsKey;
+  hideFromSettings?: boolean;
+}
+
+export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   COMMAND_PALETTE: {
     key: 'k',
-    modifier: 'cmd' as const,
-    description: 'Open command palette',
+    modifier: 'cmd',
+    label: 'Command Palette',
+    description: 'Open the command palette to quickly search and navigate',
     category: 'Navigation',
+    settingsKey: 'commandPalette',
   },
 
-  // Settings & Config
   SETTINGS: {
     key: ',',
-    modifier: 'cmd' as const,
-    description: 'Open settings',
+    modifier: 'cmd',
+    label: 'Settings',
+    description: 'Open application settings',
     category: 'Navigation',
+    settingsKey: 'settings',
   },
 
-  // Sidebar Controls
   TOGGLE_LEFT_SIDEBAR: {
     key: 'b',
-    modifier: 'cmd' as const,
-    description: 'Toggle left sidebar',
+    modifier: 'cmd',
+    label: 'Toggle Left Sidebar',
+    description: 'Show or hide the left sidebar',
     category: 'View',
+    settingsKey: 'toggleLeftSidebar',
   },
 
   TOGGLE_RIGHT_SIDEBAR: {
     key: '.',
-    modifier: 'cmd' as const,
-    description: 'Toggle right sidebar',
+    modifier: 'cmd',
+    label: 'Toggle Right Sidebar',
+    description: 'Show or hide the right sidebar',
     category: 'View',
+    settingsKey: 'toggleRightSidebar',
   },
 
-  // Theme
   TOGGLE_THEME: {
     key: 't',
-    modifier: 'cmd' as const,
-    description: 'Toggle theme',
+    modifier: 'cmd',
+    label: 'Toggle Theme',
+    description: 'Switch between light and dark theme',
     category: 'View',
+    settingsKey: 'toggleTheme',
   },
 
-  // Kanban
   TOGGLE_KANBAN: {
     key: 'p',
-    modifier: 'cmd' as const,
-    description: 'Toggle Kanban',
+    modifier: 'cmd',
+    label: 'Toggle Kanban',
+    description: 'Show or hide the Kanban board',
     category: 'Navigation',
+    settingsKey: 'toggleKanban',
   },
 
-  // Modal Controls
   CLOSE_MODAL: {
     key: 'Escape',
-    description: 'Close modal/dialog',
+    modifier: undefined,
+    label: 'Close Modal',
+    description: 'Close the current modal or dialog',
     category: 'Navigation',
+    settingsKey: 'closeModal',
+    hideFromSettings: true,
   },
-} as const;
+};
 
 /**
  * ==============================================================================
@@ -140,64 +171,89 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
  */
 
 /**
+ * Get effective shortcut config, applying custom settings if available
+ */
+function getEffectiveConfig(
+  shortcut: AppShortcut,
+  customSettings?: KeyboardSettings
+): ShortcutConfig {
+  const custom = customSettings?.[shortcut.settingsKey];
+  if (custom) {
+    return {
+      key: custom.key,
+      modifier: custom.modifier,
+      description: shortcut.description,
+      category: shortcut.category,
+    };
+  }
+  return {
+    key: shortcut.key,
+    modifier: shortcut.modifier,
+    description: shortcut.description,
+    category: shortcut.category,
+  };
+}
+
+/**
  * Single global keyboard shortcuts hook
  * Call this once in your App component with all handlers
  */
 export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
-  // Compute effective command palette shortcut (custom or default)
-  const commandPaletteConfig = useMemo((): ShortcutConfig => {
-    const custom = handlers.customKeyboardSettings?.commandPalette;
-    if (custom) {
-      return {
-        key: custom.key,
-        modifier: custom.modifier,
-        description: APP_SHORTCUTS.COMMAND_PALETTE.description,
-        category: APP_SHORTCUTS.COMMAND_PALETTE.category,
-      };
-    }
-    return APP_SHORTCUTS.COMMAND_PALETTE;
-  }, [handlers.customKeyboardSettings?.commandPalette]);
+  // Compute effective shortcuts with custom settings applied
+  const effectiveShortcuts = useMemo(() => {
+    const custom = handlers.customKeyboardSettings;
+    return {
+      commandPalette: getEffectiveConfig(APP_SHORTCUTS.COMMAND_PALETTE, custom),
+      settings: getEffectiveConfig(APP_SHORTCUTS.SETTINGS, custom),
+      toggleLeftSidebar: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR, custom),
+      toggleRightSidebar: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR, custom),
+      toggleTheme: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_THEME, custom),
+      toggleKanban: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_KANBAN, custom),
+      closeModal: getEffectiveConfig(APP_SHORTCUTS.CLOSE_MODAL, custom),
+    };
+  }, [handlers.customKeyboardSettings]);
 
   useEffect(() => {
     // Build dynamic shortcut mappings from config
     const shortcuts: ShortcutMapping[] = [
       {
-        config: commandPaletteConfig,
+        config: effectiveShortcuts.commandPalette,
         handler: () => handlers.onToggleCommandPalette?.(),
         priority: 'global',
+        isCommandPalette: true,
       },
       {
-        config: APP_SHORTCUTS.SETTINGS,
+        config: effectiveShortcuts.settings,
         handler: () => handlers.onOpenSettings?.(),
         priority: 'global',
         requiresClosed: true,
       },
       {
-        config: APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR,
+        config: effectiveShortcuts.toggleLeftSidebar,
         handler: () => handlers.onToggleLeftSidebar?.(),
         priority: 'global',
         requiresClosed: true,
       },
       {
-        config: APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR,
+        config: effectiveShortcuts.toggleRightSidebar,
         handler: () => handlers.onToggleRightSidebar?.(),
         priority: 'global',
         requiresClosed: true,
       },
       {
-        config: APP_SHORTCUTS.TOGGLE_THEME,
+        config: effectiveShortcuts.toggleTheme,
         handler: () => handlers.onToggleTheme?.(),
         priority: 'global',
         requiresClosed: true,
       },
       {
-        config: APP_SHORTCUTS.TOGGLE_KANBAN,
+        config: effectiveShortcuts.toggleKanban,
         handler: () => handlers.onToggleKanban?.(),
         priority: 'global',
         requiresClosed: true,
       },
       {
-        config: APP_SHORTCUTS.CLOSE_MODAL,
+        config: effectiveShortcuts.closeModal,
         handler: () => handlers.onCloseModal?.(),
         priority: 'modal',
       },
@@ -224,7 +280,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         // Global shortcuts
         if (shortcut.priority === 'global') {
           // Command palette toggle always works
-          if (shortcut.config === commandPaletteConfig) {
+          if (shortcut.isCommandPalette) {
             event.preventDefault();
             shortcut.handler();
             return;
@@ -257,5 +313,5 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlers, commandPaletteConfig]);
+  }, [handlers, effectiveShortcuts]);
 }

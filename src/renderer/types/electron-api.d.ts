@@ -49,7 +49,27 @@ declare global {
             defaultDirectory: string;
           };
           keyboard?: {
-            commandPalette: {
+            commandPalette?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
@@ -82,6 +102,26 @@ declare global {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
           };
         }>
       ) => Promise<{
@@ -106,7 +146,27 @@ declare global {
             defaultDirectory: string;
           };
           keyboard?: {
-            commandPalette: {
+            commandPalette?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };

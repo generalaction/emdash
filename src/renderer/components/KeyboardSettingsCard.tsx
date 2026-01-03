@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 import { toast } from '../hooks/use-toast';
+import { APP_SHORTCUTS, type AppShortcut, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
 
 interface ShortcutBinding {
@@ -8,25 +9,12 @@ interface ShortcutBinding {
   modifier: ShortcutModifier;
 }
 
-interface ShortcutConfig {
-  id: string;
-  label: string;
-  description: string;
-  defaultBinding: ShortcutBinding;
-  settingsKey: 'commandPalette'; // extend this union as we add more shortcuts
-}
+// Get configurable shortcuts (filter out hidden ones)
+const CONFIGURABLE_SHORTCUTS = Object.entries(APP_SHORTCUTS)
+  .filter(([, shortcut]) => !shortcut.hideFromSettings && shortcut.modifier)
+  .map(([id, shortcut]) => ({ id, ...shortcut }));
 
-const SHORTCUTS: ShortcutConfig[] = [
-  {
-    id: 'commandPalette',
-    label: 'Command Palette',
-    description: 'Open the command palette to quickly search and navigate',
-    defaultBinding: { key: 'k', modifier: 'cmd' },
-    settingsKey: 'commandPalette',
-  },
-];
-
-const formatModifier = (modifier: ShortcutBinding['modifier']): string => {
+const formatModifier = (modifier: ShortcutModifier | undefined): string => {
   switch (modifier) {
     case 'cmd':
       return '⌘';
@@ -54,13 +42,20 @@ const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) =>
 );
 
 const KeyboardSettingsCard: React.FC = () => {
-  const [bindings, setBindings] = useState<Record<string, ShortcutBinding>>(() =>
-    Object.fromEntries(SHORTCUTS.map((s) => [s.id, s.defaultBinding]))
-  );
+  const [bindings, setBindings] = useState<Record<ShortcutSettingsKey, ShortcutBinding>>(() => {
+    const initial: Record<string, ShortcutBinding> = {};
+    for (const shortcut of CONFIGURABLE_SHORTCUTS) {
+      initial[shortcut.settingsKey] = {
+        key: shortcut.key,
+        modifier: shortcut.modifier!,
+      };
+    }
+    return initial as Record<ShortcutSettingsKey, ShortcutBinding>;
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [capturingId, setCapturingId] = useState<string | null>(null);
+  const [capturingKey, setCapturingKey] = useState<ShortcutSettingsKey | null>(null);
   const captureRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -73,10 +68,10 @@ const KeyboardSettingsCard: React.FC = () => {
           const keyboard = result.settings.keyboard;
           setBindings((prev) => {
             const next = { ...prev };
-            for (const shortcut of SHORTCUTS) {
-              const saved = keyboard[shortcut.settingsKey];
+            for (const shortcut of CONFIGURABLE_SHORTCUTS) {
+              const saved = keyboard[shortcut.settingsKey as keyof typeof keyboard];
               if (saved) {
-                next[shortcut.id] = saved;
+                next[shortcut.settingsKey] = saved;
               }
             }
             return next;
@@ -97,25 +92,26 @@ const KeyboardSettingsCard: React.FC = () => {
   }, []);
 
   const saveBinding = useCallback(
-    async (shortcutId: string, binding: ShortcutBinding) => {
-      const shortcut = SHORTCUTS.find((s) => s.id === shortcutId);
+    async (settingsKey: ShortcutSettingsKey, binding: ShortcutBinding) => {
+      const shortcut = CONFIGURABLE_SHORTCUTS.find((s) => s.settingsKey === settingsKey);
       if (!shortcut) return;
 
-      const previous = bindings[shortcutId];
-      setBindings((prev) => ({ ...prev, [shortcutId]: binding }));
+      const previous = bindings[settingsKey];
+      setBindings((prev) => ({ ...prev, [settingsKey]: binding }));
       setError(null);
       setSaving(true);
       try {
         const result = await window.electronAPI.updateSettings({
-          keyboard: { [shortcut.settingsKey]: binding },
+          keyboard: { [settingsKey]: binding },
         });
         if (!result.success) {
           throw new Error(result.error || 'Failed to update settings.');
         }
-        if (result.settings?.keyboard?.[shortcut.settingsKey]) {
+        const savedBinding = result.settings?.keyboard?.[settingsKey as keyof typeof result.settings.keyboard];
+        if (savedBinding) {
           setBindings((prev) => ({
             ...prev,
-            [shortcutId]: result.settings!.keyboard![shortcut.settingsKey],
+            [settingsKey]: savedBinding,
           }));
         }
         toast({
@@ -124,7 +120,7 @@ const KeyboardSettingsCard: React.FC = () => {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update settings.';
-        setBindings((prev) => ({ ...prev, [shortcutId]: previous }));
+        setBindings((prev) => ({ ...prev, [settingsKey]: previous }));
         setError(message);
         toast({
           title: 'Failed to save shortcut',
@@ -143,7 +139,7 @@ const KeyboardSettingsCard: React.FC = () => {
       event.preventDefault();
       event.stopPropagation();
 
-      if (!capturingId) return;
+      if (!capturingKey) return;
 
       // Determine which modifier is pressed
       let modifier: ShortcutModifier | null = null;
@@ -173,54 +169,57 @@ const KeyboardSettingsCard: React.FC = () => {
         modifier,
       };
 
-      const currentCapturingId = capturingId;
-      setCapturingId(null);
-      saveBinding(currentCapturingId, newBinding);
+      const currentCapturingKey = capturingKey;
+      setCapturingKey(null);
+      saveBinding(currentCapturingKey, newBinding);
     },
-    [capturingId, saveBinding]
+    [capturingKey, saveBinding]
   );
 
   useEffect(() => {
-    if (capturingId) {
+    if (capturingKey) {
       window.addEventListener('keydown', handleKeyCapture);
       return () => window.removeEventListener('keydown', handleKeyCapture);
     }
-  }, [capturingId, handleKeyCapture]);
+  }, [capturingKey, handleKeyCapture]);
 
-  const startCapture = (shortcutId: string) => {
+  const startCapture = (settingsKey: ShortcutSettingsKey) => {
     setError(null);
-    setCapturingId(shortcutId);
+    setCapturingKey(settingsKey);
     captureRef.current?.focus();
   };
 
   const cancelCapture = () => {
-    setCapturingId(null);
+    setCapturingKey(null);
     setError(null);
   };
 
-  const handleReset = (shortcut: ShortcutConfig) => {
-    saveBinding(shortcut.id, shortcut.defaultBinding);
+  const handleReset = (shortcut: AppShortcut & { id: string }) => {
+    if (shortcut.modifier) {
+      saveBinding(shortcut.settingsKey, {
+        key: shortcut.key,
+        modifier: shortcut.modifier,
+      });
+    }
   };
 
-  const isModified = (shortcut: ShortcutConfig) => {
-    const current = bindings[shortcut.id];
-    return (
-      current.key !== shortcut.defaultBinding.key ||
-      current.modifier !== shortcut.defaultBinding.modifier
-    );
+  const isModified = (shortcut: AppShortcut & { id: string }) => {
+    const current = bindings[shortcut.settingsKey];
+    if (!current || !shortcut.modifier) return false;
+    return current.key !== shortcut.key || current.modifier !== shortcut.modifier;
   };
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
       <div className="space-y-4">
-        {SHORTCUTS.map((shortcut) => (
+        {CONFIGURABLE_SHORTCUTS.map((shortcut) => (
           <div key={shortcut.id} className="flex items-center justify-between gap-2">
             <div className="space-y-1">
               <div className="text-sm">{shortcut.label}</div>
               <div className="text-xs text-muted-foreground">{shortcut.description}</div>
             </div>
             <div className="flex items-center gap-2">
-              {capturingId === shortcut.id ? (
+              {capturingKey === shortcut.settingsKey ? (
                 <>
                   <Button
                     ref={captureRef}
@@ -250,10 +249,10 @@ const KeyboardSettingsCard: React.FC = () => {
                     variant="outline"
                     size="sm"
                     className="min-w-[80px]"
-                    onClick={() => startCapture(shortcut.id)}
+                    onClick={() => startCapture(shortcut.settingsKey)}
                     disabled={loading || saving}
                   >
-                    <ShortcutDisplay binding={bindings[shortcut.id]} />
+                    <ShortcutDisplay binding={bindings[shortcut.settingsKey]} />
                   </Button>
                   {isModified(shortcut) ? (
                     <Button
