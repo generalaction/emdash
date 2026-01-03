@@ -252,7 +252,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
                           <div
-                            className={`group/project group/task flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
+                            className={`group/project group/task relative flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
                               isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
                             }`}
                           >
@@ -260,7 +260,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               type="button"
                               whileTap={{ scale: 0.97 }}
                               transition={{ duration: 0.1, ease: 'easeInOut' }}
-                              className="flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent text-left outline-none focus-visible:outline-none"
+                              className="flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent pr-7 text-left outline-none focus-visible:outline-none"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onSelectProject(typedProject);
@@ -271,7 +271,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
                             </motion.button>
-                            <div className="flex flex-shrink-0 items-center gap-0.5">
+                            <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
                               {showProjectDelete ? (
                                 <ProjectDeleteButton
                                   projectName={typedProject.name}
@@ -282,7 +282,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   className={`text-muted-foreground ${
                                     isDeletingProject
                                       ? ''
-                                      : 'opacity-0 group-hover/task:opacity-100'
+                                      : 'opacity-0 group-hover/project:opacity-100'
                                   }`}
                                 />
                               ) : null}
