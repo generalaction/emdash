@@ -25,20 +25,26 @@ export interface SlugInputProps
 }
 
 /**
- * Normalizes input to a valid slug:
+ * Normalizes input to a valid slug (lenient - for typing):
  * - Converts to lowercase
  * - Replaces spaces with hyphens
  * - Removes invalid characters (only a-z, 0-9, - allowed)
  * - Collapses consecutive hyphens
- * - Removes leading/trailing hyphens
+ * Note: Does NOT strip leading/trailing hyphens to allow typing intermediate states
  */
-const normalizeToSlug = (input: string): string =>
+const normalizeForTyping = (input: string): string =>
   input
     .toLowerCase()
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/-+/g, '-');
+
+/**
+ * Fully normalizes to a final slug (strict - for submission):
+ * - All of normalizeForTyping plus removes leading/trailing hyphens
+ */
+const normalizeToSlug = (input: string): string =>
+  normalizeForTyping(input).replace(/^-+|-+$/g, '');
 
 /**
  * Checks if a character is valid for a slug
@@ -86,8 +92,8 @@ const SlugInput = React.forwardRef<HTMLInputElement, SlugInputProps>(
           }
         }
 
-        // Normalize the value
-        const normalized = normalizeToSlug(rawValue).slice(0, maxLength);
+        // Normalize the value (lenient during typing)
+        const normalized = normalizeForTyping(rawValue).slice(0, maxLength);
         onChange?.(normalized);
 
         // Try to preserve cursor position after normalization
@@ -97,7 +103,7 @@ const SlugInput = React.forwardRef<HTMLInputElement, SlugInputProps>(
           if (input && document.activeElement === input) {
             // Adjust cursor for removed characters before cursor position
             const charsBeforeCursor = rawValue.slice(0, cursorPosition);
-            const normalizedBeforeCursor = normalizeToSlug(charsBeforeCursor);
+            const normalizedBeforeCursor = normalizeForTyping(charsBeforeCursor);
             const newPosition = Math.min(normalizedBeforeCursor.length, normalized.length);
             input.setSelectionRange(newPosition, newPosition);
           }
@@ -149,7 +155,7 @@ const SlugInput = React.forwardRef<HTMLInputElement, SlugInputProps>(
         const newValue =
           currentValue.slice(0, selectionStart) + pastedText + currentValue.slice(selectionEnd);
 
-        const normalized = normalizeToSlug(newValue).slice(0, maxLength);
+        const normalized = normalizeForTyping(newValue).slice(0, maxLength);
         onChange?.(normalized);
 
         // Check if pasted content had invalid chars
