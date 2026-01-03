@@ -60,6 +60,32 @@ declare global {
           projects?: {
             defaultDirectory: string;
           };
+          keyboard?: {
+            commandPalette?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+          };
         };
         error?: string;
       }>;
@@ -83,6 +109,32 @@ declare global {
           projects?: {
             defaultDirectory?: string;
           };
+          keyboard?: {
+            commandPalette?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -104,6 +156,32 @@ declare global {
           };
           projects?: {
             defaultDirectory: string;
+          };
+          keyboard?: {
+            commandPalette?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
           };
         };
         error?: string;

@@ -12,6 +12,23 @@ export interface RepositorySettings {
   pushOnCreate: boolean;
 }
 
+export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+
+export interface ShortcutBinding {
+  key: string;
+  modifier: ShortcutModifier;
+}
+
+export interface KeyboardSettings {
+  commandPalette?: ShortcutBinding;
+  settings?: ShortcutBinding;
+  toggleLeftSidebar?: ShortcutBinding;
+  toggleRightSidebar?: ShortcutBinding;
+  toggleTheme?: ShortcutBinding;
+  toggleKanban?: ShortcutBinding;
+  closeModal?: ShortcutBinding;
+}
+
 export interface AppSettings {
   repository: RepositorySettings;
   projectPrep: {
@@ -39,6 +56,7 @@ export interface AppSettings {
   projects?: {
     defaultDirectory: string;
   };
+  keyboard?: KeyboardSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -70,6 +88,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
+  },
+  keyboard: {
+    commandPalette: { key: 'k', modifier: 'cmd' },
+    settings: { key: ',', modifier: 'cmd' },
+    toggleLeftSidebar: { key: 'b', modifier: 'cmd' },
+    toggleRightSidebar: { key: '.', modifier: 'cmd' },
+    toggleTheme: { key: 't', modifier: 'cmd' },
+    toggleKanban: { key: 'p', modifier: 'cmd' },
   },
 };
 
@@ -233,6 +259,38 @@ function normalizeSettings(input: AppSettings): AppSettings {
   }
   out.projects = {
     defaultDirectory: defaultDir,
+  };
+
+  // Keyboard
+  const keyboard = (input as any)?.keyboard || {};
+  const validModifiers: ShortcutModifier[] = ['cmd', 'ctrl', 'shift', 'alt', 'option'];
+  const normalizeBinding = (binding: any, defaultBinding: ShortcutBinding): ShortcutBinding => {
+    if (!binding || typeof binding !== 'object') return defaultBinding;
+    const key =
+      typeof binding.key === 'string' && binding.key.length === 1
+        ? binding.key.toLowerCase()
+        : defaultBinding.key;
+    const modifier = validModifiers.includes(binding.modifier)
+      ? binding.modifier
+      : defaultBinding.modifier;
+    return { key, modifier };
+  };
+  out.keyboard = {
+    commandPalette: normalizeBinding(
+      keyboard.commandPalette,
+      DEFAULT_SETTINGS.keyboard!.commandPalette!
+    ),
+    settings: normalizeBinding(keyboard.settings, DEFAULT_SETTINGS.keyboard!.settings!),
+    toggleLeftSidebar: normalizeBinding(
+      keyboard.toggleLeftSidebar,
+      DEFAULT_SETTINGS.keyboard!.toggleLeftSidebar!
+    ),
+    toggleRightSidebar: normalizeBinding(
+      keyboard.toggleRightSidebar,
+      DEFAULT_SETTINGS.keyboard!.toggleRightSidebar!
+    ),
+    toggleTheme: normalizeBinding(keyboard.toggleTheme, DEFAULT_SETTINGS.keyboard!.toggleTheme!),
+    toggleKanban: normalizeBinding(keyboard.toggleKanban, DEFAULT_SETTINGS.keyboard!.toggleKanban!),
   };
 
   return out;
