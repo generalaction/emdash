@@ -730,33 +730,13 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
         <div className="container mx-auto max-w-6xl p-6">
-          <div className="mx-auto w-full max-w-6xl space-y-8">
+          <div className="mx-auto w-full max-w-6xl space-y-4">
             <div className="space-y-4">
               <header className="space-y-3">
                 <div className="space-y-2">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
                     <div className="flex items-center gap-2 sm:self-start">
-                      {project.githubInfo?.connected && project.githubInfo.repository ? (
-                        <motion.div
-                          whileTap={{ scale: 0.97 }}
-                          transition={{ duration: 0.1, ease: 'easeInOut' }}
-                        >
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-1 px-3 text-xs font-medium"
-                            onClick={() =>
-                              window.electronAPI.openExternal(
-                                `https://github.com/${project.githubInfo?.repository}`
-                              )
-                            }
-                          >
-                            View on GitHub
-                            <ArrowUpRight className="size-3" />
-                          </Button>
-                        </motion.div>
-                      ) : null}
                       {onDeleteProject ? (
                         <ProjectDeleteButton
                           projectName={project.name}
@@ -764,6 +744,21 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           onConfirm={() => onDeleteProject?.(project)}
                           aria-label={`Delete project ${project.name}`}
                         />
+                      ) : null}
+                      {project.githubInfo?.connected && project.githubInfo.repository ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 px-3 text-xs font-medium"
+                          onClick={() =>
+                            window.electronAPI.openExternal(
+                              `https://github.com/${project.githubInfo?.repository}`
+                            )
+                          }
+                        >
+                          View on GitHub
+                          <ArrowUpRight className="size-3" />
+                        </Button>
                       ) : null}
                     </div>
                   </div>
@@ -818,44 +813,39 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               );
             })()}
 
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-semibold">Tasks</h2>
-                    <p className="text-xs text-muted-foreground">
-                      Spin up a fresh, isolated task for this project.
-                    </p>
-                  </div>
-                  {!isSelectMode && (
-                    <motion.div
-                      whileTap={{ scale: 0.97 }}
-                      transition={{ duration: 0.1, ease: 'easeInOut' }}
-                    >
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="h-9 px-4 text-sm font-semibold shadow-sm"
-                        onClick={onCreateTask}
-                        disabled={isCreatingTask}
-                        aria-busy={isCreatingTask}
-                      >
-                        {isCreatingTask ? (
-                          <>
-                            <Loader2 className="mr-2 size-4 animate-spin" />
-                            Starting…
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="mr-2 size-4" />
-                            Start New Task
-                          </>
-                        )}
-                      </Button>
-                    </motion.div>
-                  )}
+            <div className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold">Tasks</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Spin up a fresh, isolated task for this project.
+                  </p>
                 </div>
-                {tasksInProject.length > 0 && (
+                {!isSelectMode && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-9 px-4 text-sm font-semibold shadow-sm"
+                    onClick={onCreateTask}
+                    disabled={isCreatingTask}
+                    aria-busy={isCreatingTask}
+                  >
+                    {isCreatingTask ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Starting…
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 size-4" />
+                        Start New Task
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+              {tasksInProject.length > 0 ? (
+                <>
                   <div className="flex justify-end gap-2">
                     {isSelectMode && selectedCount > 0 && (
                       <Button
@@ -884,31 +874,26 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       {isSelectMode ? 'Cancel' : 'Select'}
                     </Button>
                   </div>
-                )}
-                <div className="flex flex-col gap-3">
-                  {tasksInProject.map((ws) => (
-                    <TaskRow
-                      key={ws.id}
-                      ws={ws}
-                      isSelectMode={isSelectMode}
-                      isSelected={selectedIds.has(ws.id)}
-                      onToggleSelect={() => toggleSelect(ws.id)}
-                      active={activeTask?.id === ws.id}
-                      onClick={() => onSelectTask(ws)}
-                      onDelete={() => onDeleteTask(project, ws)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {(!project.tasks || project.tasks.length === 0) && (
+                  <div className="flex flex-col gap-3">
+                    {tasksInProject.map((ws) => (
+                      <TaskRow
+                        key={ws.id}
+                        ws={ws}
+                        isSelectMode={isSelectMode}
+                        isSelected={selectedIds.has(ws.id)}
+                        onToggleSelect={() => toggleSelect(ws.id)}
+                        active={activeTask?.id === ws.id}
+                        onClick={() => onSelectTask(ws)}
+                        onDelete={() => onDeleteTask(project, ws)}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
                 <Alert>
                   <AlertTitle>What's a task?</AlertTitle>
-                  <AlertDescription className="flex items-center justify-between gap-4">
-                    <p className="text-sm text-muted-foreground">
-                      Each task is an isolated copy and branch of your repo (Git-tracked files
-                      only).
-                    </p>
+                  <AlertDescription>
+                    Each task is an isolated copy and branch of your repo (Git-tracked files only).
                   </AlertDescription>
                 </Alert>
               )}

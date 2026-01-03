@@ -14,6 +14,7 @@ import {
   AlertDialogTrigger,
 } from './ui/alert-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
@@ -76,13 +77,10 @@ export const TaskDeleteButton: React.FC<Props> = ({
         <Tooltip>
           <TooltipTrigger asChild>
             <AlertDialogTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  className ||
-                    'inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800',
-                  isDeleting && 'opacity-100'
-                )}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className={cn(className, isDeleting && 'opacity-100')}
                 title="Delete Task"
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}
@@ -94,7 +92,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
                 ) : (
                   <Trash className="h-3.5 w-3.5" />
                 )}
-              </button>
+              </Button>
             </AlertDialogTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">

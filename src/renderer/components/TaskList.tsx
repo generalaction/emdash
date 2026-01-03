@@ -57,7 +57,7 @@ export const TaskList: React.FC<Props> = ({
       </div>
 
       {tasks.length === 0 ? (
-        <div className="flex h-full flex-col items-center justify-center text-gray-500">
+        <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
           <Bot className="mb-4 h-12 w-12" />
           <p className="text-center">No tasks yet. Create one to get started!</p>
         </div>
@@ -69,7 +69,7 @@ export const TaskList: React.FC<Props> = ({
               className={`cursor-pointer transition-all duration-200 ${
                 activeTask?.id === task.id
                   ? 'border-blue-500 ring-2 ring-blue-500'
-                  : 'border-gray-200 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500'
+                  : 'border-border hover:border-border dark:border-border dark:hover:border-border'
               }`}
               onClick={() => onSelectTask(task)}
             >
@@ -78,12 +78,12 @@ export const TaskList: React.FC<Props> = ({
                   {getStatusIcon(task.status)}
                   <span className="ml-2">{task.name}</span>
                 </CardTitle>
-                <CardDescription className="mt-1 flex items-center text-sm text-gray-500 dark:text-gray-400">
+                <CardDescription className="mt-1 flex items-center text-sm text-muted-foreground">
                   <GitBranch className="mr-1 h-3 w-3" />
                   <code className="font-mono text-xs">{task.branch}</code>
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0 text-xs text-gray-600 dark:text-gray-300">
+              <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
                 <p className="capitalize">Status: {task.status}</p>
               </CardContent>
             </Card>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ExternalLink, Square } from 'lucide-react';
+import { Button } from './ui/button';
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -90,9 +91,10 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }
                   </button>
                   <div className="flex shrink-0 items-center gap-1.5">
                     {previewUrl ? (
-                      <button
-                        type="button"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
                         title="Open preview"
                         aria-label="Open preview"
                         onClick={(e) => {
@@ -101,11 +103,12 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }
                         }}
                       >
                         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
+                      </Button>
                     ) : null}
-                    <button
-                      type="button"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
                       title="Stop stack"
                       aria-label="Stop stack"
                       onClick={async (e) => {
@@ -116,7 +119,7 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }
                       }}
                     >
                       <Square className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </SidebarMenuItem>

@@ -42,7 +42,7 @@ const PlanModeToggle: React.FC<Props> = ({
               'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs text-foreground ' +
               (active
                 ? 'border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/15'
-                : 'border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700') +
+                : 'border-border bg-muted dark:border-border dark:bg-muted') +
               (className ? ' ' + className : '')
             }
           >

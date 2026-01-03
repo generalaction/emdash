@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Workflow, ArrowUpRight, Check, Copy } from 'lucide-react';
+import { Button } from './ui/button';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 
 export const RoutingInfoCard: React.FC = () => {
@@ -72,17 +73,18 @@ export const RoutingInfoCard: React.FC = () => {
         <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-[11px] leading-none">
           {installCommand}
         </code>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={() => {
             void handleCopyClick();
           }}
-          className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+          className="ml-2 text-muted-foreground"
           aria-label="Copy install command"
           title={copied ? 'Copied' : 'Copy command'}
         >
           <CopyIndicatorIcon className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
     </div>
   );
