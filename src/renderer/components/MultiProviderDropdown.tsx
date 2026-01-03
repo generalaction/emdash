@@ -110,7 +110,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
       <PopoverContent
         align="start"
         side="top"
-        className="z-[120] max-h-80 w-[var(--radix-popover-trigger-width)] overflow-y-auto p-1"
+        className="z-[1000] max-h-80 w-[var(--radix-popover-trigger-width)] overflow-y-auto p-1"
       >
         <TooltipProvider delayDuration={150}>
           {sortedProviders.map(([key, config]) => {
@@ -164,7 +164,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                       <SelectTrigger className="h-6 w-auto gap-1 border-none bg-transparent p-0 text-sm shadow-none">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent side="right" className="z-[130] min-w-[4rem]">
+                      <SelectContent side="right" className="z-[1001] min-w-[4rem]">
                         {[1, 2, 3, 4].map((n) => (
                           <SelectItem key={n} value={String(n)}>
                             {n}x
