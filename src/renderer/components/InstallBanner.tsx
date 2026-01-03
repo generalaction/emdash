@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Play } from 'lucide-react';
+import { Button } from './ui/button';
 import { providerMeta, type UiProvider } from '../providers/meta';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
 
@@ -96,10 +97,11 @@ export const InstallBanner: React.FC<Props> = ({
             <code className="inline-flex h-7 items-center rounded bg-gray-200 px-2 font-mono text-xs leading-none">
               {command}
             </code>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={handleCopy}
-              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:text-foreground"
+              className="text-muted-foreground"
               aria-label="Copy install command"
               title={copied ? 'Copied' : 'Copy command'}
             >
@@ -108,17 +110,18 @@ export const InstallBanner: React.FC<Props> = ({
               ) : (
                 <Copy className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-            </button>
+            </Button>
             {canRunInstall ? (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={handleRunInstall}
-                className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:text-foreground"
+                className="text-muted-foreground"
                 aria-label="Run in terminal"
                 title="Run in terminal"
               >
                 <Play className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : (

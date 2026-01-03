@@ -5,6 +5,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Button } from './ui/button';
 import type { Provider } from '../types';
 
 interface Task {
@@ -270,8 +271,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             );
           })}
         </div>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={() => {
             void (async () => {
               const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -281,12 +283,12 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               cwd: mode === 'global' ? projectPath : task?.path,
             });
           }}
-          className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
+          className="ml-2 text-muted-foreground"
           title={mode === 'global' ? 'New global terminal' : 'New task terminal'}
           disabled={mode === 'task' && !task}
         >
           <Plus className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       <div

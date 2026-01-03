@@ -8,6 +8,7 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -174,30 +175,27 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   return (
     <div className="relative h-full">
       <Sidebar className="!w-full lg:border-r-0">
+        <SidebarHeader className="border-b-0 px-3 py-3">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                className={`min-w-0 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
+              >
+                <Button
+                  variant="ghost"
+                  onClick={onGoHome}
+                  aria-label="Home"
+                  className="w-full justify-start"
+                >
+                  <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
+                  <span className="hidden text-sm font-medium sm:inline">Home</span>
+                </Button>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
         <SidebarContent>
-          <SidebarGroup className="mb-3">
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    className={`min-w-0 ${isHomeView ? 'bg-black/5 dark:bg-white/5' : ''}`}
-                  >
-                    <Button
-                      variant="ghost"
-                      onClick={onGoHome}
-                      aria-label="Home"
-                      className="w-full justify-start"
-                    >
-                      <Home className="h-5 w-5 text-gray-600 dark:text-gray-400 sm:h-4 sm:w-4" />
-                      <span className="hidden text-sm font-medium sm:inline">Home</span>
-                    </Button>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
           <ActiveRuns
             projects={projects}
             onSelectProject={onSelectProject}
@@ -273,7 +271,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
                             </motion.button>
-                            <div className="relative flex flex-shrink-0 items-center pl-6">
+                            <div className="flex flex-shrink-0 items-center gap-0.5">
                               {showProjectDelete ? (
                                 <ProjectDeleteButton
                                   projectName={typedProject.name}
@@ -281,22 +279,23 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   onConfirm={() => handleDeleteProject(typedProject)}
                                   isDeleting={isDeletingProject}
                                   aria-label={`Delete project ${typedProject.name}`}
-                                  className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-100 ${
+                                  className={`text-muted-foreground ${
                                     isDeletingProject
-                                      ? 'opacity-100'
-                                      : 'group-hover/task:opacity-100'
+                                      ? ''
+                                      : 'opacity-0 group-hover/task:opacity-100'
                                   }`}
                                 />
                               ) : null}
                               <CollapsibleTrigger asChild>
-                                <button
-                                  type="button"
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
                                   aria-label={`Toggle tasks for ${typedProject.name}`}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  className="text-muted-foreground"
                                 >
                                   <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                                </button>
+                                </Button>
                               </CollapsibleTrigger>
                             </div>
                           </div>
@@ -418,7 +417,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </SidebarGroup>
           )}
         </SidebarContent>
-        <SidebarFooter className="min-w-0 overflow-hidden border-t border-gray-200 px-2 py-2 dark:border-gray-800 sm:px-4 sm:py-4">
+        <SidebarFooter className="min-w-0 overflow-hidden px-3 py-3">
           <SidebarMenu className="w-full min-w-0">
             <SidebarMenuItem className="min-w-0">
               <motion.div

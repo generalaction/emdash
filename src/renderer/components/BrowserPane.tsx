@@ -3,6 +3,7 @@ import { X, ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
 import { Spinner } from './ui/spinner';
+import { Button } from './ui/button';
 import { setLastUrl, setRunning } from '@/lib/previewStorage';
 import { PROBE_TIMEOUT_MS, SPINNER_MAX_MS, isAppPort } from '@/lib/previewNetwork';
 
@@ -454,33 +455,36 @@ const BrowserPane: React.FC<{
         }}
       >
         <div className="flex flex-shrink-0 items-center gap-1 border-b border-border bg-gray-50 px-2 dark:bg-gray-900">
-          <button
-            className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => goBack()}
             disabled
             title="Back"
             aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
-          </button>
-          <button
-            className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => goForward()}
             disabled
             title="Forward"
             aria-label="Forward"
           >
             <ArrowRight className="h-4 w-4" />
-          </button>
+          </Button>
           {url && (
-            <button
-              className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={handleRefresh}
               title="Refresh"
               aria-label="Refresh"
             >
               <RotateCw className="h-4 w-4" />
-            </button>
+            </Button>
           )}
           <form
             className="mx-2 flex min-w-0 flex-1"
@@ -519,14 +523,16 @@ const BrowserPane: React.FC<{
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
-          <button
-            className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="ml-1"
             onClick={handleClose}
             title="Close"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
         {!busy && url && lines.length > 0 && (
           <div className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-2 py-1 text-xs">
