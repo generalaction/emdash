@@ -203,7 +203,7 @@ const ProviderTooltipRow: React.FC<{
       <TooltipContent
         side="left"
         align="start"
-        className="border-foreground/20 bg-background p-0 text-foreground"
+        className="z-[1000] border-foreground/20 bg-background p-0 text-foreground"
         onMouseEnter={onHover}
         onMouseLeave={onLeave}
         onPointerEnter={onHover}
