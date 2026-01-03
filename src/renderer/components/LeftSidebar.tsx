@@ -301,8 +301,13 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           </div>
 
                           <CollapsibleContent asChild>
-                            <div className="ml-7 mt-2 min-w-0">
-                              <div className="bg-sidebar pb-1">
+                            <div className="mt-1 flex min-w-0 pl-2">
+                              {/* Vertical indent line */}
+                              <div className="flex w-4 shrink-0 justify-center py-1">
+                                <div className="w-px bg-border" />
+                              </div>
+                              {/* Task content */}
+                              <div className="min-w-0 flex-1">
                                 <motion.button
                                   type="button"
                                   whileTap={{ scale: 0.97 }}
@@ -324,46 +329,46 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   aria-label={`Add Task to ${typedProject.name}`}
                                 >
                                   <Plus
-                                    className="h-3 w-3 flex-shrink-0 text-gray-400"
+                                    className="h-3 w-3 flex-shrink-0 text-muted-foreground"
                                     aria-hidden
                                   />
                                   <span className="truncate">Add Task</span>
                                 </motion.button>
-                              </div>
-                              <div className="hidden min-w-0 space-y-1 sm:block">
-                                {typedProject.tasks?.map((task) => {
-                                  const isActive = activeTask?.id === task.id;
-                                  return (
-                                    <div
-                                      key={task.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (
-                                          onSelectProject &&
-                                          selectedProject?.id !== typedProject.id
-                                        ) {
-                                          onSelectProject(typedProject);
-                                        }
-                                        onSelectTask && onSelectTask(task);
-                                      }}
-                                      className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
-                                        isActive ? 'bg-black/5 dark:bg-white/5' : ''
-                                      }`}
-                                      title={task.name}
-                                    >
-                                      <TaskItem
-                                        task={task}
-                                        showDelete
-                                        showDirectBadge={false}
-                                        onDelete={
-                                          onDeleteTask
-                                            ? () => onDeleteTask(typedProject, task)
-                                            : undefined
-                                        }
-                                      />
-                                    </div>
-                                  );
-                                })}
+                                <div className="hidden min-w-0 space-y-0.5 sm:block">
+                                  {typedProject.tasks?.map((task) => {
+                                    const isActive = activeTask?.id === task.id;
+                                    return (
+                                      <div
+                                        key={task.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (
+                                            onSelectProject &&
+                                            selectedProject?.id !== typedProject.id
+                                          ) {
+                                            onSelectProject(typedProject);
+                                          }
+                                          onSelectTask && onSelectTask(task);
+                                        }}
+                                        className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
+                                          isActive ? 'bg-black/5 dark:bg-white/5' : ''
+                                        }`}
+                                        title={task.name}
+                                      >
+                                        <TaskItem
+                                          task={task}
+                                          showDelete
+                                          showDirectBadge={false}
+                                          onDelete={
+                                            onDeleteTask
+                                              ? () => onDeleteTask(typedProject, task)
+                                              : undefined
+                                          }
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             </div>
                           </CollapsibleContent>
