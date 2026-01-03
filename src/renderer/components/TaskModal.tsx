@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from './ui/dialog';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
@@ -405,7 +412,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
             onJiraConnect={handleJiraConnect}
           />
 
-          <div className="flex justify-end">
+          <DialogFooter>
             <Button type="submit" disabled={!!validate(taskName) || isCreating}>
               {isCreating ? (
                 <>
@@ -416,7 +423,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 'Create'
               )}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
