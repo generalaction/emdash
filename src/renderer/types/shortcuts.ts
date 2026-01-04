@@ -15,6 +15,7 @@ export interface KeyboardSettings {
   closeModal?: ShortcutBinding;
   nextProject?: ShortcutBinding;
   prevProject?: ShortcutBinding;
+  newTask?: ShortcutBinding;
 }
 
 export interface ShortcutConfig {
@@ -67,6 +68,9 @@ export interface GlobalShortcutHandlers {
   // Project navigation
   onNextProject?: () => void;
   onPrevProject?: () => void;
+
+  // Task creation
+  onNewTask?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;

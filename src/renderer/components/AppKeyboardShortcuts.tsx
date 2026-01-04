@@ -15,6 +15,7 @@ export interface AppKeyboardShortcutsProps {
   handleToggleKanban: () => void;
   handleNextTask: () => void;
   handlePrevTask: () => void;
+  handleNewTask: () => void;
 }
 
 const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
@@ -27,6 +28,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
   handleToggleKanban,
   handleNextTask,
   handlePrevTask,
+  handleNewTask,
 }) => {
   const { toggle: toggleLeftSidebar } = useSidebar();
   const { toggle: toggleRightSidebar } = useRightSidebar();
@@ -42,6 +44,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
     onToggleKanban: handleToggleKanban,
     onNextProject: handleNextTask,
     onPrevProject: handlePrevTask,
+    onNewTask: handleNewTask,
     onCloseModal: showCommandPalette
       ? handleCloseCommandPalette
       : showSettings

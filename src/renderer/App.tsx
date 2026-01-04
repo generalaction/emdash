@@ -1929,6 +1929,7 @@ const AppContent: React.FC = () => {
                 handleToggleKanban={handleToggleKanban}
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
+                handleNewTask={() => setShowTaskModal(true)}
               />
               <RightSidebarBridge
                 onCollapsedChange={handleRightSidebarCollapsedChange}

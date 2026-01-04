@@ -17,7 +17,8 @@ export type ShortcutSettingsKey =
   | 'toggleKanban'
   | 'closeModal'
   | 'nextProject'
-  | 'prevProject';
+  | 'prevProject'
+  | 'newTask';
 
 export interface AppShortcut {
   key: string;
@@ -110,6 +111,15 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     description: 'Switch to the previous task',
     category: 'Navigation',
     settingsKey: 'prevProject',
+  },
+
+  NEW_TASK: {
+    key: 'n',
+    modifier: 'cmd',
+    label: 'New Task',
+    description: 'Create a new task',
+    category: 'Navigation',
+    settingsKey: 'newTask',
   },
 };
 
@@ -232,6 +242,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       closeModal: getEffectiveConfig(APP_SHORTCUTS.CLOSE_MODAL, custom),
       nextProject: getEffectiveConfig(APP_SHORTCUTS.NEXT_TASK, custom),
       prevProject: getEffectiveConfig(APP_SHORTCUTS.PREV_TASK, custom),
+      newTask: getEffectiveConfig(APP_SHORTCUTS.NEW_TASK, custom),
     };
   }, [handlers.customKeyboardSettings]);
 
@@ -288,6 +299,12 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       {
         config: effectiveShortcuts.prevProject,
         handler: () => handlers.onPrevProject?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.newTask,
+        handler: () => handlers.onNewTask?.(),
         priority: 'global',
         requiresClosed: true,
       },
