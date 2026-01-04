@@ -279,3 +279,146 @@ export async function getWorktreeDiff(
     proc.on('error', reject);
   });
 }
+
+export interface JudgeResult {
+  winner: 'A' | 'B';
+  reasoning: string;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Run the judge to compare two solutions and pick the best one
+ */
+export async function runJudge(
+  originalPrompt: string,
+  diffA: string,
+  diffB: string,
+  onProgress?: (progress: HeadlessAgentProgress) => void
+): Promise<JudgeResult> {
+  const judgePrompt = `You are a code review judge. Compare these two solutions for the following task and pick the better one.
+
+TASK: ${originalPrompt}
+
+SOLUTION A:
+\`\`\`diff
+${diffA.slice(0, 50000)}
+\`\`\`
+
+SOLUTION B:
+\`\`\`diff
+${diffB.slice(0, 50000)}
+\`\`\`
+
+Analyze both solutions and reply with ONLY valid JSON in this exact format:
+{"winner": "A" or "B", "reasoning": "Brief explanation of why this solution is better"}`;
+
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const proc = spawn(
+      'claude',
+      ['-p', judgePrompt, '--output-format', 'stream-json', '--dangerously-skip-permissions'],
+      { shell: true }
+    );
+
+    let output = '';
+
+    proc.stdout?.on('data', (data: Buffer) => {
+      const chunk = data.toString();
+      output += chunk;
+
+      // Emit progress for tool usage
+      const lines = chunk.split('\n').filter((line) => line.trim());
+      for (const line of lines) {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'assistant' && msg.message?.content) {
+            for (const content of msg.message.content) {
+              if (content.type === 'tool_use' && content.name) {
+                onProgress?.({
+                  type: 'tool_use',
+                  toolName: content.name,
+                  elapsedMs: Date.now() - startTime,
+                });
+              }
+            }
+          }
+        } catch {
+          // Not valid JSON
+        }
+      }
+    });
+
+    proc.on('exit', (code) => {
+      const elapsedMs = Date.now() - startTime;
+      onProgress?.({ type: 'complete', elapsedMs });
+
+      if (code !== 0) {
+        resolve({
+          winner: 'A',
+          reasoning: 'Judge failed to run, defaulting to solution A',
+          success: false,
+          error: `Judge exited with code ${code}`,
+        });
+        return;
+      }
+
+      // Parse the output to find the JSON result
+      // Look for JSON in assistant messages
+      try {
+        const lines = output.split('\n').filter((line) => line.trim());
+        for (const line of lines) {
+          try {
+            const msg = JSON.parse(line);
+            if (msg.type === 'assistant' && msg.message?.content) {
+              for (const content of msg.message.content) {
+                if (content.type === 'text' && content.text) {
+                  // Try to extract JSON from the text
+                  const jsonMatch = content.text.match(/\{[\s\S]*"winner"[\s\S]*"reasoning"[\s\S]*\}/);
+                  if (jsonMatch) {
+                    const result = JSON.parse(jsonMatch[0]);
+                    if (result.winner === 'A' || result.winner === 'B') {
+                      resolve({
+                        winner: result.winner,
+                        reasoning: result.reasoning || 'No reasoning provided',
+                        success: true,
+                      });
+                      return;
+                    }
+                  }
+                }
+              }
+            }
+          } catch {
+            // Continue parsing
+          }
+        }
+
+        // Fallback if no valid JSON found
+        log.warn('HeadlessAgentService:judgeParseError', { output: output.slice(0, 500) });
+        resolve({
+          winner: 'A',
+          reasoning: 'Could not parse judge response, defaulting to solution A',
+          success: false,
+          error: 'Failed to parse judge response',
+        });
+      } catch (err: any) {
+        resolve({
+          winner: 'A',
+          reasoning: 'Judge error, defaulting to solution A',
+          success: false,
+          error: err.message,
+        });
+      }
+    });
+
+    proc.on('error', (err) => {
+      resolve({
+        winner: 'A',
+        reasoning: 'Judge failed to start',
+        success: false,
+        error: err.message,
+      });
+    });
+  });
+}
