@@ -48,7 +48,9 @@ export const KeyboardSettingsProvider: React.FC<{ children: React.ReactNode }> =
   );
 
   return (
-    <KeyboardSettingsContext.Provider value={{ settings, getShortcut, refreshSettings: loadSettings }}>
+    <KeyboardSettingsContext.Provider
+      value={{ settings, getShortcut, refreshSettings: loadSettings }}
+    >
       {children}
     </KeyboardSettingsContext.Provider>
   );
