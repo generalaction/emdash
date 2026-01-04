@@ -9,6 +9,7 @@ import {
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
+import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 
 interface ShortcutBinding {
   key: string;
@@ -48,6 +49,7 @@ const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) =>
 );
 
 const KeyboardSettingsCard: React.FC = () => {
+  const { refreshSettings } = useKeyboardSettings();
   const [bindings, setBindings] = useState<Record<ShortcutSettingsKey, ShortcutBinding>>(() => {
     const initial: Record<string, ShortcutBinding> = {};
     for (const shortcut of CONFIGURABLE_SHORTCUTS) {
@@ -125,6 +127,8 @@ const KeyboardSettingsCard: React.FC = () => {
           title: 'Shortcut updated',
           description: `${shortcut.label} is now ${formatModifier(binding.modifier)} ${binding.key.toUpperCase()}`,
         });
+        // Refresh global keyboard settings so shortcuts work immediately
+        await refreshSettings();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update settings.';
         setBindings((prev) => ({ ...prev, [settingsKey]: previous }));
@@ -138,7 +142,7 @@ const KeyboardSettingsCard: React.FC = () => {
         setSaving(false);
       }
     },
-    [bindings]
+    [bindings, refreshSettings]
   );
 
   const handleKeyCapture = useCallback(

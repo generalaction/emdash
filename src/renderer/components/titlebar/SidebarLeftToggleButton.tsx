@@ -1,8 +1,9 @@
 import React from 'react';
 import { Button } from '../ui/button';
-import { Command, PanelLeft } from 'lucide-react';
+import { PanelLeft } from 'lucide-react';
 import { useSidebar } from '../ui/sidebar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip';
+import { ShortcutHint } from '../ui/shortcut-hint';
 
 const SidebarLeftToggleButton: React.FC = () => {
   const { toggle, open } = useSidebar();
@@ -39,10 +40,7 @@ const SidebarLeftToggleButton: React.FC = () => {
         >
           <div className="flex flex-col gap-1">
             <span>Toggle left sidebar</span>
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <Command className="h-3 w-3" aria-hidden="true" />
-              <span>B</span>
-            </span>
+            <ShortcutHint settingsKey="toggleLeftSidebar" />
           </div>
         </TooltipContent>
       </Tooltip>

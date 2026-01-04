@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Command, MessageSquare, Settings as SettingsIcon, KanbanSquare } from 'lucide-react';
+import { ShortcutHint } from '../ui/shortcut-hint';
 import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
 import { Button } from '../ui/button';
@@ -130,10 +131,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
                 <TooltipContent side="bottom" className="text-xs font-medium">
                   <div className="flex flex-col gap-1">
                     <span>Toggle Kanban view</span>
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Command className="h-3 w-3" aria-hidden="true" />
-                      <span>P</span>
-                    </span>
+                    <ShortcutHint settingsKey="toggleKanban" />
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -199,10 +197,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
               <TooltipContent side="bottom" className="text-xs font-medium">
                 <div className="flex flex-col gap-1">
                   <span>Open settings</span>
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Command className="h-3 w-3" aria-hidden="true" />
-                    <span>,</span>
-                  </span>
+                  <ShortcutHint settingsKey="settings" />
                 </div>
               </TooltipContent>
             </Tooltip>
