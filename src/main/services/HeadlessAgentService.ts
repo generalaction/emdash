@@ -1,0 +1,281 @@
+import { spawn, ChildProcess } from 'child_process';
+import { EventEmitter } from 'events';
+import log from '../lib/logger';
+
+export interface HeadlessAgentProgress {
+  type: 'tool_use' | 'text' | 'complete' | 'error';
+  toolName?: string;
+  text?: string;
+  elapsedMs: number;
+}
+
+export interface HeadlessAgentResult {
+  success: boolean;
+  output: string;
+  elapsedMs: number;
+  error?: string;
+}
+
+interface StreamMessage {
+  type: 'assistant' | 'user' | 'system' | 'result';
+  subtype?: 'init';
+  message?: {
+    content?: Array<{
+      type: 'text' | 'tool_use' | 'tool_result';
+      text?: string;
+      name?: string;
+      input?: Record<string, unknown>;
+    }>;
+  };
+  status?: 'success' | 'error';
+  duration_ms?: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+export class HeadlessAgentRunner extends EventEmitter {
+  private proc: ChildProcess | null = null;
+  private output = '';
+  private startTime = 0;
+  private worktreePath: string;
+  private prompt: string;
+  private timeoutMs: number;
+  private timeoutId: NodeJS.Timeout | null = null;
+
+  constructor(worktreePath: string, prompt: string, timeoutMs = DEFAULT_TIMEOUT_MS) {
+    super();
+    this.worktreePath = worktreePath;
+    this.prompt = prompt;
+    this.timeoutMs = timeoutMs;
+  }
+
+  start(): Promise<HeadlessAgentResult> {
+    return new Promise((resolve, reject) => {
+      this.startTime = Date.now();
+
+      try {
+        this.proc = spawn(
+          'claude',
+          [
+            '-p',
+            this.prompt,
+            '--output-format',
+            'stream-json',
+            '--dangerously-skip-permissions',
+          ],
+          {
+            cwd: this.worktreePath,
+            env: { ...process.env },
+            shell: true,
+          }
+        );
+
+        log.info('HeadlessAgentService:started', {
+          worktreePath: this.worktreePath,
+          pid: this.proc.pid,
+        });
+
+        // Set timeout
+        this.timeoutId = setTimeout(() => {
+          log.warn('HeadlessAgentService:timeout', { worktreePath: this.worktreePath });
+          this.kill();
+          resolve({
+            success: false,
+            output: this.output,
+            elapsedMs: Date.now() - this.startTime,
+            error: 'Agent timed out',
+          });
+        }, this.timeoutMs);
+
+        this.proc.stdout?.on('data', (data: Buffer) => {
+          const chunk = data.toString();
+          this.output += chunk;
+          this.parseStreamChunk(chunk);
+        });
+
+        this.proc.stderr?.on('data', (data: Buffer) => {
+          log.warn('HeadlessAgentService:stderr', { data: data.toString() });
+        });
+
+        this.proc.on('error', (err) => {
+          log.error('HeadlessAgentService:error', { error: err.message });
+          this.clearTimeout();
+          reject(err);
+        });
+
+        this.proc.on('exit', (code) => {
+          this.clearTimeout();
+          const elapsedMs = Date.now() - this.startTime;
+          log.info('HeadlessAgentService:exit', {
+            code,
+            elapsedMs,
+            worktreePath: this.worktreePath,
+          });
+
+          this.emit('progress', {
+            type: 'complete',
+            elapsedMs,
+          } as HeadlessAgentProgress);
+
+          resolve({
+            success: code === 0,
+            output: this.output,
+            elapsedMs,
+            error: code !== 0 ? `Process exited with code ${code}` : undefined,
+          });
+        });
+      } catch (err: any) {
+        log.error('HeadlessAgentService:spawnError', { error: err.message });
+        reject(err);
+      }
+    });
+  }
+
+  private parseStreamChunk(chunk: string): void {
+    // Stream-json outputs NDJSON (one JSON per line)
+    const lines = chunk.split('\n').filter((line) => line.trim());
+
+    for (const line of lines) {
+      try {
+        const msg: StreamMessage = JSON.parse(line);
+        this.handleStreamMessage(msg);
+      } catch {
+        // Not valid JSON, skip
+      }
+    }
+  }
+
+  private handleStreamMessage(msg: StreamMessage): void {
+    const elapsedMs = Date.now() - this.startTime;
+
+    if (msg.type === 'assistant' && msg.message?.content) {
+      for (const content of msg.message.content) {
+        if (content.type === 'tool_use' && content.name) {
+          this.emit('progress', {
+            type: 'tool_use',
+            toolName: content.name,
+            elapsedMs,
+          } as HeadlessAgentProgress);
+        } else if (content.type === 'text' && content.text) {
+          this.emit('progress', {
+            type: 'text',
+            text: content.text.slice(0, 100), // Truncate for progress display
+            elapsedMs,
+          } as HeadlessAgentProgress);
+        }
+      }
+    }
+
+    if (msg.type === 'result') {
+      this.emit('progress', {
+        type: 'complete',
+        elapsedMs,
+      } as HeadlessAgentProgress);
+    }
+  }
+
+  private clearTimeout(): void {
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+  }
+
+  kill(): void {
+    this.clearTimeout();
+    if (this.proc && !this.proc.killed) {
+      this.proc.kill('SIGTERM');
+      log.info('HeadlessAgentService:killed', { worktreePath: this.worktreePath });
+    }
+  }
+}
+
+/**
+ * Run multiple headless agents in parallel and return when all complete
+ */
+export async function runHeadlessAgents(
+  configs: Array<{ worktreePath: string; prompt: string; id: string }>,
+  onProgress?: (id: string, progress: HeadlessAgentProgress) => void
+): Promise<Map<string, HeadlessAgentResult>> {
+  const runners = configs.map((config) => {
+    const runner = new HeadlessAgentRunner(config.worktreePath, config.prompt);
+
+    if (onProgress) {
+      runner.on('progress', (progress: HeadlessAgentProgress) => {
+        onProgress(config.id, progress);
+      });
+    }
+
+    return {
+      id: config.id,
+      runner,
+      promise: runner.start(),
+    };
+  });
+
+  const results = new Map<string, HeadlessAgentResult>();
+
+  // Wait for all to complete (or fail)
+  const settled = await Promise.allSettled(runners.map((r) => r.promise));
+
+  for (let i = 0; i < runners.length; i++) {
+    const { id } = runners[i];
+    const result = settled[i];
+
+    if (result.status === 'fulfilled') {
+      results.set(id, result.value);
+    } else {
+      results.set(id, {
+        success: false,
+        output: '',
+        elapsedMs: 0,
+        error: result.reason?.message || 'Unknown error',
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Get git diff for a worktree compared to its base branch
+ */
+export async function getWorktreeDiff(
+  worktreePath: string,
+  baseBranch = 'main'
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('git', ['diff', `${baseBranch}...HEAD`], {
+      cwd: worktreePath,
+    });
+
+    let output = '';
+    let stderr = '';
+
+    proc.stdout?.on('data', (data: Buffer) => {
+      output += data.toString();
+    });
+
+    proc.stderr?.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    proc.on('exit', (code) => {
+      if (code === 0) {
+        // TODO: Handle edge case for massive diffs - log size for now
+        const diffSizeKb = Math.round(output.length / 1024);
+        if (diffSizeKb > 50) {
+          log.warn('HeadlessAgentService:largeDiff', {
+            worktreePath,
+            sizeKb: diffSizeKb,
+          });
+        }
+        resolve(output);
+      } else {
+        reject(new Error(`git diff failed: ${stderr}`));
+      }
+    });
+
+    proc.on('error', reject);
+  });
+}
