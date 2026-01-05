@@ -29,6 +29,7 @@ export interface KeyboardSettings {
   closeModal?: ShortcutBinding;
   nextProject?: ShortcutBinding;
   prevProject?: ShortcutBinding;
+  newTask?: ShortcutBinding;
 }
 
 export interface AppSettings {
@@ -100,6 +101,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     toggleKanban: { key: 'p', modifier: 'cmd' },
     nextProject: { key: 'ArrowRight', modifier: 'cmd' },
     prevProject: { key: 'ArrowLeft', modifier: 'cmd' },
+    newTask: { key: 'n', modifier: 'cmd' },
   },
 };
 
@@ -297,6 +299,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
     toggleKanban: normalizeBinding(keyboard.toggleKanban, DEFAULT_SETTINGS.keyboard!.toggleKanban!),
     nextProject: normalizeBinding(keyboard.nextProject, DEFAULT_SETTINGS.keyboard!.nextProject!),
     prevProject: normalizeBinding(keyboard.prevProject, DEFAULT_SETTINGS.keyboard!.prevProject!),
+    newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
   };
 
   return out;
