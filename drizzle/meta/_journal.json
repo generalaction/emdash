@@ -26,22 +26,22 @@
     {
       "idx": 3,
       "version": "6",
-      "when": 1735570000000,
-      "tag": "0003_add_line_comments",
+      "when": 1765592430355,
+      "tag": "0003_add_run_config_status_to_projects",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "6",
-      "when": 1765592430355,
-      "tag": "0002_add_run_config_status_to_projects",
+      "when": 1765592430356,
+      "tag": "0004_add_line_comments",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "6",
-      "when": 1765592430356,
-      "tag": "0003_add_use_worktree_to_tasks",
+      "when": 1765592430357,
+      "tag": "0005_add_use_worktree_to_tasks",
       "breakpoints": true
     }
   ]
