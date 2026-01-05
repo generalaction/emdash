@@ -2,6 +2,7 @@ import React from 'react';
 import { X, ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
+import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Button } from './ui/button';
 import { setLastUrl, setRunning } from '@/lib/previewStorage';
@@ -495,8 +496,8 @@ const BrowserPane: React.FC<{
               navigate(next);
             }}
           >
-            <input
-              className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-xs outline-none"
+            <Input
+              className="h-7 min-w-0 flex-1 px-2 py-1 text-xs"
               value={address ?? ''}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Enter URL (e.g. http://localhost:5173)"

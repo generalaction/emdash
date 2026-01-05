@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trash, Folder } from 'lucide-react';
+import { Checkbox } from './ui/checkbox';
 import { Spinner } from './ui/spinner';
 import {
   AlertDialog,
@@ -220,11 +221,10 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 exit={{ opacity: 0, y: 6, scale: 0.99 }}
                 transition={{ duration: 0.18, ease: 'easeOut', delay: 0.02 }}
               >
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
+                <Checkbox
                   checked={acknowledge}
-                  onChange={(e) => setAcknowledge(e.target.checked)}
+                  onCheckedChange={(checked) => setAcknowledge(checked === true)}
+                  className="mt-0.5"
                 />
                 <span className="text-sm leading-tight text-foreground">Delete project anyway</span>
               </motion.label>
