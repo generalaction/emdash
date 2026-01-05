@@ -21,6 +21,7 @@ import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
 import { registerLineCommentsIpc } from './lineCommentsIpc';
+import { registerDebateIpc } from './debateIpc';
 
 export function registerAllIpc() {
   // Core app/utility IPC
@@ -50,4 +51,5 @@ export function registerAllIpc() {
   registerConnectionsIpc();
   registerJiraIpc();
   registerPlanLockIpc();
+  registerDebateIpc();
 }

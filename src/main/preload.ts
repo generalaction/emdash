@@ -321,6 +321,67 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('lineComments:markSent', commentIds),
   lineCommentsGetUnsent: (taskId: string) => ipcRenderer.invoke('lineComments:getUnsent', taskId),
 
+  // Debate mode
+  debateStart: (args: {
+    debateId: string;
+    config: {
+      worktreeA: { id: string; path: string };
+      worktreeB: { id: string; path: string };
+      prompt: string;
+      baseBranch?: string;
+    };
+  }) => ipcRenderer.invoke('debate:start', args),
+  debateCancel: (args: { debateId: string }) => ipcRenderer.invoke('debate:cancel', args),
+  onDebateProgress: (
+    callback: (data: {
+      debateId: string;
+      progress: {
+        phase: 'running' | 'judging' | 'complete' | 'error';
+        agentA: {
+          status: 'running' | 'complete' | 'error';
+          currentTool?: string;
+          elapsedMs: number;
+          error?: string;
+        };
+        agentB: {
+          status: 'running' | 'complete' | 'error';
+          currentTool?: string;
+          elapsedMs: number;
+          error?: string;
+        };
+        judge?: {
+          status: 'running' | 'complete' | 'error';
+          elapsedMs: number;
+        };
+      };
+    }) => void
+  ) => {
+    const channel = 'debate:progress';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onDebateResult: (
+    callback: (data: {
+      debateId: string;
+      result: {
+        success: boolean;
+        winner?: 'A' | 'B';
+        reasoning?: string;
+        diffA?: string;
+        diffB?: string;
+        winnerWorktreePath?: string;
+        loserWorktreePath?: string;
+        error?: string;
+      };
+    }) => void
+  ) => {
+    const channel = 'debate:result';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>
     ipcRenderer.invoke('debug:append-log', filePath, content, options ?? {}),

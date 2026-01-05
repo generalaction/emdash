@@ -772,6 +772,57 @@ declare global {
         comments?: LineComment[];
         error?: string;
       }>;
+
+      // Debate mode
+      debateStart: (args: {
+        debateId: string;
+        config: {
+          worktreeA: { id: string; path: string };
+          worktreeB: { id: string; path: string };
+          prompt: string;
+          baseBranch?: string;
+        };
+      }) => Promise<{ success: boolean; error?: string }>;
+      debateCancel: (args: { debateId: string }) => Promise<{ success: boolean; error?: string }>;
+      onDebateProgress: (
+        callback: (data: {
+          debateId: string;
+          progress: {
+            phase: 'running' | 'judging' | 'complete' | 'error';
+            agentA: {
+              status: 'running' | 'complete' | 'error';
+              currentTool?: string;
+              elapsedMs: number;
+              error?: string;
+            };
+            agentB: {
+              status: 'running' | 'complete' | 'error';
+              currentTool?: string;
+              elapsedMs: number;
+              error?: string;
+            };
+            judge?: {
+              status: 'running' | 'complete' | 'error';
+              elapsedMs: number;
+            };
+          };
+        }) => void
+      ) => () => void;
+      onDebateResult: (
+        callback: (data: {
+          debateId: string;
+          result: {
+            success: boolean;
+            winner?: 'A' | 'B';
+            reasoning?: string;
+            diffA?: string;
+            diffB?: string;
+            winnerWorktreePath?: string;
+            loserWorktreePath?: string;
+            error?: string;
+          };
+        }) => void
+      ) => () => void;
     };
   }
 }

@@ -9,6 +9,8 @@ import BrowserPane from './components/BrowserPane';
 import ChatInterface from './components/ChatInterface';
 import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
+import { DebateProgressCard } from './components/DebateProgressCard';
+import { DebateResultsView } from './components/DebateResultsView';
 import ErrorBoundary from './components/ErrorBoundary';
 import FirstLaunchModal from './components/FirstLaunchModal';
 import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
@@ -134,6 +136,39 @@ const AppContent: React.FC = () => {
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
+  const [activeDebate, setActiveDebate] = useState<{
+    debateId: string;
+    taskName: string;
+    prompt: string;
+    worktreeA: { id: string; path: string };
+    worktreeB: { id: string; path: string };
+    progress?: {
+      phase: 'running' | 'judging' | 'complete' | 'error';
+      agentA: {
+        status: 'running' | 'complete' | 'error';
+        currentTool?: string;
+        elapsedMs: number;
+        error?: string;
+      };
+      agentB: {
+        status: 'running' | 'complete' | 'error';
+        currentTool?: string;
+        elapsedMs: number;
+        error?: string;
+      };
+      judge?: { status: 'running' | 'complete' | 'error'; elapsedMs: number };
+    };
+    result?: {
+      success: boolean;
+      winner?: 'A' | 'B';
+      reasoning?: string;
+      diffA?: string;
+      diffB?: string;
+      winnerWorktreePath?: string;
+      loserWorktreePath?: string;
+      error?: string;
+    };
+  } | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
@@ -933,12 +968,93 @@ const AppContent: React.FC = () => {
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
     autoApprove?: boolean,
-    useWorktree: boolean = true
+    useWorktree: boolean = true,
+    debateMode: boolean = false
   ) => {
     if (!selectedProject) return;
 
     setIsCreatingTask(true);
     try {
+      // Handle debate mode - create 2 worktrees and start parallel agents
+      if (debateMode && initialPrompt?.trim()) {
+        const debateId = `debate-${taskName}-${Date.now()}`;
+
+        // Create worktree A
+        const worktreeResultA = await window.electronAPI.worktreeCreate({
+          projectPath: selectedProject.path,
+          taskName: `${taskName}-agent-a`,
+          projectId: selectedProject.id,
+          autoApprove: true,
+        });
+        if (!worktreeResultA?.success || !worktreeResultA.worktree) {
+          throw new Error(worktreeResultA?.error || 'Failed to create worktree A');
+        }
+
+        // Create worktree B
+        const worktreeResultB = await window.electronAPI.worktreeCreate({
+          projectPath: selectedProject.path,
+          taskName: `${taskName}-agent-b`,
+          projectId: selectedProject.id,
+          autoApprove: true,
+        });
+        if (!worktreeResultB?.success || !worktreeResultB.worktree) {
+          throw new Error(worktreeResultB?.error || 'Failed to create worktree B');
+        }
+
+        const worktreeA = {
+          id: worktreeResultA.worktree.id,
+          path: worktreeResultA.worktree.path,
+        };
+        const worktreeB = {
+          id: worktreeResultB.worktree.id,
+          path: worktreeResultB.worktree.path,
+        };
+
+        // Set up debate state
+        setActiveDebate({
+          debateId,
+          taskName,
+          prompt: initialPrompt.trim(),
+          worktreeA,
+          worktreeB,
+          progress: {
+            phase: 'running',
+            agentA: { status: 'running', elapsedMs: 0 },
+            agentB: { status: 'running', elapsedMs: 0 },
+          },
+        });
+
+        // Clear task state and show debate view
+        setActiveTask(null);
+        setShowHomeView(false);
+
+        // Start the debate
+        const debateResult = await window.electronAPI.debateStart({
+          debateId,
+          config: {
+            worktreeA,
+            worktreeB,
+            prompt: initialPrompt.trim(),
+            baseBranch: selectedProject.gitInfo.branch || 'main',
+          },
+        });
+
+        if (!debateResult.success) {
+          toast({
+            title: 'Debate Failed',
+            description: debateResult.error || 'Failed to start debate',
+            variant: 'destructive',
+          });
+        }
+
+        // Track telemetry
+        const { captureTelemetry } = await import('./lib/telemetryClient');
+        captureTelemetry('debate_started', { task_name: taskName });
+
+        setIsCreatingTask(false);
+        return;
+      }
+
       let preparedPrompt: string | undefined = undefined;
       if (initialPrompt && initialPrompt.trim()) {
         const parts: string[] = [];
@@ -1729,7 +1845,145 @@ const AppContent: React.FC = () => {
     };
   }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
 
+  // Subscribe to debate progress and result events
+  useEffect(() => {
+    const cleanupProgress = window.electronAPI.onDebateProgress((data) => {
+      setActiveDebate((prev) => {
+        if (!prev || prev.debateId !== data.debateId) return prev;
+        return { ...prev, progress: data.progress };
+      });
+    });
+
+    const cleanupResult = window.electronAPI.onDebateResult((data) => {
+      setActiveDebate((prev) => {
+        if (!prev || prev.debateId !== data.debateId) return prev;
+        return { ...prev, result: data.result };
+      });
+    });
+
+    return () => {
+      cleanupProgress();
+      cleanupResult();
+    };
+  }, []);
+
   const renderMainContent = () => {
+    // Show debate view when there's an active debate
+    if (activeDebate && selectedProject) {
+      return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-6">
+          <div className="mx-auto w-full max-w-2xl">
+            {activeDebate.result ? (
+              <DebateResultsView
+                result={{
+                  winner: activeDebate.result.winner || 'A',
+                  reasoning: activeDebate.result.reasoning || '',
+                  diffA: activeDebate.result.diffA || '',
+                  diffB: activeDebate.result.diffB || '',
+                  winnerWorktreePath: activeDebate.result.winnerWorktreePath || '',
+                  loserWorktreePath: activeDebate.result.loserWorktreePath || '',
+                }}
+                onFollowUp={async () => {
+                  // Create a task from the winning worktree so user can interact with it
+                  if (activeDebate.result?.winnerWorktreePath) {
+                    const winnerPath = activeDebate.result.winnerWorktreePath;
+                    const isAgentA = winnerPath === activeDebate.worktreeA.path;
+                    const taskName = `${activeDebate.taskName}-${isAgentA ? 'agent-a' : 'agent-b'}`;
+
+                    // Find the worktree task we already created
+                    const existingTask = selectedProject.tasks?.find((t) => t.name === taskName);
+                    if (existingTask) {
+                      setActiveDebate(null);
+                      handleSelectTask(existingTask);
+                    } else {
+                      // Clear debate and go back to project view
+                      setActiveDebate(null);
+                      toast({
+                        title: 'Follow Up',
+                        description: `Open the "${taskName}" task to continue working with the winning solution`,
+                      });
+                    }
+                  }
+                }}
+                onDiscard={async () => {
+                  // Clean up both worktrees
+                  try {
+                    await window.electronAPI.worktreeRemove({
+                      projectPath: selectedProject.path,
+                      worktreeId: activeDebate.worktreeA.id,
+                      worktreePath: activeDebate.worktreeA.path,
+                    });
+                  } catch {}
+                  try {
+                    await window.electronAPI.worktreeRemove({
+                      projectPath: selectedProject.path,
+                      worktreeId: activeDebate.worktreeB.id,
+                      worktreePath: activeDebate.worktreeB.path,
+                    });
+                  } catch {}
+                  setActiveDebate(null);
+                  toast({
+                    title: 'Debate Discarded',
+                    description: 'Both solutions have been removed',
+                  });
+                }}
+                onViewDiff={(diff, label) => {
+                  // TODO: Open diff viewer modal
+                  console.log('View diff:', label, diff.slice(0, 100));
+                }}
+              />
+            ) : (
+              <DebateProgressCard
+                taskName={activeDebate.taskName}
+                prompt={activeDebate.prompt}
+                agents={[
+                  {
+                    id: 'A',
+                    status: activeDebate.progress?.agentA.status || 'running',
+                    currentTool: activeDebate.progress?.agentA.currentTool,
+                    elapsedMs: activeDebate.progress?.agentA.elapsedMs || 0,
+                    error: activeDebate.progress?.agentA.error,
+                  },
+                  {
+                    id: 'B',
+                    status: activeDebate.progress?.agentB.status || 'running',
+                    currentTool: activeDebate.progress?.agentB.currentTool,
+                    elapsedMs: activeDebate.progress?.agentB.elapsedMs || 0,
+                    error: activeDebate.progress?.agentB.error,
+                  },
+                ]}
+                judgeStatus={activeDebate.progress?.judge?.status}
+                judgeElapsedMs={activeDebate.progress?.judge?.elapsedMs}
+                onCancel={async () => {
+                  await window.electronAPI.debateCancel({ debateId: activeDebate.debateId });
+                  // Clean up worktrees
+                  try {
+                    await window.electronAPI.worktreeRemove({
+                      projectPath: selectedProject.path,
+                      worktreeId: activeDebate.worktreeA.id,
+                      worktreePath: activeDebate.worktreeA.path,
+                    });
+                  } catch {}
+                  try {
+                    await window.electronAPI.worktreeRemove({
+                      projectPath: selectedProject.path,
+                      worktreeId: activeDebate.worktreeB.id,
+                      worktreePath: activeDebate.worktreeB.path,
+                    });
+                  } catch {}
+                  setActiveDebate(null);
+                  toast({
+                    title: 'Debate Cancelled',
+                    description: 'The debate has been stopped',
+                  });
+                }}
+              />
+            )}
+          </div>
+        </div>
+      );
+    }
+
     if (selectedProject && showKanban) {
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

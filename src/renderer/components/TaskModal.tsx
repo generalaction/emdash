@@ -43,7 +43,8 @@ interface TaskModalProps {
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null,
     autoApprove?: boolean,
-    useWorktree?: boolean
+    useWorktree?: boolean,
+    debateMode?: boolean
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -92,6 +93,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [jiraConnectionError, setJiraConnectionError] = useState<string | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
+  const [debateMode, setDebateMode] = useState(false);
   const autoNameInitializedRef = useRef(false);
 
   // GitHub connection state
@@ -183,6 +185,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     setSelectedJiraIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
+    setDebateMode(false);
     setShowAdvanced(false);
     setLinearSetupOpen(false);
     setLinearApiKey('');
@@ -436,7 +439,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           selectedGithubIssue,
                           selectedJiraIssue,
                           hasAutoApproveSupport ? autoApprove : false,
-                          useWorktree
+                          useWorktree,
+                          debateMode
                         );
                         onClose();
                       } catch (error) {
@@ -482,6 +486,60 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       defaultProvider={defaultProviderFromSettings}
                     />
                   </div>
+
+                  {/* Debate mode toggle - only show for Claude */}
+                  {providerRuns.length > 0 &&
+                    providerRuns.every((pr) => pr.provider === 'claude') && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 rounded-md border border-dashed border-border/60 bg-muted/30 px-3 py-2">
+                          <input
+                            type="checkbox"
+                            id="debate-mode"
+                            checked={debateMode}
+                            onChange={(e) => setDebateMode(e.target.checked)}
+                            className="h-4 w-4"
+                          />
+                          <div className="flex-1">
+                            <Label
+                              htmlFor="debate-mode"
+                              className="cursor-pointer text-sm font-medium"
+                            >
+                              Debate mode
+                              <span className="ml-1.5 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                experimental
+                              </span>
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Run 2 agents in parallel, then judge the best solution
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Prompt field - required when debate mode is on */}
+                        {debateMode && (
+                          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+                            <Label
+                              htmlFor="debate-prompt"
+                              className="mb-2 block text-sm font-medium"
+                            >
+                              Task prompt <span className="text-destructive">*</span>
+                            </Label>
+                            <textarea
+                              id="debate-prompt"
+                              value={initialPrompt}
+                              onChange={(e) => setInitialPrompt(e.target.value)}
+                              placeholder="Describe the task for the agents to complete..."
+                              className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              rows={3}
+                            />
+                            <p className="mt-1.5 text-xs text-muted-foreground">
+                              Both agents will work on this task independently, then a judge will
+                              pick the best solution.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                   <Accordion
                     type="single"
@@ -810,12 +868,19 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   </Accordion>
 
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={!!validate(taskName) || isCreating}>
+                    <Button
+                      type="submit"
+                      disabled={
+                        !!validate(taskName) || isCreating || (debateMode && !initialPrompt.trim())
+                      }
+                    >
                       {isCreating ? (
                         <>
                           <Spinner size="sm" className="mr-2" />
-                          Creating...
+                          {debateMode ? 'Starting debate...' : 'Creating...'}
                         </>
+                      ) : debateMode ? (
+                        'Start Debate'
                       ) : (
                         'Create'
                       )}
