@@ -912,6 +912,29 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </AlertDialogHeader>
           <div className="space-y-3">
             <AnimatePresence initial={false}>
+              {deleteStatusLoading ? (
+                <motion.div
+                  key="bulk-delete-loading"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
+                >
+                  <Spinner
+                    className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground"
+                    size="sm"
+                  />
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-sm font-semibold text-foreground">Please wait...</span>
+                    <span className="text-xs text-muted-foreground">
+                      Scanning tasks for uncommitted changes and open pull requests
+                    </span>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+            <AnimatePresence initial={false}>
               {(() => {
                 const tasksWithUncommittedWorkOnly = selectedTasks.filter((ws) => {
                   const summary = deleteRisks.summaries[ws.id];
@@ -921,7 +944,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   return true;
                 });
 
-                return tasksWithUncommittedWorkOnly.length > 0 ? (
+                return tasksWithUncommittedWorkOnly.length > 0 && !deleteStatusLoading ? (
                   <motion.div
                     key="bulk-risk"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -958,7 +981,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 const prTasks = selectedTasks
                   .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
                   .filter((w) => w.pr && isActivePr(w.pr));
-                return prTasks.length ? (
+                return prTasks.length && !deleteStatusLoading ? (
                   <motion.div
                     key="bulk-pr-notice"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -973,7 +996,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             </AnimatePresence>
 
             <AnimatePresence initial={false}>
-              {deleteRisks.riskyIds.size > 0 ? (
+              {deleteRisks.riskyIds.size > 0 && !deleteStatusLoading ? (
                 <motion.label
                   key="bulk-ack"
                   className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm"
