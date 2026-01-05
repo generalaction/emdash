@@ -99,19 +99,14 @@ const DiffCard: React.FC<DiffCardProps> = ({ label, diff, isWinner, onViewDiff }
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={cn('text-sm font-medium', isWinner && 'text-green-600 dark:text-green-400')}>
+          <span
+            className={cn('text-sm font-medium', isWinner && 'text-green-600 dark:text-green-400')}
+          >
             {label}
           </span>
-          {isWinner && (
-            <Trophy className="h-3.5 w-3.5 text-green-500" />
-          )}
+          {isWinner && <Trophy className="h-3.5 w-3.5 text-green-500" />}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={onViewDiff}
-        >
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onViewDiff}>
           <GitCompare className="mr-1 h-3 w-3" />
           View
         </Button>

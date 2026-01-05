@@ -56,13 +56,7 @@ export class HeadlessAgentRunner extends EventEmitter {
       try {
         this.proc = spawn(
           'claude',
-          [
-            '-p',
-            this.prompt,
-            '--output-format',
-            'stream-json',
-            '--dangerously-skip-permissions',
-          ],
+          ['-p', this.prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions'],
           {
             cwd: this.worktreePath,
             env: { ...process.env },
@@ -240,10 +234,7 @@ export async function runHeadlessAgents(
 /**
  * Get git diff for a worktree compared to its base branch
  */
-export async function getWorktreeDiff(
-  worktreePath: string,
-  baseBranch = 'main'
-): Promise<string> {
+export async function getWorktreeDiff(worktreePath: string, baseBranch = 'main'): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn('git', ['diff', `${baseBranch}...HEAD`], {
       cwd: worktreePath,
@@ -374,7 +365,9 @@ Analyze both solutions and reply with ONLY valid JSON in this exact format:
               for (const content of msg.message.content) {
                 if (content.type === 'text' && content.text) {
                   // Try to extract JSON from the text
-                  const jsonMatch = content.text.match(/\{[\s\S]*"winner"[\s\S]*"reasoning"[\s\S]*\}/);
+                  const jsonMatch = content.text.match(
+                    /\{[\s\S]*"winner"[\s\S]*"reasoning"[\s\S]*\}/
+                  );
                   if (jsonMatch) {
                     const result = JSON.parse(jsonMatch[0]);
                     if (result.winner === 'A' || result.winner === 'B') {
