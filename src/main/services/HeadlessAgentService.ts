@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import log from '../lib/logger';
+import { log } from '../lib/logger';
 
 export interface HeadlessAgentProgress {
   type: 'tool_use' | 'text' | 'complete' | 'error';
