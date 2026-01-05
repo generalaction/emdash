@@ -50,9 +50,7 @@ const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) =>
       <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
         {formatModifier(binding.modifier)}
       </kbd>
-      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-        {displayKey}
-      </kbd>
+      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{displayKey}</kbd>
     </span>
   );
 };
