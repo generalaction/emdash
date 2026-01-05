@@ -462,9 +462,7 @@ export class TerminalSessionManager {
       // Check if at bottom BEFORE writing - if yes, we'll scroll to stay at bottom
       // If user has scrolled up, they stay where they are
       const buffer = this.terminal.buffer?.active;
-      const isAtBottom = buffer
-        ? buffer.baseY - buffer.viewportY <= 2
-        : true;
+      const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
 
       this.terminal.write(chunk);
       if (!this.firstFrameRendered) {
