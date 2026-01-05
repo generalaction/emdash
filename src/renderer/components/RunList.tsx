@@ -30,7 +30,7 @@ const RunList: React.FC<RunListProps> = ({ runs, selectedRun, onRunSelect }) => 
       case 'failed':
         return 'text-red-400';
       case 'cancelled':
-        return 'text-gray-400';
+        return 'text-muted-foreground';
       default:
         return 'text-yellow-400';
     }
@@ -58,7 +58,7 @@ const RunList: React.FC<RunListProps> = ({ runs, selectedRun, onRunSelect }) => 
 
         {runs.length === 0 ? (
           <div className="py-8 text-center">
-            <div className="text-gray-500">No runs found</div>
+            <div className="text-muted-foreground">No runs found</div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -68,7 +68,7 @@ const RunList: React.FC<RunListProps> = ({ runs, selectedRun, onRunSelect }) => 
                 className={`cursor-pointer rounded-lg border p-4 transition-colors ${
                   selectedRun?.id === run.id
                     ? 'border-blue-500 bg-blue-600'
-                    : 'border-gray-700 bg-gray-800 hover:bg-gray-700'
+                    : 'border-border bg-card hover:bg-accent'
                 }`}
                 onClick={() => onRunSelect(run)}
               >
@@ -78,23 +78,23 @@ const RunList: React.FC<RunListProps> = ({ runs, selectedRun, onRunSelect }) => 
                     <span className={`font-medium ${getStatusColor(run.status)}`}>
                       {run.status.toUpperCase()}
                     </span>
-                    <span className="text-sm text-gray-400">
+                    <span className="text-sm text-muted-foreground">
                       {formatDuration(run.startedAt, run.finishedAt)}
                     </span>
                   </div>
-                  <div className="text-sm text-gray-400">
+                  <div className="text-sm text-muted-foreground">
                     {run.provider === 'claude-code' ? 'Claude' : 'OpenAI'}
                   </div>
                 </div>
 
-                <div className="mb-2 text-sm text-gray-300">
+                <div className="mb-2 text-sm text-muted-foreground">
                   <strong>Branch:</strong> {run.branch}
                 </div>
 
-                <div className="line-clamp-2 text-sm text-gray-400">{run.prompt}</div>
+                <div className="line-clamp-2 text-sm text-muted-foreground">{run.prompt}</div>
 
                 {run.tokenUsage > 0 && (
-                  <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                  <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
                     <span>Tokens: {run.tokenUsage.toLocaleString()}</span>
                     {run.cost > 0 && <span>Cost: ${run.cost.toFixed(4)}</span>}
                   </div>

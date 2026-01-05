@@ -211,11 +211,11 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
             transition={
               shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
             }
-            className="w-full max-w-lg transform-gpu rounded-xl border border-gray-200 bg-white shadow-2xl outline-none will-change-transform dark:border-gray-700 dark:bg-gray-900"
+            className="w-full max-w-lg transform-gpu rounded-xl border border-border bg-white shadow-2xl outline-none will-change-transform dark:border-border dark:bg-background"
           >
             <div className="flex items-start justify-between px-6 pb-2 pt-6">
               <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
+                <h2 className="text-lg font-semibold text-foreground">Feedback</h2>
                 {blurb ? <p className="max-w-md text-xs text-muted-foreground">{blurb}</p> : null}
               </div>
               <Button
@@ -285,7 +285,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                     {attachments.map((file, index) => (
                       <li
                         key={`${file.name}-${index}`}
-                        className="flex items-center justify-between rounded-md border border-dashed border-gray-300 px-3 py-2 text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                        className="flex items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-foreground dark:border-border dark:text-foreground"
                       >
                         <span className="truncate">{file.name}</span>
                         <Button

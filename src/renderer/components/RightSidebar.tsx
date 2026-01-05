@@ -85,7 +85,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
                       key={`${v.provider}-${i}`}
                       className="mb-2 border-b border-border last:mb-0 last:border-b-0"
                     >
-                      <div className="flex min-w-0 items-center justify-between bg-gray-50 px-3 py-2 text-xs font-medium text-foreground dark:bg-gray-900">
+                      <div className="flex min-w-0 items-center justify-between bg-muted px-3 py-2 text-xs font-medium text-foreground dark:bg-background">
                         <span className="inline-flex min-w-0 items-center gap-2">
                           {(() => {
                             const asset = (providerAssets as any)[v.provider] as
@@ -153,7 +153,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
               ) : (
                 <>
                   <div className="flex h-1/2 flex-col border-b border-border bg-background">
-                    <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
+                    <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
                       <span className="whitespace-nowrap">Changes</span>
                     </div>
                     <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
@@ -174,7 +174,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
           ) : (
             <div className="flex h-full flex-col text-sm text-muted-foreground">
               <div className="flex h-1/2 flex-col border-b border-border bg-background">
-                <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
+                <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
                   <span className="whitespace-nowrap">Changes</span>
                 </div>
                 <div className="flex flex-1 items-center justify-center px-4 text-center">
@@ -184,7 +184,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
                 </div>
               </div>
               <div className="flex h-1/2 flex-col bg-background">
-                <div className="border-b border-border bg-gray-50 px-3 py-2 text-sm font-medium text-foreground dark:bg-gray-900">
+                <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
                   <span className="whitespace-nowrap">Terminal</span>
                 </div>
                 <div className="flex flex-1 items-center justify-center px-4 text-center">
