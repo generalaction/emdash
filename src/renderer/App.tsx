@@ -332,6 +332,13 @@ const AppContent: React.FC = () => {
     }
   }, [allTasks, activeTask, activateProjectView]);
 
+  const handleNewTask = useCallback(() => {
+    // Only open modal if a project is selected
+    if (selectedProject) {
+      setShowTaskModal(true);
+    }
+  }, [selectedProject]);
+
   const markFirstLaunchSeen = useCallback(() => {
     try {
       localStorage.setItem(FIRST_LAUNCH_KEY, '1');
@@ -1929,7 +1936,7 @@ const AppContent: React.FC = () => {
                 handleToggleKanban={handleToggleKanban}
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
-                handleNewTask={() => setShowTaskModal(true)}
+                handleNewTask={handleNewTask}
               />
               <RightSidebarBridge
                 onCollapsedChange={handleRightSidebarCollapsedChange}
