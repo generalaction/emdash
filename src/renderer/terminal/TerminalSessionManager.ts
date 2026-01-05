@@ -60,7 +60,6 @@ export class TerminalSessionManager {
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
-  private userScrolledUp = false;
 
   constructor(private readonly options: TerminalSessionOptions) {
     this.id = options.taskId;
@@ -111,11 +110,6 @@ export class TerminalSessionManager {
       telemetry: options.telemetry ?? null,
     });
 
-    // Track user scroll position to avoid auto-scrolling when user is reading previous output
-    const scrollDisposable = this.terminal.onScroll(() => {
-      this.updateUserScrolledUp();
-    });
-
     const inputDisposable = this.terminal.onData((data) => {
       this.emitActivity();
       if (!this.disposed) {
@@ -152,7 +146,6 @@ export class TerminalSessionManager {
       }
     });
     this.disposables.push(
-      () => scrollDisposable.dispose(),
       () => inputDisposable.dispose(),
       () => resizeDisposable.dispose()
     );
@@ -387,23 +380,6 @@ export class TerminalSessionManager {
   }
 
   /**
-   * Check if user has scrolled away from bottom and update the flag.
-   * Used to prevent auto-scroll from interrupting users reading previous output.
-   */
-  private updateUserScrolledUp() {
-    try {
-      const buffer = this.terminal.buffer?.active;
-      if (buffer && typeof buffer.baseY === 'number' && typeof buffer.viewportY === 'number') {
-        // Consider "at bottom" if within 2 lines of the end (small threshold for smoother UX)
-        const distanceFromBottom = buffer.baseY - buffer.viewportY;
-        this.userScrolledUp = distanceFromBottom > 2;
-      }
-    } catch (error) {
-      log.warn('Failed to update scroll position tracking', { id: this.id, error });
-    }
-  }
-
-  /**
    * Restore the previously captured viewport position.
    * This ensures the terminal stays at the same scroll position when switching
    * between tasks or when the terminal is reattached.
@@ -483,6 +459,13 @@ export class TerminalSessionManager {
         this.terminal.clear();
         this.terminal.writeln('[scrollback truncated to protect memory]');
       }
+      // Check if at bottom BEFORE writing - if yes, we'll scroll to stay at bottom
+      // If user has scrolled up, they stay where they are
+      const buffer = this.terminal.buffer?.active;
+      const isAtBottom = buffer
+        ? buffer.baseY - buffer.viewportY <= 2
+        : true;
+
       this.terminal.write(chunk);
       if (!this.firstFrameRendered) {
         this.firstFrameRendered = true;
@@ -490,9 +473,8 @@ export class TerminalSessionManager {
           this.terminal.refresh(0, this.terminal.rows - 1);
         } catch {}
       }
-      // Auto-scroll to bottom when new data arrives, but only if user hasn't scrolled up
-      // This allows users to read previous output without being yanked to the bottom
-      if (!this.userScrolledUp) {
+      // Only auto-scroll if we were already at bottom (stay at bottom behavior)
+      if (isAtBottom) {
         try {
           this.terminal.scrollToBottom();
         } catch {}
