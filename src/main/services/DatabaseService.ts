@@ -874,6 +874,13 @@ export class DatabaseService {
     await new Promise<void>((resolve, reject) => {
       this.db!.exec(trimmed, (err) => {
         if (err) {
+          // Handle idempotent migration cases - skip if schema already matches
+          const msg = err.message ?? '';
+          if (msg.includes('duplicate column name') || msg.includes('already exists')) {
+            // Schema change already applied, continue
+            resolve();
+            return;
+          }
           reject(err);
         } else {
           resolve();
