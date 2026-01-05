@@ -1968,24 +1968,39 @@ const AppContent: React.FC = () => {
                   className="flex-1 overflow-hidden"
                   onLayout={handlePanelLayout}
                 >
-                  <LeftSidebar
-                    projects={projects}
-                    selectedProject={selectedProject}
-                    onSelectProject={handleSelectProject}
-                    onGoHome={handleGoHome}
-                    onOpenProject={handleOpenProject}
-                    onNewProject={handleNewProjectClick}
-                    onCloneProject={handleCloneProjectClick}
-                    onSelectTask={handleSelectTask}
-                    activeTask={activeTask || undefined}
-                    onReorderProjects={handleReorderProjects}
-                    onReorderProjectsFull={handleReorderProjectsFull}
-                    onSidebarContextChange={handleSidebarContextChange}
-                    onCreateTaskForProject={handleStartCreateTaskFromSidebar}
-                    isCreatingTask={isCreatingTask}
-                    onDeleteTask={handleDeleteTask}
-                    onDeleteProject={handleDeleteProject}
-                    isHomeView={showHomeView}
+                  <ResizablePanel
+                    ref={leftSidebarPanelRef}
+                    className="sidebar-panel sidebar-panel--left"
+                    defaultSize={defaultPanelLayout[0]}
+                    minSize={LEFT_SIDEBAR_MIN_SIZE}
+                    maxSize={LEFT_SIDEBAR_MAX_SIZE}
+                    collapsedSize={0}
+                    collapsible
+                    order={1}
+                  >
+                    <LeftSidebar
+                      projects={projects}
+                      selectedProject={selectedProject}
+                      onSelectProject={handleSelectProject}
+                      onGoHome={handleGoHome}
+                      onOpenProject={handleOpenProject}
+                      onNewProject={handleNewProjectClick}
+                      onCloneProject={handleCloneProjectClick}
+                      onSelectTask={handleSelectTask}
+                      activeTask={activeTask || undefined}
+                      onReorderProjects={handleReorderProjects}
+                      onReorderProjectsFull={handleReorderProjectsFull}
+                      onSidebarContextChange={handleSidebarContextChange}
+                      onCreateTaskForProject={handleStartCreateTaskFromSidebar}
+                      isCreatingTask={isCreatingTask}
+                      onDeleteTask={handleDeleteTask}
+                      onDeleteProject={handleDeleteProject}
+                      isHomeView={showHomeView}
+                    />
+                  </ResizablePanel>
+                  <ResizableHandle
+                    withHandle
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
                   <ResizablePanel
                     className="sidebar-panel sidebar-panel--main"
