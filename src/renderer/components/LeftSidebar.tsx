@@ -12,7 +12,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarFooter,
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
@@ -20,7 +19,6 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Home, ChevronRight, Plus, FolderOpen, Github } from 'lucide-react';
 import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
-import GithubStatus from './GithubStatus';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import type { Project } from '../types/app';
@@ -38,13 +36,6 @@ interface LeftSidebarProps {
   activeTask?: Task | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
   onReorderProjectsFull?: (newOrder: Project[]) => void;
-  githubInstalled?: boolean;
-  githubAuthenticated?: boolean;
-  githubUser?: { login?: string; name?: string; avatar_url?: string } | null;
-  onGithubConnect?: () => void;
-  githubLoading?: boolean;
-  githubStatusMessage?: string;
-  githubInitialized?: boolean;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;
@@ -108,13 +99,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   activeTask,
   onReorderProjects,
   onReorderProjectsFull,
-  githubInstalled = true,
-  githubAuthenticated = false,
-  githubUser,
-  onGithubConnect,
-  githubLoading = false,
-  githubStatusMessage,
-  githubInitialized = false,
   onSidebarContextChange,
   onCreateTaskForProject,
   isCreatingTask,
@@ -140,37 +124,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     [onDeleteProject]
   );
 
-  const githubProfileUrl = React.useMemo(() => {
-    if (!githubAuthenticated) {
-      return null;
-    }
-    const login = githubUser?.login?.trim();
-    return login ? `https://github.com/${login}` : null;
-  }, [githubAuthenticated, githubUser?.login]);
-
-  const handleGithubProfileClick = React.useCallback(() => {
-    if (!githubProfileUrl || typeof window === 'undefined') {
-      return;
-    }
-    const api = (window as any).electronAPI;
-    api?.openExternal?.(githubProfileUrl);
-  }, [githubProfileUrl]);
-
   React.useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
-
-  const renderGithubStatus = () => (
-    <GithubStatus
-      installed={githubInstalled}
-      authenticated={githubAuthenticated}
-      user={githubUser}
-      onConnect={onGithubConnect}
-      isLoading={githubLoading}
-      statusMessage={githubStatusMessage}
-      isInitialized={githubInitialized}
-    />
-  );
 
   return (
     <div className="relative h-full">
@@ -422,37 +378,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </SidebarGroup>
           )}
         </SidebarContent>
-        <SidebarFooter className="min-w-0 overflow-hidden px-3 py-3">
-          <SidebarMenu className="w-full min-w-0">
-            <SidebarMenuItem className="min-w-0">
-              <motion.div
-                whileTap={githubProfileUrl ? { scale: 0.97 } : undefined}
-                transition={{ duration: 0.1, ease: 'easeInOut' }}
-              >
-                <SidebarMenuButton
-                  tabIndex={githubProfileUrl ? 0 : -1}
-                  onClick={(e) => {
-                    if (!githubProfileUrl) {
-                      return;
-                    }
-                    e.preventDefault();
-                    handleGithubProfileClick();
-                  }}
-                  className={`flex w-full min-w-0 items-center justify-start gap-2 overflow-hidden px-2 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-0 ${
-                    githubProfileUrl
-                      ? 'hover:bg-black/5 dark:hover:bg-white/5'
-                      : 'cursor-default hover:bg-transparent'
-                  }`}
-                  aria-label={githubProfileUrl ? 'Open GitHub profile' : undefined}
-                >
-                  <div className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-hidden text-left">
-                    <div className="hidden w-full min-w-0 sm:block">{renderGithubStatus()}</div>
-                  </div>
-                </SidebarMenuButton>
-              </motion.div>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
       </Sidebar>
     </div>
   );
