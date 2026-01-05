@@ -876,10 +876,7 @@ export class DatabaseService {
         if (err) {
           // Handle idempotent migration cases - skip if schema already matches
           const msg = err.message ?? '';
-          if (
-            msg.includes('duplicate column name') ||
-            msg.includes('already exists')
-          ) {
+          if (msg.includes('duplicate column name') || msg.includes('already exists')) {
             // Schema change already applied, continue
             resolve();
             return;
