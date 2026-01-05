@@ -271,7 +271,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onClick={() => setShowAllChangesModal(true)}
                 >
                   <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Check Changes</span>
+                  <span className="hidden sm:inline">Changes</span>
                 </Button>
                 <Button
                   variant="outline"
