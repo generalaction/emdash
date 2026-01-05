@@ -9,6 +9,7 @@ import {
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
+import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 
 interface ShortcutBinding {
   key: string;
@@ -36,18 +37,26 @@ const formatModifier = (modifier: ShortcutModifier | undefined): string => {
   }
 };
 
-const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) => (
-  <span className="flex items-center gap-1">
-    <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-      {formatModifier(binding.modifier)}
-    </kbd>
-    <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-      {binding.key.toUpperCase()}
-    </kbd>
-  </span>
-);
+const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) => {
+  let displayKey = binding.key;
+  if (displayKey === 'ArrowLeft') displayKey = '←';
+  else if (displayKey === 'ArrowRight') displayKey = '→';
+  else if (displayKey === 'ArrowUp') displayKey = '↑';
+  else if (displayKey === 'ArrowDown') displayKey = '↓';
+  else displayKey = displayKey.toUpperCase();
+
+  return (
+    <span className="flex items-center gap-1">
+      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+        {formatModifier(binding.modifier)}
+      </kbd>
+      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{displayKey}</kbd>
+    </span>
+  );
+};
 
 const KeyboardSettingsCard: React.FC = () => {
+  const { refreshSettings } = useKeyboardSettings();
   const [bindings, setBindings] = useState<Record<ShortcutSettingsKey, ShortcutBinding>>(() => {
     const initial: Record<string, ShortcutBinding> = {};
     for (const shortcut of CONFIGURABLE_SHORTCUTS) {
@@ -125,6 +134,8 @@ const KeyboardSettingsCard: React.FC = () => {
           title: 'Shortcut updated',
           description: `${shortcut.label} is now ${formatModifier(binding.modifier)} ${binding.key.toUpperCase()}`,
         });
+        // Refresh global keyboard settings so shortcuts work immediately
+        await refreshSettings();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update settings.';
         setBindings((prev) => ({ ...prev, [settingsKey]: previous }));
@@ -138,7 +149,7 @@ const KeyboardSettingsCard: React.FC = () => {
         setSaving(false);
       }
     },
-    [bindings]
+    [bindings, refreshSettings]
   );
 
   const handleKeyCapture = useCallback(

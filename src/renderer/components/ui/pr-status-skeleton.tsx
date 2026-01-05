@@ -15,7 +15,7 @@ export const PrStatusSkeleton: React.FC<PrStatusSkeletonProps> = ({
 }) => {
   return (
     <span
-      className={`inline-block align-middle ${heightClass} ${widthClass} animate-pulse rounded border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800 ${className}`}
+      className={`inline-block align-middle ${heightClass} ${widthClass} animate-pulse rounded border border-border bg-muted dark:border-border dark:bg-card ${className}`}
       aria-label={ariaLabel}
     />
   );
