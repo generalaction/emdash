@@ -98,8 +98,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     toggleRightSidebar: { key: '.', modifier: 'cmd' },
     toggleTheme: { key: 't', modifier: 'cmd' },
     toggleKanban: { key: 'p', modifier: 'cmd' },
-    nextProject: { key: ']', modifier: 'cmd' },
-    prevProject: { key: '[', modifier: 'cmd' },
+    nextProject: { key: 'ArrowRight', modifier: 'cmd' },
+    prevProject: { key: 'ArrowLeft', modifier: 'cmd' },
   },
 };
 

@@ -37,16 +37,25 @@ const formatModifier = (modifier: ShortcutModifier | undefined): string => {
   }
 };
 
-const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) => (
-  <span className="flex items-center gap-1">
-    <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-      {formatModifier(binding.modifier)}
-    </kbd>
-    <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-      {binding.key.toUpperCase()}
-    </kbd>
-  </span>
-);
+const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) => {
+  let displayKey = binding.key;
+  if (displayKey === 'ArrowLeft') displayKey = '←';
+  else if (displayKey === 'ArrowRight') displayKey = '→';
+  else if (displayKey === 'ArrowUp') displayKey = '↑';
+  else if (displayKey === 'ArrowDown') displayKey = '↓';
+  else displayKey = displayKey.toUpperCase();
+
+  return (
+    <span className="flex items-center gap-1">
+      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+        {formatModifier(binding.modifier)}
+      </kbd>
+      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+        {displayKey}
+      </kbd>
+    </span>
+  );
+};
 
 const KeyboardSettingsCard: React.FC = () => {
   const { refreshSettings } = useKeyboardSettings();

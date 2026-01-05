@@ -96,7 +96,7 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   },
 
   NEXT_TASK: {
-    key: ']',
+    key: 'ArrowRight',
     modifier: 'cmd',
     label: 'Next Task',
     description: 'Switch to the next task',
@@ -105,7 +105,7 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   },
 
   PREV_TASK: {
-    key: '[',
+    key: 'ArrowLeft',
     modifier: 'cmd',
     label: 'Previous Task',
     description: 'Switch to the previous task',
@@ -142,7 +142,13 @@ export function formatShortcut(shortcut: ShortcutConfig): string {
             : 'Ctrl'
     : '';
 
-  const key = shortcut.key === 'Escape' ? 'Esc' : shortcut.key.toUpperCase();
+  let key = shortcut.key;
+  if (key === 'Escape') key = 'Esc';
+  else if (key === 'ArrowLeft') key = '←';
+  else if (key === 'ArrowRight') key = '→';
+  else if (key === 'ArrowUp') key = '↑';
+  else if (key === 'ArrowDown') key = '↓';
+  else key = key.toUpperCase();
 
   return modifier ? `${modifier}${key}` : key;
 }
