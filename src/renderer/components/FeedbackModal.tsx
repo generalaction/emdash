@@ -270,7 +270,12 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
               </Button>
             </div>
 
-            <form className="space-y-4 px-6 pb-6" onSubmit={handleFormSubmit} onDrop={handleDrop} onDragOver={handleDragOver}>
+            <form
+              className="space-y-4 px-6 pb-6"
+              onSubmit={handleFormSubmit}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+            >
               <div className="space-y-1.5">
                 <label htmlFor="feedback-details" className="sr-only">
                   Feedback details
