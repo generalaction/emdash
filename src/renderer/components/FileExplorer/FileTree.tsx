@@ -35,7 +35,16 @@ const TreeNode: React.FC<{
   onSelect: (path: string) => void;
   onOpen?: (path: string) => void;
   onLoadChildren: (node: FileNode) => Promise<void>;
-}> = ({ node, level, selectedPath, expandedPaths, onToggleExpand, onSelect, onOpen, onLoadChildren }) => {
+}> = ({
+  node,
+  level,
+  selectedPath,
+  expandedPaths,
+  onToggleExpand,
+  onSelect,
+  onOpen,
+  onLoadChildren,
+}) => {
   const isExpanded = expandedPaths.has(node.path);
   const isSelected = selectedPath === node.path;
 
@@ -90,9 +99,7 @@ const TreeNode: React.FC<{
             isExpanded={isExpanded}
           />
         </span>
-        <span className="flex-1 truncate text-sm">
-          {node.name}
-        </span>
+        <span className="flex-1 truncate text-sm">{node.name}</span>
       </div>
 
       {node.type === 'directory' && isExpanded && node.children && (
@@ -184,9 +191,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
   const shouldExclude = useCallback(
     (path: string): boolean => {
       const parts = path.split('/');
-      return parts.some(part => {
+      return parts.some((part) => {
         const lowerPart = part.toLowerCase();
-        return allExcludePatterns.some(pattern => {
+        return allExcludePatterns.some((pattern) => {
           const lowerPattern = pattern.toLowerCase();
           return lowerPart === lowerPattern || lowerPart.includes(lowerPattern);
         });
@@ -262,9 +269,10 @@ export const FileTree: React.FC<FileTreeProps> = ({
           type: itemInfo.type === 'dir' ? 'directory' : 'file',
           children: itemInfo.type === 'dir' ? [] : undefined,
           isHidden: itemName.startsWith('.'),
-          extension: itemInfo.type === 'file' && itemName.includes('.')
-            ? itemName.split('.').pop()
-            : undefined,
+          extension:
+            itemInfo.type === 'file' && itemName.includes('.')
+              ? itemName.split('.').pop()
+              : undefined,
           isLoaded: false,
         });
       });
@@ -312,25 +320,28 @@ export const FileTree: React.FC<FileTreeProps> = ({
   }, [rootPath, buildNodesFromPath]);
 
   // Load children for a node using the cached file list
-  const loadChildren = useCallback(async (node: FileNode) => {
-    const children = buildNodesFromPath(node.path, allFiles);
+  const loadChildren = useCallback(
+    async (node: FileNode) => {
+      const children = buildNodesFromPath(node.path, allFiles);
 
-    setTree(currentTree => {
-      const updateNode = (nodes: FileNode[]): FileNode[] => {
-        return nodes.map(n => {
-          if (n.path === node.path) {
-            return { ...n, children, isLoaded: true };
-          }
-          if (n.children && n.children.length > 0) {
-            return { ...n, children: updateNode(n.children) };
-          }
-          return n;
-        });
-      };
+      setTree((currentTree) => {
+        const updateNode = (nodes: FileNode[]): FileNode[] => {
+          return nodes.map((n) => {
+            if (n.path === node.path) {
+              return { ...n, children, isLoaded: true };
+            }
+            if (n.children && n.children.length > 0) {
+              return { ...n, children: updateNode(n.children) };
+            }
+            return n;
+          });
+        };
 
-      return updateNode(currentTree);
-    });
-  }, [allFiles, buildNodesFromPath]);
+        return updateNode(currentTree);
+      });
+    },
+    [allFiles, buildNodesFromPath]
+  );
 
   // Toggle expand/collapse
   const handleToggleExpand = useCallback((path: string) => {

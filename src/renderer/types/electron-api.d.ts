@@ -563,6 +563,16 @@ declare global {
         content?: string;
         error?: string;
       }>;
+      fsReadImage: (
+        root: string,
+        relPath: string
+      ) => Promise<{
+        success: boolean;
+        dataUrl?: string;
+        mimeType?: string;
+        size?: number;
+        error?: string;
+      }>;
       fsWriteFile: (
         root: string,
         relPath: string,
