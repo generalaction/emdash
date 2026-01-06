@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Command, MessageSquare, Settings as SettingsIcon, KanbanSquare, Code2 } from 'lucide-react';
+import {
+  Command,
+  MessageSquare,
+  Settings as SettingsIcon,
+  KanbanSquare,
+  Code2,
+} from 'lucide-react';
 import { ShortcutHint } from '../ui/shortcut-hint';
 import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
@@ -117,12 +123,14 @@ const Titlebar: React.FC<TitlebarProps> = ({
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
-                    variant={isEditorOpen ? "secondary" : "ghost"}
+                    variant={isEditorOpen ? 'secondary' : 'ghost'}
                     size="icon"
-                    aria-label={isEditorOpen ? "Close Editor" : "Open Editor"}
+                    aria-label={isEditorOpen ? 'Close Editor' : 'Open Editor'}
                     onClick={async () => {
                       void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-                        captureTelemetry('toolbar_editor_clicked', { action: isEditorOpen ? 'close' : 'open' });
+                        captureTelemetry('toolbar_editor_clicked', {
+                          action: isEditorOpen ? 'close' : 'open',
+                        });
                       });
                       onToggleEditor?.();
                     }}
@@ -132,7 +140,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs font-medium">
-                  <span>{isEditorOpen ? "Close Editor" : "Open Editor"}</span>
+                  <span>{isEditorOpen ? 'Close Editor' : 'Open Editor'}</span>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

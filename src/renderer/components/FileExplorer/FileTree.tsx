@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  ChevronRight,
-  ChevronDown
-} from 'lucide-react';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FileIcon } from './FileIcons';
 
@@ -29,7 +26,6 @@ interface FileTreeProps {
   showHiddenFiles?: boolean;
   excludePatterns?: string[];
 }
-
 
 // Tree node component
 const TreeNode: React.FC<{
@@ -64,7 +60,7 @@ const TreeNode: React.FC<{
     <div>
       <div
         className={cn(
-          'flex items-center h-6 px-1 cursor-pointer hover:bg-accent/50 select-none',
+          'flex h-6 cursor-pointer select-none items-center px-1 hover:bg-accent/50',
           isSelected && 'bg-accent',
           node.isHidden && 'opacity-60'
         )}
@@ -91,9 +87,7 @@ const TreeNode: React.FC<{
             isExpanded={isExpanded}
           />
         </span>
-        <span className="text-sm truncate flex-1">
-          {node.name}
-        </span>
+        <span className="flex-1 truncate text-sm">{node.name}</span>
       </div>
 
       {node.type === 'directory' && isExpanded && node.children && (
@@ -123,7 +117,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   onOpenFile,
   className,
   showHiddenFiles = false,
-  excludePatterns = []
+  excludePatterns = [],
 }) => {
   const [tree, setTree] = useState<FileNode | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(['']));
@@ -131,32 +125,35 @@ export const FileTree: React.FC<FileTreeProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Default exclude patterns (VS Code defaults)
-  const defaultExcludePatterns = useMemo(() => [
-    '**/node_modules',
-    '**/.git',
-    '**/dist',
-    '**/build',
-    '**/.next',
-    '**/out',
-    '**/.turbo',
-    '**/coverage',
-    '**/.nyc_output',
-    '**/.cache',
-    '**/tmp',
-    '**/temp',
-    '**/.DS_Store',
-    '**/Thumbs.db',
-    '**/*.log',
-    '**/.vscode-test',
-    '**/.idea',
-    '**/__pycache__',
-    '**/.pytest_cache',
-    '**/venv',
-    '**/.venv',
-    '**/target',
-    '**/.terraform',
-    '**/.serverless'
-  ], []);
+  const defaultExcludePatterns = useMemo(
+    () => [
+      '**/node_modules',
+      '**/.git',
+      '**/dist',
+      '**/build',
+      '**/.next',
+      '**/out',
+      '**/.turbo',
+      '**/coverage',
+      '**/.nyc_output',
+      '**/.cache',
+      '**/tmp',
+      '**/temp',
+      '**/.DS_Store',
+      '**/Thumbs.db',
+      '**/*.log',
+      '**/.vscode-test',
+      '**/.idea',
+      '**/__pycache__',
+      '**/.pytest_cache',
+      '**/venv',
+      '**/.venv',
+      '**/target',
+      '**/.terraform',
+      '**/.serverless',
+    ],
+    []
+  );
 
   const allExcludePatterns = useMemo(
     () => [...defaultExcludePatterns, ...excludePatterns],
@@ -164,56 +161,59 @@ export const FileTree: React.FC<FileTreeProps> = ({
   );
 
   // Load directory contents
-  const loadDirectory = useCallback(async (dirPath: string): Promise<FileNode[]> => {
-    try {
-      const fullPath = dirPath ? `${rootPath}/${dirPath}` : rootPath;
-      const result = await window.electronAPI.fsList(fullPath, { includeDirs: true });
+  const loadDirectory = useCallback(
+    async (dirPath: string): Promise<FileNode[]> => {
+      try {
+        const fullPath = dirPath ? `${rootPath}/${dirPath}` : rootPath;
+        const result = await window.electronAPI.fsList(fullPath, { includeDirs: true });
 
-      if (!result.success || !result.items) {
-        console.error('Failed to load directory:', result.error);
+        if (!result.success || !result.items) {
+          console.error('Failed to load directory:', result.error);
+          return [];
+        }
+
+        // Filter and sort items
+        let items = result.items;
+
+        // Apply filtering
+        if (!showHiddenFiles) {
+          items = items.filter((item) => !item.path.startsWith('.'));
+        }
+
+        // Apply exclude patterns (simplified for now)
+        items = items.filter((item) => {
+          const itemPath = item.path.toLowerCase();
+          return !allExcludePatterns.some((pattern) => {
+            const simplePattern = pattern.replace('**/', '').replace('*', '');
+            return itemPath.includes(simplePattern.toLowerCase());
+          });
+        });
+
+        // Sort: directories first, then alphabetically
+        items.sort((a, b) => {
+          if (a.type !== b.type) {
+            return a.type === 'dir' ? -1 : 1;
+          }
+          return a.path.localeCompare(b.path);
+        });
+
+        // Convert to FileNode structure
+        return items.map((item) => ({
+          id: `${dirPath}/${item.path}`,
+          name: item.path,
+          path: dirPath ? `${dirPath}/${item.path}` : item.path,
+          type: item.type === 'dir' ? 'directory' : 'file',
+          children: item.type === 'dir' ? [] : undefined,
+          isHidden: item.path.startsWith('.'),
+          extension: item.path.includes('.') ? item.path.split('.').pop() : undefined,
+        }));
+      } catch (error) {
+        console.error('Error loading directory:', error);
         return [];
       }
-
-      // Filter and sort items
-      let items = result.items;
-
-      // Apply filtering
-      if (!showHiddenFiles) {
-        items = items.filter(item => !item.path.startsWith('.'));
-      }
-
-      // Apply exclude patterns (simplified for now)
-      items = items.filter(item => {
-        const itemPath = item.path.toLowerCase();
-        return !allExcludePatterns.some(pattern => {
-          const simplePattern = pattern.replace('**/', '').replace('*', '');
-          return itemPath.includes(simplePattern.toLowerCase());
-        });
-      });
-
-      // Sort: directories first, then alphabetically
-      items.sort((a, b) => {
-        if (a.type !== b.type) {
-          return a.type === 'dir' ? -1 : 1;
-        }
-        return a.path.localeCompare(b.path);
-      });
-
-      // Convert to FileNode structure
-      return items.map(item => ({
-        id: `${dirPath}/${item.path}`,
-        name: item.path,
-        path: dirPath ? `${dirPath}/${item.path}` : item.path,
-        type: item.type === 'dir' ? 'directory' : 'file',
-        children: item.type === 'dir' ? [] : undefined,
-        isHidden: item.path.startsWith('.'),
-        extension: item.path.includes('.') ? item.path.split('.').pop() : undefined
-      }));
-    } catch (error) {
-      console.error('Error loading directory:', error);
-      return [];
-    }
-  }, [rootPath, showHiddenFiles, allExcludePatterns]);
+    },
+    [rootPath, showHiddenFiles, allExcludePatterns]
+  );
 
   // Initial load
   useEffect(() => {
@@ -228,7 +228,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
           name: rootPath.split('/').pop() || 'root',
           path: '',
           type: 'directory',
-          children
+          children,
         };
         setTree(rootNode);
       } catch (err) {
@@ -242,76 +242,65 @@ export const FileTree: React.FC<FileTreeProps> = ({
   }, [rootPath, loadDirectory]);
 
   // Toggle expand/collapse
-  const handleToggleExpand = useCallback(async (path: string) => {
-    setExpandedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
+  const handleToggleExpand = useCallback(
+    async (path: string) => {
+      setExpandedPaths((prev) => {
+        const next = new Set(prev);
+        if (next.has(path)) {
+          next.delete(path);
+        } else {
+          next.add(path);
 
-        // Load children if not loaded yet
-        if (tree) {
-          const findAndLoadNode = async (node: FileNode): Promise<void> => {
-            if (node.path === path && node.type === 'directory' && node.children?.length === 0) {
-              const children = await loadDirectory(path);
-              setTree(currentTree => {
-                if (!currentTree) return currentTree;
+          // Load children if not loaded yet
+          if (tree) {
+            const findAndLoadNode = async (node: FileNode): Promise<void> => {
+              if (node.path === path && node.type === 'directory' && node.children?.length === 0) {
+                const children = await loadDirectory(path);
+                setTree((currentTree) => {
+                  if (!currentTree) return currentTree;
 
-                const updateNode = (n: FileNode): FileNode => {
-                  if (n.path === path) {
-                    return { ...n, children };
-                  }
-                  if (n.children) {
-                    return { ...n, children: n.children.map(updateNode) };
-                  }
-                  return n;
-                };
+                  const updateNode = (n: FileNode): FileNode => {
+                    if (n.path === path) {
+                      return { ...n, children };
+                    }
+                    if (n.children) {
+                      return { ...n, children: n.children.map(updateNode) };
+                    }
+                    return n;
+                  };
 
-                return updateNode(currentTree);
-              });
-            } else if (node.children) {
-              await Promise.all(node.children.map(findAndLoadNode));
-            }
-          };
+                  return updateNode(currentTree);
+                });
+              } else if (node.children) {
+                await Promise.all(node.children.map(findAndLoadNode));
+              }
+            };
 
-          findAndLoadNode(tree);
+            findAndLoadNode(tree);
+          }
         }
-      }
-      return next;
-    });
-  }, [tree, loadDirectory]);
+        return next;
+      });
+    },
+    [tree, loadDirectory]
+  );
 
   if (loading) {
     return (
-      <div className={cn('p-4 text-sm text-muted-foreground', className)}>
-        Loading files...
-      </div>
+      <div className={cn('p-4 text-sm text-muted-foreground', className)}>Loading files...</div>
     );
   }
 
   if (error) {
-    return (
-      <div className={cn('p-4 text-sm text-destructive', className)}>
-        Error: {error}
-      </div>
-    );
+    return <div className={cn('p-4 text-sm text-destructive', className)}>Error: {error}</div>;
   }
 
   if (!tree) {
-    return (
-      <div className={cn('p-4 text-sm text-muted-foreground', className)}>
-        No files found
-      </div>
-    );
+    return <div className={cn('p-4 text-sm text-muted-foreground', className)}>No files found</div>;
   }
 
   return (
-    <div
-      className={cn('overflow-auto', className)}
-      role="tree"
-      aria-label="File explorer"
-    >
+    <div className={cn('overflow-auto', className)} role="tree" aria-label="File explorer">
       {tree.children?.map((child) => (
         <TreeNode
           key={child.id}

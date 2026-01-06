@@ -1,5 +1,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { X, RefreshCw, FolderOpen, FileText, ChevronRight, ChevronDown, PanelRight, Eye, EyeOff } from 'lucide-react';
+import {
+  X,
+  RefreshCw,
+  FolderOpen,
+  FileText,
+  ChevronRight,
+  ChevronDown,
+  PanelRight,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
@@ -50,7 +60,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
 
     // IMMEDIATELY REJECT anything with these ANYWHERE in the path
     const blacklistPatterns = [
-      'checkout',  // This catches .checkouts, checkouts, etc
+      'checkout', // This catches .checkouts, checkouts, etc
       'delete-github',
       'node_modules',
       '.git',
@@ -78,7 +88,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
       '.aider',
       '.continue',
       '.cody',
-      '.windsurf'
+      '.windsurf',
     ];
 
     // Check each pattern
@@ -92,27 +102,69 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
     // Check file extension - only allow source code files
     const allowedExtensions = [
       // Web
-      '.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte',
-      '.html', '.css', '.scss', '.sass', '.less',
+      '.js',
+      '.jsx',
+      '.ts',
+      '.tsx',
+      '.vue',
+      '.svelte',
+      '.html',
+      '.css',
+      '.scss',
+      '.sass',
+      '.less',
 
       // Config
-      '.json', '.yaml', '.yml', '.toml', '.xml',
-      '.env', '.env.example',
+      '.json',
+      '.yaml',
+      '.yml',
+      '.toml',
+      '.xml',
+      '.env',
+      '.env.example',
 
       // Docs
-      '.md', '.mdx', '.txt', '.rst',
+      '.md',
+      '.mdx',
+      '.txt',
+      '.rst',
 
       // Programming languages
-      '.py', '.rb', '.php', '.java', '.kt', '.scala',
-      '.go', '.rs', '.c', '.cpp', '.h', '.hpp',
-      '.cs', '.swift', '.m', '.mm',
-      '.sh', '.bash', '.zsh', '.fish',
-      '.ps1', '.bat', '.cmd',
+      '.py',
+      '.rb',
+      '.php',
+      '.java',
+      '.kt',
+      '.scala',
+      '.go',
+      '.rs',
+      '.c',
+      '.cpp',
+      '.h',
+      '.hpp',
+      '.cs',
+      '.swift',
+      '.m',
+      '.mm',
+      '.sh',
+      '.bash',
+      '.zsh',
+      '.fish',
+      '.ps1',
+      '.bat',
+      '.cmd',
 
       // Config files (no extension)
-      'dockerfile', 'makefile', 'rakefile', 'gemfile',
-      '.gitignore', '.prettierrc', '.eslintrc', '.babelrc',
-      '.editorconfig', '.gitattributes'
+      'dockerfile',
+      'makefile',
+      'rakefile',
+      'gemfile',
+      '.gitignore',
+      '.prettierrc',
+      '.eslintrc',
+      '.babelrc',
+      '.editorconfig',
+      '.gitattributes',
     ];
 
     const fileName = fullPath.split('/').pop() || '';
@@ -162,7 +214,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
         // Filter using whitelist approach
         const filteredItems = showIgnoredFiles
           ? result.items
-          : result.items.filter(item => shouldIncludeFile(item.path));
+          : result.items.filter((item) => shouldIncludeFile(item.path));
 
         // Sort items: directories first, then files, both alphabetically
         const sortedItems = filteredItems.sort((a, b) => {
@@ -178,12 +230,12 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
           name: taskPath.split('/').pop() || 'root',
           path: '',
           type: 'directory',
-          children: sortedItems.map(item => ({
+          children: sortedItems.map((item) => ({
             name: item.path,
             path: item.path,
             type: item.type === 'dir' ? 'directory' : 'file',
-            children: item.type === 'dir' ? [] : undefined
-          }))
+            children: item.type === 'dir' ? [] : undefined,
+          })),
         };
         setFiles(tree);
         console.log('File tree set:', tree);
@@ -257,7 +309,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
       selectedFile,
       fullSavePath,
       contentLength: fileContent.length,
-      firstLine: fileContent.split('\n')[0]
+      firstLine: fileContent.split('\n')[0],
     });
 
     try {
@@ -316,7 +368,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
         // Filter using whitelist approach
         const filteredItems = showIgnoredFiles
           ? result.items
-          : result.items.filter(item => shouldIncludeFile(item.path));
+          : result.items.filter((item) => shouldIncludeFile(item.path));
 
         // Sort items: directories first, then files, both alphabetically
         const sortedItems = filteredItems.sort((a, b) => {
@@ -327,11 +379,11 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
           return a.path.localeCompare(b.path);
         });
 
-        return sortedItems.map(item => ({
+        return sortedItems.map((item) => ({
           name: item.path.split('/').pop() || item.path,
           path: dirPath ? `${dirPath}/${item.path}` : item.path,
           type: item.type === 'dir' ? 'directory' : 'file',
-          children: item.type === 'dir' ? [] : undefined
+          children: item.type === 'dir' ? [] : undefined,
         }));
       }
       return [];
@@ -349,7 +401,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
     if (node.children) {
       return {
         ...node,
-        children: node.children.map(child => updateNodeChildren(child, path, children))
+        children: node.children.map((child) => updateNodeChildren(child, path, children)),
       };
     }
     return node;
@@ -404,8 +456,8 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
       <div key={node.path}>
         <div
           className={cn(
-            'flex items-center h-7 px-2 cursor-pointer hover:bg-muted/50',
-            isSelected && 'bg-muted/70',
+            'flex h-7 cursor-pointer items-center px-2 hover:bg-muted/50',
+            isSelected && 'bg-muted/70'
           )}
           style={{ paddingLeft: `${level * 16 + 8}px` }}
           onClick={() => {
@@ -426,16 +478,14 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
             </div>
           )}
           {node.type === 'directory' ? (
-            <FolderOpen className="h-4 w-4 mr-2 text-blue-500" />
+            <FolderOpen className="mr-2 h-4 w-4 text-blue-500" />
           ) : (
-            <FileText className="h-4 w-4 mr-2 text-gray-500" />
+            <FileText className="mr-2 h-4 w-4 text-gray-500" />
           )}
-          <span className="text-sm truncate">{node.name}</span>
+          <span className="truncate text-sm">{node.name}</span>
         </div>
         {node.type === 'directory' && isExpanded && node.children && (
-          <div>
-            {node.children.map(child => renderFileTree(child, level + 1))}
-          </div>
+          <div>{node.children.map((child) => renderFileTree(child, level + 1))}</div>
         )}
       </div>
     );
@@ -444,7 +494,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   return (
     <div className="fixed inset-0 z-30 flex flex-col bg-background">
       {/* Header */}
-      <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-muted/30">
+      <div className="flex h-12 items-center justify-between border-b border-border bg-muted/30 px-4">
         <div className="flex items-center gap-2">
           <FolderOpen className="h-5 w-5" />
           <span className="font-medium">{taskName} - Editor</span>
@@ -453,9 +503,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
           {selectedFile && (
             <>
               {hasUnsavedChanges && (
-                <span className="text-xs text-amber-500 font-medium">
-                  ● Unsaved
-                </span>
+                <span className="text-xs font-medium text-amber-500">● Unsaved</span>
               )}
               <Button
                 variant="ghost"
@@ -475,24 +523,17 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
           >
             <PanelRight className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-          >
+          <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {/* File Explorer */}
-        <div
-          className="border-r border-border bg-muted/10"
-          style={{ width: explorerWidth }}
-        >
-          <div className="h-10 border-b border-border px-2 flex items-center justify-between">
+        <div className="border-r border-border bg-muted/10" style={{ width: explorerWidth }}>
+          <div className="flex h-10 items-center justify-between border-b border-border px-2">
             <span className="text-xs font-medium uppercase">Explorer</span>
             <div className="flex items-center gap-1">
               <Button
@@ -500,57 +541,42 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
                 size="icon"
                 className="h-6 w-6"
                 onClick={() => setShowIgnoredFiles(!showIgnoredFiles)}
-                title={showIgnoredFiles ? "Hide ignored files" : "Show ignored files"}
+                title={showIgnoredFiles ? 'Hide ignored files' : 'Show ignored files'}
               >
-                {showIgnoredFiles ? (
-                  <EyeOff className="h-3 w-3" />
-                ) : (
-                  <Eye className="h-3 w-3" />
-                )}
+                {showIgnoredFiles ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={loadFileTree}
-              >
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={loadFileTree}>
                 <RefreshCw className="h-3 w-3" />
               </Button>
             </div>
           </div>
-          <div className="overflow-auto h-full">
+          <div className="h-full overflow-auto">
             {isLoading ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                Loading files...
-              </div>
+              <div className="p-4 text-center text-sm text-muted-foreground">Loading files...</div>
             ) : files ? (
               renderFileTree(files)
             ) : (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                No files found
-              </div>
+              <div className="p-4 text-center text-sm text-muted-foreground">No files found</div>
             )}
           </div>
 
           {/* Resize handle */}
           <div
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/50"
+            className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500/50"
             style={{ right: -2 }}
             onMouseDown={handleMouseDown}
           />
         </div>
 
         {/* Editor */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex flex-1 flex-col">
           {selectedFile ? (
             <>
-              <div className="h-10 border-b border-border px-4 flex items-center justify-between">
+              <div className="flex h-10 items-center justify-between border-b border-border px-4">
                 <div className="flex items-center">
-                  <FileText className="h-4 w-4 mr-2" />
+                  <FileText className="mr-2 h-4 w-4" />
                   <span className="text-sm">{selectedFile}</span>
-                  {hasUnsavedChanges && (
-                    <span className="ml-2 text-xs text-amber-500">●</span>
-                  )}
+                  {hasUnsavedChanges && <span className="ml-2 text-xs text-amber-500">●</span>}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {hasUnsavedChanges ? 'Auto-save in 2s' : 'All changes saved'}
@@ -575,7 +601,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
               Select a file to edit
             </div>
           )}
