@@ -116,6 +116,7 @@ const AppContent: React.FC = () => {
   const { toast } = useToast();
   const [_, setVersion] = useState<string>('');
   const [platform, setPlatform] = useState<string>('');
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const {
     installed: ghInstalled,
     authenticated: isAuthenticated,
@@ -441,6 +442,30 @@ const AppContent: React.FC = () => {
       localStorage.setItem(ORDER_KEY, JSON.stringify(ids));
     } catch {}
   };
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadFullscreenState = async () => {
+      try {
+        const fullscreen = await window.electronAPI.getFullScreenState();
+        if (isMounted) {
+          setIsFullscreen(fullscreen);
+        }
+      } catch {}
+    };
+
+    loadFullscreenState();
+    const cleanup = window.electronAPI.onFullScreenChange((fullscreen) => {
+      if (isMounted) {
+        setIsFullscreen(fullscreen);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      cleanup();
+    };
+  }, []);
 
   useEffect(() => {
     const loadAppData = async () => {
