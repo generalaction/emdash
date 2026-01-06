@@ -1,4 +1,5 @@
 import React from 'react';
+import { GitBranch } from 'lucide-react';
 import type { Task } from '../../types/app';
 import { providerAssets } from '../../providers/assets';
 import { providerMeta, type UiProvider } from '../../providers/meta';
@@ -7,6 +8,8 @@ import ProviderTooltip from './ProviderTooltip';
 import { Spinner } from '../ui/spinner';
 import { Checkbox } from '../ui/checkbox';
 import TaskDeleteButton from '../TaskDeleteButton';
+import { useTaskChanges } from '../../hooks/useTaskChanges';
+import { ChangesBadge } from '../TaskChanges';
 
 function resolveProvider(taskId: string): UiProvider | null {
   try {
@@ -53,6 +56,8 @@ const KanbanCard: React.FC<{
   const [isDeleting, setIsDeleting] = React.useState(false);
   React.useEffect(() => activityStore.subscribe(ws.id, setBusy), [ws.id]);
 
+  const { totalAdditions, totalDeletions } = useTaskChanges(ws.path, ws.id);
+
   const canDrag = draggable && !isSelectMode;
   const handleClick = () => {
     if (isSelectMode && onToggleSelect) {
@@ -94,13 +99,13 @@ const KanbanCard: React.FC<{
           }
         }}
       >
-        <div className="flex w-full items-center justify-between gap-2 overflow-hidden">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-foreground">{ws.name}</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">{ws.branch}</div>
-          </div>
+        <div className="flex w-full flex-col gap-2">
+          <div className="flex items-center justify-between gap-2 overflow-hidden">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-foreground">{ws.name}</div>
+            </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
             {providers.length > 0 && (SHOW_PROVIDER_LOGOS || busy) ? (
               <div className="flex shrink-0 items-center gap-1">
                 {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
@@ -181,6 +186,17 @@ const KanbanCard: React.FC<{
                 }`}
               />
             ) : null}
+          </div>
+        </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <GitBranch className="h-3 w-3 shrink-0" />
+              <span className="truncate">{ws.branch}</span>
+            </div>
+            {(totalAdditions > 0 || totalDeletions > 0) && (
+              <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
+            )}
           </div>
         </div>
 
