@@ -283,14 +283,16 @@ export function registerAppIpc() {
       // In development, we need to look for package.json in the project root
       const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
 
-      const possiblePaths = isDev ? [
-        join(__dirname, '../../../../package.json'), // from dist/main/main/ipc in dev
-        join(__dirname, '../../../package.json'), // alternative dev path
-        join(process.cwd(), 'package.json'), // current working directory
-      ] : [
-        join(__dirname, '../../package.json'), // from dist/main/ipc in production
-        join(app.getAppPath(), 'package.json'), // production build
-      ];
+      const possiblePaths = isDev
+        ? [
+            join(__dirname, '../../../../package.json'), // from dist/main/main/ipc in dev
+            join(__dirname, '../../../package.json'), // alternative dev path
+            join(process.cwd(), 'package.json'), // current working directory
+          ]
+        : [
+            join(__dirname, '../../package.json'), // from dist/main/ipc in production
+            join(app.getAppPath(), 'package.json'), // production build
+          ];
 
       for (const packageJsonPath of possiblePaths) {
         try {

@@ -86,13 +86,13 @@ class AutoUpdateService {
       // In development, look for package.json in project root
       const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
 
-      const possiblePaths = isDev ? [
-        join(__dirname, '../../../../package.json'), // from dist/main/main/services
-        join(__dirname, '../../../package.json'),
-        join(process.cwd(), 'package.json'),
-      ] : [
-        join(app.getAppPath(), 'package.json'),
-      ];
+      const possiblePaths = isDev
+        ? [
+            join(__dirname, '../../../../package.json'), // from dist/main/main/services
+            join(__dirname, '../../../package.json'),
+            join(process.cwd(), 'package.json'),
+          ]
+        : [join(app.getAppPath(), 'package.json')];
 
       for (const path of possiblePaths) {
         try {
@@ -216,7 +216,7 @@ class AutoUpdateService {
       let remainingTime: number | undefined;
       if (this.downloadStartTime && progressObj.bytesPerSecond > 0) {
         const elapsedSeconds = (now - this.downloadStartTime) / 1000;
-        const totalSeconds = (progressObj.total / progressObj.bytesPerSecond);
+        const totalSeconds = progressObj.total / progressObj.bytesPerSecond;
         remainingTime = Math.max(0, totalSeconds - elapsedSeconds);
       }
 
@@ -421,7 +421,7 @@ class AutoUpdateService {
       );
 
       if (response.ok) {
-        const data = await response.json() as { body?: string };
+        const data = (await response.json()) as { body?: string };
         const notes = data.body || 'No release notes available';
         this.updateState.releaseNotes = notes;
         return notes;

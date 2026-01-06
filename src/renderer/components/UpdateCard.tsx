@@ -10,7 +10,8 @@ export function UpdateCard(): JSX.Element {
   const [isDev, setIsDev] = useState(false);
 
   useEffect(() => {
-    window.electronAPI.getAppVersion()
+    window.electronAPI
+      .getAppVersion()
       .then(setAppVersion)
       .catch(() => setAppVersion('Unknown'));
 
@@ -71,14 +72,15 @@ export function UpdateCard(): JSX.Element {
 
       {updater.state.status === 'downloading' && updater.state.progress && (
         <div className="space-y-2">
-          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full bg-primary transition-all duration-300 ease-out"
               style={{ width: `${updater.state.progress.percent || 0}%` }}
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            {formatBytes(updater.state.progress.transferred || 0)} / {formatBytes(updater.state.progress.total || 0)}
+            {formatBytes(updater.state.progress.transferred || 0)} /{' '}
+            {formatBytes(updater.state.progress.total || 0)}
           </p>
         </div>
       )}
@@ -89,7 +91,7 @@ export function UpdateCard(): JSX.Element {
     switch (updater.state.status) {
       case 'checking':
         return (
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
             Checking for updates...
           </p>
@@ -114,7 +116,7 @@ export function UpdateCard(): JSX.Element {
 
       case 'downloaded':
         return (
-          <p className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1">
+          <p className="flex items-center gap-1 text-xs text-green-600 dark:text-green-500">
             <CheckCircle2 className="h-3 w-3" />
             Update ready to install
           </p>
@@ -122,7 +124,7 @@ export function UpdateCard(): JSX.Element {
 
       case 'error':
         return (
-          <p className="text-xs text-red-600 dark:text-red-500 flex items-center gap-1">
+          <p className="flex items-center gap-1 text-xs text-red-600 dark:text-red-500">
             <AlertCircle className="h-3 w-3" />
             {(updater.state as any).error || 'Update check failed'}
           </p>
@@ -130,7 +132,7 @@ export function UpdateCard(): JSX.Element {
 
       default:
         return (
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-500" />
             You're up to date
           </p>
@@ -145,26 +147,16 @@ export function UpdateCard(): JSX.Element {
 
       case 'available':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={handleDownload}
-            className="h-7 text-xs"
-          >
-            <Download className="h-3 w-3 mr-1.5" />
+          <Button size="sm" variant="default" onClick={handleDownload} className="h-7 text-xs">
+            <Download className="mr-1.5 h-3 w-3" />
             Download
           </Button>
         );
 
       case 'downloading':
         return (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled
-            className="h-7 text-xs"
-          >
-            <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
+            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
             Downloading
           </Button>
         );
@@ -175,33 +167,23 @@ export function UpdateCard(): JSX.Element {
             size="sm"
             variant="default"
             onClick={handleInstall}
-            className="h-7 text-xs bg-green-600 hover:bg-green-700"
+            className="h-7 bg-green-600 text-xs hover:bg-green-700"
           >
-            <RefreshCw className="h-3 w-3 mr-1.5" />
+            <RefreshCw className="mr-1.5 h-3 w-3" />
             Restart
           </Button>
         );
 
       case 'error':
         return (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCheckNow}
-            className="h-7 text-xs"
-          >
+          <Button size="sm" variant="outline" onClick={handleCheckNow} className="h-7 text-xs">
             Try Again
           </Button>
         );
 
       default:
         return (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleCheckNow}
-            className="h-7 text-xs"
-          >
+          <Button size="sm" variant="ghost" onClick={handleCheckNow} className="h-7 text-xs">
             Check Now
           </Button>
         );

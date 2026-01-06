@@ -70,10 +70,8 @@ if (process.platform === 'linux') {
         const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
         process.env.PATH = Array.from(merged).join(':');
       }
-    } catch {
-    }
-  } catch {
-  }
+    } catch {}
+  } catch {}
 }
 
 if (process.platform === 'win32') {
@@ -108,7 +106,7 @@ import { autoUpdateService } from './services/AutoUpdateService';
 import * as telemetry from './telemetry';
 import { join } from 'path';
 
-// Set app name for macOS dock and menu bar 
+// Set app name for macOS dock and menu bar
 app.setName('Emdash');
 
 // Set dock icon on macOS in development mode
