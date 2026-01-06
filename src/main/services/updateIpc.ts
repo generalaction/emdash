@@ -95,8 +95,8 @@ export function registerUpdateIpc() {
           devDisabled: true,
         } as any;
       }
-      const result = await autoUpdater.checkForUpdates();
-      // electron-updater returns UpdateCheckResult or throws
+      // Delegate to AutoUpdateService to avoid race conditions
+      const result = await autoUpdateService.checkForUpdates(false);
       return { success: true, result: result ?? null };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
@@ -113,7 +113,8 @@ export function registerUpdateIpc() {
           devDisabled: true,
         } as any;
       }
-      await autoUpdater.downloadUpdate();
+      // Delegate to AutoUpdateService to avoid race conditions
+      await autoUpdateService.downloadUpdate();
       return { success: true };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
