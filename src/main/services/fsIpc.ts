@@ -168,59 +168,56 @@ export function registerFsIpc(): void {
   );
 
   // Read image file as base64
-  ipcMain.handle(
-    'fs:read-image',
-    async (_event, args: { root: string; relPath: string }) => {
-      try {
-        const { root, relPath } = args;
-        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
-        if (!relPath) return { success: false, error: 'Invalid relPath' };
+  ipcMain.handle('fs:read-image', async (_event, args: { root: string; relPath: string }) => {
+    try {
+      const { root, relPath } = args;
+      if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+      if (!relPath) return { success: false, error: 'Invalid relPath' };
 
-        // Resolve and ensure within root
-        const abs = path.resolve(root, relPath);
-        const normRoot = path.resolve(root) + path.sep;
-        if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+      // Resolve and ensure within root
+      const abs = path.resolve(root, relPath);
+      const normRoot = path.resolve(root) + path.sep;
+      if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
 
-        const st = safeStat(abs);
-        if (!st) return { success: false, error: 'Not found' };
-        if (st.isDirectory()) return { success: false, error: 'Is a directory' };
+      const st = safeStat(abs);
+      if (!st) return { success: false, error: 'Not found' };
+      if (st.isDirectory()) return { success: false, error: 'Is a directory' };
 
-        // Check if it's an allowed image type
-        const ext = path.extname(relPath).toLowerCase();
-        if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
-          return { success: false, error: 'Not an image file' };
-        }
-
-        // Read file as base64
-        const buffer = fs.readFileSync(abs);
-        const base64 = buffer.toString('base64');
-
-        // Determine MIME type
-        let mimeType = 'image/';
-        switch (ext) {
-          case '.svg':
-            mimeType += 'svg+xml';
-            break;
-          case '.jpg':
-          case '.jpeg':
-            mimeType += 'jpeg';
-            break;
-          default:
-            mimeType += ext.substring(1); // Remove the dot
-        }
-
-        return {
-          success: true,
-          dataUrl: `data:${mimeType};base64,${base64}`,
-          mimeType,
-          size: st.size
-        };
-      } catch (error) {
-        console.error('fs:read-image failed:', error);
-        return { success: false, error: 'Failed to read image' };
+      // Check if it's an allowed image type
+      const ext = path.extname(relPath).toLowerCase();
+      if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+        return { success: false, error: 'Not an image file' };
       }
+
+      // Read file as base64
+      const buffer = fs.readFileSync(abs);
+      const base64 = buffer.toString('base64');
+
+      // Determine MIME type
+      let mimeType = 'image/';
+      switch (ext) {
+        case '.svg':
+          mimeType += 'svg+xml';
+          break;
+        case '.jpg':
+        case '.jpeg':
+          mimeType += 'jpeg';
+          break;
+        default:
+          mimeType += ext.substring(1); // Remove the dot
+      }
+
+      return {
+        success: true,
+        dataUrl: `data:${mimeType};base64,${base64}`,
+        mimeType,
+        size: st.size,
+      };
+    } catch (error) {
+      console.error('fs:read-image failed:', error);
+      return { success: false, error: 'Failed to read image' };
     }
-  );
+  });
 
   // Save an attachment (e.g., image) into a task-managed folder
   ipcMain.handle(

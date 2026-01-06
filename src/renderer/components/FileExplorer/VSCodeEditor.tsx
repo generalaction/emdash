@@ -445,7 +445,7 @@ export default function VSCodeEditor({ taskPath, taskName, onClose }: VSCodeEdit
               // Image preview with base64 data URL - consistent sizing
               <div className="flex flex-1 items-center justify-center overflow-auto bg-background p-8">
                 <div className="flex flex-col items-center">
-                  <div className="relative h-[400px] w-[600px] flex items-center justify-center rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="relative flex h-[400px] w-[600px] items-center justify-center rounded-lg border border-border bg-muted/20 p-4">
                     <img
                       src={activeFile.content}
                       alt={activeFile.path}
@@ -457,9 +457,7 @@ export default function VSCodeEditor({ taskPath, taskName, onClose }: VSCodeEdit
                     <div className="text-sm font-medium text-foreground">
                       {activeFile.path.split('/').pop()}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {activeFile.path}
-                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">{activeFile.path}</div>
                   </div>
                 </div>
               </div>
