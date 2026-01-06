@@ -49,6 +49,15 @@ export function UpdateCard(): JSX.Element {
             </p>
           </div>
         </div>
+
+        <div className="mt-2">
+          <a
+            href="https://github.com/generalaction/emdash/releases"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            View latest release →
+          </a>
+        </div>
       </div>
     );
   }
@@ -84,6 +93,15 @@ export function UpdateCard(): JSX.Element {
           </p>
         </div>
       )}
+
+      <div className="mt-2">
+        <a
+          href="https://github.com/generalaction/emdash/releases"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          View latest release →
+        </a>
+      </div>
     </div>
   );
 

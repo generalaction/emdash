@@ -117,14 +117,16 @@ class AutoUpdateService {
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    this.initialized = true;
 
-    // Skip auto-updates in development unless explicitly enabled
+    // Skip auto-updates in development - always
     const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-    if (isDev && process.env.EMDASH_DEV_UPDATES !== 'true') {
+    if (isDev) {
       // Silent in dev - no logs
+      this.initialized = true;
       return;
     }
+
+    this.initialized = true;
 
     // Setup and configure autoUpdater only for production
     this.setupAutoUpdater();
@@ -315,9 +317,9 @@ class AutoUpdateService {
    */
   async checkForUpdates(silent = false): Promise<UpdateInfo | null> {
     try {
-      // Skip in development
+      // Skip in development - always
       const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-      if (isDev && process.env.EMDASH_DEV_UPDATES !== 'true') {
+      if (isDev) {
         return null;
       }
 

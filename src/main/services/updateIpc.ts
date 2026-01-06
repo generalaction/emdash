@@ -18,32 +18,21 @@ const UpdateChannels = {
 const DEV_HINT_CHECK = 'Updates are disabled in development.';
 const DEV_HINT_DOWNLOAD = 'Cannot download updates in development.';
 
-// Basic updater configuration
-// Publish config is provided via electron-builder (package.json -> build.publish)
-// We keep autoDownload off; downloads start only when the user clicks.
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
-
-autoUpdater.logger = {
-  info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-  warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-  error: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-} as any;
-
-// Enable dev update testing if explicitly opted in
+// Skip all auto-updater setup in development
 const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-if (isDev && process.env.EMDASH_DEV_UPDATES === 'true') {
-  try {
-    // Allow using dev-app-update.yml when not packaged
-    // See: https://www.electron.build/auto-update#testing-in-development
-    (autoUpdater as any).forceDevUpdateConfig = true;
-    if (process.env.EMDASH_DEV_UPDATE_CONFIG) {
-      // Optionally specify a custom config path
-      (autoUpdater as any).updateConfigPath = process.env.EMDASH_DEV_UPDATE_CONFIG;
-    }
-  } catch {
-    // ignore if not supported by type defs/runtime
-  }
+
+if (!isDev) {
+  // Basic updater configuration
+  // Publish config is provided via electron-builder (package.json -> build.publish)
+  // We keep autoDownload off; downloads start only when the user clicks.
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.logger = {
+    info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+    warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+    error: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+  } as any;
 }
 
 // Helper: emit update events to all renderer windows
@@ -58,7 +47,7 @@ function emit(channel: string, payload?: any) {
 
 let initialized = false;
 function ensureInitialized() {
-  if (initialized) return;
+  if (initialized || isDev) return;
   initialized = true;
 
   // Wire autoUpdater events
@@ -98,11 +87,8 @@ export function registerUpdateIpc() {
 
   ipcMain.handle('update:check', async () => {
     try {
-      const dev = !app.isPackaged || process.env.NODE_ENV === 'development';
-      const forced =
-        (autoUpdater as any)?.forceDevUpdateConfig === true ||
-        process.env.EMDASH_DEV_UPDATES === 'true';
-      if (dev && !forced) {
+      // Always skip in dev mode - no exceptions
+      if (isDev) {
         return {
           success: false,
           error: DEV_HINT_CHECK,
@@ -119,11 +105,8 @@ export function registerUpdateIpc() {
 
   ipcMain.handle('update:download', async () => {
     try {
-      const dev = !app.isPackaged || process.env.NODE_ENV === 'development';
-      const forced =
-        (autoUpdater as any)?.forceDevUpdateConfig === true ||
-        process.env.EMDASH_DEV_UPDATES === 'true';
-      if (dev && !forced) {
+      // Always skip in dev mode - no exceptions
+      if (isDev) {
         return {
           success: false,
           error: DEV_HINT_DOWNLOAD,
