@@ -5,6 +5,8 @@ import { providerMeta, type UiProvider } from '../../providers/meta';
 import { activityStore } from '../../lib/activityStore';
 import ProviderTooltip from './ProviderTooltip';
 import { Spinner } from '../ui/spinner';
+import { Checkbox } from '../ui/checkbox';
+import TaskDeleteButton from '../TaskDeleteButton';
 
 function resolveProvider(taskId: string): UiProvider | null {
   try {
@@ -20,8 +22,20 @@ function resolveProvider(taskId: string): UiProvider | null {
 const KanbanCard: React.FC<{
   ws: Task;
   onOpen?: (ws: Task) => void;
+  onDelete?: () => void | Promise<void | boolean>;
+  isSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
   draggable?: boolean;
-}> = ({ ws, onOpen, draggable = true }) => {
+}> = ({
+  ws,
+  onOpen,
+  onDelete,
+  isSelectMode = false,
+  isSelected = false,
+  onToggleSelect,
+  draggable = true,
+}) => {
   const SHOW_PROVIDER_LOGOS = false;
   // Resolve single-provider from legacy localStorage (single-agent tasks)
   const provider = resolveProvider(ws.id);
@@ -34,9 +48,19 @@ const KanbanCard: React.FC<{
   const providers = Array.from(new Set([...providerRuns, ...legacyProviders]));
   const adminProvider: UiProvider | null = (multi?.selectedProvider as UiProvider) || null;
 
-  const handleClick = () => onOpen?.(ws);
+  const handleOpen = () => onOpen?.(ws);
   const [busy, setBusy] = React.useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   React.useEffect(() => activityStore.subscribe(ws.id, setBusy), [ws.id]);
+
+  const canDrag = draggable && !isSelectMode;
+  const handleClick = () => {
+    if (isSelectMode && onToggleSelect) {
+      onToggleSelect();
+      return;
+    }
+    handleOpen();
+  };
 
   return (
     <ProviderTooltip
@@ -50,12 +74,18 @@ const KanbanCard: React.FC<{
       <div
         role="button"
         tabIndex={0}
-        className="rounded-lg border border-border bg-background p-3 shadow-sm transition hover:bg-muted/40 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-        draggable={draggable}
+        className={[
+          'group rounded-lg border bg-background p-3 shadow-sm transition hover:bg-muted/40 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0',
+          isSelectMode && isSelected ? 'border-primary ring-1 ring-primary/40' : 'border-border',
+        ].join(' ')}
+        draggable={canDrag}
         onDragStart={(e) => {
+          if (!canDrag) return;
           e.dataTransfer.setData('text/plain', ws.id);
         }}
-        onDoubleClick={handleClick}
+        onDoubleClick={() => {
+          if (!isSelectMode) handleOpen();
+        }}
         onClick={handleClick}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -70,55 +100,88 @@ const KanbanCard: React.FC<{
             <div className="mt-0.5 text-[11px] text-muted-foreground">{ws.branch}</div>
           </div>
 
-          {providers.length > 0 && (SHOW_PROVIDER_LOGOS || busy) ? (
-            <div className="flex shrink-0 items-center gap-1">
-              {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
-              {SHOW_PROVIDER_LOGOS
-                ? providers.slice(0, 3).map((p) => {
-                    const a = providerAssets[p];
-                    if (!a) return null;
-                    const isAdmin = adminProvider && p === adminProvider;
-                    const label = providerMeta[p]?.label ?? a.name;
-                    const tooltip = isAdmin ? `${label} (admin)` : label;
-                    return (
-                      <span
-                        key={`${ws.id}-prov-${p}`}
-                        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground ${
-                          isAdmin ? 'ring-1 ring-primary/60' : ''
-                        }`}
-                        title={tooltip}
-                      >
-                        <img
-                          src={a.logo}
-                          alt={a.alt}
-                          className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
-                            a.invertInDark ? 'dark:invert' : ''
-                          }`}
-                        />
-                      </span>
-                    );
-                  })
-                : null}
-              {SHOW_PROVIDER_LOGOS && providers.length > 3 ? (
-                <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                  +{providers.length - 3}
-                </span>
-              ) : null}
-            </div>
-          ) : asset ? (
-            SHOW_PROVIDER_LOGOS ? (
-              <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
+          <div className="flex shrink-0 items-center gap-2">
+            {providers.length > 0 && (SHOW_PROVIDER_LOGOS || busy) ? (
+              <div className="flex shrink-0 items-center gap-1">
                 {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
-                <img
-                  src={asset.logo}
-                  alt={asset.alt}
-                  className={`h-3.5 w-3.5 shrink-0 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`}
-                />
-              </span>
-            ) : busy ? (
-              <Spinner size="sm" className="shrink-0 text-muted-foreground" />
-            ) : null
-          ) : null}
+                {SHOW_PROVIDER_LOGOS
+                  ? providers.slice(0, 3).map((p) => {
+                      const a = providerAssets[p];
+                      if (!a) return null;
+                      const isAdmin = adminProvider && p === adminProvider;
+                      const label = providerMeta[p]?.label ?? a.name;
+                      const tooltip = isAdmin ? `${label} (admin)` : label;
+                      return (
+                        <span
+                          key={`${ws.id}-prov-${p}`}
+                          className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground ${
+                            isAdmin ? 'ring-1 ring-primary/60' : ''
+                          }`}
+                          title={tooltip}
+                        >
+                          <img
+                            src={a.logo}
+                            alt={a.alt}
+                            className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
+                              a.invertInDark ? 'dark:invert' : ''
+                            }`}
+                          />
+                        </span>
+                      );
+                    })
+                  : null}
+                {SHOW_PROVIDER_LOGOS && providers.length > 3 ? (
+                  <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                    +{providers.length - 3}
+                  </span>
+                ) : null}
+              </div>
+            ) : asset ? (
+              SHOW_PROVIDER_LOGOS ? (
+                <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
+                  {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
+                  <img
+                    src={asset.logo}
+                    alt={asset.alt}
+                    className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
+                      asset.invertInDark ? 'dark:invert' : ''
+                    }`}
+                  />
+                </span>
+              ) : busy ? (
+                <Spinner size="sm" className="shrink-0 text-muted-foreground" />
+              ) : null
+            ) : null}
+
+            {isSelectMode && onToggleSelect ? (
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onToggleSelect()}
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Select ${ws.name}`}
+                className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
+              />
+            ) : onDelete ? (
+              <TaskDeleteButton
+                taskName={ws.name}
+                taskId={ws.id}
+                taskPath={ws.path}
+                onConfirm={async () => {
+                  try {
+                    setIsDeleting(true);
+                    await onDelete();
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                isDeleting={isDeleting}
+                aria-label={`Delete task ${ws.name}`}
+                className={`text-muted-foreground ${
+                  isDeleting ? '' : 'opacity-0 transition-opacity group-hover:opacity-100'
+                }`}
+              />
+            ) : null}
+          </div>
         </div>
 
         {SHOW_PROVIDER_LOGOS && adminProvider && providerAssets[adminProvider] ? (

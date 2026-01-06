@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowUpRight, AlertCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowUpRight, AlertCircle, Loader2 } from 'lucide-react';
 import KanbanBoard from './kanban/KanbanBoard';
 import ProjectTaskList from './ProjectTaskList';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { Button } from './ui/button';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import TaskBulkDeleteDialog from './TaskBulkDeleteDialog';
 import { useToast } from '../hooks/use-toast';
 import type { Project, Task } from '../types/app';
 
@@ -41,6 +42,9 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Base Branch State
   const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
@@ -146,18 +150,80 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
   );
 
   useEffect(() => {
-    if (viewMode !== 'list') {
-      setIsSelectMode(false);
+    if (!isSelectMode) {
+      setSelectedIds(new Set());
     }
-  }, [viewMode]);
+  }, [isSelectMode]);
 
   useEffect(() => {
     setIsSelectMode(false);
+    setSelectedIds(new Set());
   }, [project.id]);
 
   const tasks = project.tasks ?? [];
+  const selectedTasks = useMemo(
+    () => tasks.filter((task) => selectedIds.has(task.id)),
+    [selectedIds, tasks]
+  );
+  const selectedTargets = useMemo(
+    () => selectedTasks.map((task) => ({ id: task.id, name: task.name, path: task.path })),
+    [selectedTasks]
+  );
+  const selectedCount = selectedIds.size;
   const directTasks = tasks.filter((task) => task.useWorktree === false);
   const hasTasks = tasks.length > 0;
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedTasks.length === 0) return;
+    const toDelete = [...selectedTasks];
+    setShowBulkDeleteDialog(false);
+    setIsBulkDeleting(true);
+
+    const deletedNames: string[] = [];
+    try {
+      for (const task of toDelete) {
+        try {
+          const result = await onDeleteTask(project, task, { silent: true });
+          if (result !== false) {
+            deletedNames.push(task.name);
+          }
+        } catch {
+          // Continue deleting remaining tasks
+        }
+      }
+    } finally {
+      setIsBulkDeleting(false);
+      exitSelectMode();
+    }
+
+    if (deletedNames.length > 0) {
+      const maxNames = 3;
+      const displayNames = deletedNames.slice(0, maxNames).join(', ');
+      const remaining = deletedNames.length - maxNames;
+
+      toast({
+        title: deletedNames.length === 1 ? 'Task deleted' : 'Tasks deleted',
+        description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
+      });
+    }
+  }, [exitSelectMode, onDeleteTask, project, selectedTasks, toast]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -264,36 +330,72 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
           </button>
         </div>
 
-        {viewMode === 'list' && hasTasks ? (
-          <button
-            type="button"
-            onClick={() => setIsSelectMode((prev) => !prev)}
-            className="px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            aria-pressed={isSelectMode}
-          >
-            {isSelectMode ? 'Cancel' : 'Select'}
-          </button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {isSelectMode && selectedCount > 0 ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium"
+              onClick={() => setShowBulkDeleteDialog(true)}
+              disabled={isBulkDeleting}
+            >
+              {isBulkDeleting ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                'Delete'
+              )}
+            </Button>
+          ) : null}
+          {hasTasks ? (
+            <button
+              type="button"
+              onClick={() => setIsSelectMode((prev) => !prev)}
+              className="px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              aria-pressed={isSelectMode}
+            >
+              {isSelectMode ? 'Cancel' : 'Select'}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {/* Content */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {viewMode === 'kanban' ? (
-          <KanbanBoard project={project} onOpenTask={onOpenTask} onCreateTask={onCreateTask} />
+          <KanbanBoard
+            project={project}
+            onOpenTask={onOpenTask}
+            onCreateTask={onCreateTask}
+            onDeleteTask={(task) => onDeleteTask(project, task)}
+            isSelectMode={isSelectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+          />
         ) : (
           <div className="h-full overflow-y-auto px-6 py-6">
             <ProjectTaskList
               project={project}
-              onCreateTask={onCreateTask}
               activeTask={activeTask}
               onSelectTask={onSelectTask}
               onDeleteTask={onDeleteTask}
               isSelectMode={isSelectMode}
-              onSelectModeChange={setIsSelectMode}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
             />
           </div>
         )}
       </div>
+
+      <TaskBulkDeleteDialog
+        open={showBulkDeleteDialog}
+        onOpenChange={setShowBulkDeleteDialog}
+        tasks={selectedTargets}
+        onConfirm={handleBulkDelete}
+        isDeleting={isBulkDeleting}
+      />
     </div>
   );
 };

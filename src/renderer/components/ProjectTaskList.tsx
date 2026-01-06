@@ -1,38 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from './ui/button';
-import {
-  GitBranch,
-  Plus,
-  Loader2,
-  ChevronDown,
-  ArrowUpRight,
-  Folder,
-  AlertCircle,
-} from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import React, { useEffect, useState } from 'react';
+import { GitBranch, ChevronDown, ArrowUpRight } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
 import TaskDeleteButton from './TaskDeleteButton';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import TaskPorts from './TaskPorts';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import dockerLogo from '../../assets/images/docker.png';
-import DeletePrNotice from './DeletePrNotice';
 import {
   getContainerRunState,
   startContainerRun,
@@ -41,8 +21,6 @@ import {
 } from '@/lib/containerRuns';
 import { activityStore } from '../lib/activityStore';
 import PrPreviewTooltip from './PrPreviewTooltip';
-import { isActivePr, PrInfo } from '../lib/prStatus';
-import { refreshPrStatus } from '../lib/prStatusStore';
 import type { Project, Task } from '../types/app';
 
 function TaskRow({
@@ -385,7 +363,6 @@ function TaskRow({
 
 interface ProjectTaskListProps {
   project: Project;
-  onCreateTask: () => void;
   activeTask: Task | null;
   onSelectTask: (task: Task) => void;
   onDeleteTask: (
@@ -393,259 +370,27 @@ interface ProjectTaskListProps {
     task: Task,
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
-  isCreatingTask?: boolean;
   isSelectMode: boolean;
-  onSelectModeChange: (next: boolean) => void;
+  selectedIds: Set<string>;
+  onToggleSelect: (taskId: string) => void;
 }
 
 const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
   project,
-  onCreateTask,
   activeTask,
   onSelectTask,
   onDeleteTask,
-  isCreatingTask = false,
   isSelectMode,
-  onSelectModeChange,
+  selectedIds,
+  onToggleSelect,
 }) => {
-  const { toast } = useToast();
-
-  // Multi-select state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
-
   const tasksInProject = project.tasks ?? [];
-  const selectedCount = selectedIds.size;
-  const selectedTasks = useMemo(
-    () => tasksInProject.filter((ws) => selectedIds.has(ws.id)),
-    [selectedIds, tasksInProject]
-  );
-  const [deleteStatus, setDeleteStatus] = useState<
-    Record<
-      string,
-      {
-        staged: number;
-        unstaged: number;
-        untracked: number;
-        ahead: number;
-        behind: number;
-        error?: string;
-        pr?: PrInfo | null;
-      }
-    >
-  >({});
-  const [deleteStatusLoading, setDeleteStatusLoading] = useState(false);
-  const deleteRisks = useMemo(() => {
-    const riskyIds = new Set<string>();
-    const summaries: Record<string, string> = {};
-    for (const ws of selectedTasks) {
-      const status = deleteStatus[ws.id];
-      if (!status) continue;
-      const dirty =
-        status.staged > 0 ||
-        status.unstaged > 0 ||
-        status.untracked > 0 ||
-        status.ahead > 0 ||
-        !!status.error ||
-        (status.pr && isActivePr(status.pr));
-      if (dirty) {
-        riskyIds.add(ws.id);
-        const parts: string[] = [];
-        if (status.staged > 0)
-          parts.push(`${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`);
-        if (status.unstaged > 0)
-          parts.push(`${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`);
-        if (status.untracked > 0)
-          parts.push(`${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`);
-        if (status.ahead > 0)
-          parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
-        if (status.behind > 0)
-          parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
-        if (status.pr && isActivePr(status.pr)) parts.push('PR open');
-        if (!parts.length && status.error) parts.push('status unavailable');
-        summaries[ws.id] = parts.join(', ');
-      }
-    }
-    return { riskyIds, summaries };
-  }, [deleteStatus, selectedTasks]);
-  const deleteDisabled: boolean =
-    Boolean(isDeleting || deleteStatusLoading) ||
-    (deleteRisks.riskyIds.size > 0 && acknowledgeDirtyDelete !== true);
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const exitSelectMode = () => {
-    setSelectedIds(new Set());
-    onSelectModeChange(false);
-  };
-
-  const handleBulkDelete = async () => {
-    const toDelete = tasksInProject.filter((ws) => selectedIds.has(ws.id));
-    if (toDelete.length === 0) return;
-
-    setIsDeleting(true);
-    setShowDeleteDialog(false);
-
-    const deletedNames: string[] = [];
-    for (const ws of toDelete) {
-      try {
-        const result = await onDeleteTask(project, ws, { silent: true });
-        if (result !== false) {
-          deletedNames.push(ws.name);
-        }
-      } catch {
-        // Continue deleting remaining tasks
-      }
-    }
-
-    setIsDeleting(false);
-    exitSelectMode();
-
-    if (deletedNames.length > 0) {
-      const maxNames = 3;
-      const displayNames = deletedNames.slice(0, maxNames).join(', ');
-      const remaining = deletedNames.length - maxNames;
-
-      toast({
-        title: deletedNames.length === 1 ? 'Task deleted' : 'Tasks deleted',
-        description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
-      });
-    }
-  };
-
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [project.id]);
-
-  useEffect(() => {
-    if (!isSelectMode) {
-      setSelectedIds(new Set());
-    }
-  }, [isSelectMode]);
-
-  useEffect(() => {
-    if (!showDeleteDialog) {
-      setDeleteStatus({});
-      setAcknowledgeDirtyDelete(false);
-      return;
-    }
-
-    let cancelled = false;
-    const loadStatus = async () => {
-      setDeleteStatusLoading(true);
-      const next: typeof deleteStatus = {};
-
-      for (const ws of selectedTasks) {
-        try {
-          const [statusRes, infoRes, rawPr] = await Promise.allSettled([
-            window.electronAPI.getGitStatus(ws.path),
-            window.electronAPI.getGitInfo(ws.path),
-            refreshPrStatus(ws.path),
-          ]);
-
-          let staged = 0;
-          let unstaged = 0;
-          let untracked = 0;
-          if (
-            statusRes.status === 'fulfilled' &&
-            statusRes.value?.success &&
-            statusRes.value.changes
-          ) {
-            for (const change of statusRes.value.changes) {
-              if (change.status === 'untracked') {
-                untracked += 1;
-              } else if (change.isStaged) {
-                staged += 1;
-              } else {
-                unstaged += 1;
-              }
-            }
-          }
-
-          const ahead =
-            infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
-              ? infoRes.value.aheadCount
-              : 0;
-          const behind =
-            infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
-              ? infoRes.value.behindCount
-              : 0;
-          const prValue = rawPr.status === 'fulfilled' ? rawPr.value : null;
-          const pr = isActivePr(prValue) ? prValue : null;
-
-          next[ws.id] = {
-            staged,
-            unstaged,
-            untracked,
-            ahead,
-            behind,
-            error:
-              statusRes.status === 'fulfilled'
-                ? statusRes.value?.error
-                : statusRes.reason?.message || String(statusRes.reason || ''),
-            pr,
-          };
-        } catch (error: any) {
-          next[ws.id] = {
-            staged: 0,
-            unstaged: 0,
-            untracked: 0,
-            ahead: 0,
-            behind: 0,
-            error: error?.message || String(error),
-          };
-        }
-      }
-
-      if (!cancelled) {
-        setDeleteStatus(next);
-        setDeleteStatusLoading(false);
-      }
-    };
-
-    void loadStatus();
-    return () => {
-      cancelled = true;
-    };
-  }, [showDeleteDialog, selectedTasks]);
 
   return (
     <div className="space-y-4">
       <div className="space-y-3">
         {tasksInProject.length > 0 ? (
           <>
-            {isSelectMode && selectedCount > 0 ? (
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="h-8 px-3 text-xs font-medium"
-                  onClick={() => setShowDeleteDialog(true)}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? (
-                    <>
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                      Deleting…
-                    </>
-                  ) : (
-                    'Delete'
-                  )}
-                </Button>
-              </div>
-            ) : null}
             <div className="flex flex-col gap-3">
               {tasksInProject.map((ws) => (
                 <TaskRow
@@ -653,7 +398,7 @@ const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
                   ws={ws}
                   isSelectMode={isSelectMode}
                   isSelected={selectedIds.has(ws.id)}
-                  onToggleSelect={() => toggleSelect(ws.id)}
+                  onToggleSelect={() => onToggleSelect(ws.id)}
                   active={activeTask?.id === ws.id}
                   onClick={() => onSelectTask(ws)}
                   onDelete={() => onDeleteTask(project, ws)}
@@ -670,109 +415,6 @@ const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
           </Alert>
         )}
       </div>
-
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete tasks?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the selected tasks and their worktrees.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-3">
-            <AnimatePresence initial={false}>
-              {(() => {
-                const tasksWithUncommittedWorkOnly = selectedTasks.filter((ws) => {
-                  const summary = deleteRisks.summaries[ws.id];
-                  const status = deleteStatus[ws.id];
-                  if (!summary && !status?.error) return false;
-                  if (status?.pr && isActivePr(status.pr)) return false;
-                  return true;
-                });
-
-                return tasksWithUncommittedWorkOnly.length > 0 ? (
-                  <motion.div
-                    key="bulk-risk"
-                    initial={{ opacity: 0, y: 6, scale: 0.99 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.99 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
-                  >
-                    <p className="font-medium">Unmerged or unpushed work detected</p>
-                    <ul className="space-y-1">
-                      {tasksWithUncommittedWorkOnly.map((ws) => {
-                        const summary = deleteRisks.summaries[ws.id];
-                        const status = deleteStatus[ws.id];
-                        return (
-                          <li
-                            key={ws.id}
-                            className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
-                          >
-                            <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                            <span className="font-medium">{ws.name}</span>
-                            <span className="text-muted-foreground">—</span>
-                            <span>{summary || status?.error || 'Status unavailable'}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </motion.div>
-                ) : null;
-              })()}
-            </AnimatePresence>
-
-            <AnimatePresence initial={false}>
-              {(() => {
-                const prTasks = selectedTasks
-                  .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
-                  .filter((w) => w.pr && isActivePr(w.pr));
-                return prTasks.length ? (
-                  <motion.div
-                    key="bulk-pr-notice"
-                    initial={{ opacity: 0, y: 6, scale: 0.99 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.99 }}
-                    transition={{ duration: 0.2, ease: 'easeOut', delay: 0.02 }}
-                  >
-                    <DeletePrNotice tasks={prTasks as any} />
-                  </motion.div>
-                ) : null;
-              })()}
-            </AnimatePresence>
-
-            <AnimatePresence initial={false}>
-              {deleteRisks.riskyIds.size > 0 ? (
-                <motion.label
-                  key="bulk-ack"
-                  className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm"
-                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
-                  transition={{ duration: 0.18, ease: 'easeOut', delay: 0.03 }}
-                >
-                  <Checkbox
-                    id="ack-delete"
-                    checked={acknowledgeDirtyDelete}
-                    onCheckedChange={(val) => setAcknowledgeDirtyDelete(val === true)}
-                  />
-                  <span className="leading-tight">Delete tasks anyway</span>
-                </motion.label>
-              ) : null}
-            </AnimatePresence>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive px-4 text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleBulkDelete}
-              disabled={deleteDisabled}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
