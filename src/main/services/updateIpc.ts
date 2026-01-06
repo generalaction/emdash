@@ -8,7 +8,6 @@ const DEV_HINT_DOWNLOAD = 'Cannot download updates in development.';
 // Skip all auto-updater setup in development
 const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
 
-
 // Fallback: open latest download link in browser for manual install
 function getLatestDownloadUrl(): string {
   const platform = process.platform;
