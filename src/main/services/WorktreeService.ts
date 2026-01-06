@@ -913,7 +913,8 @@ export class WorktreeService {
       return false;
     }
 
-    const parts = filePath.split(path.sep);
+    // git ls-files always returns paths with forward slashes regardless of OS
+    const parts = filePath.split('/');
     for (const part of parts) {
       if (excludePatterns.includes(part)) {
         return true;

@@ -314,7 +314,12 @@ export function registerFsIpc(): void {
       }
 
       // Open in default editor
-      await shell.openPath(configPath);
+      const openResult = await shell.openPath(configPath);
+      if (openResult) {
+        // openPath returns an error string on failure, empty string on success
+        console.error('Failed to open config file:', openResult);
+        return { success: false, error: `Failed to open config file: ${openResult}` };
+      }
       return { success: true, path: configPath };
     } catch (error) {
       console.error('fs:openProjectConfig failed:', error);
