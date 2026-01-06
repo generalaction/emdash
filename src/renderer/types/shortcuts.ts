@@ -1,5 +1,23 @@
 export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
 
+export interface ShortcutBinding {
+  key: string;
+  modifier: ShortcutModifier;
+}
+
+export interface KeyboardSettings {
+  commandPalette?: ShortcutBinding;
+  settings?: ShortcutBinding;
+  toggleLeftSidebar?: ShortcutBinding;
+  toggleRightSidebar?: ShortcutBinding;
+  toggleTheme?: ShortcutBinding;
+  toggleKanban?: ShortcutBinding;
+  closeModal?: ShortcutBinding;
+  nextProject?: ShortcutBinding;
+  prevProject?: ShortcutBinding;
+  newTask?: ShortcutBinding;
+}
+
 export interface ShortcutConfig {
   key: string;
   modifier?: ShortcutModifier;
@@ -20,7 +38,8 @@ export interface ShortcutMapping {
   config: ShortcutConfig;
   handler: () => void;
   priority: 'modal' | 'global';
-  requiresClosed?: boolean; // Execute after closing modal
+  requiresClosed?: boolean;
+  isCommandPalette?: boolean;
 }
 
 /**
@@ -46,7 +65,17 @@ export interface GlobalShortcutHandlers {
   // Kanban
   onToggleKanban?: () => void;
 
+  // Project navigation
+  onNextProject?: () => void;
+  onPrevProject?: () => void;
+
+  // Task creation
+  onNewTask?: () => void;
+
   // State checks
   isCommandPaletteOpen?: boolean;
   isSettingsOpen?: boolean;
+
+  // Custom keyboard settings
+  customKeyboardSettings?: KeyboardSettings;
 }

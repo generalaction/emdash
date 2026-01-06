@@ -12,7 +12,7 @@ const DEFAULT_BRANCH = 'main';
 const normalizeRemoteName = (remote?: string | null) => {
   if (!remote) return DEFAULT_REMOTE;
   const trimmed = remote.trim();
-  if (!trimmed) return DEFAULT_REMOTE;
+  if (!trimmed) return ''; // Empty string indicates no remote (local-only repo)
   if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) {
     return trimmed;
   }
@@ -24,13 +24,27 @@ const computeBaseRef = (remote?: string | null, branch?: string | null) => {
   if (branch && branch.trim().length > 0) {
     const trimmed = branch.trim();
     if (trimmed.includes('/')) return trimmed;
-    return `${remoteName}/${trimmed}`;
+    // Prepend remote only if one exists
+    return remoteName ? `${remoteName}/${trimmed}` : trimmed;
   }
-  return `${remoteName}/${DEFAULT_BRANCH}`;
+  // Default: use origin/main if remote exists, otherwise just 'main'
+  return remoteName ? `${remoteName}/${DEFAULT_BRANCH}` : DEFAULT_BRANCH;
 };
 
 const detectDefaultBranch = async (projectPath: string, remote?: string | null) => {
   const remoteName = normalizeRemoteName(remote);
+  // If no remote, try to detect the current local branch
+  if (!remoteName) {
+    try {
+      const { stdout } = await execAsync('git branch --show-current', {
+        cwd: projectPath,
+      });
+      return stdout.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+  // Try to get remote's default branch
   try {
     const { stdout } = await execAsync(`git remote show ${remoteName}`, {
       cwd: projectPath,

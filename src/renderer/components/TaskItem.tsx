@@ -1,5 +1,5 @@
 import React from 'react';
-import { GitBranch, ArrowUpRight } from 'lucide-react';
+import { GitBranch, ArrowUpRight, AlertCircle } from 'lucide-react';
 import TaskDeleteButton from './TaskDeleteButton';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
@@ -15,15 +15,22 @@ interface Task {
   path: string;
   status: 'active' | 'idle' | 'running';
   agentId?: string;
+  useWorktree?: boolean;
 }
 
 interface TaskItemProps {
   task: Task;
   onDelete?: (opts?: { deleteRemoteBranch?: boolean }) => void | Promise<void | boolean>;
   showDelete?: boolean;
+  showDirectBadge?: boolean;
 }
 
-export const TaskItem: React.FC<TaskItemProps> = ({ task, onDelete, showDelete }) => {
+export const TaskItem: React.FC<TaskItemProps> = ({
+  task,
+  onDelete,
+  showDelete,
+  showDirectBadge = true,
+}) => {
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
   const isRunning = useTaskBusy(task.id);
@@ -39,8 +46,17 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onDelete, showDelete }
           <GitBranch className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
         <span className="block truncate text-xs font-medium text-foreground">{task.name}</span>
+        {showDirectBadge && task.useWorktree === false && (
+          <span
+            className="inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground"
+            title="Running directly on branch (no worktree isolation)"
+          >
+            <AlertCircle className="h-2.5 w-2.5" />
+            Direct
+          </span>
+        )}
       </div>
-      <div className="relative flex flex-shrink-0 items-center pl-6">
+      <div className="flex flex-shrink-0 items-center gap-1">
         {showDelete && onDelete ? (
           <TaskDeleteButton
             taskName={task.name}
@@ -57,8 +73,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onDelete, showDelete }
             }}
             isDeleting={isDeleting}
             aria-label={`Delete Task ${task.name}`}
-            className={`absolute left-0 inline-flex h-5 w-5 items-center justify-center rounded p-0.5 text-muted-foreground transition-opacity duration-150 hover:bg-muted focus:opacity-100 focus-visible:opacity-100 ${
-              isDeleting ? 'opacity-100' : 'opacity-0 group-hover/task:opacity-100'
+            className={`text-muted-foreground ${
+              isDeleting ? '' : 'opacity-0 group-hover/task:opacity-100'
             }`}
           />
         ) : null}

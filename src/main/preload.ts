@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   quitAndInstallUpdate: () => ipcRenderer.invoke('update:quit-and-install'),
   openLatestDownload: () => ipcRenderer.invoke('update:open-latest'),
+  // Enhanced update methods
+  getUpdateState: () => ipcRenderer.invoke('update:get-state'),
+  getUpdateSettings: () => ipcRenderer.invoke('update:get-settings'),
+  updateUpdateSettings: (settings: any) => ipcRenderer.invoke('update:update-settings', settings),
+  getReleaseNotes: () => ipcRenderer.invoke('update:get-release-notes'),
+  checkForUpdatesNow: () => ipcRenderer.invoke('update:check-now'),
   onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => {
     const pairs: Array<[string, string]> = [
       ['update:checking', 'checking'],
@@ -36,6 +42,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
     path: string;
   }) => ipcRenderer.invoke('app:openIn', args),
+
+  // Check which apps are installed
+  checkInstalledApps: () =>
+    ipcRenderer.invoke('app:checkInstalledApps') as Promise<
+      Record<
+        'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
+        boolean
+      >
+    >,
 
   // PTY management
   ptyStart: (opts: {
@@ -299,6 +314,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (conversationId: string) => ipcRenderer.invoke('db:getMessages', conversationId),
   deleteConversation: (conversationId: string) =>
     ipcRenderer.invoke('db:deleteConversation', conversationId),
+
+  // Line comments management
+  lineCommentsCreate: (input: any) => ipcRenderer.invoke('lineComments:create', input),
+  lineCommentsGet: (args: { taskId: string; filePath?: string }) =>
+    ipcRenderer.invoke('lineComments:get', args),
+  lineCommentsUpdate: (input: { id: string; content: string }) =>
+    ipcRenderer.invoke('lineComments:update', input),
+  lineCommentsDelete: (id: string) => ipcRenderer.invoke('lineComments:delete', id),
+  lineCommentsGetFormatted: (taskId: string) =>
+    ipcRenderer.invoke('lineComments:getFormatted', taskId),
+  lineCommentsMarkSent: (commentIds: string[]) =>
+    ipcRenderer.invoke('lineComments:markSent', commentIds),
+  lineCommentsGetUnsent: (taskId: string) => ipcRenderer.invoke('lineComments:getUnsent', taskId),
 
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>

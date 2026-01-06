@@ -46,6 +46,7 @@ export interface Task {
   path: string;
   status: 'active' | 'idle' | 'running';
   metadata?: TaskMetadata | null;
+  useWorktree?: boolean;
 }
 
 export interface Message {

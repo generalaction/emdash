@@ -187,16 +187,27 @@ export class WorktreeService {
       log.info(`Created worktree: ${taskName} -> ${branchName}`);
 
       // Push the new branch to origin and set upstream so PRs work out of the box
-      if (settings?.repository?.pushOnCreate !== false) {
+      // Only if a remote exists
+      if (settings?.repository?.pushOnCreate !== false && fetchedBaseRef.remote) {
         try {
-          await execFileAsync('git', ['push', '--set-upstream', 'origin', branchName], {
-            cwd: worktreePath,
-          });
-          log.info(`Pushed branch ${branchName} to origin with upstream tracking`);
+          await execFileAsync(
+            'git',
+            ['push', '--set-upstream', fetchedBaseRef.remote, branchName],
+            {
+              cwd: worktreePath,
+            }
+          );
+          log.info(
+            `Pushed branch ${branchName} to ${fetchedBaseRef.remote} with upstream tracking`
+          );
         } catch (pushErr) {
           log.warn('Initial push of worktree branch failed:', pushErr as any);
           // Don't fail worktree creation if push fails - user can push manually later
         }
+      } else if (!fetchedBaseRef.remote) {
+        log.info(
+          `Skipping push for worktree branch ${branchName} - no remote configured (local-only repo)`
+        );
       }
 
       return worktreeInfo;
@@ -705,6 +716,23 @@ export class WorktreeService {
    * Get the default branch of a repository
    */
   private async getDefaultBranch(projectPath: string): Promise<string> {
+    // Check if origin remote exists first
+    const hasOrigin = await this.hasRemote(projectPath, 'origin');
+    if (!hasOrigin) {
+      // No remote - try to get current branch
+      try {
+        const { stdout } = await execFileAsync('git', ['branch', '--show-current'], {
+          cwd: projectPath,
+        });
+        const current = stdout.trim();
+        if (current) return current;
+      } catch {
+        // Fallback to 'main'
+      }
+      return 'main';
+    }
+
+    // Has remote - try to get its default branch
     try {
       const { stdout } = await this.execGit(projectPath, ['remote', 'show', 'origin']);
       const match = stdout.match(/HEAD branch:\s*(\S+)/);
@@ -773,38 +801,63 @@ export class WorktreeService {
           { cwd: projectPath }
         );
         if (stdout?.trim()) {
-          // It's a valid local branch, use it directly without remote
-          // For local branches, we'll use 'origin' as remote and the branch name
-          const fallbackRemote = 'origin';
-          return {
-            remote: fallbackRemote,
-            branch: settings.baseRef,
-            fullRef: `${fallbackRemote}/${settings.baseRef}`,
-          };
+          // It's a valid local branch - check if we have a remote
+          const hasOrigin = await this.hasRemote(projectPath, 'origin');
+          if (hasOrigin) {
+            return {
+              remote: 'origin',
+              branch: settings.baseRef,
+              fullRef: `origin/${settings.baseRef}`,
+            };
+          } else {
+            // Local-only repo
+            return {
+              remote: '',
+              branch: settings.baseRef,
+              fullRef: settings.baseRef,
+            };
+          }
         }
       } catch {
         // Not a local branch, continue to fallback
       }
     }
 
-    const fallbackRemote = 'origin';
+    // Check if we have a remote
+    const hasOrigin = await this.hasRemote(projectPath, 'origin');
     const fallbackBranch =
       settings.gitBranch?.trim() && !settings.gitBranch.includes(' ')
         ? settings.gitBranch.trim()
         : await this.getDefaultBranch(projectPath);
     const branch = fallbackBranch || 'main';
-    return {
-      remote: fallbackRemote,
-      branch,
-      fullRef: `${fallbackRemote}/${branch}`,
-    };
+
+    if (hasOrigin) {
+      return {
+        remote: 'origin',
+        branch,
+        fullRef: `origin/${branch}`,
+      };
+    } else {
+      // Local-only repo
+      return {
+        remote: '',
+        branch,
+        fullRef: branch,
+      };
+    }
   }
 
   private async buildDefaultBaseRef(projectPath: string): Promise<BaseRefInfo> {
-    const remote = 'origin';
+    const hasOrigin = await this.hasRemote(projectPath, 'origin');
     const branch = await this.getDefaultBranch(projectPath);
     const cleanBranch = branch?.trim() || 'main';
-    return { remote, branch: cleanBranch, fullRef: `${remote}/${cleanBranch}` };
+
+    if (hasOrigin) {
+      return { remote: 'origin', branch: cleanBranch, fullRef: `origin/${cleanBranch}` };
+    } else {
+      // Local-only repo
+      return { remote: '', branch: cleanBranch, fullRef: cleanBranch };
+    }
   }
 
   private extractErrorMessage(error: any): string {
@@ -833,6 +886,28 @@ export class WorktreeService {
     projectId: string,
     target: BaseRefInfo
   ): Promise<BaseRefInfo> {
+    // Check if remote exists - if not, this is a local-only repo
+    const hasRemote = await this.hasRemote(projectPath, target.remote);
+
+    if (!hasRemote) {
+      log.info(`No remote '${target.remote}' found, using local branch ${target.branch}`);
+      // Verify the local branch exists
+      try {
+        await execFileAsync('git', ['rev-parse', '--verify', target.branch], {
+          cwd: projectPath,
+        });
+        // Return target with just the branch name (no remote prefix)
+        return {
+          remote: '',
+          branch: target.branch,
+          fullRef: target.branch,
+        };
+      } catch (error) {
+        throw new Error(`Local branch '${target.branch}' does not exist. Please create it first.`);
+      }
+    }
+
+    // Remote exists, proceed with fetch
     try {
       await execFileAsync('git', ['fetch', target.remote, target.branch], {
         cwd: projectPath,
@@ -851,6 +926,14 @@ export class WorktreeService {
       if (fallback.fullRef === target.fullRef) {
         const message = this.extractErrorMessage(error) || 'Unknown git fetch error';
         throw new Error(`Failed to fetch ${target.fullRef}: ${message}`);
+      }
+
+      // Check if fallback remote exists before fetching
+      const hasFallbackRemote = await this.hasRemote(projectPath, fallback.remote);
+      if (!hasFallbackRemote) {
+        throw new Error(
+          `Failed to fetch ${target.fullRef} and fallback remote '${fallback.remote}' does not exist`
+        );
       }
 
       try {
@@ -875,6 +958,21 @@ export class WorktreeService {
           `Failed to fetch base branch. Tried ${target.fullRef} and ${fallback.fullRef}. ${msg} Please verify the branch exists on the remote.`
         );
       }
+    }
+  }
+
+  /**
+   * Check if a git remote exists in the repository
+   */
+  private async hasRemote(projectPath: string, remoteName: string): Promise<boolean> {
+    if (!remoteName) return false;
+    try {
+      await execFileAsync('git', ['remote', 'get-url', remoteName], {
+        cwd: projectPath,
+      });
+      return true;
+    } catch {
+      return false;
     }
   }
 

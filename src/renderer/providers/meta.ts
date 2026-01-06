@@ -13,9 +13,11 @@ import cursorlogoIcon from '../../assets/images/cursorlogo.png';
 import ghcopilotIcon from '../../assets/images/ghcopilot.png';
 import gooseIcon from '../../assets/images/goose.png';
 import kimiIcon from '../../assets/images/kimi.png';
+import kilocodeIcon from '../../assets/images/kilocode.png';
 import kiroIcon from '../../assets/images/kiro.png';
 import atlassianIcon from '../../assets/images/atlassian.png';
 import clineIcon from '../../assets/images/cline.png';
+import continueIcon from '../../assets/images/continue.png';
 import codebuffIcon from '../../assets/images/codebuff.png';
 import mistralIcon from '../../assets/images/mistral.png';
 
@@ -35,9 +37,11 @@ const ICONS: Record<string, string> = {
   'ghcopilot.png': ghcopilotIcon,
   'goose.png': gooseIcon,
   'kimi.png': kimiIcon,
+  'kilocode.png': kilocodeIcon,
   'kiro.png': kiroIcon,
   'atlassian.png': atlassianIcon,
   'cline.png': clineIcon,
+  'continue.png': continueIcon,
   'codebuff.png': codebuffIcon,
   'mistral.png': mistralIcon,
 };

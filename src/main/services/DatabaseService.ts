@@ -1,5 +1,5 @@
 import type sqlite3Type from 'sqlite3';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -8,10 +8,13 @@ import {
   tasks as tasksTable,
   conversations as conversationsTable,
   messages as messagesTable,
+  lineComments as lineCommentsTable,
   type ProjectRow,
   type TaskRow,
   type ConversationRow,
   type MessageRow,
+  type LineCommentRow,
+  type LineCommentInsert,
 } from '../db/schema';
 
 export interface Project {
@@ -41,6 +44,7 @@ export interface Task {
   status: 'active' | 'idle' | 'running';
   agentId?: string | null;
   metadata?: any;
+  useWorktree?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -238,6 +242,7 @@ export class DatabaseService {
         status: task.status,
         agentId: task.agentId ?? null,
         metadata: metadataValue,
+        useWorktree: task.useWorktree !== false ? 1 : 0,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
@@ -250,6 +255,7 @@ export class DatabaseService {
           status: task.status,
           agentId: task.agentId ?? null,
           metadata: metadataValue,
+          useWorktree: task.useWorktree !== false ? 1 : 0,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
@@ -422,6 +428,87 @@ export class DatabaseService {
     await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
   }
 
+  // Line comment management methods
+  async saveLineComment(
+    input: Omit<LineCommentInsert, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<string> {
+    if (this.disabled) return '';
+    const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const { db } = await getDrizzleClient();
+    await db.insert(lineCommentsTable).values({
+      id,
+      taskId: input.taskId,
+      filePath: input.filePath,
+      lineNumber: input.lineNumber,
+      lineContent: input.lineContent ?? null,
+      content: input.content,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    });
+    return id;
+  }
+
+  async getLineComments(taskId: string, filePath?: string): Promise<LineCommentRow[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+
+    if (filePath) {
+      const rows = await db
+        .select()
+        .from(lineCommentsTable)
+        .where(
+          sql`${lineCommentsTable.taskId} = ${taskId} AND ${lineCommentsTable.filePath} = ${filePath}`
+        )
+        .orderBy(asc(lineCommentsTable.lineNumber));
+      return rows;
+    }
+
+    const rows = await db
+      .select()
+      .from(lineCommentsTable)
+      .where(eq(lineCommentsTable.taskId, taskId))
+      .orderBy(asc(lineCommentsTable.lineNumber));
+    return rows;
+  }
+
+  async updateLineComment(id: string, content: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(lineCommentsTable)
+      .set({
+        content,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(lineCommentsTable.id, id));
+  }
+
+  async deleteLineComment(id: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db.delete(lineCommentsTable).where(eq(lineCommentsTable.id, id));
+  }
+
+  async markCommentsSent(commentIds: string[]): Promise<void> {
+    if (this.disabled || commentIds.length === 0) return;
+    const { db } = await getDrizzleClient();
+    const now = new Date().toISOString();
+    await db
+      .update(lineCommentsTable)
+      .set({ sentAt: now })
+      .where(inArray(lineCommentsTable.id, commentIds));
+  }
+
+  async getUnsentComments(taskId: string): Promise<LineCommentRow[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(lineCommentsTable)
+      .where(and(eq(lineCommentsTable.taskId, taskId), isNull(lineCommentsTable.sentAt)))
+      .orderBy(asc(lineCommentsTable.filePath), asc(lineCommentsTable.lineNumber));
+    return rows;
+  }
+
   private computeBaseRef(
     preferred?: string | null,
     remote?: string | null,
@@ -440,14 +527,22 @@ export class DatabaseService {
           return `${head}/${branchPart}`;
         }
         if (!head && branchPart) {
-          return `${remoteName}/${branchPart}`;
+          // Leading slash - prepend remote if available
+          return remoteName ? `${remoteName}/${branchPart}` : branchPart;
         }
         return undefined;
       }
-      return `${remoteName}/${trimmed.replace(/^\/+/, '')}`;
+
+      // Plain branch name - prepend remote only if one exists
+      const suffix = trimmed.replace(/^\/+/, '');
+      return remoteName ? `${remoteName}/${suffix}` : suffix;
     };
 
-    return normalize(preferred) ?? normalize(branch) ?? `${remoteName}/${this.defaultBranchName()}`;
+    // Default: use origin/main if remote exists, otherwise just 'main'
+    const defaultBranch = remoteName
+      ? `${remoteName}/${this.defaultBranchName()}`
+      : this.defaultBranchName();
+    return normalize(preferred) ?? normalize(branch) ?? defaultBranch;
   }
 
   private defaultRemoteName(): string {
@@ -457,7 +552,7 @@ export class DatabaseService {
   private getRemoteAlias(remote?: string | null): string {
     if (!remote) return this.defaultRemoteName();
     const trimmed = remote.trim();
-    if (!trimmed) return this.defaultRemoteName();
+    if (!trimmed) return ''; // Empty string indicates no remote (local-only repo)
     if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) {
       return trimmed;
     }
@@ -503,6 +598,7 @@ export class DatabaseService {
         typeof row.metadata === 'string' && row.metadata.length > 0
           ? this.parseTaskMetadata(row.metadata, row.id)
           : null,
+      useWorktree: row.useWorktree === 1,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -778,6 +874,13 @@ export class DatabaseService {
     await new Promise<void>((resolve, reject) => {
       this.db!.exec(trimmed, (err) => {
         if (err) {
+          // Handle idempotent migration cases - skip if schema already matches
+          const msg = err.message ?? '';
+          if (msg.includes('duplicate column name') || msg.includes('already exists')) {
+            // Schema change already applied, continue
+            resolve();
+            return;
+          }
           reject(err);
         } else {
           resolve();

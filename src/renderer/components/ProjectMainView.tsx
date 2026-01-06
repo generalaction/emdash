@@ -1,6 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ChevronDown, ArrowUpRight, Folder } from 'lucide-react';
+import {
+  GitBranch,
+  Plus,
+  Loader2,
+  ChevronDown,
+  ArrowUpRight,
+  Folder,
+  AlertCircle,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -741,13 +749,21 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
         <div className="container mx-auto max-w-6xl p-6">
-          <div className="mx-auto w-full max-w-6xl space-y-8">
+          <div className="mx-auto w-full max-w-6xl space-y-4">
             <div className="space-y-4">
               <header className="space-y-3">
                 <div className="space-y-2">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
                     <div className="flex items-center gap-2 sm:self-start">
+                      {onDeleteProject ? (
+                        <ProjectDeleteButton
+                          projectName={project.name}
+                          tasks={project.tasks}
+                          onConfirm={() => onDeleteProject?.(project)}
+                          aria-label={`Delete project ${project.name}`}
+                        />
+                      ) : null}
                       {project.githubInfo?.connected && project.githubInfo.repository ? (
                         <Button
                           variant="outline"
@@ -762,14 +778,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           View on GitHub
                           <ArrowUpRight className="size-3" />
                         </Button>
-                      ) : null}
-                      {onDeleteProject ? (
-                        <ProjectDeleteButton
-                          projectName={project.name}
-                          tasks={project.tasks}
-                          onConfirm={() => onDeleteProject?.(project)}
-                          aria-label={`Delete project ${project.name}`}
-                        />
                       ) : null}
                     </div>
                   </div>
@@ -794,96 +802,123 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               <Separator className="my-2" />
             </div>
 
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-semibold">Tasks</h2>
-                    <p className="text-xs text-muted-foreground">
-                      Spin up a fresh, isolated task for this project.
-                    </p>
-                  </div>
-                  {!isSelectMode && (
+            {(() => {
+              const directTasks = tasksInProject.filter((task) => task.useWorktree === false);
+              if (directTasks.length === 0) return null;
+
+              return (
+                <Alert className="border-border bg-muted/50">
+                  <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                  <AlertTitle className="text-sm font-medium text-foreground">
+                    Direct branch mode
+                  </AlertTitle>
+                  <AlertDescription className="text-xs text-muted-foreground">
+                    {directTasks.length === 1 ? (
+                      <>
+                        <span className="font-medium text-foreground">{directTasks[0].name}</span>{' '}
+                        is running directly on your current branch.
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium text-foreground">
+                          {directTasks.map((t) => t.name).join(', ')}
+                        </span>{' '}
+                        are running directly on your current branch.
+                      </>
+                    )}{' '}
+                    Changes will affect your working directory.
+                  </AlertDescription>
+                </Alert>
+              );
+            })()}
+
+            <div className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold">Tasks</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Spin up a fresh, isolated task for this project.
+                  </p>
+                </div>
+                {!isSelectMode && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-9 px-4 text-sm font-semibold shadow-sm"
+                    onClick={onCreateTask}
+                    disabled={isCreatingTask}
+                    aria-busy={isCreatingTask}
+                  >
+                    {isCreatingTask ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Starting…
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 size-4" />
+                        Start New Task
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+              {tasksInProject.length > 0 && (
+                <div className="flex justify-end gap-2">
+                  {isSelectMode && selectedCount > 0 && (
                     <Button
-                      variant="default"
+                      variant="destructive"
                       size="sm"
-                      className="h-9 px-4 text-sm font-semibold shadow-sm"
-                      onClick={onCreateTask}
-                      disabled={isCreatingTask}
-                      aria-busy={isCreatingTask}
+                      className="h-8 px-3 text-xs font-medium"
+                      onClick={() => setShowDeleteDialog(true)}
+                      disabled={isDeleting}
                     >
-                      {isCreatingTask ? (
+                      {isDeleting ? (
                         <>
                           <Loader2 className="mr-2 size-4 animate-spin" />
-                          Starting…
+                          Deleting…
                         </>
                       ) : (
-                        <>
-                          <Plus className="mr-2 size-4" />
-                          Start New Task
-                        </>
+                        'Delete'
                       )}
                     </Button>
                   )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
+                    className="h-8 px-3 text-xs font-medium"
+                  >
+                    {isSelectMode ? 'Cancel' : 'Select'}
+                  </Button>
                 </div>
-                {tasksInProject.length > 0 && (
-                  <div className="flex justify-end gap-2">
-                    {isSelectMode && selectedCount > 0 && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-8 px-3 text-xs font-medium"
-                        onClick={() => setShowDeleteDialog(true)}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? (
-                          <>
-                            <Loader2 className="mr-2 size-4 animate-spin" />
-                            Deleting…
-                          </>
-                        ) : (
-                          'Delete'
-                        )}
-                      </Button>
-                    )}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                      className="h-8 px-3 text-xs font-medium"
-                    >
-                      {isSelectMode ? 'Cancel' : 'Select'}
-                    </Button>
-                  </div>
-                )}
-                <div className="flex flex-col gap-3">
-                  {tasksInProject.map((ws) => (
-                    <TaskRow
-                      key={ws.id}
-                      ws={ws}
-                      isSelectMode={isSelectMode}
-                      isSelected={selectedIds.has(ws.id)}
-                      onToggleSelect={() => toggleSelect(ws.id)}
-                      active={activeTask?.id === ws.id}
-                      onClick={() => onSelectTask(ws)}
-                      onDelete={(opts) => onDeleteTask(project, ws, opts)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {(!project.tasks || project.tasks.length === 0) && (
-                <Alert>
-                  <AlertTitle>What's a task?</AlertTitle>
-                  <AlertDescription className="flex items-center justify-between gap-4">
-                    <p className="text-sm text-muted-foreground">
-                      Each task is an isolated copy and branch of your repo (Git-tracked files
-                      only).
-                    </p>
-                  </AlertDescription>
-                </Alert>
               )}
+              <div className="flex flex-col gap-3">
+                {tasksInProject.map((ws) => (
+                  <TaskRow
+                    key={ws.id}
+                    ws={ws}
+                    isSelectMode={isSelectMode}
+                    isSelected={selectedIds.has(ws.id)}
+                    onToggleSelect={() => toggleSelect(ws.id)}
+                    active={activeTask?.id === ws.id}
+                    onClick={() => onSelectTask(ws)}
+                    onDelete={(opts) => onDeleteTask(project, ws, opts)}
+                  />
+                ))}
+              </div>
             </div>
+
+            {(!project.tasks || project.tasks.length === 0) && (
+              <Alert>
+                <AlertTitle>What's a task?</AlertTitle>
+                <AlertDescription className="flex items-center justify-between gap-4">
+                  <p className="text-sm text-muted-foreground">
+                    Each task is an isolated copy and branch of your repo (Git-tracked files only).
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         </div>
       </div>
@@ -898,6 +933,29 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </AlertDialogHeader>
           <div className="space-y-3">
             <AnimatePresence initial={false}>
+              {deleteStatusLoading ? (
+                <motion.div
+                  key="bulk-delete-loading"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
+                >
+                  <Spinner
+                    className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground"
+                    size="sm"
+                  />
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-sm font-semibold text-foreground">Please wait...</span>
+                    <span className="text-xs text-muted-foreground">
+                      Scanning tasks for uncommitted changes and open pull requests
+                    </span>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+            <AnimatePresence initial={false}>
               {(() => {
                 const tasksWithUncommittedWorkOnly = selectedTasks.filter((ws) => {
                   const summary = deleteRisks.summaries[ws.id];
@@ -907,7 +965,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   return true;
                 });
 
-                return tasksWithUncommittedWorkOnly.length > 0 ? (
+                return tasksWithUncommittedWorkOnly.length > 0 && !deleteStatusLoading ? (
                   <motion.div
                     key="bulk-risk"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -944,7 +1002,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 const prTasks = selectedTasks
                   .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
                   .filter((w) => w.pr && isActivePr(w.pr));
-                return prTasks.length ? (
+                return prTasks.length && !deleteStatusLoading ? (
                   <motion.div
                     key="bulk-pr-notice"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -959,7 +1017,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             </AnimatePresence>
 
             <AnimatePresence initial={false}>
-              {deleteRisks.riskyIds.size > 0 ? (
+              {deleteRisks.riskyIds.size > 0 && !deleteStatusLoading ? (
                 <motion.label
                   key="bulk-ack"
                   className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm"

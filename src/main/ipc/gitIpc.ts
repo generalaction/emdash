@@ -674,37 +674,74 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
 
       try {
+        // Check if remote exists before attempting to fetch
+        let hasRemote = false;
         try {
-          await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
-        } catch (fetchError) {
-          log.warn('Failed to fetch remote before listing branches', fetchError);
+          await execAsync(`git remote get-url ${remote}`, { cwd: projectPath });
+          hasRemote = true;
+          // Remote exists, try to fetch
+          try {
+            await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
+          } catch (fetchError) {
+            log.warn('Failed to fetch remote before listing branches', fetchError);
+          }
+        } catch {
+          // Remote doesn't exist, skip fetch and will use local branches instead
+          log.debug(`Remote '${remote}' not found, will use local branches`);
         }
 
-        const { stdout } = await execAsync(
-          `git for-each-ref --format="%(refname:short)" refs/remotes/${remote}`,
-          { cwd: projectPath }
-        );
+        let branches: Array<{ ref: string; remote: string; branch: string; label: string }> = [];
 
-        const branches =
-          stdout
-            ?.split('\n')
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0)
-            .filter((line) => !line.endsWith('/HEAD'))
-            .map((ref) => {
-              const [remoteAlias, ...rest] = ref.split('/');
-              const branch = rest.join('/') || ref;
-              return {
-                ref,
-                remote: remoteAlias || remote,
-                branch,
-                label: `${remoteAlias || remote}/${branch}`,
-              };
-            }) ?? [];
+        if (hasRemote) {
+          // List remote branches
+          const { stdout } = await execAsync(
+            `git for-each-ref --format="%(refname:short)" refs/remotes/${remote}`,
+            { cwd: projectPath }
+          );
+
+          branches =
+            stdout
+              ?.split('\n')
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0)
+              .filter((line) => !line.endsWith('/HEAD'))
+              .map((ref) => {
+                const [remoteAlias, ...rest] = ref.split('/');
+                const branch = rest.join('/') || ref;
+                return {
+                  ref,
+                  remote: remoteAlias || remote,
+                  branch,
+                  label: `${remoteAlias || remote}/${branch}`,
+                };
+              }) ?? [];
+        } else {
+          // No remote - list local branches instead
+          try {
+            const { stdout } = await execAsync(
+              'git for-each-ref --format="%(refname:short)" refs/heads/',
+              { cwd: projectPath }
+            );
+
+            branches =
+              stdout
+                ?.split('\n')
+                .map((line) => line.trim())
+                .filter((line) => line.length > 0)
+                .map((branch) => ({
+                  ref: branch,
+                  remote: '', // No remote
+                  branch,
+                  label: branch, // Just the branch name, no remote prefix
+                })) ?? [];
+          } catch (localBranchError) {
+            log.warn('Failed to list local branches', localBranchError);
+          }
+        }
 
         return { success: true, branches };
       } catch (error) {
-        log.error('Failed to list remote branches:', error);
+        log.error('Failed to list branches:', error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }

@@ -117,7 +117,7 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
     <div id="settings-github-card" className="space-y-3">
       {status === 'missing' ? (
         <div className="space-y-3">
-          <div className="rounded-lg border border-dashed border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+          <div className="rounded-lg border border-dashed border-border bg-white p-3 dark:border-border dark:bg-background">
             <p className="text-sm text-muted-foreground">
               Install GitHub CLI (gh) to enable repo access.
             </p>
@@ -128,7 +128,7 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
         </div>
       ) : status === 'connected' ? (
         <div className="space-y-3">
-          <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-white p-3 dark:border-border dark:bg-background">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
               {avatarUrl ? (

@@ -15,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from './ui/alert-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
@@ -86,13 +87,10 @@ export const TaskDeleteButton: React.FC<Props> = ({
         <Tooltip>
           <TooltipTrigger asChild>
             <AlertDialogTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  className ||
-                    'inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800',
-                  isDeleting && 'opacity-100'
-                )}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className={cn(className, isDeleting && 'opacity-100')}
                 title="Delete Task"
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}
@@ -104,7 +102,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
                 ) : (
                   <Trash className="h-3.5 w-3.5" />
                 )}
-              </button>
+              </Button>
             </AlertDialogTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
@@ -121,7 +119,27 @@ export const TaskDeleteButton: React.FC<Props> = ({
         </AlertDialogHeader>
         <div className="space-y-3 text-sm">
           <AnimatePresence initial={false}>
-            {risky ? (
+            {loading ? (
+              <motion.div
+                key="task-delete-loading"
+                initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
+              >
+                <Spinner className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" size="sm" />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-sm font-semibold text-foreground">Please wait...</span>
+                  <span className="text-xs text-muted-foreground">
+                    Scanning task for uncommitted changes and open pull requests
+                  </span>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <AnimatePresence initial={false}>
+            {risky && !loading ? (
               <motion.div
                 key="delete-risk"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -166,7 +184,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
             ) : null}
           </AnimatePresence>
           <AnimatePresence initial={false}>
-            {risky ? (
+            {risky && !loading ? (
               <motion.label
                 key="ack-delete"
                 className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2"

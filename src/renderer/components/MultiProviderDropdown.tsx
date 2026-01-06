@@ -89,7 +89,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`flex h-9 w-full items-center justify-between rounded-md border-none bg-gray-100 px-3 text-sm dark:bg-gray-700 ${className}`}
+          className={`flex h-9 w-full items-center justify-between rounded-md border-none bg-muted px-3 text-sm dark:bg-muted ${className}`}
         >
           <span className="flex items-center gap-2 truncate">
             {singleProviderConfig && (
