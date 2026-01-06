@@ -2012,13 +2012,6 @@ const AppContent: React.FC = () => {
                       activeTask={activeTask || undefined}
                       onReorderProjects={handleReorderProjects}
                       onReorderProjectsFull={handleReorderProjectsFull}
-                      githubInstalled={ghInstalled}
-                      githubAuthenticated={isAuthenticated}
-                      githubUser={user}
-                      onGithubConnect={handleGithubConnect}
-                      githubLoading={githubLoading}
-                      githubStatusMessage={githubStatusMessage}
-                      githubInitialized={isGithubInitialized}
                       onSidebarContextChange={handleSidebarContextChange}
                       onCreateTaskForProject={handleStartCreateTaskFromSidebar}
                       isCreatingTask={isCreatingTask}

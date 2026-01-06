@@ -47,8 +47,8 @@ export function useUpdateNotifier(opts: Options = {}) {
         if (!shouldNotify(v)) return;
         try {
           toast({
-            title: 'Update available',
-            description: 'There is a new update available. Go to Settings to download the new DMG.',
+            title: 'Update Available',
+            description: `Version ${v || 'new'} is ready. Open Settings to review and download when convenient.`,
             action: (
               <ToastAction altText="Open Settings" onClick={() => onOpenSettings?.()}>
                 Open Settings

@@ -241,16 +241,34 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="break-all font-mono text-sm text-muted-foreground">
-            {project.path}
-          </span>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="break-all font-mono text-sm text-muted-foreground">
+              {project.path}
+            </span>
+            {project.githubInfo?.connected && project.githubInfo.repository ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  window.electronAPI.openExternal(
+                    `https://github.com/${project.githubInfo?.repository}`
+                  )
+                }
+                aria-label="View on GitHub"
+              >
+                <ArrowUpRight className="size-4" />
+              </Button>
+            ) : null}
+          </div>
           <BaseBranchControls
             baseBranch={baseBranch}
             branchOptions={branchOptions}
             isLoadingBranches={isLoadingBranches}
             isSavingBaseBranch={isSavingBaseBranch}
             branchLoadError={branchLoadError}
+            projectPath={project.path}
             onBaseBranchChange={handleBaseBranchChange}
             onOpenChange={(isOpen) => {
               if (isOpen) {
@@ -258,21 +276,6 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
               }
             }}
           />
-          {project.githubInfo?.connected && project.githubInfo.repository ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground hover:text-foreground"
-              onClick={() =>
-                window.electronAPI.openExternal(
-                  `https://github.com/${project.githubInfo?.repository}`
-                )
-              }
-              aria-label="View on GitHub"
-            >
-              <ArrowUpRight className="size-4" />
-            </Button>
-          ) : null}
         </div>
 
         {directTasks.length > 0 && (

@@ -109,7 +109,27 @@ export const TaskDeleteButton: React.FC<Props> = ({
         </AlertDialogHeader>
         <div className="space-y-3 text-sm">
           <AnimatePresence initial={false}>
-            {risky ? (
+            {loading ? (
+              <motion.div
+                key="task-delete-loading"
+                initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
+              >
+                <Spinner className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" size="sm" />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-sm font-semibold text-foreground">Please wait...</span>
+                  <span className="text-xs text-muted-foreground">
+                    Scanning task for uncommitted changes and open pull requests
+                  </span>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <AnimatePresence initial={false}>
+            {risky && !loading ? (
               <motion.div
                 key="delete-risk"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -154,7 +174,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
             ) : null}
           </AnimatePresence>
           <AnimatePresence initial={false}>
-            {risky ? (
+            {risky && !loading ? (
               <motion.label
                 key="ack-delete"
                 className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2"

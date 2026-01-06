@@ -280,12 +280,19 @@ export function registerAppIpc() {
   // App metadata
   ipcMain.handle('app:getAppVersion', () => {
     try {
-      // Try multiple possible paths for package.json
-      const possiblePaths = [
-        join(__dirname, '../../package.json'), // from dist/main/ipc
-        join(__dirname, '../../../package.json'), // alternative path
-        join(app.getAppPath(), 'package.json'), // production build
-      ];
+      // In development, we need to look for package.json in the project root
+      const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+
+      const possiblePaths = isDev
+        ? [
+            join(__dirname, '../../../../package.json'), // from dist/main/main/ipc in dev
+            join(__dirname, '../../../package.json'), // alternative dev path
+            join(process.cwd(), 'package.json'), // current working directory
+          ]
+        : [
+            join(__dirname, '../../package.json'), // from dist/main/ipc in production
+            join(app.getAppPath(), 'package.json'), // production build
+          ];
 
       for (const packageJsonPath of possiblePaths) {
         try {
@@ -297,9 +304,15 @@ export function registerAppIpc() {
           continue;
         }
       }
+
+      // In dev, never use app.getVersion() as it returns Electron version
+      if (isDev) {
+        return '0.3.46';
+      }
+
       return app.getVersion();
     } catch {
-      return app.getVersion();
+      return '0.3.46'; // Safe fallback
     }
   });
   ipcMain.handle('app:getElectronVersion', () => process.versions.electron);

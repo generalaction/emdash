@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   quitAndInstallUpdate: () => ipcRenderer.invoke('update:quit-and-install'),
   openLatestDownload: () => ipcRenderer.invoke('update:open-latest'),
+  // Enhanced update methods
+  getUpdateState: () => ipcRenderer.invoke('update:get-state'),
+  getUpdateSettings: () => ipcRenderer.invoke('update:get-settings'),
+  updateUpdateSettings: (settings: any) => ipcRenderer.invoke('update:update-settings', settings),
+  getReleaseNotes: () => ipcRenderer.invoke('update:get-release-notes'),
+  checkForUpdatesNow: () => ipcRenderer.invoke('update:check-now'),
   onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => {
     const pairs: Array<[string, string]> = [
       ['update:checking', 'checking'],
@@ -119,6 +125,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fsWriteFile: (root: string, relPath: string, content: string, mkdirs?: boolean) =>
     ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs }),
   fsRemove: (root: string, relPath: string) => ipcRenderer.invoke('fs:remove', { root, relPath }),
+  openProjectConfig: (projectPath: string) =>
+    ipcRenderer.invoke('fs:openProjectConfig', { projectPath }),
   // Attachments
   saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) =>
     ipcRenderer.invoke('fs:save-attachment', args),

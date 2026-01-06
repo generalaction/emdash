@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.3.45",
+  "version": "0.3.46",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "scripts": {
@@ -74,6 +74,7 @@
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.7",
@@ -98,6 +99,7 @@
     "human-id": "^4.1.2",
     "keytar": "^7.9.0",
     "lucide-react": "^0.294.0",
+    "minimatch": "^10.1.1",
     "monaco-editor": "^0.55.1",
     "motion": "^12.23.12",
     "node-pty": "1.0.0",
@@ -124,9 +126,11 @@
       {
         "provider": "github",
         "owner": "generalaction",
-        "repo": "emdash"
+        "repo": "emdash",
+        "releaseType": "release"
       }
     ],
+    "generateUpdatesFilesForAllChannels": true,
     "files": [
       "dist/**/*",
       "node_modules/**/*",
@@ -195,6 +199,12 @@
           ]
         }
       ]
+    },
+    "nsis": {
+      "differentialPackage": true,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
     },
     "npmRebuild": false
   }
