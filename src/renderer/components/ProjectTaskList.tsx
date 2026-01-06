@@ -10,14 +10,12 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
 import TaskDeleteButton from './TaskDeleteButton';
-import ProjectDeleteButton from './ProjectDeleteButton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +27,6 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
-import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import TaskPorts from './TaskPorts';
@@ -47,12 +44,6 @@ import PrPreviewTooltip from './PrPreviewTooltip';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
 import type { Project, Task } from '../types/app';
-
-const normalizeBaseRef = (ref?: string | null): string | undefined => {
-  if (!ref) return undefined;
-  const trimmed = ref.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-};
 
 function TaskRow({
   ws,
@@ -392,7 +383,7 @@ function TaskRow({
   );
 }
 
-interface ProjectMainViewProps {
+interface ProjectTaskListProps {
   project: Project;
   onCreateTask: () => void;
   activeTask: Task | null;
@@ -403,27 +394,17 @@ interface ProjectMainViewProps {
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
   isCreatingTask?: boolean;
-  onDeleteProject?: (project: Project) => void | Promise<void>;
 }
 
-const ProjectMainView: React.FC<ProjectMainViewProps> = ({
+const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
   project,
   onCreateTask,
   activeTask,
   onSelectTask,
   onDeleteTask,
   isCreatingTask = false,
-  onDeleteProject,
 }) => {
   const { toast } = useToast();
-  const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
-    normalizeBaseRef(project.gitInfo.baseRef)
-  );
-  const [branchOptions, setBranchOptions] = useState<RemoteBranchOption[]>([]);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
-  const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
-  const [branchLoadError, setBranchLoadError] = useState<string | null>(null);
-  const [branchReloadToken, setBranchReloadToken] = useState(0);
 
   // Multi-select state
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -548,10 +529,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   }, [project.id]);
 
   useEffect(() => {
-    setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
-  }, [project.id, project.gitInfo.baseRef]);
-
-  useEffect(() => {
     if (!showDeleteDialog) {
       setDeleteStatus({});
       setAcknowledgeDirtyDelete(false);
@@ -637,269 +614,62 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     };
   }, [showDeleteDialog, selectedTasks]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadBranches = async () => {
-      if (!project.path) return;
-      setIsLoadingBranches(true);
-      setBranchLoadError(null);
-      try {
-        const res = await window.electronAPI.listRemoteBranches({ projectPath: project.path });
-        if (!res?.success) {
-          throw new Error(res?.error || 'Failed to load remote branches');
-        }
-
-        const options =
-          res.branches?.map((item) => ({
-            value: item.label,
-            label: item.label,
-          })) ?? [];
-
-        const current = baseBranch ?? normalizeBaseRef(project.gitInfo.baseRef);
-        const withCurrent =
-          current && !options.some((opt) => opt.value === current)
-            ? [{ value: current, label: current }, ...options]
-            : options;
-
-        if (!cancelled) {
-          setBranchOptions(withCurrent);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setBranchLoadError(error instanceof Error ? error.message : String(error));
-          setBranchOptions((prev) => {
-            if (prev.length > 0) return prev;
-            return baseBranch ? [{ value: baseBranch, label: baseBranch }] : [];
-          });
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingBranches(false);
-        }
-      }
-    };
-
-    loadBranches();
-    return () => {
-      cancelled = true;
-    };
-  }, [project.id, project.path, project.gitInfo.baseRef, baseBranch, branchReloadToken]);
-
-  const handleBaseBranchChange = useCallback(
-    async (nextValue: string) => {
-      const trimmed = normalizeBaseRef(nextValue);
-      if (!trimmed || trimmed === baseBranch) return;
-      const previous = baseBranch;
-      setBaseBranch(trimmed);
-      setIsSavingBaseBranch(true);
-      try {
-        const res = await window.electronAPI.updateProjectSettings({
-          projectId: project.id,
-          baseRef: trimmed,
-        });
-        if (!res?.success) {
-          throw new Error(res?.error || 'Failed to update base branch');
-        }
-        if (project.gitInfo) {
-          project.gitInfo.baseRef = trimmed;
-        }
-        setBranchOptions((prev) => {
-          if (prev.some((opt) => opt.value === trimmed)) return prev;
-          return [{ value: trimmed, label: trimmed }, ...prev];
-        });
-        toast({
-          title: 'Base branch updated',
-          description: `New task runs will start from ${trimmed}.`,
-        });
-      } catch (error) {
-        setBaseBranch(previous);
-        toast({
-          variant: 'destructive',
-          title: 'Failed to update base branch',
-          description: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        setIsSavingBaseBranch(false);
-      }
-    },
-    [baseBranch, project.id, toast]
-  );
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <div className="flex-1 overflow-y-auto">
-        <div className="container mx-auto max-w-6xl p-6">
-          <div className="mx-auto w-full max-w-6xl space-y-4">
-            <div className="space-y-4">
-              <header className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-                    <div className="flex items-center gap-2 sm:self-start">
-                      {onDeleteProject ? (
-                        <ProjectDeleteButton
-                          projectName={project.name}
-                          tasks={project.tasks}
-                          onConfirm={() => onDeleteProject?.(project)}
-                          aria-label={`Delete project ${project.name}`}
-                        />
-                      ) : null}
-                      {project.githubInfo?.connected && project.githubInfo.repository ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs font-medium"
-                          onClick={() =>
-                            window.electronAPI.openExternal(
-                              `https://github.com/${project.githubInfo?.repository}`
-                            )
-                          }
-                        >
-                          View on GitHub
-                          <ArrowUpRight className="size-3" />
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                  <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
-                    {project.path}
-                  </p>
-                </div>
-                <BaseBranchControls
-                  baseBranch={baseBranch}
-                  branchOptions={branchOptions}
-                  isLoadingBranches={isLoadingBranches}
-                  isSavingBaseBranch={isSavingBaseBranch}
-                  branchLoadError={branchLoadError}
-                  onBaseBranchChange={handleBaseBranchChange}
-                  onOpenChange={(isOpen) => {
-                    if (isOpen) {
-                      setBranchReloadToken((token) => token + 1);
-                    }
-                  }}
-                />
-              </header>
-              <Separator className="my-2" />
-            </div>
-
-            {(() => {
-              const directTasks = tasksInProject.filter((task) => task.useWorktree === false);
-              if (directTasks.length === 0) return null;
-
-              return (
-                <Alert className="border-border bg-muted/50">
-                  <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                  <AlertTitle className="text-sm font-medium text-foreground">
-                    Direct branch mode
-                  </AlertTitle>
-                  <AlertDescription className="text-xs text-muted-foreground">
-                    {directTasks.length === 1 ? (
-                      <>
-                        <span className="font-medium text-foreground">{directTasks[0].name}</span>{' '}
-                        is running directly on your current branch.
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-medium text-foreground">
-                          {directTasks.map((t) => t.name).join(', ')}
-                        </span>{' '}
-                        are running directly on your current branch.
-                      </>
-                    )}{' '}
-                    Changes will affect your working directory.
-                  </AlertDescription>
-                </Alert>
-              );
-            })()}
-
-            <div className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-semibold">Tasks</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Spin up a fresh, isolated task for this project.
-                  </p>
-                </div>
-                {!isSelectMode && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-9 px-4 text-sm font-semibold shadow-sm"
-                    onClick={onCreateTask}
-                    disabled={isCreatingTask}
-                    aria-busy={isCreatingTask}
-                  >
-                    {isCreatingTask ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        Starting…
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="mr-2 size-4" />
-                        Start New Task
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-              {tasksInProject.length > 0 ? (
-                <>
-                  <div className="flex justify-end gap-2">
-                    {isSelectMode && selectedCount > 0 && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-8 px-3 text-xs font-medium"
-                        onClick={() => setShowDeleteDialog(true)}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? (
-                          <>
-                            <Loader2 className="mr-2 size-4 animate-spin" />
-                            Deleting…
-                          </>
-                        ) : (
-                          'Delete'
-                        )}
-                      </Button>
-                    )}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                      className="h-8 px-3 text-xs font-medium"
-                    >
-                      {isSelectMode ? 'Cancel' : 'Select'}
-                    </Button>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    {tasksInProject.map((ws) => (
-                      <TaskRow
-                        key={ws.id}
-                        ws={ws}
-                        isSelectMode={isSelectMode}
-                        isSelected={selectedIds.has(ws.id)}
-                        onToggleSelect={() => toggleSelect(ws.id)}
-                        active={activeTask?.id === ws.id}
-                        onClick={() => onSelectTask(ws)}
-                        onDelete={() => onDeleteTask(project, ws)}
-                      />
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <Alert>
-                  <AlertTitle>What's a task?</AlertTitle>
-                  <AlertDescription>
-                    Each task is an isolated copy and branch of your repo (Git-tracked files only).
-                  </AlertDescription>
-                </Alert>
+    <div className="space-y-4">
+      <div className="space-y-3">
+        {tasksInProject.length > 0 ? (
+          <>
+            <div className="flex justify-end gap-2">
+              {isSelectMode && selectedCount > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-8 px-3 text-xs font-medium"
+                  onClick={() => setShowDeleteDialog(true)}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    'Delete'
+                  )}
+                </Button>
               )}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
+                className="h-8 px-3 text-xs font-medium"
+              >
+                {isSelectMode ? 'Cancel' : 'Select'}
+              </Button>
             </div>
-          </div>
-        </div>
+            <div className="flex flex-col gap-3">
+              {tasksInProject.map((ws) => (
+                <TaskRow
+                  key={ws.id}
+                  ws={ws}
+                  isSelectMode={isSelectMode}
+                  isSelected={selectedIds.has(ws.id)}
+                  onToggleSelect={() => toggleSelect(ws.id)}
+                  active={activeTask?.id === ws.id}
+                  onClick={() => onSelectTask(ws)}
+                  onDelete={() => onDeleteTask(project, ws)}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <Alert>
+            <AlertTitle>What's a task?</AlertTitle>
+            <AlertDescription>
+              Each task is an isolated copy and branch of your repo (Git-tracked files only).
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -1008,4 +778,4 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   );
 };
 
-export default ProjectMainView;
+export default ProjectTaskList;
