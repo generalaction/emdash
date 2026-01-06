@@ -570,6 +570,9 @@ declare global {
         mkdirs?: boolean
       ) => Promise<{ success: boolean; error?: string }>;
       fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
+      openProjectConfig: (
+        projectPath: string
+      ) => Promise<{ success: boolean; path?: string; error?: string }>;
       // Attachments
       saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) => Promise<{
         success: boolean;

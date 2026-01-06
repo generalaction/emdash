@@ -778,6 +778,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       setBranchReloadToken((token) => token + 1);
                     }
                   }}
+                  projectPath={project.path}
                 />
               </header>
               <Separator className="my-2" />

@@ -125,6 +125,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fsWriteFile: (root: string, relPath: string, content: string, mkdirs?: boolean) =>
     ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs }),
   fsRemove: (root: string, relPath: string) => ipcRenderer.invoke('fs:remove', { root, relPath }),
+  openProjectConfig: (projectPath: string) =>
+    ipcRenderer.invoke('fs:openProjectConfig', { projectPath }),
   // Attachments
   saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) =>
     ipcRenderer.invoke('fs:save-attachment', args),

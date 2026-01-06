@@ -1,6 +1,18 @@
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+
+const DEFAULT_EMDASH_CONFIG = `{
+  "preservePatterns": [
+    ".env",
+    ".env.keys",
+    ".env.local",
+    ".env.*.local",
+    ".envrc",
+    "docker-compose.override.yml"
+  ]
+}
+`;
 
 type ListArgs = {
   root: string;
@@ -283,6 +295,35 @@ export function registerFsIpc(): void {
     } catch (error) {
       console.error('fs:remove failed:', error);
       return { success: false, error: 'Failed to remove file' };
+    }
+  });
+
+  // Open .emdash.json config file (create with defaults if missing)
+  ipcMain.handle('fs:openProjectConfig', async (_event, args: { projectPath: string }) => {
+    try {
+      const { projectPath } = args;
+      if (!projectPath || !fs.existsSync(projectPath)) {
+        return { success: false, error: 'Invalid project path' };
+      }
+
+      const configPath = path.join(projectPath, '.emdash.json');
+
+      // Create with defaults if missing
+      if (!fs.existsSync(configPath)) {
+        fs.writeFileSync(configPath, DEFAULT_EMDASH_CONFIG, 'utf8');
+      }
+
+      // Open in default editor
+      const openResult = await shell.openPath(configPath);
+      if (openResult) {
+        // openPath returns an error string on failure, empty string on success
+        console.error('Failed to open config file:', openResult);
+        return { success: false, error: `Failed to open config file: ${openResult}` };
+      }
+      return { success: true, path: configPath };
+    } catch (error) {
+      console.error('fs:openProjectConfig failed:', error);
+      return { success: false, error: 'Failed to open config file' };
     }
   });
 }
