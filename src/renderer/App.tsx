@@ -1,47 +1,54 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Button } from './components/ui/button';
-import { FolderOpen, Plus, Download } from 'lucide-react';
-import LeftSidebar from './components/LeftSidebar';
-import ProjectMainView from './components/ProjectMainView';
-import TaskModal from './components/TaskModal';
-import { NewProjectModal } from './components/NewProjectModal';
-import { CloneFromUrlModal } from './components/CloneFromUrlModal';
-import ChatInterface from './components/ChatInterface';
-import MultiAgentTask from './components/MultiAgentTask';
-import { Toaster } from './components/ui/toaster';
-import useUpdateNotifier from './hooks/useUpdateNotifier';
-import { useToast } from './hooks/use-toast';
-import { ToastAction } from './components/ui/toast';
-import { useGithubAuth } from './hooks/useGithubAuth';
-import { useTheme } from './hooks/useTheme';
-import { ThemeProvider } from './components/ThemeProvider';
-import ErrorBoundary from './components/ErrorBoundary';
+import { motion } from 'framer-motion';
+import { FolderOpen, Github, Plus } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
 import emdashLogo from '../assets/images/emdash/emdash_logo.svg';
 import emdashLogoWhite from '../assets/images/emdash/emdash_logo_white.svg';
-import Titlebar from './components/titlebar/Titlebar';
-import { SidebarProvider } from './components/ui/sidebar';
-import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sidebar';
-import RightSidebar from './components/RightSidebar';
-import { type Provider } from './types';
-import { type LinearIssueSummary } from './types/linear';
-import { type GitHubIssueSummary } from './types/github';
-import { type JiraIssueSummary } from './types/jira';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
-import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
-import type { ImperativePanelHandle } from 'react-resizable-panels';
-import SettingsModal from './components/SettingsModal';
+import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
+import BrowserPane from './components/BrowserPane';
+import ChatInterface from './components/ChatInterface';
+import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
+import ErrorBoundary from './components/ErrorBoundary';
 import FirstLaunchModal from './components/FirstLaunchModal';
+import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
+import KanbanBoard from './components/kanban/KanbanBoard';
+import LeftSidebar from './components/LeftSidebar';
+import MultiAgentTask from './components/MultiAgentTask';
+import { NewProjectModal } from './components/NewProjectModal';
+import ProjectMainView from './components/ProjectMainView';
+import RightSidebar from './components/RightSidebar';
+import SettingsModal from './components/SettingsModal';
+import TaskModal from './components/TaskModal';
+import { ThemeProvider } from './components/ThemeProvider';
+import Titlebar from './components/titlebar/Titlebar';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from './components/ui/resizable';
+import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sidebar';
+import { SidebarProvider } from './components/ui/sidebar';
+import { KeyboardSettingsProvider } from './contexts/KeyboardSettingsContext';
+import { ToastAction } from './components/ui/toast';
+import { Toaster } from './components/ui/toaster';
+import { useToast } from './hooks/use-toast';
+import { useGithubAuth } from './hooks/useGithubAuth';
+import { usePlanToasts } from './hooks/usePlanToasts';
+import { useTheme } from './hooks/useTheme';
+import useUpdateNotifier from './hooks/useUpdateNotifier';
+import { getContainerRunState } from './lib/containerRuns';
+import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
+import {
+  computeBaseRef,
+  getProjectRepoKey,
+  normalizePathForComparison,
+  withRepoKey,
+} from './lib/projectUtils';
+import { BrowserProvider } from './providers/BrowserProvider';
+import { terminalSessionRegistry } from './terminal/SessionRegistry';
+import { type Provider } from './types';
 import type { Project, Task } from './types/app';
 import type { TaskMetadata } from './types/chat';
-import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
-import { usePlanToasts } from './hooks/usePlanToasts';
-import { terminalSessionRegistry } from './terminal/SessionRegistry';
-import BrowserPane from './components/BrowserPane';
-import { BrowserProvider } from './providers/BrowserProvider';
-import { getContainerRunState } from './lib/containerRuns';
-import KanbanBoard from './components/kanban/KanbanBoard';
-import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
+import { type GitHubIssueSummary } from './types/github';
+import { type JiraIssueSummary } from './types/jira';
+import { type LinearIssueSummary } from './types/linear';
 
 const TERMINAL_PROVIDER_IDS = [
   'qwen',
@@ -128,82 +135,10 @@ const AppContent: React.FC = () => {
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
-  const [installedProviders, setInstalledProviders] = useState<Record<string, boolean>>({});
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
-  const showGithubRequirement = !ghInstalled || !isAuthenticated;
-  // Show agent requirements block if we have status data and none of the CLI providers are detected locally.
-  const showAgentRequirement =
-    Object.keys(installedProviders).length > 0 &&
-    Object.values(installedProviders).every((v) => v === false);
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
-
-  const normalizePathForComparison = useCallback(
-    (input: string | null | undefined) => {
-      if (!input) return '';
-
-      let normalized = input.replace(/\\/g, '/');
-      normalized = normalized.replace(/\/+/g, '/');
-
-      if (normalized.length > 1 && normalized.endsWith('/')) {
-        normalized = normalized.replace(/\/+$/, '');
-      }
-
-      const platformKey =
-        platform && platform.length > 0
-          ? platform
-          : typeof process !== 'undefined'
-            ? process.platform
-            : '';
-      return platformKey.toLowerCase().startsWith('win') ? normalized.toLowerCase() : normalized;
-    },
-    [platform]
-  );
-
-  const computeBaseRef = useCallback(
-    (baseRef?: string | null, remote?: string | null, branch?: string | null) => {
-      const remoteName = (() => {
-        const trimmed = (remote ?? '').trim();
-        if (!trimmed) return 'origin';
-        if (/^[A-Za-z0-9._-]+$/.test(trimmed) && !trimmed.includes('://')) return trimmed;
-        return 'origin';
-      })();
-      const normalize = (value?: string | null): string | undefined => {
-        if (!value) return undefined;
-        const trimmed = value.trim();
-        if (!trimmed || trimmed.includes('://')) return undefined;
-        if (trimmed.includes('/')) {
-          const [head, ...rest] = trimmed.split('/');
-          const branchPart = rest.join('/').replace(/^\/+/, '');
-          if (head && branchPart) return `${head}/${branchPart}`;
-          if (!head && branchPart) return `${remoteName}/${branchPart}`;
-          return undefined;
-        }
-        const suffix = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
-        return `${remoteName}/${suffix}`;
-      };
-      return normalize(baseRef) ?? normalize(branch) ?? `${remoteName}/main`;
-    },
-    []
-  );
-
-  const getProjectRepoKey = useCallback(
-    (project: Pick<Project, 'path' | 'repoKey'>) =>
-      project.repoKey ?? normalizePathForComparison(project.path),
-    [normalizePathForComparison]
-  );
-
-  const withRepoKey = useCallback(
-    (project: Project): Project => {
-      const repoKey = getProjectRepoKey(project);
-      if (project.repoKey === repoKey) {
-        return project;
-      }
-      return { ...project, repoKey };
-    },
-    [getProjectRepoKey]
-  );
 
   // Show toast on update availability and kick off a background check
   useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => setShowSettings(true) });
@@ -354,6 +289,56 @@ const AppContent: React.FC = () => {
     setShowCommandPalette(false);
   }, []);
 
+  // Collect all tasks across all projects for cycling
+  const allTasks = useMemo(() => {
+    const tasks: { task: Task; project: Project }[] = [];
+    for (const project of projects) {
+      for (const task of project.tasks || []) {
+        tasks.push({ task, project });
+      }
+    }
+    return tasks;
+  }, [projects]);
+
+  const handleNextTask = useCallback(() => {
+    if (allTasks.length === 0) return;
+    const currentIndex = activeTask
+      ? allTasks.findIndex((t: { task: Task; project: Project }) => t.task.id === activeTask.id)
+      : -1;
+    const nextIndex = (currentIndex + 1) % allTasks.length;
+    const { task, project } = allTasks[nextIndex];
+    activateProjectView(project);
+    setActiveTask(task);
+    if ((task.metadata as any)?.multiAgent?.enabled) {
+      setActiveTaskProvider(null);
+    } else {
+      setActiveTaskProvider((task.agentId as Provider) || 'codex');
+    }
+  }, [allTasks, activeTask, activateProjectView]);
+
+  const handlePrevTask = useCallback(() => {
+    if (allTasks.length === 0) return;
+    const currentIndex = activeTask
+      ? allTasks.findIndex((t: { task: Task; project: Project }) => t.task.id === activeTask.id)
+      : -1;
+    const prevIndex = currentIndex <= 0 ? allTasks.length - 1 : currentIndex - 1;
+    const { task, project } = allTasks[prevIndex];
+    activateProjectView(project);
+    setActiveTask(task);
+    if ((task.metadata as any)?.multiAgent?.enabled) {
+      setActiveTaskProvider(null);
+    } else {
+      setActiveTaskProvider((task.agentId as Provider) || 'codex');
+    }
+  }, [allTasks, activeTask, activateProjectView]);
+
+  const handleNewTask = useCallback(() => {
+    // Only open modal if a project is selected
+    if (selectedProject) {
+      setShowTaskModal(true);
+    }
+  }, [selectedProject]);
+
   const markFirstLaunchSeen = useCallback(() => {
     try {
       localStorage.setItem(FIRST_LAUNCH_KEY, '1');
@@ -455,7 +440,7 @@ const AppContent: React.FC = () => {
 
         setVersion(appVersion);
         setPlatform(appPlatform);
-        const initialProjects = applyProjectOrder(projects.map(withRepoKey));
+        const initialProjects = applyProjectOrder(projects.map((p) => withRepoKey(p, appPlatform)));
         setProjects(initialProjects);
 
         // Refresh GH status via hook
@@ -464,35 +449,11 @@ const AppContent: React.FC = () => {
         const projectsWithTasks = await Promise.all(
           initialProjects.map(async (project) => {
             const tasks = await window.electronAPI.getTasks(project.id);
-            return withRepoKey({ ...project, tasks });
+            return withRepoKey({ ...project, tasks }, appPlatform);
           })
         );
         const ordered = applyProjectOrder(projectsWithTasks);
         setProjects(ordered);
-
-        // Prefer cached provider status (populated in the background)
-        let providerInstalls: Record<string, boolean> = {};
-        try {
-          type ProviderStatusEntry = {
-            installed: boolean;
-            path?: string | null;
-            version?: string | null;
-            lastChecked: number;
-          };
-          const statusResponse =
-            ((await (window as any).electronAPI.getProviderStatuses?.()) as
-              | { success?: boolean; statuses?: Record<string, ProviderStatusEntry> }
-              | undefined) ?? (await window.electronAPI.getProviderStatuses?.());
-          if (statusResponse?.success && statusResponse.statuses) {
-            providerInstalls = Object.fromEntries(
-              Object.entries(statusResponse.statuses).map(([id, s]) => [id, s?.installed === true])
-            );
-          }
-        } catch {
-          // ignore and fall back to direct checks
-        }
-
-        setInstalledProviders(providerInstalls);
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to load app data:', error as any);
@@ -512,9 +473,9 @@ const AppContent: React.FC = () => {
         try {
           const gitInfo = await window.electronAPI.getGitInfo(result.path);
           const canonicalPath = gitInfo.rootPath || gitInfo.path || result.path;
-          const repoKey = normalizePathForComparison(canonicalPath);
+          const repoKey = normalizePathForComparison(canonicalPath, platform);
           const existingProject = projects.find(
-            (project) => getProjectRepoKey(project) === repoKey
+            (project) => getProjectRepoKey(project, platform) === repoKey
           );
 
           if (existingProject) {
@@ -557,13 +518,16 @@ const AppContent: React.FC = () => {
           if (isAuthenticated && isGithubRemote) {
             const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
             if (githubInfo.success) {
-              const projectWithGithub = withRepoKey({
-                ...baseProject,
-                githubInfo: {
-                  repository: githubInfo.repository || '',
-                  connected: true,
+              const projectWithGithub = withRepoKey(
+                {
+                  ...baseProject,
+                  githubInfo: {
+                    repository: githubInfo.repository || '',
+                    connected: true,
+                  },
                 },
-              });
+                platform
+              );
 
               const saveResult = await window.electronAPI.saveProject(projectWithGithub);
               if (saveResult.success) {
@@ -589,13 +553,16 @@ const AppContent: React.FC = () => {
               });
             }
           } else {
-            const projectWithoutGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: isGithubRemote ? '' : '',
-                connected: false,
+            const projectWithoutGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: isGithubRemote ? '' : '',
+                  connected: false,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
@@ -618,6 +585,7 @@ const AppContent: React.FC = () => {
           });
         }
       } else if (result.error) {
+        if (result.error === 'No directory selected') return;
         toast({
           title: 'Failed to Open Project',
           description: result.error,
@@ -635,6 +603,46 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleNewProjectClick = async () => {
+    const { captureTelemetry } = await import('./lib/telemetryClient');
+    captureTelemetry('project_create_clicked');
+
+    if (!isAuthenticated || !ghInstalled) {
+      toast({
+        title: 'GitHub authentication required',
+        variant: 'destructive',
+        action: (
+          <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+            Connect GitHub
+          </ToastAction>
+        ),
+      });
+      return;
+    }
+
+    setShowNewProjectModal(true);
+  };
+
+  const handleCloneProjectClick = async () => {
+    const { captureTelemetry } = await import('./lib/telemetryClient');
+    captureTelemetry('project_clone_clicked');
+
+    if (!isAuthenticated || !ghInstalled) {
+      toast({
+        title: 'GitHub authentication required',
+        variant: 'destructive',
+        action: (
+          <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
+            Connect GitHub
+          </ToastAction>
+        ),
+      });
+      return;
+    }
+
+    setShowCloneModal(true);
+  };
+
   const handleCloneSuccess = useCallback(
     async (projectPath: string) => {
       const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -642,8 +650,10 @@ const AppContent: React.FC = () => {
       try {
         const gitInfo = await window.electronAPI.getGitInfo(projectPath);
         const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
-        const repoKey = normalizePathForComparison(canonicalPath);
-        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+        const repoKey = normalizePathForComparison(canonicalPath, platform);
+        const existingProject = projects.find(
+          (project) => getProjectRepoKey(project, platform) === repoKey
+        );
 
         if (existingProject) {
           activateProjectView(existingProject);
@@ -671,13 +681,16 @@ const AppContent: React.FC = () => {
         if (isAuthenticated && isGithubRemote) {
           const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
           if (githubInfo.success) {
-            const projectWithGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: githubInfo.repository || '',
-                connected: true,
+            const projectWithGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: githubInfo.repository || '',
+                  connected: true,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithGithub);
             if (saveResult.success) {
@@ -695,13 +708,16 @@ const AppContent: React.FC = () => {
               });
             }
           } else {
-            const projectWithoutGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: '',
-                connected: false,
+            const projectWithoutGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: '',
+                  connected: false,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
@@ -712,13 +728,16 @@ const AppContent: React.FC = () => {
             }
           }
         } else {
-          const projectWithoutGithub = withRepoKey({
-            ...baseProject,
-            githubInfo: {
-              repository: '',
-              connected: false,
+          const projectWithoutGithub = withRepoKey(
+            {
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
             },
-          });
+            platform
+          );
 
           const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
           if (saveResult.success) {
@@ -738,15 +757,7 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [
-      projects,
-      isAuthenticated,
-      activateProjectView,
-      normalizePathForComparison,
-      toast,
-      computeBaseRef,
-      withRepoKey,
-    ]
+    [projects, isAuthenticated, activateProjectView, platform, toast]
   );
 
   const handleNewProjectSuccess = useCallback(
@@ -756,8 +767,10 @@ const AppContent: React.FC = () => {
       try {
         const gitInfo = await window.electronAPI.getGitInfo(projectPath);
         const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
-        const repoKey = normalizePathForComparison(canonicalPath);
-        const existingProject = projects.find((project) => getProjectRepoKey(project) === repoKey);
+        const repoKey = normalizePathForComparison(canonicalPath, platform);
+        const existingProject = projects.find(
+          (project) => getProjectRepoKey(project, platform) === repoKey
+        );
 
         if (existingProject) {
           activateProjectView(existingProject);
@@ -785,13 +798,16 @@ const AppContent: React.FC = () => {
         if (isAuthenticated && isGithubRemote) {
           const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
           if (githubInfo.success) {
-            const projectWithGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: githubInfo.repository || '',
-                connected: true,
+            const projectWithGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: githubInfo.repository || '',
+                  connected: true,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithGithub);
             if (saveResult.success) {
@@ -818,13 +834,16 @@ const AppContent: React.FC = () => {
               });
             }
           } else {
-            const projectWithoutGithub = withRepoKey({
-              ...baseProject,
-              githubInfo: {
-                repository: '',
-                connected: false,
+            const projectWithoutGithub = withRepoKey(
+              {
+                ...baseProject,
+                githubInfo: {
+                  repository: '',
+                  connected: false,
+                },
               },
-            });
+              platform
+            );
 
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
@@ -844,13 +863,16 @@ const AppContent: React.FC = () => {
             }
           }
         } else {
-          const projectWithoutGithub = withRepoKey({
-            ...baseProject,
-            githubInfo: {
-              repository: '',
-              connected: false,
+          const projectWithoutGithub = withRepoKey(
+            {
+              ...baseProject,
+              githubInfo: {
+                repository: '',
+                connected: false,
+              },
             },
-          });
+            platform
+          );
 
           const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
           if (saveResult.success) {
@@ -880,16 +902,7 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [
-      projects,
-      isAuthenticated,
-      activateProjectView,
-      normalizePathForComparison,
-      toast,
-      computeBaseRef,
-      withRepoKey,
-      getProjectRepoKey,
-    ]
+    [projects, isAuthenticated, activateProjectView, platform, toast]
   );
 
   const handleGithubConnect = async () => {
@@ -970,7 +983,8 @@ const AppContent: React.FC = () => {
     linkedLinearIssue: LinearIssueSummary | null = null,
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
-    autoApprove?: boolean
+    autoApprove?: boolean,
+    useWorktree: boolean = true
   ) => {
     if (!selectedProject) return;
 
@@ -1102,26 +1116,42 @@ const AppContent: React.FC = () => {
           for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
             const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
             const variantName = `${taskName}-${provider.toLowerCase()}${instanceSuffix}`;
-            const worktreeResult = await window.electronAPI.worktreeCreate({
-              projectPath: selectedProject.path,
-              taskName: variantName,
-              projectId: selectedProject.id,
-              autoApprove,
-            });
-            if (!worktreeResult?.success || !worktreeResult.worktree) {
-              throw new Error(
-                worktreeResult?.error ||
-                  `Failed to create worktree for ${provider}${instanceSuffix}`
-              );
+
+            let branch: string;
+            let path: string;
+            let worktreeId: string;
+
+            if (useWorktree) {
+              const worktreeResult = await window.electronAPI.worktreeCreate({
+                projectPath: selectedProject.path,
+                taskName: variantName,
+                projectId: selectedProject.id,
+                autoApprove,
+              });
+              if (!worktreeResult?.success || !worktreeResult.worktree) {
+                throw new Error(
+                  worktreeResult?.error ||
+                    `Failed to create worktree for ${provider}${instanceSuffix}`
+                );
+              }
+              const worktree = worktreeResult.worktree;
+              branch = worktree.branch;
+              path = worktree.path;
+              worktreeId = worktree.id;
+            } else {
+              // Direct branch mode - use current project path and branch
+              branch = selectedProject.gitInfo.branch || 'main';
+              path = selectedProject.path;
+              worktreeId = `direct-${taskName}-${provider.toLowerCase()}${instanceSuffix}`;
             }
-            const worktree = worktreeResult.worktree;
+
             variants.push({
               id: `${taskName}-${provider.toLowerCase()}${instanceSuffix}`,
               provider: provider,
               name: variantName,
-              branch: worktree.branch,
-              path: worktree.path,
-              worktreeId: worktree.id,
+              branch,
+              path,
+              worktreeId,
             });
           }
         }
@@ -1153,6 +1183,7 @@ const AppContent: React.FC = () => {
           ...newTask,
           agentId: primaryProvider,
           metadata: multiMeta,
+          useWorktree,
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
@@ -1162,26 +1193,40 @@ const AppContent: React.FC = () => {
           return;
         }
       } else {
-        // Create worktree
-        const worktreeResult = await window.electronAPI.worktreeCreate({
-          projectPath: selectedProject.path,
-          taskName,
-          projectId: selectedProject.id,
-          autoApprove,
-        });
+        let branch: string;
+        let path: string;
+        let taskId: string;
 
-        if (!worktreeResult.success) {
-          throw new Error(worktreeResult.error || 'Failed to create worktree');
+        if (useWorktree) {
+          // Create worktree
+          const worktreeResult = await window.electronAPI.worktreeCreate({
+            projectPath: selectedProject.path,
+            taskName,
+            projectId: selectedProject.id,
+            autoApprove,
+          });
+
+          if (!worktreeResult.success) {
+            throw new Error(worktreeResult.error || 'Failed to create worktree');
+          }
+
+          const worktree = worktreeResult.worktree;
+          branch = worktree.branch;
+          path = worktree.path;
+          taskId = worktree.id;
+        } else {
+          // Direct branch mode - use current project path and branch
+          branch = selectedProject.gitInfo.branch || 'main';
+          path = selectedProject.path;
+          taskId = `direct-${taskName}-${Date.now()}`;
         }
 
-        const worktree = worktreeResult.worktree;
-
         newTask = {
-          id: worktree.id,
+          id: taskId,
           projectId: selectedProject.id,
           name: taskName,
-          branch: worktree.branch,
-          path: worktree.path,
+          branch,
+          path,
           status: 'idle',
           agentId: primaryProvider,
           metadata: taskMetadata,
@@ -1191,6 +1236,7 @@ const AppContent: React.FC = () => {
           ...newTask,
           agentId: primaryProvider,
           metadata: taskMetadata,
+          useWorktree,
         });
         if (!saveResult?.success) {
           const { log } = await import('./lib/logger');
@@ -1507,24 +1553,38 @@ const AppContent: React.FC = () => {
           })
         );
 
-        const [removeResult, deleteResult] = await Promise.allSettled([
-          window.electronAPI.worktreeRemove({
-            projectPath: targetProject.path,
-            worktreeId: task.id,
-            worktreePath: task.path,
-            branch: task.branch,
-          }),
-          window.electronAPI.deleteTask(task.id),
-        ]);
+        // Only remove worktree if the task was created with one
+        const shouldRemoveWorktree = task.useWorktree !== false;
 
-        if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
-          const errorMsg =
-            removeResult.status === 'fulfilled'
-              ? removeResult.value?.error || 'Failed to remove worktree'
-              : removeResult.reason?.message || String(removeResult.reason);
-          throw new Error(errorMsg);
+        const promises: Promise<any>[] = [window.electronAPI.deleteTask(task.id)];
+
+        if (shouldRemoveWorktree) {
+          promises.unshift(
+            window.electronAPI.worktreeRemove({
+              projectPath: targetProject.path,
+              worktreeId: task.id,
+              worktreePath: task.path,
+              branch: task.branch,
+            })
+          );
         }
 
+        const results = await Promise.allSettled(promises);
+
+        // Check worktree removal result (if applicable)
+        if (shouldRemoveWorktree) {
+          const removeResult = results[0];
+          if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
+            const errorMsg =
+              removeResult.status === 'fulfilled'
+                ? removeResult.value?.error || 'Failed to remove worktree'
+                : removeResult.reason?.message || String(removeResult.reason);
+            throw new Error(errorMsg);
+          }
+        }
+
+        // Check task deletion result
+        const deleteResult = shouldRemoveWorktree ? results[1] : results[0];
         if (deleteResult.status !== 'fulfilled' || !deleteResult.value?.success) {
           const errorMsg =
             deleteResult.status === 'fulfilled'
@@ -1769,8 +1829,10 @@ const AppContent: React.FC = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
-              <button
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-2">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1, ease: 'easeInOut' }}
                 onClick={() => {
                   void (async () => {
                     const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -1778,69 +1840,37 @@ const AppContent: React.FC = () => {
                   })();
                   handleOpenProject();
                 }}
-                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <FolderOpen className="mb-5 h-4 w-4 text-foreground" />
+                <FolderOpen className="mb-5 h-5 w-5 text-foreground opacity-70" />
                 <div className="w-full min-w-0 text-left">
                   <h3 className="truncate text-xs font-semibold">Open project</h3>
                 </div>
-              </button>
+              </motion.button>
 
-              <button
-                onClick={() => {
-                  void (async () => {
-                    const { captureTelemetry } = await import('./lib/telemetryClient');
-                    captureTelemetry('project_create_clicked');
-                  })();
-                  if (!isAuthenticated || !ghInstalled) {
-                    toast({
-                      title: 'GitHub authentication required',
-                      variant: 'destructive',
-                      action: (
-                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
-                          Connect GitHub
-                        </ToastAction>
-                      ),
-                    });
-                    return;
-                  }
-                  setShowNewProjectModal(true);
-                }}
-                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1, ease: 'easeInOut' }}
+                onClick={handleNewProjectClick}
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Plus className="mb-5 h-4 w-4 text-foreground" />
+                <Plus className="mb-5 h-5 w-5 text-foreground opacity-70" />
                 <div className="w-full min-w-0 text-left">
                   <h3 className="truncate text-xs font-semibold">Create New Project</h3>
                 </div>
-              </button>
+              </motion.button>
 
-              <button
-                onClick={() => {
-                  void (async () => {
-                    const { captureTelemetry } = await import('./lib/telemetryClient');
-                    captureTelemetry('project_clone_clicked');
-                  })();
-                  if (!isAuthenticated || !ghInstalled) {
-                    toast({
-                      title: 'GitHub authentication required',
-                      variant: 'destructive',
-                      action: (
-                        <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
-                          Connect GitHub
-                        </ToastAction>
-                      ),
-                    });
-                    return;
-                  }
-                  setShowCloneModal(true);
-                }}
-                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1, ease: 'easeInOut' }}
+                onClick={handleCloneProjectClick}
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Download className="mb-5 h-4 w-4 text-foreground" />
+                <Github className="mb-5 h-5 w-5 text-foreground opacity-70" />
                 <div className="w-full min-w-0 text-left">
                   <h3 className="truncate text-xs font-semibold">Clone from GitHub</h3>
                 </div>
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>
@@ -1893,166 +1923,165 @@ const AppContent: React.FC = () => {
           // Track Kanban locally in this component scope
           return null;
         })()}
-        <SidebarProvider>
-          <RightSidebarProvider>
-            <AppKeyboardShortcuts
-              showCommandPalette={showCommandPalette}
-              showSettings={showSettings}
-              handleToggleCommandPalette={handleToggleCommandPalette}
-              handleOpenSettings={handleOpenSettings}
-              handleCloseCommandPalette={handleCloseCommandPalette}
-              handleCloseSettings={handleCloseSettings}
-              handleToggleKanban={handleToggleKanban}
-            />
-            <RightSidebarBridge
-              onCollapsedChange={handleRightSidebarCollapsedChange}
-              setCollapsedRef={rightSidebarSetCollapsedRef}
-            />
-            <Titlebar
-              onToggleSettings={handleToggleSettings}
-              isSettingsOpen={showSettings}
-              currentPath={
-                activeTask?.metadata?.multiAgent?.enabled
-                  ? null
-                  : activeTask?.path || selectedProject?.path || null
-              }
-              defaultPreviewUrl={
-                activeTask?.id ? getContainerRunState(activeTask.id)?.previewUrl || null : null
-              }
-              taskId={activeTask?.id || null}
-              taskPath={activeTask?.path || null}
-              projectPath={selectedProject?.path || null}
-              isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
-              githubUser={user}
-              onToggleKanban={handleToggleKanban}
-              isKanbanOpen={Boolean(showKanban)}
-              kanbanAvailable={Boolean(selectedProject)}
-            />
-            <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
-              <ResizablePanelGroup
-                direction="horizontal"
-                className="flex-1 overflow-hidden"
-                onLayout={handlePanelLayout}
-              >
-                <ResizablePanel
-                  ref={leftSidebarPanelRef}
-                  className="sidebar-panel sidebar-panel--left"
-                  defaultSize={defaultPanelLayout[0]}
-                  minSize={LEFT_SIDEBAR_MIN_SIZE}
-                  maxSize={LEFT_SIDEBAR_MAX_SIZE}
-                  collapsedSize={0}
-                  collapsible
-                  order={1}
+        <KeyboardSettingsProvider>
+          <SidebarProvider>
+            <RightSidebarProvider>
+              <AppKeyboardShortcuts
+                showCommandPalette={showCommandPalette}
+                showSettings={showSettings}
+                handleToggleCommandPalette={handleToggleCommandPalette}
+                handleOpenSettings={handleOpenSettings}
+                handleCloseCommandPalette={handleCloseCommandPalette}
+                handleCloseSettings={handleCloseSettings}
+                handleToggleKanban={handleToggleKanban}
+                handleNextTask={handleNextTask}
+                handlePrevTask={handlePrevTask}
+                handleNewTask={handleNewTask}
+              />
+              <RightSidebarBridge
+                onCollapsedChange={handleRightSidebarCollapsedChange}
+                setCollapsedRef={rightSidebarSetCollapsedRef}
+              />
+              <Titlebar
+                onToggleSettings={handleToggleSettings}
+                isSettingsOpen={showSettings}
+                currentPath={
+                  activeTask?.metadata?.multiAgent?.enabled
+                    ? null
+                    : activeTask?.path || selectedProject?.path || null
+                }
+                defaultPreviewUrl={
+                  activeTask?.id ? getContainerRunState(activeTask.id)?.previewUrl || null : null
+                }
+                taskId={activeTask?.id || null}
+                taskPath={activeTask?.path || null}
+                projectPath={selectedProject?.path || null}
+                isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
+                githubUser={user}
+                onToggleKanban={handleToggleKanban}
+                isKanbanOpen={Boolean(showKanban)}
+                kanbanAvailable={Boolean(selectedProject)}
+              />
+              <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
+                <ResizablePanelGroup
+                  direction="horizontal"
+                  className="flex-1 overflow-hidden"
+                  onLayout={handlePanelLayout}
                 >
-                  <LeftSidebar
-                    projects={projects}
-                    selectedProject={selectedProject}
-                    onSelectProject={handleSelectProject}
-                    onGoHome={handleGoHome}
-                    onOpenProject={handleOpenProject}
-                    onNewProject={() => setShowNewProjectModal(true)}
-                    onSelectTask={handleSelectTask}
-                    activeTask={activeTask || undefined}
-                    onReorderProjects={handleReorderProjects}
-                    onReorderProjectsFull={handleReorderProjectsFull}
-                    githubInstalled={ghInstalled}
-                    githubAuthenticated={isAuthenticated}
-                    githubUser={user}
-                    onGithubConnect={handleGithubConnect}
-                    githubLoading={githubLoading}
-                    githubStatusMessage={githubStatusMessage}
-                    githubInitialized={isGithubInitialized}
-                    onSidebarContextChange={handleSidebarContextChange}
-                    onCreateTaskForProject={handleStartCreateTaskFromSidebar}
-                    isCreatingTask={isCreatingTask}
-                    onDeleteTask={handleDeleteTask}
-                    onDeleteProject={handleDeleteProject}
-                    isHomeView={showHomeView}
+                  <ResizablePanel
+                    ref={leftSidebarPanelRef}
+                    className="sidebar-panel sidebar-panel--left"
+                    defaultSize={defaultPanelLayout[0]}
+                    minSize={LEFT_SIDEBAR_MIN_SIZE}
+                    maxSize={LEFT_SIDEBAR_MAX_SIZE}
+                    collapsedSize={0}
+                    collapsible
+                    order={1}
+                  >
+                    <LeftSidebar
+                      projects={projects}
+                      selectedProject={selectedProject}
+                      onSelectProject={handleSelectProject}
+                      onGoHome={handleGoHome}
+                      onOpenProject={handleOpenProject}
+                      onNewProject={handleNewProjectClick}
+                      onCloneProject={handleCloneProjectClick}
+                      onSelectTask={handleSelectTask}
+                      activeTask={activeTask || undefined}
+                      onReorderProjects={handleReorderProjects}
+                      onReorderProjectsFull={handleReorderProjectsFull}
+                      onSidebarContextChange={handleSidebarContextChange}
+                      onCreateTaskForProject={handleStartCreateTaskFromSidebar}
+                      isCreatingTask={isCreatingTask}
+                      onDeleteTask={handleDeleteTask}
+                      onDeleteProject={handleDeleteProject}
+                      isHomeView={showHomeView}
+                    />
+                  </ResizablePanel>
+                  <ResizableHandle
+                    withHandle
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
-                </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
-                <ResizablePanel
-                  className="sidebar-panel sidebar-panel--main"
-                  defaultSize={defaultPanelLayout[1]}
-                  minSize={MAIN_PANEL_MIN_SIZE}
-                  order={2}
-                >
-                  <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-                    {renderMainContent()}
-                  </div>
-                </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
-                <ResizablePanel
-                  ref={rightSidebarPanelRef}
-                  className="sidebar-panel sidebar-panel--right"
-                  defaultSize={0}
-                  minSize={RIGHT_SIDEBAR_MIN_SIZE}
-                  maxSize={RIGHT_SIDEBAR_MAX_SIZE}
-                  collapsedSize={0}
-                  collapsible
-                  order={3}
-                >
-                  <RightSidebar
-                    task={activeTask}
-                    projectPath={selectedProject?.path || null}
-                    className="lg:border-l-0"
+                  <ResizablePanel
+                    className="sidebar-panel sidebar-panel--main"
+                    defaultSize={defaultPanelLayout[1]}
+                    minSize={MAIN_PANEL_MIN_SIZE}
+                    order={2}
+                  >
+                    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+                      {renderMainContent()}
+                    </div>
+                  </ResizablePanel>
+                  <ResizableHandle
+                    withHandle
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
-                </ResizablePanel>
-              </ResizablePanelGroup>
-            </div>
-            <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
-            <CommandPaletteWrapper
-              isOpen={showCommandPalette}
-              onClose={handleCloseCommandPalette}
-              projects={projects}
-              handleSelectProject={handleSelectProject}
-              handleSelectTask={handleSelectTask}
-              handleGoHome={handleGoHome}
-              handleOpenProject={handleOpenProject}
-              handleOpenSettings={handleOpenSettings}
-            />
-            <TaskModal
-              isOpen={showTaskModal}
-              onClose={() => setShowTaskModal(false)}
-              onCreateTask={handleCreateTask}
-              projectName={selectedProject?.name || ''}
-              defaultBranch={selectedProject?.gitInfo.branch || 'main'}
-              existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
-              projectPath={selectedProject?.path}
-            />
-            <NewProjectModal
-              isOpen={showNewProjectModal}
-              onClose={() => setShowNewProjectModal(false)}
-              onSuccess={handleNewProjectSuccess}
-            />
-            <CloneFromUrlModal
-              isOpen={showCloneModal}
-              onClose={() => setShowCloneModal(false)}
-              onSuccess={handleCloneSuccess}
-            />
-            <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
-            <GithubDeviceFlowModal
-              open={showDeviceFlowModal}
-              onClose={handleDeviceFlowClose}
-              onSuccess={handleDeviceFlowSuccess}
-              onError={handleDeviceFlowError}
-            />
-            <Toaster />
-            <BrowserPane
-              taskId={activeTask?.id || null}
-              taskPath={activeTask?.path || null}
-              overlayActive={
-                showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
-              }
-            />
-          </RightSidebarProvider>
-        </SidebarProvider>
+                  <ResizablePanel
+                    ref={rightSidebarPanelRef}
+                    className="sidebar-panel sidebar-panel--right"
+                    defaultSize={0}
+                    minSize={RIGHT_SIDEBAR_MIN_SIZE}
+                    maxSize={RIGHT_SIDEBAR_MAX_SIZE}
+                    collapsedSize={0}
+                    collapsible
+                    order={3}
+                  >
+                    <RightSidebar
+                      task={activeTask}
+                      projectPath={selectedProject?.path || null}
+                      className="lg:border-l-0"
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              </div>
+              <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
+              <CommandPaletteWrapper
+                isOpen={showCommandPalette}
+                onClose={handleCloseCommandPalette}
+                projects={projects}
+                handleSelectProject={handleSelectProject}
+                handleSelectTask={handleSelectTask}
+                handleGoHome={handleGoHome}
+                handleOpenProject={handleOpenProject}
+                handleOpenSettings={handleOpenSettings}
+              />
+              <TaskModal
+                isOpen={showTaskModal}
+                onClose={() => setShowTaskModal(false)}
+                onCreateTask={handleCreateTask}
+                projectName={selectedProject?.name || ''}
+                defaultBranch={selectedProject?.gitInfo.branch || 'main'}
+                existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
+                projectPath={selectedProject?.path}
+              />
+              <NewProjectModal
+                isOpen={showNewProjectModal}
+                onClose={() => setShowNewProjectModal(false)}
+                onSuccess={handleNewProjectSuccess}
+              />
+              <CloneFromUrlModal
+                isOpen={showCloneModal}
+                onClose={() => setShowCloneModal(false)}
+                onSuccess={handleCloneSuccess}
+              />
+              <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
+              <GithubDeviceFlowModal
+                open={showDeviceFlowModal}
+                onClose={handleDeviceFlowClose}
+                onSuccess={handleDeviceFlowSuccess}
+                onError={handleDeviceFlowError}
+              />
+              <Toaster />
+              <BrowserPane
+                taskId={activeTask?.id || null}
+                taskPath={activeTask?.path || null}
+                overlayActive={
+                  showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
+                }
+              />
+            </RightSidebarProvider>
+          </SidebarProvider>
+        </KeyboardSettingsProvider>
       </div>
     </BrowserProvider>
   );

@@ -7,6 +7,7 @@ import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '@shared/providers/registry';
+import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -117,13 +118,25 @@ export class TerminalSessionManager {
         const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
         if (filtered) {
           // Track command execution when Enter is pressed
-          if (filtered.includes('\r') || filtered.includes('\n')) {
+          const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
+          if (isEnterPress) {
             void (async () => {
               const { captureTelemetry } = await import('../lib/telemetryClient');
               captureTelemetry('terminal_command_executed');
             })();
           }
-          window.electronAPI.ptyInput({ id: this.id, data: filtered });
+
+          // Check for pending injection text when Enter is pressed
+          const pendingText = pendingInjectionManager.getPending();
+          if (pendingText && isEnterPress) {
+            // Append pending text to the existing input and keep the prior working behavior.
+            const stripped = filtered.replace(/[\r\n]+$/g, '');
+            const injectedData = stripped + pendingText + '\r\r';
+            window.electronAPI.ptyInput({ id: this.id, data: injectedData });
+            pendingInjectionManager.markUsed();
+          } else {
+            window.electronAPI.ptyInput({ id: this.id, data: filtered });
+          }
         }
       }
     });
@@ -446,6 +459,11 @@ export class TerminalSessionManager {
         this.terminal.clear();
         this.terminal.writeln('[scrollback truncated to protect memory]');
       }
+      // Check if at bottom BEFORE writing - if yes, we'll scroll to stay at bottom
+      // If user has scrolled up, they stay where they are
+      const buffer = this.terminal.buffer?.active;
+      const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
+
       this.terminal.write(chunk);
       if (!this.firstFrameRendered) {
         this.firstFrameRendered = true;
@@ -453,11 +471,12 @@ export class TerminalSessionManager {
           this.terminal.refresh(0, this.terminal.rows - 1);
         } catch {}
       }
-      // Auto-scroll to bottom when new data arrives
-      // This ensures users always see the latest output, especially when the agent is waiting for input
-      try {
-        this.terminal.scrollToBottom();
-      } catch {}
+      // Only auto-scroll if we were already at bottom (stay at bottom behavior)
+      if (isAtBottom) {
+        try {
+          this.terminal.scrollToBottom();
+        } catch {}
+      }
     });
 
     const offExit = window.electronAPI.onPtyExit(id, (info) => {

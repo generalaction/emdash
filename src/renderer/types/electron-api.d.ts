@@ -10,6 +10,18 @@ type ProjectSettingsPayload = {
   baseRef?: string;
 };
 
+export type LineComment = {
+  id: string;
+  taskId: string;
+  filePath: string;
+  lineNumber: number;
+  lineContent?: string | null;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  sentAt?: string | null;
+};
+
 export {};
 
 declare global {
@@ -25,6 +37,12 @@ declare global {
       quitAndInstallUpdate: () => Promise<{ success: boolean; error?: string }>;
       openLatestDownload: () => Promise<{ success: boolean; error?: string }>;
       onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
+      // Enhanced update methods
+      getUpdateState: () => Promise<{ success: boolean; data?: any; error?: string }>;
+      getUpdateSettings: () => Promise<{ success: boolean; data?: any; error?: string }>;
+      updateUpdateSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+      getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+      checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
       // App settings
       getSettings: () => Promise<{
@@ -47,6 +65,40 @@ declare global {
           };
           projects?: {
             defaultDirectory: string;
+          };
+          keyboard?: {
+            commandPalette?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
           };
         };
         error?: string;
@@ -71,6 +123,40 @@ declare global {
           projects?: {
             defaultDirectory?: string;
           };
+          keyboard?: {
+            commandPalette?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -92,6 +178,40 @@ declare global {
           };
           projects?: {
             defaultDirectory: string;
+          };
+          keyboard?: {
+            commandPalette?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            settings?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleLeftSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleRightSidebar?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleTheme?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            toggleKanban?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
           };
         };
         error?: string;
@@ -371,6 +491,12 @@ declare global {
         app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
         path: string;
       }) => Promise<{ success: boolean; error?: string }>;
+      checkInstalledApps: () => Promise<
+        Record<
+          'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
+          boolean
+        >
+      >;
       connectToGitHub: (projectPath: string) => Promise<{
         success: boolean;
         repository?: string;
@@ -636,6 +762,46 @@ declare global {
         content: string,
         options?: { reset?: boolean }
       ) => Promise<{ success: boolean; error?: string }>;
+
+      // Line comments
+      lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
+        success: boolean;
+        comments?: LineComment[];
+        error?: string;
+      }>;
+      lineCommentsCreate: (args: {
+        taskId: string;
+        filePath: string;
+        lineNumber: number;
+        lineContent?: string;
+        content: string;
+      }) => Promise<{
+        success: boolean;
+        id?: string;
+        error?: string;
+      }>;
+      lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      lineCommentsDelete: (id: string) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      lineCommentsGetFormatted: (taskId: string) => Promise<{
+        success: boolean;
+        formatted?: string;
+        error?: string;
+      }>;
+      lineCommentsMarkSent: (commentIds: string[]) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      lineCommentsGetUnsent: (taskId: string) => Promise<{
+        success: boolean;
+        comments?: LineComment[];
+        error?: string;
+      }>;
     };
   }
 }
@@ -651,6 +817,12 @@ export interface ElectronAPI {
   quitAndInstallUpdate: () => Promise<{ success: boolean; error?: string }>;
   openLatestDownload: () => Promise<{ success: boolean; error?: string }>;
   onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
+  // Enhanced update methods
+  getUpdateState: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  getUpdateSettings: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  updateUpdateSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+  getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+  checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
   // PTY
   ptyStart: (opts: {
@@ -964,5 +1136,45 @@ export interface ElectronAPI {
     content: string,
     options?: { reset?: boolean }
   ) => Promise<{ success: boolean; error?: string }>;
+
+  // Line comments
+  lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
+    success: boolean;
+    comments?: LineComment[];
+    error?: string;
+  }>;
+  lineCommentsCreate: (args: {
+    taskId: string;
+    filePath: string;
+    lineNumber: number;
+    lineContent?: string;
+    content: string;
+  }) => Promise<{
+    success: boolean;
+    id?: string;
+    error?: string;
+  }>;
+  lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  lineCommentsDelete: (id: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  lineCommentsGetFormatted: (taskId: string) => Promise<{
+    success: boolean;
+    formatted?: string;
+    error?: string;
+  }>;
+  lineCommentsMarkSent: (commentIds: string[]) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  lineCommentsGetUnsent: (taskId: string) => Promise<{
+    success: boolean;
+    comments?: LineComment[];
+    error?: string;
+  }>;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';

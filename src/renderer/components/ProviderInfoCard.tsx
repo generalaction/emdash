@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { type UiProvider } from '@/providers/meta';
 import { providerAssets } from '@/providers/assets';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
+import { Button } from './ui/button';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
 
 export type ProviderInfo = {
@@ -77,6 +78,11 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
       'Kimi CLI by Moonshot AI — a shell-like coding agent with raw shell execution, Zsh integration, ACP and MCP support (technical preview).',
     hostingNote: 'macOS/Linux only; first run on macOS may take ~10s due to security checks.',
   },
+  kilocode: {
+    title: 'Kilocode',
+    description:
+      'Kilo AI coding assistant with multiple modes (architect, code, debug, ask, orchestrator). Supports hundreds of models with bring-your-own-keys for OpenRouter and AI gateways. Features keyboard-first navigation and checkpoint management.',
+  },
   kiro: {
     title: 'Kiro',
     description:
@@ -91,6 +97,11 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
     title: 'Cline',
     description:
       'Cline CLI runs AI coding agents directly in your terminal. Supports multiple model providers, runs multiple instances simultaneously for parallel development, and integrates into existing shell workflows.',
+  },
+  continue: {
+    title: 'Continue',
+    description:
+      'Continue CLI (cn) is a modular coding agent for the command line. Features battle-tested agent loop, customizable models and rules, MCP tool support, and both interactive and headless modes for automation.',
   },
   codebuff: {
     title: 'Codebuff',
@@ -198,17 +209,18 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
         <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-[11px] leading-none">
           {installCommand}
         </code>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={() => {
             void handleCopyClick();
           }}
-          className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+          className="ml-2 text-muted-foreground"
           aria-label={`Copy install command for ${info.title}`}
           title={copied ? 'Copied' : 'Copy command'}
         >
           <CopyIndicatorIcon className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
       {info.knowledgeCutoff || info.hostingNote ? (
         <div className="mt-2 space-y-1">

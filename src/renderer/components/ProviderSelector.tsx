@@ -39,7 +39,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
               <TooltipTrigger asChild>
                 <SelectTrigger
                   aria-disabled
-                  className={`h-9 w-full border-none bg-gray-100 dark:bg-gray-700 ${
+                  className={`h-9 w-full border-none bg-muted ${
                     disabled ? 'cursor-not-allowed opacity-60' : ''
                   }`}
                 >
@@ -52,7 +52,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
             </Tooltip>
           </TooltipProvider>
         ) : (
-          <SelectTrigger className="h-9 w-full border-none bg-gray-100 dark:bg-gray-700">
+          <SelectTrigger className="h-9 w-full border-none bg-muted">
             <SelectValue placeholder="Select provider" />
           </SelectTrigger>
         )}

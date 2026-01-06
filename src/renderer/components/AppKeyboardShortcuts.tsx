@@ -3,6 +3,7 @@ import { useSidebar } from '../components/ui/sidebar';
 import { useRightSidebar } from '../components/ui/right-sidebar';
 import { useTheme } from '../hooks/useTheme';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 
 export interface AppKeyboardShortcutsProps {
   showCommandPalette: boolean;
@@ -12,6 +13,9 @@ export interface AppKeyboardShortcutsProps {
   handleCloseCommandPalette: () => void;
   handleCloseSettings: () => void;
   handleToggleKanban: () => void;
+  handleNextTask: () => void;
+  handlePrevTask: () => void;
+  handleNewTask: () => void;
 }
 
 const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
@@ -22,10 +26,14 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
   handleCloseCommandPalette,
   handleCloseSettings,
   handleToggleKanban,
+  handleNextTask,
+  handlePrevTask,
+  handleNewTask,
 }) => {
   const { toggle: toggleLeftSidebar } = useSidebar();
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
+  const { settings: keyboardSettings } = useKeyboardSettings();
 
   useKeyboardShortcuts({
     onToggleCommandPalette: handleToggleCommandPalette,
@@ -34,6 +42,9 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
     onToggleRightSidebar: toggleRightSidebar,
     onToggleTheme: toggleTheme,
     onToggleKanban: handleToggleKanban,
+    onNextProject: handleNextTask,
+    onPrevProject: handlePrevTask,
+    onNewTask: handleNewTask,
     onCloseModal: showCommandPalette
       ? handleCloseCommandPalette
       : showSettings
@@ -41,6 +52,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
         : undefined,
     isCommandPaletteOpen: showCommandPalette,
     isSettingsOpen: showSettings,
+    customKeyboardSettings: keyboardSettings ?? undefined,
   });
 
   return null;

@@ -14,11 +14,12 @@ import {
 import { useToast } from '../hooks/use-toast';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 import { useTheme } from '../hooks/useTheme';
+import { useTaskScope } from './TaskScopeContext';
 
 interface AllChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
-  taskPath: string;
+  taskPath?: string;
   files: FileChange[];
   onRefreshChanges?: () => Promise<void> | void;
 }
@@ -42,6 +43,8 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   files,
   onRefreshChanges,
 }) => {
+  const { taskPath: scopedTaskPath } = useTaskScope();
+  const resolvedTaskPath = taskPath ?? scopedTaskPath ?? '';
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
@@ -77,10 +80,15 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
   const handleSave = async (filePath: string) => {
     const current = fileData.get(filePath);
-    if (!current || current.loading || current.error) return;
+    if (!current || current.loading || current.error || !resolvedTaskPath) return;
     updateFileData(filePath, (data) => ({ ...data, saving: true, saveError: null }));
     try {
-      const res = await window.electronAPI.fsWriteFile(taskPath, filePath, current.modified, true);
+      const res = await window.electronAPI.fsWriteFile(
+        resolvedTaskPath,
+        filePath,
+        current.modified,
+        true
+      );
       if (!res?.success) {
         throw new Error(res?.error || 'Failed to save file');
       }
@@ -107,7 +115,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
   // Load file data when modal opens or files change
   useEffect(() => {
-    if (!open || files.length === 0) {
+    if (!open || files.length === 0 || !resolvedTaskPath) {
       setFileData(new Map());
       return;
     }
@@ -151,7 +159,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
       try {
         // Get diff lines
-        const diffRes = await window.electronAPI.getFileDiff({ taskPath, filePath });
+        if (!resolvedTaskPath) return;
+        const diffRes = await window.electronAPI.getFileDiff({
+          taskPath: resolvedTaskPath,
+          filePath,
+        });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
         }
@@ -173,7 +185,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           modifiedContent = '';
         } else if (file.status === 'added') {
           // Read current file content
-          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+          const readRes = await window.electronAPI.fsRead(
+            resolvedTaskPath,
+            filePath,
+            2 * 1024 * 1024
+          );
           if (readRes?.success && readRes.content) {
             modifiedContent = readRes.content;
             originalContent = '';
@@ -191,7 +207,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
           // Try to read actual current content for better accuracy
           try {
-            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+            const readRes = await window.electronAPI.fsRead(
+              resolvedTaskPath,
+              filePath,
+              2 * 1024 * 1024
+            );
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
             }
@@ -236,7 +256,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         loadFileData(file);
       }
     });
-  }, [open, files, taskPath]);
+  }, [open, files, resolvedTaskPath]);
 
   // Add custom scrollbar styles and Monaco theme
   useEffect(() => {
@@ -586,25 +606,23 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             transition={
               shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
             }
-            className="flex h-[92vh] w-[96vw] max-w-[1600px] transform-gpu overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-2xl will-change-transform dark:border-gray-700 dark:bg-gray-900"
+            className="flex h-[92vh] w-[96vw] max-w-[1600px] transform-gpu overflow-hidden rounded-xl border border-border bg-muted shadow-2xl will-change-transform dark:border-border dark:bg-background"
             data-all-changes-modal="true"
           >
             <div className="flex min-w-0 flex-1 flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-5 py-3 dark:border-gray-700 dark:bg-gray-900">
+              <div className="flex items-center justify-between border-b border-border bg-muted px-5 py-3 dark:border-border dark:bg-background">
                 <div className="flex items-center gap-4">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    All Changes
-                  </h2>
+                  <h2 className="text-lg font-semibold text-foreground">All Changes</h2>
                   <div className="flex items-center gap-3 text-sm">
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700/50 dark:text-gray-400">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-muted/50 dark:text-muted-foreground">
                       {files.length} {files.length === 1 ? 'file' : 'files'}
                     </span>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-emerald-600 dark:text-emerald-400">
                         +{totalStats.additions}
                       </span>
-                      <span className="text-gray-400">•</span>
+                      <span className="text-muted-foreground">•</span>
                       <span className="font-medium text-rose-600 dark:text-rose-400">
                         -{totalStats.deletions}
                       </span>
@@ -613,7 +631,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                 </div>
                 <button
                   onClick={onClose}
-                  className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-muted-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-muted-foreground"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" />
@@ -623,7 +641,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
               {/* Scrollable content */}
               <div className="all-changes-scrollable min-h-0 flex-1 overflow-y-auto">
                 {files.length === 0 ? (
-                  <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
                     No changes to display
                   </div>
                 ) : (
@@ -639,24 +657,22 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                       return (
                         <div
                           key={file.path}
-                          className={`${
-                            index === 0 ? '' : 'border-t border-gray-200 dark:border-gray-700/50'
-                          } bg-gray-50 dark:bg-gray-900`}
+                          className={`${index === 0 ? '' : 'border-t border-border/50'} bg-muted`}
                         >
                           {/* File header */}
-                          <div className="group flex items-center border-b border-gray-200 bg-gray-100 dark:border-gray-700/50 dark:bg-gray-800">
+                          <div className="group flex items-center border-b border-border bg-muted dark:border-border/50 dark:bg-card">
                             <button
                               onClick={() => toggleFileExpanded(file.path)}
-                              className="flex min-w-0 flex-1 items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-gray-200 dark:hover:bg-gray-700/50"
+                              className="flex min-w-0 flex-1 items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-accent/50"
                             >
                               <div className="flex shrink-0 items-center">
                                 {isExpanded ? (
-                                  <ChevronDown className="h-3.5 w-3.5 text-gray-400 transition-colors group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-400" />
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-muted-foreground dark:text-muted-foreground dark:group-hover:text-muted-foreground" />
                                 ) : (
-                                  <ChevronRight className="h-3.5 w-3.5 text-gray-400 transition-colors group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-400" />
+                                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-muted-foreground dark:text-muted-foreground dark:group-hover:text-muted-foreground" />
                                 )}
                               </div>
-                              <span className="truncate font-mono text-sm font-medium text-gray-900 dark:text-gray-100">
+                              <span className="truncate font-mono text-sm font-medium text-foreground">
                                 {file.path}
                               </span>
                               <button
@@ -664,7 +680,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                                   e.stopPropagation();
                                   void handleCopyFile(file.path);
                                 }}
-                                className="ml-2 rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                                className="ml-2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-muted-foreground"
                                 title="Copy file path"
                                 aria-label="Copy file path"
                               >
@@ -689,7 +705,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                             </button>
                           </div>
                           {!hasError && (isDirty || isSaving) && (
-                            <div className="flex items-center justify-between px-5 py-2 text-xs text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center justify-between px-5 py-2 text-xs text-muted-foreground">
                               <div className="flex items-center gap-2">
                                 <span>{isDirty ? 'Unsaved changes' : 'No unsaved changes'}</span>
                                 {data?.saveError ? (
@@ -703,8 +719,8 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                                 disabled={!isDirty || isSaving}
                                 className={`inline-flex items-center rounded-md px-3 py-1 text-sm font-medium transition ${
                                   !isDirty || isSaving
-                                    ? 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                                    : 'bg-gray-600 text-white hover:bg-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600'
+                                    ? 'cursor-not-allowed bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground'
+                                    : 'dark:bg-muted0 bg-muted text-white hover:bg-accent dark:hover:bg-muted'
                                 }`}
                               >
                                 {isSaving ? 'Saving…' : 'Save'}
@@ -714,16 +730,16 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
                           {/* File diff content */}
                           {isExpanded && (
-                            <div className="border-b border-gray-200 bg-gray-50 dark:border-gray-700/50 dark:bg-gray-900">
+                            <div className="border-b border-border bg-muted dark:border-border/50 dark:bg-background">
                               {isLoading ? (
-                                <div className="flex h-64 items-center justify-center text-gray-500 dark:text-gray-400">
+                                <div className="flex h-64 items-center justify-center text-muted-foreground">
                                   <div className="flex items-center gap-2">
-                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-600 dark:border-t-gray-400"></div>
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-gray-600 dark:border-border dark:border-t-gray-400"></div>
                                     <span className="text-sm">Loading diff...</span>
                                   </div>
                                 </div>
                               ) : hasError ? (
-                                <div className="flex h-64 flex-col items-center justify-center gap-2 px-4 text-gray-500 dark:text-gray-400">
+                                <div className="flex h-64 flex-col items-center justify-center gap-2 px-4 text-muted-foreground">
                                   <AlertCircle className="h-6 w-6 text-rose-500 dark:text-rose-400" />
                                   <span className="text-sm">
                                     {data?.error || 'Failed to load diff'}

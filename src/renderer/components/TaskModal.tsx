@@ -42,7 +42,8 @@ interface TaskModalProps {
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: import('../types/jira').JiraIssueSummary | null,
-    autoApprove?: boolean
+    autoApprove?: boolean,
+    useWorktree?: boolean
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -90,6 +91,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [jiraToken, setJiraToken] = useState('');
   const [jiraConnectionError, setJiraConnectionError] = useState<string | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [useWorktree, setUseWorktree] = useState(true);
   const autoNameInitializedRef = useRef(false);
 
   // GitHub connection state
@@ -180,6 +182,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     setSelectedGithubIssue(null);
     setSelectedJiraIssue(null);
     setAutoApprove(false);
+    setUseWorktree(true);
     setShowAdvanced(false);
     setLinearSetupOpen(false);
     setLinearApiKey('');
@@ -432,7 +435,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           selectedLinearIssue,
                           selectedGithubIssue,
                           selectedJiraIssue,
-                          hasAutoApproveSupport ? autoApprove : false
+                          hasAutoApproveSupport ? autoApprove : false,
+                          useWorktree
                         );
                         onClose();
                       } catch (error) {
@@ -462,9 +466,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   </div>
 
                   {taskName && (
-                    <div className="flex items-center space-x-2 rounded-lg bg-gray-100 p-3 dark:bg-gray-700">
-                      <GitBranch className="h-4 w-4 flex-shrink-0 text-gray-500" />
-                      <span className="overflow-hidden break-all text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center space-x-2 rounded-lg bg-muted p-3 dark:bg-muted">
+                      <GitBranch className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      <span className="overflow-hidden break-all text-sm text-muted-foreground">
                         {normalizeTaskName(taskName)}
                       </span>
                     </div>
@@ -487,7 +491,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   >
                     <AccordionItem value="advanced" className="border-none">
                       <AccordionTrigger
-                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border-none bg-gray-100 px-3 text-sm font-medium text-foreground hover:bg-gray-200 hover:no-underline dark:bg-gray-700 dark:hover:bg-gray-600 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
+                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border-none bg-muted px-3 text-sm font-medium text-foreground hover:bg-muted hover:no-underline dark:bg-muted dark:hover:bg-muted [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"
                         onPointerDown={(e) => {
                           // Toggle immediately on pointer down to avoid a required second click
                           // when another element inside had focus.
@@ -522,6 +526,31 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       </AccordionTrigger>
                       <AccordionContent className="space-y-4 px-0 pt-2" id="task-advanced">
                         <div className="flex flex-col gap-4 p-2">
+                          <div className="flex items-center gap-4">
+                            <Label className="w-32 shrink-0">Run in worktree</Label>
+                            <div className="min-w-0 flex-1">
+                              <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
+                                <input
+                                  type="checkbox"
+                                  checked={useWorktree}
+                                  onChange={(e) => setUseWorktree(e.target.checked)}
+                                  className="mt-[1px] h-4 w-4 shrink-0"
+                                />
+                                <div className="space-y-1">
+                                  <span className="text-muted-foreground">
+                                    {useWorktree
+                                      ? 'Create isolated Git worktree (recommended)'
+                                      : 'Work directly on current branch'}
+                                  </span>
+                                  {!useWorktree && (
+                                    <p className="text-xs text-destructive">
+                                      ⚠️ Changes will affect your current working directory
+                                    </p>
+                                  )}
+                                </div>
+                              </label>
+                            </div>
+                          </div>
                           {hasAutoApproveSupport ? (
                             <div className="flex items-center gap-4">
                               <Label className="w-32 shrink-0">Auto-approve</Label>

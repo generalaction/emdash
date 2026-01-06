@@ -42,6 +42,8 @@ interface CommandPaletteProps {
   onOpenProject?: () => void;
 }
 
+type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+
 type CommandItem = {
   id: string;
   label: string;
@@ -51,7 +53,7 @@ type CommandItem = {
   keywords?: string[];
   shortcut?: {
     key: string;
-    modifier?: 'cmd' | 'option';
+    modifier?: ShortcutModifier;
   };
   onSelect: () => void;
 };
@@ -334,9 +336,14 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                               {item.shortcut.modifier === 'cmd' && (
                                 <CommandIcon className="h-3 w-3" />
                               )}
-                              {item.shortcut.modifier === 'option' && (
-                                <Option className="h-3 w-3" />
+                              {item.shortcut.modifier === 'ctrl' && (
+                                <span className="font-medium">Ctrl</span>
                               )}
+                              {item.shortcut.modifier === 'shift' && (
+                                <span className="font-medium">⇧</span>
+                              )}
+                              {(item.shortcut.modifier === 'option' ||
+                                item.shortcut.modifier === 'alt') && <Option className="h-3 w-3" />}
                               <span className="font-medium">{item.shortcut.key}</span>
                             </div>
                           )}

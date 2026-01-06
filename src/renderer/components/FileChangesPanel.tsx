@@ -11,13 +11,25 @@ import { usePrStatus } from '../hooks/usePrStatus';
 import FileTypeIcon from './ui/file-type-icon';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Plus, Undo2, ArrowUpRight, FileDiff } from 'lucide-react';
+import { useTaskScope } from './TaskScopeContext';
 
 interface FileChangesPanelProps {
-  taskId: string;
+  taskId?: string;
+  taskPath?: string;
   className?: string;
 }
 
-const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, className }) => {
+const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
+  taskId,
+  taskPath,
+  className,
+}) => {
+  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
+  const resolvedTaskId = taskId ?? scopedTaskId;
+  const resolvedTaskPath = taskPath ?? scopedTaskPath;
+  const safeTaskPath = resolvedTaskPath ?? '';
+  const canRender = Boolean(resolvedTaskId && resolvedTaskPath);
+
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [showAllChangesModal, setShowAllChangesModal] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
@@ -26,24 +38,24 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
-  const { fileChanges, refreshChanges } = useFileChanges(taskId);
+  const { fileChanges, refreshChanges } = useFileChanges(safeTaskPath);
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
   const hasStagedChanges = fileChanges.some((change) => change.isStaged);
-  const { pr, refresh: refreshPr } = usePrStatus(taskId);
+  const { pr, refresh: refreshPr } = usePrStatus(safeTaskPath);
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!taskId || hasChanges) {
+      if (!safeTaskPath || hasChanges) {
         setBranchAhead(null);
         return;
       }
       setBranchStatusLoading(true);
       try {
-        const res = await window.electronAPI.getBranchStatus({ taskPath: taskId });
+        const res = await window.electronAPI.getBranchStatus({ taskPath: safeTaskPath });
         if (!cancelled) {
           setBranchAhead(res?.success ? (res?.ahead ?? 0) : 0);
         }
@@ -58,7 +70,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskId, hasChanges]);
+  }, [safeTaskPath, hasChanges]);
 
   const handleStageFile = async (filePath: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent opening diff modal
@@ -66,7 +78,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
 
     try {
       const result = await window.electronAPI.stageFile({
-        taskPath: taskId,
+        taskPath: safeTaskPath,
         filePath,
       });
 
@@ -100,7 +112,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
 
     try {
       const result = await window.electronAPI.revertFile({
-        taskPath: taskId,
+        taskPath: safeTaskPath,
         filePath,
       });
 
@@ -157,7 +169,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
     setIsCommitting(true);
     try {
       const result = await window.electronAPI.gitCommitAndPush({
-        taskPath: taskId,
+        taskPath: safeTaskPath,
         commitMessage: commitMessage.trim(),
         createBranchIfOnDefault: true,
         branchPrefix: 'feature',
@@ -176,7 +188,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
         // Proactively load branch status so the Create PR button appears immediately
         try {
           setBranchStatusLoading(true);
-          const bs = await window.electronAPI.getBranchStatus({ taskPath: taskId });
+          const bs = await window.electronAPI.getBranchStatus({ taskPath: safeTaskPath });
           setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
         } catch {
           setBranchAhead(0);
@@ -207,8 +219,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
     const base = last >= 0 ? p.slice(last + 1) : p;
     return (
       <span className="truncate">
-        {dir && <span className="text-gray-500 dark:text-gray-400">{dir}</span>}
-        <span className="font-medium text-gray-900 dark:text-gray-100">{base}</span>
+        {dir && <span className="text-muted-foreground">{dir}</span>}
+        <span className="font-medium text-foreground">{base}</span>
       </span>
     );
   };
@@ -221,27 +233,31 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
     { additions: 0, deletions: 0 }
   );
 
+  if (!canRender) {
+    return null;
+  }
+
   return (
-    <div className={`flex h-full flex-col bg-white shadow-sm dark:bg-gray-800 ${className}`}>
-      <div className="bg-gray-50 px-3 py-2 dark:bg-gray-900">
+    <div className={`flex h-full flex-col bg-card shadow-sm ${className}`}>
+      <div className="bg-muted px-3 py-2">
         {hasChanges ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                <span className="truncate text-sm font-medium text-foreground">
                   {fileChanges.length} files changed
                 </span>
                 <div className="flex shrink-0 items-center gap-1 text-xs">
                   <span className="font-medium text-green-600 dark:text-green-400">
                     +{totalChanges.additions}
                   </span>
-                  <span className="text-gray-400">•</span>
+                  <span className="text-muted-foreground">•</span>
                   <span className="font-medium text-red-600 dark:text-red-400">
                     -{totalChanges.deletions}
                   </span>
                 </div>
                 {hasStagedChanges && (
-                  <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
+                  <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                     {fileChanges.filter((f) => f.isStaged).length} staged
                   </span>
                 )}
@@ -250,17 +266,17 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 shrink-0 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  className="h-8 shrink-0 px-2 text-xs"
                   title="View all changes in a single scrollable view"
                   onClick={() => setShowAllChangesModal(true)}
                 >
                   <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Check Changes</span>
+                  <span className="hidden sm:inline">Changes</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 shrink-0 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  className="h-8 shrink-0 px-2 text-xs"
                   disabled={isCreatingPR}
                   title="Commit all changes and create a pull request"
                   onClick={async () => {
@@ -269,7 +285,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                       captureTelemetry('pr_viewed');
                     })();
                     await createPR({
-                      taskPath: taskId,
+                      taskPath: safeTaskPath,
                       onSuccess: async () => {
                         await refreshChanges();
                         try {
@@ -301,7 +317,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  className="h-8 px-2 text-xs"
                   title="Commit all staged changes and push the branch"
                   onClick={handleCommitAndPush}
                   disabled={isCommitting || !commitMessage.trim()}
@@ -314,7 +330,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
         ) : (
           <div className="flex w-full items-center justify-between">
             <div className="flex items-center gap-2 p-2">
-              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Changes</span>
+              <span className="text-sm font-medium text-foreground">Changes</span>
             </div>
             <div className="flex items-center gap-2">
               {pr ? (
@@ -338,7 +354,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 border-gray-200 px-2 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  className="h-8 px-2 text-xs"
                   disabled={isCreatingPR || branchStatusLoading}
                   title="Create a pull request for the current branch"
                   onClick={async () => {
@@ -347,7 +363,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                       captureTelemetry('pr_viewed');
                     })();
                     await createPR({
-                      taskPath: taskId,
+                      taskPath: safeTaskPath,
                       onSuccess: async () => {
                         await refreshChanges();
                         try {
@@ -360,7 +376,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                   {isCreatingPR || branchStatusLoading ? <Spinner size="sm" /> : 'Create PR'}
                 </Button>
               ) : (
-                <span className="text-xs text-gray-500">No PR for this branch</span>
+                <span className="text-xs text-muted-foreground">No PR for this branch</span>
               )}
             </div>
           </div>
@@ -371,8 +387,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
         {fileChanges.map((change, index) => (
           <div
             key={index}
-            className={`flex cursor-pointer items-center justify-between border-b border-gray-100 px-4 py-2.5 last:border-b-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900/40 ${
-              change.isStaged ? 'bg-gray-50 dark:bg-gray-900/40' : ''
+            className={`flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50 ${
+              change.isStaged ? 'bg-muted/50' : ''
             }`}
             onClick={() => {
               void (async () => {
@@ -384,7 +400,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
             }}
           >
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <span className="inline-flex h-4 w-4 items-center justify-center text-gray-500">
+              <span className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground">
                 <FileTypeIcon
                   path={change.path}
                   type={change.status === 'deleted' ? 'file' : 'file'}
@@ -414,7 +430,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                          className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
                           onClick={(e) => handleStageFile(change.path, e)}
                           disabled={stagingFiles.has(change.path)}
                         >
@@ -427,10 +443,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                       </TooltipTrigger>
                       <TooltipContent
                         side="left"
-                        className="max-w-xs border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-lg dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
                       >
                         <p className="font-medium">Stage file for commit</p>
-                        <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
+                        <p className="mt-0.5 text-xs text-muted-foreground">
                           Add this file to the staging area so it will be included in the next
                           commit
                         </p>
@@ -444,7 +460,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                        className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
                         onClick={(e) => handleRevertFile(change.path, e)}
                         disabled={revertingFiles.has(change.path)}
                       >
@@ -457,12 +473,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                     </TooltipTrigger>
                     <TooltipContent
                       side="left"
-                      className="max-w-xs border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-lg dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                      className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
                     >
                       {change.isStaged ? (
                         <>
                           <p className="font-medium">Unstage file</p>
-                          <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
+                          <p className="mt-0.5 text-xs text-muted-foreground">
                             Remove this file from staging. Click again to discard all changes to
                             this file.
                           </p>
@@ -470,7 +486,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
                       ) : (
                         <>
                           <p className="font-medium">Revert file changes</p>
-                          <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
+                          <p className="mt-0.5 text-xs text-muted-foreground">
                             Discard all uncommitted changes to this file and restore it to the last
                             committed version
                           </p>
@@ -488,7 +504,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
         <ChangesDiffModal
           open={showDiffModal}
           onClose={() => setShowDiffModal(false)}
-          taskPath={taskId}
+          taskId={resolvedTaskId}
+          taskPath={resolvedTaskPath}
           files={fileChanges}
           initialFile={selectedPath}
           onRefreshChanges={refreshChanges}
@@ -498,7 +515,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({ taskId, cl
         <AllChangesDiffModal
           open={showAllChangesModal}
           onClose={() => setShowAllChangesModal(false)}
-          taskPath={taskId}
+          taskPath={resolvedTaskPath}
           files={fileChanges}
           onRefreshChanges={refreshChanges}
         />

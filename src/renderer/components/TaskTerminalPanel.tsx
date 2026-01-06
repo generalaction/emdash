@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Terminal, X, Bot } from 'lucide-react';
+import { Bot, Plus, Terminal, X } from 'lucide-react';
 import { TerminalPane } from './TerminalPane';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
+import { Button } from './ui/button';
 import type { Provider } from '../types';
-import { captureTelemetry } from '../lib/telemetryClient';
 import {
   Select,
   SelectContent,
@@ -162,12 +162,10 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   if (!task && !projectPath) {
     return (
-      <div
-        className={`flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 ${className}`}
-      >
-        <Bot className="mb-2 h-8 w-8 text-gray-400" />
-        <h3 className="mb-1 text-sm text-gray-600 dark:text-gray-400">No Task Selected</h3>
-        <p className="text-center text-xs text-gray-500 dark:text-gray-500">
+      <div className={`flex h-full flex-col items-center justify-center bg-muted ${className}`}>
+        <Bot className="mb-2 h-8 w-8 text-muted-foreground" />
+        <h3 className="mb-1 text-sm text-muted-foreground">No Task Selected</h3>
+        <p className="text-center text-xs text-muted-foreground dark:text-muted-foreground">
           Select a task to view its terminal
         </p>
       </div>
@@ -175,8 +173,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }
 
   return (
-    <div className={cn('flex h-full flex-col bg-white dark:bg-gray-800', className)}>
-      <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-2 py-1.5 dark:bg-gray-900">
+    <div className={cn('flex h-full flex-col bg-card', className)}>
+      <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
         <span id="terminal-scope-description" className="sr-only">
           Choose between task worktree or global terminal scope
         </span>
@@ -272,8 +270,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 className={cn(
                   'group flex items-center space-x-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                   isActive
-                    ? 'bg-background text-foreground shadow-sm dark:bg-gray-800 dark:text-gray-50'
-                    : 'text-muted-foreground hover:bg-background/70 dark:hover:bg-gray-800'
+                    ? 'bg-background text-foreground shadow-sm dark:bg-card dark:text-foreground'
+                    : 'text-muted-foreground hover:bg-background/70 dark:hover:bg-accent'
                 )}
                 title={terminal.title}
                 id={`terminal-tab-${terminal.id}`}
@@ -294,7 +292,10 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     tabIndex={-1}
                     onClick={(event) => {
                       event.stopPropagation();
-                      captureTelemetry('terminal_deleted');
+                      void (async () => {
+                        const { captureTelemetry } = await import('../lib/telemetryClient');
+                        captureTelemetry('terminal_deleted');
+                      })();
                       closeTerminal(terminal.id);
                     }}
                     className="flex h-4 w-4 items-center justify-center rounded opacity-60 transition-opacity hover:bg-muted hover:opacity-100"
@@ -306,11 +307,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             );
           })}
         </div>
-
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={() => {
-            captureTelemetry('terminal_new_terminal_created', { scope: mode });
+            void (async () => {
+              const { captureTelemetry } = await import('../lib/telemetryClient');
+              captureTelemetry('terminal_new_terminal_created', { scope: mode });
+            })();
             const cwd = mode === 'global' ? projectPath : task?.path;
             if (!cwd) {
               console.warn('Cannot create terminal: no working directory available');
@@ -318,12 +322,12 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             }
             createTerminal({ cwd });
           }}
-          className="ml-2 flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground transition hover:border-border hover:bg-background dark:hover:bg-gray-800"
+          className="ml-2 text-muted-foreground"
           title={mode === 'global' ? 'New global terminal' : 'New worktree terminal'}
           disabled={mode === 'task' && !task}
         >
           <Plus className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       <div
@@ -332,7 +336,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           effectiveTheme === 'dark'
             ? provider === 'mistral'
               ? 'bg-[#202938]'
-              : 'bg-gray-800'
+              : 'bg-card'
             : 'bg-white'
         )}
       >
