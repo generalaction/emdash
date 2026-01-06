@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import { X, Settings2, Cable, RefreshCw, GitBranch, Puzzle, PanelLeft } from 'lucide-react';
-import VersionCard from './VersionCard';
+import { UpdateCard } from './UpdateCard';
 import IntegrationsCard from './IntegrationsCard';
 import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
 import TelemetryCard from './TelemetryCard';
@@ -189,7 +189,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'Default AI provider', render: () => <DefaultProviderSettingsCard /> },
           { title: 'Tasks', render: () => <TaskSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
-          { title: 'Version', render: () => <VersionCard /> },
+          { title: 'Updates', render: () => <UpdateCard /> },
           {
             title: 'How to use Emdash',
             render: () => (

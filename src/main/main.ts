@@ -60,7 +60,6 @@ if (process.platform === 'linux') {
     }
     process.env.PATH = parts.join(':');
 
-    // As a last resort, ask the user's login shell for PATH and merge it in.
     try {
       const { execSync } = require('child_process');
       const shell = process.env.SHELL || '/bin/bash';
@@ -72,10 +71,8 @@ if (process.platform === 'linux') {
         process.env.PATH = Array.from(merged).join(':');
       }
     } catch {
-      // best-effort only
     }
   } catch {
-    // best-effort only
   }
 }
 
@@ -111,7 +108,7 @@ import { autoUpdateService } from './services/AutoUpdateService';
 import * as telemetry from './telemetry';
 import { join } from 'path';
 
-// Set app name for macOS dock and menu bar (especially important in dev mode)
+// Set app name for macOS dock and menu bar 
 app.setName('Emdash');
 
 // Set dock icon on macOS in development mode
@@ -150,7 +147,6 @@ app.whenReady().then(async () => {
     const name = asObj && typeof asObj.name === 'string' ? asObj.name : undefined;
     dbInitErrorType = code || name || 'unknown';
     console.error('Failed to initialize database:', error);
-    // Don't prevent app startup, but log the error clearly
   }
 
   // Initialize telemetry (privacy-first, anonymous)
@@ -209,10 +205,10 @@ app.whenReady().then(async () => {
   // Initialize auto-update service after window is created
   try {
     await autoUpdateService.initialize();
-    console.log('Auto-update service initialized');
   } catch (error) {
-    console.error('Failed to initialize auto-update service:', error);
-    // Don't prevent app startup, but log the error
+    if (app.isPackaged) {
+      console.error('Failed to initialize auto-update service:', error);
+    }
   }
 });
 

@@ -58,23 +58,58 @@ class AutoUpdateService {
   private downloadStartTime?: number;
 
   constructor() {
+    const appVersion = this.getAppVersion();
+
     this.updateState = {
       status: 'idle',
-      currentVersion: app.getVersion(),
+      currentVersion: appVersion,
       channel: UpdateChannel.STABLE,
     };
 
-    // Default settings - NEVER auto-download without user consent
     this.settings = {
       autoCheck: true,
-      autoDownload: false, // Always false by default - user must opt-in
+      autoDownload: false, // Always false by default - user must opt-in to download
       checkInterval: UPDATE_CHECK_INTERVALS.periodic,
       channel: UpdateChannel.STABLE,
       allowPrerelease: false,
       allowDowngrade: false,
     };
 
-    this.setupAutoUpdater();
+    // Don't setup autoUpdater in constructor - wait for initialize()
+  }
+
+  private getAppVersion(): string {
+    try {
+      const { readFileSync } = require('fs');
+      const { join } = require('path');
+
+      // In development, look for package.json in project root
+      const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+
+      const possiblePaths = isDev ? [
+        join(__dirname, '../../../../package.json'), // from dist/main/main/services
+        join(__dirname, '../../../package.json'),
+        join(process.cwd(), 'package.json'),
+      ] : [
+        join(app.getAppPath(), 'package.json'),
+      ];
+
+      for (const path of possiblePaths) {
+        try {
+          const packageJson = JSON.parse(readFileSync(path, 'utf-8'));
+          if (packageJson.name === 'emdash' && packageJson.version) {
+            return packageJson.version;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Fallback: hardcoded version for dev
+      return '0.3.46';
+    } catch {
+      return '0.3.46';
+    }
   }
 
   /**
@@ -83,6 +118,16 @@ class AutoUpdateService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
+
+    // Skip auto-updates in development unless explicitly enabled
+    const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+    if (isDev && process.env.EMDASH_DEV_UPDATES !== 'true') {
+      // Silent in dev - no logs
+      return;
+    }
+
+    // Setup and configure autoUpdater only for production
+    this.setupAutoUpdater();
 
     // Load settings from database
     await this.loadSettings();
@@ -115,25 +160,12 @@ class AutoUpdateService {
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.autoRunAppAfterInstall = true;
 
-    // Custom logger
+    // Custom logger for production
     autoUpdater.logger = {
       info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
       warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
       error: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
     } as any;
-
-    // Enable dev testing if needed
-    const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-    if (isDev && process.env.EMDASH_DEV_UPDATES === 'true') {
-      try {
-        (autoUpdater as any).forceDevUpdateConfig = true;
-        if (process.env.EMDASH_DEV_UPDATE_CONFIG) {
-          (autoUpdater as any).updateConfigPath = process.env.EMDASH_DEV_UPDATE_CONFIG;
-        }
-      } catch {
-        // Ignore if not supported
-      }
-    }
   }
 
   /**
@@ -283,16 +315,9 @@ class AutoUpdateService {
    */
   async checkForUpdates(silent = false): Promise<UpdateInfo | null> {
     try {
-      // Don't check in dev unless explicitly enabled
+      // Skip in development
       const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-      const forced = process.env.EMDASH_DEV_UPDATES === 'true';
-
-      if (isDev && !forced) {
-        if (!silent) {
-          this.updateState.status = 'error';
-          this.updateState.error = 'Updates are disabled in development mode';
-          this.notifyWindows('error', { message: this.updateState.error });
-        }
+      if (isDev && process.env.EMDASH_DEV_UPDATES !== 'true') {
         return null;
       }
 
