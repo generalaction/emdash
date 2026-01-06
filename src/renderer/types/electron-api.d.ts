@@ -37,6 +37,12 @@ declare global {
       quitAndInstallUpdate: () => Promise<{ success: boolean; error?: string }>;
       openLatestDownload: () => Promise<{ success: boolean; error?: string }>;
       onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
+      // Enhanced update methods
+      getUpdateState: () => Promise<{ success: boolean; data?: any; error?: string }>;
+      getUpdateSettings: () => Promise<{ success: boolean; data?: any; error?: string }>;
+      updateUpdateSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+      getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+      checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
       // App settings
       getSettings: () => Promise<{
@@ -811,6 +817,12 @@ export interface ElectronAPI {
   quitAndInstallUpdate: () => Promise<{ success: boolean; error?: string }>;
   openLatestDownload: () => Promise<{ success: boolean; error?: string }>;
   onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
+  // Enhanced update methods
+  getUpdateState: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  getUpdateSettings: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  updateUpdateSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+  getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+  checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
   // PTY
   ptyStart: (opts: {

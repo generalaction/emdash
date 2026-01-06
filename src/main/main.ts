@@ -60,7 +60,6 @@ if (process.platform === 'linux') {
     }
     process.env.PATH = parts.join(':');
 
-    // As a last resort, ask the user's login shell for PATH and merge it in.
     try {
       const { execSync } = require('child_process');
       const shell = process.env.SHELL || '/bin/bash';
@@ -71,12 +70,8 @@ if (process.platform === 'linux') {
         const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
         process.env.PATH = Array.from(merged).join(':');
       }
-    } catch {
-      // best-effort only
-    }
-  } catch {
-    // best-effort only
-  }
+    } catch {}
+  } catch {}
 }
 
 if (process.platform === 'win32') {
@@ -107,10 +102,11 @@ import { registerAppLifecycle } from './app/lifecycle';
 import { registerAllIpc } from './ipc';
 import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
+import { autoUpdateService } from './services/AutoUpdateService';
 import * as telemetry from './telemetry';
 import { join } from 'path';
 
-// Set app name for macOS dock and menu bar (especially important in dev mode)
+// Set app name for macOS dock and menu bar
 app.setName('Emdash');
 
 // Set dock icon on macOS in development mode
@@ -149,7 +145,6 @@ app.whenReady().then(async () => {
     const name = asObj && typeof asObj.name === 'string' ? asObj.name : undefined;
     dbInitErrorType = code || name || 'unknown';
     console.error('Failed to initialize database:', error);
-    // Don't prevent app startup, but log the error clearly
   }
 
   // Initialize telemetry (privacy-first, anonymous)
@@ -204,6 +199,15 @@ app.whenReady().then(async () => {
 
   // Create main window
   createMainWindow();
+
+  // Initialize auto-update service after window is created
+  try {
+    await autoUpdateService.initialize();
+  } catch (error) {
+    if (app.isPackaged) {
+      console.error('Failed to initialize auto-update service:', error);
+    }
+  }
 });
 
 // App lifecycle handlers
@@ -215,4 +219,7 @@ app.on('before-quit', () => {
   telemetry.capture('app_session');
   telemetry.capture('app_closed');
   telemetry.shutdown();
+
+  // Cleanup auto-update service
+  autoUpdateService.shutdown();
 });

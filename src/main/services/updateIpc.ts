@@ -1,75 +1,12 @@
 import { app, ipcMain } from 'electron';
-import { autoUpdater } from 'electron-updater';
-import { log } from '../lib/logger';
-import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
+import { formatUpdaterError } from '../lib/updaterError';
+import { autoUpdateService } from './AutoUpdateService';
 
-// Channels used to notify renderer about update lifecycle
-const UpdateChannels = {
-  checking: 'update:checking',
-  available: 'update:available',
-  notAvailable: 'update:not-available',
-  error: 'update:error',
-  progress: 'update:download-progress',
-  downloaded: 'update:downloaded',
-} as const;
-
-// Centralized dev-mode hints
 const DEV_HINT_CHECK = 'Updates are disabled in development.';
 const DEV_HINT_DOWNLOAD = 'Cannot download updates in development.';
 
-// Basic updater configuration
-// Publish config is provided via electron-builder (package.json -> build.publish)
-// We keep autoDownload off; downloads start only when the user clicks.
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
-
-autoUpdater.logger = {
-  info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-  warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-  error: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-} as any;
-
-// Enable dev update testing if explicitly opted in
+// Skip all auto-updater setup in development
 const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-if (isDev && process.env.EMDASH_DEV_UPDATES === 'true') {
-  try {
-    // Allow using dev-app-update.yml when not packaged
-    // See: https://www.electron.build/auto-update#testing-in-development
-    (autoUpdater as any).forceDevUpdateConfig = true;
-    if (process.env.EMDASH_DEV_UPDATE_CONFIG) {
-      // Optionally specify a custom config path
-      (autoUpdater as any).updateConfigPath = process.env.EMDASH_DEV_UPDATE_CONFIG;
-    }
-  } catch {
-    // ignore if not supported by type defs/runtime
-  }
-}
-
-// Helper: emit update events to all renderer windows
-function emit(channel: string, payload?: any) {
-  const { BrowserWindow } = require('electron');
-  for (const win of BrowserWindow.getAllWindows()) {
-    try {
-      win.webContents.send(channel, payload);
-    } catch {}
-  }
-}
-
-let initialized = false;
-function ensureInitialized() {
-  if (initialized) return;
-  initialized = true;
-
-  // Wire autoUpdater events
-  autoUpdater.on('checking-for-update', () => emit(UpdateChannels.checking));
-  autoUpdater.on('update-available', (info) => emit(UpdateChannels.available, info));
-  autoUpdater.on('update-not-available', (info) => emit(UpdateChannels.notAvailable, info));
-  autoUpdater.on('error', (err) =>
-    emit(UpdateChannels.error, { message: formatUpdaterError(err) })
-  );
-  autoUpdater.on('download-progress', (progress) => emit(UpdateChannels.progress, progress));
-  autoUpdater.on('update-downloaded', (info) => emit(UpdateChannels.downloaded, info));
-}
 
 // Fallback: open latest download link in browser for manual install
 function getLatestDownloadUrl(): string {
@@ -93,23 +30,20 @@ function getLatestDownloadUrl(): string {
 }
 
 export function registerUpdateIpc() {
-  ensureInitialized();
+  // AutoUpdateService handles all initialization and event listeners
 
   ipcMain.handle('update:check', async () => {
     try {
-      const dev = !app.isPackaged || process.env.NODE_ENV === 'development';
-      const forced =
-        (autoUpdater as any)?.forceDevUpdateConfig === true ||
-        process.env.EMDASH_DEV_UPDATES === 'true';
-      if (dev && !forced) {
+      // Always skip in dev mode - no exceptions
+      if (isDev) {
         return {
           success: false,
           error: DEV_HINT_CHECK,
           devDisabled: true,
         } as any;
       }
-      const result = await autoUpdater.checkForUpdates();
-      // electron-updater returns UpdateCheckResult or throws
+      // Delegate to AutoUpdateService to avoid race conditions
+      const result = await autoUpdateService.checkForUpdates(false);
       return { success: true, result: result ?? null };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
@@ -118,18 +52,16 @@ export function registerUpdateIpc() {
 
   ipcMain.handle('update:download', async () => {
     try {
-      const dev = !app.isPackaged || process.env.NODE_ENV === 'development';
-      const forced =
-        (autoUpdater as any)?.forceDevUpdateConfig === true ||
-        process.env.EMDASH_DEV_UPDATES === 'true';
-      if (dev && !forced) {
+      // Always skip in dev mode - no exceptions
+      if (isDev) {
         return {
           success: false,
           error: DEV_HINT_DOWNLOAD,
           devDisabled: true,
         } as any;
       }
-      await autoUpdater.downloadUpdate();
+      // Delegate to AutoUpdateService to avoid race conditions
+      await autoUpdateService.downloadUpdate();
       return { success: true };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
@@ -138,10 +70,8 @@ export function registerUpdateIpc() {
 
   ipcMain.handle('update:quit-and-install', async () => {
     try {
-      // Slight delay to ensure renderer can process the response
-      setTimeout(() => {
-        autoUpdater.quitAndInstall(false, true);
-      }, 250);
+      // Delegate to AutoUpdateService which handles rollback info
+      autoUpdateService.quitAndInstall();
       return { success: true };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
@@ -166,4 +96,50 @@ export function registerUpdateIpc() {
 
   // Expose app version for simple comparisons on renderer
   ipcMain.handle('update:get-version', () => app.getVersion());
+
+  // Enhanced IPC handlers for AutoUpdateService
+  ipcMain.handle('update:get-state', async () => {
+    try {
+      const state = autoUpdateService.getState();
+      return { success: true, data: state };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
+
+  ipcMain.handle('update:get-settings', async () => {
+    try {
+      const settings = autoUpdateService.getSettings();
+      return { success: true, data: settings };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
+
+  ipcMain.handle('update:update-settings', async (_event, settings: any) => {
+    try {
+      await autoUpdateService.updateSettings(settings);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
+
+  ipcMain.handle('update:get-release-notes', async () => {
+    try {
+      const notes = await autoUpdateService.fetchReleaseNotes();
+      return { success: true, data: notes };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
+
+  ipcMain.handle('update:check-now', async () => {
+    try {
+      const result = await autoUpdateService.checkForUpdates(false);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
 }
