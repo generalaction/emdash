@@ -114,23 +114,21 @@ const Titlebar: React.FC<TitlebarProps> = ({
                     variant="ghost"
                     size="icon"
                     aria-label="Toggle Kanban view"
-                    onClick={async () => {
-                      const newState = !isKanbanOpen;
-                      void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-                        captureTelemetry('toolbar_kanban_toggled', {
-                          state: newState ? 'open' : 'closed',
-                        });
-                      });
-                      onToggleKanban?.();
-                    }}
-                    className="h-8 w-8 text-muted-foreground hover:bg-background/80"
+                    aria-pressed={isKanbanOpen}
+                    onClick={() => onToggleKanban?.()}
+                    className={[
+                      'h-8 w-8 hover:bg-background/80',
+                      isKanbanOpen
+                        ? 'bg-background/60 text-foreground'
+                        : 'text-muted-foreground',
+                    ].join(' ')}
                   >
                     <KanbanSquare className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs font-medium">
                   <div className="flex flex-col gap-1">
-                    <span>Toggle Kanban view</span>
+                    <span>{isKanbanOpen ? 'Show task chat' : 'Show Kanban board'}</span>
                     <ShortcutHint settingsKey="toggleKanban" />
                   </div>
                 </TooltipContent>

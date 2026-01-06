@@ -1,18 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ArrowUpRight,
-  LayoutGrid,
-  List as ListIcon,
-  Plus,
-  Loader2,
-  AlertCircle,
-} from 'lucide-react';
+import { ArrowUpRight, LayoutGrid, List as ListIcon, AlertCircle } from 'lucide-react';
 import KanbanBoard from './kanban/KanbanBoard';
 import ProjectTaskList from './ProjectTaskList';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
 import { Button } from './ui/button';
-import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { useToast } from '../hooks/use-toast';
 import type { Project, Task } from '../types/app';
@@ -29,7 +21,6 @@ interface ProjectKanbanHomeProps {
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
-  isCreatingTask?: boolean;
 }
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -46,7 +37,6 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
   onSelectTask,
   onDeleteTask,
   onDeleteProject,
-  isCreatingTask,
 }) => {
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
@@ -194,19 +184,52 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
             </div>
           </div>
 
-          <BaseBranchControls
-            baseBranch={baseBranch}
-            branchOptions={branchOptions}
-            isLoadingBranches={isLoadingBranches}
-            isSavingBaseBranch={isSavingBaseBranch}
-            branchLoadError={branchLoadError}
-            onBaseBranchChange={handleBaseBranchChange}
-            onOpenChange={(isOpen) => {
-              if (isOpen) {
-                setBranchReloadToken((token) => token + 1);
-              }
-            }}
-          />
+          <div className="flex items-start justify-between gap-4">
+            <BaseBranchControls
+              baseBranch={baseBranch}
+              branchOptions={branchOptions}
+              isLoadingBranches={isLoadingBranches}
+              isSavingBaseBranch={isSavingBaseBranch}
+              branchLoadError={branchLoadError}
+              onBaseBranchChange={handleBaseBranchChange}
+              onOpenChange={(isOpen) => {
+                if (isOpen) {
+                  setBranchReloadToken((token) => token + 1);
+                }
+              }}
+            />
+
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode('kanban')}
+                className={[
+                  'h-7 gap-1.5 px-2.5 text-xs',
+                  viewMode === 'kanban'
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                ].join(' ')}
+              >
+                <LayoutGrid className="size-3.5" />
+                Board
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className={[
+                  'h-7 gap-1.5 px-2.5 text-xs',
+                  viewMode === 'list'
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                ].join(' ')}
+              >
+                <ListIcon className="size-3.5" />
+                List
+              </Button>
+            </div>
+          </div>
 
           {directTasks.length > 0 && (
             <Alert className="border-border bg-muted/50">
@@ -232,50 +255,6 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
               </AlertDescription>
             </Alert>
           )}
-
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
-              <Button
-                variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 px-3 text-xs font-medium"
-                onClick={() => setViewMode('kanban')}
-              >
-                <LayoutGrid className="mr-2 size-3.5" />
-                Board
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 px-3 text-xs font-medium"
-                onClick={() => setViewMode('list')}
-              >
-                <ListIcon className="mr-2 size-3.5" />
-                List
-              </Button>
-            </div>
-
-            <Button
-              variant="default"
-              size="sm"
-              className="h-9 px-4 text-sm font-semibold shadow-sm"
-              onClick={onCreateTask}
-              disabled={isCreatingTask}
-              aria-busy={isCreatingTask}
-            >
-              {isCreatingTask ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Starting…
-                </>
-              ) : (
-                <>
-                  <Plus className="mr-2 size-4" />
-                  Start New Task
-                </>
-              )}
-            </Button>
-          </div>
         </div>
       </div>
 

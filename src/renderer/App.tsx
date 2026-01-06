@@ -12,11 +12,10 @@ import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import FirstLaunchModal from './components/FirstLaunchModal';
 import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
-import KanbanBoard from './components/kanban/KanbanBoard';
 import LeftSidebar from './components/LeftSidebar';
 import MultiAgentTask from './components/MultiAgentTask';
 import { NewProjectModal } from './components/NewProjectModal';
-import ProjectMainView from './components/ProjectMainView';
+import ProjectKanbanHome from './components/ProjectKanbanHome';
 import RightSidebar from './components/RightSidebar';
 import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
@@ -309,6 +308,7 @@ const AppContent: React.FC = () => {
     const { task, project } = allTasks[nextIndex];
     activateProjectView(project);
     setActiveTask(task);
+    setShowKanban(false);
     if ((task.metadata as any)?.multiAgent?.enabled) {
       setActiveTaskProvider(null);
     } else {
@@ -325,6 +325,7 @@ const AppContent: React.FC = () => {
     const { task, project } = allTasks[prevIndex];
     activateProjectView(project);
     setActiveTask(task);
+    setShowKanban(false);
     if ((task.metadata as any)?.multiAgent?.enabled) {
       setActiveTaskProvider(null);
     } else {
@@ -1420,6 +1421,7 @@ const AppContent: React.FC = () => {
 
         // Set the active task and its provider (none if multi-agent)
         setActiveTask(newTask);
+        setShowKanban(false);
         if ((newTask.metadata as any)?.multiAgent?.enabled) {
           setActiveTaskProvider(null);
         } else {
@@ -1453,6 +1455,7 @@ const AppContent: React.FC = () => {
 
   const handleSelectTask = (task: Task) => {
     setActiveTask(task);
+    setShowKanban(false);
     // Load provider from task.agentId if it exists, otherwise default to null
     // This ensures the selected provider persists across app restarts
     if ((task.metadata as any)?.multiAgent?.enabled) {
@@ -1715,10 +1718,37 @@ const AppContent: React.FC = () => {
   };
 
   const [showKanban, setShowKanban] = useState<boolean>(false);
-  const handleToggleKanban = useCallback(() => {
-    if (!selectedProject) return;
-    setShowKanban((v) => !v);
-  }, [selectedProject]);
+
+  // Toggle between kanban view and chat view (only meaningful when a task is active)
+  const handleToggleKanban = useCallback(
+    (options?: { trackTelemetry?: boolean }) => {
+      if (!selectedProject || !activeTask) return;
+      setShowKanban((current) => {
+        const next = !current;
+        if (options?.trackTelemetry) {
+          void import('./lib/telemetryClient').then(({ captureTelemetry }) => {
+            captureTelemetry('toolbar_kanban_toggled', { state: next ? 'open' : 'closed' });
+          });
+        }
+        return next;
+      });
+    },
+    [selectedProject, activeTask]
+  );
+
+  const handleToggleKanbanFromToolbar = useCallback(() => {
+    handleToggleKanban({ trackTelemetry: true });
+  }, [handleToggleKanban]);
+
+  const handleToggleKanbanFromKeyboard = useCallback(() => {
+    handleToggleKanban();
+  }, [handleToggleKanban]);
+
+  useEffect(() => {
+    if (selectedProject && !activeTask && !showKanban) {
+      setShowKanban(true);
+    }
+  }, [selectedProject, activeTask, showKanban]);
 
   const handleDeviceFlowSuccess = useCallback(
     async (user: any) => {
@@ -1780,21 +1810,9 @@ const AppContent: React.FC = () => {
     };
   }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
 
+  const showProjectKanban = Boolean(selectedProject && (!activeTask || showKanban));
+
   const renderMainContent = () => {
-    if (selectedProject && showKanban) {
-      return (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <KanbanBoard
-            project={selectedProject}
-            onOpenTask={(ws: any) => {
-              handleSelectTask(ws);
-              setShowKanban(false);
-            }}
-            onCreateTask={() => setShowTaskModal(true)}
-          />
-        </div>
-      );
-    }
     if (showHomeView) {
       return (
         <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
@@ -1877,33 +1895,37 @@ const AppContent: React.FC = () => {
       );
     }
 
-    if (selectedProject) {
+    if (selectedProject && showProjectKanban) {
+      return (
+        <ProjectKanbanHome
+          project={selectedProject}
+          activeTask={activeTask}
+          onCreateTask={() => setShowTaskModal(true)}
+          onOpenTask={(ws) => {
+            handleSelectTask(ws);
+          }}
+          onSelectTask={handleSelectTask}
+          onDeleteTask={handleDeleteTask}
+          onDeleteProject={handleDeleteProject}
+        />
+      );
+    }
+
+    if (selectedProject && activeTask) {
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {activeTask ? (
-            (activeTask.metadata as any)?.multiAgent?.enabled ? (
-              <MultiAgentTask
-                task={activeTask}
-                projectName={selectedProject.name}
-                projectId={selectedProject.id}
-              />
-            ) : (
-              <ChatInterface
-                task={activeTask}
-                projectName={selectedProject.name}
-                className="min-h-0 flex-1"
-                initialProvider={activeTaskProvider || undefined}
-              />
-            )
+          {(activeTask.metadata as any)?.multiAgent?.enabled ? (
+            <MultiAgentTask
+              task={activeTask}
+              projectName={selectedProject.name}
+              projectId={selectedProject.id}
+            />
           ) : (
-            <ProjectMainView
-              project={selectedProject}
-              onCreateTask={() => setShowTaskModal(true)}
-              activeTask={activeTask}
-              onSelectTask={handleSelectTask}
-              onDeleteTask={handleDeleteTask}
-              isCreatingTask={isCreatingTask}
-              onDeleteProject={handleDeleteProject}
+            <ChatInterface
+              task={activeTask}
+              projectName={selectedProject.name}
+              className="min-h-0 flex-1"
+              initialProvider={activeTaskProvider || undefined}
             />
           )}
         </div>
@@ -1933,7 +1955,7 @@ const AppContent: React.FC = () => {
                 handleOpenSettings={handleOpenSettings}
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettings}
-                handleToggleKanban={handleToggleKanban}
+                handleToggleKanban={handleToggleKanbanFromKeyboard}
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
                 handleNewTask={handleNewTask}
@@ -1958,9 +1980,9 @@ const AppContent: React.FC = () => {
                 projectPath={selectedProject?.path || null}
                 isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
                 githubUser={user}
-                onToggleKanban={handleToggleKanban}
-                isKanbanOpen={Boolean(showKanban)}
-                kanbanAvailable={Boolean(selectedProject)}
+                onToggleKanban={handleToggleKanbanFromToolbar}
+                isKanbanOpen={showKanban && !!activeTask}
+                kanbanAvailable={Boolean(selectedProject && activeTask)}
               />
               <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
                 <ResizablePanelGroup
