@@ -98,6 +98,7 @@
     "human-id": "^4.1.2",
     "keytar": "^7.9.0",
     "lucide-react": "^0.294.0",
+    "minimatch": "^10.1.1",
     "monaco-editor": "^0.55.1",
     "motion": "^12.23.12",
     "node-pty": "1.0.0",
