@@ -2,6 +2,7 @@ import { app, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { log } from '../lib/logger';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
+import { autoUpdateService } from './AutoUpdateService';
 
 // Channels used to notify renderer about update lifecycle
 const UpdateChannels = {
@@ -166,4 +167,50 @@ export function registerUpdateIpc() {
 
   // Expose app version for simple comparisons on renderer
   ipcMain.handle('update:get-version', () => app.getVersion());
+
+  // Enhanced IPC handlers for AutoUpdateService
+  ipcMain.handle('update:get-state', async () => {
+    try {
+      const state = autoUpdateService.getState();
+      return { success: true, data: state };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
+
+  ipcMain.handle('update:get-settings', async () => {
+    try {
+      const settings = autoUpdateService.getSettings();
+      return { success: true, data: settings };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
+
+  ipcMain.handle('update:update-settings', async (_event, settings: any) => {
+    try {
+      await autoUpdateService.updateSettings(settings);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
+
+  ipcMain.handle('update:get-release-notes', async () => {
+    try {
+      const notes = await autoUpdateService.fetchReleaseNotes();
+      return { success: true, data: notes };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
+
+  ipcMain.handle('update:check-now', async () => {
+    try {
+      const result = await autoUpdateService.checkForUpdates(false);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: formatUpdaterError(error) };
+    }
+  });
 }

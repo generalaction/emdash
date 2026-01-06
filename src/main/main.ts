@@ -107,6 +107,7 @@ import { registerAppLifecycle } from './app/lifecycle';
 import { registerAllIpc } from './ipc';
 import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
+import { autoUpdateService } from './services/AutoUpdateService';
 import * as telemetry from './telemetry';
 import { join } from 'path';
 
@@ -204,6 +205,15 @@ app.whenReady().then(async () => {
 
   // Create main window
   createMainWindow();
+
+  // Initialize auto-update service after window is created
+  try {
+    await autoUpdateService.initialize();
+    console.log('Auto-update service initialized');
+  } catch (error) {
+    console.error('Failed to initialize auto-update service:', error);
+    // Don't prevent app startup, but log the error
+  }
 });
 
 // App lifecycle handlers
@@ -215,4 +225,7 @@ app.on('before-quit', () => {
   telemetry.capture('app_session');
   telemetry.capture('app_closed');
   telemetry.shutdown();
+
+  // Cleanup auto-update service
+  autoUpdateService.shutdown();
 });

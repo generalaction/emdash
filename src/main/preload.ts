@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   quitAndInstallUpdate: () => ipcRenderer.invoke('update:quit-and-install'),
   openLatestDownload: () => ipcRenderer.invoke('update:open-latest'),
+  // Enhanced update methods
+  getUpdateState: () => ipcRenderer.invoke('update:get-state'),
+  getUpdateSettings: () => ipcRenderer.invoke('update:get-settings'),
+  updateUpdateSettings: (settings: any) => ipcRenderer.invoke('update:update-settings', settings),
+  getReleaseNotes: () => ipcRenderer.invoke('update:get-release-notes'),
+  checkForUpdatesNow: () => ipcRenderer.invoke('update:check-now'),
   onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => {
     const pairs: Array<[string, string]> = [
       ['update:checking', 'checking'],
