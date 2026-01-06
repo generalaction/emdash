@@ -53,7 +53,7 @@ export function UpdateCard(): JSX.Element {
         <div className="mt-2">
           <a
             href="https://github.com/generalaction/emdash/releases"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             View latest release →
           </a>
@@ -97,7 +97,7 @@ export function UpdateCard(): JSX.Element {
       <div className="mt-2">
         <a
           href="https://github.com/generalaction/emdash/releases"
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           View latest release →
         </a>
