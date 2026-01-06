@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowUpRight, LayoutGrid, List as ListIcon, AlertCircle } from 'lucide-react';
+import { ArrowUpRight, AlertCircle } from 'lucide-react';
 import KanbanBoard from './kanban/KanbanBoard';
 import ProjectTaskList from './ProjectTaskList';
 import ProjectDeleteButton from './ProjectDeleteButton';
@@ -40,6 +40,7 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
 }) => {
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [isSelectMode, setIsSelectMode] = useState(false);
 
   // Base Branch State
   const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
@@ -144,131 +145,151 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
     [baseBranch, project.id, toast]
   );
 
-  const directTasks = (project.tasks ?? []).filter((task) => task.useWorktree === false);
+  useEffect(() => {
+    if (viewMode !== 'list') {
+      setIsSelectMode(false);
+    }
+  }, [viewMode]);
+
+  useEffect(() => {
+    setIsSelectMode(false);
+  }, [project.id]);
+
+  const tasks = project.tasks ?? [];
+  const directTasks = tasks.filter((task) => task.useWorktree === false);
+  const hasTasks = tasks.length > 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <div className="border-b border-border bg-background">
-        <div className="container mx-auto max-w-6xl space-y-4 px-6 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1">
-              <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-              <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
-                {project.path}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 sm:self-start">
-              {project.githubInfo?.connected && project.githubInfo.repository ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1 px-3 text-xs font-medium"
-                  onClick={() =>
-                    window.electronAPI.openExternal(
-                      `https://github.com/${project.githubInfo?.repository}`
-                    )
-                  }
-                >
-                  View on GitHub
-                  <ArrowUpRight className="size-3" />
-                </Button>
-              ) : null}
-              {onDeleteProject ? (
-                <ProjectDeleteButton
-                  projectName={project.name}
-                  tasks={project.tasks}
-                  onConfirm={() => onDeleteProject?.(project)}
-                  aria-label={`Delete project ${project.name}`}
-                />
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex items-start justify-between gap-4">
-            <BaseBranchControls
-              baseBranch={baseBranch}
-              branchOptions={branchOptions}
-              isLoadingBranches={isLoadingBranches}
-              isSavingBaseBranch={isSavingBaseBranch}
-              branchLoadError={branchLoadError}
-              onBaseBranchChange={handleBaseBranchChange}
-              onOpenChange={(isOpen) => {
-                if (isOpen) {
-                  setBranchReloadToken((token) => token + 1);
-                }
-              }}
+      {/* Header */}
+      <div className="space-y-3 px-6 py-4">
+        <div className="flex items-start justify-between">
+          <h1 className="text-2xl font-medium italic tracking-tight">{project.name}</h1>
+          {onDeleteProject ? (
+            <ProjectDeleteButton
+              projectName={project.name}
+              tasks={project.tasks}
+              onConfirm={() => onDeleteProject?.(project)}
+              aria-label={`Delete project ${project.name}`}
             />
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setViewMode('kanban')}
-                className={[
-                  'h-7 gap-1.5 px-2.5 text-xs',
-                  viewMode === 'kanban'
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
-                ].join(' ')}
-              >
-                <LayoutGrid className="size-3.5" />
-                Board
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setViewMode('list')}
-                className={[
-                  'h-7 gap-1.5 px-2.5 text-xs',
-                  viewMode === 'list'
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
-                ].join(' ')}
-              >
-                <ListIcon className="size-3.5" />
-                List
-              </Button>
-            </div>
-          </div>
-
-          {directTasks.length > 0 && (
-            <Alert className="border-border bg-muted/50">
-              <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
-              <AlertTitle className="text-sm font-medium text-foreground">
-                Direct branch mode
-              </AlertTitle>
-              <AlertDescription className="text-xs text-muted-foreground">
-                {directTasks.length === 1 ? (
-                  <>
-                    <span className="font-medium text-foreground">{directTasks[0].name}</span>{' '}
-                    is running directly on your current branch.
-                  </>
-                ) : (
-                  <>
-                    <span className="font-medium text-foreground">
-                      {directTasks.map((t) => t.name).join(', ')}
-                    </span>{' '}
-                    are running directly on your current branch.
-                  </>
-                )}{' '}
-                Changes will affect your working directory.
-              </AlertDescription>
-            </Alert>
-          )}
+          ) : null}
         </div>
+
+        <div className="flex items-center gap-2">
+          <span className="break-all font-mono text-sm text-muted-foreground">
+            {project.path}
+          </span>
+          <BaseBranchControls
+            baseBranch={baseBranch}
+            branchOptions={branchOptions}
+            isLoadingBranches={isLoadingBranches}
+            isSavingBaseBranch={isSavingBaseBranch}
+            branchLoadError={branchLoadError}
+            onBaseBranchChange={handleBaseBranchChange}
+            onOpenChange={(isOpen) => {
+              if (isOpen) {
+                setBranchReloadToken((token) => token + 1);
+              }
+            }}
+          />
+          {project.githubInfo?.connected && project.githubInfo.repository ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground hover:text-foreground"
+              onClick={() =>
+                window.electronAPI.openExternal(
+                  `https://github.com/${project.githubInfo?.repository}`
+                )
+              }
+              aria-label="View on GitHub"
+            >
+              <ArrowUpRight className="size-4" />
+            </Button>
+          ) : null}
+        </div>
+
+        {directTasks.length > 0 && (
+          <Alert className="border-border bg-muted/50">
+            <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+            <AlertTitle className="text-sm font-medium text-foreground">
+              Direct branch mode
+            </AlertTitle>
+            <AlertDescription className="text-xs text-muted-foreground">
+              {directTasks.length === 1 ? (
+                <>
+                  <span className="font-medium text-foreground">{directTasks[0].name}</span>{' '}
+                  is running directly on your current branch.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">
+                    {directTasks.map((t) => t.name).join(', ')}
+                  </span>{' '}
+                  are running directly on your current branch.
+                </>
+              )}{' '}
+              Changes will affect your working directory.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/5">
+      {/* Tabs row */}
+      <div className="flex items-center justify-between border-b border-border px-6 pb-0">
+        <div className="flex">
+          <button
+            type="button"
+            onClick={() => setViewMode('kanban')}
+            className={[
+              'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+              viewMode === 'kanban'
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            ].join(' ')}
+          >
+            Board
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={[
+              'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+              viewMode === 'list'
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            ].join(' ')}
+          >
+            List
+          </button>
+        </div>
+
+        {viewMode === 'list' && hasTasks ? (
+          <button
+            type="button"
+            onClick={() => setIsSelectMode((prev) => !prev)}
+            className="px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            aria-pressed={isSelectMode}
+          >
+            {isSelectMode ? 'Cancel' : 'Select'}
+          </button>
+        ) : null}
+      </div>
+
+      {/* Content */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {viewMode === 'kanban' ? (
           <KanbanBoard project={project} onOpenTask={onOpenTask} onCreateTask={onCreateTask} />
         ) : (
-          <div className="container mx-auto h-full max-w-6xl overflow-y-auto px-6 py-6">
+          <div className="h-full overflow-y-auto px-6 py-6">
             <ProjectTaskList
               project={project}
               onCreateTask={onCreateTask}
               activeTask={activeTask}
               onSelectTask={onSelectTask}
               onDeleteTask={onDeleteTask}
+              isSelectMode={isSelectMode}
+              onSelectModeChange={setIsSelectMode}
             />
           </div>
         )}

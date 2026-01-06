@@ -394,6 +394,8 @@ interface ProjectTaskListProps {
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
   isCreatingTask?: boolean;
+  isSelectMode: boolean;
+  onSelectModeChange: (next: boolean) => void;
 }
 
 const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
@@ -403,11 +405,12 @@ const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
   onSelectTask,
   onDeleteTask,
   isCreatingTask = false,
+  isSelectMode,
+  onSelectModeChange,
 }) => {
   const { toast } = useToast();
 
   // Multi-select state
-  const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -484,8 +487,8 @@ const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
   };
 
   const exitSelectMode = () => {
-    setIsSelectMode(false);
     setSelectedIds(new Set());
+    onSelectModeChange(false);
   };
 
   const handleBulkDelete = async () => {
@@ -522,11 +525,15 @@ const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
     }
   };
 
-  // Reset select mode when project changes
   useEffect(() => {
-    setIsSelectMode(false);
     setSelectedIds(new Set());
   }, [project.id]);
+
+  useEffect(() => {
+    if (!isSelectMode) {
+      setSelectedIds(new Set());
+    }
+  }, [isSelectMode]);
 
   useEffect(() => {
     if (!showDeleteDialog) {
@@ -619,8 +626,8 @@ const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
       <div className="space-y-3">
         {tasksInProject.length > 0 ? (
           <>
-            <div className="flex justify-end gap-2">
-              {isSelectMode && selectedCount > 0 && (
+            {isSelectMode && selectedCount > 0 ? (
+              <div className="flex justify-end gap-2">
                 <Button
                   variant="destructive"
                   size="sm"
@@ -637,16 +644,8 @@ const ProjectTaskList: React.FC<ProjectTaskListProps> = ({
                     'Delete'
                   )}
                 </Button>
-              )}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                className="h-8 px-3 text-xs font-medium"
-              >
-                {isSelectMode ? 'Cancel' : 'Select'}
-              </Button>
-            </div>
+              </div>
+            ) : null}
             <div className="flex flex-col gap-3">
               {tasksInProject.map((ws) => (
                 <TaskRow
