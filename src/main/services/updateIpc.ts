@@ -1,65 +1,13 @@
 import { app, ipcMain } from 'electron';
-import { autoUpdater } from 'electron-updater';
-import { log } from '../lib/logger';
-import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
+import { formatUpdaterError } from '../lib/updaterError';
 import { autoUpdateService } from './AutoUpdateService';
 
-// Channels used to notify renderer about update lifecycle
-const UpdateChannels = {
-  checking: 'update:checking',
-  available: 'update:available',
-  notAvailable: 'update:not-available',
-  error: 'update:error',
-  progress: 'update:download-progress',
-  downloaded: 'update:downloaded',
-} as const;
-
-// Centralized dev-mode hints
 const DEV_HINT_CHECK = 'Updates are disabled in development.';
 const DEV_HINT_DOWNLOAD = 'Cannot download updates in development.';
 
 // Skip all auto-updater setup in development
 const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
 
-if (!isDev) {
-  // Basic updater configuration
-  // Publish config is provided via electron-builder (package.json -> build.publish)
-  // We keep autoDownload off; downloads start only when the user clicks.
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.logger = {
-    info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-    warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-    error: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-  } as any;
-}
-
-// Helper: emit update events to all renderer windows
-function emit(channel: string, payload?: any) {
-  const { BrowserWindow } = require('electron');
-  for (const win of BrowserWindow.getAllWindows()) {
-    try {
-      win.webContents.send(channel, payload);
-    } catch {}
-  }
-}
-
-let initialized = false;
-function ensureInitialized() {
-  if (initialized || isDev) return;
-  initialized = true;
-
-  // Wire autoUpdater events
-  autoUpdater.on('checking-for-update', () => emit(UpdateChannels.checking));
-  autoUpdater.on('update-available', (info) => emit(UpdateChannels.available, info));
-  autoUpdater.on('update-not-available', (info) => emit(UpdateChannels.notAvailable, info));
-  autoUpdater.on('error', (err) =>
-    emit(UpdateChannels.error, { message: formatUpdaterError(err) })
-  );
-  autoUpdater.on('download-progress', (progress) => emit(UpdateChannels.progress, progress));
-  autoUpdater.on('update-downloaded', (info) => emit(UpdateChannels.downloaded, info));
-}
 
 // Fallback: open latest download link in browser for manual install
 function getLatestDownloadUrl(): string {
@@ -83,7 +31,7 @@ function getLatestDownloadUrl(): string {
 }
 
 export function registerUpdateIpc() {
-  ensureInitialized();
+  // AutoUpdateService handles all initialization and event listeners
 
   ipcMain.handle('update:check', async () => {
     try {
@@ -123,10 +71,8 @@ export function registerUpdateIpc() {
 
   ipcMain.handle('update:quit-and-install', async () => {
     try {
-      // Slight delay to ensure renderer can process the response
-      setTimeout(() => {
-        autoUpdater.quitAndInstall(false, true);
-      }, 250);
+      // Delegate to AutoUpdateService which handles rollback info
+      autoUpdateService.quitAndInstall();
       return { success: true };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
