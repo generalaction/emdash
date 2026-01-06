@@ -1615,8 +1615,7 @@ const AppContent: React.FC = () => {
           if (remoteBranchWarning) {
             toast({
               title: 'Could not delete remote branch',
-              description:
-                remoteBranchDeleteError || 'Check GitHub authentication and try again.',
+              description: remoteBranchDeleteError || 'Check GitHub authentication and try again.',
               variant: 'destructive',
             });
           }
