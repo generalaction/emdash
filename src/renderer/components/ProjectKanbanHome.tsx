@@ -287,8 +287,8 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
             <AlertDescription className="text-xs text-muted-foreground">
               {directTasks.length === 1 ? (
                 <>
-                  <span className="font-medium text-foreground">{directTasks[0].name}</span>{' '}
-                  is running directly on your current branch.
+                  <span className="font-medium text-foreground">{directTasks[0].name}</span> is
+                  running directly on your current branch.
                 </>
               ) : (
                 <>

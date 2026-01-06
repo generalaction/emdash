@@ -106,88 +106,88 @@ const KanbanCard: React.FC<{
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-            {providers.length > 0 && (SHOW_PROVIDER_LOGOS || busy) ? (
-              <div className="flex shrink-0 items-center gap-1">
-                {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
-                {SHOW_PROVIDER_LOGOS
-                  ? providers.slice(0, 3).map((p) => {
-                      const a = providerAssets[p];
-                      if (!a) return null;
-                      const isAdmin = adminProvider && p === adminProvider;
-                      const label = providerMeta[p]?.label ?? a.name;
-                      const tooltip = isAdmin ? `${label} (admin)` : label;
-                      return (
-                        <span
-                          key={`${ws.id}-prov-${p}`}
-                          className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground ${
-                            isAdmin ? 'ring-1 ring-primary/60' : ''
-                          }`}
-                          title={tooltip}
-                        >
-                          <img
-                            src={a.logo}
-                            alt={a.alt}
-                            className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
-                              a.invertInDark ? 'dark:invert' : ''
-                            }`}
-                          />
-                        </span>
-                      );
-                    })
-                  : null}
-                {SHOW_PROVIDER_LOGOS && providers.length > 3 ? (
-                  <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                    +{providers.length - 3}
-                  </span>
-                ) : null}
-              </div>
-            ) : asset ? (
-              SHOW_PROVIDER_LOGOS ? (
-                <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
+              {providers.length > 0 && (SHOW_PROVIDER_LOGOS || busy) ? (
+                <div className="flex shrink-0 items-center gap-1">
                   {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
-                  <img
-                    src={asset.logo}
-                    alt={asset.alt}
-                    className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
-                      asset.invertInDark ? 'dark:invert' : ''
-                    }`}
-                  />
-                </span>
-              ) : busy ? (
-                <Spinner size="sm" className="shrink-0 text-muted-foreground" />
-              ) : null
-            ) : null}
+                  {SHOW_PROVIDER_LOGOS
+                    ? providers.slice(0, 3).map((p) => {
+                        const a = providerAssets[p];
+                        if (!a) return null;
+                        const isAdmin = adminProvider && p === adminProvider;
+                        const label = providerMeta[p]?.label ?? a.name;
+                        const tooltip = isAdmin ? `${label} (admin)` : label;
+                        return (
+                          <span
+                            key={`${ws.id}-prov-${p}`}
+                            className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground ${
+                              isAdmin ? 'ring-1 ring-primary/60' : ''
+                            }`}
+                            title={tooltip}
+                          >
+                            <img
+                              src={a.logo}
+                              alt={a.alt}
+                              className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
+                                a.invertInDark ? 'dark:invert' : ''
+                              }`}
+                            />
+                          </span>
+                        );
+                      })
+                    : null}
+                  {SHOW_PROVIDER_LOGOS && providers.length > 3 ? (
+                    <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                      +{providers.length - 3}
+                    </span>
+                  ) : null}
+                </div>
+              ) : asset ? (
+                SHOW_PROVIDER_LOGOS ? (
+                  <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
+                    {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
+                    <img
+                      src={asset.logo}
+                      alt={asset.alt}
+                      className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
+                        asset.invertInDark ? 'dark:invert' : ''
+                      }`}
+                    />
+                  </span>
+                ) : busy ? (
+                  <Spinner size="sm" className="shrink-0 text-muted-foreground" />
+                ) : null
+              ) : null}
 
-            {isSelectMode && onToggleSelect ? (
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={() => onToggleSelect()}
-                onClick={(e) => e.stopPropagation()}
-                aria-label={`Select ${ws.name}`}
-                className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
-              />
-            ) : onDelete ? (
-              <TaskDeleteButton
-                taskName={ws.name}
-                taskId={ws.id}
-                taskPath={ws.path}
-                onConfirm={async () => {
-                  try {
-                    setIsDeleting(true);
-                    await onDelete();
-                  } finally {
-                    setIsDeleting(false);
-                  }
-                }}
-                isDeleting={isDeleting}
-                aria-label={`Delete task ${ws.name}`}
-                className={`text-muted-foreground ${
-                  isDeleting ? '' : 'opacity-0 transition-opacity group-hover:opacity-100'
-                }`}
-              />
-            ) : null}
+              {isSelectMode && onToggleSelect ? (
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => onToggleSelect()}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Select ${ws.name}`}
+                  className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
+                />
+              ) : onDelete ? (
+                <TaskDeleteButton
+                  taskName={ws.name}
+                  taskId={ws.id}
+                  taskPath={ws.path}
+                  onConfirm={async () => {
+                    try {
+                      setIsDeleting(true);
+                      await onDelete();
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }}
+                  isDeleting={isDeleting}
+                  aria-label={`Delete task ${ws.name}`}
+                  className={`text-muted-foreground ${
+                    isDeleting ? '' : 'opacity-0 transition-opacity group-hover:opacity-100'
+                  }`}
+                />
+              ) : null}
+            </div>
           </div>
-        </div>
 
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">

@@ -61,7 +61,9 @@ const TaskBulkDeleteDialog: React.FC<TaskBulkDeleteDialogProps> = ({
 
   const prTasks = tasks
     .map((task) => ({ name: task.name, pr: risks[task.id]?.pr }))
-    .filter((task): task is { name: string; pr: PrInfo } => Boolean(task.pr && isActivePr(task.pr)));
+    .filter((task): task is { name: string; pr: PrInfo } =>
+      Boolean(task.pr && isActivePr(task.pr))
+    );
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

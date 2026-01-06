@@ -29,7 +29,15 @@ const KanbanBoard: React.FC<{
   isSelectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (taskId: string) => void;
-}> = ({ project, onOpenTask, onCreateTask, onDeleteTask, isSelectMode, selectedIds, onToggleSelect }) => {
+}> = ({
+  project,
+  onOpenTask,
+  onCreateTask,
+  onDeleteTask,
+  isSelectMode,
+  selectedIds,
+  onToggleSelect,
+}) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
 
   React.useEffect(() => {

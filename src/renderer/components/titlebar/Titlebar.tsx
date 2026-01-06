@@ -118,9 +118,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
                     onClick={() => onToggleKanban?.()}
                     className={[
                       'h-8 w-8 hover:bg-background/80',
-                      isKanbanOpen
-                        ? 'bg-background/60 text-foreground'
-                        : 'text-muted-foreground',
+                      isKanbanOpen ? 'bg-background/60 text-foreground' : 'text-muted-foreground',
                     ].join(' ')}
                   >
                     <KanbanSquare className="h-4 w-4" />
