@@ -25,7 +25,11 @@ const KanbanBoard: React.FC<{
   project: Project;
   onOpenTask?: (ws: Task) => void;
   onCreateTask?: () => void;
-}> = ({ project, onOpenTask, onCreateTask }) => {
+  onDeleteTask?: (ws: Task) => void | Promise<void | boolean>;
+  isSelectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (taskId: string) => void;
+}> = ({ project, onOpenTask, onCreateTask, onDeleteTask, isSelectMode, selectedIds, onToggleSelect }) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
 
   React.useEffect(() => {
@@ -286,11 +290,11 @@ const KanbanBoard: React.FC<{
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md border border-border/60 bg-muted text-foreground shadow-sm hover:bg-muted/80"
+                className="h-6 w-6 rounded-md border border-border/60 bg-muted text-foreground shadow-sm hover:bg-muted/80"
                 onClick={onCreateTask}
                 aria-label="Start New Task"
               >
-                <Plus className="h-4 w-4" aria-hidden="true" />
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
             ) : undefined
           }
@@ -322,7 +326,16 @@ const KanbanBoard: React.FC<{
           ) : (
             <>
               {byStatus[s].map((ws) => (
-                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenTask} />
+                <KanbanCard
+                  key={ws.id}
+                  ws={ws}
+                  onOpen={onOpenTask}
+                  onDelete={onDeleteTask ? () => onDeleteTask(ws) : undefined}
+                  isSelectMode={isSelectMode}
+                  isSelected={Boolean(selectedIds?.has(ws.id))}
+                  onToggleSelect={onToggleSelect ? () => onToggleSelect(ws.id) : undefined}
+                  draggable={!isSelectMode}
+                />
               ))}
               {s === 'todo' && onCreateTask ? (
                 <Button
