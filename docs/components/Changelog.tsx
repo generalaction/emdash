@@ -108,12 +108,73 @@ function ReleaseNotes({ content }: { content: string }) {
   // Process content line by line, handling both markdown and HTML
   const lines = content.split('\n');
   const elements: React.ReactNode[] = [];
+  let currentListItems: React.ReactNode[] = [];
+  let inCodeBlock = false;
+  let codeBlockContent: string[] = [];
+  let codeBlockStartIndex = 0;
+
+  // Helper function to flush list items
+  const flushListItems = () => {
+    if (currentListItems.length > 0) {
+      elements.push(
+        <ul key={`list-${elements.length}`} className="my-2 ml-4 list-disc space-y-1">
+          {currentListItems}
+        </ul>
+      );
+      currentListItems = [];
+    }
+  };
+
+  // Helper function to process links in text
+  const processLinks = (text: string): string => {
+    return text
+      // Handle GitHub URLs, but not if they're followed by punctuation
+      .replace(
+        /https:\/\/github\.com\/[^\s\)\]\.,;!?]+/g,
+        (url) =>
+          `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline">${url}</a>`
+      )
+      // Handle @mentions, but avoid matching email addresses
+      // Look for @mentions that are preceded by whitespace or start of string
+      .replace(
+        /(^|[\s\(])@(\w+)(?=\s|$|[^\w@])/g,
+        (match, prefix, username) =>
+          `${prefix}<a href="https://github.com/${username}" target="_blank" rel="noopener noreferrer" class="font-medium">@${username}</a>`
+      );
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
+    // Check for code block start/end
+    if (line.startsWith('```')) {
+      if (inCodeBlock) {
+        // End code block
+        elements.push(
+          <pre key={codeBlockStartIndex} className="my-3 overflow-x-auto rounded bg-gray-100 p-3 text-sm dark:bg-gray-800">
+            <code>{codeBlockContent.join('\n')}</code>
+          </pre>
+        );
+        codeBlockContent = [];
+        inCodeBlock = false;
+      } else {
+        // Start code block
+        flushListItems(); // Flush any pending list items
+        inCodeBlock = true;
+        codeBlockStartIndex = i;
+      }
+      continue;
+    }
+
+    // If we're in a code block, just collect the content
+    if (inCodeBlock) {
+      codeBlockContent.push(line);
+      continue;
+    }
+
     // Handle HTML img tags
     if (line.includes('<img')) {
+      flushListItems(); // Flush any pending list items
       const imgMatch = line.match(/<img[^>]+>/);
       if (imgMatch) {
         const srcMatch = imgMatch[0].match(/src="([^"]+)"/);
@@ -140,6 +201,7 @@ function ReleaseNotes({ content }: { content: string }) {
 
     // Headers
     if (line.startsWith('## ')) {
+      flushListItems(); // Flush any pending list items
       elements.push(
         <h3 key={i} className="mb-2 mt-4 text-lg font-semibold">
           {line.substring(3)}
@@ -148,6 +210,7 @@ function ReleaseNotes({ content }: { content: string }) {
       continue;
     }
     if (line.startsWith('### ')) {
+      flushListItems(); // Flush any pending list items
       elements.push(
         <h4 key={i} className="mb-1 mt-3 font-semibold">
           {line.substring(4)}
@@ -156,29 +219,24 @@ function ReleaseNotes({ content }: { content: string }) {
       continue;
     }
 
-    // List items (with PR links)
-    if (line.startsWith('* ')) {
+    // List items (support both * and - prefixes)
+    if (line.startsWith('* ') || line.startsWith('- ')) {
       const item = line.substring(2);
-      // Convert PR links and @mentions to actual links
-      const withLinks = item
-        .replace(
-          /https:\/\/github\.com\/[^\s]+/g,
-          (url) =>
-            `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline">${url}</a>`
-        )
-        .replace(
-          /@(\w+)/g,
-          (match, username) =>
-            `<a href="https://github.com/${username}" target="_blank" rel="noopener noreferrer" class="font-medium">@${username}</a>`
-        );
-      elements.push(
-        <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: withLinks }} />
+      const withLinks = processLinks(item);
+      currentListItems.push(
+        <li key={i} dangerouslySetInnerHTML={{ __html: withLinks }} />
       );
       continue;
     }
 
+    // If we hit a non-list item, flush any pending list items
+    if (currentListItems.length > 0 && !line.startsWith('  ')) {
+      flushListItems();
+    }
+
     // Bold text (like **New Contributors**)
     if (line.includes('**')) {
+      flushListItems(); // Flush any pending list items
       const formatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       elements.push(
         <p key={i} className="mt-4 font-semibold" dangerouslySetInnerHTML={{ __html: formatted }} />
@@ -188,7 +246,8 @@ function ReleaseNotes({ content }: { content: string }) {
 
     // Full Changelog link
     if (line.includes('Full Changelog:')) {
-      const match = line.match(/https:\/\/github\.com\/[^\s]+/);
+      flushListItems(); // Flush any pending list items
+      const match = line.match(/https:\/\/github\.com\/[^\s\)\]]+/);
       if (match) {
         elements.push(
           <p key={i} className="mt-4">
@@ -204,16 +263,20 @@ function ReleaseNotes({ content }: { content: string }) {
 
     // Empty lines
     if (line.trim() === '') {
+      flushListItems(); // Flush any pending list items
       continue;
     }
 
-    // Regular text
+    // Regular text with link processing
+    flushListItems(); // Flush any pending list items
+    const withLinks = processLinks(line);
     elements.push(
-      <p key={i} className="my-2">
-        {line}
-      </p>
+      <p key={i} className="my-2" dangerouslySetInnerHTML={{ __html: withLinks }} />
     );
   }
+
+  // Flush any remaining list items
+  flushListItems();
 
   return <>{elements}</>;
 }
