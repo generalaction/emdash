@@ -120,7 +120,7 @@ if (process.platform === 'darwin' && !app.isPackaged) {
     'assets',
     'images',
     'emdash',
-    'emdash_logo_transparent_dash.png'
+    'icon-dock.png'
   );
   try {
     app.dock.setIcon(iconPath);
