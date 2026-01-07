@@ -16,6 +16,8 @@
     "---Contributing---",
     "contributing/how-to-contribute",
     "---Security---",
-    "security/telemetry"
+    "security/telemetry",
+    "---Changelog---",
+    "changelog/index"
   ]
 }
