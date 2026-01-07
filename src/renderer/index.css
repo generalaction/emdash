@@ -135,6 +135,10 @@
     transition-duration: 0ms;
   }
 
+  [data-panel-group].no-transition .sidebar-panel {
+    transition-duration: 0ms;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .sidebar-panel {
       transition-duration: 0ms;

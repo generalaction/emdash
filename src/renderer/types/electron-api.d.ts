@@ -100,6 +100,9 @@ declare global {
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
           };
+          interface?: {
+            autoRightSidebarBehavior?: boolean;
+          };
         };
         error?: string;
       }>;
@@ -157,6 +160,9 @@ declare global {
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
           };
+          interface?: {
+            autoRightSidebarBehavior?: boolean;
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -212,6 +218,9 @@ declare global {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
+          };
+          interface?: {
+            autoRightSidebarBehavior?: boolean;
           };
         };
         error?: string;
