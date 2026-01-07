@@ -127,20 +127,22 @@ function ReleaseNotes({ content }: { content: string }) {
 
   // Helper function to process links in text
   const processLinks = (text: string): string => {
-    return text
-      // Handle GitHub URLs, but not if they're followed by punctuation
-      .replace(
-        /https:\/\/github\.com\/[^\s\)\]\.,;!?]+/g,
-        (url) =>
-          `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline">${url}</a>`
-      )
-      // Handle @mentions, but avoid matching email addresses
-      // Look for @mentions that are preceded by whitespace or start of string
-      .replace(
-        /(^|[\s\(])@(\w+)(?=\s|$|[^\w@])/g,
-        (match, prefix, username) =>
-          `${prefix}<a href="https://github.com/${username}" target="_blank" rel="noopener noreferrer" class="font-medium">@${username}</a>`
-      );
+    return (
+      text
+        // Handle GitHub URLs, but not if they're followed by punctuation
+        .replace(
+          /https:\/\/github\.com\/[^\s\)\]\.,;!?]+/g,
+          (url) =>
+            `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline">${url}</a>`
+        )
+        // Handle @mentions, but avoid matching email addresses
+        // Look for @mentions that are preceded by whitespace or start of string
+        .replace(
+          /(^|[\s\(])@(\w+)(?=\s|$|[^\w@])/g,
+          (match, prefix, username) =>
+            `${prefix}<a href="https://github.com/${username}" target="_blank" rel="noopener noreferrer" class="font-medium">@${username}</a>`
+        )
+    );
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -151,7 +153,10 @@ function ReleaseNotes({ content }: { content: string }) {
       if (inCodeBlock) {
         // End code block
         elements.push(
-          <pre key={codeBlockStartIndex} className="my-3 overflow-x-auto rounded bg-gray-100 p-3 text-sm dark:bg-gray-800">
+          <pre
+            key={codeBlockStartIndex}
+            className="my-3 overflow-x-auto rounded bg-gray-100 p-3 text-sm dark:bg-gray-800"
+          >
             <code>{codeBlockContent.join('\n')}</code>
           </pre>
         );
@@ -223,9 +228,7 @@ function ReleaseNotes({ content }: { content: string }) {
     if (line.startsWith('* ') || line.startsWith('- ')) {
       const item = line.substring(2);
       const withLinks = processLinks(item);
-      currentListItems.push(
-        <li key={i} dangerouslySetInnerHTML={{ __html: withLinks }} />
-      );
+      currentListItems.push(<li key={i} dangerouslySetInnerHTML={{ __html: withLinks }} />);
       continue;
     }
 
@@ -270,9 +273,7 @@ function ReleaseNotes({ content }: { content: string }) {
     // Regular text with link processing
     flushListItems(); // Flush any pending list items
     const withLinks = processLinks(line);
-    elements.push(
-      <p key={i} className="my-2" dangerouslySetInnerHTML={{ __html: withLinks }} />
-    );
+    elements.push(<p key={i} className="my-2" dangerouslySetInnerHTML={{ __html: withLinks }} />);
   }
 
   // Flush any remaining list items
