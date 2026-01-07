@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { X, RefreshCw, FolderOpen, FileText, PanelRight, Eye, EyeOff, Save } from 'lucide-react';
+import { X, FolderOpen, FileText, PanelRight, Save } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -77,16 +77,10 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
   // UI state
   const [explorerWidth, setExplorerWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
-  const [showHiddenFiles, setShowHiddenFiles] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Custom exclude patterns (user configurable)
-  const customExcludes = useMemo(() => [], []);
-
-  const excludePatterns = useMemo(
-    () => (showHiddenFiles ? [] : [...DEFAULT_EXCLUDES, ...customExcludes]),
-    [showHiddenFiles, customExcludes]
-  );
+  // Always use default excludes - removed the toggle functionality
+  const excludePatterns = useMemo(() => [...DEFAULT_EXCLUDES], []);
 
   const activeFile = activeFilePath ? openFiles.get(activeFilePath) : null;
   const hasUnsavedChanges = Array.from(openFiles.values()).some((f) => f.isDirty);
@@ -341,9 +335,7 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
         </div>
       </div>
 
-      {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar - File Explorer */}
         <div
           className="relative flex flex-col border-r border-border bg-muted/5"
           style={{ width: explorerWidth }}
@@ -366,20 +358,6 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
                 <span className="text-xs font-medium uppercase text-muted-foreground">
                   Explorer
                 </span>
-                <div className="flex items-center gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5"
-                    onClick={() => setShowHiddenFiles(!showHiddenFiles)}
-                    title={showHiddenFiles ? 'Hide excluded files' : 'Show excluded files'}
-                  >
-                    {showHiddenFiles ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-5 w-5" title="Refresh">
-                    <RefreshCw className="h-3 w-3" />
-                  </Button>
-                </div>
               </div>
 
               <FileTree
@@ -388,7 +366,7 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
                 onSelectFile={loadFile}
                 onOpenFile={loadFile}
                 className="flex-1 overflow-y-auto"
-                showHiddenFiles={showHiddenFiles}
+                showHiddenFiles={false}
                 excludePatterns={excludePatterns}
               />
             </div>
