@@ -143,7 +143,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '-p',
+    initialPromptFlag: '--prompt',
     icon: 'opencode.png',
     terminalOnly: true,
   },
