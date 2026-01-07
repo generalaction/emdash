@@ -237,6 +237,7 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
               tasks={project.tasks}
               onConfirm={() => onDeleteProject?.(project)}
               aria-label={`Delete project ${project.name}`}
+              variant="button"
             />
           ) : null}
         </div>
