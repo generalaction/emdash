@@ -13,18 +13,15 @@ interface GitHubRelease {
 
 async function getGithubReleases(): Promise<GitHubRelease[]> {
   try {
-    const response = await fetch(
-      'https://api.github.com/repos/generalaction/emdash/releases',
-      {
-        headers: {
-          Accept: 'application/vnd.github.v3+json',
-          ...(process.env.GITHUB_TOKEN && {
-            Authorization: `token ${process.env.GITHUB_TOKEN}`,
-          }),
-        },
-        next: { revalidate: 3600 }, // Cache for 1 hour
-      }
-    );
+    const response = await fetch('https://api.github.com/repos/generalaction/emdash/releases', {
+      headers: {
+        Accept: 'application/vnd.github.v3+json',
+        ...(process.env.GITHUB_TOKEN && {
+          Authorization: `token ${process.env.GITHUB_TOKEN}`,
+        }),
+      },
+      next: { revalidate: 3600 }, // Cache for 1 hour
+    });
 
     if (!response.ok) {
       console.error('GitHub API error:', response.status);
@@ -44,7 +41,7 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
   });
 }
 
@@ -58,7 +55,18 @@ export async function Changelog() {
   if (releases.length === 0) {
     return (
       <div className="text-muted-foreground">
-        <p>No releases found. Check the <a href="https://github.com/generalaction/emdash/releases" target="_blank" rel="noopener noreferrer" className="underline">GitHub Releases</a> page.</p>
+        <p>
+          No releases found. Check the{' '}
+          <a
+            href="https://github.com/generalaction/emdash/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            GitHub Releases
+          </a>{' '}
+          page.
+        </p>
       </div>
     );
   }
@@ -67,7 +75,7 @@ export async function Changelog() {
     <div className="space-y-12">
       {releases.slice(0, 20).map((release) => (
         <div key={release.id} className="border-b border-border pb-8 last:border-0">
-          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-2xl font-bold">
               <a
                 href={release.html_url}
@@ -88,7 +96,7 @@ export async function Changelog() {
               <ReleaseNotes content={release.body} />
             </div>
           ) : (
-            <p className="text-muted-foreground italic">No release notes available.</p>
+            <p className="italic text-muted-foreground">No release notes available.</p>
           )}
         </div>
       ))}
@@ -121,7 +129,7 @@ function ReleaseNotes({ content }: { content: string }) {
                 alt={altMatch ? altMatch[1] : 'Release image'}
                 width={widthMatch ? widthMatch[1] : undefined}
                 height={heightMatch ? heightMatch[1] : undefined}
-                className="max-w-full h-auto rounded-lg border border-border"
+                className="h-auto max-w-full rounded-lg border border-border"
               />
             </div>
           );
@@ -133,13 +141,17 @@ function ReleaseNotes({ content }: { content: string }) {
     // Headers
     if (line.startsWith('## ')) {
       elements.push(
-        <h3 key={i} className="text-lg font-semibold mt-4 mb-2">{line.substring(3)}</h3>
+        <h3 key={i} className="mb-2 mt-4 text-lg font-semibold">
+          {line.substring(3)}
+        </h3>
       );
       continue;
     }
     if (line.startsWith('### ')) {
       elements.push(
-        <h4 key={i} className="font-semibold mt-3 mb-1">{line.substring(4)}</h4>
+        <h4 key={i} className="mb-1 mt-3 font-semibold">
+          {line.substring(4)}
+        </h4>
       );
       continue;
     }
@@ -151,11 +163,13 @@ function ReleaseNotes({ content }: { content: string }) {
       const withLinks = item
         .replace(
           /https:\/\/github\.com\/[^\s]+/g,
-          (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline">${url}</a>`
+          (url) =>
+            `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline">${url}</a>`
         )
         .replace(
           /@(\w+)/g,
-          (match, username) => `<a href="https://github.com/${username}" target="_blank" rel="noopener noreferrer" class="font-medium">@${username}</a>`
+          (match, username) =>
+            `<a href="https://github.com/${username}" target="_blank" rel="noopener noreferrer" class="font-medium">@${username}</a>`
         );
       elements.push(
         <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: withLinks }} />
@@ -167,7 +181,7 @@ function ReleaseNotes({ content }: { content: string }) {
     if (line.includes('**')) {
       const formatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       elements.push(
-        <p key={i} className="font-semibold mt-4" dangerouslySetInnerHTML={{ __html: formatted }} />
+        <p key={i} className="mt-4 font-semibold" dangerouslySetInnerHTML={{ __html: formatted }} />
       );
       continue;
     }
@@ -194,7 +208,11 @@ function ReleaseNotes({ content }: { content: string }) {
     }
 
     // Regular text
-    elements.push(<p key={i} className="my-2">{line}</p>);
+    elements.push(
+      <p key={i} className="my-2">
+        {line}
+      </p>
+    );
   }
 
   return <>{elements}</>;
