@@ -18,7 +18,7 @@ import MultiAgentTask from './components/MultiAgentTask';
 import { NewProjectModal } from './components/NewProjectModal';
 import ProjectMainView from './components/ProjectMainView';
 import RightSidebar from './components/RightSidebar';
-import VSCodeEditor from './components/FileExplorer/VSCodeEditor';
+import CodeEditor from './components/FileExplorer/CodeEditor';
 import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -2073,7 +2073,7 @@ const AppContent: React.FC = () => {
                 handleOpenSettings={handleOpenSettings}
               />
               {showEditorMode && activeTask && (
-                <VSCodeEditor
+                <CodeEditor
                   taskPath={activeTask.path}
                   taskName={activeTask.name}
                   onClose={() => setShowEditorMode(false)}

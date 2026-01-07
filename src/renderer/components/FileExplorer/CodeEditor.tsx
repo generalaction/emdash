@@ -8,7 +8,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useRightSidebar } from '../ui/right-sidebar';
 import { FileTree } from './FileTree';
 
-interface VSCodeEditorProps {
+interface CodeEditorProps {
   taskPath: string;
   taskName: string;
   onClose: () => void;
@@ -21,8 +21,8 @@ interface OpenFile {
   originalContent: string;
 }
 
-// VS Code default exclude patterns
-const VS_CODE_DEFAULT_EXCLUDES = [
+// Default exclude patterns
+const DEFAULT_EXCLUDES = [
   '**/.git',
   '**/.svn',
   '**/.hg',
@@ -65,7 +65,7 @@ const VS_CODE_DEFAULT_EXCLUDES = [
   '**/.windsurf',
 ];
 
-export default function VSCodeEditor({ taskPath, taskName, onClose }: VSCodeEditorProps) {
+export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorProps) {
   const { effectiveTheme } = useTheme();
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
 
@@ -78,14 +78,13 @@ export default function VSCodeEditor({ taskPath, taskName, onClose }: VSCodeEdit
   const [explorerWidth, setExplorerWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
   const [showHiddenFiles, setShowHiddenFiles] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Custom exclude patterns (user configurable in real VS Code)
-  const [customExcludes, setCustomExcludes] = useState<string[]>([]);
+  // Custom exclude patterns (user configurable)
+  const customExcludes: string[] = [];
 
   const excludePatterns = useMemo(
-    () => (showHiddenFiles ? [] : [...VS_CODE_DEFAULT_EXCLUDES, ...customExcludes]),
+    () => (showHiddenFiles ? [] : [...DEFAULT_EXCLUDES, ...customExcludes]),
     [showHiddenFiles, customExcludes]
   );
 
@@ -309,7 +308,7 @@ export default function VSCodeEditor({ taskPath, taskName, onClose }: VSCodeEdit
 
   return (
     <div className="fixed inset-0 z-30 flex flex-col bg-background">
-      {/* VS Code-like Header */}
+      {/* Header */}
       <div className="flex h-9 items-center justify-between border-b border-border bg-muted/30 px-3">
         <div className="flex items-center gap-2">
           <FolderOpen className="h-4 w-4 text-muted-foreground" />
@@ -349,7 +348,7 @@ export default function VSCodeEditor({ taskPath, taskName, onClose }: VSCodeEdit
           className="relative flex flex-col border-r border-border bg-muted/5"
           style={{ width: explorerWidth }}
         >
-          {/* Explorer tabs (like VS Code) */}
+          {/* Explorer tabs */}
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Tab buttons */}
             <div className="flex h-8 items-center border-b border-border px-2">
