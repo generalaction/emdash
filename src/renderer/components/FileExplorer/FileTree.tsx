@@ -290,7 +290,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [showHiddenFiles, shouldExclude]
   );
 
-  // Load all files once at the beginning
+  // Load all files once at the beginning - only when rootPath changes
   useEffect(() => {
     const loadAllFiles = async () => {
       setLoading(true);
@@ -305,10 +305,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
         // Store all files for later use
         setAllFiles(result.items);
-
-        // Build initial tree (root level only)
-        const rootNodes = buildNodesFromPath('', result.items);
-        setTree(rootNodes);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load files');
       } finally {
@@ -317,7 +313,44 @@ export const FileTree: React.FC<FileTreeProps> = ({
     };
 
     loadAllFiles();
-  }, [rootPath, buildNodesFromPath]);
+  }, [rootPath]); // Only reload when rootPath changes
+
+  // Build tree when files or filters change
+  useEffect(() => {
+    if (allFiles.length === 0) return;
+
+    // Build tree with current filters
+    const rootNodes = buildNodesFromPath('', allFiles);
+
+    // Preserve expanded state when rebuilding tree
+    setTree((prevTree) => {
+      // If this is the first load, just set the tree
+      if (prevTree.length === 0) {
+        return rootNodes;
+      }
+
+      // Otherwise, preserve the isLoaded state from previous tree
+      const preserveLoadedState = (newNodes: FileNode[], oldNodes: FileNode[]): FileNode[] => {
+        return newNodes.map(newNode => {
+          const oldNode = oldNodes.find(n => n.path === newNode.path);
+          if (oldNode && oldNode.isLoaded && oldNode.children) {
+            // Preserve the loaded children
+            return {
+              ...newNode,
+              isLoaded: true,
+              children: preserveLoadedState(
+                buildNodesFromPath(newNode.path, allFiles),
+                oldNode.children
+              )
+            };
+          }
+          return newNode;
+        });
+      };
+
+      return preserveLoadedState(rootNodes, prevTree);
+    });
+  }, [allFiles, buildNodesFromPath]); // Rebuild tree when files or filter function changes
 
   // Load children for a node using the cached file list
   const loadChildren = useCallback(

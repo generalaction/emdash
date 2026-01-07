@@ -81,7 +81,7 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
   const [isSaving, setIsSaving] = useState(false);
 
   // Custom exclude patterns (user configurable)
-  const customExcludes: string[] = [];
+  const customExcludes = useMemo(() => [], []);
 
   const excludePatterns = useMemo(
     () => (showHiddenFiles ? [] : [...DEFAULT_EXCLUDES, ...customExcludes]),
