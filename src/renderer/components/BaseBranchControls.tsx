@@ -142,19 +142,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       </div>
       {branchLoadError ? <p className="text-xs text-destructive">{branchLoadError}</p> : null}
       <p className="text-xs text-muted-foreground">
-        New tasks start from the latest code.
-        {projectPath && (
-          <>
-            {' · '}
-            <button
-              type="button"
-              className="text-muted-foreground underline hover:text-foreground"
-              onClick={() => window.electronAPI.openProjectConfig(projectPath)}
-            >
-              Edit config
-            </button>
-          </>
-        )}
+        New task runs start from the latest code on this branch.
       </p>
     </div>
   );

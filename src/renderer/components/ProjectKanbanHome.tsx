@@ -231,27 +231,20 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
       <div className="space-y-3 px-6 py-4">
         <div className="flex items-start justify-between">
           <h1 className="text-2xl font-medium italic tracking-tight">{project.name}</h1>
-          {onDeleteProject ? (
-            <ProjectDeleteButton
-              projectName={project.name}
-              tasks={project.tasks}
-              onConfirm={() => onDeleteProject?.(project)}
-              aria-label={`Delete project ${project.name}`}
-              variant="button"
-            />
-          ) : null}
-        </div>
-
-        <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <span className="break-all font-mono text-sm text-muted-foreground">
-              {project.path}
-            </span>
+            {onDeleteProject ? (
+              <ProjectDeleteButton
+                projectName={project.name}
+                tasks={project.tasks}
+                onConfirm={() => onDeleteProject?.(project)}
+                aria-label={`Delete project ${project.name}`}
+              />
+            ) : null}
             {project.githubInfo?.connected && project.githubInfo.repository ? (
               <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground hover:text-foreground"
+                variant="outline"
+                size="sm"
+                className="gap-2"
                 onClick={() =>
                   window.electronAPI.openExternal(
                     `https://github.com/${project.githubInfo?.repository}`
@@ -259,10 +252,17 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
                 }
                 aria-label="View on GitHub"
               >
+                View on GitHub
                 <ArrowUpRight className="size-4" />
               </Button>
             ) : null}
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <span className="break-all font-mono text-sm text-muted-foreground">
+            {project.path}
+          </span>
           <BaseBranchControls
             baseBranch={baseBranch}
             branchOptions={branchOptions}
