@@ -106,6 +106,10 @@ class ActivityStore {
     this.setBusy(wsId, busy, false);
   }
 
+  isBusy(wsId: string): boolean {
+    return this.states.get(wsId) || false;
+  }
+
   subscribe(wsId: string, fn: Listener) {
     this.ensureSubscribed();
     this.subscribedIds.add(wsId);

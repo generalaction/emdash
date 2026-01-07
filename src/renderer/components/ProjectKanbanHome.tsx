@@ -124,9 +124,6 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
         if (!res?.success) {
           throw new Error(res?.error || 'Failed to update base branch');
         }
-        if (project.gitInfo) {
-          project.gitInfo.baseRef = trimmed;
-        }
         setBranchOptions((prev) => {
           if (prev.some((opt) => opt.value === trimmed)) return prev;
           return [{ value: trimmed, label: trimmed }, ...prev];
@@ -197,23 +194,42 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
     setIsBulkDeleting(true);
 
     const deletedNames: string[] = [];
+    const failedTasks: Array<{ name: string; error: string }> = [];
+
     try {
       for (const task of toDelete) {
         try {
           const result = await onDeleteTask(project, task, { silent: true });
           if (result !== false) {
             deletedNames.push(task.name);
+          } else {
+            failedTasks.push({ name: task.name, error: 'Deletion cancelled' });
           }
-        } catch {
-          // Continue deleting remaining tasks
+        } catch (error) {
+          failedTasks.push({
+            name: task.name,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     } finally {
       setIsBulkDeleting(false);
-      exitSelectMode();
+
+      // Only clear selection if ALL succeeded
+      if (failedTasks.length === 0) {
+        exitSelectMode();
+      } else {
+        // Keep failed tasks selected for retry
+        const failedIds = new Set(
+          toDelete.filter((t) => failedTasks.some((f) => f.name === t.name)).map((t) => t.id)
+        );
+        setSelectedIds(failedIds);
+      }
     }
 
-    if (deletedNames.length > 0) {
+    // Show appropriate toast
+    if (deletedNames.length > 0 && failedTasks.length === 0) {
+      // All succeeded
       const maxNames = 3;
       const displayNames = deletedNames.slice(0, maxNames).join(', ');
       const remaining = deletedNames.length - maxNames;
@@ -222,8 +238,40 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
         title: deletedNames.length === 1 ? 'Task deleted' : 'Tasks deleted',
         description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
       });
+    } else if (deletedNames.length > 0 && failedTasks.length > 0) {
+      // Partial success
+      const maxDeleted = 2;
+      const displayDeleted = deletedNames.slice(0, maxDeleted).join(', ');
+      const remainingDeleted = deletedNames.length - maxDeleted;
+
+      const maxFailed = 2;
+      const displayFailed = failedTasks
+        .slice(0, maxFailed)
+        .map((f) => f.name)
+        .join(', ');
+      const remainingFailed = failedTasks.length - maxFailed;
+
+      toast({
+        variant: 'destructive',
+        title: 'Partial deletion completed',
+        description: `Deleted: ${remainingDeleted > 0 ? `${displayDeleted} and ${remainingDeleted} more` : displayDeleted}. Failed: ${remainingFailed > 0 ? `${displayFailed} and ${remainingFailed} more` : displayFailed}. Failed tasks remain selected.`,
+      });
+    } else if (failedTasks.length > 0) {
+      // All failed
+      const maxNames = 3;
+      const displayNames = failedTasks
+        .slice(0, maxNames)
+        .map((f) => `${f.name}: ${f.error}`)
+        .join('; ');
+      const remaining = failedTasks.length - maxNames;
+
+      toast({
+        variant: 'destructive',
+        title: 'Deletion failed',
+        description: remaining > 0 ? `${displayNames}; ${remaining} more failed` : displayNames,
+      });
     }
-  }, [exitSelectMode, onDeleteTask, project, selectedTasks, toast]);
+  }, [exitSelectMode, onDeleteTask, project, selectedTasks, toast, setSelectedIds]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -260,9 +308,7 @@ const ProjectKanbanHome: React.FC<ProjectKanbanHomeProps> = ({
         </div>
 
         <div className="flex flex-col gap-3">
-          <span className="break-all font-mono text-sm text-muted-foreground">
-            {project.path}
-          </span>
+          <span className="break-all font-mono text-sm text-muted-foreground">{project.path}</span>
           <BaseBranchControls
             baseBranch={baseBranch}
             branchOptions={branchOptions}

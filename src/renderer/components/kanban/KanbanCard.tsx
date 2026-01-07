@@ -219,4 +219,12 @@ const KanbanCard: React.FC<{
   );
 };
 
-export default KanbanCard;
+export default React.memo(KanbanCard, (prevProps, nextProps) => {
+  return (
+    prevProps.ws.id === nextProps.ws.id &&
+    prevProps.ws.name === nextProps.ws.name &&
+    prevProps.ws.branch === nextProps.ws.branch &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isSelectMode === nextProps.isSelectMode
+  );
+});

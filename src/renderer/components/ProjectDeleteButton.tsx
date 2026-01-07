@@ -97,7 +97,10 @@ export const ProjectDeleteButton: React.FC<Props> = ({
               >
                 {isDeleting ? (
                   <>
-                    <Spinner className={cn('h-3.5 w-3.5', variant === 'button' && 'mr-2')} size="sm" />
+                    <Spinner
+                      className={cn('h-3.5 w-3.5', variant === 'button' && 'mr-2')}
+                      size="sm"
+                    />
                     {variant === 'button' && 'Deleting...'}
                   </>
                 ) : (
