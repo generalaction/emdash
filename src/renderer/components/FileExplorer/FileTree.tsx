@@ -331,8 +331,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
       // Otherwise, preserve the isLoaded state from previous tree
       const preserveLoadedState = (newNodes: FileNode[], oldNodes: FileNode[]): FileNode[] => {
-        return newNodes.map(newNode => {
-          const oldNode = oldNodes.find(n => n.path === newNode.path);
+        return newNodes.map((newNode) => {
+          const oldNode = oldNodes.find((n) => n.path === newNode.path);
           if (oldNode && oldNode.isLoaded && oldNode.children) {
             // Preserve the loaded children
             return {
@@ -341,7 +341,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
               children: preserveLoadedState(
                 buildNodesFromPath(newNode.path, allFiles),
                 oldNode.children
-              )
+              ),
             };
           }
           return newNode;

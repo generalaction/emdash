@@ -302,7 +302,6 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
 
   return (
     <div className="fixed inset-0 z-30 flex flex-col bg-background">
-      {/* Header */}
       <div className="flex h-9 items-center justify-between border-b border-border bg-muted/30 px-3">
         <div className="flex items-center gap-2">
           <FolderOpen className="h-4 w-4 text-muted-foreground" />
@@ -340,9 +339,7 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
           className="relative flex flex-col border-r border-border bg-muted/5"
           style={{ width: explorerWidth }}
         >
-          {/* Explorer tabs */}
           <div className="flex flex-1 flex-col overflow-hidden">
-            {/* Tab buttons */}
             <div className="flex h-8 items-center border-b border-border px-2">
               <button className="border-b-2 border-primary px-2 py-1 text-xs font-medium">
                 FILES
@@ -352,7 +349,6 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
               </button>
             </div>
 
-            {/* Files tab content */}
             <div className="flex flex-1 flex-col overflow-hidden">
               <div className="flex items-center justify-between border-b border-border px-2 py-1">
                 <span className="text-xs font-medium uppercase text-muted-foreground">
@@ -372,7 +368,6 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
             </div>
           </div>
 
-          {/* Resize handle */}
           <div
             className={cn(
               'absolute -right-1 top-0 h-full w-2 cursor-col-resize',
@@ -386,9 +381,7 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
           />
         </div>
 
-        {/* Editor area */}
         <div className="flex flex-1 flex-col">
-          {/* Tabs for open files */}
           {openFiles.size > 0 && (
             <div className="flex h-8 items-center overflow-x-auto border-b border-border bg-muted/10">
               {Array.from(openFiles.entries()).map(([path, file]) => (
