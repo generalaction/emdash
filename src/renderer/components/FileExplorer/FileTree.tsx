@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FileIcon } from './FileIcons';
+import { useContentSearch } from '@/hooks/useContentSearch';
+import { SearchInput } from './SearchInput';
+import { ContentSearchResults } from './ContentSearchResults';
 
 // File node interface matching VS Code's structure
 export interface FileNode {
@@ -137,6 +140,16 @@ export const FileTree: React.FC<FileTreeProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allFiles, setAllFiles] = useState<any[]>([]);
+
+  // Use the clean content search hook
+  const {
+    searchQuery,
+    searchResults,
+    isSearching,
+    error: searchError,
+    handleSearchChange,
+    clearSearch,
+  } = useContentSearch(rootPath);
 
   // Default exclude patterns (VS Code defaults)
   const defaultExcludePatterns = useMemo(
@@ -389,6 +402,17 @@ export const FileTree: React.FC<FileTreeProps> = ({
     });
   }, []);
 
+  // Handle clicking on a search result
+  const handleSearchResultClick = useCallback(
+    (filePath: string) => {
+      onSelectFile(filePath);
+      if (onOpenFile) {
+        onOpenFile(filePath);
+      }
+    },
+    [onSelectFile, onOpenFile]
+  );
+
   if (loading) {
     return (
       <div className={cn('p-4 text-sm text-muted-foreground', className)}>Loading files...</div>
@@ -404,20 +428,48 @@ export const FileTree: React.FC<FileTreeProps> = ({
   }
 
   return (
-    <div className={cn('overflow-auto', className)} role="tree" aria-label="File explorer">
-      {tree.map((child) => (
-        <TreeNode
-          key={child.id}
-          node={child}
-          level={0}
-          selectedPath={selectedFile}
-          expandedPaths={expandedPaths}
-          onToggleExpand={handleToggleExpand}
-          onSelect={onSelectFile}
-          onOpen={onOpenFile}
-          onLoadChildren={loadChildren}
+    <div className={cn('flex flex-col', className)}>
+      {/* Search bar */}
+      <div className="border-b border-border p-2">
+        <SearchInput
+          value={searchQuery}
+          onChange={handleSearchChange}
+          onClear={clearSearch}
+          placeholder="Search (min 2 chars)..."
         />
-      ))}
+      </div>
+
+      {/* Content area */}
+      <div className="flex-1 overflow-auto">
+        {searchQuery ? (
+          // Search results view
+          <div className="p-2">
+            <ContentSearchResults
+              results={searchResults}
+              isSearching={isSearching}
+              error={searchError}
+              onResultClick={handleSearchResultClick}
+            />
+          </div>
+        ) : (
+          // File tree view
+          <div role="tree" aria-label="File explorer">
+            {tree.map((child) => (
+              <TreeNode
+                key={child.id}
+                node={child}
+                level={0}
+                selectedPath={selectedFile}
+                expandedPaths={expandedPaths}
+                onToggleExpand={handleToggleExpand}
+                onSelect={onSelectFile}
+                onOpen={onOpenFile}
+                onLoadChildren={loadChildren}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
