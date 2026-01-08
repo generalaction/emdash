@@ -164,9 +164,6 @@ export class WorktreeService {
         throw new Error(`Worktree directory was not created: ${worktreePath}`);
       }
 
-      // Ensure codex logs are ignored in this worktree
-      this.ensureCodexLogIgnored(worktreePath);
-
       // Preserve .env and other gitignored config files from source to worktree
       try {
         const patterns = this.getPreservePatterns(projectPath);
@@ -1027,37 +1024,6 @@ export class WorktreeService {
     return result;
   }
 
-  private ensureCodexLogIgnored(worktreePath: string) {
-    try {
-      const gitMeta = path.join(worktreePath, '.git');
-      let gitDir = gitMeta;
-      if (fs.existsSync(gitMeta) && fs.statSync(gitMeta).isFile()) {
-        try {
-          const content = fs.readFileSync(gitMeta, 'utf8');
-          const m = content.match(/gitdir:\s*(.*)\s*$/i);
-          if (m && m[1]) {
-            gitDir = path.resolve(worktreePath, m[1].trim());
-          }
-        } catch {}
-      }
-      const excludePath = path.join(gitDir, 'info', 'exclude');
-      try {
-        const dir = path.dirname(excludePath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        let current = '';
-        try {
-          current = fs.readFileSync(excludePath, 'utf8');
-        } catch {}
-        if (!current.includes('codex-stream.log')) {
-          fs.appendFileSync(
-            excludePath,
-            (current.endsWith('\n') || current === '' ? '' : '\n') + 'codex-stream.log\n'
-          );
-        }
-      } catch {}
-    } catch {}
-  }
-
   private ensureClaudeAutoApprove(worktreePath: string) {
     try {
       const claudeDir = path.join(worktreePath, '.claude');
@@ -1152,8 +1118,6 @@ export class WorktreeService {
     if (!fs.existsSync(worktreePath)) {
       throw new Error(`Worktree directory was not created: ${worktreePath}`);
     }
-
-    this.ensureCodexLogIgnored(worktreePath);
 
     // Preserve .env and other gitignored config files from source to worktree
     try {
