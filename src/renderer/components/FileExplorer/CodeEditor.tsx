@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { X, FolderOpen, FileText, PanelRight, Save } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import { Button } from '../ui/button';
@@ -65,9 +65,76 @@ const DEFAULT_EXCLUDES = [
   '**/.windsurf',
 ];
 
+// Configure Monaco TypeScript settings
+const configureMonaco = (monaco: any) => {
+  try {
+    // Set TypeScript compiler options to match tsconfig.json
+    if (monaco?.languages?.typescript?.typescriptDefaults) {
+      monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget?.ES2020 || 99,
+        lib: ['es2020', 'dom', 'dom.iterable'],
+        allowJs: false,
+        skipLibCheck: true,
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+        strict: true,
+        forceConsistentCasingInFileNames: true,
+        module: monaco.languages.typescript.ModuleKind?.ESNext || 99,
+        moduleResolution: monaco.languages.typescript.ModuleResolutionKind?.NodeJs || 2,
+        resolveJsonModule: true,
+        isolatedModules: true,
+        noEmit: true,
+        jsx: monaco.languages.typescript.JsxEmit?.ReactJSX || 4,
+        baseUrl: '.',
+        paths: {
+          '@/*': ['./src/renderer/*'],
+          '@shared/*': ['./src/shared/*'],
+          '#types/*': ['./src/types/*'],
+          '#types': ['./src/types/index.ts']
+        },
+        typeRoots: ['./node_modules/@types'],
+        types: ['react', 'react-dom', 'node']
+      });
+
+      // Set diagnostics options for better error reporting
+      monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: false,
+        noSyntaxValidation: false,
+        diagnosticCodesToIgnore: [
+          2307, // Cannot find module (for project-specific imports)
+          2792, // Cannot find module (for path aliases)
+          2304, // Cannot find name (for global types)
+          1149, // File name differs from already included file (case sensitivity)
+        ]
+      });
+
+      // Set eager model sync to improve performance
+      monaco.languages.typescript.typescriptDefaults.setEagerModelSync(true);
+    }
+
+    // Configure JavaScript defaults similarly
+    if (monaco?.languages?.typescript?.javascriptDefaults) {
+      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget?.ES2020 || 99,
+        lib: ['es2020', 'dom', 'dom.iterable'],
+        allowJs: true,
+        checkJs: false,
+        jsx: monaco.languages.typescript.JsxEmit?.React || 2,
+        module: monaco.languages.typescript.ModuleKind?.ESNext || 99,
+        moduleResolution: monaco.languages.typescript.ModuleResolutionKind?.NodeJs || 2
+      });
+
+      monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
+    }
+  } catch (error) {
+    console.warn('Failed to configure Monaco TypeScript settings:', error);
+  }
+};
+
 export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorProps) {
   const { effectiveTheme } = useTheme();
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
+  const monacoRef = useRef<any>(null);
 
   // File management state
   const [openFiles, setOpenFiles] = useState<Map<string, OpenFile>>(new Map());
@@ -85,10 +152,19 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
   const activeFile = activeFilePath ? openFiles.get(activeFilePath) : null;
   const hasUnsavedChanges = Array.from(openFiles.values()).some((f) => f.isDirty);
 
-  // Component mount effect
+  // Initialize Monaco once when first loaded
   useEffect(() => {
-    // Component mounted
-  }, [taskPath, taskName]);
+    const initMonaco = async () => {
+      const { loader } = await import('@monaco-editor/react');
+      loader.init().then((monaco) => {
+        if (!monacoRef.current) {
+          monacoRef.current = monaco;
+          configureMonaco(monaco);
+        }
+      });
+    };
+    initMonaco();
+  }, []);
 
   // Check if file is an image
   const isImageFile = (filePath: string): boolean => {
@@ -228,6 +304,12 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
   // Handle editor mount
   const handleEditorMount = useCallback(
     (editor: any, monaco: any) => {
+      // Configure Monaco if not already done
+      if (!monacoRef.current) {
+        monacoRef.current = monaco;
+        configureMonaco(monaco);
+      }
+
       // Add keyboard shortcuts
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
         saveFile();
@@ -235,6 +317,27 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
 
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS, () => {
         saveAllFiles();
+      });
+
+      // Configure editor-specific settings
+      editor.updateOptions({
+        quickSuggestions: {
+          other: true,
+          comments: false,
+          strings: true
+        },
+        suggestOnTriggerCharacters: true,
+        parameterHints: {
+          enabled: true
+        },
+        wordBasedSuggestions: false,
+        suggest: {
+          showKeywords: true,
+          showSnippets: true,
+          showClasses: true,
+          showFunctions: true,
+          showVariables: true
+        }
       });
     },
     [saveFile, saveAllFiles]
