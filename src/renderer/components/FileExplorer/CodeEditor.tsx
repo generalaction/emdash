@@ -19,10 +19,12 @@ import {
 import { FileTree } from './FileTree';
 import { FileTabs } from './FileTabs';
 import { EditorHeader } from './EditorHeader';
+import { FolderOpen, GitBranch } from 'lucide-react';
 
 interface CodeEditorProps {
   taskPath: string;
   taskName: string;
+  projectName: string;
   onClose: () => void;
 }
 
@@ -30,7 +32,7 @@ interface CodeEditorProps {
  * Code Editor Component
  * A VS Code-like file editor with file tree, tabs, and Monaco editor
  */
-export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorProps) {
+export default function CodeEditor({ taskPath, taskName, projectName, onClose }: CodeEditorProps) {
   const { effectiveTheme } = useTheme();
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
   const monacoRef = useRef<any>(null);
@@ -148,6 +150,8 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
       <div className="flex flex-1 overflow-hidden">
         <FileExplorer
           taskPath={taskPath}
+          taskName={taskName}
+          projectName={projectName}
           explorerWidth={explorerWidth}
           isResizing={isResizing}
           selectedFile={activeFilePath}
@@ -181,6 +185,8 @@ export default function CodeEditor({ taskPath, taskName, onClose }: CodeEditorPr
  */
 interface FileExplorerProps {
   taskPath: string;
+  taskName: string;
+  projectName: string;
   explorerWidth: number;
   isResizing: boolean;
   selectedFile: string | null;
@@ -191,6 +197,8 @@ interface FileExplorerProps {
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
   taskPath,
+  taskName,
+  projectName,
   explorerWidth,
   isResizing,
   selectedFile,
@@ -203,6 +211,17 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     style={{ width: explorerWidth }}
   >
     <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="border-b border-border bg-muted/20">
+        <div className="flex items-center px-3 py-1.5">
+          <FolderOpen className="h-3.5 w-3.5 text-muted-foreground mr-1.5" />
+          <span className="text-xs font-medium text-foreground">{projectName}</span>
+        </div>
+        <div className="flex items-center px-3 py-1.5 border-t border-border/50">
+          <GitBranch className="h-3.5 w-3.5 text-muted-foreground mr-1.5" />
+          <span className="text-xs font-medium text-foreground">{taskName}</span>
+        </div>
+      </div>
+
       <div className="flex h-8 items-center border-b border-border px-2">
         <button className="border-b-2 border-primary px-2 py-1 text-xs font-medium">FILES</button>
       </div>

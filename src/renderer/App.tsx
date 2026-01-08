@@ -232,6 +232,12 @@ const AppContent: React.FC = () => {
         return;
       }
 
+      // Prevent sidebar from opening when in editor mode
+      if (showEditorMode && open) {
+        setOpen(false);
+        return;
+      }
+
       if (isMobile) {
         const currentSize = panel.getSize();
         if (typeof currentSize === 'number' && currentSize > 0) {
@@ -255,7 +261,7 @@ const AppContent: React.FC = () => {
         panel.collapse();
       }
     },
-    []
+    [showEditorMode]
   );
 
   const activateProjectView = useCallback((project: Project) => {
@@ -2003,6 +2009,7 @@ const AppContent: React.FC = () => {
                     collapsedSize={0}
                     collapsible
                     order={1}
+                    style={{ display: showEditorMode ? 'none' : undefined }}
                   >
                     <LeftSidebar
                       projects={projects}
@@ -2072,10 +2079,11 @@ const AppContent: React.FC = () => {
                 handleOpenProject={handleOpenProject}
                 handleOpenSettings={handleOpenSettings}
               />
-              {showEditorMode && activeTask && (
+              {showEditorMode && activeTask && selectedProject && (
                 <CodeEditor
                   taskPath={activeTask.path}
                   taskName={activeTask.name}
+                  projectName={selectedProject.name}
                   onClose={() => setShowEditorMode(false)}
                 />
               )}

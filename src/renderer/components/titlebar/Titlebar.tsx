@@ -212,7 +212,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <SidebarLeftToggleButton />
+          <SidebarLeftToggleButton isDisabled={isEditorOpen} />
           <SidebarRightToggleButton />
           <TooltipProvider delayDuration={200}>
             <Tooltip>

@@ -529,9 +529,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
         </div>
       </div>
 
-      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* File Explorer */}
         <div className="border-r border-border bg-muted/10" style={{ width: explorerWidth }}>
           <div className="flex h-10 items-center justify-between border-b border-border px-2">
             <span className="text-xs font-medium uppercase">Explorer</span>
@@ -560,7 +558,6 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
             )}
           </div>
 
-          {/* Resize handle */}
           <div
             className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500/50"
             style={{ right: -2 }}
@@ -568,7 +565,6 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
           />
         </div>
 
-        {/* Editor */}
         <div className="flex flex-1 flex-col">
           {selectedFile ? (
             <>
