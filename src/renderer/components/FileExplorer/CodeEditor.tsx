@@ -8,13 +8,13 @@ import { useFileManager } from '@/hooks/useFileManager';
 import {
   configureMonacoTypeScript,
   configureMonacoEditor,
-  addMonacoKeyboardShortcuts
+  addMonacoKeyboardShortcuts,
 } from '@/lib/monaco-config';
 import {
   DEFAULT_EXCLUDE_PATTERNS,
   EXPLORER_WIDTH,
   EDITOR_THEMES,
-  DEFAULT_EDITOR_OPTIONS
+  DEFAULT_EDITOR_OPTIONS,
 } from '@/constants/file-explorer';
 import { FileTree } from './FileTree';
 import { FileTabs } from './FileTabs';
@@ -204,16 +204,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   >
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex h-8 items-center border-b border-border px-2">
-        <button className="border-b-2 border-primary px-2 py-1 text-xs font-medium">
-          FILES
-        </button>
+        <button className="border-b-2 border-primary px-2 py-1 text-xs font-medium">FILES</button>
       </div>
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-2 py-1">
-          <span className="text-xs font-medium uppercase text-muted-foreground">
-            Explorer
-          </span>
+          <span className="text-xs font-medium uppercase text-muted-foreground">Explorer</span>
         </div>
 
         <FileTree
@@ -322,9 +318,7 @@ const ImagePreview: React.FC<{ file: any }> = ({ file }) => (
         />
       </div>
       <div className="mt-4 text-center">
-        <div className="text-sm font-medium text-foreground">
-          {file.path.split('/').pop()}
-        </div>
+        <div className="text-sm font-medium text-foreground">{file.path.split('/').pop()}</div>
         <div className="mt-1 text-xs text-muted-foreground">{file.path}</div>
       </div>
     </div>

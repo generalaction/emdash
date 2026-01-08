@@ -132,8 +132,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       maxResults?: number;
       fileExtensions?: string[];
     }
-  ) =>
-    ipcRenderer.invoke('fs:searchContent', { root, query, options }),
+  ) => ipcRenderer.invoke('fs:searchContent', { root, query, options }),
   fsWriteFile: (root: string, relPath: string, content: string, mkdirs?: boolean) =>
     ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs }),
   fsRemove: (root: string, relPath: string) => ipcRenderer.invoke('fs:remove', { root, relPath }),

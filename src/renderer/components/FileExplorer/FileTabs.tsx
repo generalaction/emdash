@@ -50,13 +50,7 @@ interface FileTabProps {
 /**
  * Individual file tab component
  */
-const FileTab: React.FC<FileTabProps> = ({
-  path,
-  file,
-  isActive,
-  onClick,
-  onClose,
-}) => {
+const FileTab: React.FC<FileTabProps> = ({ path, file, isActive, onClick, onClose }) => {
   const fileName = path.split('/').pop() || 'Untitled';
 
   return (

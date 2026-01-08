@@ -43,9 +43,7 @@ const TaskInfo: React.FC<{
   <div className="flex items-center gap-2">
     <FolderOpen className="h-4 w-4 text-muted-foreground" />
     <span className="text-sm font-medium">{taskName}</span>
-    {hasUnsavedChanges && (
-      <span className="text-xs text-amber-500">● Unsaved changes</span>
-    )}
+    {hasUnsavedChanges && <span className="text-xs text-amber-500">● Unsaved changes</span>}
   </div>
 );
 
@@ -84,13 +82,7 @@ const EditorControls: React.FC<{
     >
       <PanelRight className="h-3.5 w-3.5" />
     </Button>
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-7 w-7"
-      onClick={onClose}
-      title="Close Editor"
-    >
+    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Close Editor">
       <X className="h-3.5 w-3.5" />
     </Button>
   </div>

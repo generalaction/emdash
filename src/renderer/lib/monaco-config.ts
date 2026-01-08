@@ -50,10 +50,10 @@ const TYPESCRIPT_COMPILER_OPTIONS = {
     '@/*': ['./src/renderer/*'],
     '@shared/*': ['./src/shared/*'],
     '#types/*': ['./src/types/*'],
-    '#types': ['./src/types/index.ts']
+    '#types': ['./src/types/index.ts'],
   },
   typeRoots: ['./node_modules/@types'],
-  types: ['react', 'react-dom', 'node']
+  types: ['react', 'react-dom', 'node'],
 };
 
 // JavaScript compiler options
@@ -160,11 +160,11 @@ export function configureMonacoEditor(editor: any, monaco: any): void {
     quickSuggestions: {
       other: true,
       comments: false,
-      strings: true
+      strings: true,
     },
     suggestOnTriggerCharacters: true,
     parameterHints: {
-      enabled: true
+      enabled: true,
     },
     wordBasedSuggestions: false,
     suggest: {
@@ -172,8 +172,8 @@ export function configureMonacoEditor(editor: any, monaco: any): void {
       showSnippets: true,
       showClasses: true,
       showFunctions: true,
-      showVariables: true
-    }
+      showVariables: true,
+    },
   });
 }
 

@@ -248,14 +248,46 @@ export function registerFsIpc(): void {
 
   // Binary file extensions to skip (blacklist approach)
   const BINARY_EXTENSIONS = new Set([
-    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg',
-    '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z',
-    '.exe', '.dll', '.so', '.dylib', '.a', '.o',
-    '.mp3', '.mp4', '.avi', '.mov', '.wav', '.flac',
-    '.ttf', '.otf', '.woff', '.woff2', '.eot',
-    '.pyc', '.pyo', '.class', '.jar', '.war',
-    '.node', '.wasm', '.map',
-    '.DS_Store', '.lock',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.bmp',
+    '.ico',
+    '.svg',
+    '.pdf',
+    '.zip',
+    '.tar',
+    '.gz',
+    '.rar',
+    '.7z',
+    '.exe',
+    '.dll',
+    '.so',
+    '.dylib',
+    '.a',
+    '.o',
+    '.mp3',
+    '.mp4',
+    '.avi',
+    '.mov',
+    '.wav',
+    '.flac',
+    '.ttf',
+    '.otf',
+    '.woff',
+    '.woff2',
+    '.eot',
+    '.pyc',
+    '.pyo',
+    '.class',
+    '.jar',
+    '.war',
+    '.node',
+    '.wasm',
+    '.map',
+    '.DS_Store',
+    '.lock',
   ]);
 
   // Check if file is likely binary
@@ -294,13 +326,25 @@ export function registerFsIpc(): void {
   // Search for content in files - OPTIMIZED VERSION
   ipcMain.handle(
     'fs:searchContent',
-    async (_event, args: { root: string; query: string; options?: { caseSensitive?: boolean; maxResults?: number; fileExtensions?: string[] } }) => {
+    async (
+      _event,
+      args: {
+        root: string;
+        query: string;
+        options?: { caseSensitive?: boolean; maxResults?: number; fileExtensions?: string[] };
+      }
+    ) => {
       try {
         const { root, query, options = {} } = args;
-        const { caseSensitive = false, maxResults = DEFAULT_MAX_SEARCH_RESULTS, fileExtensions = [] } = options;
+        const {
+          caseSensitive = false,
+          maxResults = DEFAULT_MAX_SEARCH_RESULTS,
+          fileExtensions = [],
+        } = options;
 
         if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
-        if (!query || query.length < 2) return { success: false, error: 'Query too short (min 2 chars)' };
+        if (!query || query.length < 2)
+          return { success: false, error: 'Query too short (min 2 chars)' };
 
         const results: Array<{
           file: string;
@@ -328,8 +372,10 @@ export function registerFsIpc(): void {
 
           // If user specified extensions, use those
           if (fileExtensions.length > 0) {
-            return fileExtensions.some(e => {
-              const normalizedExt = e.toLowerCase().startsWith('.') ? e.toLowerCase() : '.' + e.toLowerCase();
+            return fileExtensions.some((e) => {
+              const normalizedExt = e.toLowerCase().startsWith('.')
+                ? e.toLowerCase()
+                : '.' + e.toLowerCase();
               return ext === normalizedExt;
             });
           }
@@ -357,7 +403,7 @@ export function registerFsIpc(): void {
 
             // Only split lines if we found something
             const lines = content.split('\n');
-            const fileMatches: typeof results[0]['matches'] = [];
+            const fileMatches: (typeof results)[0]['matches'] = [];
 
             for (let lineNum = 0; lineNum < lines.length && totalMatches < maxResults; lineNum++) {
               const line = lines[lineNum];
@@ -369,7 +415,10 @@ export function registerFsIpc(): void {
               while (columnIndex !== -1 && totalMatches < maxResults) {
                 // Create preview with context
                 const previewStart = Math.max(0, columnIndex - SEARCH_PREVIEW_CONTEXT_LENGTH);
-                const previewEnd = Math.min(line.length, columnIndex + query.length + SEARCH_PREVIEW_CONTEXT_LENGTH);
+                const previewEnd = Math.min(
+                  line.length,
+                  columnIndex + query.length + SEARCH_PREVIEW_CONTEXT_LENGTH
+                );
                 let preview = line.substring(previewStart, previewEnd).trim();
 
                 // Add ellipsis if truncated
@@ -380,7 +429,7 @@ export function registerFsIpc(): void {
                   line: lineNum + 1,
                   column: columnIndex + 1,
                   text: line.substring(columnIndex, columnIndex + query.length),
-                  preview: preview
+                  preview: preview,
                 });
 
                 totalMatches++;
@@ -392,7 +441,7 @@ export function registerFsIpc(): void {
               const relativePath = path.relative(root, filePath);
               results.push({
                 file: relativePath,
-                matches: fileMatches
+                matches: fileMatches,
               });
             }
           } catch (err) {
@@ -437,7 +486,7 @@ export function registerFsIpc(): void {
         const BATCH_SIZE = 10;
         for (let i = 0; i < files.length && totalMatches < maxResults; i += BATCH_SIZE) {
           const batch = files.slice(i, i + BATCH_SIZE);
-          await Promise.all(batch.map(file => searchInFile(file)));
+          await Promise.all(batch.map((file) => searchInFile(file)));
         }
 
         return { success: true, results };

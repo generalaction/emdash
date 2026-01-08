@@ -38,9 +38,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         className="w-full rounded-md border border-input bg-background py-1 pl-8 pr-8 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50"
         aria-label="Search input"
       />
-      {showClearButton && (
-        <ClearButton onClick={handleClearClick} disabled={disabled} />
-      )}
+      {showClearButton && <ClearButton onClick={handleClearClick} disabled={disabled} />}
     </div>
   );
 };
@@ -54,7 +52,7 @@ const SearchIcon: React.FC = () => (
 
 const ClearButton: React.FC<{ onClick: () => void; disabled?: boolean }> = ({
   onClick,
-  disabled = false
+  disabled = false,
 }) => (
   <button
     onClick={onClick}

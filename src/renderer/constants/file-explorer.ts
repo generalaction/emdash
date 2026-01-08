@@ -50,16 +50,7 @@ export const DEFAULT_EXCLUDE_PATTERNS = [
 ];
 
 // File extensions considered as images
-export const IMAGE_EXTENSIONS = [
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'svg',
-  'ico',
-  'bmp',
-];
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'];
 
 // UI Layout constants
 export const EXPLORER_WIDTH = {

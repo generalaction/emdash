@@ -58,14 +58,12 @@ const SearchResultItem: React.FC<{
     <div className="border-b border-border pb-2">
       <button
         onClick={() => onResultClick(result.file)}
-        className="w-full text-left hover:bg-accent/50 rounded p-1"
+        className="w-full rounded p-1 text-left hover:bg-accent/50"
         aria-label={`Open ${result.file}`}
       >
         <FileHeader fileName={fileName} filePath={result.file} />
         <MatchList matches={visibleMatches} />
-        {remainingMatchCount > 0 && (
-          <RemainingMatchesIndicator count={remainingMatchCount} />
-        )}
+        {remainingMatchCount > 0 && <RemainingMatchesIndicator count={remainingMatchCount} />}
       </button>
     </div>
   );
@@ -106,7 +104,7 @@ const MatchPreview: React.FC<{ match: any }> = ({ match }) => (
  * Indicator for additional matches
  */
 const RemainingMatchesIndicator: React.FC<{ count: number }> = ({ count }) => (
-  <div className="text-xs text-muted-foreground ml-5 mt-1">
+  <div className="ml-5 mt-1 text-xs text-muted-foreground">
     ... and {count} more {count === 1 ? 'match' : 'matches'}
   </div>
 );
