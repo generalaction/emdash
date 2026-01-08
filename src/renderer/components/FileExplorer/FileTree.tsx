@@ -429,17 +429,15 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      {/* Search bar */}
       <div className="border-b border-border p-2">
         <SearchInput
           value={searchQuery}
           onChange={handleSearchChange}
           onClear={clearSearch}
-          placeholder="Search (min 2 chars)..."
+          placeholder="Search..."
         />
       </div>
 
-      {/* Content area */}
       <div className="flex-1 overflow-auto">
         {searchQuery ? (
           // Search results view

@@ -45,9 +45,6 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   );
 };
 
-/**
- * Search icon component
- */
 const SearchIcon: React.FC = () => (
   <Search
     className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -55,9 +52,6 @@ const SearchIcon: React.FC = () => (
   />
 );
 
-/**
- * Clear button component
- */
 const ClearButton: React.FC<{ onClick: () => void; disabled?: boolean }> = ({
   onClick,
   disabled = false

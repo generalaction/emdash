@@ -12,10 +12,6 @@ interface ContentSearchResultsProps {
   onResultClick: (filePath: string) => void;
 }
 
-/**
- * Component responsible for displaying content search results
- * Single responsibility: Render search results with proper formatting
- */
 export const ContentSearchResults: React.FC<ContentSearchResultsProps> = ({
   results,
   isSearching,

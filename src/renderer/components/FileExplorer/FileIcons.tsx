@@ -1,5 +1,3 @@
-import React from 'react';
-
 // VS Code style file icons as SVG components
 export const FileIconType = {
   // TypeScript icon (blue TS)
