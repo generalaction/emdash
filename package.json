@@ -117,7 +117,7 @@
   },
   "build": {
     "appId": "com.emdash",
-    "productName": "emdash",
+    "productName": "Emdash",
     "directories": {
       "output": "release"
     },
