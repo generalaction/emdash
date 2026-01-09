@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileIcon } from './FileIconsEnhanced';
+import { FileIcon } from './FileIcons';
 import type { SearchResult } from '@/hooks/useContentSearch';
 
 // Constants for display limits

@@ -2,7 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ManagedFile } from '@/hooks/useFileManager';
-import { FileIcon } from './FileIconsEnhanced';
+import { FileIcon } from './FileIcons';
 
 interface FileTabsProps {
   openFiles: Map<string, ManagedFile>;
@@ -48,9 +48,6 @@ interface FileTabProps {
   onClose: (e: React.MouseEvent) => void;
 }
 
-/**
- * Individual file tab component
- */
 const FileTab: React.FC<FileTabProps> = ({ path, file, isActive, onClick, onClose }) => {
   const fileName = path.split('/').pop() || 'Untitled';
 

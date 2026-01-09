@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FileIcon } from './FileIconsEnhanced';
+import { FileIcon } from './FileIcons';
 import { useContentSearch } from '@/hooks/useContentSearch';
 import { SearchInput } from './SearchInput';
 import { ContentSearchResults } from './ContentSearchResults';
 
-// File node interface matching VS Code's structure
 export interface FileNode {
   id: string;
   name: string;
@@ -149,7 +148,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
     clearSearch,
   } = useContentSearch(rootPath);
 
-  // Default exclude patterns (VS Code defaults)
   const defaultExcludePatterns = useMemo(
     () => [
       'node_modules',
@@ -225,9 +223,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
         }
 
         if (dirPath) {
-          // We're in a subdirectory - check if this item is in our directory
           if (!item.path.startsWith(dirPath + '/')) {
-            return; // Skip items not in our directory
+            return; 
           }
           // Remove the dirPath prefix to get relative path
           const relativePath = item.path.substring(dirPath.length + 1);
