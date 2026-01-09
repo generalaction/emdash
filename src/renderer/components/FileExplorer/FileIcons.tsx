@@ -61,7 +61,7 @@ import {
 import { DiCoffeescript } from 'react-icons/di';
 import { FaFileImage } from 'react-icons/fa';
 
-// Icon mapping configuration - extracted for maintainability
+// Icon mapping configuration
 const SPECIAL_FILES: Record<string, { icon: React.ElementType; color: string; label: string }> = {
   'package.json': { icon: SiNpm, color: 'text-red-500', label: 'NPM package file' },
   'package-lock.json': { icon: SiNpm, color: 'text-red-400', label: 'NPM lock file' },

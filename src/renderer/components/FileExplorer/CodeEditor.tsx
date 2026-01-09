@@ -18,7 +18,6 @@ import {
 import { FileTree } from './FileTree';
 import { FileTabs } from './FileTabs';
 import { EditorHeader } from './EditorHeader';
-import { FolderOpen, GitBranch } from 'lucide-react';
 
 interface CodeEditorProps {
   taskPath: string;
@@ -258,11 +257,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   >
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex h-8 items-center border-b border-border bg-muted/10 px-3">
-        <FolderOpen className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-medium text-foreground">{projectName}</span>
       </div>
       <div className="flex h-8 items-center border-b border-border bg-muted/20 px-3">
-        <GitBranch className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-medium text-foreground">{taskName}</span>
       </div>
 
