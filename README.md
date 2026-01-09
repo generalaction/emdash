@@ -30,7 +30,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 <div align="center" style="margin:24px 0;">
 
-[Installation](#installation) • [Integrations](#integrations) • [Demo](#demo) • [Contributing](#contributing) • [FAQ](#faq)
+[Installation](#installation) • [Integrations](#integrations) • [Contributing](#contributing) • [FAQ](#faq)
 
 </div>
 
@@ -91,19 +91,6 @@ Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your 
 | [Linear](https://linear.app) | ✅ Supported | Connect with a Linear API key. |
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
 | [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
-
-# Demo
-
-#### Add an agents.md file
-![Agents.md](https://www.emdash.sh/addagentsfilescreenshot.png)
-#### Run multiple agents in parallel
-
-![Parallel agents](https://www.emdash.sh/parallel_loop.gif)
-
-#### Pass a Linear ticket
-
-![Passing Linear](https://www.emdash.sh/addlinearscreenshot.png)
-
 
 # Contributing
 
