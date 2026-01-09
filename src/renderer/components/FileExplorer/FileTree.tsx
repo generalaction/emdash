@@ -224,7 +224,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
         if (dirPath) {
           if (!item.path.startsWith(dirPath + '/')) {
-            return; 
+            return;
           }
           // Remove the dirPath prefix to get relative path
           const relativePath = item.path.substring(dirPath.length + 1);
