@@ -13,13 +13,11 @@
     "features/best-of-n",
     "features/kanban-view",
     "features/diff-view",
-    "---Product---",
-    "roadmap/index",
     "---Contributing---",
     "contributing/how-to-contribute",
-    "---Security---",
-    "security/telemetry",
-    "---Changelog---",
-    "changelog/index"
+    "---More---",
+    "roadmap/index",
+    "changelog/index",
+    "security/telemetry"
   ]
 }
