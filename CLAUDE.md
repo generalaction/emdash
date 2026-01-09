@@ -69,6 +69,7 @@ npm run docs:build   # Build documentation
 - **ALWAYS** run `npm run type-check` and `npm run lint` before committing
 - **ALWAYS** test changes in both main and renderer processes
 - **ALWAYS** use feature branches (never commit directly to `main`)
+- **ALWAYS** put temporary notes, reference files, or scratch content in `.notes/` (gitignored)
 
 ## Code Organization
 
