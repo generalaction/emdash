@@ -97,11 +97,7 @@ const TreeNode: React.FC<{
         )}
         {node.type === 'file' && (
           <span className="mr-1.5">
-            <FileIcon
-              filename={node.name}
-              isDirectory={false}
-              isExpanded={false}
-            />
+            <FileIcon filename={node.name} isDirectory={false} isExpanded={false} />
           </span>
         )}
         <span className="flex-1 truncate text-sm">{node.name}</span>

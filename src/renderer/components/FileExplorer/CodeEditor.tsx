@@ -213,11 +213,11 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="border-b border-border bg-muted/20">
         <div className="flex items-center px-3 py-1.5">
-          <FolderOpen className="h-3.5 w-3.5 text-muted-foreground mr-1.5" />
+          <FolderOpen className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">{projectName}</span>
         </div>
-        <div className="flex items-center px-3 py-1.5 border-t border-border/50">
-          <GitBranch className="h-3.5 w-3.5 text-muted-foreground mr-1.5" />
+        <div className="flex items-center border-t border-border/50 px-3 py-1.5">
+          <GitBranch className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">{taskName}</span>
         </div>
       </div>
@@ -259,9 +259,6 @@ const ResizeHandle: React.FC<{
   />
 );
 
-/**
- * Editor Content Area
- */
 interface EditorContentProps {
   activeFile: any;
   effectiveTheme: string;
@@ -302,9 +299,6 @@ const EditorContent: React.FC<EditorContentProps> = ({
   );
 };
 
-/**
- * No file open message
- */
 const NoFileOpen: React.FC = () => (
   <div className="flex flex-1 items-center justify-center text-muted-foreground">
     <div className="text-center">
@@ -314,9 +308,6 @@ const NoFileOpen: React.FC = () => (
   </div>
 );
 
-/**
- * Image preview component
- */
 const ImagePreview: React.FC<{ file: any }> = ({ file }) => (
   <div className="flex flex-1 items-center justify-center overflow-auto bg-background p-8">
     <div className="flex flex-col items-center">
@@ -336,9 +327,6 @@ const ImagePreview: React.FC<{ file: any }> = ({ file }) => (
   </div>
 );
 
-/**
- * Image error component
- */
 const ImageError: React.FC<{ file: any }> = ({ file }) => (
   <div className="flex flex-1 items-center justify-center overflow-auto bg-background p-8">
     <div className="text-center text-muted-foreground">

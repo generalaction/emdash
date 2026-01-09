@@ -9,7 +9,9 @@ interface SidebarLeftToggleButtonProps {
   isDisabled?: boolean;
 }
 
-const SidebarLeftToggleButton: React.FC<SidebarLeftToggleButtonProps> = ({ isDisabled = false }) => {
+const SidebarLeftToggleButton: React.FC<SidebarLeftToggleButtonProps> = ({
+  isDisabled = false,
+}) => {
   const { toggle, open } = useSidebar();
 
   const handleClick = async () => {
@@ -31,7 +33,7 @@ const SidebarLeftToggleButton: React.FC<SidebarLeftToggleButtonProps> = ({ isDis
             size="icon"
             onClick={handleClick}
             disabled={isDisabled}
-            className="h-8 w-8 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-background/80 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-8 w-8 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-background/80 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Toggle left sidebar"
             aria-disabled={isDisabled}
           >
