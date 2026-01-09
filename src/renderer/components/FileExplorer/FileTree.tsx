@@ -431,7 +431,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div className="border-b border-border p-2">
+      <div>
         <SearchInput
           value={searchQuery}
           onChange={handleSearchChange}

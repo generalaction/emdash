@@ -35,7 +35,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         onChange={handleInputChange}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-md border border-input bg-background py-1 pl-8 pr-8 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50"
+        className="w-full rounded-none border border-input bg-background py-1 pl-9 pr-8 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50"
         aria-label="Search input"
       />
       {showClearButton && <ClearButton onClick={handleClearClick} disabled={disabled} />}
@@ -45,7 +45,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
 
 const SearchIcon: React.FC = () => (
   <Search
-    className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+    className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
     aria-hidden="true"
   />
 );
