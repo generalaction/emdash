@@ -1,7 +1,8 @@
 import React from 'react';
-import { FileText, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ManagedFile } from '@/hooks/useFileManager';
+import { FileIcon } from './FileIcons';
 
 interface FileTabsProps {
   openFiles: Map<string, ManagedFile>;
@@ -62,7 +63,9 @@ const FileTab: React.FC<FileTabProps> = ({ path, file, isActive, onClick, onClos
       onClick={onClick}
       title={path}
     >
-      <FileText className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+      <span className="flex-shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+        <FileIcon filename={fileName} isDirectory={false} />
+      </span>
       <span className="text-xs">{fileName}</span>
       {file.isDirty && (
         <span className="text-gray-500" title="Unsaved changes">
