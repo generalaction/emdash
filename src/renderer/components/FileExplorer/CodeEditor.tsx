@@ -28,10 +28,6 @@ interface CodeEditorProps {
   onClose: () => void;
 }
 
-/**
- * Code Editor Component
- * A VS Code-like file editor with file tree, tabs, and Monaco editor
- */
 export default function CodeEditor({ taskPath, taskName, projectName, onClose }: CodeEditorProps) {
   const { effectiveTheme } = useTheme();
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
@@ -180,9 +176,6 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
   );
 }
 
-/**
- * File Explorer Panel
- */
 interface FileExplorerProps {
   taskPath: string;
   taskName: string;
@@ -239,9 +232,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   </div>
 );
 
-/**
- * Resize Handle for Explorer
- */
 const ResizeHandle: React.FC<{
   isResizing: boolean;
   onMouseDown: (e: React.MouseEvent) => void;
