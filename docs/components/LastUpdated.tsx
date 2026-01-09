@@ -6,8 +6,8 @@ export function LastUpdated({ date }: { date: Date }) {
   }).format(date);
 
   return (
-    <div className="mt-10 border-b border-fd-border pb-4">
-      <div className="flex justify-end text-xs text-fd-muted-foreground">
+    <div className="border-fd-border mt-10 border-b pb-4">
+      <div className="text-fd-muted-foreground flex justify-end text-xs">
         Last updated on {formatted}
       </div>
     </div>
