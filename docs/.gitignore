@@ -17,4 +17,6 @@ node_modules
 .tanstack
 
 src/routeTree.gen.ts
-.source.writing-guide.md
+.writing-guide.md
+.source/
+next-env.d.ts
