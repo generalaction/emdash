@@ -60,11 +60,9 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 
 3. Run checks locally
 
-```
-npm run format      # Format code with Prettier (required)
-npm run type-check  # TypeScript type checking
-npm run lint        # ESLint
-npm run build       # Build both main and renderer
+```bash
+npm run format   # Auto-fix formatting
+npm run check    # Verify formatting, lint, and types pass
 ```
 
 4. Commit using Conventional Commits
@@ -91,9 +89,8 @@ feat(docs): add changelog tab with GitHub releases integration
 
 TypeScript + ESLint + Prettier
 
-- Run `npm run format` before committing to ensure consistent formatting.
-- Keep code type‑safe. Run `npm run type-check` before pushing.
-- Run `npm run lint` and address warnings where reasonable.
+- Run `npm run format` to auto-fix formatting, then `npm run check` to verify everything passes.
+- Keep code type‑safe; address lint warnings where reasonable.
 
 Electron main (Node side)
 

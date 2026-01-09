@@ -23,6 +23,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
+    "check": "npm run format:check && npm run lint && npm run type-check",
     "docs": "cd docs && npm run dev",
     "docs:build": "cd docs && npm run build"
   },
