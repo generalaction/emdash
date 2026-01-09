@@ -362,10 +362,10 @@ const ResizeHandle: React.FC<{
   <div
     className={cn(
       'absolute -right-1 top-0 h-full w-2 cursor-col-resize',
-      'hover:bg-blue-500/20 active:bg-blue-500/30',
+      'transition-colors hover:bg-border/80',
       "after:absolute after:left-1/2 after:top-0 after:h-full after:w-0.5 after:-translate-x-1/2 after:content-['']",
-      'after:bg-border hover:after:bg-blue-500/50',
-      isResizing && 'bg-blue-500/30 after:bg-blue-500'
+      'after:bg-border',
+      isResizing && 'bg-border/80'
     )}
     onMouseDown={onMouseDown}
     title="Drag to resize"

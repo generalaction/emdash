@@ -54,7 +54,7 @@ export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ic
 
 // UI Layout constants
 export const EXPLORER_WIDTH = {
-  DEFAULT: 240,
+  DEFAULT: 288,
   MIN: 150,
   MAX: 600,
 };
