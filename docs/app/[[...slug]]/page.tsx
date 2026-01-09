@@ -19,7 +19,7 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
     <DocsPage toc={page.data.toc} full={page.data.full}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
-      <div className="flex items-center gap-2 border-b border-fd-border pt-2 pb-4">
+      <div className="border-fd-border flex items-center gap-2 border-b pb-4 pt-2">
         <CopyMarkdownButton markdownUrl={`${page.url}.md`} />
       </div>
       <DocsBody>
