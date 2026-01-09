@@ -2,7 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ManagedFile } from '@/hooks/useFileManager';
-import { FileIcon } from './FileIcons';
+import { FileIcon } from './FileIconsEnhanced';
 
 interface FileTabsProps {
   openFiles: Map<string, ManagedFile>;

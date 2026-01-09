@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileIcon } from './FileIcons';
+import { FileIcon } from './FileIconsEnhanced';
 import type { SearchResult } from '@/hooks/useContentSearch';
 
 // Constants for display limits
@@ -43,9 +43,6 @@ export const ContentSearchResults: React.FC<ContentSearchResultsProps> = ({
   );
 };
 
-/**
- * Individual search result item component
- */
 const SearchResultItem: React.FC<{
   result: SearchResult;
   onResultClick: (filePath: string) => void;
@@ -69,9 +66,6 @@ const SearchResultItem: React.FC<{
   );
 };
 
-/**
- * File header with icon and path
- */
 const FileHeader: React.FC<{ fileName: string; filePath: string }> = ({ fileName, filePath }) => (
   <div className="flex items-center gap-1">
     <FileIcon filename={fileName} isDirectory={false} />
@@ -79,9 +73,6 @@ const FileHeader: React.FC<{ fileName: string; filePath: string }> = ({ fileName
   </div>
 );
 
-/**
- * List of match previews
- */
 const MatchList: React.FC<{ matches: any[] }> = ({ matches }) => (
   <div className="ml-5 mt-1 space-y-1">
     {matches.map((match, index) => (
@@ -90,9 +81,6 @@ const MatchList: React.FC<{ matches: any[] }> = ({ matches }) => (
   </div>
 );
 
-/**
- * Single match preview
- */
 const MatchPreview: React.FC<{ match: any }> = ({ match }) => (
   <div className="text-xs text-muted-foreground">
     <span className="font-mono">Line {match.line}:</span>{' '}
@@ -100,39 +88,24 @@ const MatchPreview: React.FC<{ match: any }> = ({ match }) => (
   </div>
 );
 
-/**
- * Indicator for additional matches
- */
 const RemainingMatchesIndicator: React.FC<{ count: number }> = ({ count }) => (
   <div className="ml-5 mt-1 text-xs text-muted-foreground">
     ... and {count} more {count === 1 ? 'match' : 'matches'}
   </div>
 );
 
-/**
- * Loading state indicator
- */
 const SearchingIndicator: React.FC = () => (
   <div className="text-sm text-muted-foreground">Searching...</div>
 );
 
-/**
- * Error message display
- */
 const ErrorMessage: React.FC<{ error: string }> = ({ error }) => (
   <div className="text-sm text-destructive">Error: {error}</div>
 );
 
-/**
- * No results message
- */
 const NoResultsMessage: React.FC = () => (
   <div className="text-sm text-muted-foreground">No results found</div>
 );
 
-/**
- * Extract file name from path
- */
 function extractFileName(filePath: string): string {
   return filePath.split('/').pop() || '';
 }
