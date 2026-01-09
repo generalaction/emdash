@@ -5,6 +5,7 @@ import { getMonacoLanguageId } from '@/lib/diffUtils';
 import { useTheme } from '@/hooks/useTheme';
 import { useRightSidebar } from '../ui/right-sidebar';
 import { useFileManager } from '@/hooks/useFileManager';
+import { useEditorDiffDecorations } from '@/hooks/useEditorDiffDecorations';
 import {
   configureMonacoTypeScript,
   configureMonacoEditor,
@@ -18,6 +19,7 @@ import {
 import { FileTree } from './FileTree';
 import { FileTabs } from './FileTabs';
 import { EditorHeader } from './EditorHeader';
+import '@/styles/editor-diff.css';
 
 interface CodeEditorProps {
   taskPath: string;
@@ -30,6 +32,7 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
   const { effectiveTheme } = useTheme();
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
   const monacoRef = useRef<any>(null);
+  const editorRef = useRef<any>(null);
 
   // File management with custom hook
   const {
@@ -49,6 +52,38 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
   // UI state
   const [explorerWidth, setExplorerWidth] = useState(EXPLORER_WIDTH.DEFAULT);
   const [isResizing, setIsResizing] = useState(false);
+
+  // State to track when editor is ready
+  const [editorReady, setEditorReady] = useState(false);
+
+  // Diff decorations for showing git changes in the editor
+  const { refreshDecorations } = useEditorDiffDecorations({
+    editor: editorReady ? editorRef.current : null,
+    filePath: activeFilePath || '',
+    taskPath,
+  });
+
+  // Refresh diff decorations when active file changes or when file is saved
+  useEffect(() => {
+    if (editorReady && editorRef.current && activeFilePath && refreshDecorations) {
+      // Small delay to ensure file content is loaded and git has updated
+      const timer = setTimeout(() => {
+        refreshDecorations();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [activeFilePath, editorReady, refreshDecorations, activeFile?.isDirty]);
+
+  // Refresh decorations after save
+  useEffect(() => {
+    if (editorReady && !isSaving && !hasUnsavedChanges && refreshDecorations) {
+      // After save, wait a bit for git to update
+      const timer = setTimeout(() => {
+        refreshDecorations();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isSaving, hasUnsavedChanges, editorReady, refreshDecorations]);
 
   // Initialize Monaco once when first loaded
   useEffect(() => {
@@ -94,6 +129,9 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
   // Handle editor mount
   const handleEditorMount = useCallback(
     (editor: any, monaco: any) => {
+      // Store editor reference
+      editorRef.current = editor;
+
       // Configure Monaco if not already done
       if (!monacoRef.current) {
         monacoRef.current = monaco;
@@ -130,13 +168,36 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
       // Configure editor options
       configureMonacoEditor(editor, monaco);
 
+      // Enable glyph margin for diff indicators
+      editor.updateOptions({
+        glyphMargin: true,
+      });
+
       // Add keyboard shortcuts
       addMonacoKeyboardShortcuts(editor, monaco, {
-        onSave: saveFile,
+        onSave: async () => {
+          await saveFile();
+          // Refresh decorations after save
+          setTimeout(() => {
+            if (refreshDecorations) {
+              refreshDecorations();
+            }
+          }, 600);
+        },
         onSaveAll: saveAllFiles,
       });
+
+      // Mark editor as ready
+      setEditorReady(true);
+
+      // Refresh decorations when editor is ready
+      setTimeout(() => {
+        if (refreshDecorations) {
+          refreshDecorations();
+        }
+      }, 100);
     },
-    [saveFile, saveAllFiles]
+    [saveFile, saveAllFiles, refreshDecorations]
   );
 
   // Handle editor content change
