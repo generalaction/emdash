@@ -74,7 +74,7 @@ export const DEFAULT_EDITOR_OPTIONS = {
   fontSize: 13,
   fontFamily: 'Menlo, Monaco, "Courier New", monospace',
   lineNumbers: 'on' as const,
-  rulers: [80, 120],
+  rulers: [],
   wordWrap: 'on' as const,
   automaticLayout: true,
   scrollBeyondLastLine: false,
