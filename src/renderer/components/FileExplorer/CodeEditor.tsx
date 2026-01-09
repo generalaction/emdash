@@ -260,7 +260,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       <div className="flex h-8 items-center border-b border-border bg-muted/10 px-3">
         <FolderOpen className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-medium text-foreground">{projectName}</span>
-        <span className="mx-1.5 text-muted-foreground">/</span>
+      </div>
+      <div className="flex h-8 items-center border-b border-border bg-muted/20 px-3">
         <GitBranch className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-medium text-foreground">{taskName}</span>
       </div>
