@@ -13,7 +13,6 @@ import {
 import {
   DEFAULT_EXCLUDE_PATTERNS,
   EXPLORER_WIDTH,
-  EDITOR_THEMES,
   DEFAULT_EDITOR_OPTIONS,
 } from '@/constants/file-explorer';
 import { FileTree } from './FileTree';
@@ -60,6 +59,33 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
         if (!monacoRef.current) {
           monacoRef.current = monaco;
           configureMonacoTypeScript(monaco);
+
+          // Define custom themes with matching background colors
+          monaco.editor.defineTheme('custom-dark', {
+            base: 'vs-dark',
+            inherit: true,
+            rules: [],
+            colors: {
+              'editor.background': '#1e293b', // slate-800 - matches diff viewer
+              'editor.foreground': '#e2e8f0',
+              'editor.lineHighlightBackground': '#334155',
+              'editorLineNumber.foreground': '#64748b',
+              'editorGutter.background': '#1e293b',
+            },
+          });
+
+          monaco.editor.defineTheme('custom-light', {
+            base: 'vs',
+            inherit: true,
+            rules: [],
+            colors: {
+              'editor.background': '#f8fafc', // slate-50 - matches diff viewer
+              'editor.foreground': '#1e293b',
+              'editor.lineHighlightBackground': '#f1f5f9',
+              'editorLineNumber.foreground': '#94a3b8',
+              'editorGutter.background': '#f8fafc',
+            },
+          });
         }
       });
     };
@@ -74,6 +100,33 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
         monacoRef.current = monaco;
         configureMonacoTypeScript(monaco);
       }
+
+      // Define custom themes with matching background colors
+      monaco.editor.defineTheme('custom-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': '#1e293b', // slate-800 - matches diff viewer
+          'editor.foreground': '#e2e8f0',
+          'editor.lineHighlightBackground': '#334155',
+          'editorLineNumber.foreground': '#64748b',
+          'editorGutter.background': '#1e293b',
+        },
+      });
+
+      monaco.editor.defineTheme('custom-light', {
+        base: 'vs',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': '#f8fafc', // slate-50 - matches diff viewer
+          'editor.foreground': '#1e293b',
+          'editor.lineHighlightBackground': '#f1f5f9',
+          'editorLineNumber.foreground': '#94a3b8',
+          'editorGutter.background': '#f8fafc',
+        },
+      });
 
       // Configure editor options
       configureMonacoEditor(editor, monaco);
@@ -279,7 +332,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
         value={activeFile.content}
         onChange={onEditorChange}
         onMount={onEditorMount}
-        theme={effectiveTheme === 'dark' ? EDITOR_THEMES.DARK : EDITOR_THEMES.LIGHT}
+        theme={effectiveTheme === 'dark' ? 'custom-dark' : 'custom-light'}
         options={DEFAULT_EDITOR_OPTIONS}
       />
     </div>
