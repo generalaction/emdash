@@ -1,5 +1,5 @@
 ---
-title: How to Contribute
+title: Contributing
 description: Help improve Emdash - contribution guidelines and development setup
 ---
 
@@ -165,12 +165,14 @@ Then push to trigger the CI/CD pipeline.
 Two GitHub Actions workflows trigger on version tags:
 
 **macOS Release** (`.github/workflows/release.yml`):
+
 1. Builds the TypeScript and Vite bundles
 2. Signs the app with Apple Developer ID
 3. Notarizes via Apple's notary service
 4. Creates a GitHub Release with DMG artifacts for arm64 and x64
 
 **Linux/Nix Build** (`.github/workflows/nix-build.yml`):
+
 1. Computes the correct `npmDepsHash` from `package-lock.json`
 2. Builds the x86_64-linux package via Nix flake
 3. Pushes build artifacts to Cachix
