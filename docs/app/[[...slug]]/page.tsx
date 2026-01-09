@@ -4,9 +4,10 @@ import { notFound } from 'next/navigation';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { Metadata } from 'next';
 import { CopyMarkdownButton } from '@/components/CopyMarkdownButton';
+import { LastUpdated } from '@/components/LastUpdated';
 import { getGithubLastEdit } from 'fumadocs-core/content/github';
 
-async function getLastModified(filePath: string): Promise<Date | null> {
+async function getLastModifiedFromGitHub(filePath: string): Promise<Date | null> {
   if (process.env.NODE_ENV === 'development') {
     return null;
   }
@@ -33,15 +34,16 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
   }
 
   const MDX = page.data.body;
-  const filePath = slug?.join('/') || 'index';
-  const lastModified = await getLastModified(filePath);
+
+  // Prefer plugin-derived lastModified, fallback to GitHub API
+  let lastModified: Date | undefined = page.data.lastModified;
+  if (!lastModified) {
+    const filePath = slug?.join('/') || 'index';
+    lastModified = (await getLastModifiedFromGitHub(filePath)) ?? undefined;
+  }
 
   return (
-    <DocsPage
-      toc={page.data.toc}
-      full={page.data.full}
-      lastUpdate={lastModified ?? undefined}
-    >
+    <DocsPage toc={page.data.toc} full={page.data.full}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
       <div className="border-fd-border flex items-center gap-2 border-b pb-4 pt-2">
@@ -50,6 +52,7 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
       <DocsBody>
         <MDX components={{ ...defaultMdxComponents }} />
       </DocsBody>
+      {lastModified && <LastUpdated date={lastModified} />}
     </DocsPage>
   );
 }
