@@ -18,8 +18,7 @@ export function resolveDatabasePath(options: ResolveDatabasePathOptions = {}): s
   }
 
   // Dev safety: prior versions sometimes resolved userData under the default Electron app
-  // (e.g. ~/Library/Application Support/Electron). If we now have a new app name directory,
-  // migrate the old DB over so users don't "lose" their data when running from source.
+  // (e.g. ~/Library/Application Support/Electron).
   try {
     const userDataParent = dirname(userDataPath);
     const legacyDirs = ['Electron', 'emdash', 'Emdash'];

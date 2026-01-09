@@ -20,7 +20,7 @@ interface DiffCacheEntry {
 }
 
 interface UseEditorDiffDecorationsOptions {
-  editor: any; // Monaco editor instance - we keep 'any' as Monaco types are complex to import
+  editor: any; // Monaco editor instance
   filePath: string;
   taskPath: string;
 }
@@ -77,8 +77,8 @@ export function useEditorDiffDecorations({
 
       // If all lines are marked as 'add', it might mean the file is untracked or new
       // In that case, we should not show any decorations
-      const allAdded = lines.every(line => line.type === 'add');
-      const allContext = lines.every(line => line.type === 'context');
+      const allAdded = lines.every((line) => line.type === 'add');
+      const allContext = lines.every((line) => line.type === 'context');
 
       if (allAdded || allContext) {
         // File appears to be untracked or has no changes
@@ -124,7 +124,7 @@ export function useEditorDiffDecorations({
 
       // Remove duplicates and sort by line number
       const uniqueDiffLines = Array.from(
-        new Map(diffLines.map(item => [`${item.lineNumber}-${item.type}`, item])).values()
+        new Map(diffLines.map((item) => [`${item.lineNumber}-${item.type}`, item])).values()
       ).sort((a, b) => a.lineNumber - b.lineNumber);
 
       // Cache the result
@@ -141,59 +141,65 @@ export function useEditorDiffDecorations({
   }, [filePath, taskPath]);
 
   // Apply decorations to the editor
-  const applyDecorations = useCallback((diffLines: DiffLine[]) => {
-    if (!editor || !editor.getModel()) {
-      return;
-    }
-
-    const isDark = effectiveTheme === 'dark';
-    const newDecorations: any[] = [];
-
-    for (const diff of diffLines) {
-      let className = '';
-      let glyphMarginClassName = '';
-
-      if (diff.type === 'add') {
-        className = isDark ? 'diff-line-added-dark' : 'diff-line-added-light';
-        glyphMarginClassName = 'diff-glyph-added';
-      } else if (diff.type === 'modify') {
-        className = isDark ? 'diff-line-modified-dark' : 'diff-line-modified-light';
-        glyphMarginClassName = 'diff-glyph-modified';
-      } else if (diff.type === 'delete') {
-        className = isDark ? 'diff-line-deleted-dark' : 'diff-line-deleted-light';
-        glyphMarginClassName = 'diff-glyph-deleted';
+  const applyDecorations = useCallback(
+    (diffLines: DiffLine[]) => {
+      if (!editor || !editor.getModel()) {
+        return;
       }
 
-      newDecorations.push({
-        range: {
-          startLineNumber: diff.lineNumber,
-          startColumn: 1,
-          endLineNumber: diff.lineNumber,
-          endColumn: 1,
-        },
-        options: {
-          isWholeLine: true,
-          className: className,
-          glyphMarginClassName: glyphMarginClassName,
-          glyphMarginHoverMessage: {
-            value: diff.type === 'add' ? 'Added line' :
-                   diff.type === 'modify' ? 'Modified line' :
-                   'Deleted line',
-          },
-        },
-      });
-    }
+      const isDark = effectiveTheme === 'dark';
+      const newDecorations: any[] = [];
 
-    // Update decorations
-    try {
-      decorationIdsRef.current = editor.deltaDecorations(
-        decorationIdsRef.current,
-        newDecorations
-      );
-    } catch (error) {
-      console.error('Failed to apply decorations:', error);
-    }
-  }, [editor, effectiveTheme]);
+      for (const diff of diffLines) {
+        let className = '';
+        let glyphMarginClassName = '';
+
+        if (diff.type === 'add') {
+          className = isDark ? 'diff-line-added-dark' : 'diff-line-added-light';
+          glyphMarginClassName = 'diff-glyph-added';
+        } else if (diff.type === 'modify') {
+          className = isDark ? 'diff-line-modified-dark' : 'diff-line-modified-light';
+          glyphMarginClassName = 'diff-glyph-modified';
+        } else if (diff.type === 'delete') {
+          className = isDark ? 'diff-line-deleted-dark' : 'diff-line-deleted-light';
+          glyphMarginClassName = 'diff-glyph-deleted';
+        }
+
+        newDecorations.push({
+          range: {
+            startLineNumber: diff.lineNumber,
+            startColumn: 1,
+            endLineNumber: diff.lineNumber,
+            endColumn: 1,
+          },
+          options: {
+            isWholeLine: true,
+            className: className,
+            glyphMarginClassName: glyphMarginClassName,
+            glyphMarginHoverMessage: {
+              value:
+                diff.type === 'add'
+                  ? 'Added line'
+                  : diff.type === 'modify'
+                    ? 'Modified line'
+                    : 'Deleted line',
+            },
+          },
+        });
+      }
+
+      // Update decorations
+      try {
+        decorationIdsRef.current = editor.deltaDecorations(
+          decorationIdsRef.current,
+          newDecorations
+        );
+      } catch (error) {
+        console.error('Failed to apply decorations:', error);
+      }
+    },
+    [editor, effectiveTheme]
+  );
 
   // Helper function to compare diff arrays efficiently
   const areDiffsEqual = (a: DiffLine[], b: DiffLine[]): boolean => {

@@ -1,6 +1,5 @@
 // Runtime entry that installs path aliases for compiled JS before loading the app.
 // This avoids '@shared/*' resolution failures in the compiled Electron main process.
-// We point aliases to the compiled dist tree rather than TS sources.
 import path from 'node:path';
 
 // Ensure app name is set BEFORE any module reads app.getPath('userData').

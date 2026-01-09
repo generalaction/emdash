@@ -98,7 +98,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
           return;
         }
       }
-      
+
       const isMeta = event.metaKey || event.ctrlKey;
       if (isMeta && event.shiftKey && event.key.toLowerCase() === 'f') {
         event.preventDefault();
