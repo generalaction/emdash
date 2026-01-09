@@ -415,8 +415,10 @@ const EditorContent: React.FC<EditorContentProps> = ({
 const NoFileOpen: React.FC = () => (
   <div className="flex flex-1 items-center justify-center text-muted-foreground">
     <div className="text-center">
+      {/** 
       <p className="text-sm">No file open</p>
       <p className="mt-1 text-xs">Select a file from the explorer</p>
+      */}
     </div>
   </div>
 );
