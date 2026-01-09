@@ -23,7 +23,7 @@ export function createMainWindow(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // Allow using <webview> in the renderer for the in‑app browser pane.
+      // Allow using <webview> in renderer for in‑app browser pane.
       // The webview runs in a separate process; nodeIntegration remains disabled.
       webviewTag: true,
       // __dirname here resolves to dist/main/main/app at runtime (dev)

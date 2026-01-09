@@ -74,16 +74,30 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
     }
   }, [activeFilePath, editorReady, refreshDecorations, activeFile?.isDirty]);
 
+  // Track previous save state to detect when a save completes
+  const prevIsSaving = useRef(false);
+
   // Refresh decorations after save
   useEffect(() => {
-    if (editorReady && !isSaving && !hasUnsavedChanges && refreshDecorations) {
-      // After save, wait a bit for git to update
+    // Detect when save just completed (was saving, now not saving)
+    if (prevIsSaving.current && !isSaving && editorReady && refreshDecorations) {
+      // Immediately clear decorations to prevent old markers from showing
+      if (editorRef.current) {
+        // Clear existing decorations immediately
+        refreshDecorations(true); // Invalidate cache and refresh immediately
+      }
+
+      // Then refresh again after git has updated
       const timer = setTimeout(() => {
-        refreshDecorations();
-      }, 500);
+        refreshDecorations(true); // true = invalidate cache to get fresh diff
+      }, 800); // Wait for git to fully update
+
+      prevIsSaving.current = false;
       return () => clearTimeout(timer);
     }
-  }, [isSaving, hasUnsavedChanges, editorReady, refreshDecorations]);
+
+    prevIsSaving.current = isSaving;
+  }, [isSaving, editorReady, refreshDecorations]);
 
   // Initialize Monaco once when first loaded
   useEffect(() => {
@@ -177,12 +191,12 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
       addMonacoKeyboardShortcuts(editor, monaco, {
         onSave: async () => {
           await saveFile();
-          // Refresh decorations after save
+          // Refresh decorations after save with cache invalidation
           setTimeout(() => {
             if (refreshDecorations) {
-              refreshDecorations();
+              refreshDecorations(true); // true = invalidate cache
             }
-          }, 600);
+          }, 700); // Wait for git to update
         },
         onSaveAll: saveAllFiles,
       });

@@ -274,11 +274,40 @@ export function useEditorDiffDecorations({
     return () => clearInterval(cleanupInterval);
   }, []);
 
+  // Helper to clear decorations immediately
+  const clearDecorations = useCallback(() => {
+    if (editor && !editor.isDisposed?.()) {
+      try {
+        decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, []);
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
+  }, [editor]);
+
   return {
-    refreshDecorations: async () => {
+    refreshDecorations: async (invalidateCache = false) => {
+      // Clear cache if requested (e.g., after save)
+      if (invalidateCache && filePath) {
+        let relativePath = filePath;
+        if (filePath.startsWith(taskPath)) {
+          relativePath = filePath.substring(taskPath.length);
+          if (relativePath.startsWith('/')) {
+            relativePath = relativePath.substring(1);
+          }
+        }
+        const cacheKey = `${taskPath}:${relativePath}`;
+        diffCacheRef.current.delete(cacheKey);
+
+        // When invalidating cache on save, clear decorations first
+        // This prevents old markers from briefly appearing
+        clearDecorations();
+      }
+
       const diffLines = await computeDiff();
       lastDiffRef.current = diffLines;
       applyDecorations(diffLines);
     },
+    clearDecorations,
   };
 }
