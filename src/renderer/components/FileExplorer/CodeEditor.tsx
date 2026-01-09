@@ -204,15 +204,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     style={{ width: explorerWidth }}
   >
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="border-b border-border bg-muted/20">
-        <div className="flex items-center px-3 py-1.5">
-          <FolderOpen className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-foreground">{projectName}</span>
-        </div>
-        <div className="flex items-center border-t border-border/50 px-3 py-1.5">
-          <GitBranch className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-foreground">{taskName}</span>
-        </div>
+      <div className="flex h-8 items-center border-b border-border bg-muted/10 px-3">
+        <FolderOpen className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-foreground">{projectName}</span>
+        <span className="mx-1.5 text-muted-foreground">/</span>
+        <GitBranch className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-foreground">{taskName}</span>
       </div>
 
       <div className="flex flex-1 flex-col overflow-hidden">
