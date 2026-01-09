@@ -8,7 +8,7 @@
     "issues",
     "---Capabilities---",
     "parallel-agents",
-    "provider-agnostic",
+    "providers",
     "best-of-n",
     "containerization",
     "diff-view",
