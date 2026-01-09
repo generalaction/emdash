@@ -4,6 +4,25 @@ import { notFound } from 'next/navigation';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { Metadata } from 'next';
 import { CopyMarkdownButton } from '@/components/CopyMarkdownButton';
+import { getGithubLastEdit } from 'fumadocs-core/content/github';
+
+async function getLastModified(filePath: string): Promise<Date | null> {
+  if (process.env.NODE_ENV === 'development') {
+    return null;
+  }
+
+  try {
+    const time = await getGithubLastEdit({
+      owner: 'generalaction',
+      repo: 'emdash',
+      path: `docs/content/docs/${filePath}.mdx`,
+      token: process.env.GIT_TOKEN ? `Bearer ${process.env.GIT_TOKEN}` : undefined,
+    });
+    return time ? new Date(time) : null;
+  } catch {
+    return null;
+  }
+}
 
 export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params;
@@ -14,9 +33,15 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
   }
 
   const MDX = page.data.body;
+  const filePath = slug?.join('/') || 'index';
+  const lastModified = await getLastModified(filePath);
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage
+      toc={page.data.toc}
+      full={page.data.full}
+      lastUpdate={lastModified ?? undefined}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
       <div className="border-fd-border flex items-center gap-2 border-b pb-4 pt-2">
