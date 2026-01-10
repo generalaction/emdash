@@ -155,7 +155,12 @@ function loadOrCreateState(): {
           typeof parsed.onboardingSeen === 'boolean' ? (parsed.onboardingSeen as boolean) : false;
         const lastActiveDate =
           typeof parsed.lastActiveDate === 'string' ? (parsed.lastActiveDate as string) : undefined;
-        return { instanceId: parsed.instanceId as string, enabledOverride, onboardingSeen, lastActiveDate };
+        return {
+          instanceId: parsed.instanceId as string,
+          enabledOverride,
+          onboardingSeen,
+          lastActiveDate,
+        };
       }
     }
   } catch {
