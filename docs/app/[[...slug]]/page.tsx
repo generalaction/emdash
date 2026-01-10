@@ -43,7 +43,18 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
   }
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage
+      toc={page.data.toc}
+      full={page.data.full}
+      breadcrumb={{
+        enabled: true,
+        includeRoot: { url: '/' },
+        includePage: true,
+      }}
+      tableOfContent={{
+        style: 'clerk',
+      }}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
       <div className="border-fd-border flex items-center gap-2 border-b pb-4 pt-2">
