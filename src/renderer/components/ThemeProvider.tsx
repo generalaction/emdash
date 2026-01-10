@@ -51,7 +51,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getStoredTheme);
   const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(getSystemTheme);
 
-  const effectiveTheme: EffectiveTheme = theme === 'system' ? systemTheme : theme as EffectiveTheme;
+  const effectiveTheme: EffectiveTheme =
+    theme === 'system' ? systemTheme : (theme as EffectiveTheme);
 
   useEffect(() => {
     applyTheme(theme);

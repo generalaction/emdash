@@ -319,7 +319,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               <TerminalPane
                 id={terminal.id}
                 cwd={cwd}
-                variant={effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'}
+                variant={
+                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+                }
                 themeOverride={themeOverride}
                 className="h-full w-full"
                 keepAlive

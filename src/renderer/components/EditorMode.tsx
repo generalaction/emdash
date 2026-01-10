@@ -585,7 +585,9 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
                   value={fileContent}
                   onChange={(value) => setFileContent(value || '')}
                   onMount={handleEditorMount}
-                  theme={effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'vs-dark' : 'vs'}
+                  theme={
+                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'vs-dark' : 'vs'
+                  }
                   options={{
                     minimap: { enabled: true },
                     fontSize: 14,

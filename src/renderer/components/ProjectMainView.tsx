@@ -754,7 +754,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         <motion.button
                           whileTap={{ scale: 0.97 }}
                           transition={{ duration: 0.1, ease: 'easeInOut' }}
-                          className="inline-flex h-8 items-center gap-1 justify-center rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           onClick={() =>
                             window.electronAPI.openExternal(
                               `https://github.com/${project.githubInfo?.repository}`

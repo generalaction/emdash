@@ -1833,7 +1833,11 @@ const AppContent: React.FC = () => {
                 <div className="logo-shimmer-container">
                   <img
                     key={effectiveTheme}
-                    src={effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo}
+                    src={
+                      effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                        ? emdashLogoWhite
+                        : emdashLogo
+                    }
                     alt="Emdash"
                     className="logo-shimmer-image"
                   />
