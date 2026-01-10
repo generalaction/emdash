@@ -25,8 +25,21 @@ const KanbanBoard: React.FC<{
   project: Project;
   onOpenTask?: (ws: Task) => void;
   onCreateTask?: () => void;
-}> = ({ project, onOpenTask, onCreateTask }) => {
+  onDeleteTask?: (ws: Task) => void | Promise<void | boolean>;
+  isSelectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (taskId: string) => void;
+}> = ({
+  project,
+  onOpenTask,
+  onCreateTask,
+  onDeleteTask,
+  isSelectMode,
+  selectedIds,
+  onToggleSelect,
+}) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
+  const intervalRefs = React.useRef<number[]>([]);
 
   React.useEffect(() => {
     setStatusMap(getAll());
@@ -86,11 +99,7 @@ const KanbanBoard: React.FC<{
         const offExit = (window as any).electronAPI.onPtyExit?.(
           ws.id,
           (_info: { exitCode: number; signal?: number }) => {
-            let currentlyBusy = false;
-            const un = activityStore.subscribe(ws.id, (b) => {
-              currentlyBusy = b;
-            });
-            un?.();
+            const currentlyBusy = activityStore.isBusy(ws.id);
             if (currentlyBusy) return;
             setStatusMap((prev) => {
               const cur = prev[ws.id] || 'todo';
@@ -133,11 +142,7 @@ const KanbanBoard: React.FC<{
           }
           if (hasChanges && !cancelled) {
             // Do not auto-complete while busy
-            let currentlyBusy = false;
-            const un = activityStore.subscribe(ws.id, (b) => {
-              currentlyBusy = b;
-            });
-            un?.();
+            const currentlyBusy = activityStore.isBusy(ws.id);
             if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
@@ -152,9 +157,11 @@ const KanbanBoard: React.FC<{
     };
     check();
     const id = window.setInterval(check, 10000);
+    intervalRefs.current.push(id);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      intervalRefs.current = intervalRefs.current.filter((ref) => ref !== id);
     };
   }, [project.id, project.tasks?.length]);
 
@@ -184,11 +191,7 @@ const KanbanBoard: React.FC<{
           }
           if (hasPr && !cancelled) {
             // Do not auto-complete while busy
-            let currentlyBusy = false;
-            const un = activityStore.subscribe(ws.id, (b) => {
-              currentlyBusy = b;
-            });
-            un?.();
+            const currentlyBusy = activityStore.isBusy(ws.id);
             if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
@@ -203,9 +206,11 @@ const KanbanBoard: React.FC<{
     };
     check();
     const id = window.setInterval(check, 30000);
+    intervalRefs.current.push(id);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      intervalRefs.current = intervalRefs.current.filter((ref) => ref !== id);
     };
   }, [project.id, project.tasks?.length]);
 
@@ -236,11 +241,7 @@ const KanbanBoard: React.FC<{
             }
           }
           if (ahead > 0 && !cancelled) {
-            let currentlyBusy = false;
-            const un = activityStore.subscribe(ws.id, (b) => {
-              currentlyBusy = b;
-            });
-            un?.();
+            const currentlyBusy = activityStore.isBusy(ws.id);
             if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
@@ -255,23 +256,38 @@ const KanbanBoard: React.FC<{
     };
     check();
     const id = window.setInterval(check, 30000);
+    intervalRefs.current.push(id);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      intervalRefs.current = intervalRefs.current.filter((ref) => ref !== id);
     };
   }, [project.id, project.tasks?.length]);
 
-  const byStatus: Record<KanbanStatus, Task[]> = { todo: [], 'in-progress': [], done: [] };
-  for (const ws of project.tasks || []) {
-    const s = statusMap[ws.id] || 'todo';
-    byStatus[s].push(ws);
-  }
+  // Master cleanup: ensure all intervals cleared on unmount
+  React.useEffect(() => {
+    return () => {
+      intervalRefs.current.forEach(clearInterval);
+      intervalRefs.current = [];
+    };
+  }, []);
+
+  const memoizedStatusMap = React.useMemo(() => statusMap, [statusMap]);
+
+  const byStatus: Record<KanbanStatus, Task[]> = React.useMemo(() => {
+    const result: Record<KanbanStatus, Task[]> = { todo: [], 'in-progress': [], done: [] };
+    for (const ws of project.tasks || []) {
+      const s = memoizedStatusMap[ws.id] || 'todo';
+      result[s].push(ws);
+    }
+    return result;
+  }, [project.tasks, memoizedStatusMap]);
   const hasAny = (project.tasks?.length ?? 0) > 0;
 
-  const handleDrop = (target: KanbanStatus, taskId: string) => {
+  const handleDrop = React.useCallback((target: KanbanStatus, taskId: string) => {
     setStatus(taskId, target);
-    setStatusMap({ ...statusMap, [taskId]: target });
-  };
+    setStatusMap((prev) => ({ ...prev, [taskId]: target }));
+  }, []);
 
   return (
     <div className="grid h-full w-full grid-cols-1 gap-4 p-3 sm:grid-cols-3">
@@ -286,11 +302,11 @@ const KanbanBoard: React.FC<{
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md border border-border/60 bg-muted text-foreground shadow-sm hover:bg-muted/80"
+                className="h-6 w-6 rounded-md border border-border/60 bg-muted text-foreground shadow-sm hover:bg-muted/80"
                 onClick={onCreateTask}
                 aria-label="Start New Task"
               >
-                <Plus className="h-4 w-4" aria-hidden="true" />
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
             ) : undefined
           }
@@ -322,7 +338,16 @@ const KanbanBoard: React.FC<{
           ) : (
             <>
               {byStatus[s].map((ws) => (
-                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenTask} />
+                <KanbanCard
+                  key={ws.id}
+                  ws={ws}
+                  onOpen={onOpenTask}
+                  onDelete={onDeleteTask ? () => onDeleteTask(ws) : undefined}
+                  isSelectMode={isSelectMode}
+                  isSelected={Boolean(selectedIds?.has(ws.id))}
+                  onToggleSelect={onToggleSelect ? () => onToggleSelect(ws.id) : undefined}
+                  draggable={!isSelectMode}
+                />
               ))}
               {s === 'todo' && onCreateTask ? (
                 <Button

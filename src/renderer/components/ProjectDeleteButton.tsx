@@ -28,6 +28,7 @@ type Props = {
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
+  variant?: 'icon' | 'button';
 };
 
 export const ProjectDeleteButton: React.FC<Props> = ({
@@ -37,6 +38,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
   className,
   'aria-label': ariaLabel = 'Delete project',
   isDeleting = false,
+  variant = 'icon',
 }) => {
   const [open, setOpen] = React.useState(false);
   const [acknowledge, setAcknowledge] = React.useState(false);
@@ -81,8 +83,12 @@ export const ProjectDeleteButton: React.FC<Props> = ({
             <AlertDialogTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-sm"
-                className={cn(className, isDeleting && 'opacity-100')}
+                size={variant === 'icon' ? 'icon-sm' : 'sm'}
+                className={cn(
+                  'bg-transparent hover:bg-accent',
+                  className,
+                  isDeleting && 'opacity-100'
+                )}
                 title="Delete project"
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}
@@ -90,9 +96,18 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 {isDeleting ? (
-                  <Spinner className="h-3.5 w-3.5" size="sm" />
+                  <>
+                    <Spinner
+                      className={cn('h-3.5 w-3.5', variant === 'button' && 'mr-2')}
+                      size="sm"
+                    />
+                    {variant === 'button' && 'Deleting...'}
+                  </>
                 ) : (
-                  <Trash className="h-3.5 w-3.5" />
+                  <>
+                    <Trash className={cn('h-3.5 w-3.5', variant === 'button' && 'mr-2')} />
+                    {variant === 'button' && 'Delete Project'}
+                  </>
                 )}
               </Button>
             </AlertDialogTrigger>

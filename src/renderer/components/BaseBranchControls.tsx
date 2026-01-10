@@ -92,7 +92,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
           open={open}
           onOpenChange={handleOpenChange}
         >
-          <SelectTrigger className="h-8 w-full gap-2 px-3 text-xs font-medium shadow-none sm:w-auto">
+          <SelectTrigger className="h-7 w-full gap-1.5 border-border/50 bg-muted/50 px-2.5 text-xs font-medium shadow-none sm:w-auto">
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
           <SelectContent
@@ -142,7 +142,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       </div>
       {branchLoadError ? <p className="text-xs text-destructive">{branchLoadError}</p> : null}
       <p className="text-xs text-muted-foreground">
-        New tasks start from the latest code.
+        New task runs start from the latest code on this branch.
         {projectPath && (
           <>
             {' · '}
