@@ -122,6 +122,20 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
             },
           });
 
+          // Black theme with pure black background
+          monaco.editor.defineTheme('custom-black', {
+            base: 'vs-dark',
+            inherit: true,
+            rules: [],
+            colors: {
+              'editor.background': '#000000', // pure black
+              'editor.foreground': '#f2f2f2',
+              'editor.lineHighlightBackground': '#1a1a1a',
+              'editorLineNumber.foreground': '#666666',
+              'editorGutter.background': '#000000',
+            },
+          });
+
           monaco.editor.defineTheme('custom-light', {
             base: 'vs',
             inherit: true,
@@ -163,6 +177,20 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
           'editor.lineHighlightBackground': '#334155',
           'editorLineNumber.foreground': '#64748b',
           'editorGutter.background': '#1e293b',
+        },
+      });
+
+      // Black theme with pure black background
+      monaco.editor.defineTheme('custom-black', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': '#000000', // pure black
+          'editor.foreground': '#f2f2f2',
+          'editor.lineHighlightBackground': '#1a1a1a',
+          'editorLineNumber.foreground': '#666666',
+          'editorGutter.background': '#000000',
         },
       });
 
@@ -405,7 +433,13 @@ const EditorContent: React.FC<EditorContentProps> = ({
         value={activeFile.content}
         onChange={onEditorChange}
         onMount={onEditorMount}
-        theme={effectiveTheme === 'dark' ? 'custom-dark' : 'custom-light'}
+        theme={
+          effectiveTheme === 'dark-black'
+            ? 'custom-black'
+            : effectiveTheme === 'dark'
+              ? 'custom-dark'
+              : 'custom-light'
+        }
         options={DEFAULT_EDITOR_OPTIONS}
       />
     </div>

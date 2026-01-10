@@ -728,12 +728,14 @@ const ChatInterface: React.FC<Props> = ({
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                 provider === 'charm'
-                  ? effectiveTheme === 'dark'
+                  ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
                     ? 'bg-card'
                     : 'bg-white'
                   : provider === 'mistral'
-                    ? effectiveTheme === 'dark'
-                      ? 'bg-[#202938]'
+                    ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                      ? effectiveTheme === 'dark-black'
+                        ? 'bg-[#141820]'
+                        : 'bg-[#202938]'
                       : 'bg-white'
                     : ''
               }`}
@@ -773,16 +775,18 @@ const ChatInterface: React.FC<Props> = ({
                     });
                   }
                 }}
-                variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
+                variant={effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'}
                 themeOverride={
                   provider === 'charm'
-                    ? { background: effectiveTheme === 'dark' ? '#1f2937' : '#ffffff' }
+                    ? { background: effectiveTheme === 'dark-black' ? '#0a0a0a' : effectiveTheme === 'dark' ? '#1f2937' : '#ffffff' }
                     : provider === 'mistral'
-                      ? { background: effectiveTheme === 'dark' ? '#202938' : '#ffffff' }
-                      : undefined
+                      ? { background: effectiveTheme === 'dark-black' ? '#141820' : effectiveTheme === 'dark' ? '#202938' : '#ffffff' }
+                      : effectiveTheme === 'dark-black'
+                        ? { background: '#000000' }
+                        : undefined
                 }
                 contentFilter={
-                  provider === 'charm' && effectiveTheme !== 'dark'
+                  provider === 'charm' && effectiveTheme !== 'dark' && effectiveTheme !== 'dark-black'
                     ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
                     : undefined
                 }

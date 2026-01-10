@@ -186,7 +186,7 @@ export const ProviderBar: React.FC<Props> = ({
                           src={cfg.logo}
                           alt={cfg.name}
                           title={cfg.name}
-                          className={`h-3.5 w-3.5 flex-shrink-0 rounded-sm object-contain align-middle ${provider === 'codex' || provider === 'auggie' ? 'dark:invert' : ''}`}
+                          className={`h-3.5 w-3.5 flex-shrink-0 rounded-sm object-contain align-middle ${provider === 'codex' || provider === 'auggie' ? 'dark:invert dark-black:invert' : ''}`}
                         />
                       ) : (
                         <div

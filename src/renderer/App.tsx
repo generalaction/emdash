@@ -1833,7 +1833,7 @@ const AppContent: React.FC = () => {
                 <div className="logo-shimmer-container">
                   <img
                     key={effectiveTheme}
-                    src={effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo}
+                    src={effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo}
                     alt="Emdash"
                     className="logo-shimmer-image"
                   />
@@ -1841,8 +1841,8 @@ const AppContent: React.FC = () => {
                     className="logo-shimmer-overlay"
                     aria-hidden="true"
                     style={{
-                      WebkitMaskImage: `url(${effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo})`,
-                      maskImage: `url(${effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo})`,
+                      WebkitMaskImage: `url(${effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo})`,
+                      maskImage: `url(${effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo})`,
                       WebkitMaskRepeat: 'no-repeat',
                       maskRepeat: 'no-repeat',
                       WebkitMaskSize: 'contain',
