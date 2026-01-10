@@ -44,6 +44,8 @@ export default {
       },
       fontSize: {
         'code': ['13px', { lineHeight: '1.2' }], // Custom size for code/terminal
+        'micro': ['10px', { lineHeight: '1.2' }], // For badges/small labels
+        'tiny': ['11px', { lineHeight: '1.3' }], // For secondary info/compact text
       },
       colors: {
         border: 'hsl(var(--border))',
