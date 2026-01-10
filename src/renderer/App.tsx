@@ -18,6 +18,7 @@ import MultiAgentTask from './components/MultiAgentTask';
 import { NewProjectModal } from './components/NewProjectModal';
 import ProjectMainView from './components/ProjectMainView';
 import RightSidebar from './components/RightSidebar';
+import CodeEditor from './components/FileExplorer/CodeEditor';
 import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -128,6 +129,7 @@ const AppContent: React.FC = () => {
   const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [showEditorMode, setShowEditorMode] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
@@ -162,6 +164,7 @@ const AppContent: React.FC = () => {
   const leftSidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
   const rightSidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
   const lastLeftSidebarSizeRef = useRef<number>(defaultPanelLayout[0]);
+  const leftSidebarWasCollapsedBeforeEditor = useRef<boolean>(false);
   const lastRightSidebarSizeRef = useRef<number>(rightSidebarDefaultWidth);
   const leftSidebarSetOpenRef = useRef<((next: boolean) => void) | null>(null);
   const leftSidebarIsMobileRef = useRef<boolean>(false);
@@ -229,6 +232,12 @@ const AppContent: React.FC = () => {
         return;
       }
 
+      // Prevent sidebar from opening when in editor mode
+      if (showEditorMode && open) {
+        setOpen(false);
+        return;
+      }
+
       if (isMobile) {
         const currentSize = panel.getSize();
         if (typeof currentSize === 'number' && currentSize > 0) {
@@ -252,7 +261,7 @@ const AppContent: React.FC = () => {
         panel.collapse();
       }
     },
-    []
+    [showEditorMode]
   );
 
   const activateProjectView = useCallback((project: Project) => {
@@ -352,6 +361,26 @@ const AppContent: React.FC = () => {
     }
     setShowFirstLaunchModal(false);
   }, []);
+
+  // Handle left sidebar visibility when Editor mode changes
+  useEffect(() => {
+    const panel = leftSidebarPanelRef.current;
+    if (!panel) return;
+
+    if (showEditorMode) {
+      // Store current collapsed state before hiding
+      leftSidebarWasCollapsedBeforeEditor.current = panel.isCollapsed();
+      // Collapse the left sidebar when Editor mode opens
+      if (!panel.isCollapsed()) {
+        panel.collapse();
+      }
+    } else {
+      // Restore previous state when Editor mode closes
+      if (!leftSidebarWasCollapsedBeforeEditor.current && panel.isCollapsed()) {
+        panel.expand();
+      }
+    }
+  }, [showEditorMode]);
 
   useEffect(() => {
     const check = async () => {
@@ -1961,6 +1990,9 @@ const AppContent: React.FC = () => {
                 onToggleKanban={handleToggleKanban}
                 isKanbanOpen={Boolean(showKanban)}
                 kanbanAvailable={Boolean(selectedProject)}
+                onToggleEditor={() => setShowEditorMode(!showEditorMode)}
+                showEditorButton={Boolean(activeTask)}
+                isEditorOpen={showEditorMode}
               />
               <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
                 <ResizablePanelGroup
@@ -1977,6 +2009,7 @@ const AppContent: React.FC = () => {
                     collapsedSize={0}
                     collapsible
                     order={1}
+                    style={{ display: showEditorMode ? 'none' : undefined }}
                   >
                     <LeftSidebar
                       projects={projects}
@@ -2030,6 +2063,7 @@ const AppContent: React.FC = () => {
                       task={activeTask}
                       projectPath={selectedProject?.path || null}
                       className="lg:border-l-0"
+                      forceBorder={showEditorMode}
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>
@@ -2045,6 +2079,15 @@ const AppContent: React.FC = () => {
                 handleOpenProject={handleOpenProject}
                 handleOpenSettings={handleOpenSettings}
               />
+              {showEditorMode && activeTask && selectedProject && (
+                <CodeEditor
+                  taskPath={activeTask.path}
+                  taskName={activeTask.name}
+                  projectName={selectedProject.name}
+                  onClose={() => setShowEditorMode(false)}
+                />
+              )}
+
               <TaskModal
                 isOpen={showTaskModal}
                 onClose={() => setShowTaskModal(false)}

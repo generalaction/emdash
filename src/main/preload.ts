@@ -122,6 +122,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
   fsRead: (root: string, relPath: string, maxBytes?: number) =>
     ipcRenderer.invoke('fs:read', { root, relPath, maxBytes }),
+  fsReadImage: (root: string, relPath: string) =>
+    ipcRenderer.invoke('fs:read-image', { root, relPath }),
+  fsSearchContent: (
+    root: string,
+    query: string,
+    options?: {
+      caseSensitive?: boolean;
+      maxResults?: number;
+      fileExtensions?: string[];
+    }
+  ) => ipcRenderer.invoke('fs:searchContent', { root, query, options }),
   fsWriteFile: (root: string, relPath: string, content: string, mkdirs?: boolean) =>
     ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs }),
   fsRemove: (root: string, relPath: string) => ipcRenderer.invoke('fs:remove', { root, relPath }),

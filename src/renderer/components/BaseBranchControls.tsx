@@ -151,7 +151,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
               className="text-muted-foreground underline hover:text-foreground"
               onClick={() => window.electronAPI.openProjectConfig(projectPath)}
             >
-              Edit config
+              Edit Emdash config
             </button>
           </>
         )}

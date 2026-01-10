@@ -563,6 +563,37 @@ declare global {
         content?: string;
         error?: string;
       }>;
+      fsReadImage: (
+        root: string,
+        relPath: string
+      ) => Promise<{
+        success: boolean;
+        dataUrl?: string;
+        mimeType?: string;
+        size?: number;
+        error?: string;
+      }>;
+      fsSearchContent: (
+        root: string,
+        query: string,
+        options?: {
+          caseSensitive?: boolean;
+          maxResults?: number;
+          fileExtensions?: string[];
+        }
+      ) => Promise<{
+        success: boolean;
+        results?: Array<{
+          file: string;
+          matches: Array<{
+            line: number;
+            column: number;
+            text: string;
+            preview: string;
+          }>;
+        }>;
+        error?: string;
+      }>;
       fsWriteFile: (
         root: string,
         relPath: string,
@@ -1006,6 +1037,27 @@ export interface ElectronAPI {
     size?: number;
     truncated?: boolean;
     content?: string;
+    error?: string;
+  }>;
+  fsSearchContent: (
+    root: string,
+    query: string,
+    options?: {
+      caseSensitive?: boolean;
+      maxResults?: number;
+      fileExtensions?: string[];
+    }
+  ) => Promise<{
+    success: boolean;
+    results?: Array<{
+      file: string;
+      matches: Array<{
+        line: number;
+        column: number;
+        text: string;
+        preview: string;
+      }>;
+    }>;
     error?: string;
   }>;
 

@@ -500,10 +500,6 @@ export function registerGithubIpc() {
           }
         }
 
-        // Note: We don't delete the GitHub repo automatically here
-        // as the user might want to keep it for manual setup
-        // The error message will inform them
-
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Failed to create project',
