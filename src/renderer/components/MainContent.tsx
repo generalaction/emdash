@@ -32,7 +32,7 @@ const MainContent: React.FC<MainContentProps> = ({
         <div className="text-center">
           <div className="mb-8">
             <h1
-              className="mb-4 text-6xl font-bold font-mono text-white"
+              className="mb-4 font-mono text-6xl font-bold text-white"
               style={{
                 letterSpacing: '0.1em',
                 textShadow: '2px 2px 0px #000',

@@ -31,21 +31,14 @@ export default {
           'Fira Sans',
           'Droid Sans',
           'Helvetica Neue',
-          'sans-serif'
+          'sans-serif',
         ],
-        mono: [
-          'Menlo',
-          'Monaco',
-          'Consolas',
-          'Liberation Mono',
-          'Courier New',
-          'monospace'
-        ]
+        mono: ['Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
       },
       fontSize: {
-        'code': ['13px', { lineHeight: '1.2' }], // Custom size for code/terminal
-        'micro': ['10px', { lineHeight: '1.2' }], // For badges/small labels
-        'tiny': ['11px', { lineHeight: '1.3' }], // For secondary info/compact text
+        code: ['13px', { lineHeight: '1.2' }], // Custom size for code/terminal
+        micro: ['10px', { lineHeight: '1.2' }], // For badges/small labels
+        tiny: ['11px', { lineHeight: '1.3' }], // For secondary info/compact text
       },
       colors: {
         border: 'hsl(var(--border))',
