@@ -171,6 +171,7 @@ const AppContent: React.FC = () => {
   const leftSidebarOpenRef = useRef<boolean>(true);
   const rightSidebarSetCollapsedRef = useRef<((next: boolean) => void) | null>(null);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
+  const [autoRightSidebarBehavior, setAutoRightSidebarBehavior] = useState<boolean>(false);
 
   const handlePanelLayout = useCallback((sizes: number[]) => {
     if (!Array.isArray(sizes) || sizes.length < 3) {
@@ -402,6 +403,61 @@ const AppContent: React.FC = () => {
     };
     void check();
   }, []);
+
+  // Load autoRightSidebarBehavior setting on mount and listen for changes
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await window.electronAPI.getSettings();
+        if (result.success && result.settings) {
+          setAutoRightSidebarBehavior(
+            Boolean(result.settings.interface?.autoRightSidebarBehavior ?? false)
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load right sidebar settings:', error);
+      }
+    })();
+
+    // Listen for setting changes from RightSidebarSettingsCard
+    const handleSettingChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ enabled: boolean }>;
+      setAutoRightSidebarBehavior(customEvent.detail.enabled);
+    };
+    window.addEventListener('autoRightSidebarBehaviorChanged', handleSettingChange);
+    return () => {
+      window.removeEventListener('autoRightSidebarBehaviorChanged', handleSettingChange);
+    };
+  }, []);
+
+  // Auto-collapse/expand right sidebar based on current view (no animation)
+  useEffect(() => {
+    if (!autoRightSidebarBehavior) return;
+
+    // On home page or repo home page (no active task), collapse the sidebar
+    const isHomePage = showHomeView;
+    const isRepoHomePage = selectedProject !== null && activeTask === null;
+
+    const shouldCollapse = isHomePage || isRepoHomePage;
+    const shouldExpand = activeTask !== null;
+
+    if (shouldCollapse || shouldExpand) {
+      // Add no-transition class to skip animation
+      const panelGroup = document.querySelector('[data-panel-group]');
+      panelGroup?.classList.add('no-transition');
+
+      if (shouldCollapse) {
+        rightSidebarSetCollapsedRef.current?.(true);
+      } else if (shouldExpand) {
+        rightSidebarSetCollapsedRef.current?.(false);
+      }
+
+      // Remove the class after a frame to allow future animations
+      requestAnimationFrame(() => {
+        panelGroup?.classList.remove('no-transition');
+      });
+    }
+  }, [autoRightSidebarBehavior, showHomeView, selectedProject, activeTask]);
 
   useEffect(() => {
     const rightPanel = rightSidebarPanelRef.current;

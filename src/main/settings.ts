@@ -32,6 +32,10 @@ export interface KeyboardSettings {
   newTask?: ShortcutBinding;
 }
 
+export interface InterfaceSettings {
+  autoRightSidebarBehavior?: boolean;
+}
+
 export interface AppSettings {
   repository: RepositorySettings;
   projectPrep: {
@@ -60,6 +64,7 @@ export interface AppSettings {
     defaultDirectory: string;
   };
   keyboard?: KeyboardSettings;
+  interface?: InterfaceSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -102,6 +107,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     nextProject: { key: 'ArrowRight', modifier: 'cmd' },
     prevProject: { key: 'ArrowLeft', modifier: 'cmd' },
     newTask: { key: 'n', modifier: 'cmd' },
+  },
+  interface: {
+    autoRightSidebarBehavior: false,
   },
 };
 
@@ -191,6 +199,9 @@ function normalizeSettings(input: AppSettings): AppSettings {
         enabled: DEFAULT_SETTINGS.mcp!.context7!.enabled,
         installHintsDismissed: {},
       },
+    },
+    interface: {
+      autoRightSidebarBehavior: DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior,
     },
   };
 
@@ -300,6 +311,14 @@ function normalizeSettings(input: AppSettings): AppSettings {
     nextProject: normalizeBinding(keyboard.nextProject, DEFAULT_SETTINGS.keyboard!.nextProject!),
     prevProject: normalizeBinding(keyboard.prevProject, DEFAULT_SETTINGS.keyboard!.prevProject!),
     newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
+  };
+
+  // Interface
+  const iface = (input as any)?.interface || {};
+  out.interface = {
+    autoRightSidebarBehavior: Boolean(
+      iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
+    ),
   };
 
   return out;
