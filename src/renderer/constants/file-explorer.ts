@@ -72,7 +72,6 @@ export const EDITOR_THEMES = {
 export const DEFAULT_EDITOR_OPTIONS = {
   minimap: { enabled: true },
   fontSize: 13,
-  fontFamily: 'Menlo, Monaco, "Courier New", monospace',
   lineNumbers: 'on' as const,
   rulers: [],
   wordWrap: 'on' as const,

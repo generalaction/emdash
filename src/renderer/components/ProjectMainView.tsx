@@ -751,10 +751,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         />
                       ) : null}
                       {project.githubInfo?.connected && project.githubInfo.repository ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs font-medium"
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          transition={{ duration: 0.1, ease: 'easeInOut' }}
+                          className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           onClick={() =>
                             window.electronAPI.openExternal(
                               `https://github.com/${project.githubInfo?.repository}`
@@ -763,7 +763,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         >
                           View on GitHub
                           <ArrowUpRight className="size-3" />
-                        </Button>
+                        </motion.button>
                       ) : null}
                     </div>
                   </div>
@@ -829,10 +829,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </div>
                 {!isSelectMode && (
                   <div className="flex gap-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="h-9 px-4 text-sm font-semibold shadow-sm"
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ duration: 0.1, ease: 'easeInOut' }}
+                      className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                       onClick={onCreateTask}
                       disabled={isCreatingTask}
                       aria-busy={isCreatingTask}
@@ -848,7 +848,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           Start New Task
                         </>
                       )}
-                    </Button>
+                    </motion.button>
                   </div>
                 )}
               </div>

@@ -50,7 +50,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   const { effectiveTheme } = useTheme();
   const [fileData, setFileData] = useState<Map<string, FileDiffData>>(new Map());
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
-  const isDark = effectiveTheme === 'dark';
+  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
   const editorRefs = useRef<Map<string, monaco.editor.IStandaloneDiffEditor>>(new Map());
   const changeDisposables = useRef<Map<string, monaco.IDisposable>>(new Map());
 
@@ -407,6 +407,15 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     const defineThemes = async () => {
       try {
         const monaco = await loader.init();
+
+        // Determine which colors to use based on theme
+        const themeColors =
+          effectiveTheme === 'dark-black'
+            ? MONACO_DIFF_COLORS['dark-black']
+            : effectiveTheme === 'dark'
+              ? MONACO_DIFF_COLORS.dark
+              : MONACO_DIFF_COLORS.light;
+
         // Dark theme with custom background
         monaco.editor.defineTheme('custom-diff-dark', {
           base: 'vs-dark',
@@ -422,6 +431,27 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             'diffEditor.unchangedRegionBackground': '#1a2332', // Slightly darker for collapsed regions
           },
         });
+
+        // Black theme with pure black background
+        monaco.editor.defineTheme('custom-diff-black', {
+          base: 'vs-dark',
+          inherit: true,
+          rules: [],
+          colors: {
+            'editor.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
+            'editorGutter.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
+            'diffEditor.insertedTextBackground':
+              MONACO_DIFF_COLORS['dark-black'].insertedTextBackground,
+            'diffEditor.insertedLineBackground':
+              MONACO_DIFF_COLORS['dark-black'].insertedLineBackground,
+            'diffEditor.removedTextBackground':
+              MONACO_DIFF_COLORS['dark-black'].removedTextBackground,
+            'diffEditor.removedLineBackground':
+              MONACO_DIFF_COLORS['dark-black'].removedLineBackground,
+            'diffEditor.unchangedRegionBackground': '#0a0a0a', // Very dark gray for collapsed regions
+          },
+        });
+
         // Light theme - use default Monaco light theme
         monaco.editor.defineTheme('custom-diff-light', {
           base: 'vs',
@@ -447,7 +477,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         existingStyle.remove();
       }
     };
-  }, [open, isDark]);
+  }, [open, isDark, effectiveTheme]);
 
   // Cleanup editors on unmount
   useEffect(() => {
@@ -547,6 +577,27 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           'diffEditor.unchangedRegionBackground': '#1a2332',
         },
       });
+
+      // Black theme with pure black background
+      monaco.editor.defineTheme('custom-diff-black', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
+          'editorGutter.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
+          'diffEditor.insertedTextBackground':
+            MONACO_DIFF_COLORS['dark-black'].insertedTextBackground,
+          'diffEditor.insertedLineBackground':
+            MONACO_DIFF_COLORS['dark-black'].insertedLineBackground,
+          'diffEditor.removedTextBackground':
+            MONACO_DIFF_COLORS['dark-black'].removedTextBackground,
+          'diffEditor.removedLineBackground':
+            MONACO_DIFF_COLORS['dark-black'].removedLineBackground,
+          'diffEditor.unchangedRegionBackground': '#0a0a0a',
+        },
+      });
+
       monaco.editor.defineTheme('custom-diff-light', {
         base: 'vs',
         inherit: true,
@@ -559,8 +610,13 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           'diffEditor.unchangedRegionBackground': '#e2e8f0', // slate-200 - slightly different grey for collapsed regions
         },
       });
-      // FORCE update theme
-      const currentTheme = isDark ? 'custom-diff-dark' : 'custom-diff-light';
+      // FORCE update theme based on current theme
+      const currentTheme =
+        effectiveTheme === 'dark-black'
+          ? 'custom-diff-black'
+          : effectiveTheme === 'dark'
+            ? 'custom-diff-dark'
+            : 'custom-diff-light';
       monaco.editor.setTheme(currentTheme);
     } catch (error) {
       console.warn('Failed to define Monaco themes:', error);

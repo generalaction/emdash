@@ -51,7 +51,7 @@ export const RoutingInfoCard: React.FC = () => {
           <span className="text-muted-foreground">/</span>
           <strong className="font-semibold text-foreground">Routing</strong>
         </div>
-        <span className="ml-auto rounded-md border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <span className="ml-auto rounded-md border px-1.5 py-0.5 text-micro text-muted-foreground">
           Soon
         </span>
       </div>
@@ -70,7 +70,7 @@ export const RoutingInfoCard: React.FC = () => {
         </a>
       </div>
       <div className="flex h-7 items-center justify-between rounded-md border px-2 text-xs text-foreground">
-        <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-[11px] leading-none">
+        <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-tiny leading-none">
           {installCommand}
         </code>
         <Button

@@ -78,7 +78,6 @@ export class TerminalSessionManager {
       rows: options.initialSize.rows,
       scrollback: options.scrollbackLines,
       convertEol: true,
-      fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       fontSize: 13,
       lineHeight: 1.2,
       letterSpacing: 0,

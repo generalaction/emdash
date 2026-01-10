@@ -87,9 +87,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                   >
                     <Workflow className="h-4 w-4 text-foreground/70" aria-hidden="true" />
                     <span className="mr-2">Routing</span>
-                    <Badge className="ml-1" style={{ fontSize: '10px' }}>
-                      Soon
-                    </Badge>
+                    <Badge className="ml-1 text-micro">Soon</Badge>
                   </div>
                 </SelectItem>
               </RoutingTooltipRow>

@@ -61,7 +61,7 @@ const Context7SettingsCard: React.FC = () => {
       </div>
 
       <div className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-        <div className="text-[11px] leading-snug text-muted-foreground">
+        <div className="text-tiny leading-snug text-muted-foreground">
           <p>
             You must configure Context7 MCP in your coding agent (Codex, Claude Code, Cursor, etc.)
             before using it in Emdash.
