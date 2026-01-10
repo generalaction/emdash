@@ -590,7 +590,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
                   }
                   options={{
                     minimap: { enabled: true },
-                    fontSize: 14,
+                    fontSize: 13,
                     lineNumbers: 'on',
                     wordWrap: 'on',
                     automaticLayout: true,

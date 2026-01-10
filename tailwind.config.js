@@ -19,6 +19,32 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'Oxygen',
+          'Ubuntu',
+          'Cantarell',
+          'Fira Sans',
+          'Droid Sans',
+          'Helvetica Neue',
+          'sans-serif'
+        ],
+        mono: [
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          'Liberation Mono',
+          'Courier New',
+          'monospace'
+        ]
+      },
+      fontSize: {
+        'code': ['13px', { lineHeight: '1.2' }], // Custom size for code/terminal
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
