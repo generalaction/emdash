@@ -456,9 +456,17 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                     variant={isDark ? 'dark' : 'light'}
                     themeOverride={
                       v.provider === 'mistral'
-                        ? { background: effectiveTheme === 'dark-black' ? '#141820' : isDark ? '#202938' : '#ffffff' }
+                        ? {
+                            background: effectiveTheme === 'dark-black' ? '#141820' : isDark ? '#202938' : '#ffffff',
+                            selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                            selectionForeground: isDark ? '#f9fafb' : '#0f172a'
+                          }
                         : effectiveTheme === 'dark-black'
-                          ? { background: '#000000' }
+                          ? {
+                              background: '#000000',
+                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                              selectionForeground: '#f9fafb'
+                            }
                           : undefined
                     }
                     className="h-full w-full"

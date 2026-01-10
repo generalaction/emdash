@@ -780,11 +780,23 @@ const ChatInterface: React.FC<Props> = ({
                 variant={effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'}
                 themeOverride={
                   provider === 'charm'
-                    ? { background: effectiveTheme === 'dark-black' ? '#0a0a0a' : effectiveTheme === 'dark' ? '#1f2937' : '#ffffff' }
+                    ? {
+                        background: effectiveTheme === 'dark-black' ? '#0a0a0a' : effectiveTheme === 'dark' ? '#1f2937' : '#ffffff',
+                        selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                        selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb'
+                      }
                     : provider === 'mistral'
-                      ? { background: effectiveTheme === 'dark-black' ? '#141820' : effectiveTheme === 'dark' ? '#202938' : '#ffffff' }
+                      ? {
+                          background: effectiveTheme === 'dark-black' ? '#141820' : effectiveTheme === 'dark' ? '#202938' : '#ffffff',
+                          selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                          selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb'
+                        }
                       : effectiveTheme === 'dark-black'
-                        ? { background: '#000000' }
+                        ? {
+                            background: '#000000',
+                            selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                            selectionForeground: '#f9fafb'
+                          }
                         : undefined
                 }
                 contentFilter={
