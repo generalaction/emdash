@@ -16,7 +16,7 @@ function Logo() {
         alt="Emdash"
         width={24}
         height={24}
-        className="rounded-md hidden dark:block"
+        className="hidden rounded-md dark:block"
       />
       <span className="font-semibold">Emdash</span>
     </div>
