@@ -64,8 +64,10 @@ export function createMainWindow(): BrowserWindow {
   // Track window focus for telemetry
   mainWindow.on('focus', () => {
     // Lazy import to avoid circular dependencies
-    void import('../telemetry').then(({ capture }) => {
+    void import('../telemetry').then(({ capture, checkAndReportDailyActiveUser }) => {
       void capture('app_window_focused');
+      // Also check for daily active user when window gains focus
+      checkAndReportDailyActiveUser();
     });
   });
 
