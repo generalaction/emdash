@@ -51,6 +51,9 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
         includeRoot: { url: '/' },
         includePage: true,
       }}
+      tableOfContent={{
+        style: 'clerk',
+      }}
     >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
