@@ -19,3 +19,4 @@ node_modules
 src/routeTree.gen.ts
 .source/
 next-env.d.ts
+public/md-src/
