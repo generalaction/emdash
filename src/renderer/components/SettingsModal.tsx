@@ -294,7 +294,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <section className="space-y-3">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-medium">{section.title}</h3>
+                    <h3 className="text-sm font-semibold">{section.title}</h3>
                     {section.action ? <div>{section.action}</div> : null}
                   </div>
                   {section.description ? (
