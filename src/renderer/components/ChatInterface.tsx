@@ -693,7 +693,7 @@ const ChatInterface: React.FC<Props> = ({
 
   return (
     <TaskScopeProvider value={{ taskId: task.id, taskPath: task.path }}>
-      <div className={`flex h-full flex-col bg-card ${className}`}>
+      <div className={`flex h-full flex-col ${effectiveTheme === 'dark-black' ? 'bg-black' : 'bg-card'} ${className}`}>
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">
             <div className="mx-auto max-w-4xl space-y-2">
@@ -728,9 +728,11 @@ const ChatInterface: React.FC<Props> = ({
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                 provider === 'charm'
-                  ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                    ? 'bg-card'
-                    : 'bg-white'
+                  ? effectiveTheme === 'dark-black'
+                    ? 'bg-black'
+                    : effectiveTheme === 'dark'
+                      ? 'bg-card'
+                      : 'bg-white'
                   : provider === 'mistral'
                     ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
                       ? effectiveTheme === 'dark-black'
