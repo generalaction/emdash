@@ -119,7 +119,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 <details>
 <summary><b>Where is my data stored?</b></summary>
 
-> Everything is **local‑first**. We store app state in a local **SQLite** database:
+> **App data is local‑first**. We store app state in a local **SQLite** database:
 >
 > ```
 > macOS:  ~/Library/Application Support/emdash/emdash.db
@@ -127,7 +127,9 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > Linux:  ~/.config/emdash/emdash.db
 > ```
 >
-> You can reset by deleting the DB (quit the app first). The file is recreated on next launch.
+> **Privacy Note:** While Emdash itself stores data locally, **when you use any coding agent (Claude Code, Codex, Qwen, etc.), your code and prompts are sent to that provider's cloud API servers** for processing. Each provider has their own data handling and retention policies.
+>
+> You can reset the local DB by deleting it (quit the app first). The file is recreated on next launch.
 </details>
 
 <details>
