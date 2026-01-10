@@ -13,7 +13,6 @@ import { app } from 'electron';
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
 try {
   // Lazy import to avoid bundler complaints if not present on other platforms
-  // We also defensively prepend common Homebrew locations.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const fixPath = require('fix-path');
   if (typeof fixPath === 'function') fixPath();
@@ -120,7 +119,7 @@ if (process.platform === 'darwin' && !app.isPackaged) {
     'assets',
     'images',
     'emdash',
-    'emdash_logo_transparent_dash.png'
+    'icon-dock.png'
   );
   try {
     app.dock.setIcon(iconPath);

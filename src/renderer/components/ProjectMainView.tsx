@@ -242,7 +242,9 @@ function TaskRow({
         ].join(' ')}
       >
         <div className="min-w-0 flex-1">
-          <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
+          <div className="flex items-center gap-2">
+            <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
+          </div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             {isRunning || ws.status === 'running' ? <Spinner size="sm" className="size-3" /> : null}
             <GitBranch className="size-3" />
@@ -356,22 +358,24 @@ function TaskRow({
               className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
             />
           ) : (
-            <TaskDeleteButton
-              taskName={ws.name}
-              taskId={ws.id}
-              taskPath={ws.path}
-              onConfirm={async () => {
-                try {
-                  setIsDeleting(true);
-                  await onDelete();
-                } finally {
-                  setIsDeleting(false);
-                }
-              }}
-              isDeleting={isDeleting}
-              aria-label={`Delete task ${ws.name}`}
-              className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
-            />
+            <>
+              <TaskDeleteButton
+                taskName={ws.name}
+                taskId={ws.id}
+                taskPath={ws.path}
+                onConfirm={async () => {
+                  try {
+                    setIsDeleting(true);
+                    await onDelete();
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                isDeleting={isDeleting}
+                aria-label={`Delete task ${ws.name}`}
+                className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
+              />
+            </>
           )}
         </div>
       </div>
@@ -416,6 +420,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onDeleteProject,
 }) => {
   const { toast } = useToast();
+
   const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
     normalizeBaseRef(project.gitInfo.baseRef)
   );
@@ -746,10 +751,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         />
                       ) : null}
                       {project.githubInfo?.connected && project.githubInfo.repository ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs font-medium"
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          transition={{ duration: 0.1, ease: 'easeInOut' }}
+                          className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           onClick={() =>
                             window.electronAPI.openExternal(
                               `https://github.com/${project.githubInfo?.repository}`
@@ -758,7 +763,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         >
                           View on GitHub
                           <ArrowUpRight className="size-3" />
-                        </Button>
+                        </motion.button>
                       ) : null}
                     </div>
                   </div>
@@ -778,6 +783,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       setBranchReloadToken((token) => token + 1);
                     }
                   }}
+                  projectPath={project.path}
                 />
               </header>
               <Separator className="my-2" />
@@ -822,26 +828,28 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   </p>
                 </div>
                 {!isSelectMode && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-9 px-4 text-sm font-semibold shadow-sm"
-                    onClick={onCreateTask}
-                    disabled={isCreatingTask}
-                    aria-busy={isCreatingTask}
-                  >
-                    {isCreatingTask ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        Starting…
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="mr-2 size-4" />
-                        Start New Task
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ duration: 0.1, ease: 'easeInOut' }}
+                      className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                      onClick={onCreateTask}
+                      disabled={isCreatingTask}
+                      aria-busy={isCreatingTask}
+                    >
+                      {isCreatingTask ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Starting…
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="mr-2 size-4" />
+                          Start New Task
+                        </>
+                      )}
+                    </motion.button>
+                  </div>
                 )}
               </div>
               {tasksInProject.length > 0 ? (

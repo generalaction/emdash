@@ -1,3 +1,18 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
+
+/* Custom colors from Emdash palette */
+:root {
+  --color-fd-primary: #c26157;
+  --color-fd-primary-foreground: #f7fbfc;
+  --color-fd-accent: #e8ebee;
+  --color-fd-accent-foreground: #1f2931;
+}
+
+.dark {
+  --color-fd-primary: #c26157;
+  --color-fd-primary-foreground: #eef0f2;
+  --color-fd-accent: #212a2d;
+  --color-fd-accent-foreground: #eef0f2;
+}

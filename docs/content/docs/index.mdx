@@ -1,10 +1,38 @@
 ---
-title: Welcome to Emdash
-description: An open source orchestration layer for coding agents
+title: Emdash Overview
+description: An Open Source Agentic Development Environment (ADE)
 ---
 
-Welcome to Emdash, an open source orchestration layer for coding agents.
+Emdash is an open source desktop app for running multiple coding agents in parallel. Each agent works in an isolated Git worktree, so they don't interfere with each other.
 
-These docs are a work in progress.
+## Capabilities
 
-_November 24th, 2025_
+- **[Parallel agents](/parallel-agents):** Run multiple agents simultaneously, each in its own worktree
+- **[Provider support](/providers):** Use any of 18+ CLI-based agents: Claude Code, Codex, Gemini, OpenCode, and more
+- **[Best-of-N](/best-of-n):** Run multiple agents on the same task and pick the best result
+- **[Containerization](/containerization):** Use Docker containers to test changes before merging
+- **[Diff view](/diff-view):** Review changes across agents side-by-side
+- **[Kanban view](/kanban-view):** Organize tasks visually across your workflow
+- **[Issue integration](/issues):** Pull tasks from Linear, Jira, or GitHub Issues directly
+
+## How It Works
+
+Click "Add Task" to create one or more worktrees. Each worktree runs its own agent. You can then review the diff when done, iterate if needed, and open a PR inside of Emdash.
+
+## Demo
+
+<iframe
+  width="100%"
+  style={{ aspectRatio: '16/9' }}
+  src="https://www.youtube.com/embed/lCl_rxm4ypc"
+  title="Emdash Demo"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
+## Get Involved
+
+Emdash is [open source](https://github.com/generalaction/emdash) and part of [Y Combinator W26](https://ycombinator.com). We ship fast and welcome contributions - see the [contributing guide](/contributing).
+
+Available for macOS and Linux.

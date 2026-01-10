@@ -119,17 +119,25 @@ class ActivityStore {
     try {
       const api: any = (window as any).electronAPI;
       const providers = [
-        'qwen',
-        'codex',
+        'amp',
+        'auggie',
+        'charm',
         'claude',
+        'cline',
+        'codebuff',
+        'codex',
+        'continue',
+        'copilot',
+        'cursor',
         'droid',
         'gemini',
-        'cursor',
-        'copilot',
-        'amp',
-        'opencode',
+        'goose',
+        'kilocode',
         'kimi',
         'kiro',
+        'mistral',
+        'opencode',
+        'qwen',
         'rovo',
       ];
       for (const prov of providers) {

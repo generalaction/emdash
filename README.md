@@ -30,7 +30,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 <div align="center" style="margin:24px 0;">
 
-[Installation](#installation) • [Integrations](#integrations) • [Demo](#demo) • [Contributing](#contributing) • [FAQ](#faq)
+[Installation](#installation) • [Integrations](#integrations) • [Contributing](#contributing) • [FAQ](#faq)
 
 </div>
 
@@ -92,19 +92,6 @@ Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your 
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
 | [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
 
-# Demo
-
-#### Add an agents.md file
-![Agents.md](https://www.emdash.sh/addagentsfilescreenshot.png)
-#### Run multiple agents in parallel
-
-![Parallel agents](https://www.emdash.sh/parallel_loop.gif)
-
-#### Pass a Linear ticket
-
-![Passing Linear](https://www.emdash.sh/addlinearscreenshot.png)
-
-
 # Contributing
 
 Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/f2fv7YxuR2) to discuss.
@@ -132,7 +119,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 <details>
 <summary><b>Where is my data stored?</b></summary>
 
-> Everything is **local‑first**. We store app state in a local **SQLite** database:
+> **App data is local‑first**. We store app state in a local **SQLite** database:
 >
 > ```
 > macOS:  ~/Library/Application Support/emdash/emdash.db
@@ -140,7 +127,9 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > Linux:  ~/.config/emdash/emdash.db
 > ```
 >
-> You can reset by deleting the DB (quit the app first). The file is recreated on next launch.
+> **Privacy Note:** While Emdash itself stores data locally, **when you use any coding agent (Claude Code, Codex, Qwen, etc.), your code and prompts are sent to that provider's cloud API servers** for processing. Each provider has their own data handling and retention policies.
+>
+> You can reset the local DB by deleting it (quit the app first). The file is recreated on next launch.
 </details>
 
 <details>

@@ -156,7 +156,6 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     return null;
   }, [task.metadata]);
 
-  // Robust prompt injection modeled after useInitialPromptInjection, without one-shot gating
   const injectPrompt = async (ptyId: string, provider: Provider, text: string) => {
     const trimmed = (text || '').trim();
     if (!trimmed) return;
@@ -370,7 +369,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
   return (
     <div className="relative flex h-full flex-col">
       {variants.map((v, idx) => {
-        const isDark = effectiveTheme === 'dark';
+        const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
         const isActive = idx === activeTabIndex;
         return (
           <div
@@ -457,8 +456,23 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                     variant={isDark ? 'dark' : 'light'}
                     themeOverride={
                       v.provider === 'mistral'
-                        ? { background: isDark ? '#202938' : '#ffffff' }
-                        : undefined
+                        ? {
+                            background:
+                              effectiveTheme === 'dark-black'
+                                ? '#141820'
+                                : isDark
+                                  ? '#202938'
+                                  : '#ffffff',
+                            selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                            selectionForeground: isDark ? '#f9fafb' : '#0f172a',
+                          }
+                        : effectiveTheme === 'dark-black'
+                          ? {
+                              background: '#000000',
+                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                              selectionForeground: '#f9fafb',
+                            }
+                          : undefined
                     }
                     className="h-full w-full"
                     onStartSuccess={() => {

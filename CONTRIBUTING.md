@@ -7,9 +7,9 @@ Thanks for your interest in contributing! We favor small, focused PRs and clear 
 Prerequisites
 
 - **Node.js 20.0.0+ (recommended: 22.20.0)** and Git
-- Optional (recommended for end‑to‑end):
-  - Codex CLI (`npm install -g @openai/codex` or `brew install codex`; then run `codex` to authenticate)
+- Optional (recommended for end‑to‑end testing):
   - GitHub CLI (`brew install gh`; then `gh auth login`)
+  - At least one supported coding agent CLI (see docs for list)
 
 Setup
 
@@ -38,11 +38,11 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 
 ## Project Overview
 
-- `src/main/` – Electron main process, IPC handlers, services (Git, worktrees, Codex process manager, DB, etc.)
+- `src/main/` – Electron main process, IPC handlers, services (Git, worktrees, PTY manager, DB, etc.)
 - `src/renderer/` – React UI (Vite), hooks, components
-- Local database – SQLite file created under the OS userData folder (see “Local DB” below)
+- Local database – SQLite file created under the OS userData folder (see "Local DB" below)
 - Worktrees – Git worktrees are created outside your repo root in a sibling `worktrees/` folder
-- Logs – Agent stream logs are written to the OS userData folder (not inside repos)
+- Logs – Agent terminal output and app logs are written to the OS userData folder (not inside repos)
 
 ## Development Workflow
 
@@ -61,9 +61,10 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 3. Run checks locally
 
 ```
- npm run type-check
- npm run lint
- npm run build
+npm run format      # Format code with Prettier (required)
+npm run type-check  # TypeScript type checking
+npm run lint        # ESLint
+npm run build       # Build both main and renderer
 ```
 
 4. Commit using Conventional Commits
@@ -75,9 +76,9 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 Examples
 
 ```
-fix(chat): preserve stream state across workspace switches
+fix(opencode): change initialPromptFlag from -p to --prompt for TUI
 
-feat(ci): add type-check + build workflow for PRs
+feat(docs): add changelog tab with GitHub releases integration
 ```
 
 5. Open a Pull Request
@@ -88,15 +89,16 @@ feat(ci): add type-check + build workflow for PRs
 
 ## Code Style and Patterns
 
-TypeScript + ESLint
+TypeScript + ESLint + Prettier
 
+- Run `npm run format` before committing to ensure consistent formatting.
 - Keep code type‑safe. Run `npm run type-check` before pushing.
 - Run `npm run lint` and address warnings where reasonable.
 
 Electron main (Node side)
 
 - Prefer `execFile` over `exec` to avoid shell quoting issues.
-- Never write logs into Git worktrees. Stream logs belong in the Electron `userData` folder.
+- Never write logs into Git worktrees. All logs belong in the Electron `userData` folder.
 - Be conservative with console logging; noisy logs reduce signal. Use clear prefixes.
 
 Git and worktrees
@@ -105,15 +107,11 @@ Git and worktrees
 - Do not delete worktree folders from Finder/Explorer; if you need cleanup, use:
   - `git worktree prune` (from the main repo)
   - or the in‑app workspace removal
-- The file `codex-stream.log` is intentionally excluded from Git status and auto‑ignored in new worktrees.
 
 Renderer (React)
 
 - Components live under `src/renderer/components`; hooks under `src/renderer/hooks`.
-- Streaming UI conventions:
-  - “Reasoning” content renders inside a collapsible.
-  - Response content is shown only after a `codex` marker.
-  - While waiting for the first marker, show the minimal “loading/working” indicator.
+- Agent CLIs are embedded via terminal emulation (xterm.js) - each agent runs in its own PTY.
 - Use existing UI primitives and Tailwind utility classes for consistency.
 - Aim for accessible elements (labels, `aria-*` where appropriate).
 
@@ -158,11 +156,15 @@ Then push to trigger the CI/CD pipeline.
 
 ### What happens next
 
-The GitHub Actions workflow (`.github/workflows/release.yml`) automatically:
+Two GitHub Actions workflows trigger on version tags:
 
-1. **Triggers** when it detects the `v*` tag
-2. **Builds** the TypeScript and Vite bundles
-3. **Signs** the app with Apple Developer ID
-4. **Notarizes** via Apple's notary service
-5. **Creates** a GitHub Release with the DMG artifacts
-6. **Uploads** signed DMGs for both arm64 and x64 architectures
+**macOS Release** (`.github/workflows/release.yml`):
+1. Builds the TypeScript and Vite bundles
+2. Signs the app with Apple Developer ID
+3. Notarizes via Apple's notary service
+4. Creates a GitHub Release with DMG artifacts for arm64 and x64
+
+**Linux/Nix Build** (`.github/workflows/nix-build.yml`):
+1. Computes the correct `npmDepsHash` from `package-lock.json`
+2. Builds the x86_64-linux package via Nix flake
+3. Pushes build artifacts to Cachix

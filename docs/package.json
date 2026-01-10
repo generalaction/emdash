@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 3000",
-    "build": "next build",
+    "dev": "node scripts/copy-md-sources.js && next dev --port 3000",
+    "build": "node scripts/copy-md-sources.js && next build",
     "start": "next start",
+    "copy-md": "node scripts/copy-md-sources.js",
     "types:check": "fumadocs-mdx && tsc --noEmit",
     "postinstall": "fumadocs-mdx"
   },

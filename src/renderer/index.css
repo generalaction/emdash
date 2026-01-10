@@ -73,6 +73,35 @@
     --selection: 217 92% 80%;
     --selection-foreground: 0 0% 98%;
   }
+
+  .dark-black {
+    --background: 0 0% 0%; /* pure black #000000 */
+    --foreground: 0 0% 95%; /* near white #f2f2f2 */
+    --card: 0 0% 4%; /* very dark gray #0a0a0a */
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 8%; /* slightly lighter gray #141414 */
+    --popover-foreground: 0 0% 95%;
+    --primary: 0 0% 95%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 12%; /* dark gray #1f1f1f */
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 15%; /* muted gray #262626 */
+    --muted-foreground: 0 0% 65%; /* lighter muted text #a6a6a6 */
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 20%; /* border gray #333333 */
+    --input: 0 0% 20%;
+    --ring: 0 0% 60%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --selection: 217 92% 70%;
+    --selection-foreground: 0 0% 95%;
+  }
 }
 
 @layer base {
@@ -127,6 +156,14 @@
     background-color: hsl(var(--muted-foreground) / 0.5);
   }
 
+  .dark-black *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+  }
+
+  .dark-black *::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
   .sidebar-panel {
     transition: flex-grow 300ms ease;
   }
@@ -146,7 +183,7 @@
   .logo-shimmer-container {
     position: relative;
     display: inline-block;
-    height: 4rem;
+    height: 2.25rem;
   }
 
   .logo-shimmer-image {

@@ -17,4 +17,6 @@ node_modules
 .tanstack
 
 src/routeTree.gen.ts
-.source
+.source/
+next-env.d.ts
+public/md-src/

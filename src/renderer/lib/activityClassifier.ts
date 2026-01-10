@@ -18,11 +18,28 @@ export function classifyActivity(
 
   const p = (provider || '').toLowerCase();
 
-  if (p === 'cursor') {
-    if (/^[\s\S]*?Generating\.?/im.test(text)) return 'busy';
-    if (/\bWorking\b|\bExecuting\b|\bRunning\b/i.test(text)) return 'busy';
-    if (/Add a follow-up/i.test(text)) return 'idle';
-    if (/Auto\s*[\r\n]+\s*\/\s*commands/i.test(text)) return 'idle';
+  // Providers in alphabetical order for better maintenance
+
+  if (p === 'auggie') {
+    // Auggie CLI patterns
+    if (/Thinking|Processing|Analyzing|Working/i.test(text)) return 'busy';
+    if (/Running|Executing|Generating|Building/i.test(text)) return 'busy';
+    if (/\[.*ing\]/i.test(text)) return 'busy';
+    // Idle patterns
+    if (/Ready|Awaiting|Press Enter|Next command/i.test(text)) return 'idle';
+    if (/auggie\s*>/i.test(text)) return 'idle';
+    if (/What.*\?|How can I|Please provide/i.test(text)) return 'idle';
+  }
+
+  if (p === 'charm' || p === 'crush') {
+    // Charm/Crush CLI patterns
+    if (/Processing|Generating|Running|Executing/i.test(text)) return 'busy';
+    if (/Thinking|Working|Analyzing|Building/i.test(text)) return 'busy';
+    if (/⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/i.test(text)) return 'busy'; // Spinner chars
+    // Idle patterns
+    if (/Ready|Awaiting|Press Enter/i.test(text)) return 'idle';
+    if (/crush\s*>/i.test(text)) return 'idle';
+    if (/What.*\?|Choose|Select/i.test(text)) return 'idle';
   }
 
   if (p === 'claude') {
@@ -119,6 +136,148 @@ export function classifyActivity(
     if (/Running|Working|Executing|Generating|Applying|Planning|Analyzing/i.test(text))
       return 'busy';
     if (/Ready|Awaiting|Press Enter|Next command|rovodev/i.test(text)) return 'idle';
+  }
+
+  if (p === 'mistral') {
+    // Mistral Vibe CLI patterns
+
+    // Busy patterns
+    if (/Thinking\.{0,3}/i.test(text)) return 'busy';
+    if (/Processing|Generating|Running|Executing|Analyzing|Working on/i.test(text)) return 'busy';
+    // Tool execution patterns
+    if (/Tool:|Executing tool:|Running tool:/i.test(text)) return 'busy';
+    if (/\[.*ing\]|\[.*ING\]/i.test(text)) return 'busy'; // [Running], [Processing], etc.
+    // Spinner or progress indicators
+    if (/[\u2800-\u28FF]/.test(text)) return 'busy'; // Braille spinner
+    if (/[\u25A0-\u25FF]/.test(text) && /\d+%/.test(text)) return 'busy'; // Progress bar
+    if (/⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/i.test(text)) return 'busy'; // Common spinner chars
+
+    // Idle patterns
+    // Task completion
+    if (/✓|✔|Completed|Finished|Done\./i.test(text)) return 'idle';
+    if (/Task completed/i.test(text)) return 'idle';
+
+    // Input prompts
+    if (/Type.*message|Enter.*prompt/i.test(text)) return 'idle';
+    if (/What would you like|How can I help/i.test(text)) return 'idle';
+    if (/What.*\?|Please.*:/i.test(text)) return 'idle';
+
+    // Standard prompts
+    if (/Ready|Awaiting|Press Enter|Next command/i.test(text)) return 'idle';
+    if (/\bvibe\s*>/i.test(text)) return 'idle'; // Vibe prompt
+    if (/›|»|>/i.test(text) && text.length < 10) return 'idle'; // Short prompt indicators
+
+    // Confirmation prompts
+    if (/\[y\/n\]|\[Y\/N\]|Continue\?/i.test(text)) return 'idle';
+    if (/Approve|Reject|Cancel/i.test(text)) return 'idle';
+  }
+
+  if (p === 'kilocode') {
+    // Kilocode CLI patterns
+
+    // Busy patterns
+    if (/Thinking\.{0,3}/i.test(text)) return 'busy';
+    if (/Processing|Working|Generating|Analyzing|Building|Compiling|Searching/i.test(text))
+      return 'busy';
+    if (/Running|Executing|Applying|Planning|Investigating/i.test(text)) return 'busy';
+    // Tool/action indicators
+    if (/\[.*ing\]|\[.*ING\]/i.test(text)) return 'busy'; // [Running], [Processing], etc.
+    // Mode-specific busy patterns
+    if (/architect mode|code mode|debug mode/i.test(text) && /working|processing/i.test(text))
+      return 'busy';
+
+    // Idle patterns - EXPANDED
+    // Task completion indicators
+    if (/✓\s*Task Completed/i.test(text)) return 'idle';
+    if (/Task Completed/i.test(text)) return 'idle';
+    if (/Checkpoint Saved/i.test(text)) return 'idle';
+
+    // Input prompts and questions
+    if (/Type a message or \/command/i.test(text)) return 'idle';
+    if (/What would you like to work on/i.test(text)) return 'idle';
+    if (/What.*\?|How can I|Please provide/i.test(text)) return 'idle';
+    if (/Hi there!/i.test(text)) return 'idle'; // Greeting response
+
+    // Menu/help indicators
+    if (/\/help for commands/i.test(text)) return 'idle';
+    if (/\/mode to switch mode/i.test(text)) return 'idle';
+    if (/! for shell mode/i.test(text)) return 'idle';
+
+    // Standard prompts
+    if (/Ready|Awaiting|Press Enter|Next command/i.test(text)) return 'idle';
+    if (/kilocode\s*>/i.test(text)) return 'idle'; // Kilocode prompt
+    if (/\[y\/n\]|\[Y\/N\]/i.test(text)) return 'idle'; // Confirmation prompts
+
+    // UI status bar patterns (workspace info at bottom)
+    if (/\(git.*worktree\)/i.test(text)) return 'idle';
+    if (/xAI.*Grok/i.test(text)) return 'idle'; // Model indicator in status
+  }
+
+  if (p === 'cline') {
+    // Cline CLI patterns
+    if (/Thinking|Processing|Analyzing|Working/i.test(text)) return 'busy';
+    if (/Running|Executing|Generating|Building/i.test(text)) return 'busy';
+    if (/Applying|Planning|Searching|Evaluating/i.test(text)) return 'busy';
+    // Idle patterns
+    if (/Ready|Awaiting|Press Enter|Next command/i.test(text)) return 'idle';
+    if (/cline\s*>/i.test(text)) return 'idle';
+    if (/What.*\?|How can I|Please.*:/i.test(text)) return 'idle';
+    if (/Task completed|Done\./i.test(text)) return 'idle';
+  }
+
+  if (p === 'codebuff') {
+    // Codebuff CLI patterns
+    if (/Thinking|Processing|Working|Analyzing/i.test(text)) return 'busy';
+    if (/Generating|Building|Compiling|Running/i.test(text)) return 'busy';
+    if (/Buffering|Loading|Fetching/i.test(text)) return 'busy';
+    // Idle patterns
+    if (/Ready|Awaiting|Press Enter/i.test(text)) return 'idle';
+    if (/codebuff\s*>/i.test(text)) return 'idle';
+    if (/What.*\?|Enter.*command/i.test(text)) return 'idle';
+  }
+
+  if (p === 'continue' || p === 'cn') {
+    // Continue CLI patterns
+    if (/Thinking|Processing|Analyzing|Working/i.test(text)) return 'busy';
+    if (/Running|Executing|Generating|Applying/i.test(text)) return 'busy';
+    if (/Continuing|Resuming|Loading/i.test(text)) return 'busy';
+    // Idle patterns
+    if (/Ready|Awaiting|Press Enter/i.test(text)) return 'idle';
+    if (/cn\s*>|continue\s*>/i.test(text)) return 'idle';
+    if (/What.*\?|How can I|Next step/i.test(text)) return 'idle';
+  }
+
+  if (p === 'cursor') {
+    // Cursor CLI patterns
+    if (/^[\s\S]*?Generating\.?/im.test(text)) return 'busy';
+    if (/\bWorking\b|\bExecuting\b|\bRunning\b/i.test(text)) return 'busy';
+    if (/Add a follow-up/i.test(text)) return 'idle';
+    if (/Auto\s*[\r\n]+\s*\/\s*commands/i.test(text)) return 'idle';
+  }
+
+  if (p === 'goose') {
+    // Goose CLI patterns
+    if (/Thinking|Processing|Analyzing|Working/i.test(text)) return 'busy';
+    if (/Running|Executing|Generating|Planning/i.test(text)) return 'busy';
+    if (/Investigating|Searching|Building/i.test(text)) return 'busy';
+    // Idle patterns
+    if (/Ready|Awaiting|Press Enter/i.test(text)) return 'idle';
+    if (/goose\s*>/i.test(text)) return 'idle';
+    if (/What.*\?|How can I|Choose/i.test(text)) return 'idle';
+    if (/Session.*started|Session.*resumed/i.test(text)) return 'idle';
+  }
+
+  if (p === 'qwen') {
+    // Qwen Code CLI patterns
+    if (/Thinking|Processing|Analyzing|Working/i.test(text)) return 'busy';
+    if (/Running|Executing|Generating|Compiling/i.test(text)) return 'busy';
+    if (/Computing|Calculating|Optimizing/i.test(text)) return 'busy';
+    if (/\[.*ing\]/i.test(text)) return 'busy';
+    // Idle patterns
+    if (/Ready|Awaiting|Press Enter|Next command/i.test(text)) return 'idle';
+    if (/qwen\s*>/i.test(text)) return 'idle';
+    if (/What.*\?|How can I|Please.*:/i.test(text)) return 'idle';
+    if (/Task completed|Finished/i.test(text)) return 'idle';
   }
 
   // Generic signals

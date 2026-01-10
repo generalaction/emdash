@@ -32,9 +32,8 @@ const MainContent: React.FC<MainContentProps> = ({
         <div className="text-center">
           <div className="mb-8">
             <h1
-              className="mb-4 text-6xl font-bold text-white"
+              className="mb-4 font-mono text-6xl font-semibold text-white"
               style={{
-                fontFamily: 'monospace',
                 letterSpacing: '0.1em',
                 textShadow: '2px 2px 0px #000',
               }}

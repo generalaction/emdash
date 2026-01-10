@@ -71,7 +71,7 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     key: 't',
     modifier: 'cmd',
     label: 'Toggle Theme',
-    description: 'Switch between light and dark theme',
+    description: 'Cycle through light, dark navy, and dark black themes',
     category: 'View',
     settingsKey: 'toggleTheme',
   },

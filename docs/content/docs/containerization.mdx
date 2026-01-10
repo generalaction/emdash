@@ -1,0 +1,58 @@
+---
+title: Containerization
+description: Run tasks in Docker containers
+---
+
+Run your task's worktree inside a Docker container for extra isolation. The agent works in a containerized environment with its own dependencies and ports.
+
+## Requirements
+
+- Docker Desktop installed and running
+- A Node.js project (detected via package.json)
+
+## How to Enable
+
+1. Open a task
+2. Click the "Connect" button in the task toolbar
+3. Emdash builds and starts a container with your worktree mounted
+
+The container installs dependencies automatically using your lockfile (npm, pnpm, or yarn).
+
+## Configuration
+
+Create `.emdash/config.json` in your project root to customize the container:
+
+```json
+{
+  "version": 1,
+  "packageManager": "npm",
+  "start": "npm run dev",
+  "workdir": ".",
+  "ports": [
+    {
+      "service": "app",
+      "container": 3000,
+      "preview": true
+    }
+  ]
+}
+```
+
+**Fields:**
+
+- `packageManager`: npm, pnpm, or yarn (auto-detected if not set)
+- `start`: Command to run your app
+- `workdir`: Working directory inside the container
+- `ports`: Port mappings. Set `preview: true` for the main web port.
+
+If no config exists, Emdash uses sensible defaults: npm, port 3000, `npm run dev`.
+
+## Port Mapping
+
+Container ports are mapped to random available ports on your host. Emdash shows the mapped URLs in the task view so you can open your app in a browser.
+
+## Limitations
+
+- Single-agent tasks only. Multi-agent containerization is not yet supported.
+- Docker Compose files are detected but multi-service support is coming soon.
+- TCP ports only (no UDP).

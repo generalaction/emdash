@@ -107,15 +107,17 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const themeOverride = useMemo(() => {
     const isMistral = provider === 'mistral';
     const darkBackground = isMistral ? '#202938' : '#1e1e1e';
+    const blackBackground = isMistral ? '#141820' : '#000000';
 
     const baseTheme =
-      effectiveTheme === 'dark'
+      effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
         ? {
-            background: darkBackground,
+            background: effectiveTheme === 'dark-black' ? blackBackground : darkBackground,
             foreground: '#d4d4d4',
             cursor: '#aeafad',
-            cursorAccent: darkBackground,
-            selectionBackground: '#264f78',
+            cursorAccent: effectiveTheme === 'dark-black' ? blackBackground : darkBackground,
+            selectionBackground: 'rgba(96, 165, 250, 0.35)',
+            selectionForeground: '#f9fafb',
             black: '#000000',
             red: '#cd3131',
             green: '#0dbc79',
@@ -138,7 +140,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             foreground: '#1e1e1e',
             cursor: '#1e1e1e',
             cursorAccent: '#ffffff',
-            selectionBackground: '#add6ff',
+            selectionBackground: 'rgba(59, 130, 246, 0.35)',
+            selectionForeground: '#0f172a',
             black: '#000000',
             red: '#cd3131',
             green: '#0dbc79',
@@ -333,9 +336,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       <div
         className={cn(
           'bw-terminal relative flex-1 overflow-hidden',
-          effectiveTheme === 'dark'
+          effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
             ? provider === 'mistral'
-              ? 'bg-[#202938]'
+              ? effectiveTheme === 'dark-black'
+                ? 'bg-[#141820]'
+                : 'bg-[#202938]'
               : 'bg-card'
             : 'bg-white'
         )}
@@ -361,7 +366,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               <TerminalPane
                 id={terminal.id}
                 cwd={cwd}
-                variant={effectiveTheme === 'dark' ? 'dark' : 'light'}
+                variant={
+                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+                }
                 themeOverride={themeOverride}
                 className="h-full w-full"
                 keepAlive

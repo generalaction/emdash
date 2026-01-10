@@ -1,0 +1,143 @@
+---
+title: Telemetry
+description: What data Emdash collects, what it doesn't, and how to opt out
+---
+
+## Summary
+
+- Anonymous usage telemetry, enabled by default
+- Explicit allowlisted events only (no autocapture or session recording)
+- Sent to [PostHog](https://posthog.com)
+- Easy to disable
+
+## Opt Out
+
+### In-App
+
+Settings → General → Privacy & Telemetry → Toggle off
+
+![Disable Telemetry](/media/disabletelemetry.png)
+
+### Environment Variable
+
+```bash
+TELEMETRY_ENABLED=false
+```
+
+## What We Collect
+
+Anonymous, aggregated usage data only.
+
+### App Lifecycle
+
+**`app_started`** / **`app_closed`**
+
+- `app_version`, `electron_version`, `platform`, `arch`, `is_dev`, `install_source`
+
+**`app_session`** (on quit)
+
+- `session_duration_ms`
+
+### Feature Usage
+
+Events track which features are used, not what you do with them:
+
+- Project management (create, open, delete)
+- Task management (create, delete, switch provider)
+- Terminal (open, execute)
+- Changes (view diff, create PR)
+- Plan mode (enable/disable)
+- Settings (theme, notifications, default provider)
+- Integrations (Linear, Jira connections)
+- Container connections
+- UI interactions (toolbar, sidebar, Kanban)
+
+All events include only: event name, anonymized properties (e.g., `provider: "claude"`). No file paths, code, prompts, or identifying information.
+
+<details>
+<summary>**Complete Event List**</summary>
+
+**App Lifecycle:** `app_started`, `app_closed`, `app_window_focused`, `app_session`
+
+**GitHub:** `github_connection_triggered`, `github_connected`
+
+**Projects:** `project_add_clicked`, `project_open_clicked`, `project_added_success`, `project_deleted`, `project_view_opened`
+
+**Tasks:** `workspace_created`, `workspace_deleted`, `workspace_provider_switched`, `workspace_custom_named`, `workspace_advanced_options_opened`
+
+**Terminal:** `terminal_entered`, `terminal_command_executed`, `terminal_new_terminal_created`, `terminal_deleted`
+
+**Changes & PRs:** `changes_viewed`, `pr_created`, `pr_creation_failed`, `pr_viewed`
+
+**Plan Mode:** `plan_mode_enabled`, `plan_mode_disabled`
+
+**Linear:** `linear_connected`, `linear_disconnected`, `linear_issues_searched`, `linear_issue_selected`
+
+**Jira:** `jira_connected`, `jira_disconnected`, `jira_issues_searched`, `jira_issue_selected`
+
+**Containers:** `container_connect_clicked`, `container_connect_success`, `container_connect_failed`
+
+**Toolbar:** `toolbar_feedback_clicked`, `toolbar_left_sidebar_clicked`, `toolbar_right_sidebar_clicked`, `toolbar_settings_clicked`, `toolbar_open_in_menu_clicked`, `toolbar_open_in_selected`, `toolbar_kanban_toggled`
+
+**Browser Preview:** `browser_preview_closed`, `browser_preview_url_navigated`
+
+**Settings:** `settings_tab_viewed`, `theme_changed`, `telemetry_toggled`, `notification_settings_changed`, `default_provider_changed`
+
+**Agent:** `agent_run_start`, `agent_run_finish`
+
+**Aggregates:** `workspace_snapshot`, `feature_used`, `error`
+
+</details>
+
+### Agent Events
+
+**`agent_run_start`** / **`agent_run_finish`**
+
+- `provider` (e.g., "claude", "codex")
+- `outcome` (`ok` or `error`)
+- `duration_ms`
+
+## What We Don't Collect
+
+- Code or file contents
+- File paths or repository names
+- Prompts or messages sent to agents
+- Environment variables
+- Personally identifiable information (PII)
+- User text input or command contents
+- IP-derived location data
+- Session recordings or screen captures
+
+## How It Works
+
+**Anonymous ID:** Random `instanceId` generated on first launch, stored in `${appData}/telemetry.json`. Not linked to any personal information.
+
+**Sanitization:** All data passes through an allowlist. Unexpected or sensitive data is dropped.
+
+**Local development:** `is_dev: true` and `install_source: "dev"` mark development builds.
+
+## For Developers
+
+### Environment Variables
+
+| Variable                  | Default     | Description                     |
+| ------------------------- | ----------- | ------------------------------- |
+| `TELEMETRY_ENABLED`       | `true`      | Set to `false` to disable       |
+| `INSTALL_SOURCE`          | -           | Distribution channel (dmg, dev) |
+| `POSTHOG_PROJECT_API_KEY` | Public key  | Override PostHog API key        |
+| `POSTHOG_HOST`            | Public host | Override PostHog host           |
+
+PostHog credentials are public and committed in `src/main/appConfig.json`. CI can override via GitHub secrets.
+
+### Adding Events
+
+1. Track only coarse, anonymous metrics
+2. Add to allowlist in telemetry service
+3. Document here
+4. No PII or sensitive data
+
+## Questions
+
+- **Code:** `src/main/telemetry.ts`, `src/main/ipc/telemetryIpc.ts`
+- **Issues:** [GitHub Issues](https://github.com/generalaction/emdash/issues)
+- **Discuss:** [GitHub Discussions](https://github.com/generalaction/emdash/discussions)
