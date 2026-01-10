@@ -9,6 +9,7 @@ import IntegrationsCard from './IntegrationsCard';
 import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
 import TelemetryCard from './TelemetryCard';
 import ThemeCard from './ThemeCard';
+import FontSettingsCard from './FontSettingsCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
@@ -219,6 +220,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         description: '',
         sections: [
           { title: 'Theme', render: () => <ThemeCard /> },
+          { title: 'Fonts', render: () => <FontSettingsCard /> },
           { title: 'Keyboard shortcuts', render: () => <KeyboardSettingsCard /> },
           { title: 'Notifications', render: () => <NotificationSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },

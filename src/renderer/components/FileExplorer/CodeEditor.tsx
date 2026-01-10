@@ -34,6 +34,20 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
   const monacoRef = useRef<any>(null);
   const editorRef = useRef<any>(null);
 
+  // Font settings state
+  const [fontSettings, setFontSettings] = useState(() => {
+    try {
+      const stored = localStorage.getItem('emdash-fonts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.editor || { fontFamily: 'monospace', fontSize: 13 };
+      }
+    } catch {
+      // Use defaults if localStorage fails
+    }
+    return { fontFamily: 'monospace', fontSize: 13 };
+  });
+
   // File management with custom hook
   const {
     openFiles,
@@ -55,6 +69,27 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
 
   // State to track when editor is ready
   const [editorReady, setEditorReady] = useState(false);
+
+  // Listen for font settings changes
+  useEffect(() => {
+    const handleFontChange = (event: CustomEvent) => {
+      if (event.detail?.editor) {
+        setFontSettings(event.detail.editor);
+        // Update Monaco editor options if it's ready
+        if (editorRef.current) {
+          editorRef.current.updateOptions({
+            fontFamily: event.detail.editor.fontFamily,
+            fontSize: event.detail.editor.fontSize,
+          });
+        }
+      }
+    };
+
+    window.addEventListener('font-settings-changed', handleFontChange as EventListener);
+    return () => {
+      window.removeEventListener('font-settings-changed', handleFontChange as EventListener);
+    };
+  }, []);
 
   // Diff decorations for showing git changes in the editor
   const { refreshDecorations } = useEditorDiffDecorations({
@@ -324,6 +359,7 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
             effectiveTheme={effectiveTheme}
             onEditorMount={handleEditorMount}
             onEditorChange={handleEditorChange}
+            fontSettings={fontSettings}
           />
         </div>
       </div>
@@ -405,6 +441,7 @@ interface EditorContentProps {
   effectiveTheme: string;
   onEditorMount: (editor: any, monaco: any) => void;
   onEditorChange: (value: string | undefined) => void;
+  fontSettings: { fontFamily: string; fontSize: number };
 }
 
 const EditorContent: React.FC<EditorContentProps> = ({
@@ -412,6 +449,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
   effectiveTheme,
   onEditorMount,
   onEditorChange,
+  fontSettings,
 }) => {
   if (!activeFile) {
     return <NoFileOpen />;
@@ -440,7 +478,11 @@ const EditorContent: React.FC<EditorContentProps> = ({
               ? 'custom-dark'
               : 'custom-light'
         }
-        options={DEFAULT_EDITOR_OPTIONS}
+        options={{
+          ...DEFAULT_EDITOR_OPTIONS,
+          fontFamily: fontSettings.fontFamily,
+          fontSize: fontSettings.fontSize,
+        }}
       />
     </div>
   );

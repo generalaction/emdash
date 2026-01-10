@@ -73,12 +73,29 @@ export class TerminalSessionManager {
     } as CSSStyleDeclaration);
     ensureTerminalHost().appendChild(this.container);
 
+    // Load font settings from localStorage
+    let fontFamily: string | undefined;
+    let fontSize = 13;
+    try {
+      const fontSettings = localStorage.getItem('emdash-fonts');
+      if (fontSettings) {
+        const parsed = JSON.parse(fontSettings);
+        if (parsed.terminal) {
+          fontFamily = parsed.terminal.fontFamily;
+          fontSize = parsed.terminal.fontSize || 13;
+        }
+      }
+    } catch {
+      // Use defaults if localStorage fails
+    }
+
     this.terminal = new Terminal({
       cols: options.initialSize.cols,
       rows: options.initialSize.rows,
       scrollback: options.scrollbackLines,
       convertEol: true,
-      fontSize: 13,
+      fontSize,
+      fontFamily,
       lineHeight: 1.2,
       letterSpacing: 0,
       allowProposedApi: true,
@@ -144,9 +161,32 @@ export class TerminalSessionManager {
         window.electronAPI.ptyResize({ id: this.id, cols, rows });
       }
     });
+    // Listen for font settings changes
+    const fontChangeHandler = (event: CustomEvent) => {
+      if (event.detail?.terminal) {
+        const { fontFamily, fontSize } = event.detail.terminal;
+        if (fontFamily) {
+          this.terminal.options.fontFamily = fontFamily;
+        }
+        if (fontSize) {
+          this.terminal.options.fontSize = fontSize;
+        }
+        // Refit after font changes
+        if (this.fitAddon && this.attachedContainer) {
+          requestAnimationFrame(() => {
+            if (!this.disposed) {
+              this.fitPreservingViewport();
+            }
+          });
+        }
+      }
+    };
+    window.addEventListener('font-settings-changed', fontChangeHandler as EventListener);
+
     this.disposables.push(
       () => inputDisposable.dispose(),
-      () => resizeDisposable.dispose()
+      () => resizeDisposable.dispose(),
+      () => window.removeEventListener('font-settings-changed', fontChangeHandler as EventListener)
     );
 
     void this.restoreSnapshot().finally(() => this.connectPty());
