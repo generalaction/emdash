@@ -42,9 +42,9 @@ export default {
         // - Code/Terminal: use font-mono with text-code
         // - Help text/Metadata: use text-tiny with text-muted-foreground
         // - Badges/Indicators: use text-micro for very small UI elements
-        'code': ['13px', { lineHeight: '1.2' }],     // Terminal, code editor, monospace content
-        'tiny': ['11px', { lineHeight: '1.3' }],     // Help text, metadata, secondary info
-        'micro': ['10px', { lineHeight: '1.2' }],    // Badges, tiny indicators only
+        code: ['13px', { lineHeight: '1.2' }], // Terminal, code editor, monospace content
+        tiny: ['11px', { lineHeight: '1.3' }], // Help text, metadata, secondary info
+        micro: ['10px', { lineHeight: '1.2' }], // Badges, tiny indicators only
       },
       colors: {
         border: 'hsl(var(--border))',
