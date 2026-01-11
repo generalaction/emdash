@@ -30,6 +30,7 @@ import {
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
+import { ConfigEditorModal } from './ConfigEditorModal';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import TaskPorts from './TaskPorts';
@@ -242,7 +243,9 @@ function TaskRow({
         ].join(' ')}
       >
         <div className="min-w-0 flex-1">
-          <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
+          <div className="flex items-center gap-2">
+            <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
+          </div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             {isRunning || ws.status === 'running' ? <Spinner size="sm" className="size-3" /> : null}
             <GitBranch className="size-3" />
@@ -356,22 +359,24 @@ function TaskRow({
               className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
             />
           ) : (
-            <TaskDeleteButton
-              taskName={ws.name}
-              taskId={ws.id}
-              taskPath={ws.path}
-              onConfirm={async () => {
-                try {
-                  setIsDeleting(true);
-                  await onDelete();
-                } finally {
-                  setIsDeleting(false);
-                }
-              }}
-              isDeleting={isDeleting}
-              aria-label={`Delete task ${ws.name}`}
-              className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
-            />
+            <>
+              <TaskDeleteButton
+                taskName={ws.name}
+                taskId={ws.id}
+                taskPath={ws.path}
+                onConfirm={async () => {
+                  try {
+                    setIsDeleting(true);
+                    await onDelete();
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                isDeleting={isDeleting}
+                aria-label={`Delete task ${ws.name}`}
+                className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
+              />
+            </>
           )}
         </div>
       </div>
@@ -416,6 +421,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onDeleteProject,
 }) => {
   const { toast } = useToast();
+
   const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
     normalizeBaseRef(project.gitInfo.baseRef)
   );
@@ -431,6 +437,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
+  const [showConfigEditor, setShowConfigEditor] = useState(false);
 
   const tasksInProject = project.tasks ?? [];
   const selectedCount = selectedIds.size;
@@ -746,10 +753,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         />
                       ) : null}
                       {project.githubInfo?.connected && project.githubInfo.repository ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-3 text-xs font-medium"
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          transition={{ duration: 0.1, ease: 'easeInOut' }}
+                          className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           onClick={() =>
                             window.electronAPI.openExternal(
                               `https://github.com/${project.githubInfo?.repository}`
@@ -758,7 +765,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         >
                           View on GitHub
                           <ArrowUpRight className="size-3" />
-                        </Button>
+                        </motion.button>
                       ) : null}
                     </div>
                   </div>
@@ -778,6 +785,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       setBranchReloadToken((token) => token + 1);
                     }
                   }}
+                  projectPath={project.path}
+                  onEditConfig={() => setShowConfigEditor(true)}
                 />
               </header>
               <Separator className="my-2" />
@@ -822,26 +831,28 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   </p>
                 </div>
                 {!isSelectMode && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-9 px-4 text-sm font-semibold shadow-sm"
-                    onClick={onCreateTask}
-                    disabled={isCreatingTask}
-                    aria-busy={isCreatingTask}
-                  >
-                    {isCreatingTask ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        Starting…
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="mr-2 size-4" />
-                        Start New Task
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ duration: 0.1, ease: 'easeInOut' }}
+                      className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                      onClick={onCreateTask}
+                      disabled={isCreatingTask}
+                      aria-busy={isCreatingTask}
+                    >
+                      {isCreatingTask ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Starting…
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="mr-2 size-4" />
+                          Start New Task
+                        </>
+                      )}
+                    </motion.button>
+                  </div>
                 )}
               </div>
               {tasksInProject.length > 0 ? (
@@ -912,6 +923,29 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </AlertDialogHeader>
           <div className="space-y-3">
             <AnimatePresence initial={false}>
+              {deleteStatusLoading ? (
+                <motion.div
+                  key="bulk-delete-loading"
+                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
+                >
+                  <Spinner
+                    className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground"
+                    size="sm"
+                  />
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-sm font-semibold text-foreground">Please wait...</span>
+                    <span className="text-xs text-muted-foreground">
+                      Scanning tasks for uncommitted changes and open pull requests
+                    </span>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+            <AnimatePresence initial={false}>
               {(() => {
                 const tasksWithUncommittedWorkOnly = selectedTasks.filter((ws) => {
                   const summary = deleteRisks.summaries[ws.id];
@@ -921,7 +955,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   return true;
                 });
 
-                return tasksWithUncommittedWorkOnly.length > 0 ? (
+                return tasksWithUncommittedWorkOnly.length > 0 && !deleteStatusLoading ? (
                   <motion.div
                     key="bulk-risk"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -958,7 +992,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 const prTasks = selectedTasks
                   .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
                   .filter((w) => w.pr && isActivePr(w.pr));
-                return prTasks.length ? (
+                return prTasks.length && !deleteStatusLoading ? (
                   <motion.div
                     key="bulk-pr-notice"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -973,7 +1007,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             </AnimatePresence>
 
             <AnimatePresence initial={false}>
-              {deleteRisks.riskyIds.size > 0 ? (
+              {deleteRisks.riskyIds.size > 0 && !deleteStatusLoading ? (
                 <motion.label
                   key="bulk-ack"
                   className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm"
@@ -1004,6 +1038,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConfigEditorModal
+        isOpen={showConfigEditor}
+        onClose={() => setShowConfigEditor(false)}
+        projectPath={project.path}
+      />
     </div>
   );
 };

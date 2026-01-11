@@ -23,7 +23,7 @@ export function createMainWindow(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // Allow using <webview> in the renderer for the in‑app browser pane.
+      // Allow using <webview> in renderer for in‑app browser pane.
       // The webview runs in a separate process; nodeIntegration remains disabled.
       webviewTag: true,
       // __dirname here resolves to dist/main/main/app at runtime (dev)
@@ -64,8 +64,10 @@ export function createMainWindow(): BrowserWindow {
   // Track window focus for telemetry
   mainWindow.on('focus', () => {
     // Lazy import to avoid circular dependencies
-    void import('../telemetry').then(({ capture }) => {
+    void import('../telemetry').then(({ capture, checkAndReportDailyActiveUser }) => {
       void capture('app_window_focused');
+      // Also check for daily active user when window gains focus
+      checkAndReportDailyActiveUser();
     });
   });
 

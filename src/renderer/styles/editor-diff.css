@@ -1,0 +1,77 @@
+/* Gutter markers (the colored bars in the gutter) */
+.diff-glyph-added::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  width: 3px;
+  height: 100%;
+  background-color: #10b981; /* emerald-500 */
+  border-radius: 1px;
+}
+
+.diff-glyph-modified::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  width: 3px;
+  height: 100%;
+  background-color: #3b82f6; /* blue-500 */
+  border-radius: 1px;
+}
+
+.diff-glyph-deleted::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  width: 3px;
+  height: 100%;
+  background-color: #ef4444; /* red-500 */
+  border-radius: 1px;
+}
+
+/* Line background colors for dark theme - subtle highlighting */
+.diff-line-added-dark {
+  background-color: rgba(16, 185, 129, 0.05); /* emerald-500 with 5% opacity - very subtle */
+}
+
+.diff-line-modified-dark {
+  background-color: rgba(59, 130, 246, 0.05); /* blue-500 with 5% opacity - very subtle */
+}
+
+.diff-line-deleted-dark {
+  background-color: rgba(239, 68, 68, 0.05); /* red-500 with 5% opacity - very subtle */
+}
+
+/* Line background colors for light theme - subtle highlighting */
+.diff-line-added-light {
+  background-color: rgba(16, 185, 129, 0.04); /* emerald-500 with 4% opacity - very subtle */
+}
+
+.diff-line-modified-light {
+  background-color: rgba(59, 130, 246, 0.04); /* blue-500 with 4% opacity - very subtle */
+}
+
+.diff-line-deleted-light {
+  background-color: rgba(239, 68, 68, 0.04); /* red-500 with 4% opacity - very subtle */
+}
+
+/* Override Monaco's default glyph margin styles for better visibility */
+.monaco-editor .margin-view-overlays .glyph-margin {
+  width: 20px !important;
+}
+
+/* Ensure glyph margin is visible */
+.monaco-editor .margin {
+  background-color: transparent !important;
+}
+
+/* Hover effect for diff markers */
+.diff-glyph-added:hover::before,
+.diff-glyph-modified:hover::before,
+.diff-glyph-deleted:hover::before {
+  width: 4px;
+  left: 2px;
+  transition:
+    width 0.1s ease-in-out,
+    left 0.1s ease-in-out;
+}

@@ -1,10 +1,11 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'light' | 'dark' | 'dark-black' | 'system';
+type EffectiveTheme = 'light' | 'dark' | 'dark-black';
 
 const STORAGE_KEY = 'emdash-theme';
 
-function getSystemTheme(): 'light' | 'dark' {
+function getSystemTheme(): EffectiveTheme {
   if (typeof window === 'undefined') return 'light';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
@@ -13,7 +14,7 @@ function getStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'system';
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'light' || stored === 'dark' || stored === 'system') {
+    if (stored === 'light' || stored === 'dark' || stored === 'dark-black' || stored === 'system') {
       return stored;
     }
   } catch {}
@@ -26,10 +27,14 @@ function applyTheme(theme: Theme) {
   const root = document.documentElement;
   const effectiveTheme = theme === 'system' ? getSystemTheme() : theme;
 
+  // Remove all theme classes first
+  root.classList.remove('dark', 'dark-black');
+
+  // Apply the appropriate theme class
   if (effectiveTheme === 'dark') {
     root.classList.add('dark');
-  } else {
-    root.classList.remove('dark');
+  } else if (effectiveTheme === 'dark-black') {
+    root.classList.add('dark', 'dark-black');
   }
 }
 
@@ -37,16 +42,17 @@ interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
-  effectiveTheme: 'light' | 'dark';
+  effectiveTheme: EffectiveTheme;
 }
 
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getStoredTheme);
-  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(getSystemTheme);
+  const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(getSystemTheme);
 
-  const effectiveTheme = theme === 'system' ? systemTheme : theme;
+  const effectiveTheme: EffectiveTheme =
+    theme === 'system' ? systemTheme : (theme as EffectiveTheme);
 
   useEffect(() => {
     applyTheme(theme);
@@ -77,7 +83,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const toggleTheme = () => {
-    setThemeState((current) => (current === 'dark' ? 'light' : 'dark'));
+    setThemeState((current) => {
+      // Cycle through: light -> dark -> dark-black -> light
+      if (current === 'light') return 'dark';
+      if (current === 'dark') return 'dark-black';
+      if (current === 'dark-black') return 'light';
+      // If system, start cycling from the effective theme
+      if (current === 'system') {
+        if (effectiveTheme === 'light') return 'dark';
+        if (effectiveTheme === 'dark') return 'dark-black';
+        return 'light';
+      }
+      return 'light';
+    });
   };
 
   return (

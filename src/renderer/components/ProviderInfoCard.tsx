@@ -206,7 +206,7 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
         </a>
       </div>
       <div className="mb-2 flex h-7 items-center justify-between rounded-md border px-2 text-xs text-foreground">
-        <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-[11px] leading-none">
+        <code className="max-w-[calc(100%-2.5rem)] truncate font-mono text-tiny leading-none">
           {installCommand}
         </code>
         <Button
@@ -225,12 +225,12 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
       {info.knowledgeCutoff || info.hostingNote ? (
         <div className="mt-2 space-y-1">
           {info.knowledgeCutoff ? (
-            <div className="text-[11px] text-muted-foreground">
+            <div className="text-tiny text-muted-foreground">
               Knowledge cutoff: {info.knowledgeCutoff}
             </div>
           ) : null}
           {info.hostingNote ? (
-            <div className="text-[11px] text-muted-foreground">{info.hostingNote}</div>
+            <div className="text-tiny text-muted-foreground">{info.hostingNote}</div>
           ) : null}
         </div>
       ) : null}

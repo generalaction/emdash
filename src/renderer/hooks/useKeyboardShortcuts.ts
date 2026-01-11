@@ -15,7 +15,10 @@ export type ShortcutSettingsKey =
   | 'toggleRightSidebar'
   | 'toggleTheme'
   | 'toggleKanban'
-  | 'closeModal';
+  | 'closeModal'
+  | 'nextProject'
+  | 'prevProject'
+  | 'newTask';
 
 export interface AppShortcut {
   key: string;
@@ -68,7 +71,7 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     key: 't',
     modifier: 'cmd',
     label: 'Toggle Theme',
-    description: 'Switch between light and dark theme',
+    description: 'Cycle through light, dark navy, and dark black themes',
     category: 'View',
     settingsKey: 'toggleTheme',
   },
@@ -91,6 +94,33 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     settingsKey: 'closeModal',
     hideFromSettings: true,
   },
+
+  NEXT_TASK: {
+    key: 'ArrowRight',
+    modifier: 'cmd',
+    label: 'Next Task',
+    description: 'Switch to the next task',
+    category: 'Navigation',
+    settingsKey: 'nextProject',
+  },
+
+  PREV_TASK: {
+    key: 'ArrowLeft',
+    modifier: 'cmd',
+    label: 'Previous Task',
+    description: 'Switch to the previous task',
+    category: 'Navigation',
+    settingsKey: 'prevProject',
+  },
+
+  NEW_TASK: {
+    key: 'n',
+    modifier: 'cmd',
+    label: 'New Task',
+    description: 'Create a new task',
+    category: 'Navigation',
+    settingsKey: 'newTask',
+  },
 };
 
 /**
@@ -112,7 +142,13 @@ export function formatShortcut(shortcut: ShortcutConfig): string {
             : 'Ctrl'
     : '';
 
-  const key = shortcut.key === 'Escape' ? 'Esc' : shortcut.key.toUpperCase();
+  let key = shortcut.key;
+  if (key === 'Escape') key = 'Esc';
+  else if (key === 'ArrowLeft') key = '←';
+  else if (key === 'ArrowRight') key = '→';
+  else if (key === 'ArrowUp') key = '↑';
+  else if (key === 'ArrowDown') key = '↓';
+  else key = key.toUpperCase();
 
   return modifier ? `${modifier}${key}` : key;
 }
@@ -210,6 +246,9 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       toggleTheme: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_THEME, custom),
       toggleKanban: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_KANBAN, custom),
       closeModal: getEffectiveConfig(APP_SHORTCUTS.CLOSE_MODAL, custom),
+      nextProject: getEffectiveConfig(APP_SHORTCUTS.NEXT_TASK, custom),
+      prevProject: getEffectiveConfig(APP_SHORTCUTS.PREV_TASK, custom),
+      newTask: getEffectiveConfig(APP_SHORTCUTS.NEW_TASK, custom),
     };
   }, [handlers.customKeyboardSettings]);
 
@@ -256,6 +295,24 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         config: effectiveShortcuts.closeModal,
         handler: () => handlers.onCloseModal?.(),
         priority: 'modal',
+      },
+      {
+        config: effectiveShortcuts.nextProject,
+        handler: () => handlers.onNextProject?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.prevProject,
+        handler: () => handlers.onPrevProject?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.newTask,
+        handler: () => handlers.onNewTask?.(),
+        priority: 'global',
+        requiresClosed: true,
       },
     ];
 

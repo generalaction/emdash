@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Command, MessageSquare, Settings as SettingsIcon, KanbanSquare } from 'lucide-react';
+import {
+  Command,
+  MessageSquare,
+  Settings as SettingsIcon,
+  KanbanSquare,
+  Code2,
+} from 'lucide-react';
+import { ShortcutHint } from '../ui/shortcut-hint';
 import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
 import { Button } from '../ui/button';
@@ -28,6 +35,9 @@ interface TitlebarProps {
   onToggleKanban?: () => void;
   isKanbanOpen?: boolean;
   kanbanAvailable?: boolean;
+  onToggleEditor?: () => void;
+  showEditorButton?: boolean;
+  isEditorOpen?: boolean;
 }
 
 const Titlebar: React.FC<TitlebarProps> = ({
@@ -43,6 +53,9 @@ const Titlebar: React.FC<TitlebarProps> = ({
   onToggleKanban,
   isKanbanOpen = false,
   kanbanAvailable = false,
+  onToggleEditor,
+  showEditorButton = false,
+  isEditorOpen = false,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -104,6 +117,34 @@ const Titlebar: React.FC<TitlebarProps> = ({
       <header className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background">
         <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
           {currentPath ? <OpenInMenu path={currentPath} align="right" /> : null}
+          {showEditorButton ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={isEditorOpen ? 'Close Editor' : 'Open Editor'}
+                    onClick={async () => {
+                      void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+                        captureTelemetry('toolbar_editor_clicked', {
+                          action: isEditorOpen ? 'close' : 'open',
+                        });
+                      });
+                      onToggleEditor?.();
+                    }}
+                    className="h-8 w-8 text-muted-foreground hover:bg-background/80"
+                  >
+                    <Code2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs font-medium">
+                  <span>{isEditorOpen ? 'Close Editor' : 'Open Editor'}</span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
           {kanbanAvailable ? (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -130,10 +171,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
                 <TooltipContent side="bottom" className="text-xs font-medium">
                   <div className="flex flex-col gap-1">
                     <span>Toggle Kanban view</span>
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Command className="h-3 w-3" aria-hidden="true" />
-                      <span>P</span>
-                    </span>
+                    <ShortcutHint settingsKey="toggleKanban" />
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -174,7 +212,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <SidebarLeftToggleButton />
+          <SidebarLeftToggleButton isDisabled={isEditorOpen} />
           <SidebarRightToggleButton />
           <TooltipProvider delayDuration={200}>
             <Tooltip>
@@ -199,10 +237,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
               <TooltipContent side="bottom" className="text-xs font-medium">
                 <div className="flex flex-col gap-1">
                   <span>Open settings</span>
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Command className="h-3 w-3" aria-hidden="true" />
-                    <span>,</span>
-                  </span>
+                  <ShortcutHint settingsKey="settings" />
                 </div>
               </TooltipContent>
             </Tooltip>

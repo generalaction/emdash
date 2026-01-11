@@ -14,6 +14,15 @@ export const MONACO_DIFF_COLORS = {
     removedTextBackground: '#8813374D', // rose-900 (#881337) with 30% opacity
     removedLineBackground: '#88133766', // rose-900 with 40% opacity for lines
   },
+  'dark-black': {
+    editorBackground: '#000000', // pure black
+    // Emerald (green) for additions with adjusted opacity for black background
+    insertedTextBackground: '#064e3b5C', // emerald-900 with slightly higher opacity for black bg
+    insertedLineBackground: '#064e3b73', // emerald-900 with 45% opacity for lines
+    // Rose (red) for deletions with adjusted opacity for black background
+    removedTextBackground: '#8813375C', // rose-900 with slightly higher opacity for black bg
+    removedLineBackground: '#88133773', // rose-900 with 45% opacity for lines
+  },
   light: {
     editorBackground: '#f8fafc', // slate-50 - light grey/white background
     // Emerald (green) for additions - matching ChangesDiffModal's emerald-50

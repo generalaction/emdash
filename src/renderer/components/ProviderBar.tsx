@@ -186,11 +186,11 @@ export const ProviderBar: React.FC<Props> = ({
                           src={cfg.logo}
                           alt={cfg.name}
                           title={cfg.name}
-                          className={`h-3.5 w-3.5 flex-shrink-0 rounded-sm object-contain align-middle ${provider === 'codex' || provider === 'auggie' ? 'dark:invert' : ''}`}
+                          className={`h-3.5 w-3.5 flex-shrink-0 rounded-sm object-contain align-middle ${provider === 'codex' || provider === 'auggie' ? 'dark-black:invert dark:invert' : ''}`}
                         />
                       ) : (
                         <div
-                          className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-[3px] bg-muted text-[9px] text-foreground dark:bg-muted dark:text-foreground"
+                          className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-[3px] bg-muted text-micro text-foreground dark:bg-muted dark:text-foreground"
                           aria-hidden
                         >
                           {cfg.name.slice(0, 1)}
@@ -429,7 +429,7 @@ export const ProviderBar: React.FC<Props> = ({
                         />
                       ) : (
                         <span
-                          className="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-black text-[9px] font-semibold text-white dark:bg-white dark:text-black"
+                          className="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-black text-micro font-semibold text-white dark:bg-white dark:text-black"
                           aria-hidden
                         >
                           C7

@@ -161,7 +161,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
         width: '100%',
         height: '100%',
         minHeight: 0,
-        backgroundColor: variant === 'light' ? '#ffffff' : '#1f2937',
+        backgroundColor: variant === 'light' ? '#ffffff' : themeOverride?.background || '#1f2937',
         boxSizing: 'border-box',
       }}
     >

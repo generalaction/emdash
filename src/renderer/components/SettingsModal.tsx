@@ -4,13 +4,14 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import { X, Settings2, Cable, RefreshCw, GitBranch, Puzzle, PanelLeft } from 'lucide-react';
-import VersionCard from './VersionCard';
+import { UpdateCard } from './UpdateCard';
 import IntegrationsCard from './IntegrationsCard';
 import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
 import TelemetryCard from './TelemetryCard';
 import ThemeCard from './ThemeCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
+import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
 import Context7SettingsCard from './Context7SettingsCard';
@@ -189,7 +190,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'Default AI provider', render: () => <DefaultProviderSettingsCard /> },
           { title: 'Tasks', render: () => <TaskSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
-          { title: 'Version', render: () => <VersionCard /> },
+          { title: 'Updates', render: () => <UpdateCard /> },
           {
             title: 'How to use Emdash',
             render: () => (
@@ -221,6 +222,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           { title: 'Theme', render: () => <ThemeCard /> },
           { title: 'Keyboard shortcuts', render: () => <KeyboardSettingsCard /> },
           { title: 'Notifications', render: () => <NotificationSettingsCard /> },
+          { title: 'Right sidebar', render: () => <RightSidebarSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
         ],
       },
@@ -294,7 +296,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               <section className="space-y-3">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-medium">{section.title}</h3>
+                    <h3 className="text-sm font-semibold">{section.title}</h3>
                     {section.action ? <div>{section.action}</div> : null}
                   </div>
                   {section.description ? (
@@ -366,7 +368,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 </nav>
               </aside>
 
-              <div className="flex flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col">
                 <header className="flex items-center justify-between border-b border-border/60 px-6 py-4">
                   <div>
                     <h2 className="text-lg font-semibold">{activeTabDetails.title}</h2>
@@ -383,7 +385,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                   </Button>
                 </header>
 
-                <div className="flex-1 overflow-y-auto px-6 py-6">{renderContent()}</div>
+                <div className="flex min-h-0 flex-1 overflow-y-auto px-6 py-6">
+                  {renderContent()}
+                </div>
               </div>
             </div>
           </motion.div>

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Emdash** is a cross-platform Electron application that orchestrates multiple coding agents (Claude Code, Codex, Qwen Code, Amp, etc.) in parallel. Each agent runs in its own Git worktree to keep changes isolated.
+**Emdash** is a cross-platform Electron application that orchestrates multiple CLI coding agents (Claude Code, Codex, Qwen Code, Amp, etc.) in parallel. Each agent runs in its own Git worktree to keep changes isolated, allowing simultaneous work on multiple features.
 
 ### Architecture
 
@@ -19,7 +19,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Runtime**: Electron 30.5.1, Node.js 20.0.0+ (recommended: 22.20.0)
 - **Frontend**: React 18, TypeScript 5.3, Vite 5, Tailwind CSS 3
 - **Backend**: Node.js, TypeScript, Drizzle ORM, SQLite3
+- **Editor**: Monaco Editor 0.55 with syntax highlighting
+- **Terminal**: xterm.js with canvas/webgl addons, node-pty 1.0
 - **Native Modules**: node-pty, sqlite3, keytar (require rebuilding with `npm run rebuild`)
+- **UI Components**: Radix UI primitives, lucide-react icons
 
 ## Development Commands
 
@@ -44,17 +47,18 @@ npm run format       # Format with Prettier
 npm run format:check # Check formatting
 
 # Testing
-npx vitest run       # Run tests (src/**/*.test.ts)
+npx vitest run       # Run all tests
+npx vitest run src/test/main/WorktreeService.test.ts  # Run specific test
 
 # Native modules
-npm run rebuild      # Rebuild native modules
+npm run rebuild      # Rebuild native modules for current Electron version
 npm run reset        # Clean install (removes node_modules, reinstalls)
 
 # Packaging
 npm run package      # Build and package for current platform
-npm run package:mac  # Package for macOS
-npm run package:linux # Package for Linux
-npm run package:win  # Package for Windows
+npm run package:mac  # Package for macOS (.dmg)
+npm run package:linux # Package for Linux (.AppImage, .deb)
+npm run package:win  # Package for Windows (.exe installer)
 
 # Documentation
 npm run docs         # Run docs dev server
@@ -69,49 +73,83 @@ npm run docs:build   # Build documentation
 - **ALWAYS** run `npm run type-check` and `npm run lint` before committing
 - **ALWAYS** test changes in both main and renderer processes
 - **ALWAYS** use feature branches (never commit directly to `main`)
+- **ALWAYS** put temporary notes, reference files, or scratch content in `.notes/` (gitignored)
 
 ## Code Organization
 
 ### Main Process (`src/main/`)
 
+**Entry Points**:
+- `entry.ts` - Bootstrap, path aliases setup, app name configuration
+- `main.ts` - Process lifecycle, window management, IPC registration
+- `preload.ts` - Exposes secure electronAPI to renderer
+
 **Services** (`src/main/services/`):
-- `WorktreeService.ts` - Git worktree management
-- `DatabaseService.ts` - SQLite database operations
-- `GitService.ts` - Git operations
-- `GitHubService.ts` - GitHub integration via CLI
-- `LinearService.ts` - Linear issue tracking integration
-- `JiraService.ts` - Jira issue tracking integration
-- `ptyManager.ts` - PTY (terminal) management
+- `WorktreeService.ts` (37KB) - Git worktree management, file preservation patterns
+- `DatabaseService.ts` (28KB) - SQLite database operations
+- `containerRunnerService.ts` (31KB) - Container orchestration for agents
+- `GitHubService.ts` (30KB) - GitHub integration via CLI
+- `PrGenerationService.ts` (22KB) - Automated PR generation
+- `TerminalConfigParser.ts` (22KB) - Terminal configuration parsing
+- `GitService.ts` (8KB) - Git operations
+- `ptyManager.ts` (9KB) - PTY (terminal) management
 - `TerminalSnapshotService.ts` - Terminal state persistence
 - `ProjectRunConfigService.ts` - Project runtime configuration
-- `containerRunnerService.ts` - Container orchestration
+- `LinearService.ts` - Linear issue tracking integration
+- `JiraService.ts` - Jira issue tracking integration
 
 **IPC Handlers** (`src/main/ipc/`):
 - Each `*Ipc.ts` file handles specific IPC channels
 - IPC handlers return `{ success: boolean, data?: any, error?: string }` format
-- Types defined in `src/renderer/types/electron-api.d.ts`
+- Types defined in `src/renderer/types/electron-api.d.ts` (500+ lines)
 
 **Database** (`src/main/db/`):
 - Schema defined in `schema.ts`
-- Migrations in `drizzle/` directory (auto-generated)
-- DB location: `~/Library/Application Support/emdash/emdash.db` (macOS)
+- Migrations in `drizzle/` directory (auto-generated via `drizzle-kit generate`)
+- DB locations:
+  - macOS: `~/Library/Application Support/emdash/emdash.db`
+  - Linux: `~/.config/emdash/emdash.db`
+  - Windows: `%APPDATA%\emdash\emdash.db`
 
 ### Renderer Process (`src/renderer/`)
 
-**Components** (`src/renderer/components/`):
+**Main Components** (`src/renderer/components/`):
+- `App.tsx` (79KB) - Root orchestration component
+- `EditorMode.tsx` - Monaco code editor integration
+- `ChatInterface.tsx` - Conversation UI
+- `FileChangesPanel.tsx` - Diff visualization
+- `ChangesDiffModal.tsx` - Change review modal
+- `CommandPalette.tsx` - Command/action palette
+- `FileExplorer/` - File tree navigation
+- `BrowserPane.tsx` - Webview preview
 - Use functional components with hooks
 - Named exports preferred: `export function ComponentName() {}`
 - Tailwind CSS for styling
-- Radix UI primitives for complex components
-- lucide-react for icons
 
-**Hooks** (`src/renderer/hooks/`):
-- Custom React hooks for state management and IPC communication
+**Hooks** (`src/renderer/hooks/`) - 31+ custom hooks:
+- `useFileManager.ts` - File operations
+- `useEditorDiffDecorations.ts` - Code highlighting
+- `useLineComments.ts` - Inline comments
+- `useKeyboardShortcuts.ts` - Keyboard handling
+- `use-toast.ts` - Notifications
 - Always call hooks at top level (no conditional hooks)
 
 **UI Components** (`src/renderer/components/ui/`):
 - Reusable UI primitives built with Radix UI
 - Configured via `components.json`
+
+### Shared Code (`src/shared/`)
+
+- **Container module** - Orchestration config, port management, mock runner
+- **Providers registry** - 20+ agent definitions with CLI commands, auth flags
+- **LineComments utility** - Comment formatting helpers
+
+### Test Structure (`src/test/`)
+
+- **Main process tests**: `src/test/main/*.test.ts`
+- **Renderer tests**: `src/test/renderer/*.test.ts`
+- **Shared module tests**: `src/shared/**/*.test.ts`
+- Uses Vitest for testing framework
 
 ### Path Aliases
 
@@ -201,6 +239,7 @@ export function useExample(id: string) {
 
 - Components: PascalCase (`WorkspaceTerminalPanel.tsx`)
 - Other files: kebab-case (`workspace-terminal-panel.tsx`)
+- Test files: `*.test.ts` or `*.spec.ts`
 
 ### Error Handling
 
@@ -212,6 +251,11 @@ export function useExample(id: string) {
 
 - **ORM**: Drizzle ORM with SQLite
 - **Schema changes**: Modify `src/main/db/schema.ts`, then run `drizzle-kit generate`
+- **Migration commands**:
+  ```bash
+  npx drizzle-kit generate  # Generate migration from schema changes
+  npx drizzle-kit studio    # Open database browser
+  ```
 - **NEVER** manually edit migration files in `drizzle/meta/` or numbered SQL files
 - **Coordinate** schema changes with team before committing migrations
 
@@ -224,6 +268,7 @@ export function useExample(id: string) {
 - Path format: `../worktrees/{workspace-name}-{timestamp}`
 - Agents run in worktree directories, not base repo
 - Use `git worktree prune` for cleanup, or in-app workspace removal
+- File preservation: `.env` files and other patterns are preserved during worktree operations
 
 ### Commit Messages
 
@@ -233,13 +278,14 @@ Use conventional commits:
 - `refactor:` - code restructuring
 - `docs:` - documentation changes
 - `chore:` - maintenance tasks
+- `test:` - test additions or changes
 
 Example: `fix(agent): resolve worktree path issue (#123)`
 
 ## Hot Reload Behavior
 
 - **Renderer changes**: Hot-reload automatically via Vite
-- **Main process changes**: Require Electron app restart
+- **Main process changes**: Require Electron app restart (Ctrl+C and re-run `npm run dev`)
 - **Native modules**: Require `npm run rebuild`
 
 ## Common Pitfalls
@@ -250,18 +296,24 @@ Example: `fix(agent): resolve worktree path issue (#123)`
 4. **IPC Type Safety**: Always define types in `electron-api.d.ts` for IPC methods.
 5. **Native Module Issues**: After updating node-pty, sqlite3, or keytar, run `npm run rebuild`. If problems persist, use `npm run reset`.
 6. **Database Migrations**: Never manually edit migration files; always use Drizzle Kit.
+7. **Monaco Editor**: Editor instances must be properly disposed to avoid memory leaks.
+8. **File Watchers**: Clean up file system watchers to prevent resource exhaustion.
 
 ## Key Integration Points
 
 ### Supported Coding Agents
 
 Emdash supports 15+ CLI providers including:
-- Claude Code (`@anthropic-ai/claude-code`)
-- Codex (`@openai/codex`)
-- Amp (`@sourcegraph/amp`)
-- Cursor, Gemini, GitHub Copilot, and more
+- Claude Code (`npm install -g @anthropic-ai/claude-code`)
+- Codex (`npm install -g @openai/codex`)
+- Amp (`npm install -g @sourcegraph/amp@latest`)
+- Qwen Code (`npm install -g @qwen-code/qwen-code`)
+- Cursor (`curl https://cursor.com/install -fsS | bash`)
+- Gemini (`npm install -g @google/gemini-cli`)
+- GitHub Copilot (`npm install -g @github/copilot`)
+- And more...
 
-See README.md for full list and install commands.
+See README.md and AGENTS.md for full list and install commands.
 
 ### Issue Tracking
 
@@ -287,8 +339,8 @@ nvm use  # Installs Node 22.20.0 from .nvmrc
 
 # Optional but recommended
 brew install gh  # GitHub CLI
-npm install -g @openai/codex  # For Codex testing
 npm install -g @anthropic-ai/claude-code  # For Claude Code testing
+npm install -g @openai/codex  # For Codex testing
 ```
 
 ### First Time Setup
@@ -305,17 +357,20 @@ npm run d  # Installs deps, rebuilds natives, starts dev
 - **Main process logs**: Terminal where `npm run dev:main` runs
 - **Renderer logs**: Browser DevTools (View → Toggle Developer Tools)
 - **IPC debugging**: Add `log.debug()` calls in IPC handlers
-- **Database**: Location logged on startup
+- **Database**: Location logged on startup, use `npx drizzle-kit studio` for browser
 - **Worktrees**: Check `../worktrees/` directory
 - **PTY issues**: Check for `ptyManager:resizeAfterExit` warnings
+- **Memory leaks**: Use Chrome DevTools Memory Profiler
+- **Performance**: Use React DevTools Profiler
 
 ## Security & Privacy
 
 - **Never commit**: API keys, tokens, credentials, or user data
 - **Database**: Stored locally in OS userData folder
 - **Logs**: Agent logs stored in userData/logs/ (outside repos)
-- **Telemetry**: Anonymous usage events only; can be disabled in Settings
+- **Telemetry**: Anonymous usage events only (PostHog); can be disabled in Settings
 - **IPC**: Validate all inputs, sanitize user-provided data
+- **Preload**: Minimal API surface exposed via contextBridge
 
 ## Release Process
 
@@ -329,4 +384,13 @@ npm version major   # 0.2.9 → 1.0.0 (breaking changes)
 git push && git push --tags
 ```
 
-GitHub Actions automatically builds, signs, notarizes, and creates release with artifacts.
+GitHub Actions automatically builds, signs, notarizes, and creates release with artifacts for all platforms.
+
+## Key Configuration Files
+
+- `vite.config.ts` - Renderer build configuration
+- `drizzle.config.ts` - Database migration configuration
+- `electron-builder.yml` - Electron packaging configuration (in package.json)
+- `tsconfig.json`, `tsconfig.main.json` - TypeScript configurations
+- `tailwind.config.js` - Tailwind CSS configuration
+- `.nvmrc` - Node version specification (22.20.0)

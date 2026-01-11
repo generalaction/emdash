@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { FolderOpen, Github, Plus } from 'lucide-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import emdashLogo from '../assets/images/emdash/emdash_logo.svg';
 import emdashLogoWhite from '../assets/images/emdash/emdash_logo_white.svg';
@@ -18,6 +18,7 @@ import MultiAgentTask from './components/MultiAgentTask';
 import { NewProjectModal } from './components/NewProjectModal';
 import ProjectMainView from './components/ProjectMainView';
 import RightSidebar from './components/RightSidebar';
+import CodeEditor from './components/FileExplorer/CodeEditor';
 import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -25,6 +26,7 @@ import Titlebar from './components/titlebar/Titlebar';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from './components/ui/resizable';
 import { RightSidebarProvider, useRightSidebar } from './components/ui/right-sidebar';
 import { SidebarProvider } from './components/ui/sidebar';
+import { KeyboardSettingsProvider } from './contexts/KeyboardSettingsContext';
 import { ToastAction } from './components/ui/toast';
 import { Toaster } from './components/ui/toaster';
 import { useToast } from './hooks/use-toast';
@@ -127,6 +129,7 @@ const AppContent: React.FC = () => {
   const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [showEditorMode, setShowEditorMode] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
@@ -161,12 +164,14 @@ const AppContent: React.FC = () => {
   const leftSidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
   const rightSidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
   const lastLeftSidebarSizeRef = useRef<number>(defaultPanelLayout[0]);
+  const leftSidebarWasCollapsedBeforeEditor = useRef<boolean>(false);
   const lastRightSidebarSizeRef = useRef<number>(rightSidebarDefaultWidth);
   const leftSidebarSetOpenRef = useRef<((next: boolean) => void) | null>(null);
   const leftSidebarIsMobileRef = useRef<boolean>(false);
   const leftSidebarOpenRef = useRef<boolean>(true);
   const rightSidebarSetCollapsedRef = useRef<((next: boolean) => void) | null>(null);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
+  const [autoRightSidebarBehavior, setAutoRightSidebarBehavior] = useState<boolean>(false);
 
   const handlePanelLayout = useCallback((sizes: number[]) => {
     if (!Array.isArray(sizes) || sizes.length < 3) {
@@ -228,6 +233,12 @@ const AppContent: React.FC = () => {
         return;
       }
 
+      // Prevent sidebar from opening when in editor mode
+      if (showEditorMode && open) {
+        setOpen(false);
+        return;
+      }
+
       if (isMobile) {
         const currentSize = panel.getSize();
         if (typeof currentSize === 'number' && currentSize > 0) {
@@ -251,7 +262,7 @@ const AppContent: React.FC = () => {
         panel.collapse();
       }
     },
-    []
+    [showEditorMode]
   );
 
   const activateProjectView = useCallback((project: Project) => {
@@ -288,6 +299,56 @@ const AppContent: React.FC = () => {
     setShowCommandPalette(false);
   }, []);
 
+  // Collect all tasks across all projects for cycling
+  const allTasks = useMemo(() => {
+    const tasks: { task: Task; project: Project }[] = [];
+    for (const project of projects) {
+      for (const task of project.tasks || []) {
+        tasks.push({ task, project });
+      }
+    }
+    return tasks;
+  }, [projects]);
+
+  const handleNextTask = useCallback(() => {
+    if (allTasks.length === 0) return;
+    const currentIndex = activeTask
+      ? allTasks.findIndex((t: { task: Task; project: Project }) => t.task.id === activeTask.id)
+      : -1;
+    const nextIndex = (currentIndex + 1) % allTasks.length;
+    const { task, project } = allTasks[nextIndex];
+    activateProjectView(project);
+    setActiveTask(task);
+    if ((task.metadata as any)?.multiAgent?.enabled) {
+      setActiveTaskProvider(null);
+    } else {
+      setActiveTaskProvider((task.agentId as Provider) || 'codex');
+    }
+  }, [allTasks, activeTask, activateProjectView]);
+
+  const handlePrevTask = useCallback(() => {
+    if (allTasks.length === 0) return;
+    const currentIndex = activeTask
+      ? allTasks.findIndex((t: { task: Task; project: Project }) => t.task.id === activeTask.id)
+      : -1;
+    const prevIndex = currentIndex <= 0 ? allTasks.length - 1 : currentIndex - 1;
+    const { task, project } = allTasks[prevIndex];
+    activateProjectView(project);
+    setActiveTask(task);
+    if ((task.metadata as any)?.multiAgent?.enabled) {
+      setActiveTaskProvider(null);
+    } else {
+      setActiveTaskProvider((task.agentId as Provider) || 'codex');
+    }
+  }, [allTasks, activeTask, activateProjectView]);
+
+  const handleNewTask = useCallback(() => {
+    // Only open modal if a project is selected
+    if (selectedProject) {
+      setShowTaskModal(true);
+    }
+  }, [selectedProject]);
+
   const markFirstLaunchSeen = useCallback(() => {
     try {
       localStorage.setItem(FIRST_LAUNCH_KEY, '1');
@@ -301,6 +362,26 @@ const AppContent: React.FC = () => {
     }
     setShowFirstLaunchModal(false);
   }, []);
+
+  // Handle left sidebar visibility when Editor mode changes
+  useEffect(() => {
+    const panel = leftSidebarPanelRef.current;
+    if (!panel) return;
+
+    if (showEditorMode) {
+      // Store current collapsed state before hiding
+      leftSidebarWasCollapsedBeforeEditor.current = panel.isCollapsed();
+      // Collapse the left sidebar when Editor mode opens
+      if (!panel.isCollapsed()) {
+        panel.collapse();
+      }
+    } else {
+      // Restore previous state when Editor mode closes
+      if (!leftSidebarWasCollapsedBeforeEditor.current && panel.isCollapsed()) {
+        panel.expand();
+      }
+    }
+  }, [showEditorMode]);
 
   useEffect(() => {
     const check = async () => {
@@ -322,6 +403,61 @@ const AppContent: React.FC = () => {
     };
     void check();
   }, []);
+
+  // Load autoRightSidebarBehavior setting on mount and listen for changes
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await window.electronAPI.getSettings();
+        if (result.success && result.settings) {
+          setAutoRightSidebarBehavior(
+            Boolean(result.settings.interface?.autoRightSidebarBehavior ?? false)
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load right sidebar settings:', error);
+      }
+    })();
+
+    // Listen for setting changes from RightSidebarSettingsCard
+    const handleSettingChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ enabled: boolean }>;
+      setAutoRightSidebarBehavior(customEvent.detail.enabled);
+    };
+    window.addEventListener('autoRightSidebarBehaviorChanged', handleSettingChange);
+    return () => {
+      window.removeEventListener('autoRightSidebarBehaviorChanged', handleSettingChange);
+    };
+  }, []);
+
+  // Auto-collapse/expand right sidebar based on current view (no animation)
+  useEffect(() => {
+    if (!autoRightSidebarBehavior) return;
+
+    // On home page or repo home page (no active task), collapse the sidebar
+    const isHomePage = showHomeView;
+    const isRepoHomePage = selectedProject !== null && activeTask === null;
+
+    const shouldCollapse = isHomePage || isRepoHomePage;
+    const shouldExpand = activeTask !== null;
+
+    if (shouldCollapse || shouldExpand) {
+      // Add no-transition class to skip animation
+      const panelGroup = document.querySelector('[data-panel-group]');
+      panelGroup?.classList.add('no-transition');
+
+      if (shouldCollapse) {
+        rightSidebarSetCollapsedRef.current?.(true);
+      } else if (shouldExpand) {
+        rightSidebarSetCollapsedRef.current?.(false);
+      }
+
+      // Remove the class after a frame to allow future animations
+      requestAnimationFrame(() => {
+        panelGroup?.classList.remove('no-transition');
+      });
+    }
+  }, [autoRightSidebarBehavior, showHomeView, selectedProject, activeTask]);
 
   useEffect(() => {
     const rightPanel = rightSidebarPanelRef.current;
@@ -1748,12 +1884,16 @@ const AppContent: React.FC = () => {
       return (
         <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
           <div className="container mx-auto flex min-h-full max-w-3xl flex-1 flex-col justify-center px-8 py-8">
-            <div className="mb-6 text-center">
-              <div className="mb-2 flex items-center justify-center">
+            <div className="mb-3 text-center">
+              <div className="mb-3 flex items-center justify-center">
                 <div className="logo-shimmer-container">
                   <img
                     key={effectiveTheme}
-                    src={effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo}
+                    src={
+                      effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                        ? emdashLogoWhite
+                        : emdashLogo
+                    }
                     alt="Emdash"
                     className="logo-shimmer-image"
                   />
@@ -1761,8 +1901,8 @@ const AppContent: React.FC = () => {
                     className="logo-shimmer-overlay"
                     aria-hidden="true"
                     style={{
-                      WebkitMaskImage: `url(${effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo})`,
-                      maskImage: `url(${effectiveTheme === 'dark' ? emdashLogoWhite : emdashLogo})`,
+                      WebkitMaskImage: `url(${effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo})`,
+                      maskImage: `url(${effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo})`,
                       WebkitMaskRepeat: 'no-repeat',
                       maskRepeat: 'no-repeat',
                       WebkitMaskSize: 'contain',
@@ -1774,7 +1914,7 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
               <p className="whitespace-nowrap text-xs text-muted-foreground">
-                Run multiple Coding Agents in parallel
+                Coding Agent Dashboard
               </p>
             </div>
 
@@ -1872,167 +2012,179 @@ const AppContent: React.FC = () => {
           // Track Kanban locally in this component scope
           return null;
         })()}
-        <SidebarProvider>
-          <RightSidebarProvider>
-            <AppKeyboardShortcuts
-              showCommandPalette={showCommandPalette}
-              showSettings={showSettings}
-              handleToggleCommandPalette={handleToggleCommandPalette}
-              handleOpenSettings={handleOpenSettings}
-              handleCloseCommandPalette={handleCloseCommandPalette}
-              handleCloseSettings={handleCloseSettings}
-              handleToggleKanban={handleToggleKanban}
-            />
-            <RightSidebarBridge
-              onCollapsedChange={handleRightSidebarCollapsedChange}
-              setCollapsedRef={rightSidebarSetCollapsedRef}
-            />
-            <Titlebar
-              onToggleSettings={handleToggleSettings}
-              isSettingsOpen={showSettings}
-              currentPath={
-                activeTask?.metadata?.multiAgent?.enabled
-                  ? null
-                  : activeTask?.path || selectedProject?.path || null
-              }
-              defaultPreviewUrl={
-                activeTask?.id ? getContainerRunState(activeTask.id)?.previewUrl || null : null
-              }
-              taskId={activeTask?.id || null}
-              taskPath={activeTask?.path || null}
-              projectPath={selectedProject?.path || null}
-              isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
-              githubUser={user}
-              onToggleKanban={handleToggleKanban}
-              isKanbanOpen={Boolean(showKanban)}
-              kanbanAvailable={Boolean(selectedProject)}
-            />
-            <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
-              <ResizablePanelGroup
-                direction="horizontal"
-                className="flex-1 overflow-hidden"
-                onLayout={handlePanelLayout}
-              >
-                <ResizablePanel
-                  ref={leftSidebarPanelRef}
-                  className="sidebar-panel sidebar-panel--left"
-                  defaultSize={defaultPanelLayout[0]}
-                  minSize={LEFT_SIDEBAR_MIN_SIZE}
-                  maxSize={LEFT_SIDEBAR_MAX_SIZE}
-                  collapsedSize={0}
-                  collapsible
-                  order={1}
+        <KeyboardSettingsProvider>
+          <SidebarProvider>
+            <RightSidebarProvider>
+              <AppKeyboardShortcuts
+                showCommandPalette={showCommandPalette}
+                showSettings={showSettings}
+                handleToggleCommandPalette={handleToggleCommandPalette}
+                handleOpenSettings={handleOpenSettings}
+                handleCloseCommandPalette={handleCloseCommandPalette}
+                handleCloseSettings={handleCloseSettings}
+                handleToggleKanban={handleToggleKanban}
+                handleNextTask={handleNextTask}
+                handlePrevTask={handlePrevTask}
+                handleNewTask={handleNewTask}
+              />
+              <RightSidebarBridge
+                onCollapsedChange={handleRightSidebarCollapsedChange}
+                setCollapsedRef={rightSidebarSetCollapsedRef}
+              />
+              <Titlebar
+                onToggleSettings={handleToggleSettings}
+                isSettingsOpen={showSettings}
+                currentPath={
+                  activeTask?.metadata?.multiAgent?.enabled
+                    ? null
+                    : activeTask?.path || selectedProject?.path || null
+                }
+                defaultPreviewUrl={
+                  activeTask?.id ? getContainerRunState(activeTask.id)?.previewUrl || null : null
+                }
+                taskId={activeTask?.id || null}
+                taskPath={activeTask?.path || null}
+                projectPath={selectedProject?.path || null}
+                isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
+                githubUser={user}
+                onToggleKanban={handleToggleKanban}
+                isKanbanOpen={Boolean(showKanban)}
+                kanbanAvailable={Boolean(selectedProject)}
+                onToggleEditor={() => setShowEditorMode(!showEditorMode)}
+                showEditorButton={Boolean(activeTask)}
+                isEditorOpen={showEditorMode}
+              />
+              <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
+                <ResizablePanelGroup
+                  direction="horizontal"
+                  className="flex-1 overflow-hidden"
+                  onLayout={handlePanelLayout}
                 >
-                  <LeftSidebar
-                    projects={projects}
-                    selectedProject={selectedProject}
-                    onSelectProject={handleSelectProject}
-                    onGoHome={handleGoHome}
-                    onOpenProject={handleOpenProject}
-                    onNewProject={handleNewProjectClick}
-                    onCloneProject={handleCloneProjectClick}
-                    onSelectTask={handleSelectTask}
-                    activeTask={activeTask || undefined}
-                    onReorderProjects={handleReorderProjects}
-                    onReorderProjectsFull={handleReorderProjectsFull}
-                    githubInstalled={ghInstalled}
-                    githubAuthenticated={isAuthenticated}
-                    githubUser={user}
-                    onGithubConnect={handleGithubConnect}
-                    githubLoading={githubLoading}
-                    githubStatusMessage={githubStatusMessage}
-                    githubInitialized={isGithubInitialized}
-                    onSidebarContextChange={handleSidebarContextChange}
-                    onCreateTaskForProject={handleStartCreateTaskFromSidebar}
-                    isCreatingTask={isCreatingTask}
-                    onDeleteTask={handleDeleteTask}
-                    onDeleteProject={handleDeleteProject}
-                    isHomeView={showHomeView}
+                  <ResizablePanel
+                    ref={leftSidebarPanelRef}
+                    className="sidebar-panel sidebar-panel--left"
+                    defaultSize={defaultPanelLayout[0]}
+                    minSize={LEFT_SIDEBAR_MIN_SIZE}
+                    maxSize={LEFT_SIDEBAR_MAX_SIZE}
+                    collapsedSize={0}
+                    collapsible
+                    order={1}
+                    style={{ display: showEditorMode ? 'none' : undefined }}
+                  >
+                    <LeftSidebar
+                      projects={projects}
+                      selectedProject={selectedProject}
+                      onSelectProject={handleSelectProject}
+                      onGoHome={handleGoHome}
+                      onOpenProject={handleOpenProject}
+                      onNewProject={handleNewProjectClick}
+                      onCloneProject={handleCloneProjectClick}
+                      onSelectTask={handleSelectTask}
+                      activeTask={activeTask || undefined}
+                      onReorderProjects={handleReorderProjects}
+                      onReorderProjectsFull={handleReorderProjectsFull}
+                      onSidebarContextChange={handleSidebarContextChange}
+                      onCreateTaskForProject={handleStartCreateTaskFromSidebar}
+                      isCreatingTask={isCreatingTask}
+                      onDeleteTask={handleDeleteTask}
+                      onDeleteProject={handleDeleteProject}
+                      isHomeView={showHomeView}
+                    />
+                  </ResizablePanel>
+                  <ResizableHandle
+                    withHandle
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
-                </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
-                <ResizablePanel
-                  className="sidebar-panel sidebar-panel--main"
-                  defaultSize={defaultPanelLayout[1]}
-                  minSize={MAIN_PANEL_MIN_SIZE}
-                  order={2}
-                >
-                  <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-                    {renderMainContent()}
-                  </div>
-                </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                />
-                <ResizablePanel
-                  ref={rightSidebarPanelRef}
-                  className="sidebar-panel sidebar-panel--right"
-                  defaultSize={0}
-                  minSize={RIGHT_SIDEBAR_MIN_SIZE}
-                  maxSize={RIGHT_SIDEBAR_MAX_SIZE}
-                  collapsedSize={0}
-                  collapsible
-                  order={3}
-                >
-                  <RightSidebar
-                    task={activeTask}
-                    projectPath={selectedProject?.path || null}
-                    className="lg:border-l-0"
+                  <ResizablePanel
+                    className="sidebar-panel sidebar-panel--main"
+                    defaultSize={defaultPanelLayout[1]}
+                    minSize={MAIN_PANEL_MIN_SIZE}
+                    order={2}
+                  >
+                    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+                      {renderMainContent()}
+                    </div>
+                  </ResizablePanel>
+                  <ResizableHandle
+                    withHandle
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
-                </ResizablePanel>
-              </ResizablePanelGroup>
-            </div>
-            <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
-            <CommandPaletteWrapper
-              isOpen={showCommandPalette}
-              onClose={handleCloseCommandPalette}
-              projects={projects}
-              handleSelectProject={handleSelectProject}
-              handleSelectTask={handleSelectTask}
-              handleGoHome={handleGoHome}
-              handleOpenProject={handleOpenProject}
-              handleOpenSettings={handleOpenSettings}
-            />
-            <TaskModal
-              isOpen={showTaskModal}
-              onClose={() => setShowTaskModal(false)}
-              onCreateTask={handleCreateTask}
-              projectName={selectedProject?.name || ''}
-              defaultBranch={selectedProject?.gitInfo.branch || 'main'}
-              existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
-              projectPath={selectedProject?.path}
-            />
-            <NewProjectModal
-              isOpen={showNewProjectModal}
-              onClose={() => setShowNewProjectModal(false)}
-              onSuccess={handleNewProjectSuccess}
-            />
-            <CloneFromUrlModal
-              isOpen={showCloneModal}
-              onClose={() => setShowCloneModal(false)}
-              onSuccess={handleCloneSuccess}
-            />
-            <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
-            <GithubDeviceFlowModal
-              open={showDeviceFlowModal}
-              onClose={handleDeviceFlowClose}
-              onSuccess={handleDeviceFlowSuccess}
-              onError={handleDeviceFlowError}
-            />
-            <Toaster />
-            <BrowserPane
-              taskId={activeTask?.id || null}
-              taskPath={activeTask?.path || null}
-              overlayActive={
-                showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
-              }
-            />
-          </RightSidebarProvider>
-        </SidebarProvider>
+                  <ResizablePanel
+                    ref={rightSidebarPanelRef}
+                    className="sidebar-panel sidebar-panel--right"
+                    defaultSize={0}
+                    minSize={RIGHT_SIDEBAR_MIN_SIZE}
+                    maxSize={RIGHT_SIDEBAR_MAX_SIZE}
+                    collapsedSize={0}
+                    collapsible
+                    order={3}
+                  >
+                    <RightSidebar
+                      task={activeTask}
+                      projectPath={selectedProject?.path || null}
+                      className="lg:border-l-0"
+                      forceBorder={showEditorMode}
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              </div>
+              <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
+              <CommandPaletteWrapper
+                isOpen={showCommandPalette}
+                onClose={handleCloseCommandPalette}
+                projects={projects}
+                handleSelectProject={handleSelectProject}
+                handleSelectTask={handleSelectTask}
+                handleGoHome={handleGoHome}
+                handleOpenProject={handleOpenProject}
+                handleOpenSettings={handleOpenSettings}
+              />
+              {showEditorMode && activeTask && selectedProject && (
+                <CodeEditor
+                  taskPath={activeTask.path}
+                  taskName={activeTask.name}
+                  projectName={selectedProject.name}
+                  onClose={() => setShowEditorMode(false)}
+                />
+              )}
+
+              <TaskModal
+                isOpen={showTaskModal}
+                onClose={() => setShowTaskModal(false)}
+                onCreateTask={handleCreateTask}
+                projectName={selectedProject?.name || ''}
+                defaultBranch={selectedProject?.gitInfo.branch || 'main'}
+                existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
+                projectPath={selectedProject?.path}
+              />
+              <NewProjectModal
+                isOpen={showNewProjectModal}
+                onClose={() => setShowNewProjectModal(false)}
+                onSuccess={handleNewProjectSuccess}
+              />
+              <CloneFromUrlModal
+                isOpen={showCloneModal}
+                onClose={() => setShowCloneModal(false)}
+                onSuccess={handleCloneSuccess}
+              />
+              <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
+              <GithubDeviceFlowModal
+                open={showDeviceFlowModal}
+                onClose={handleDeviceFlowClose}
+                onSuccess={handleDeviceFlowSuccess}
+                onError={handleDeviceFlowError}
+              />
+              <Toaster />
+              <BrowserPane
+                taskId={activeTask?.id || null}
+                taskPath={activeTask?.path || null}
+                overlayActive={
+                  showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
+                }
+              />
+            </RightSidebarProvider>
+          </SidebarProvider>
+        </KeyboardSettingsProvider>
       </div>
     </BrowserProvider>
   );

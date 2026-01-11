@@ -181,6 +181,48 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          imageFiles.push(file);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      setAttachments((prev) => [...prev, ...imageFiles]);
+      if (errorMessage) {
+        setErrorMessage(null);
+      }
+    }
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+
+    if (imageFiles.length > 0) {
+      setAttachments((prev) => [...prev, ...imageFiles]);
+      if (errorMessage) {
+        setErrorMessage(null);
+      }
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   if (typeof document === 'undefined') {
     return null;
   }
@@ -230,7 +272,12 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
               </Button>
             </div>
 
-            <form className="space-y-4 px-6 pb-6" onSubmit={handleFormSubmit}>
+            <form
+              className="space-y-4 px-6 pb-6"
+              onSubmit={handleFormSubmit}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+            >
               <div className="space-y-1.5">
                 <label htmlFor="feedback-details" className="sr-only">
                   Feedback details
@@ -248,6 +295,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                     }
                   }}
                   onKeyDown={handleMetaEnter}
+                  onPaste={handlePaste}
                 />
               </div>
 

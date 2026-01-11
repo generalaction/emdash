@@ -19,6 +19,33 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'Oxygen',
+          'Ubuntu',
+          'Cantarell',
+          'Fira Sans',
+          'Droid Sans',
+          'Helvetica Neue',
+          'sans-serif',
+        ],
+        mono: ['Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
+      },
+      fontSize: {
+        // Typography System Style Guide:
+        // - Headings: use font-semibold (h1-h6 elements)
+        // - Body text: default weight, use text-sm or text-base
+        // - Code/Terminal: use font-mono with text-code
+        // - Help text/Metadata: use text-tiny with text-muted-foreground
+        // - Badges/Indicators: use text-micro for very small UI elements
+        code: ['13px', { lineHeight: '1.2' }], // Terminal, code editor, monospace content
+        tiny: ['11px', { lineHeight: '1.3' }], // Help text, metadata, secondary info
+        micro: ['10px', { lineHeight: '1.2' }], // Badges, tiny indicators only
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',

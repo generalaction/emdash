@@ -16,6 +16,8 @@ interface BaseBranchControlsProps {
   branchLoadError: string | null;
   onBaseBranchChange: (value: string) => void;
   onOpenChange?: (open: boolean) => void;
+  projectPath?: string;
+  onEditConfig?: () => void;
 }
 
 const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
@@ -26,6 +28,8 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   branchLoadError,
   onBaseBranchChange,
   onOpenChange,
+  projectPath,
+  onEditConfig,
 }) => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,7 +145,19 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       </div>
       {branchLoadError ? <p className="text-xs text-destructive">{branchLoadError}</p> : null}
       <p className="text-xs text-muted-foreground">
-        New task runs start from the latest code on this branch.
+        New tasks start from the latest code.
+        {projectPath && onEditConfig && (
+          <>
+            {' · '}
+            <button
+              type="button"
+              className="text-muted-foreground underline hover:text-foreground"
+              onClick={onEditConfig}
+            >
+              Edit config
+            </button>
+          </>
+        )}
       </p>
     </div>
   );

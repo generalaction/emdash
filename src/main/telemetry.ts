@@ -104,7 +104,9 @@ type TelemetryEvent =
   | 'agent_run_start'
   | 'agent_run_finish'
   // DB setup (privacy-safe)
-  | 'db_setup';
+  | 'db_setup'
+  // Daily active user tracking
+  | 'daily_active_user';
 
 interface InitOptions {
   installSource?: string;
@@ -118,6 +120,7 @@ let installSource: string | undefined;
 let userOptOut: boolean | undefined;
 let onboardingSeen: boolean = false;
 let sessionStartMs: number = Date.now();
+let lastActiveDate: string | undefined;
 
 const libName = 'emdash';
 
@@ -138,6 +141,7 @@ function loadOrCreateState(): {
   instanceId: string;
   enabledOverride?: boolean;
   onboardingSeen?: boolean;
+  lastActiveDate?: string;
 } {
   try {
     const file = getInstanceIdPath();
@@ -149,7 +153,14 @@ function loadOrCreateState(): {
           typeof parsed.enabled === 'boolean' ? (parsed.enabled as boolean) : undefined;
         const onboardingSeen =
           typeof parsed.onboardingSeen === 'boolean' ? (parsed.onboardingSeen as boolean) : false;
-        return { instanceId: parsed.instanceId as string, enabledOverride, onboardingSeen };
+        const lastActiveDate =
+          typeof parsed.lastActiveDate === 'string' ? (parsed.lastActiveDate as string) : undefined;
+        return {
+          instanceId: parsed.instanceId as string,
+          enabledOverride,
+          onboardingSeen,
+          lastActiveDate,
+        };
       }
     }
   } catch {
@@ -232,6 +243,8 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     'task_count_bucket',
     'project_count',
     'project_count_bucket',
+    'date',
+    'timezone',
   ]);
 
   if (props) {
@@ -302,9 +315,13 @@ export function init(options?: InitOptions) {
   userOptOut =
     typeof state.enabledOverride === 'boolean' ? state.enabledOverride === false : undefined;
   onboardingSeen = state.onboardingSeen === true;
+  lastActiveDate = state.lastActiveDate;
 
   // Fire lifecycle start
   void posthogCapture('app_started');
+
+  // Check for daily active user (fires event if it's a new day)
+  checkDailyActiveUser();
 }
 
 export function capture(event: TelemetryEvent, properties?: Record<string, any>) {
@@ -360,6 +377,7 @@ function persistState(state: {
   instanceId: string;
   enabledOverride?: boolean;
   onboardingSeen?: boolean;
+  lastActiveDate?: string;
 }) {
   try {
     const existing = existsSync(getInstanceIdPath())
@@ -372,6 +390,8 @@ function persistState(state: {
         typeof state.enabledOverride === 'boolean' ? state.enabledOverride : existing.enabled,
       onboardingSeen:
         typeof state.onboardingSeen === 'boolean' ? state.onboardingSeen : existing.onboardingSeen,
+      lastActiveDate:
+        typeof state.lastActiveDate === 'string' ? state.lastActiveDate : existing.lastActiveDate,
       createdAt: existing.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -388,6 +408,49 @@ function normalizeHost(h: string | undefined): string | undefined {
     s = 'https://' + s;
   }
   return s.replace(/\/+$/, '');
+}
+
+/**
+ * Check if this is a new day of activity and fire daily_active_user event if so.
+ * This ensures we accurately track DAU even when the app stays open for extended periods.
+ */
+function checkDailyActiveUser(): void {
+  // Skip if telemetry is disabled
+  if (!isEnabled()) return;
+
+  try {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+
+    // If we haven't tracked a date yet or it's a new day, fire the event
+    if (!lastActiveDate || lastActiveDate !== today) {
+      // Fire the daily active user event
+      void posthogCapture('daily_active_user', {
+        date: today,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown',
+      });
+
+      // Update the last active date in memory
+      lastActiveDate = today;
+
+      // Persist the new date to storage
+      persistState({
+        instanceId: instanceId || cryptoRandomId(),
+        enabledOverride: userOptOut === undefined ? undefined : !userOptOut,
+        onboardingSeen,
+        lastActiveDate: today,
+      });
+    }
+  } catch (error) {
+    // Never let telemetry errors crash the app
+    // Optionally log for debugging: console.error('DAU tracking error:', error);
+  }
+}
+
+/**
+ * Export for use in window focus events
+ */
+export function checkAndReportDailyActiveUser(): void {
+  checkDailyActiveUser();
 }
 
 export function setOnboardingSeen(flag: boolean) {

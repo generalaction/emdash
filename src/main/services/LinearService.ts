@@ -145,7 +145,6 @@ export class LinearService {
     const sanitizedLimit = Math.min(Math.max(limit, 1), 200);
 
     // Get all recent issues and filter them locally
-    // This ensures we can search through the issues we know exist
     const allIssuesQuery = `
       query ListAllIssues($limit: Int!) {
         issues(first: $limit, orderBy: updatedAt) {

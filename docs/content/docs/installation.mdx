@@ -1,0 +1,59 @@
+---
+title: Installation
+description: Get started with Emdash
+---
+
+## Download Emdash
+
+### macOS
+
+The easiest way to install on macOS is via Homebrew:
+
+```bash
+brew install --cask emdash
+```
+
+Or download directly:
+
+- [Apple Silicon (arm64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg)
+- [Intel (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg)
+
+### Windows
+
+Download the installer or portable version:
+
+- [Installer (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64-installer.exe)
+- [Portable (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe)
+
+### Linux
+
+Choose your preferred format:
+
+- [AppImage (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage)
+- [Debian package (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb)
+
+Or run via Nix:
+
+```bash
+nix run github:generalaction/emdash
+```
+
+## Setup
+
+### 1. Install a CLI provider
+
+Emdash runs coding agents through their CLI. Install at least one [provider](/providers) before getting started:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### 2. Connect GitHub
+
+To create PRs (and use GitHub Issues), connect your account in **Settings → Integrations**. Emdash works with OAuth or authentication via [GitHub CLI](https://cli.github.com):
+
+```bash
+gh auth login
+```
+
+You're ready to start using Emdash.

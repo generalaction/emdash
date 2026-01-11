@@ -1,5 +1,5 @@
 import './global.css';
-import { RootProvider } from 'fumadocs-ui/provider';
+import { RootProvider } from 'fumadocs-ui/provider/next';
 import type { ReactNode } from 'react';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -14,5 +14,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
 export const metadata = {
   title: 'Emdash - Docs',
-  description: 'An open source orchestration layer for coding agents',
+  description: 'Open source Agentic Development Environment',
+  icons: {
+    icon: '/brand/favicon.ico',
+  },
 };

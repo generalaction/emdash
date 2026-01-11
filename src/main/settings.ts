@@ -27,6 +27,13 @@ export interface KeyboardSettings {
   toggleTheme?: ShortcutBinding;
   toggleKanban?: ShortcutBinding;
   closeModal?: ShortcutBinding;
+  nextProject?: ShortcutBinding;
+  prevProject?: ShortcutBinding;
+  newTask?: ShortcutBinding;
+}
+
+export interface InterfaceSettings {
+  autoRightSidebarBehavior?: boolean;
 }
 
 export interface AppSettings {
@@ -57,6 +64,7 @@ export interface AppSettings {
     defaultDirectory: string;
   };
   keyboard?: KeyboardSettings;
+  interface?: InterfaceSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -96,6 +104,12 @@ const DEFAULT_SETTINGS: AppSettings = {
     toggleRightSidebar: { key: '.', modifier: 'cmd' },
     toggleTheme: { key: 't', modifier: 'cmd' },
     toggleKanban: { key: 'p', modifier: 'cmd' },
+    nextProject: { key: 'ArrowRight', modifier: 'cmd' },
+    prevProject: { key: 'ArrowLeft', modifier: 'cmd' },
+    newTask: { key: 'n', modifier: 'cmd' },
+  },
+  interface: {
+    autoRightSidebarBehavior: false,
   },
 };
 
@@ -185,6 +199,9 @@ function normalizeSettings(input: AppSettings): AppSettings {
         enabled: DEFAULT_SETTINGS.mcp!.context7!.enabled,
         installHintsDismissed: {},
       },
+    },
+    interface: {
+      autoRightSidebarBehavior: DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior,
     },
   };
 
@@ -291,6 +308,17 @@ function normalizeSettings(input: AppSettings): AppSettings {
     ),
     toggleTheme: normalizeBinding(keyboard.toggleTheme, DEFAULT_SETTINGS.keyboard!.toggleTheme!),
     toggleKanban: normalizeBinding(keyboard.toggleKanban, DEFAULT_SETTINGS.keyboard!.toggleKanban!),
+    nextProject: normalizeBinding(keyboard.nextProject, DEFAULT_SETTINGS.keyboard!.nextProject!),
+    prevProject: normalizeBinding(keyboard.prevProject, DEFAULT_SETTINGS.keyboard!.prevProject!),
+    newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
+  };
+
+  // Interface
+  const iface = (input as any)?.interface || {};
+  out.interface = {
+    autoRightSidebarBehavior: Boolean(
+      iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
+    ),
   };
 
   return out;

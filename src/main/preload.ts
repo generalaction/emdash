@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   quitAndInstallUpdate: () => ipcRenderer.invoke('update:quit-and-install'),
   openLatestDownload: () => ipcRenderer.invoke('update:open-latest'),
+  // Enhanced update methods
+  getUpdateState: () => ipcRenderer.invoke('update:get-state'),
+  getUpdateSettings: () => ipcRenderer.invoke('update:get-settings'),
+  updateUpdateSettings: (settings: any) => ipcRenderer.invoke('update:update-settings', settings),
+  getReleaseNotes: () => ipcRenderer.invoke('update:get-release-notes'),
+  checkForUpdatesNow: () => ipcRenderer.invoke('update:check-now'),
   onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => {
     const pairs: Array<[string, string]> = [
       ['update:checking', 'checking'],
@@ -116,9 +122,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
   fsRead: (root: string, relPath: string, maxBytes?: number) =>
     ipcRenderer.invoke('fs:read', { root, relPath, maxBytes }),
+  fsReadImage: (root: string, relPath: string) =>
+    ipcRenderer.invoke('fs:read-image', { root, relPath }),
+  fsSearchContent: (
+    root: string,
+    query: string,
+    options?: {
+      caseSensitive?: boolean;
+      maxResults?: number;
+      fileExtensions?: string[];
+    }
+  ) => ipcRenderer.invoke('fs:searchContent', { root, query, options }),
   fsWriteFile: (root: string, relPath: string, content: string, mkdirs?: boolean) =>
     ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs }),
   fsRemove: (root: string, relPath: string) => ipcRenderer.invoke('fs:remove', { root, relPath }),
+  getProjectConfig: (projectPath: string) =>
+    ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
+  saveProjectConfig: (projectPath: string, content: string) =>
+    ipcRenderer.invoke('fs:saveProjectConfig', { projectPath, content }),
   // Attachments
   saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) =>
     ipcRenderer.invoke('fs:save-attachment', args),

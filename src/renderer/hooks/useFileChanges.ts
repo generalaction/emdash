@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { subscribeToFileChanges } from '@/lib/fileChangeEvents';
 
 export interface FileChange {
   path: string;
@@ -70,7 +71,18 @@ export function useFileChanges(taskPath: string) {
 
     const interval = setInterval(() => fetchFileChanges(false), 5000);
 
-    return () => clearInterval(interval);
+    // Listen for file change events and refresh immediately
+    const unsubscribe = subscribeToFileChanges((event) => {
+      // Only refresh if the event is for our task path
+      if (event.detail.taskPath === taskPath) {
+        fetchFileChanges(false);
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [taskPath]);
 
   const refreshChanges = async () => {

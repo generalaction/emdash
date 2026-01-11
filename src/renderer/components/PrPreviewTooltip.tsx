@@ -62,7 +62,7 @@ export const PrPreviewTooltip: React.FC<Props> = ({ pr, children, side = 'top' }
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <img src={githubLogo} alt="GitHub" className="h-4 w-4" />
               <span className="tracking-wide">Pull Request</span>
-              <span className="font-bold text-muted-foreground/80">#{pr.number}</span>
+              <span className="font-semibold text-muted-foreground/80">#{pr.number}</span>
             </div>
             <div className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">
               {pr.title || `PR #${pr.number}`}

@@ -1,0 +1,49 @@
+---
+title: Passing Issues
+description: Pass issues from Linear, Jira, or GitHub directly to agents
+---
+
+Emdash connects to Linear, Jira, and GitHub Issues. Pass issues from your tracker directly to agents. The issue title, description, and metadata become part of the agent's prompt.
+
+## How It Works
+
+1. Create a new task
+2. Click **Advanced Options**
+3. Select an issue from the dropdown (searchable by ID, title, or assignee)
+4. Start the task
+
+The agent receives the full issue context and begins working immediately.
+
+## Supported Trackers
+
+Emdash supports:
+
+- Linear
+- Jira
+- GitHub Issues
+
+Missing your tracker? [Open an issue](https://github.com/generalaction/emdash/issues) or message us on [Discord](https://discord.gg/f2fv7YxuR2).
+
+## Connecting Your Tracker
+
+Go to **Settings → Connections** to connect.
+
+### Linear
+
+1. Go to [Linear Settings → API → Personal API Keys](https://linear.app/settings/api)
+2. Create a new API key
+3. Paste the key in Emdash and click Connect
+
+### Jira
+
+1. Go to [Atlassian Account Settings → Security → API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+2. Create a new API token
+3. In Emdash, enter your site URL (e.g., `https://yourcompany.atlassian.net`), email, and token
+
+### GitHub Issues
+
+GitHub Issues requires the GitHub CLI (`gh`). Emdash auto-installs it if missing.
+
+1. Click **Sign in with GitHub**
+2. Copy the device code shown
+3. Authorize on GitHub when prompted

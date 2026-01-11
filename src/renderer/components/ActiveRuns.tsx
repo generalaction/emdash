@@ -56,7 +56,7 @@ const ActiveRuns: React.FC<Props> = ({ projects, onSelectProject, onSelectTask }
         <div className="flex items-center gap-2">
           <img src={dockerLogo} alt="" className="h-3.5 w-3.5" />
           <span className="font-medium">Active Runs</span>
-          <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
             {activeRuns.length}
           </span>
         </div>

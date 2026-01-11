@@ -37,6 +37,12 @@ declare global {
       quitAndInstallUpdate: () => Promise<{ success: boolean; error?: string }>;
       openLatestDownload: () => Promise<{ success: boolean; error?: string }>;
       onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
+      // Enhanced update methods
+      getUpdateState: () => Promise<{ success: boolean; data?: any; error?: string }>;
+      getUpdateSettings: () => Promise<{ success: boolean; data?: any; error?: string }>;
+      updateUpdateSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+      getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+      checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
       // App settings
       getSettings: () => Promise<{
@@ -85,6 +91,17 @@ declare global {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+          };
+          interface?: {
+            autoRightSidebarBehavior?: boolean;
           };
         };
         error?: string;
@@ -134,6 +151,17 @@ declare global {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+          };
+          interface?: {
+            autoRightSidebarBehavior?: boolean;
           };
         }>
       ) => Promise<{
@@ -182,6 +210,17 @@ declare global {
               key: string;
               modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
             };
+            nextProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+            prevProject?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+            };
+          };
+          interface?: {
+            autoRightSidebarBehavior?: boolean;
           };
         };
         error?: string;
@@ -533,6 +572,37 @@ declare global {
         content?: string;
         error?: string;
       }>;
+      fsReadImage: (
+        root: string,
+        relPath: string
+      ) => Promise<{
+        success: boolean;
+        dataUrl?: string;
+        mimeType?: string;
+        size?: number;
+        error?: string;
+      }>;
+      fsSearchContent: (
+        root: string,
+        query: string,
+        options?: {
+          caseSensitive?: boolean;
+          maxResults?: number;
+          fileExtensions?: string[];
+        }
+      ) => Promise<{
+        success: boolean;
+        results?: Array<{
+          file: string;
+          matches: Array<{
+            line: number;
+            column: number;
+            text: string;
+            preview: string;
+          }>;
+        }>;
+        error?: string;
+      }>;
       fsWriteFile: (
         root: string,
         relPath: string,
@@ -540,6 +610,13 @@ declare global {
         mkdirs?: boolean
       ) => Promise<{ success: boolean; error?: string }>;
       fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
+      getProjectConfig: (
+        projectPath: string
+      ) => Promise<{ success: boolean; path?: string; content?: string; error?: string }>;
+      saveProjectConfig: (
+        projectPath: string,
+        content: string
+      ) => Promise<{ success: boolean; path?: string; error?: string }>;
       // Attachments
       saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) => Promise<{
         success: boolean;
@@ -787,6 +864,12 @@ export interface ElectronAPI {
   quitAndInstallUpdate: () => Promise<{ success: boolean; error?: string }>;
   openLatestDownload: () => Promise<{ success: boolean; error?: string }>;
   onUpdateEvent: (listener: (data: { type: string; payload?: any }) => void) => () => void;
+  // Enhanced update methods
+  getUpdateState: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  getUpdateSettings: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  updateUpdateSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+  getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+  checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
   // PTY
   ptyStart: (opts: {
@@ -967,6 +1050,27 @@ export interface ElectronAPI {
     size?: number;
     truncated?: boolean;
     content?: string;
+    error?: string;
+  }>;
+  fsSearchContent: (
+    root: string,
+    query: string,
+    options?: {
+      caseSensitive?: boolean;
+      maxResults?: number;
+      fileExtensions?: string[];
+    }
+  ) => Promise<{
+    success: boolean;
+    results?: Array<{
+      file: string;
+      matches: Array<{
+        line: number;
+        column: number;
+        text: string;
+        preview: string;
+      }>;
+    }>;
     error?: string;
   }>;
 

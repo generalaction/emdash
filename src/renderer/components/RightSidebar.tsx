@@ -22,10 +22,28 @@ export interface RightSidebarTask {
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   task: RightSidebarTask | null;
   projectPath?: string | null;
+  forceBorder?: boolean;
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, className, ...rest }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({
+  task,
+  projectPath,
+  className,
+  forceBorder = false,
+  ...rest
+}) => {
   const { collapsed } = useRightSidebar();
+  const [isDarkMode, setIsDarkMode] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Detect multi-agent variants in task metadata
   const variants: Array<{ provider: Provider; name: string; path: string }> = (() => {
@@ -67,10 +85,29 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ task, projectPath, classNam
     <aside
       data-state={collapsed ? 'collapsed' : 'open'}
       className={cn(
-        'group/right-sidebar relative z-[40] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden border-l border-border bg-muted/10 transition-all duration-200 ease-linear',
-        'data-[state=collapsed]:pointer-events-none data-[state=collapsed]:border-l-0',
+        'group/right-sidebar relative z-[45] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
+        forceBorder
+          ? 'bg-background'
+          : 'border-l border-border bg-muted/10 data-[state=collapsed]:border-l-0',
+        'data-[state=collapsed]:pointer-events-none',
         className
       )}
+      style={
+        forceBorder
+          ? {
+              borderLeft: collapsed
+                ? 'none'
+                : isDarkMode
+                  ? '2px solid rgb(63, 63, 70)'
+                  : '2px solid rgb(228, 228, 231)',
+              boxShadow: collapsed
+                ? 'none'
+                : isDarkMode
+                  ? '-2px 0 8px rgba(0,0,0,0.5)'
+                  : '-2px 0 8px rgba(0,0,0,0.1)',
+            }
+          : undefined
+      }
       aria-hidden={collapsed}
       {...rest}
     >

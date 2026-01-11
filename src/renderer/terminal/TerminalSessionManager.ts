@@ -78,7 +78,6 @@ export class TerminalSessionManager {
       rows: options.initialSize.rows,
       scrollback: options.scrollbackLines,
       convertEol: true,
-      fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       fontSize: 13,
       lineHeight: 1.2,
       letterSpacing: 0,
@@ -459,6 +458,11 @@ export class TerminalSessionManager {
         this.terminal.clear();
         this.terminal.writeln('[scrollback truncated to protect memory]');
       }
+      // Check if at bottom BEFORE writing - if yes, we'll scroll to stay at bottom
+      // If user has scrolled up, they stay where they are
+      const buffer = this.terminal.buffer?.active;
+      const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
+
       this.terminal.write(chunk);
       if (!this.firstFrameRendered) {
         this.firstFrameRendered = true;
@@ -466,11 +470,12 @@ export class TerminalSessionManager {
           this.terminal.refresh(0, this.terminal.rows - 1);
         } catch {}
       }
-      // Auto-scroll to bottom when new data arrives
-      // This ensures users always see the latest output, especially when the agent is waiting for input
-      try {
-        this.terminal.scrollToBottom();
-      } catch {}
+      // Only auto-scroll if we were already at bottom (stay at bottom behavior)
+      if (isAtBottom) {
+        try {
+          this.terminal.scrollToBottom();
+        } catch {}
+      }
     });
 
     const offExit = window.electronAPI.onPtyExit(id, (info) => {

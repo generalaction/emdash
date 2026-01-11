@@ -111,7 +111,7 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
           className="max-w-xs rounded-md border border-border bg-background p-2 text-xs shadow-sm"
         >
           {taskName ? (
-            <div className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold leading-tight text-foreground">
+            <div className="mb-1 flex items-center gap-1.5 text-code font-semibold leading-tight text-foreground">
               <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <span className="truncate" title={taskName}>
                 {taskName}

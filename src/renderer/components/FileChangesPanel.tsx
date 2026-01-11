@@ -8,7 +8,7 @@ import ChangesDiffModal from './ChangesDiffModal';
 import AllChangesDiffModal from './AllChangesDiffModal';
 import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
-import FileTypeIcon from './ui/file-type-icon';
+import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Plus, Undo2, ArrowUpRight, FileDiff } from 'lucide-react';
 import { useTaskScope } from './TaskScopeContext';
@@ -271,7 +271,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onClick={() => setShowAllChangesModal(true)}
                 >
                   <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Check Changes</span>
+                  <span className="hidden sm:inline">Changes</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -400,12 +400,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             }}
           >
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <span className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground">
-                <FileTypeIcon
-                  path={change.path}
-                  type={change.status === 'deleted' ? 'file' : 'file'}
-                  size={14}
-                />
+              <span className="inline-flex items-center justify-center text-muted-foreground">
+                <FileIcon filename={change.path} isDirectory={false} size={16} />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm">{renderPath(change.path)}</div>
