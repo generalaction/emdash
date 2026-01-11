@@ -11,6 +11,7 @@ import {
   configureMonacoEditor,
   addMonacoKeyboardShortcuts,
 } from '@/lib/monaco-config';
+import { defineMonacoThemes, getMonacoTheme } from '@/lib/monaco-themes';
 import {
   DEFAULT_EXCLUDE_PATTERNS,
   EXPLORER_WIDTH,
@@ -107,47 +108,7 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
         if (!monacoRef.current) {
           monacoRef.current = monaco;
           configureMonacoTypeScript(monaco);
-
-          // Define custom themes with matching background colors
-          monaco.editor.defineTheme('custom-dark', {
-            base: 'vs-dark',
-            inherit: true,
-            rules: [],
-            colors: {
-              'editor.background': '#1e293b', // slate-800 - matches diff viewer
-              'editor.foreground': '#e2e8f0',
-              'editor.lineHighlightBackground': '#334155',
-              'editorLineNumber.foreground': '#64748b',
-              'editorGutter.background': '#1e293b',
-            },
-          });
-
-          // Black theme with pure black background
-          monaco.editor.defineTheme('custom-black', {
-            base: 'vs-dark',
-            inherit: true,
-            rules: [],
-            colors: {
-              'editor.background': '#000000', // pure black
-              'editor.foreground': '#f2f2f2',
-              'editor.lineHighlightBackground': '#1a1a1a',
-              'editorLineNumber.foreground': '#666666',
-              'editorGutter.background': '#000000',
-            },
-          });
-
-          monaco.editor.defineTheme('custom-light', {
-            base: 'vs',
-            inherit: true,
-            rules: [],
-            colors: {
-              'editor.background': '#f8fafc', // slate-50 - matches diff viewer
-              'editor.foreground': '#1e293b',
-              'editor.lineHighlightBackground': '#f1f5f9',
-              'editorLineNumber.foreground': '#94a3b8',
-              'editorGutter.background': '#f8fafc',
-            },
-          });
+          defineMonacoThemes(monaco);
         }
       });
     };
@@ -166,46 +127,8 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
         configureMonacoTypeScript(monaco);
       }
 
-      // Define custom themes with matching background colors
-      monaco.editor.defineTheme('custom-dark', {
-        base: 'vs-dark',
-        inherit: true,
-        rules: [],
-        colors: {
-          'editor.background': '#1e293b', // slate-800 - matches diff viewer
-          'editor.foreground': '#e2e8f0',
-          'editor.lineHighlightBackground': '#334155',
-          'editorLineNumber.foreground': '#64748b',
-          'editorGutter.background': '#1e293b',
-        },
-      });
-
-      // Black theme with pure black background
-      monaco.editor.defineTheme('custom-black', {
-        base: 'vs-dark',
-        inherit: true,
-        rules: [],
-        colors: {
-          'editor.background': '#000000', // pure black
-          'editor.foreground': '#f2f2f2',
-          'editor.lineHighlightBackground': '#1a1a1a',
-          'editorLineNumber.foreground': '#666666',
-          'editorGutter.background': '#000000',
-        },
-      });
-
-      monaco.editor.defineTheme('custom-light', {
-        base: 'vs',
-        inherit: true,
-        rules: [],
-        colors: {
-          'editor.background': '#f8fafc', // slate-50 - matches diff viewer
-          'editor.foreground': '#1e293b',
-          'editor.lineHighlightBackground': '#f1f5f9',
-          'editorLineNumber.foreground': '#94a3b8',
-          'editorGutter.background': '#f8fafc',
-        },
-      });
+      // Register custom themes
+      defineMonacoThemes(monaco);
 
       // Configure editor options
       configureMonacoEditor(editor, monaco);
@@ -433,13 +356,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
         value={activeFile.content}
         onChange={onEditorChange}
         onMount={onEditorMount}
-        theme={
-          effectiveTheme === 'dark-black'
-            ? 'custom-black'
-            : effectiveTheme === 'dark'
-              ? 'custom-dark'
-              : 'custom-light'
-        }
+        theme={getMonacoTheme(effectiveTheme)}
         options={DEFAULT_EDITOR_OPTIONS}
       />
     </div>

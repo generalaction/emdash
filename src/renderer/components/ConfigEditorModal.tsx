@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Spinner } from './ui/spinner';
-import Editor from '@monaco-editor/react';
+import Editor, { Monaco } from '@monaco-editor/react';
 import { useTheme } from '@/hooks/useTheme';
+import { defineMonacoThemes, getMonacoTheme } from '@/lib/monaco-themes';
 
 interface ConfigEditorModalProps {
   isOpen: boolean;
@@ -25,6 +26,11 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [jsonError, setJsonError] = useState<string | null>(null);
 
   const hasChanges = content !== originalContent;
+
+  const handleEditorMount = useCallback((_editor: any, monaco: Monaco) => {
+    // Register custom themes when editor mounts
+    defineMonacoThemes(monaco);
+  }, []);
 
   // Load config when modal opens
   useEffect(() => {
@@ -119,7 +125,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 language="json"
                 value={content}
                 onChange={(value) => setContent(value || '')}
-                theme={effectiveTheme === 'dark' ? 'vs-dark' : 'light'}
+                onMount={handleEditorMount}
+                theme={getMonacoTheme(effectiveTheme)}
                 options={{
                   minimap: { enabled: false },
                   fontSize: 13,
