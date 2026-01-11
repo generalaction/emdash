@@ -31,6 +31,7 @@ export interface TerminalSessionOptions {
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  skipResume?: boolean;
 }
 
 type CleanupFn = () => void;
@@ -489,11 +490,17 @@ export class TerminalSessionManager {
 
   /**
    * Check if this terminal ID is a provider CLI that supports native resume.
-   * Provider CLIs use the format: `${provider}-main-${taskId}`
-   * If the provider has a resumeFlag, we skip snapshot restoration to avoid duplicate history.
+   * Provider CLIs use the format: `${provider}-main-${taskId}` or chat terminals with provider prefix
+   * If the provider has a resumeFlag AND skipResume is not set, we skip snapshot restoration to avoid duplicate history.
    */
   private isProviderWithResume(id: string): boolean {
-    const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+    // If skipResume is explicitly set, don't use provider's resume capability
+    if (this.options.skipResume) {
+      return false;
+    }
+
+    // Check for main provider terminals or chat terminals
+    const match = /^([a-z0-9_-]+)-(main|chat)-.+$/.exec(id);
     if (!match) return false;
     const providerId = match[1] as ProviderId;
     if (!PROVIDER_IDS.includes(providerId)) return false;

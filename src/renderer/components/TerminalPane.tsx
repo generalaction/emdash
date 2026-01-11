@@ -16,6 +16,7 @@ type Props = {
   contentFilter?: string;
   keepAlive?: boolean;
   autoApprove?: boolean;
+  skipResume?: boolean;
   initialPrompt?: string;
   onActivity?: () => void;
   onStartError?: (message: string) => void;
@@ -36,6 +37,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
   contentFilter,
   keepAlive = true,
   autoApprove,
+  skipResume = false,
   initialPrompt,
   onActivity,
   onStartError,
@@ -68,6 +70,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
       theme,
       autoApprove,
       initialPrompt,
+      skipResume,
     });
     sessionRef.current = session;
 
@@ -104,10 +107,12 @@ const TerminalPaneComponent: React.FC<Props> = ({
     rows,
     theme,
     autoApprove,
+    skipResume,
     onActivity,
     onStartError,
     onStartSuccess,
     onExit,
+    initialPrompt,
   ]);
 
   useEffect(() => {

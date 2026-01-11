@@ -7,6 +7,7 @@ import emdashLogoWhite from '../assets/images/emdash/emdash_logo_white.svg';
 import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import BrowserPane from './components/BrowserPane';
 import ChatInterface from './components/ChatInterface';
+import { ChatInterfaceWithTabs } from './components/ChatInterfaceWithTabs';
 import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -1921,7 +1922,7 @@ const AppContent: React.FC = () => {
                 projectId={selectedProject.id}
               />
             ) : (
-              <ChatInterface
+              <ChatInterfaceWithTabs
                 task={activeTask}
                 projectName={selectedProject.name}
                 className="min-h-0 flex-1"

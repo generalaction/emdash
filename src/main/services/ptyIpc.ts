@@ -200,13 +200,26 @@ function parseProviderPty(id: string): {
   providerId: ProviderId;
   taskId: string;
 } | null {
-  // Chat terminals are named `${provider}-main-${taskId}`
-  const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
-  if (!match) return null;
-  const providerId = match[1] as ProviderId;
-  if (!PROVIDER_IDS.includes(providerId)) return null;
-  const taskId = match[2];
-  return { providerId, taskId };
+  // Terminals can be:
+  // - Main terminals: `${provider}-main-${taskId}`
+  // - Chat terminals: `${provider}-chat-${timestamp}-${taskId}`
+  const mainMatch = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+  if (mainMatch) {
+    const providerId = mainMatch[1] as ProviderId;
+    if (!PROVIDER_IDS.includes(providerId)) return null;
+    const taskId = mainMatch[2];
+    return { providerId, taskId };
+  }
+
+  const chatMatch = /^([a-z0-9_-]+)-chat-\d+-(.+)$/.exec(id);
+  if (chatMatch) {
+    const providerId = chatMatch[1] as ProviderId;
+    if (!PROVIDER_IDS.includes(providerId)) return null;
+    const taskId = chatMatch[2];
+    return { providerId, taskId };
+  }
+
+  return null;
 }
 
 function providerRunKey(providerId: ProviderId, taskId: string) {

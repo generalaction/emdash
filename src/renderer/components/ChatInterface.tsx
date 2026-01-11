@@ -39,6 +39,8 @@ interface Props {
   projectName: string;
   className?: string;
   initialProvider?: Provider;
+  customTerminalId?: string; // Optional custom terminal ID for tabs
+  skipResume?: boolean; // Skip resume flags for fresh conversations
 }
 
 const ChatInterface: React.FC<Props> = ({
@@ -46,6 +48,8 @@ const ChatInterface: React.FC<Props> = ({
   projectName: _projectName,
   className,
   initialProvider,
+  customTerminalId,
+  skipResume = false,
 }) => {
   const { toast } = useToast();
   const { effectiveTheme } = useTheme();
@@ -61,7 +65,10 @@ const ChatInterface: React.FC<Props> = ({
     getContainerRunState(task.id)
   );
   const reduceMotion = useReducedMotion();
-  const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
+  const terminalId = useMemo(
+    () => customTerminalId || `${provider}-main-${task.id}`,
+    [customTerminalId, provider, task.id]
+  );
   const [portsExpanded, setPortsExpanded] = useState(false);
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
@@ -749,6 +756,7 @@ const ChatInterface: React.FC<Props> = ({
                 cwd={task.path}
                 shell={providerMeta[provider].cli}
                 autoApprove={autoApproveEnabled}
+                skipResume={skipResume}
                 env={
                   planEnabled
                     ? {
