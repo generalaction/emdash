@@ -16,6 +16,7 @@ interface BaseBranchControlsProps {
   onBaseBranchChange: (value: string) => void;
   onOpenChange?: (open: boolean) => void;
   projectPath?: string;
+  onEditConfig?: () => void;
 }
 
 const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
@@ -27,6 +28,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   onBaseBranchChange,
   onOpenChange,
   projectPath,
+  onEditConfig,
 }) => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -143,15 +145,15 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       {branchLoadError ? <p className="text-xs text-destructive">{branchLoadError}</p> : null}
       <p className="text-xs text-muted-foreground">
         New tasks start from the latest code.
-        {projectPath && (
+        {projectPath && onEditConfig && (
           <>
             {' · '}
             <button
               type="button"
               className="text-muted-foreground underline hover:text-foreground"
-              onClick={() => window.electronAPI.openProjectConfig(projectPath)}
+              onClick={onEditConfig}
             >
-              Edit Emdash config
+              Edit config
             </button>
           </>
         )}

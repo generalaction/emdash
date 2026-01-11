@@ -30,6 +30,7 @@ import {
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
+import { ConfigEditorModal } from './ConfigEditorModal';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
 import TaskPorts from './TaskPorts';
@@ -436,6 +437,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
+  const [showConfigEditor, setShowConfigEditor] = useState(false);
 
   const tasksInProject = project.tasks ?? [];
   const selectedCount = selectedIds.size;
@@ -784,6 +786,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     }
                   }}
                   projectPath={project.path}
+                  onEditConfig={() => setShowConfigEditor(true)}
                 />
               </header>
               <Separator className="my-2" />
@@ -1035,6 +1038,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConfigEditorModal
+        isOpen={showConfigEditor}
+        onClose={() => setShowConfigEditor(false)}
+        projectPath={project.path}
+      />
     </div>
   );
 };
