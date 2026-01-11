@@ -1262,6 +1262,7 @@ const AppContent: React.FC = () => {
           status: 'idle',
           agentId: primaryProvider,
           metadata: multiMeta,
+          useWorktree,
         };
 
         const saveResult = await window.electronAPI.saveTask({
@@ -1315,6 +1316,7 @@ const AppContent: React.FC = () => {
           status: 'idle',
           agentId: primaryProvider,
           metadata: taskMetadata,
+          useWorktree,
         };
 
         const saveResult = await window.electronAPI.saveTask({
@@ -1639,19 +1641,28 @@ const AppContent: React.FC = () => {
         );
 
         // Only remove worktree if the task was created with one
+        // IMPORTANT: Tasks without worktrees have useWorktree === false
         const shouldRemoveWorktree = task.useWorktree !== false;
 
         const promises: Promise<any>[] = [window.electronAPI.deleteTask(task.id)];
 
         if (shouldRemoveWorktree) {
-          promises.unshift(
-            window.electronAPI.worktreeRemove({
-              projectPath: targetProject.path,
-              worktreeId: task.id,
-              worktreePath: task.path,
-              branch: task.branch,
-            })
-          );
+          // Safety check: Don't try to remove worktree if the task path equals project path
+          // This indicates a task without a worktree running directly on the main repo
+          if (task.path === targetProject.path) {
+            console.warn(
+              `Task "${task.name}" appears to be running on main repo, skipping worktree removal`
+            );
+          } else {
+            promises.unshift(
+              window.electronAPI.worktreeRemove({
+                projectPath: targetProject.path,
+                worktreeId: task.id,
+                worktreePath: task.path,
+                branch: task.branch,
+              })
+            );
+          }
         }
 
         const results = await Promise.allSettled(promises);
