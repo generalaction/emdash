@@ -628,8 +628,8 @@ export function registerFsIpc(): void {
     }
   });
 
-  // Open .emdash.json config file (create with defaults if missing)
-  ipcMain.handle('fs:openProjectConfig', async (_event, args: { projectPath: string }) => {
+  // Get .emdash.json config file content (create with defaults if missing)
+  ipcMain.handle('fs:getProjectConfig', async (_event, args: { projectPath: string }) => {
     try {
       const { projectPath } = args;
       if (!projectPath || !fs.existsSync(projectPath)) {
@@ -643,17 +643,35 @@ export function registerFsIpc(): void {
         fs.writeFileSync(configPath, DEFAULT_EMDASH_CONFIG, 'utf8');
       }
 
-      // Open in default editor
-      const openResult = await shell.openPath(configPath);
-      if (openResult) {
-        // openPath returns an error string on failure, empty string on success
-        console.error('Failed to open config file:', openResult);
-        return { success: false, error: `Failed to open config file: ${openResult}` };
+      const content = fs.readFileSync(configPath, 'utf8');
+      return { success: true, path: configPath, content };
+    } catch (error) {
+      console.error('fs:getProjectConfig failed:', error);
+      return { success: false, error: 'Failed to read config file' };
+    }
+  });
+
+  // Save .emdash.json config file content
+  ipcMain.handle('fs:saveProjectConfig', async (_event, args: { projectPath: string; content: string }) => {
+    try {
+      const { projectPath, content } = args;
+      if (!projectPath || !fs.existsSync(projectPath)) {
+        return { success: false, error: 'Invalid project path' };
       }
+
+      // Validate JSON before saving
+      try {
+        JSON.parse(content);
+      } catch {
+        return { success: false, error: 'Invalid JSON format' };
+      }
+
+      const configPath = path.join(projectPath, '.emdash.json');
+      fs.writeFileSync(configPath, content, 'utf8');
       return { success: true, path: configPath };
     } catch (error) {
-      console.error('fs:openProjectConfig failed:', error);
-      return { success: false, error: 'Failed to open config file' };
+      console.error('fs:saveProjectConfig failed:', error);
+      return { success: false, error: 'Failed to save config file' };
     }
   });
 }
