@@ -652,26 +652,29 @@ export function registerFsIpc(): void {
   });
 
   // Save .emdash.json config file content
-  ipcMain.handle('fs:saveProjectConfig', async (_event, args: { projectPath: string; content: string }) => {
-    try {
-      const { projectPath, content } = args;
-      if (!projectPath || !fs.existsSync(projectPath)) {
-        return { success: false, error: 'Invalid project path' };
-      }
-
-      // Validate JSON before saving
+  ipcMain.handle(
+    'fs:saveProjectConfig',
+    async (_event, args: { projectPath: string; content: string }) => {
       try {
-        JSON.parse(content);
-      } catch {
-        return { success: false, error: 'Invalid JSON format' };
-      }
+        const { projectPath, content } = args;
+        if (!projectPath || !fs.existsSync(projectPath)) {
+          return { success: false, error: 'Invalid project path' };
+        }
 
-      const configPath = path.join(projectPath, '.emdash.json');
-      fs.writeFileSync(configPath, content, 'utf8');
-      return { success: true, path: configPath };
-    } catch (error) {
-      console.error('fs:saveProjectConfig failed:', error);
-      return { success: false, error: 'Failed to save config file' };
+        // Validate JSON before saving
+        try {
+          JSON.parse(content);
+        } catch {
+          return { success: false, error: 'Invalid JSON format' };
+        }
+
+        const configPath = path.join(projectPath, '.emdash.json');
+        fs.writeFileSync(configPath, content, 'utf8');
+        return { success: true, path: configPath };
+      } catch (error) {
+        console.error('fs:saveProjectConfig failed:', error);
+        return { success: false, error: 'Failed to save config file' };
+      }
     }
-  });
+  );
 }
