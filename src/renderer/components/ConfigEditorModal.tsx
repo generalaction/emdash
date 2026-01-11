@@ -47,9 +47,15 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
           setContent(result.content);
           setOriginalContent(result.content);
         } else {
+          // Clear content when load fails to prevent stale data
+          setContent('');
+          setOriginalContent('');
           setError(result.error || 'Failed to load config');
         }
       } catch (err) {
+        // Clear content when load fails to prevent stale data
+        setContent('');
+        setOriginalContent('');
         setError(err instanceof Error ? err.message : 'Failed to load config');
       } finally {
         setIsLoading(false);
@@ -119,7 +125,9 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
           <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">{error}</div>
         ) : (
           <>
-            <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+            <div
+              className={`min-h-0 flex-1 overflow-hidden rounded-md border ${isSaving ? 'opacity-75' : ''}`}
+            >
               <Editor
                 height="400px"
                 language="json"
@@ -135,6 +143,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                   automaticLayout: true,
                   tabSize: 2,
                   wordWrap: 'on',
+                  readOnly: isSaving, // Disable editing while saving
                 }}
               />
             </div>
