@@ -414,16 +414,12 @@ export class WorktreeService {
         }
 
         if (isMainWorktree) {
-          log.error(
-            `CRITICAL: Attempted to remove main worktree! Path: ${pathToRemove}`
-          );
+          log.error(`CRITICAL: Attempted to remove main worktree! Path: ${pathToRemove}`);
           throw new Error('Cannot remove main worktree');
         }
 
         if (!isWorktree) {
-          log.warn(
-            `Path is not a git worktree, skipping removal: ${pathToRemove}`
-          );
+          log.warn(`Path is not a git worktree, skipping removal: ${pathToRemove}`);
           // Don't throw error, just return - the path might not exist or might be a task without worktree
           return;
         }

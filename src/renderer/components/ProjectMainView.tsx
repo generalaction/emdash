@@ -795,8 +795,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             {(() => {
               // Find tasks running directly on the main branch (without worktrees)
               // Check both useWorktree === false and tasks where path equals project path
-              const directTasks = tasksInProject.filter((task) =>
-                task.useWorktree === false || task.path === project.path
+              const directTasks = tasksInProject.filter(
+                (task) => task.useWorktree === false || task.path === project.path
               );
               if (directTasks.length === 0) return null;
 
