@@ -1,4 +1,8 @@
 export function LastUpdated({ date }: { date: Date }) {
+  if (!date || isNaN(date.getTime())) {
+    return null;
+  }
+
   const formatted = new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'long',

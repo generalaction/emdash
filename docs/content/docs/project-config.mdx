@@ -1,0 +1,56 @@
+---
+title: Project Configuration
+description: Customize Emdash behavior per project
+---
+
+Emdash can be configured on a per-project basis using a `.emdash.json` file in your project root. This lets you tailor how worktrees are set up and which files get copied to them.
+
+## Copying files to worktrees
+
+When you create a new task, Emdash sets up a Git worktree so the agent can work in isolation. By default, worktrees start fresh from your repository, which means gitignored files like `.env` won't be there.
+
+To solve this, Emdash automatically copies certain gitignored files from your main project into each new worktree. This happens once when the worktree is created, and only for files that don't already exist in the destination.
+
+{/* TODO: Add screenshot at /media/project-config.png */}
+
+The default patterns cover common environment files:
+
+```
+.env
+.env.keys
+.env.local
+.env.*.local
+.envrc
+docker-compose.override.yml
+```
+
+These defaults work well for most projects, but you can customize them if needed.
+
+## Custom preserve patterns
+
+To specify your own list of files to copy, create a `.emdash.json` file in your project root:
+
+```json
+{
+  "preservePatterns": [
+    ".env",
+    ".env.local",
+    "config/local.yml",
+    "secrets/*.json"
+  ]
+}
+```
+
+When you define `preservePatterns`, it replaces the defaults entirely. Include any default patterns you still want alongside your custom ones.
+
+Patterns support basic glob syntax, so `secrets/*.json` will match all JSON files in the secrets directory. Files inside `node_modules`, `.git`, `vendor`, and other common build directories are automatically excluded regardless of your patterns.
+
+## How it works
+
+Emdash looks for gitignored files in your main project that match your preserve patterns. For each match, it copies the file to the same relative path in the new worktree. If a file already exists in the worktree, it's left untouched, so your worktree-specific changes won't be overwritten.
+
+This means you can safely modify environment files in a worktree without worrying about them being reset when you create new tasks.
+
+## Editing the config
+
+You can edit your project's `.emdash.json` directly from the app. On the project page, click "Edit config" to open the configuration file in your editor.
