@@ -281,7 +281,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     }
 
     return (
-      <div className="space-y-6 pb-2">
+      <div className="flex flex-col gap-6">
         {sections.map((section: SettingsSection, index) => {
           let renderedContent: React.ReactNode = null;
           if (typeof section.render === 'function') {
