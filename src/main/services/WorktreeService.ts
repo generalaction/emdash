@@ -370,6 +370,68 @@ export class WorktreeService {
         throw new Error('Worktree path not provided');
       }
 
+      // CRITICAL SAFETY CHECK: Prevent removing the main repository
+      // Check if the path to remove is the same as the project path (main repo)
+      const normalizedPathToRemove = path.resolve(pathToRemove);
+      const normalizedProjectPath = path.resolve(projectPath);
+
+      if (normalizedPathToRemove === normalizedProjectPath) {
+        log.error(
+          `CRITICAL: Attempted to remove main repository! Path: ${pathToRemove}, Project: ${projectPath}`
+        );
+        throw new Error('Cannot remove main repository - this is not a worktree');
+      }
+
+      // Additional safety: Check if this is actually a worktree using git worktree list
+      try {
+        const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
+          cwd: projectPath,
+        });
+
+        // Parse the output to find if pathToRemove is a worktree
+        const lines = stdout.split('\n');
+        let isWorktree = false;
+        let isMainWorktree = false;
+
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].startsWith('worktree ')) {
+            const wtPath = lines[i].substring(9); // Remove "worktree " prefix
+            const normalizedWtPath = path.resolve(wtPath);
+
+            if (normalizedWtPath === normalizedPathToRemove) {
+              // Check if this is the main worktree (bare repos have no main worktree)
+              const nextLine = lines[i + 1];
+              if (nextLine && nextLine === 'bare') {
+                isMainWorktree = true;
+              } else if (i === 0) {
+                // First worktree in the list is usually the main worktree
+                isMainWorktree = true;
+              }
+              isWorktree = true;
+              break;
+            }
+          }
+        }
+
+        if (isMainWorktree) {
+          log.error(
+            `CRITICAL: Attempted to remove main worktree! Path: ${pathToRemove}`
+          );
+          throw new Error('Cannot remove main worktree');
+        }
+
+        if (!isWorktree) {
+          log.warn(
+            `Path is not a git worktree, skipping removal: ${pathToRemove}`
+          );
+          // Don't throw error, just return - the path might not exist or might be a task without worktree
+          return;
+        }
+      } catch (checkError) {
+        log.warn('Could not verify worktree status, proceeding with caution:', checkError);
+        // If we can't verify, at least we've checked it's not the main project path above
+      }
+
       // Remove the worktree directory via git first
       try {
         // Use --force to remove even when there are untracked/modified files
@@ -389,6 +451,34 @@ export class WorktreeService {
 
       // Ensure directory is removed even if git command failed
       if (fs.existsSync(pathToRemove)) {
+        // SAFETY: Double-check we're not removing the main repo before filesystem operations
+        const normalizedPathToRemove = path.resolve(pathToRemove);
+        const normalizedProjectPath = path.resolve(projectPath);
+
+        if (normalizedPathToRemove === normalizedProjectPath) {
+          log.error(
+            `CRITICAL: Prevented filesystem removal of main repository! Path: ${pathToRemove}`
+          );
+          throw new Error('Cannot remove main repository directory');
+        }
+
+        // Additional safety: Check if this path is within the worktrees directory
+        // Worktrees should typically be in a ../worktrees/ directory or similar
+        const isLikelyWorktree =
+          pathToRemove.includes('/worktrees/') ||
+          pathToRemove.includes('\\worktrees\\') ||
+          pathToRemove.includes('/.conductor/') ||
+          pathToRemove.includes('\\.conductor\\') ||
+          pathToRemove.includes('/.cursor/worktrees/') ||
+          pathToRemove.includes('\\.cursor\\worktrees\\');
+
+        if (!isLikelyWorktree) {
+          log.warn(
+            `Path doesn't appear to be a worktree directory, skipping filesystem removal: ${pathToRemove}`
+          );
+          return;
+        }
+
         try {
           await fs.promises.rm(pathToRemove, { recursive: true, force: true });
         } catch (rmErr: any) {
