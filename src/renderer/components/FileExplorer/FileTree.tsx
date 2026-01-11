@@ -55,7 +55,7 @@ const TreeNode: React.FC<{
   const isSelected = selectedPath === node.path;
 
   // Determine file status from git changes
-  const fileStatus = fileChanges.find(change => change.path === node.path)?.status;
+  const fileStatus = fileChanges.find((change) => change.path === node.path)?.status;
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -108,11 +108,11 @@ const TreeNode: React.FC<{
         )}
         <span
           className={cn(
-            "flex-1 truncate text-sm",
-            fileStatus === 'added' && "text-green-500",
-            fileStatus === 'modified' && "text-amber-500",
-            fileStatus === 'deleted' && "text-red-500 line-through",
-            fileStatus === 'renamed' && "text-blue-500"
+            'flex-1 truncate text-sm',
+            fileStatus === 'added' && 'text-green-500',
+            fileStatus === 'modified' && 'text-amber-500',
+            fileStatus === 'deleted' && 'text-red-500 line-through',
+            fileStatus === 'renamed' && 'text-blue-500'
           )}
         >
           {node.name}
