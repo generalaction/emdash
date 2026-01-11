@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, Dispatch, SetStateAction } from 'react';
 import type { Project, Task } from '../types/app';
 import { useToast } from './use-toast';
 import {
@@ -33,12 +33,12 @@ export interface ProjectOperationsHandlers {
 
 export function useProjectOperations(
   projects: Project[],
-  setProjects: (projects: Project[]) => void,
+  setProjects: Dispatch<SetStateAction<Project[]>>,
   platform: string,
   isAuthenticated: boolean,
   ghInstalled: boolean,
   selectedProject: Project | null,
-  setSelectedProject: (project: Project | null) => void,
+  setSelectedProject: Dispatch<SetStateAction<Project | null>>,
   activateProjectViewFn: (project: Project) => void,
   setShowNewProjectModal: (show: boolean) => void,
   setShowCloneModal: (show: boolean) => void,
@@ -128,7 +128,7 @@ export function useProjectOperations(
               const saveResult = await window.electronAPI.saveProject(projectWithGithub);
               if (saveResult.success) {
                 captureTelemetry('project_open_success');
-                setProjects([...projects, projectWithGithub]);
+                setProjects((prev) => [...prev, projectWithGithub]);
                 activateProjectViewFn(projectWithGithub);
               } else {
                 const { log } = await import('../lib/logger');
@@ -150,7 +150,7 @@ export function useProjectOperations(
             const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
             if (saveResult.success) {
               captureTelemetry('project_open_success');
-              setProjects([...projects, projectWithoutGithub]);
+              setProjects((prev) => [...prev, projectWithoutGithub]);
               activateProjectViewFn(projectWithoutGithub);
             }
           }
@@ -489,8 +489,7 @@ export function useProjectOperations(
 
       deletingTaskIdsRef.current.add(task.id);
 
-      const wasActive =
-        selectedProject?.id === project.id && task.id === (selectedProject as any).activeTask?.id;
+      const wasActive = selectedProject?.id === project.id;
       const taskSnapshot = { ...task };
 
       const runDeletion = async () => {
@@ -591,7 +590,7 @@ export function useProjectOperations(
         return list;
       });
     },
-    [setProjects, saveProjectOrder]
+    [saveProjectOrder]
   );
 
   const handleReorderProjectsFull = useCallback(
@@ -602,7 +601,7 @@ export function useProjectOperations(
         return list;
       });
     },
-    [setProjects, saveProjectOrder]
+    [saveProjectOrder]
   );
 
   const handleDeleteProject = useCallback(

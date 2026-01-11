@@ -1,14 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, Dispatch, SetStateAction } from 'react';
 import type { Project, Task } from '../types/app';
 import type { Provider } from '../types';
 
 const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 
 export interface AppNavigationState {
-  showHomeView: boolean;
-  setShowHomeView: (show: boolean) => void;
-  selectedProject: Project | null;
-  setSelectedProject: (project: Project | null) => void;
   activeTask: Task | null;
   setActiveTask: (task: Task | null) => void;
   activeTaskProvider: Provider | null;
@@ -20,7 +16,16 @@ export interface AppNavigationState {
 export interface AppNavigationHandlers {
   handleSelectTask: (task: Task) => void;
   handleStartCreateTaskFromSidebar: (project: Project) => void;
-  handleCreateTask: (taskData: any, projectId: string) => Promise<void>;
+  handleCreateTask: (
+    name: string,
+    initialPrompt?: string,
+    providerRuns?: any[],
+    linkedLinearIssue?: any,
+    linkedGithubIssue?: any,
+    linkedJiraIssue?: any,
+    autoApprove?: boolean,
+    useWorktree?: boolean
+  ) => Promise<void>;
   handleNextTask: () => void;
   handlePrevTask: () => void;
   handleNewTask: () => void;
@@ -31,11 +36,10 @@ export interface AppNavigationHandlers {
 export function useAppNavigation(
   projects: Project[],
   selectedProject: Project | null,
-  setSelectedProject: (project: Project | null) => void,
+  setSelectedProject: Dispatch<SetStateAction<Project | null>>,
   setShowHomeView: (show: boolean) => void,
-  setProjects: (projects: Project[]) => void
+  setProjects: Dispatch<SetStateAction<Project[]>>
 ): AppNavigationState & AppNavigationHandlers {
-  const [showHomeView, setShowHomeViewState] = useState(true);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
@@ -67,20 +71,40 @@ export function useAppNavigation(
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       setSelectedProject(project);
-      setShowHomeViewState(false);
+      setShowHomeView(false);
       setActiveTask(null);
       setIsCreatingTask(true);
     },
-    [setSelectedProject]
+    [setSelectedProject, setShowHomeView]
   );
 
   const handleCreateTask = useCallback(
-    async (taskData: any, projectId: string) => {
+    async (
+      name: string,
+      initialPrompt?: string,
+      providerRuns?: any[],
+      linkedLinearIssue?: any,
+      linkedGithubIssue?: any,
+      linkedJiraIssue?: any,
+      autoApprove?: boolean,
+      useWorktree?: boolean
+    ) => {
       const { log } = await import('../lib/logger');
+      if (!selectedProject) {
+        throw new Error('No project selected');
+      }
+
       try {
-        const res = await window.electronAPI.createTask({
-          projectId,
-          ...taskData,
+        const res = await (window.electronAPI as any).createTask?.({
+          projectId: selectedProject.id,
+          name,
+          initialPrompt,
+          providerRuns,
+          linkedLinearIssue,
+          linkedGithubIssue,
+          linkedJiraIssue,
+          autoApprove,
+          useWorktree,
         });
 
         if (!res?.success) {
@@ -94,13 +118,13 @@ export function useAppNavigation(
 
         setProjects((prev) =>
           prev.map((project) => {
-            if (project.id !== projectId) return project;
+            if (project.id !== selectedProject.id) return project;
             return { ...project, tasks: [createdTask, ...(project.tasks || [])] };
           })
         );
 
         setSelectedProject((prev) => {
-          if (!prev || prev.id !== projectId) return prev;
+          if (!prev || prev.id !== selectedProject.id) return prev;
           return { ...prev, tasks: [createdTask, ...(prev.tasks || [])] };
         });
 
@@ -110,7 +134,7 @@ export function useAppNavigation(
         throw error;
       }
     },
-    [setProjects, setSelectedProject, handleSelectTask]
+    [selectedProject, setProjects, setSelectedProject, handleSelectTask]
   );
 
   const handleNextTask = useCallback(() => {
@@ -121,14 +145,14 @@ export function useAppNavigation(
     const nextIndex = (currentIndex + 1) % allTasks.length;
     const { task, project } = allTasks[nextIndex];
     setSelectedProject(project);
-    setShowHomeViewState(false);
+    setShowHomeView(false);
     setActiveTask(task);
     if ((task.metadata as any)?.multiAgent?.enabled) {
       setActiveTaskProvider(null);
     } else {
       setActiveTaskProvider((task.agentId as Provider) || 'codex');
     }
-  }, [allTasks, activeTask, setSelectedProject]);
+  }, [allTasks, activeTask, setSelectedProject, setShowHomeView]);
 
   const handlePrevTask = useCallback(() => {
     if (allTasks.length === 0) return;
@@ -138,14 +162,14 @@ export function useAppNavigation(
     const prevIndex = currentIndex <= 0 ? allTasks.length - 1 : currentIndex - 1;
     const { task, project } = allTasks[prevIndex];
     setSelectedProject(project);
-    setShowHomeViewState(false);
+    setShowHomeView(false);
     setActiveTask(task);
     if ((task.metadata as any)?.multiAgent?.enabled) {
       setActiveTaskProvider(null);
     } else {
       setActiveTaskProvider((task.agentId as Provider) || 'codex');
     }
-  }, [allTasks, activeTask, setSelectedProject]);
+  }, [allTasks, activeTask, setSelectedProject, setShowHomeView]);
 
   const handleNewTask = useCallback(() => {
     // Only allow if a project is selected
@@ -165,7 +189,6 @@ export function useAppNavigation(
     } catch {
       // ignore
     }
-    setShowHomeViewState(false);
   }, []);
 
   // Check if first launch on mount
@@ -185,16 +208,12 @@ export function useAppNavigation(
       } catch {
         // ignore
       }
-      setShowHomeViewState(true);
+      setShowHomeView(true);
     };
     void check();
-  }, []);
+  }, [setShowHomeView]);
 
   return {
-    showHomeView,
-    setShowHomeView: setShowHomeViewState,
-    selectedProject,
-    setSelectedProject,
     activeTask,
     setActiveTask,
     activeTaskProvider,

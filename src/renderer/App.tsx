@@ -95,11 +95,10 @@ const AppContent: React.FC = () => {
 
   // Projects and navigation
   const [projects, setProjects] = useState<Project[]>([]);
+  const [showHomeView, setShowHomeView] = useState(true);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
   const {
-    showHomeView,
-    setShowHomeView,
-    selectedProject,
-    setSelectedProject,
     activeTask,
     setActiveTask,
     activeTaskProvider,
@@ -197,9 +196,9 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const systemInfo = await window.electronAPI.getSystemInfo?.();
-        if (systemInfo?.platform) {
-          setPlatform(systemInfo.platform);
+        const detectedPlatform = await window.electronAPI.getPlatform?.();
+        if (detectedPlatform) {
+          setPlatform(detectedPlatform);
         }
       } catch {
         // Fallback to detecting platform
@@ -218,9 +217,9 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await window.electronAPI.getProjects?.();
-        if (res?.success && Array.isArray(res.projects)) {
-          const ordered = applyProjectOrder(res.projects);
+        const res = (await window.electronAPI.getProjects?.()) as any;
+        if (res?.success && res?.projects && Array.isArray(res.projects)) {
+          const ordered = applyProjectOrder(res.projects as Project[]);
           setProjects(ordered);
         }
       } catch {
