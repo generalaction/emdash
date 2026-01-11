@@ -36,7 +36,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 # Installation
 
-**[Latest Release (macOS • Windows • Linux)](https://github.com/generalaction/emdash/releases/latest)**
+**[Latest Release (macOS • Linux)](https://github.com/generalaction/emdash/releases/latest)**
 
 <details><summary>Direct links</summary>
 
@@ -46,10 +46,6 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 [![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
 > macOS users can also: `brew install --cask emdash`
-
-### Windows
-- Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64-installer.exe  
-- Portable (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe
 
 ### Linux
 - AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage  
@@ -123,7 +119,6 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 >
 > ```
 > macOS:  ~/Library/Application Support/emdash/emdash.db
-> Windows: %APPDATA%/emdash/emdash.db
 > Linux:  ~/.config/emdash/emdash.db
 > ```
 >
