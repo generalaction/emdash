@@ -5,6 +5,7 @@ import { FileIcon } from './FileIcons';
 import { useContentSearch } from '@/hooks/useContentSearch';
 import { SearchInput } from './SearchInput';
 import { ContentSearchResults } from './ContentSearchResults';
+import type { FileChange } from '@/hooks/useFileChanges';
 
 export interface FileNode {
   id: string;
@@ -25,6 +26,7 @@ interface FileTreeProps {
   className?: string;
   showHiddenFiles?: boolean;
   excludePatterns?: string[];
+  fileChanges?: FileChange[];
 }
 
 // Tree node component
@@ -37,6 +39,7 @@ const TreeNode: React.FC<{
   onSelect: (path: string) => void;
   onOpen?: (path: string) => void;
   onLoadChildren: (node: FileNode) => Promise<void>;
+  fileChanges: FileChange[];
 }> = ({
   node,
   level,
@@ -46,9 +49,13 @@ const TreeNode: React.FC<{
   onSelect,
   onOpen,
   onLoadChildren,
+  fileChanges,
 }) => {
   const isExpanded = expandedPaths.has(node.path);
   const isSelected = selectedPath === node.path;
+
+  // Determine file status from git changes
+  const fileStatus = fileChanges.find((change) => change.path === node.path)?.status;
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -99,7 +106,17 @@ const TreeNode: React.FC<{
             <FileIcon filename={node.name} isDirectory={false} isExpanded={false} />
           </span>
         )}
-        <span className="flex-1 truncate text-sm">{node.name}</span>
+        <span
+          className={cn(
+            'flex-1 truncate text-sm',
+            fileStatus === 'added' && 'text-green-500',
+            fileStatus === 'modified' && 'text-amber-500',
+            fileStatus === 'deleted' && 'text-red-500 line-through',
+            fileStatus === 'renamed' && 'text-blue-500'
+          )}
+        >
+          {node.name}
+        </span>
       </div>
 
       {node.type === 'directory' && isExpanded && node.children && (
@@ -115,6 +132,7 @@ const TreeNode: React.FC<{
               onSelect={onSelect}
               onOpen={onOpen}
               onLoadChildren={onLoadChildren}
+              fileChanges={fileChanges}
             />
           ))}
         </div>
@@ -131,6 +149,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   className,
   showHiddenFiles = false,
   excludePatterns = [],
+  fileChanges = [],
 }) => {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
@@ -458,6 +477,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
                 onSelect={onSelectFile}
                 onOpen={onOpenFile}
                 onLoadChildren={loadChildren}
+                fileChanges={fileChanges}
               />
             ))}
           </div>

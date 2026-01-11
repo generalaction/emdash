@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useRightSidebar } from '../ui/right-sidebar';
 import { useFileManager } from '@/hooks/useFileManager';
 import { useEditorDiffDecorations } from '@/hooks/useEditorDiffDecorations';
+import { useFileChanges, type FileChange } from '@/hooks/useFileChanges';
 import {
   configureMonacoTypeScript,
   configureMonacoEditor,
@@ -49,6 +50,9 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
     updateFileContent,
     setActiveFile,
   } = useFileManager({ taskPath });
+
+  // Get file changes status from git
+  const { fileChanges } = useFileChanges(taskPath);
 
   // UI state
   const [explorerWidth, setExplorerWidth] = useState(EXPLORER_WIDTH.DEFAULT);
@@ -232,6 +236,7 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
           onSelectFile={loadFile}
           onOpenFile={loadFile}
           onMouseDown={handleMouseDown}
+          fileChanges={fileChanges}
         />
 
         <div className="flex flex-1 flex-col">
@@ -264,6 +269,7 @@ interface FileExplorerProps {
   onSelectFile: (path: string) => void;
   onOpenFile: (path: string) => void;
   onMouseDown: (e: React.MouseEvent) => void;
+  fileChanges: FileChange[];
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -276,6 +282,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   onSelectFile,
   onOpenFile,
   onMouseDown,
+  fileChanges,
 }) => (
   <div
     className="relative flex flex-col border-r border-border bg-muted/5"
@@ -298,6 +305,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           className="flex-1 overflow-y-auto"
           showHiddenFiles={false}
           excludePatterns={DEFAULT_EXCLUDE_PATTERNS}
+          fileChanges={fileChanges}
         />
       </div>
     </div>
