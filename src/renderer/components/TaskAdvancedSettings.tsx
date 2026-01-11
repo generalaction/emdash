@@ -52,7 +52,7 @@ interface TaskAdvancedSettingsProps {
   selectedJiraIssue: JiraIssueSummary | null;
   onJiraIssueChange: (issue: JiraIssueSummary | null) => void;
   isJiraConnected: boolean | null;
-  onJiraConnect: (credentials: { site: string; email: string; token: string }) => Promise<void>;
+  onJiraConnect: (credentials: { siteUrl: string; email: string; token: string }) => Promise<void>;
 }
 
 export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
@@ -116,7 +116,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     setJiraConnectionError(null);
     try {
       await onJiraConnect({
-        site: jiraSite.trim(),
+        siteUrl: jiraSite.trim(),
         email: jiraEmail.trim(),
         token: jiraToken.trim(),
       });

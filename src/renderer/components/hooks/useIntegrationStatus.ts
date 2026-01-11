@@ -14,7 +14,11 @@ interface IntegrationStatus {
 
   // Jira
   isJiraConnected: boolean | null;
-  handleJiraConnect: (credentials: { site: string; email: string; token: string }) => Promise<void>;
+  handleJiraConnect: (credentials: {
+    siteUrl: string;
+    email: string;
+    token: string;
+  }) => Promise<void>;
 }
 
 /**
@@ -61,8 +65,12 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     if (!isOpen) return;
     let cancel = false;
     const api = window.electronAPI as any;
+    if (!api?.jiraCheckConnection) {
+      setIsJiraConnected(false);
+      return;
+    }
     api
-      ?.jiraCheckConnection?.()
+      .jiraCheckConnection()
       .then((res: any) => {
         if (!cancel) setIsJiraConnected(!!res?.connected);
       })
@@ -99,7 +107,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   }, [githubInstalled, githubLogin]);
 
   const handleJiraConnect = useCallback(
-    async (credentials: { site: string; email: string; token: string }) => {
+    async (credentials: { siteUrl: string; email: string; token: string }) => {
       const api = window.electronAPI as any;
       const res = await api?.jiraSaveCredentials?.(credentials);
       if (res?.success) {
