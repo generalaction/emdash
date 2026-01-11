@@ -4,6 +4,7 @@ import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
+import type { TerminalColorSettings } from '@shared/terminal-color-schemes';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 
@@ -65,6 +66,7 @@ export interface AppSettings {
   };
   keyboard?: KeyboardSettings;
   interface?: InterfaceSettings;
+  terminal?: TerminalColorSettings;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -110,6 +112,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   interface: {
     autoRightSidebarBehavior: false,
+  },
+  terminal: {
+    enabled: false,
   },
 };
 

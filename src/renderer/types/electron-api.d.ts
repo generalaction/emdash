@@ -290,6 +290,44 @@ declare global {
         error?: string;
       }>;
 
+      // Terminal color customization
+      terminalGetColorSettings: () => Promise<{
+        success: boolean;
+        data?: {
+          enabled: boolean;
+          customColors?: any; // TerminalColorScheme
+          presets?: Record<string, any>;
+          activePreset?: string;
+        };
+        error?: string;
+      }>;
+      terminalUpdateColorSettings: (settings: {
+        enabled: boolean;
+        customColors?: any; // TerminalColorScheme
+        presets?: Record<string, any>;
+        activePreset?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      terminalExportColorScheme: (scheme: any) => Promise<{
+        success: boolean;
+        filePath?: string;
+        error?: string;
+      }>;
+      terminalImportColorScheme: () => Promise<{
+        success: boolean;
+        data?: any; // TerminalColorScheme
+        error?: string;
+      }>;
+      terminalGetColorPresets: () => Promise<{
+        success: boolean;
+        data?: string[];
+        error?: string;
+      }>;
+      terminalGetPreset: (presetName: string) => Promise<{
+        success: boolean;
+        data?: any; // TerminalColorScheme
+        error?: string;
+      }>;
+
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;

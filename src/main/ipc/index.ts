@@ -21,6 +21,7 @@ import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
 import { registerLineCommentsIpc } from './lineCommentsIpc';
+import './terminalColorsIpc'; // Terminal color settings IPC handlers
 
 export function registerAllIpc() {
   // Core app/utility IPC

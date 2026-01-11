@@ -93,6 +93,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
+  // Terminal color customization
+  terminalGetColorSettings: () => ipcRenderer.invoke('terminal:getColorSettings'),
+  terminalUpdateColorSettings: (settings: any) =>
+    ipcRenderer.invoke('terminal:updateColorSettings', settings),
+  terminalExportColorScheme: (scheme: any) =>
+    ipcRenderer.invoke('terminal:exportColorScheme', scheme),
+  terminalImportColorScheme: () => ipcRenderer.invoke('terminal:importColorScheme'),
+  terminalGetColorPresets: () => ipcRenderer.invoke('terminal:getColorPresets'),
+  terminalGetPreset: (presetName: string) => ipcRenderer.invoke('terminal:getPreset', presetName),
+
   // App settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),

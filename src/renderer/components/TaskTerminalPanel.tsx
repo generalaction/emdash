@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Button } from './ui/button';
 import type { Provider } from '../types';
+import { toXtermTheme, TERMINAL_COLOR_PRESETS } from '@shared/terminal-color-schemes';
+import type { TerminalColorSettings } from '@shared/terminal-color-schemes';
 
 interface Task {
   id: string;
@@ -73,19 +75,46 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     brightWhite?: string;
   } | null>(null);
 
-  // Fetch native terminal theme on mount
+  const [customColorSettings, setCustomColorSettings] = useState<TerminalColorSettings | null>(
+    null
+  );
+
+  // Fetch native terminal theme and custom color settings on mount
   useEffect(() => {
-    void (async () => {
+    const loadThemes = async () => {
       try {
-        const result = await window.electronAPI.terminalGetTheme();
-        if (result?.ok && result.config?.theme) {
-          setNativeTheme(result.config.theme);
+        // Fetch custom color settings first
+        const colorSettingsResult = await window.electronAPI.terminalGetColorSettings();
+        if (colorSettingsResult?.success && colorSettingsResult.data) {
+          setCustomColorSettings(colorSettingsResult.data);
+        }
+
+        // Only fetch native theme if custom colors are not enabled
+        if (!colorSettingsResult?.data?.enabled) {
+          const result = await window.electronAPI.terminalGetTheme();
+          if (result?.ok && result.config?.theme) {
+            setNativeTheme(result.config.theme);
+          }
         }
       } catch (error) {
         // Silently fail - fall back to default theme
-        console.warn('Failed to load native terminal theme', error);
+        console.warn('Failed to load terminal themes', error);
       }
-    })();
+    };
+
+    loadThemes();
+
+    // Listen for settings changes (when user updates settings in the modal)
+    const handleSettingsUpdate = () => {
+      loadThemes();
+    };
+
+    // Poll for changes every 2 seconds (since we don't have a proper event system for settings updates)
+    const interval = setInterval(handleSettingsUpdate, 2000);
+
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   // Default theme (VS Code inspired)
@@ -146,8 +175,24 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         };
   }, [effectiveTheme, provider]);
 
-  // Merge native theme with defaults (native theme takes precedence)
+  // Merge themes with priority: custom colors > native theme > defaults
   const themeOverride = useMemo(() => {
+    // Check if custom colors are enabled
+    if (customColorSettings?.enabled) {
+      // If there's an active preset, use it
+      if (
+        customColorSettings.activePreset &&
+        TERMINAL_COLOR_PRESETS[customColorSettings.activePreset]
+      ) {
+        return toXtermTheme(TERMINAL_COLOR_PRESETS[customColorSettings.activePreset]);
+      }
+      // If there are custom colors, use them
+      if (customColorSettings.customColors) {
+        return toXtermTheme(customColorSettings.customColors);
+      }
+    }
+
+    // Fall back to native theme or defaults
     if (!nativeTheme) {
       return defaultTheme;
     }
@@ -156,7 +201,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       ...defaultTheme,
       ...nativeTheme,
     };
-  }, [nativeTheme, defaultTheme]);
+  }, [nativeTheme, defaultTheme, customColorSettings]);
 
   if (!task && !projectPath) {
     return (

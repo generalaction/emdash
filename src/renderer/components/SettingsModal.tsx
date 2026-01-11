@@ -18,6 +18,7 @@ import Context7SettingsCard from './Context7SettingsCard';
 import DefaultProviderSettingsCard from './DefaultProviderSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
+import TerminalColorsSettingsCard from './TerminalColorsSettingsCard';
 import { CliProviderStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
@@ -220,6 +221,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         description: '',
         sections: [
           { title: 'Theme', render: () => <ThemeCard /> },
+          { title: 'Terminal colors', render: () => <TerminalColorsSettingsCard /> },
           { title: 'Keyboard shortcuts', render: () => <KeyboardSettingsCard /> },
           { title: 'Notifications', render: () => <NotificationSettingsCard /> },
           { title: 'Right sidebar', render: () => <RightSidebarSettingsCard /> },
