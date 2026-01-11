@@ -64,12 +64,15 @@ export function useAppNavigation(
     [selectedProject]
   );
 
-  const handleStartCreateTaskFromSidebar = useCallback((project: Project) => {
-    setSelectedProject(project);
-    setShowHomeViewState(false);
-    setActiveTask(null);
-    setIsCreatingTask(true);
-  }, [setSelectedProject]);
+  const handleStartCreateTaskFromSidebar = useCallback(
+    (project: Project) => {
+      setSelectedProject(project);
+      setShowHomeViewState(false);
+      setActiveTask(null);
+      setIsCreatingTask(true);
+    },
+    [setSelectedProject]
+  );
 
   const handleCreateTask = useCallback(
     async (taskData: any, projectId: string) => {

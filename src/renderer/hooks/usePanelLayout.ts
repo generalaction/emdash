@@ -153,7 +153,9 @@ export function usePanelLayout(showEditorMode: boolean): PanelLayoutState & Pane
       }
 
       if (open) {
-        const target = clampLeftSidebarSize(lastLeftSidebarSizeRef.current || DEFAULT_PANEL_LAYOUT[0]);
+        const target = clampLeftSidebarSize(
+          lastLeftSidebarSizeRef.current || DEFAULT_PANEL_LAYOUT[0]
+        );
         panel.expand();
         panel.resize(target);
       } else {
@@ -190,7 +192,9 @@ export function usePanelLayout(showEditorMode: boolean): PanelLayoutState & Pane
       try {
         const result = await window.electronAPI.getSettings();
         if (result.success && result.settings) {
-          setAutoRightSidebarBehavior(Boolean(result.settings.interface?.autoRightSidebarBehavior ?? false));
+          setAutoRightSidebarBehavior(
+            Boolean(result.settings.interface?.autoRightSidebarBehavior ?? false)
+          );
         }
       } catch (error) {
         console.error('Failed to load right sidebar settings:', error);
@@ -214,7 +218,9 @@ export function usePanelLayout(showEditorMode: boolean): PanelLayoutState & Pane
       if (rightSidebarCollapsed) {
         rightPanel.collapse();
       } else {
-        const targetRight = clampRightSidebarSize(lastRightSidebarSizeRef.current || DEFAULT_PANEL_LAYOUT[2]);
+        const targetRight = clampRightSidebarSize(
+          lastRightSidebarSizeRef.current || DEFAULT_PANEL_LAYOUT[2]
+        );
         lastRightSidebarSizeRef.current = targetRight;
         rightPanel.expand();
         rightPanel.resize(targetRight);
@@ -230,7 +236,9 @@ export function usePanelLayout(showEditorMode: boolean): PanelLayoutState & Pane
       return;
     }
 
-    const targetLeft = clampLeftSidebarSize(lastLeftSidebarSizeRef.current || DEFAULT_PANEL_LAYOUT[0]);
+    const targetLeft = clampLeftSidebarSize(
+      lastLeftSidebarSizeRef.current || DEFAULT_PANEL_LAYOUT[0]
+    );
     lastLeftSidebarSizeRef.current = targetLeft;
     leftPanel.expand();
     leftPanel.resize(targetLeft);

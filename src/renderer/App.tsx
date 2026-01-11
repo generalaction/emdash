@@ -86,7 +86,12 @@ const AppContent: React.FC = () => {
   // Electron API state
   const [, setVersion] = useState<string>('');
   const [platform, setPlatform] = useState<string>('');
-  const { installed: ghInstalled, authenticated: isAuthenticated, user, isInitialized: isGithubInitialized } = useGithubAuth();
+  const {
+    installed: ghInstalled,
+    authenticated: isAuthenticated,
+    user,
+    isInitialized: isGithubInitialized,
+  } = useGithubAuth();
 
   // Projects and navigation
   const [projects, setProjects] = useState<Project[]>([]);
@@ -198,7 +203,13 @@ const AppContent: React.FC = () => {
         }
       } catch {
         // Fallback to detecting platform
-        setPlatform(process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux');
+        setPlatform(
+          process.platform === 'win32'
+            ? 'win32'
+            : process.platform === 'darwin'
+              ? 'darwin'
+              : 'linux'
+        );
       }
     })();
   }, []);

@@ -57,23 +57,20 @@ export function useProjectOperations(
     }
   }, []);
 
-  const applyProjectOrder = useCallback(
-    (list: Project[]) => {
-      try {
-        const raw = localStorage.getItem(ORDER_KEY);
-        if (!raw) return list;
-        const order: string[] = JSON.parse(raw);
-        const ordered = order
-          .map((id) => list.find((p) => p.id === id))
-          .filter((p) => p !== undefined) as Project[];
-        const unordered = list.filter((p) => !order.includes(p.id));
-        return [...ordered, ...unordered];
-      } catch {
-        return list;
-      }
-    },
-    []
-  );
+  const applyProjectOrder = useCallback((list: Project[]) => {
+    try {
+      const raw = localStorage.getItem(ORDER_KEY);
+      if (!raw) return list;
+      const order: string[] = JSON.parse(raw);
+      const ordered = order
+        .map((id) => list.find((p) => p.id === id))
+        .filter((p) => p !== undefined) as Project[];
+      const unordered = list.filter((p) => !order.includes(p.id));
+      return [...ordered, ...unordered];
+    } catch {
+      return list;
+    }
+  }, []);
 
   const handleOpenProject = useCallback(async () => {
     const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -97,7 +94,8 @@ export function useProjectOperations(
 
           const remoteUrl = gitInfo.remote || '';
           const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-          const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+          const projectName =
+            canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
           const baseProject: Project = {
             id: Date.now().toString(),
@@ -468,15 +466,18 @@ export function useProjectOperations(
     setActiveTask(null);
   }, [setShowHomeView, setSelectedProject, setActiveTask]);
 
-  const activateProjectView = useCallback((project: Project) => {
-    void (async () => {
-      const { captureTelemetry } = await import('../lib/telemetryClient');
-      captureTelemetry('project_view_opened');
-    })();
-    setSelectedProject(project);
-    setShowHomeView(false);
-    setActiveTask(null);
-  }, [setSelectedProject, setShowHomeView, setActiveTask]);
+  const activateProjectView = useCallback(
+    (project: Project) => {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('project_view_opened');
+      })();
+      setSelectedProject(project);
+      setShowHomeView(false);
+      setActiveTask(null);
+    },
+    [setSelectedProject, setShowHomeView, setActiveTask]
+  );
 
   const handleDeleteTask = useCallback(
     async (project: Project, task: Task, options?: { silent?: boolean }) => {
@@ -488,7 +489,8 @@ export function useProjectOperations(
 
       deletingTaskIdsRef.current.add(task.id);
 
-      const wasActive = selectedProject?.id === project.id && task.id === (selectedProject as any).activeTask?.id;
+      const wasActive =
+        selectedProject?.id === project.id && task.id === (selectedProject as any).activeTask?.id;
       const taskSnapshot = { ...task };
 
       const runDeletion = async () => {
@@ -531,9 +533,7 @@ export function useProjectOperations(
             const targetProject = projects.find((p) => p.id === project.id) || project;
             const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
             setProjects((prev) =>
-              prev.map((p) =>
-                p.id === targetProject.id ? { ...p, tasks: refreshedTasks } : p
-              )
+              prev.map((p) => (p.id === targetProject.id ? { ...p, tasks: refreshedTasks } : p))
             );
             setSelectedProject((prev) =>
               prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
@@ -625,7 +625,10 @@ export function useProjectOperations(
         log.error('Delete project failed:', err as any);
         toast({
           title: 'Error',
-          description: err instanceof Error ? err.message : 'Could not delete project. See console for details.',
+          description:
+            err instanceof Error
+              ? err.message
+              : 'Could not delete project. See console for details.',
           variant: 'destructive',
         });
       }
