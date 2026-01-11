@@ -8,7 +8,7 @@ import { isValidProviderId } from '@shared/providers/registry';
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 
 export interface RepositorySettings {
-  branchTemplate: string; // e.g., 'agent/{slug}-{timestamp}'
+  branchPrefix: string; // e.g., 'emdash'
   pushOnCreate: boolean;
 }
 
@@ -69,7 +69,7 @@ export interface AppSettings {
 
 const DEFAULT_SETTINGS: AppSettings = {
   repository: {
-    branchTemplate: 'agent/{slug}-{timestamp}',
+    branchPrefix: 'emdash',
     pushOnCreate: true,
   },
   projectPrep: {
@@ -180,7 +180,7 @@ export function persistSettings(settings: AppSettings) {
 function normalizeSettings(input: AppSettings): AppSettings {
   const out: AppSettings = {
     repository: {
-      branchTemplate: DEFAULT_SETTINGS.repository.branchTemplate,
+      branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
     },
     projectPrep: {
@@ -207,14 +207,13 @@ function normalizeSettings(input: AppSettings): AppSettings {
 
   // Repository
   const repo = input?.repository ?? DEFAULT_SETTINGS.repository;
-  let template = String(repo?.branchTemplate ?? DEFAULT_SETTINGS.repository.branchTemplate);
-  template = template.trim();
-  if (!template) template = DEFAULT_SETTINGS.repository.branchTemplate;
-  // Keep templates reasonably short to avoid overly long refs
-  if (template.length > 200) template = template.slice(0, 200);
+  let prefix = String(repo?.branchPrefix ?? DEFAULT_SETTINGS.repository.branchPrefix);
+  prefix = prefix.trim().replace(/\/+$/, ''); // remove trailing slashes
+  if (!prefix) prefix = DEFAULT_SETTINGS.repository.branchPrefix;
+  if (prefix.length > 50) prefix = prefix.slice(0, 50);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
 
-  out.repository.branchTemplate = template;
+  out.repository.branchPrefix = prefix;
   out.repository.pushOnCreate = push;
   // Project prep
   const prep = (input as any)?.projectPrep || {};
