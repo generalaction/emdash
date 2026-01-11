@@ -415,7 +415,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       <AnimatePresence>
         {linearSetupOpen ? (
           <motion.div
-            className="fixed inset-0 z-[130] flex items-center justify-center px-3"
+            className="fixed inset-0 z-[1000] flex items-center justify-center px-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -447,7 +447,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       <AnimatePresence>
         {jiraSetupOpen ? (
           <motion.div
-            className="fixed inset-0 z-[130] flex items-center justify-center px-3"
+            className="fixed inset-0 z-[1000] flex items-center justify-center px-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
