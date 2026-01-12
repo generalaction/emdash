@@ -31,7 +31,6 @@ import { ToastAction } from './components/ui/toast';
 import { Toaster } from './components/ui/toaster';
 import { useToast } from './hooks/use-toast';
 import { useGithubAuth } from './hooks/useGithubAuth';
-import { usePlanToasts } from './hooks/usePlanToasts';
 import { useTheme } from './hooks/useTheme';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import { getContainerRunState } from './lib/containerRuns';
@@ -109,7 +108,6 @@ const clampRightSidebarSize = (value: number) =>
 const MAIN_PANEL_MIN_SIZE = 30;
 
 const AppContent: React.FC = () => {
-  usePlanToasts();
   // Initialize theme on app startup
   const { effectiveTheme } = useTheme();
 

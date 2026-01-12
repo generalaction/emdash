@@ -7,13 +7,9 @@ import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { providerMeta } from '../providers/meta';
-import ProviderBar from './ProviderBar';
+import ProviderDisplay from './ProviderDisplay';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
-import { usePlanMode } from '@/hooks/usePlanMode';
-import { usePlanActivationTerminal } from '@/hooks/usePlanActivation';
-import { log } from '@/lib/logger';
-import { logPlanEvent } from '@/lib/planLogs';
 import { type Provider } from '../types';
 import { Task } from '../types/chat';
 import {
@@ -83,22 +79,6 @@ const ChatInterface: React.FC<Props> = ({
 
     return () => clearTimeout(timer);
   }, [task.id, terminalId]);
-
-  // Unified Plan Mode (per task)
-  const { enabled: planEnabled, setEnabled: setPlanEnabled } = usePlanMode(task.id, task.path);
-
-  // Log transitions for visibility
-  useEffect(() => {
-    log.info('[plan] state changed', { taskId: task.id, enabled: planEnabled });
-  }, [planEnabled, task.id]);
-
-  // For terminal providers with native plan activation commands
-  usePlanActivationTerminal({
-    enabled: planEnabled,
-    providerId: provider,
-    taskId: task.id,
-    taskPath: task.path,
-  });
 
   useEffect(() => {
     const meta = providerMeta[provider];
@@ -699,6 +679,22 @@ const ChatInterface: React.FC<Props> = ({
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">
             <div className="mx-auto max-w-4xl space-y-2">
+              {/* Provider display in header */}
+              <div className="flex items-center justify-between">
+                <ProviderDisplay
+                  provider={provider}
+                  taskId={task.id}
+                  linearIssue={task.metadata?.linearIssue || null}
+                  githubIssue={task.metadata?.githubIssue || null}
+                  jiraIssue={task.metadata?.jiraIssue || null}
+                />
+                {autoApproveEnabled && (
+                  <div className="inline-flex items-center gap-1.5 rounded-md border border-orange-500/50 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                    Auto-approve
+                  </div>
+                )}
+              </div>
               {(() => {
                 if (isProviderInstalled !== true) {
                   return (
@@ -749,14 +745,7 @@ const ChatInterface: React.FC<Props> = ({
                 cwd={task.path}
                 shell={providerMeta[provider].cli}
                 autoApprove={autoApproveEnabled}
-                env={
-                  planEnabled
-                    ? {
-                        EMDASH_PLAN_MODE: '1',
-                        EMDASH_PLAN_FILE: `${task.path}/.emdash/planning.md`,
-                      }
-                    : undefined
-                }
+                env={undefined}
                 keepAlive={true}
                 onActivity={() => {
                   try {
@@ -831,22 +820,6 @@ const ChatInterface: React.FC<Props> = ({
             </div>
           </div>
         </div>
-
-        <ProviderBar
-          provider={provider}
-          linearIssue={task.metadata?.linearIssue || null}
-          githubIssue={task.metadata?.githubIssue || null}
-          jiraIssue={task.metadata?.jiraIssue || null}
-          autoApprove={autoApproveEnabled}
-          planModeEnabled={planEnabled}
-          onPlanModeChange={setPlanEnabled}
-          onApprovePlan={async () => {
-            try {
-              await logPlanEvent(task.path, 'Plan approved via UI; exiting Plan Mode');
-            } catch {}
-            setPlanEnabled(false);
-          }}
-        />
       </div>
     </TaskScopeProvider>
   );

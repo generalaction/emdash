@@ -72,7 +72,6 @@ export function registerPtyIpc(): void {
             skipResume: shouldSkipResume,
           });
         const envKeys = env ? Object.keys(env) : [];
-        const planEnv = env && (env.EMDASH_PLAN_MODE || env.EMDASH_PLAN_FILE) ? true : false;
         log.debug('pty:start OK', {
           id,
           cwd,
@@ -83,7 +82,6 @@ export function registerPtyIpc(): void {
           skipResume,
           reused: !!existing,
           envKeys,
-          planEnv,
         });
         const wc = event.sender;
         owners.set(id, wc);
