@@ -225,7 +225,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isCreating && onClose()}>
-      <DialogContent className="max-h-[calc(100vh-48px)] max-w-md overflow-y-auto">
+      <DialogContent className="max-h-[calc(100vh-48px)] max-w-md overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>New Task</DialogTitle>
           <DialogDescription className="text-xs">
@@ -235,7 +235,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
         <Separator />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-hidden">
           <div>
             <Label htmlFor="task-name" className="mb-2 block">
               Task name

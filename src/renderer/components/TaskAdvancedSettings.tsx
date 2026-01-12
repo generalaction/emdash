@@ -219,7 +219,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
               <span>Advanced options</span>
             </span>
           </AccordionTrigger>
-          <AccordionContent className="space-y-4 px-0 pt-2" id="task-advanced">
+          <AccordionContent className="space-y-4 overflow-hidden px-0 pt-2" id="task-advanced">
             <div className="flex flex-col gap-4 p-2">
               {/* Worktree option */}
               <div className="flex items-center gap-4">
@@ -282,7 +282,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 <Label htmlFor="linear-issue" className="w-32 shrink-0 pt-2">
                   Linear issue
                 </Label>
-                <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                   <LinearIssueSelector
                     selectedIssue={selectedLinearIssue}
                     onIssueChange={handleLinearIssueChange}
@@ -317,7 +317,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 <Label htmlFor="github-issue" className="w-32 shrink-0 pt-2">
                   GitHub issue
                 </Label>
-                <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                   <GitHubIssueSelector
                     projectPath={projectPath || ''}
                     selectedIssue={selectedGithubIssue}
@@ -361,7 +361,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
                   Jira issue
                 </Label>
-                <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                   <JiraIssueSelector
                     selectedIssue={selectedJiraIssue}
                     onIssueChange={handleJiraIssueChange}

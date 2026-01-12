@@ -177,8 +177,8 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
       onValueChange={handleIssueSelect}
       disabled={disabled || isLoadingIssues || !!issueListError || !issuesLoaded}
     >
-      <SelectTrigger className="h-9 w-full border-none bg-muted">
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
+      <SelectTrigger className="h-9 w-full max-w-full overflow-hidden border-none bg-muted">
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-left text-foreground">
           {selectedIssue ? (
             <>
               <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
@@ -190,7 +190,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
               {selectedIssue.title ? (
                 <>
                   <span className="shrink-0 text-foreground">-</span>
-                  <span className="truncate text-muted-foreground">{selectedIssue.title}</span>
+                  <span className="min-w-0 truncate text-muted-foreground">{selectedIssue.title}</span>
                 </>
               ) : null}
             </>
@@ -204,7 +204,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
       </SelectTrigger>
       <SelectContent
         side="top"
-        className="z-[120] w-auto min-w-[var(--radix-select-trigger-width)] max-w-[480px]"
+        className="z-[120] w-full max-w-[480px]"
       >
         <div className="relative px-3 py-2">
           <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -255,7 +255,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   );
 
   return (
-    <div className={className}>
+    <div className={`min-w-0 ${className}`}>
       {noIssuesAvailable ? (
         <TooltipProvider delayDuration={150}>
           <Tooltip>
