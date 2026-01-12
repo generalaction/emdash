@@ -200,9 +200,6 @@ function normalizeSettings(input: AppSettings): AppSettings {
         installHintsDismissed: {},
       },
     },
-    interface: {
-      autoRightSidebarBehavior: DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior,
-    },
   };
 
   // Repository
