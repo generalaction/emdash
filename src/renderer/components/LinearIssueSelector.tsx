@@ -233,7 +233,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   }
 
   return (
-    <div className={className}>
+    <div className={`min-w-0 ${className}`}>
       <Select
         value={selectedIssue?.identifier || undefined}
         onValueChange={handleIssueSelect}
@@ -241,8 +241,8 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
         open={dropdownOpen}
         onOpenChange={(open) => setDropdownOpen(open)}
       >
-        <SelectTrigger className="h-9 w-full border-none bg-muted">
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left text-foreground">
+        <SelectTrigger className="h-9 w-full max-w-full overflow-hidden border-none bg-muted">
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-left text-foreground">
             {selectedIssue ? (
               <>
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
@@ -254,7 +254,9 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
                 {selectedIssue.title ? (
                   <>
                     <span className="shrink-0 text-foreground">-</span>
-                    <span className="truncate text-muted-foreground">{selectedIssue.title}</span>
+                    <span className="min-w-0 truncate text-muted-foreground">
+                      {selectedIssue.title}
+                    </span>
                   </>
                 ) : null}
               </>
@@ -266,10 +268,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
             )}
           </div>
         </SelectTrigger>
-        <SelectContent
-          side="top"
-          className="z-[120] w-auto min-w-[var(--radix-select-trigger-width)] max-w-[480px]"
-        >
+        <SelectContent side="top" className="z-[120] w-full max-w-[480px]">
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input

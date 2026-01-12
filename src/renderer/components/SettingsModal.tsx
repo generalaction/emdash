@@ -281,7 +281,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     }
 
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         {sections.map((section: SettingsSection, index) => {
           let renderedContent: React.ReactNode = null;
           if (typeof section.render === 'function') {
@@ -290,10 +290,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             renderedContent = <p className="text-sm text-muted-foreground">Coming soon.</p>;
           }
 
+          const isLast = index === sections.length - 1;
+
           return (
             <React.Fragment key={section.title}>
               {index > 0 ? <Separator className="border-border/60" /> : null}
-              <section className="space-y-3">
+              <section className={`space-y-3 ${isLast ? 'pb-6' : ''}`}>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">{section.title}</h3>
@@ -342,7 +344,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             className="mx-4 w-full max-w-3xl overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl"
           >
             <div className="flex h-[520px]">
-              <aside className="w-60 border-r border-border/60 bg-muted/20 p-6">
+              <aside className="w-60 border-r border-border/60 bg-muted/20 p-4">
                 <nav className="space-y-1">
                   {ORDERED_TABS.map((tab) => {
                     const { icon: Icon, label } = tabDetails[tab];

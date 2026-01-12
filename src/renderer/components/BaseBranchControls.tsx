@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
 
@@ -105,7 +106,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
             }}
           >
             <div className="px-2 pb-2 pt-2" onPointerDown={(event) => event.stopPropagation()}>
-              <input
+              <Input
                 ref={searchInputRef}
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.currentTarget.value)}
@@ -115,7 +116,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
                   }
                 }}
                 placeholder="Search branches"
-                className="w-full rounded-md border border-input bg-popover px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                className="h-7 bg-popover px-2 py-1 text-xs"
               />
             </div>
             <ScrollArea
