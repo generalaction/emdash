@@ -103,7 +103,12 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
       }
       return;
     }
-    await githubLogin();
+    try {
+      await githubLogin();
+    } catch (error) {
+      console.error('Failed to connect GitHub:', error);
+      throw error;
+    }
   }, [githubInstalled, githubLogin]);
 
   const handleJiraConnect = useCallback(

@@ -50,7 +50,7 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <Label className="mb-2 block text-sm font-medium text-gray-300">AI Provider</Label>
+          <Label className="mb-2 block text-sm font-medium text-muted-foreground">AI Provider</Label>
           <RadioGroup
             value={provider}
             onValueChange={(value: string) => setProvider(value as 'claude-code' | 'openai-agents')}
@@ -58,13 +58,13 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="claude-code" id="provider-claude" />
-              <Label htmlFor="provider-claude" className="cursor-pointer font-normal text-white">
+              <Label htmlFor="provider-claude" className="cursor-pointer font-normal">
                 Claude Code
               </Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="openai-agents" id="provider-openai" />
-              <Label htmlFor="provider-openai" className="cursor-pointer font-normal text-white">
+              <Label htmlFor="provider-openai" className="cursor-pointer font-normal">
                 OpenAI Agents
               </Label>
             </div>
@@ -72,7 +72,7 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
         </div>
 
         <div>
-          <Label className="mb-2 block text-sm font-medium text-gray-300">Prompt</Label>
+          <Label className="mb-2 block text-sm font-medium text-muted-foreground">Prompt</Label>
           <Textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -83,9 +83,9 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-muted-foreground">
+          <Label className="mb-2 block text-sm font-medium text-muted-foreground">
             Number of Agents
-          </label>
+          </Label>
           <select
             value={numAgents}
             onChange={(e) => setNumAgents(parseInt(e.target.value))}
@@ -100,7 +100,7 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
         </div>
 
         <div>
-          <Label className="mb-2 block text-sm font-medium text-gray-300">Base Branch</Label>
+          <Label className="mb-2 block text-sm font-medium text-muted-foreground">Base Branch</Label>
           <Input
             type="text"
             value={baseBranch}
