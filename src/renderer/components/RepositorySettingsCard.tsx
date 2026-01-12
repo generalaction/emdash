@@ -3,16 +3,14 @@ import { Input } from './ui/input';
 import { Switch } from './ui/switch';
 
 type RepoSettings = {
-  branchTemplate: string;
+  branchPrefix: string;
   pushOnCreate: boolean;
 };
 
 const DEFAULTS: RepoSettings = {
-  branchTemplate: 'agent/{slug}-{timestamp}',
+  branchPrefix: 'emdash',
   pushOnCreate: true,
 };
-
-const PLACEHOLDER_HELP = 'Use {slug} for the task name and {timestamp} for epoch milliseconds.';
 
 const RepositorySettingsCard: React.FC = () => {
   const [settings, setSettings] = useState<RepoSettings>(DEFAULTS);
@@ -25,7 +23,7 @@ const RepositorySettingsCard: React.FC = () => {
       if (res?.success && res.settings?.repository) {
         const repo = res.settings.repository;
         setSettings({
-          branchTemplate: repo.branchTemplate ?? DEFAULTS.branchTemplate,
+          branchPrefix: repo.branchPrefix ?? DEFAULTS.branchPrefix,
           pushOnCreate: repo.pushOnCreate ?? DEFAULTS.pushOnCreate,
         });
       } else {
@@ -49,7 +47,7 @@ const RepositorySettingsCard: React.FC = () => {
         if (res?.success && res.settings?.repository) {
           const repo = res.settings.repository;
           setSettings({
-            branchTemplate: repo.branchTemplate ?? DEFAULTS.branchTemplate,
+            branchPrefix: repo.branchPrefix ?? DEFAULTS.branchPrefix,
             pushOnCreate: repo.pushOnCreate ?? DEFAULTS.pushOnCreate,
           });
         }
@@ -61,28 +59,25 @@ const RepositorySettingsCard: React.FC = () => {
   );
 
   const example = useMemo(() => {
-    const tpl = settings.branchTemplate || DEFAULTS.branchTemplate;
-    const now = Date.now();
-    return tpl.replace(/\{slug\}/g, 'my-feature').replace(/\{timestamp\}/g, String(now));
-  }, [settings.branchTemplate]);
+    const prefix = settings.branchPrefix || DEFAULTS.branchPrefix;
+    return `${prefix}/my-feature-a3f`;
+  }, [settings.branchPrefix]);
 
   return (
     <div className="grid gap-3">
-      <label className="grid gap-1">
-        <span className="text-xs text-muted-foreground">New branch name template</span>
+      <div className="grid gap-1">
         <Input
-          value={settings.branchTemplate}
-          onChange={(e) => setSettings((s) => ({ ...s, branchTemplate: e.target.value }))}
-          onBlur={() => savePartial({ branchTemplate: settings.branchTemplate.trim() })}
-          placeholder={DEFAULTS.branchTemplate}
-          aria-label="New branch name template"
+          value={settings.branchPrefix}
+          onChange={(e) => setSettings((s) => ({ ...s, branchPrefix: e.target.value }))}
+          onBlur={() => savePartial({ branchPrefix: settings.branchPrefix.trim() })}
+          placeholder="Branch prefix"
+          aria-label="Branch prefix"
           disabled={loading}
         />
-        <span className="text-[11px] text-muted-foreground">{PLACEHOLDER_HELP}</span>
         <div className="text-[11px] text-muted-foreground">
           Example: <code className="rounded bg-muted/60 px-1">{example}</code>
         </div>
-      </label>
+      </div>
 
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-1 text-xs text-muted-foreground">

@@ -48,7 +48,7 @@ declare global {
       getSettings: () => Promise<{
         success: boolean;
         settings?: {
-          repository: { branchTemplate: string; pushOnCreate: boolean };
+          repository: { branchPrefix: string; pushOnCreate: boolean };
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
           browserPreview?: { enabled: boolean; engine: 'chromium' };
           notifications?: { enabled: boolean; sound: boolean };
@@ -108,7 +108,7 @@ declare global {
       }>;
       updateSettings: (
         settings: Partial<{
-          repository: { branchTemplate?: string; pushOnCreate?: boolean };
+          repository: { branchPrefix?: string; pushOnCreate?: boolean };
           projectPrep: { autoInstallOnOpenInEditor?: boolean };
           browserPreview: { enabled?: boolean; engine?: 'chromium' };
           notifications: { enabled?: boolean; sound?: boolean };
@@ -167,7 +167,7 @@ declare global {
       ) => Promise<{
         success: boolean;
         settings?: {
-          repository: { branchTemplate: string; pushOnCreate: boolean };
+          repository: { branchPrefix: string; pushOnCreate: boolean };
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
           browserPreview?: { enabled: boolean; engine: 'chromium' };
           notifications?: { enabled: boolean; sound: boolean };
