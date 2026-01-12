@@ -204,7 +204,9 @@ const JiraIssueSelector: React.FC<Props> = ({
                 {selectedIssue.summary ? (
                   <>
                     <span className="shrink-0 text-foreground">-</span>
-                    <span className="min-w-0 truncate text-muted-foreground">{selectedIssue.summary}</span>
+                    <span className="min-w-0 truncate text-muted-foreground">
+                      {selectedIssue.summary}
+                    </span>
                   </>
                 ) : null}
               </>
@@ -216,10 +218,7 @@ const JiraIssueSelector: React.FC<Props> = ({
             )}
           </div>
         </SelectTrigger>
-        <SelectContent
-          side="top"
-          className="z-[120] w-full max-w-[480px]"
-        >
+        <SelectContent side="top" className="z-[120] w-full max-w-[480px]">
           <div className="relative px-3 py-2">
             <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
