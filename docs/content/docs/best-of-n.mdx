@@ -5,6 +5,19 @@ description: Run multiple agents in parallel and pick the best result
 
 Run multiple agents on the same task, let them work in parallel, then pick the best output. Each agent gets its own worktree so they don't interfere with each other.
 
+<img
+  src="/media/bestofn.png"
+  alt="Running multiple agents in parallel"
+  style={{
+    width: '100%',
+    maxWidth: '700px',
+    margin: '20px auto',
+    display: 'block',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  }}
+/>
+
 ## Why Use It
 
 Different agents have different strengths. Running them in parallel lets you:
@@ -22,6 +35,19 @@ When creating a task:
 3. Click Create
 
 Emdash creates a separate git branch and worktree for each agent. They all start from the same base commit but work independently.
+
+<img
+  src="/media/bestofn2.png"
+  alt="Multiple agents working in separate worktrees"
+  style={{
+    width: '100%',
+    maxWidth: '700px',
+    margin: '20px auto',
+    display: 'block',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  }}
+/>
 
 ## Working with Multiple Agents
 
