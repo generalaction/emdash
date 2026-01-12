@@ -907,7 +907,10 @@ export class WorktreeService {
       const { stdout } = await execFileAsync(
         'git',
         ['ls-files', '--others', '--ignored', '--exclude-standard'],
-        { cwd: dir }
+        {
+          cwd: dir,
+          maxBuffer: 10 * 1024 * 1024 // Increase buffer to 10MB for large repos
+        }
       );
 
       if (!stdout || !stdout.trim()) {
