@@ -909,7 +909,7 @@ export class WorktreeService {
         ['ls-files', '--others', '--ignored', '--exclude-standard'],
         {
           cwd: dir,
-          maxBuffer: 10 * 1024 * 1024 // Increase buffer to 10MB for large repos
+          maxBuffer: 10 * 1024 * 1024, // Increase buffer to 10MB for large repos
         }
       );
 
