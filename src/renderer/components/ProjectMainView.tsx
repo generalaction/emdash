@@ -364,6 +364,7 @@ function TaskRow({
                 taskName={ws.name}
                 taskId={ws.id}
                 taskPath={ws.path}
+                useWorktree={ws.useWorktree}
                 onConfirm={async () => {
                   try {
                     setIsDeleting(true);

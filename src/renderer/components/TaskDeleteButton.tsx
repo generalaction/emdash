@@ -29,6 +29,14 @@ type Props = {
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
+  /**
+   * Indicates whether the task uses a Git worktree for isolation.
+   * When false, the task runs directly on the main repository branch.
+   * This affects deletion warnings - worktree tasks may have uncommitted changes
+   * that will be lost, while main branch tasks do not have this risk.
+   * @default true
+   */
+  useWorktree?: boolean;
 };
 
 export const TaskDeleteButton: React.FC<Props> = ({
@@ -39,6 +47,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
   className,
   'aria-label': ariaLabel = 'Delete Task',
   isDeleting = false,
+  useWorktree = true,
 }) => {
   const [open, setOpen] = React.useState(false);
   const [acknowledge, setAcknowledge] = React.useState(false);
@@ -46,7 +55,10 @@ export const TaskDeleteButton: React.FC<Props> = ({
     () => [{ id: taskId, name: taskName, path: taskPath }],
     [taskId, taskName, taskPath]
   );
-  const { risks, loading, hasData } = useDeleteRisks(targets, open);
+  // Only check for deletion risks if the task uses a worktree.
+  // Tasks running directly on the main branch (useWorktree === false) don't need risk assessment
+  // since they don't have isolated changes that could be lost.
+  const { risks, loading, hasData } = useDeleteRisks(targets, open && useWorktree);
   const status = risks[taskId] || {
     staged: 0,
     unstaged: 0,
@@ -57,13 +69,17 @@ export const TaskDeleteButton: React.FC<Props> = ({
     pr: null,
   };
 
+  // Determine if deletion is risky based on uncommitted changes or active PRs.
+  // Tasks on main branch (useWorktree === false) are never considered risky
+  // because they don't have worktree-specific changes that would be lost.
   const risky: boolean =
-    status.staged > 0 ||
-    status.unstaged > 0 ||
-    status.untracked > 0 ||
-    status.ahead > 0 ||
-    !!status.error ||
-    !!(status.pr && isActivePr(status.pr));
+    useWorktree &&
+    (status.staged > 0 ||
+      status.unstaged > 0 ||
+      status.untracked > 0 ||
+      status.ahead > 0 ||
+      !!status.error ||
+      !!(status.pr && isActivePr(status.pr)));
   const disableDelete: boolean = Boolean(isDeleting || loading) || (risky && !acknowledge);
 
   React.useEffect(() => {
@@ -105,12 +121,14 @@ export const TaskDeleteButton: React.FC<Props> = ({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete task?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete this task and its worktree.
+            {useWorktree
+              ? 'This will permanently delete this task and its worktree.'
+              : 'This will permanently delete this task from the project.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-3 text-sm">
           <AnimatePresence initial={false}>
-            {loading ? (
+            {loading && useWorktree ? (
               <motion.div
                 key="task-delete-loading"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}

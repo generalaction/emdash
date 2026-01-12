@@ -62,6 +62,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             taskName={task.name}
             taskId={task.id}
             taskPath={task.path}
+            useWorktree={task.useWorktree}
             onConfirm={async () => {
               try {
                 setIsDeleting(true);
