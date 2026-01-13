@@ -228,6 +228,7 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     'success',
     'error_type',
     'gh_cli_installed',
+    'github_username',
     'feature',
     'type',
     'enabled',
@@ -268,6 +269,22 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
   return sanitized;
 }
 
+/**
+ * Fetch the current GitHub username if the user is authenticated.
+ * Returns null if not authenticated or if there's an error.
+ */
+async function getGithubUsername(): Promise<string | null> {
+  try {
+    // Lazy import to avoid circular dependencies
+    const { githubService } = require('./services/GitHubService');
+    const user = await githubService.getCurrentUser();
+    return user?.login || null;
+  } catch {
+    // Silently fail if GitHub is not authenticated or there's an error
+    return null;
+  }
+}
+
 async function posthogCapture(
   event: TelemetryEvent,
   properties?: Record<string, any>
@@ -297,7 +314,38 @@ async function posthogCapture(
   }
 }
 
-export function init(options?: InitOptions) {
+/**
+ * PostHog identify call to associate the instanceId with GitHub username.
+ * This creates a user profile in PostHog.
+ */
+async function posthogIdentify(username: string): Promise<void> {
+  if (!isEnabled() || !username) return;
+  try {
+    const f: any = (globalThis as any).fetch;
+    if (!f) return;
+    const u = (host || '').replace(/\/$/, '') + '/capture/';
+    const body = {
+      api_key: apiKey,
+      event: '$identify',
+      properties: {
+        distinct_id: instanceId,
+        $set: {
+          github_username: username,
+          ...getBaseProps(),
+        },
+      },
+    };
+    await f(u, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(() => undefined);
+  } catch {
+    // swallow errors; telemetry must never crash the app
+  }
+}
+
+export async function init(options?: InitOptions) {
   const env = process.env;
   const enabledEnv = (env.TELEMETRY_ENABLED ?? 'true').toString().toLowerCase();
   enabled = enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
@@ -317,8 +365,18 @@ export function init(options?: InitOptions) {
   onboardingSeen = state.onboardingSeen === true;
   lastActiveDate = state.lastActiveDate;
 
-  // Fire lifecycle start
-  void posthogCapture('app_started');
+  // Fetch GitHub username if available
+  const githubUsername = await getGithubUsername();
+
+  // If we have a GitHub username, identify the user in PostHog
+  if (githubUsername) {
+    void posthogIdentify(githubUsername);
+  }
+
+  // Fire lifecycle start with GitHub username
+  void posthogCapture('app_started', {
+    github_username: githubUsername,
+  });
 
   // Check for daily active user (fires event if it's a new day)
   checkDailyActiveUser();
@@ -414,7 +472,7 @@ function normalizeHost(h: string | undefined): string | undefined {
  * Check if this is a new day of activity and fire daily_active_user event if so.
  * This ensures we accurately track DAU even when the app stays open for extended periods.
  */
-function checkDailyActiveUser(): void {
+async function checkDailyActiveUser(): Promise<void> {
   // Skip if telemetry is disabled
   if (!isEnabled()) return;
 
@@ -423,10 +481,14 @@ function checkDailyActiveUser(): void {
 
     // If we haven't tracked a date yet or it's a new day, fire the event
     if (!lastActiveDate || lastActiveDate !== today) {
-      // Fire the daily active user event
+      // Fetch GitHub username if available
+      const githubUsername = await getGithubUsername();
+
+      // Fire the daily active user event with GitHub username
       void posthogCapture('daily_active_user', {
         date: today,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown',
+        github_username: githubUsername,
       });
 
       // Update the last active date in memory
@@ -449,8 +511,8 @@ function checkDailyActiveUser(): void {
 /**
  * Export for use in window focus events
  */
-export function checkAndReportDailyActiveUser(): void {
-  checkDailyActiveUser();
+export async function checkAndReportDailyActiveUser(): Promise<void> {
+  return checkDailyActiveUser();
 }
 
 export function setOnboardingSeen(flag: boolean) {
