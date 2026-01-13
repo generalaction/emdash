@@ -118,7 +118,7 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
               </span>
             </div>
           ) : null}
-          <div className="mb-1 mt-0.5 font-medium text-foreground">Providers</div>
+          <div className="mb-1 mt-0.5 font-medium text-foreground">Agents</div>
           <div className="flex flex-col gap-1">
             {items.map((it) => (
               <div key={it.id} className="flex items-center gap-2 text-foreground/90">

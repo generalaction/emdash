@@ -187,7 +187,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         description: '',
         sections: [
           { title: 'Privacy & Telemetry', render: () => <TelemetryCard /> },
-          { title: 'Default AI provider', render: () => <DefaultProviderSettingsCard /> },
+          { title: 'Default agent', render: () => <DefaultProviderSettingsCard /> },
           { title: 'Tasks', render: () => <TaskSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
           { title: 'Updates', render: () => <UpdateCard /> },

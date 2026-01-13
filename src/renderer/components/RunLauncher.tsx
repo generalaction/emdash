@@ -51,7 +51,7 @@ const RunLauncher: React.FC<RunLauncherProps> = ({ repo, onCreateRun, onCancel }
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label className="mb-2 block text-sm font-medium text-muted-foreground">
-            AI Provider
+            Agent
           </Label>
           <RadioGroup
             value={provider}

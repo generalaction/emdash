@@ -43,17 +43,17 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                     disabled ? 'cursor-not-allowed opacity-60' : ''
                   }`}
                 >
-                  <SelectValue placeholder="Select provider" />
+                  <SelectValue placeholder="Select agent" />
                 </SelectTrigger>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Provider is locked for this conversation.</p>
+                <p>Agent is locked for this conversation.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         ) : (
           <SelectTrigger className="h-9 w-full border-none bg-muted">
-            <SelectValue placeholder="Select provider" />
+            <SelectValue placeholder="Select agent" />
           </SelectTrigger>
         )}
         <SelectContent side="top" className="z-[120]">
