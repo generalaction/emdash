@@ -1,15 +1,11 @@
 import React, { useState } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { ChevronDown } from 'lucide-react';
 import { type Provider } from '../types';
 import { type ProviderRun } from '../types/chat';
 import { providerConfig } from '../lib/providerConfig';
 import { ProviderInfoCard } from './ProviderInfoCard';
 import type { UiProvider } from '@/providers/meta';
-
-const MAX_RUNS = 4;
 
 interface MultiProviderDropdownProps {
   providerRuns: ProviderRun[];
@@ -35,7 +31,6 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   const [runsSelectOpenFor, setRunsSelectOpenFor] = useState<Provider | null>(null);
 
   const selectedProviders = new Set(providerRuns.map((pr) => pr.provider));
-  const totalRuns = providerRuns.reduce((sum, pr) => sum + pr.runs, 0);
 
   // Checkbox: always add/remove (multi-select)
   const toggleProvider = (provider: Provider) => {
@@ -79,7 +74,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   const singleProviderConfig = singleProvider ? providerConfig[singleProvider.provider] : null;
 
   return (
-    <Popover
+    <Select
       open={open}
       onOpenChange={(isOpen) => {
         setOpen(isOpen);
@@ -89,28 +84,23 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
         }
       }}
     >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={`flex h-9 w-full items-center justify-between rounded-md border-none bg-muted px-3 text-sm dark:bg-muted ${className}`}
-        >
-          <span className="flex items-center gap-2 truncate">
-            {singleProviderConfig && (
-              <img
-                src={singleProviderConfig.logo}
-                alt={singleProviderConfig.alt}
-                className={`h-4 w-4 rounded-sm ${singleProviderConfig.invertInDark ? 'dark:invert' : ''}`}
-              />
-            )}
-            {triggerText}
-          </span>
-          <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
+      <SelectTrigger
+        className={`flex h-9 w-full items-center justify-between border-none bg-muted px-3 text-sm ${className}`}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          {singleProviderConfig && (
+            <img
+              src={singleProviderConfig.logo}
+              alt={singleProviderConfig.alt}
+              className={`h-4 w-4 flex-shrink-0 rounded-sm ${singleProviderConfig.invertInDark ? 'dark:invert' : ''}`}
+            />
+          )}
+          <span className="truncate">{triggerText}</span>
+        </div>
+      </SelectTrigger>
+      <SelectContent
         side="top"
-        className="z-[1000] max-h-80 w-[var(--radix-popover-trigger-width)] overflow-y-auto p-1"
+        className="z-[1000] max-h-80 w-[var(--radix-select-trigger-width)] overflow-y-auto p-1"
       >
         <TooltipProvider delayDuration={150}>
           {sortedProviders.map(([key, config]) => {
@@ -149,7 +139,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                     <img
                       src={config.logo}
                       alt={config.alt}
-                      className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
+                      className={`h-4 w-4 flex-shrink-0 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
                     />
                     <span className="text-sm">{config.name}</span>
                   </div>
@@ -178,8 +168,8 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
             );
           })}
         </TooltipProvider>
-      </PopoverContent>
-    </Popover>
+      </SelectContent>
+    </Select>
   );
 };
 
