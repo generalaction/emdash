@@ -33,7 +33,6 @@ import { useToast } from './hooks/use-toast';
 import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
-import { getContainerRunState } from './lib/containerRuns';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import {
   computeBaseRef,
@@ -2049,7 +2048,7 @@ const AppContent: React.FC = () => {
                     : activeTask?.path || selectedProject?.path || null
                 }
                 defaultPreviewUrl={
-                  activeTask?.id ? getContainerRunState(activeTask.id)?.previewUrl || null : null
+                  null // Previously: getContainerRunState(activeTask.id)?.previewUrl - Removed: Docker feature
                 }
                 taskId={activeTask?.id || null}
                 taskPath={activeTask?.path || null}

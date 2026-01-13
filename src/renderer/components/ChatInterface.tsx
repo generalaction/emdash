@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { ExternalLink, Globe, Database, Server, ChevronDown } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import ContainerStatusBadge from './ContainerStatusBadge';
+import { useReducedMotion } from 'motion/react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
@@ -12,11 +10,6 @@ import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Provider } from '../types';
 import { Task } from '../types/chat';
-import {
-  getContainerRunState,
-  subscribeToTaskRunState,
-  type ContainerRunState,
-} from '@/lib/containerRuns';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
@@ -53,12 +46,8 @@ const ChatInterface: React.FC<Props> = ({
   const currentProviderStatus = providerStatuses[provider];
   const browser = useBrowser();
   const [cliStartFailed, setCliStartFailed] = useState(false);
-  const [containerState, setContainerState] = useState<ContainerRunState | undefined>(() =>
-    getContainerRunState(task.id)
-  );
   const reduceMotion = useReducedMotion();
   const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
-  const [portsExpanded, setPortsExpanded] = useState(false);
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
   // Line comments for agent context injection
@@ -122,7 +111,6 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     setCliStartFailed(false);
     setIsProviderInstalled(null);
-    setContainerState(getContainerRunState(task.id));
   }, [task.id]);
 
   const runInstallCommand = useCallback(
@@ -162,14 +150,6 @@ const ChatInterface: React.FC<Props> = ({
     },
     [activeTerminalId]
   );
-
-  // Auto-expand/collapse ports in chat view based on container activity
-  useEffect(() => {
-    const status = containerState?.status;
-    const active = status === 'starting' || status === 'building' || status === 'ready';
-    if (status === 'ready' && (containerState?.ports?.length ?? 0) > 0) setPortsExpanded(true);
-    if (!active) setPortsExpanded(false);
-  }, [containerState?.status, containerState?.ports?.length]);
 
   // On task change, restore last-selected provider (including Droid).
   // If a locked provider exists (including Droid), prefer locked.
@@ -479,194 +459,6 @@ const ChatInterface: React.FC<Props> = ({
     } catch {}
   }, [provider, task.id]);
 
-  useEffect(() => {
-    const off = subscribeToTaskRunState(task.id, (state) => {
-      setContainerState(state);
-    });
-    return () => {
-      off?.();
-    };
-  }, [task.id]);
-
-  const containerStatusNode = useMemo(() => {
-    const state = containerState;
-    if (!state?.runId) return null;
-    const ports = state.ports ?? [];
-    const containerActive =
-      state.status === 'starting' || state.status === 'building' || state.status === 'ready';
-    if (!containerActive) return null;
-
-    const norm = (s: string) => s.toLowerCase();
-    const sorted = [...ports].sort((a, b) => {
-      const ap = state.previewService && norm(state.previewService) === norm(a.service);
-      const bp = state.previewService && norm(state.previewService) === norm(b.service);
-      if (ap && !bp) return -1;
-      if (!ap && bp) return 1;
-      const an = norm(a.service);
-      const bn = norm(b.service);
-      if (an !== bn) return an < bn ? -1 : 1;
-      if (a.container !== b.container) return a.container - b.container;
-      return a.host - b.host;
-    });
-
-    const ServiceIcon: React.FC<{ name: string; port: number }> = ({ name, port }) => {
-      const [src, setSrc] = React.useState<string | null>(null);
-      React.useEffect(() => {
-        let cancelled = false;
-        (async () => {
-          try {
-            const api: any = (window as any).electronAPI;
-            if (!api?.resolveServiceIcon) return;
-            // Allow network fetch in production to populate cache/offline use
-            const res = await api.resolveServiceIcon({
-              service: name,
-              allowNetwork: true,
-              taskPath: task.path,
-            });
-            if (!cancelled && res?.ok && typeof res.dataUrl === 'string') setSrc(res.dataUrl);
-          } catch {}
-        })();
-        return () => {
-          cancelled = true;
-        };
-      }, [name]);
-      if (src) return <img src={src} alt="" className="h-3.5 w-3.5 rounded-sm" />;
-      const webPorts = new Set([80, 443, 3000, 5173, 8080, 8000]);
-      const dbPorts = new Set([5432, 3306, 27017, 1433, 1521]);
-      if (webPorts.has(port)) return <Globe className="h-3.5 w-3.5" aria-hidden="true" />;
-      if (dbPorts.has(port)) return <Database className="h-3.5 w-3.5" aria-hidden="true" />;
-      return <Server className="h-3.5 w-3.5" aria-hidden="true" />;
-    };
-    const isMultiAgent = task.metadata?.multiAgent?.enabled === true;
-    return (
-      <div className="mt-4 px-6">
-        <div className="mx-auto max-w-4xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="font-medium text-foreground">
-              {!isMultiAgent ? (
-                <ContainerStatusBadge
-                  active={
-                    state.status === 'starting' ||
-                    state.status === 'building' ||
-                    state.status === 'ready'
-                  }
-                  isStarting={state.status === 'starting' || state.status === 'building'}
-                  isReady={state.status === 'ready'}
-                  startingAction={false}
-                  stoppingAction={false}
-                  onStart={() => {}}
-                  onStop={() => {}}
-                  showStop={false}
-                />
-              ) : null}
-              {state.containerId ? (
-                <span className="ml-2 text-xs text-muted-foreground">#{state.containerId}</span>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              {containerActive ? (
-                <button
-                  type="button"
-                  onClick={() => setPortsExpanded((v) => !v)}
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
-                  aria-expanded={portsExpanded}
-                  aria-controls={`chat-ports-${task.id}`}
-                >
-                  <ChevronDown
-                    className={[
-                      'h-3.5 w-3.5 transition-transform',
-                      portsExpanded ? 'rotate-180' : '',
-                    ].join(' ')}
-                    aria-hidden="true"
-                  />
-                  Ports
-                </button>
-              ) : null}
-              {state.previewUrl ? (
-                <>
-                  <button
-                    type="button"
-                    className="inline-flex items-center rounded border border-primary/60 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-                    onClick={() => window.electronAPI.openExternal(state.previewUrl!)}
-                    aria-label="Open preview (external)"
-                    title="Open preview"
-                  >
-                    Open Preview
-                    <ExternalLink className="ml-1.5 h-3 w-3" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center rounded border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
-                    onClick={() => browser.open(state.previewUrl!)}
-                    aria-label="Open preview (in‑app)"
-                    title="Open in app"
-                  >
-                    Open In App
-                    <Globe className="ml-1.5 h-3 w-3" aria-hidden="true" />
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </div>
-          <AnimatePresence initial={false}>
-            {portsExpanded && sorted.length ? (
-              <motion.div
-                id={`chat-ports-${task.id}`}
-                className="text-xs text-muted-foreground"
-                initial={reduceMotion ? false : { opacity: 0, height: 0, paddingTop: 0 }}
-                animate={{ opacity: 1, height: 'auto', paddingTop: 8 }}
-                exit={
-                  reduceMotion
-                    ? { opacity: 1, height: 'auto', paddingTop: 0 }
-                    : { opacity: 0, height: 0, paddingTop: 0 }
-                }
-                transition={
-                  reduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
-                }
-                style={{ overflow: 'hidden', display: 'grid' }}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 font-medium text-foreground">
-                      Ports
-                    </span>
-                    <span>Mapped host → container per service</span>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {sorted.map((port) => (
-                    <span
-                      key={`${state.runId}-${port.service}-${port.host}`}
-                      className="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1"
-                    >
-                      <span className="inline-flex items-center gap-1.5 text-foreground">
-                        <ServiceIcon name={port.service} port={port.container} />
-                        <span className="font-medium">{port.service}</span>
-                      </span>
-                      <span>host {port.host}</span>
-                      <span>→</span>
-                      <span>container {port.container}</span>
-                      {state.previewService === port.service ? (
-                        <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">
-                          preview
-                        </span>
-                      ) : null}
-                    </span>
-                  ))}
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-          {state.lastError ? (
-            <div className="mt-2 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
-              {state.lastError.message}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    );
-  }, [containerState, portsExpanded, reduceMotion, task.id, task.path]);
-
   if (!isTerminal) {
     return null;
   }
@@ -679,7 +471,6 @@ const ChatInterface: React.FC<Props> = ({
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">
             <div className="mx-auto max-w-4xl space-y-2">
-              {/* Provider display in header */}
               <div className="flex items-center justify-between">
                 <ProviderDisplay
                   provider={provider}
@@ -721,7 +512,6 @@ const ChatInterface: React.FC<Props> = ({
               })()}
             </div>
           </div>
-          {containerStatusNode}
           <div className="mt-4 min-h-0 flex-1 px-6">
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${

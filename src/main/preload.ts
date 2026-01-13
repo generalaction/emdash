@@ -183,18 +183,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:get-branch-status', args),
   listRemoteBranches: (args: { projectPath: string; remote?: string }) =>
     ipcRenderer.invoke('git:list-remote-branches', args),
-  loadContainerConfig: (taskPath: string) =>
-    ipcRenderer.invoke('container:load-config', { taskPath }),
-  startContainerRun: (args: {
-    taskId: string;
-    taskPath: string;
-    runId?: string;
-    mode?: 'container' | 'host';
-  }) => ipcRenderer.invoke('container:start-run', args),
-  stopContainerRun: (taskId: string) => ipcRenderer.invoke('container:stop-run', { taskId }),
-  inspectContainerRun: (taskId: string) => ipcRenderer.invoke('container:inspect-run', { taskId }),
-  resolveServiceIcon: (args: { service: string; allowNetwork?: boolean; taskPath?: string }) =>
-    ipcRenderer.invoke('icons:resolve-service', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   // Telemetry (minimal, anonymous)
   captureTelemetry: (event: string, properties?: Record<string, any>) =>
@@ -203,12 +191,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTelemetryEnabled: (enabled: boolean) => ipcRenderer.invoke('telemetry:set-enabled', enabled),
   setOnboardingSeen: (flag: boolean) => ipcRenderer.invoke('telemetry:set-onboarding-seen', flag),
   connectToGitHub: (projectPath: string) => ipcRenderer.invoke('github:connect', projectPath),
-  onRunEvent: (callback: (event: any) => void) => {
-    ipcRenderer.on('run:event', (_, event) => callback(event));
-  },
-  removeRunEventListeners: () => {
-    ipcRenderer.removeAllListeners('run:event');
-  },
 
   // GitHub integration
   githubAuth: () => ipcRenderer.invoke('github:auth'),
@@ -571,51 +553,6 @@ export interface ElectronAPI {
     content?: string;
     error?: string;
   }>;
-
-  onRunEvent: (callback: (event: any) => void) => void;
-  removeRunEventListeners: () => void;
-  loadContainerConfig: (taskPath: string) => Promise<
-    | { ok: true; config: any; sourcePath: string | null }
-    | {
-        ok: false;
-        error: {
-          code:
-            | 'INVALID_ARGUMENT'
-            | 'INVALID_JSON'
-            | 'VALIDATION_FAILED'
-            | 'IO_ERROR'
-            | 'UNKNOWN'
-            | 'PORT_ALLOC_FAILED';
-          message: string;
-          configPath: string | null;
-          configKey: string | null;
-        };
-      }
-  >;
-  startContainerRun: (args: {
-    taskId: string;
-    taskPath: string;
-    runId?: string;
-    mode?: 'container' | 'host';
-  }) => Promise<
-    | { ok: true; runId: string; sourcePath: string | null }
-    | {
-        ok: false;
-        error: {
-          code:
-            | 'INVALID_ARGUMENT'
-            | 'INVALID_JSON'
-            | 'VALIDATION_FAILED'
-            | 'IO_ERROR'
-            | 'PORT_ALLOC_FAILED'
-            | 'UNKNOWN';
-          message: string;
-          configPath: string | null;
-          configKey: string | null;
-        };
-      }
-  >;
-  stopContainerRun: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
 
   // GitHub integration
   githubAuth: () => Promise<{

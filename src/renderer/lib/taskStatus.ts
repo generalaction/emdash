@@ -3,7 +3,6 @@
 // - Derives 'idle' after a short inactivity window or when a 'complete' event fires
 
 type Derived = 'idle' | 'busy';
-import { subscribeToTaskRunState } from './containerRuns';
 import { activityStore } from './activityStore';
 
 type Listener = (status: Derived) => void;
@@ -122,18 +121,6 @@ export function watchTaskPty(taskId: string): () => void {
   };
   ptyUnsubs.set(taskId, cleanup);
   return cleanup;
-}
-
-// Container runs also imply task activity (build/start/ready)
-export function watchTaskContainers(taskId: string): () => void {
-  wireGlobal();
-  const off = subscribeToTaskRunState(taskId, (state) => {
-    const s = String(state?.status || 'idle');
-    const active = /^(starting|building|running|ready)$/i.test(s);
-    lastActivity.set(taskId, Date.now());
-    setStatusInternal(taskId, active ? 'busy' : 'idle');
-  });
-  return off;
 }
 
 // Align with the app's activity indicator (left sidebar).

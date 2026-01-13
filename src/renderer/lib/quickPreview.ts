@@ -1,9 +1,3 @@
-import {
-  startContainerRun,
-  subscribeToTaskRunState,
-  getContainerRunState,
-} from '@/lib/containerRuns';
-
 declare const window: Window & {
   electronAPI: any;
 };
@@ -47,31 +41,11 @@ export async function quickStartPreview(args: {
   taskPath: string;
   onPreviewUrl?: (url: string) => void;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { taskId, taskPath, onPreviewUrl } = args;
+  const { taskId, taskPath } = args;
   try {
     const node = await isNodeProject(taskPath);
     if (!node) return { ok: false, error: 'Not a Node.js project (no package.json).' };
     await ensureCompose(taskPath);
-    await startContainerRun({ taskId, taskPath, mode: 'container' });
-    // If already have a preview, use it immediately
-    const existing = getContainerRunState(taskId);
-    if (existing?.previewUrl && onPreviewUrl) onPreviewUrl(existing.previewUrl);
-    // Subscribe for preview becoming ready
-    const unsubRef: { current: null | (() => void) } = { current: null };
-    await new Promise<void>((resolve) => {
-      unsubRef.current = subscribeToTaskRunState(taskId, (state) => {
-        if (state.previewUrl) {
-          onPreviewUrl?.(state.previewUrl);
-          resolve();
-        }
-      });
-      // Safety timeout
-      setTimeout(() => resolve(), 60_000);
-    });
-    if (unsubRef.current)
-      try {
-        unsubRef.current();
-      } catch {}
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
