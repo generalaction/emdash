@@ -233,7 +233,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   }
 
   return (
-    <div className={`min-w-0 ${className}`}>
+    <div className={`min-w-0 max-w-full overflow-hidden ${className}`} style={{ maxWidth: '100%' }}>
       <Select
         value={selectedIssue?.identifier || undefined}
         onValueChange={handleIssueSelect}
@@ -241,28 +241,28 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
         open={dropdownOpen}
         onOpenChange={(open) => setDropdownOpen(open)}
       >
-        <SelectTrigger className="h-9 w-full max-w-full overflow-hidden border-none bg-muted">
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-left text-foreground">
+        <SelectTrigger className="h-9 w-full overflow-hidden border-none bg-muted" style={{ maxWidth: '100%' }}>
+          <div className="flex w-full items-center gap-2 overflow-hidden text-left text-foreground">
             {selectedIssue ? (
-              <>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
+              <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                <span className="inline-flex items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
                   <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
                   <span className="text-[11px] font-medium text-foreground">
                     {selectedIssue.identifier}
                   </span>
                 </span>
                 {selectedIssue.title ? (
-                  <>
-                    <span className="shrink-0 text-foreground">-</span>
-                    <span className="min-w-0 truncate text-muted-foreground">
+                  <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                    <span className="text-foreground">-</span>
+                    <span className="truncate text-muted-foreground">
                       {selectedIssue.title}
                     </span>
-                  </>
+                  </div>
                 ) : null}
-              </>
+              </div>
             ) : (
               <>
-                <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 shrink-0 dark:invert" />
+                <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
                 <span className="truncate text-muted-foreground">{issuePlaceholder}</span>
               </>
             )}

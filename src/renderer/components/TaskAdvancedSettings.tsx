@@ -277,27 +277,28 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 </div>
               ) : null}
 
-              {/* Linear issue selector */}
-              <div className="flex items-start gap-4">
-                <Label htmlFor="linear-issue" className="w-32 shrink-0 pt-2">
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="linear-issue" className="pt-2">
                   Linear issue
                 </Label>
-                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                  <LinearIssueSelector
-                    selectedIssue={selectedLinearIssue}
-                    onIssueChange={handleLinearIssueChange}
-                    isOpen={isOpen}
-                    disabled={
-                      !hasInitialPromptSupport ||
-                      !isLinearConnected ||
-                      !!selectedGithubIssue ||
-                      !!selectedJiraIssue
-                    }
-                    className="w-full"
-                    autoOpen={autoOpenLinearSelector}
-                    onAutoOpenHandled={() => setAutoOpenLinearSelector(false)}
-                    placeholder={isLinearConnected ? 'Select a Linear issue' : 'Select issue'}
-                  />
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <LinearIssueSelector
+                      selectedIssue={selectedLinearIssue}
+                      onIssueChange={handleLinearIssueChange}
+                      isOpen={isOpen}
+                      disabled={
+                        !hasInitialPromptSupport ||
+                        !isLinearConnected ||
+                        !!selectedGithubIssue ||
+                        !!selectedJiraIssue
+                      }
+                      className="w-full"
+                      autoOpen={autoOpenLinearSelector}
+                      onAutoOpenHandled={() => setAutoOpenLinearSelector(false)}
+                      placeholder={isLinearConnected ? 'Select a Linear issue' : 'Select issue'}
+                    />
+                  </div>
                   {!isLinearConnected && (
                     <Button
                       type="button"
@@ -313,25 +314,27 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
               </div>
 
               {/* GitHub issue selector */}
-              <div className="flex items-start gap-4">
-                <Label htmlFor="github-issue" className="w-32 shrink-0 pt-2">
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="github-issue" className="pt-2">
                   GitHub issue
                 </Label>
-                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                  <GitHubIssueSelector
-                    projectPath={projectPath || ''}
-                    selectedIssue={selectedGithubIssue}
-                    onIssueChange={handleGithubIssueChange}
-                    isOpen={isOpen}
-                    disabled={
-                      !hasInitialPromptSupport ||
-                      !isGithubConnected ||
-                      !!selectedJiraIssue ||
-                      !!selectedLinearIssue
-                    }
-                    className="w-full"
-                    placeholder={isGithubConnected ? 'Select a GitHub issue' : 'Select issue'}
-                  />
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <GitHubIssueSelector
+                      projectPath={projectPath || ''}
+                      selectedIssue={selectedGithubIssue}
+                      onIssueChange={handleGithubIssueChange}
+                      isOpen={isOpen}
+                      disabled={
+                        !hasInitialPromptSupport ||
+                        !isGithubConnected ||
+                        !!selectedJiraIssue ||
+                        !!selectedLinearIssue
+                      }
+                      className="w-full"
+                      placeholder={isGithubConnected ? 'Select a GitHub issue' : 'Select issue'}
+                    />
+                  </div>
                   {!isGithubConnected && (
                     <Button
                       type="button"
@@ -357,24 +360,26 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
               </div>
 
               {/* Jira issue selector */}
-              <div className="flex items-start gap-4">
-                <Label htmlFor="jira-issue" className="w-32 shrink-0 pt-2">
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="jira-issue" className="pt-2">
                   Jira issue
                 </Label>
-                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                  <JiraIssueSelector
-                    selectedIssue={selectedJiraIssue}
-                    onIssueChange={handleJiraIssueChange}
-                    isOpen={isOpen}
-                    disabled={
-                      !hasInitialPromptSupport ||
-                      !isJiraConnected ||
-                      !!selectedLinearIssue ||
-                      !!selectedGithubIssue
-                    }
-                    className="w-full"
-                    placeholder={isJiraConnected ? 'Select a Jira issue' : 'Select issue'}
-                  />
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <JiraIssueSelector
+                      selectedIssue={selectedJiraIssue}
+                      onIssueChange={handleJiraIssueChange}
+                      isOpen={isOpen}
+                      disabled={
+                        !hasInitialPromptSupport ||
+                        !isJiraConnected ||
+                        !!selectedLinearIssue ||
+                        !!selectedGithubIssue
+                      }
+                      className="w-full"
+                      placeholder={isJiraConnected ? 'Select a Jira issue' : 'Select issue'}
+                    />
+                  </div>
                   {!isJiraConnected && (
                     <Button
                       type="button"
