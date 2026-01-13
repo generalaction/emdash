@@ -79,107 +79,116 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   const singleProviderConfig = singleProvider ? providerConfig[singleProvider.provider] : null;
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(isOpen) => {
-        setOpen(isOpen);
-        if (!isOpen) {
-          setHoveredProvider(null);
-          setRunsSelectOpenFor(null);
-        }
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={`flex h-9 w-full items-center justify-between rounded-md border-none bg-muted px-3 text-sm dark:bg-muted ${className}`}
-        >
-          <span className="flex items-center gap-2 truncate">
-            {singleProviderConfig && (
-              <img
-                src={singleProviderConfig.logo}
-                alt={singleProviderConfig.alt}
-                className={`h-4 w-4 rounded-sm ${singleProviderConfig.invertInDark ? 'dark:invert' : ''}`}
-              />
-            )}
-            {triggerText}
-          </span>
-          <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="top"
-        className="z-[1000] max-h-80 w-[var(--radix-popover-trigger-width)] overflow-y-auto p-1"
+    <TooltipProvider delayDuration={300}>
+      <Popover
+        open={open}
+        onOpenChange={(isOpen) => {
+          setOpen(isOpen);
+          if (!isOpen) {
+            setHoveredProvider(null);
+            setRunsSelectOpenFor(null);
+          }
+        }}
       >
-        <TooltipProvider delayDuration={150}>
-          {sortedProviders.map(([key, config]) => {
-            const provider = key as Provider;
-            const isSelected = selectedProviders.has(provider);
-            const isLastSelected = isSelected && providerRuns.length === 1;
-
-            return (
-              <ProviderTooltipRow
-                key={key}
-                id={provider as UiProvider}
-                isHovered={hoveredProvider === provider || runsSelectOpenFor === provider}
-                onHover={() => setHoveredProvider(provider)}
-                onLeave={() => {
-                  if (runsSelectOpenFor !== provider) {
-                    setHoveredProvider(null);
-                  }
-                }}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={`flex h-9 w-full items-center justify-between rounded-md border-none bg-muted px-3 text-sm dark:bg-muted ${className}`}
               >
-                <div
-                  className="flex h-8 cursor-pointer items-center justify-between rounded-sm px-2 hover:bg-accent"
-                  onClick={() => handleRowClick(provider)}
-                >
-                  <div className="flex flex-1 items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      disabled={isLastSelected}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        toggleProvider(provider);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-4 w-4 cursor-pointer"
-                    />
+                <span className="flex items-center gap-2 truncate">
+                  {singleProviderConfig && (
                     <img
-                      src={config.logo}
-                      alt={config.alt}
-                      className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
+                      src={singleProviderConfig.logo}
+                      alt={singleProviderConfig.alt}
+                      className={`h-4 w-4 rounded-sm ${singleProviderConfig.invertInDark ? 'dark:invert' : ''}`}
                     />
-                    <span className="text-sm">{config.name}</span>
-                  </div>
-                  {isSelected && (
-                    <Select
-                      value={String(getProviderRuns(provider))}
-                      onValueChange={(v) => updateRuns(provider, parseInt(v, 10))}
-                      onOpenChange={(isSelectOpen) => {
-                        setRunsSelectOpenFor(isSelectOpen ? provider : null);
-                      }}
-                    >
-                      <SelectTrigger className="h-6 w-auto gap-1 border-none bg-transparent p-0 text-sm shadow-none">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent side="right" className="z-[1001] min-w-[4rem]">
-                        {[1, 2, 3, 4].map((n) => (
-                          <SelectItem key={n} value={String(n)}>
-                            {n}x
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   )}
-                </div>
-              </ProviderTooltipRow>
-            );
-          })}
-        </TooltipProvider>
-      </PopoverContent>
-    </Popover>
+                  {triggerText}
+                </span>
+                <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-50" />
+              </button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="end" className="max-w-xs">
+            <p>Run multiple instances of the same agent to compare different solutions</p>
+          </TooltipContent>
+        </Tooltip>
+        <PopoverContent
+          align="start"
+          side="top"
+          className="z-[1000] max-h-80 w-[var(--radix-popover-trigger-width)] overflow-y-auto p-1"
+        >
+          <TooltipProvider delayDuration={150}>
+            {sortedProviders.map(([key, config]) => {
+              const provider = key as Provider;
+              const isSelected = selectedProviders.has(provider);
+              const isLastSelected = isSelected && providerRuns.length === 1;
+
+              return (
+                <ProviderTooltipRow
+                  key={key}
+                  id={provider as UiProvider}
+                  isHovered={hoveredProvider === provider || runsSelectOpenFor === provider}
+                  onHover={() => setHoveredProvider(provider)}
+                  onLeave={() => {
+                    if (runsSelectOpenFor !== provider) {
+                      setHoveredProvider(null);
+                    }
+                  }}
+                >
+                  <div
+                    className="flex h-8 cursor-pointer items-center justify-between rounded-sm px-2 hover:bg-accent"
+                    onClick={() => handleRowClick(provider)}
+                  >
+                    <div className="flex flex-1 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={isLastSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleProvider(provider);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 cursor-pointer"
+                      />
+                      <img
+                        src={config.logo}
+                        alt={config.alt}
+                        className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
+                      />
+                      <span className="text-sm">{config.name}</span>
+                    </div>
+                    {isSelected && (
+                      <Select
+                        value={String(getProviderRuns(provider))}
+                        onValueChange={(v) => updateRuns(provider, parseInt(v, 10))}
+                        onOpenChange={(isSelectOpen) => {
+                          setRunsSelectOpenFor(isSelectOpen ? provider : null);
+                        }}
+                      >
+                        <SelectTrigger className="h-6 w-auto gap-1 border-none bg-transparent p-0 text-sm shadow-none">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent side="right" className="z-[1001] min-w-[4rem]">
+                          {[1, 2, 3, 4].map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n}x
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </ProviderTooltipRow>
+              );
+            })}
+          </TooltipProvider>
+        </PopoverContent>
+      </Popover>
+    </TooltipProvider>
   );
 };
 
