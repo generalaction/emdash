@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { Info } from 'lucide-react';
 import { type Provider } from '../types';
 import { type ProviderRun } from '../types/chat';
 import { providerConfig } from '../lib/providerConfig';
@@ -87,27 +88,20 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
           }
         }}
       >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <SelectTrigger
-              className={`flex h-9 w-full items-center justify-between border-none bg-muted px-3 text-sm ${className}`}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                {singleProviderConfig && (
-                  <img
-                    src={singleProviderConfig.logo}
-                    alt={singleProviderConfig.alt}
-                    className={`h-4 w-4 flex-shrink-0 rounded-sm ${singleProviderConfig.invertInDark ? 'dark:invert' : ''}`}
-                  />
-                )}
-                <span className="truncate">{triggerText}</span>
-              </div>
-            </SelectTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" align="end" className="max-w-xs">
-            <p>Run multiple instances of the same agent to compare different solutions</p>
-          </TooltipContent>
-        </Tooltip>
+        <SelectTrigger
+          className={`flex h-9 w-full items-center justify-between border-none bg-muted px-3 text-sm ${className}`}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            {singleProviderConfig && (
+              <img
+                src={singleProviderConfig.logo}
+                alt={singleProviderConfig.alt}
+                className={`h-4 w-4 flex-shrink-0 rounded-sm ${singleProviderConfig.invertInDark ? 'dark:invert' : ''}`}
+              />
+            )}
+            <span className="truncate">{triggerText}</span>
+          </div>
+        </SelectTrigger>
         <SelectContent
           side="top"
           className="z-[1000] max-h-80 w-[var(--radix-select-trigger-width)] overflow-y-auto p-1"
@@ -154,24 +148,44 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                       <span className="text-sm">{config.name}</span>
                     </div>
                     {isSelected && (
-                      <Select
-                        value={String(getProviderRuns(provider))}
-                        onValueChange={(v) => updateRuns(provider, parseInt(v, 10))}
-                        onOpenChange={(isSelectOpen) => {
-                          setRunsSelectOpenFor(isSelectOpen ? provider : null);
-                        }}
-                      >
-                        <SelectTrigger className="h-6 w-auto gap-1 border-none bg-transparent p-0 text-sm shadow-none">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent side="right" className="z-[1001] min-w-[4rem]">
-                          {[1, 2, 3, 4].map((n) => (
-                            <SelectItem key={n} value={String(n)}>
-                              {n}x
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-1">
+                        <Select
+                          value={String(getProviderRuns(provider))}
+                          onValueChange={(v) => updateRuns(provider, parseInt(v, 10))}
+                          onOpenChange={(isSelectOpen) => {
+                            setRunsSelectOpenFor(isSelectOpen ? provider : null);
+                          }}
+                        >
+                          <SelectTrigger
+                            className="h-6 w-auto gap-1 border-none bg-transparent p-0 text-sm shadow-none"
+                            title="Run up to 4 instances of this agent to compare different solutions"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent side="right" className="z-[1001] min-w-[4rem]">
+                            {[1, 2, 3, 4].map((n) => (
+                              <SelectItem key={n} value={String(n)}>
+                                {n}x
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 opacity-40 hover:opacity-60" />
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            className="z-[10000] max-w-xs"
+                            style={{ zIndex: 10000 }}
+                          >
+                            <p>
+                              Run up to {MAX_RUNS} instances of this agent to compare different
+                              solutions
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     )}
                   </div>
                 </ProviderTooltipRow>
