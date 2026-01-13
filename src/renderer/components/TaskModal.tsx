@@ -318,8 +318,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         className="h-7 bg-popover px-2 py-1 text-xs"
                       />
                     </div>
-                    <ScrollArea className="w-full" style={{ maxHeight: '256px' }}>
-                      <div className="space-y-0">
+                    <ScrollArea
+                      className="w-full"
+                      style={{
+                        height: `${Math.min(256, Math.max(displayedBranchOptions.length, 1) * 32)}px`,
+                        maxHeight: '256px',
+                      }}
+                    >
+                      <div className="space-y-0 pr-3">
                         {displayedBranchOptions.length > 0 ? (
                           displayedBranchOptions.map((option) => (
                             <SelectItem key={option.value} value={option.value}>

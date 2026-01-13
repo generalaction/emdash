@@ -126,7 +126,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
                 maxHeight: `${MAX_LIST_HEIGHT}px`,
               }}
             >
-              <div className="space-y-0">
+              <div className="space-y-0 pr-3">
                 {displayedOptions.length > 0 ? (
                   displayedOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
