@@ -116,7 +116,8 @@ export class WorktreeService {
     projectPath: string,
     taskName: string,
     projectId: string,
-    autoApprove?: boolean
+    autoApprove?: boolean,
+    baseRef?: string
   ): Promise<WorktreeInfo> {
     try {
       const sluggedName = this.slugify(taskName);
@@ -141,7 +142,20 @@ export class WorktreeService {
         fs.mkdirSync(worktreesDir, { recursive: true });
       }
 
-      const baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
+      // Use provided baseRef override or resolve from project settings
+      let baseRefInfo: BaseRefInfo;
+      if (baseRef) {
+        const parsed = await this.parseBaseRef(baseRef, projectPath);
+        if (parsed) {
+          baseRefInfo = parsed;
+        } else {
+          // If parsing failed, fall back to project settings
+          log.warn(`Failed to parse provided baseRef '${baseRef}', falling back to project settings`);
+          baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
+        }
+      } else {
+        baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
+      }
       const fetchedBaseRef = await this.fetchBaseRefWithFallback(
         projectPath,
         projectId,

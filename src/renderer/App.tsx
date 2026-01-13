@@ -129,6 +129,10 @@ const AppContent: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
+  const [taskModalBranchOptions, setTaskModalBranchOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  const [isLoadingTaskModalBranches, setIsLoadingTaskModalBranches] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
@@ -401,6 +405,45 @@ const AppContent: React.FC = () => {
     };
     void check();
   }, []);
+
+  // Load branch options when task modal opens
+  useEffect(() => {
+    if (!showTaskModal || !selectedProject) {
+      setTaskModalBranchOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadBranches = async () => {
+      setIsLoadingTaskModalBranches(true);
+      try {
+        const res = await window.electronAPI.listRemoteBranches({
+          projectPath: selectedProject.path,
+        });
+        if (cancelled) return;
+        if (res.success && res.branches) {
+          const options = res.branches.map((b) => ({ value: b.label, label: b.label }));
+          // Ensure current baseRef is included
+          const currentRef = selectedProject.gitInfo?.baseRef;
+          if (currentRef && !options.some((o) => o.value === currentRef)) {
+            options.unshift({ value: currentRef, label: currentRef });
+          }
+          setTaskModalBranchOptions(options);
+        }
+      } catch (error) {
+        console.error('Failed to load branches for task modal:', error);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingTaskModalBranches(false);
+        }
+      }
+    };
+
+    void loadBranches();
+    return () => {
+      cancelled = true;
+    };
+  }, [showTaskModal, selectedProject]);
 
   // Load autoRightSidebarBehavior setting on mount and listen for changes
   useEffect(() => {
@@ -1067,7 +1110,8 @@ const AppContent: React.FC = () => {
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
     autoApprove?: boolean,
-    useWorktree: boolean = true
+    useWorktree: boolean = true,
+    baseRef?: string
   ) => {
     if (!selectedProject) return;
 
@@ -1210,6 +1254,7 @@ const AppContent: React.FC = () => {
                 taskName: variantName,
                 projectId: selectedProject.id,
                 autoApprove,
+                baseRef,
               });
               if (!worktreeResult?.success || !worktreeResult.worktree) {
                 throw new Error(
@@ -1288,6 +1333,7 @@ const AppContent: React.FC = () => {
             taskName,
             projectId: selectedProject.id,
             autoApprove,
+            baseRef,
           });
 
           if (!worktreeResult.success) {
@@ -2162,9 +2208,11 @@ const AppContent: React.FC = () => {
                 onClose={() => setShowTaskModal(false)}
                 onCreateTask={handleCreateTask}
                 projectName={selectedProject?.name || ''}
-                defaultBranch={selectedProject?.gitInfo.branch || 'main'}
+                defaultBranch={selectedProject?.gitInfo?.baseRef || selectedProject?.gitInfo?.branch || 'main'}
                 existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
                 projectPath={selectedProject?.path}
+                branchOptions={taskModalBranchOptions}
+                isLoadingBranches={isLoadingTaskModalBranches}
               />
               <NewProjectModal
                 isOpen={showNewProjectModal}
