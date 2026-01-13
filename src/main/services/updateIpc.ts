@@ -63,8 +63,10 @@ export function registerUpdateIpc() {
       // Delegate to AutoUpdateService to avoid race conditions
       await autoUpdateService.downloadUpdate();
       return { success: true };
-    } catch (error) {
-      return { success: false, error: formatUpdaterError(error) };
+    } catch (error: any) {
+      const errorMessage = formatUpdaterError(error);
+      console.error('[updateIpc] Download failed:', errorMessage, error);
+      return { success: false, error: errorMessage };
     }
   });
 

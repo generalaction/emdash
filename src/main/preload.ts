@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ['update:available', 'available'],
       ['update:not-available', 'not-available'],
       ['update:error', 'error'],
+      ['update:downloading', 'downloading'],
       ['update:download-progress', 'download-progress'],
       ['update:downloaded', 'downloaded'],
     ];
