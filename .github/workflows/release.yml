@@ -353,7 +353,8 @@ jobs:
           echo "Building signed for: $FLAGS"
           # Build signed + notarized artifacts locally but DO NOT publish yet.
           # We will staple and validate before uploading to the GitHub Release.
-          npx electron-builder --mac dmg $FLAGS --publish never --config.npmRebuild=false
+          # Build both dmg (for manual download) and zip (for auto-update)
+          npx electron-builder --mac dmg zip $FLAGS --publish never --config.npmRebuild=false
 
       - name: Smoke test sqlite3 in packaged app (arm64, signed)
         if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
@@ -489,8 +490,8 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --generate-notes --latest
           fi
-          # Upload stapled DMGs and update files used for autoupdate if present
-          FILES=(release/emdash-*.dmg)
+          # Upload stapled DMGs, ZIPs (for auto-update), and update files
+          FILES=(release/emdash-*.dmg release/emdash-*.zip)
           if ls release/*.blockmap >/dev/null 2>&1; then FILES+=(release/*.blockmap); fi
           if [ -f release/latest-mac.yml ]; then FILES+=(release/latest-mac.yml); fi
           gh release upload "$TAG" "${FILES[@]}" --clobber

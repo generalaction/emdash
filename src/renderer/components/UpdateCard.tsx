@@ -23,7 +23,15 @@ export function UpdateCard(): JSX.Element {
   };
 
   const handleDownload = async () => {
-    await updater.download();
+    const result = await updater.download();
+    // If download fails due to missing zip file, offer manual download
+    if (!result?.success && updater.state.status === 'error') {
+      const errorMessage = updater.state.message || '';
+      if (errorMessage.includes('ZIP_FILE_NOT_FOUND') || errorMessage.includes('404')) {
+        // Auto-update not available, open manual download
+        await window.electronAPI.openLatestDownload();
+      }
+    }
   };
 
   const handleInstall = () => {
@@ -141,10 +149,14 @@ export function UpdateCard(): JSX.Element {
         );
 
       case 'error':
+        const errorMsg = updater.state.message || 'Update check failed';
+        const isZipError = errorMsg.includes('ZIP_FILE_NOT_FOUND') || errorMsg.includes('404');
         return (
           <p className="flex items-center gap-1 text-xs text-red-600 dark:text-red-500">
             <AlertCircle className="h-3 w-3" />
-            {(updater.state as any).error || 'Update check failed'}
+            {isZipError
+              ? 'There was a problem with the update, manual download required'
+              : errorMsg}
           </p>
         );
 
@@ -193,6 +205,21 @@ export function UpdateCard(): JSX.Element {
         );
 
       case 'error':
+        const err = updater.state.message || '';
+        const needsManual = err.includes('ZIP_FILE_NOT_FOUND') || err.includes('404');
+        if (needsManual) {
+          return (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => window.electronAPI.openLatestDownload()}
+              className="h-7 text-xs"
+            >
+              <Download className="mr-1.5 h-3 w-3" />
+              Manual Download
+            </Button>
+          );
+        }
         return (
           <Button size="sm" variant="outline" onClick={handleCheckNow} className="h-7 text-xs">
             Try Again

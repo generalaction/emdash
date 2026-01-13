@@ -26,6 +26,9 @@ export function useUpdater() {
         case 'not-available':
           setState({ status: 'not-available' });
           break;
+        case 'downloading':
+          setState({ status: 'downloading' });
+          break;
         case 'download-progress':
           setState({ status: 'downloading', progress: evt.payload });
           break;
@@ -59,7 +62,7 @@ export function useUpdater() {
   }, []);
 
   const download = useCallback(async () => {
-    setState({ status: 'downloading' });
+    // Don't change state to downloading immediately - wait for backend confirmation
     const res: any = await window.electronAPI.downloadUpdate();
     if (!res.success) {
       const hint = res?.devDisabled

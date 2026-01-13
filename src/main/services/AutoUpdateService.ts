@@ -166,7 +166,7 @@ class AutoUpdateService {
     autoUpdater.logger = {
       info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
       warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-      error: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+      error: (...args: any[]) => log.error('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
     } as any;
   }
 
@@ -200,14 +200,25 @@ class AutoUpdateService {
     });
 
     autoUpdater.on('error', (err: Error) => {
-      this.updateState.status = 'error';
-      this.updateState.error = formatUpdaterError(err);
-      this.notifyWindows('error', { message: this.updateState.error });
+      const errorMessage = formatUpdaterError(err);
+      log.error('Auto-updater error:', errorMessage);
 
-      // Retry after error
-      if (this.settings.autoCheck) {
-        this.scheduleUpdateCheck(UPDATE_CHECK_INTERVALS.periodic);
+      // Preserve update info if we have it
+      const previousVersion = this.updateState.availableVersion;
+      const previousInfo = this.updateState.updateInfo;
+
+      this.updateState.status = 'error';
+      this.updateState.error = errorMessage;
+
+      // Keep the update info so user can retry
+      if (previousVersion) {
+        this.updateState.availableVersion = previousVersion;
+        this.updateState.updateInfo = previousInfo;
       }
+
+      this.notifyWindows('error', { message: errorMessage });
+
+      // Don't automatically retry on error - let user decide
     });
 
     autoUpdater.on('download-progress', (progressObj: any) => {
@@ -323,6 +334,12 @@ class AutoUpdateService {
         return null;
       }
 
+      // Clear error state when checking again
+      if (this.updateState.status === 'error') {
+        this.updateState.status = 'idle';
+        this.updateState.error = undefined;
+      }
+
       log.info('Checking for updates...', {
         channel: this.settings.channel,
         currentVersion: this.updateState.currentVersion,
@@ -334,13 +351,14 @@ class AutoUpdateService {
       this.scheduleNextCheck();
 
       return result?.updateInfo || null;
-    } catch (error) {
-      log.error('Update check failed:', error);
+    } catch (error: any) {
+      const errorMessage = formatUpdaterError(error);
+      log.error('Update check failed:', errorMessage, error);
       this.updateState.status = 'error';
-      this.updateState.error = formatUpdaterError(error);
+      this.updateState.error = errorMessage;
 
       if (!silent) {
-        this.notifyWindows('error', { message: this.updateState.error });
+        this.notifyWindows('error', { message: errorMessage });
       }
 
       // Schedule retry
@@ -355,18 +373,42 @@ class AutoUpdateService {
    */
   async downloadUpdate(): Promise<void> {
     try {
+      // If we're in error state but have update info, we can retry
+      if (this.updateState.status === 'error' && this.updateState.availableVersion) {
+        this.updateState.status = 'available';
+      }
+
       if (this.updateState.status !== 'available') {
-        throw new Error('No update available to download');
+        throw new Error(`Cannot download: status is "${this.updateState.status}", not "available"`);
+      }
+
+      if (!this.updateState.availableVersion) {
+        throw new Error('No version information available for download');
       }
 
       this.downloadStartTime = Date.now();
+
+      // Notify UI that download is starting
+      this.updateState.status = 'downloading';
+      this.notifyWindows('downloading', { version: this.updateState.availableVersion });
+
       await autoUpdater.downloadUpdate();
-    } catch (error) {
-      log.error('Update download failed:', error);
+    } catch (error: any) {
+      const errorMessage = formatUpdaterError(error);
+      log.error('Update download failed:', errorMessage, error);
+
+      // Keep the version info for retry
+      const version = this.updateState.availableVersion;
+      const info = this.updateState.updateInfo;
+
       this.updateState.status = 'error';
-      this.updateState.error = formatUpdaterError(error);
+      this.updateState.error = errorMessage;
+      this.updateState.availableVersion = version;
+      this.updateState.updateInfo = info;
+
       this.downloadStartTime = undefined;
-      this.notifyWindows('error', { message: this.updateState.error });
+      this.notifyWindows('error', { message: errorMessage });
+      throw error; // Re-throw to ensure it's caught by IPC handler
     }
   }
 
