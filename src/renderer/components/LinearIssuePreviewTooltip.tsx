@@ -11,7 +11,11 @@ type Props = {
   side?: 'top' | 'right' | 'bottom' | 'left';
 };
 
-const StatusPill = ({ state }: { state?: { name?: string | null; type?: string | null } | null }) => {
+const StatusPill = ({
+  state,
+}: {
+  state?: { name?: string | null; type?: string | null } | null;
+}) => {
   if (!state?.name) return null;
 
   const getStatusColor = (type?: string | null) => {

@@ -192,7 +192,10 @@ const JiraIssueSelector: React.FC<Props> = ({
         onValueChange={handleIssueSelect}
         disabled={isDisabled}
       >
-        <SelectTrigger className="h-9 w-full overflow-hidden border-none bg-muted" style={{ maxWidth: '100%' }}>
+        <SelectTrigger
+          className="h-9 w-full overflow-hidden border-none bg-muted"
+          style={{ maxWidth: '100%' }}
+        >
           <div className="flex w-full items-center gap-2 overflow-hidden text-left text-foreground">
             {selectedIssue ? (
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -210,9 +213,7 @@ const JiraIssueSelector: React.FC<Props> = ({
                 {selectedIssue.summary ? (
                   <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                     <span className="text-foreground">-</span>
-                    <span className="truncate text-muted-foreground">
-                      {selectedIssue.summary}
-                    </span>
+                    <span className="truncate text-muted-foreground">{selectedIssue.summary}</span>
                   </div>
                 ) : null}
               </div>

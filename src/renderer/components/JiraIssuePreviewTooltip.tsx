@@ -16,7 +16,11 @@ const StatusPill = ({ status }: { status?: { name?: string | null } | null }) =>
 
   const getStatusColor = (name: string) => {
     const lowerName = name.toLowerCase();
-    if (lowerName.includes('done') || lowerName.includes('closed') || lowerName.includes('resolved')) {
+    if (
+      lowerName.includes('done') ||
+      lowerName.includes('closed') ||
+      lowerName.includes('resolved')
+    ) {
       return 'bg-emerald-100/70 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200';
     }
     if (lowerName.includes('progress') || lowerName.includes('review')) {

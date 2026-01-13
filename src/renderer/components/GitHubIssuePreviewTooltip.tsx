@@ -86,9 +86,7 @@ export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
             </div>
 
             {issue.body && (
-              <div className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
-                {issue.body}
-              </div>
+              <div className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">{issue.body}</div>
             )}
 
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

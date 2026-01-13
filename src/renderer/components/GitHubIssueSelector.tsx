@@ -178,7 +178,10 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
       onValueChange={handleIssueSelect}
       disabled={disabled || isLoadingIssues || !!issueListError || !issuesLoaded}
     >
-      <SelectTrigger className="h-9 w-full overflow-hidden border-none bg-muted" style={{ maxWidth: '100%' }}>
+      <SelectTrigger
+        className="h-9 w-full overflow-hidden border-none bg-muted"
+        style={{ maxWidth: '100%' }}
+      >
         <div className="flex w-full items-center gap-2 overflow-hidden text-left text-foreground">
           {selectedIssue ? (
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -196,9 +199,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
               {selectedIssue.title ? (
                 <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                   <span className="text-foreground">-</span>
-                  <span className="truncate text-muted-foreground">
-                    {selectedIssue.title}
-                  </span>
+                  <span className="truncate text-muted-foreground">{selectedIssue.title}</span>
                 </div>
               ) : null}
             </div>
@@ -233,7 +234,9 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
                       <img src={githubLogo} alt="GitHub" className="h-3.5 w-3.5" />
-                      <span className="text-[11px] font-medium text-foreground">#{issue.number}</span>
+                      <span className="text-[11px] font-medium text-foreground">
+                        #{issue.number}
+                      </span>
                     </span>
                     {issue.title ? (
                       <span className="ml-2 truncate text-muted-foreground">{issue.title}</span>
