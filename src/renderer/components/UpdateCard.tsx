@@ -155,7 +155,9 @@ export function UpdateCard(): JSX.Element {
         return (
           <p className="flex items-center gap-1 text-xs text-red-600 dark:text-red-500">
             <AlertCircle className="h-3 w-3" />
-            {isZipError ? 'There was a problem with the update, manual download required' : errorMsg}
+            {isZipError
+              ? 'There was a problem with the update, manual download required'
+              : errorMsg}
           </p>
         );
 

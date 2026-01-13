@@ -166,7 +166,8 @@ class AutoUpdateService {
     autoUpdater.logger = {
       info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
       warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-      error: (...args: any[]) => console.error('[autoUpdater ERROR]', ...sanitizeUpdaterLogArgs(args)),
+      error: (...args: any[]) =>
+        console.error('[autoUpdater ERROR]', ...sanitizeUpdaterLogArgs(args)),
     } as any;
 
     // Log current configuration
@@ -380,7 +381,12 @@ class AutoUpdateService {
    */
   async downloadUpdate(): Promise<void> {
     try {
-      console.log('[downloadUpdate] Current state:', this.updateState.status, 'Version:', this.updateState.availableVersion);
+      console.log(
+        '[downloadUpdate] Current state:',
+        this.updateState.status,
+        'Version:',
+        this.updateState.availableVersion
+      );
 
       // If we're in error state but have update info, we can retry
       if (this.updateState.status === 'error' && this.updateState.availableVersion) {
@@ -396,7 +402,10 @@ class AutoUpdateService {
         throw new Error('No version information available for download');
       }
 
-      console.log('[downloadUpdate] Starting download for version:', this.updateState.availableVersion);
+      console.log(
+        '[downloadUpdate] Starting download for version:',
+        this.updateState.availableVersion
+      );
       this.downloadStartTime = Date.now();
 
       // Notify UI that download is starting
