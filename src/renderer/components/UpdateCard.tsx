@@ -29,7 +29,6 @@ export function UpdateCard(): JSX.Element {
       const errorMessage = updater.state.message || '';
       if (errorMessage.includes('ZIP_FILE_NOT_FOUND') || errorMessage.includes('404')) {
         // Auto-update not available, open manual download
-        console.log('Auto-update failed, opening manual download');
         await window.electronAPI.openLatestDownload();
       }
     }

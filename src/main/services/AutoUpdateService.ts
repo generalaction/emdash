@@ -162,20 +162,12 @@ class AutoUpdateService {
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.autoRunAppAfterInstall = true;
 
-    // Custom logger for production - use console.error for errors to ensure they're always visible
+    // Custom logger for production
     autoUpdater.logger = {
       info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
       warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-      error: (...args: any[]) =>
-        console.error('[autoUpdater ERROR]', ...sanitizeUpdaterLogArgs(args)),
+      error: (...args: any[]) => log.error('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
     } as any;
-
-    // Log current configuration
-    console.log('[AutoUpdateService] Configured with:', {
-      feedURL: (autoUpdater as any).getFeedURL?.() || 'default',
-      channel: autoUpdater.channel,
-      allowPrerelease: autoUpdater.allowPrerelease,
-    });
   }
 
   /**
@@ -209,7 +201,7 @@ class AutoUpdateService {
 
     autoUpdater.on('error', (err: Error) => {
       const errorMessage = formatUpdaterError(err);
-      console.error('[autoUpdater error event]:', errorMessage, err);
+      log.error('Auto-updater error:', errorMessage);
 
       // Preserve update info if we have it
       const previousVersion = this.updateState.availableVersion;
@@ -381,16 +373,8 @@ class AutoUpdateService {
    */
   async downloadUpdate(): Promise<void> {
     try {
-      console.log(
-        '[downloadUpdate] Current state:',
-        this.updateState.status,
-        'Version:',
-        this.updateState.availableVersion
-      );
-
       // If we're in error state but have update info, we can retry
       if (this.updateState.status === 'error' && this.updateState.availableVersion) {
-        console.log('[downloadUpdate] Retrying download after error');
         this.updateState.status = 'available';
       }
 
@@ -402,10 +386,6 @@ class AutoUpdateService {
         throw new Error('No version information available for download');
       }
 
-      console.log(
-        '[downloadUpdate] Starting download for version:',
-        this.updateState.availableVersion
-      );
       this.downloadStartTime = Date.now();
 
       // Notify UI that download is starting
@@ -415,7 +395,7 @@ class AutoUpdateService {
       await autoUpdater.downloadUpdate();
     } catch (error: any) {
       const errorMessage = formatUpdaterError(error);
-      console.error('[downloadUpdate] Download failed:', errorMessage, error);
+      log.error('Update download failed:', errorMessage, error);
 
       // Keep the version info for retry
       const version = this.updateState.availableVersion;
