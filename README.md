@@ -58,24 +58,29 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 ### Supported CLI Providers
 
-Emdash currently supports fifteen CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR. 
+Emdash currently supports twenty CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR.
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
-| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | `npm install -g @openai/codex` |
 | [Amp](https://ampcode.com/manual) | ✅ Supported | `npm install -g @sourcegraph/amp@latest` |
 | [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | `npm install -g @augmentcode/auggie` |
 | [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | `npm install -g @charmland/crush` |
 | [Claude Code](https://www.npmjs.com/package/%40anthropic-ai/claude-code) | ✅ Supported | `npm install -g @anthropic-ai/claude-code` |
+| [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | `npm install -g cline` |
+| [Codebuff](https://www.codebuff.com/docs/help/getting-started) | ✅ Supported | `npm install -g codebuff` |
+| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | `npm install -g @openai/codex` |
+| [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | `npm i -g @continuedev/cli` |
 | [Cursor](https://cursor.com/cli) | ✅ Supported | `curl https://cursor.com/install -fsS | bash` |
 | [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | `curl -fsSL https://app.factory.ai/cli | sh` |
 | [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | `npm install -g @google/gemini-cli` |
 | [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | `npm install -g @github/copilot` |
 | [Goose](https://github.com/block/goose) | ✅ Supported | `curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash` |
-| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | `npm install -g opencode-ai` |
-| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code` |
+| [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | `npm install -g @kilocode/cli` |
 | [Kimi](https://www.kimi.com/coding/docs/en/kimi-cli.html) | ✅ Supported | `uv tool install --python 3.13 kimi-cli` |
 | [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | `curl -fsSL https://cli.kiro.dev/install | bash` |
+| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | `curl -LsSf https://mistral.ai/vibe/install.sh \| bash` |
+| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | `npm install -g opencode-ai` |
+| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code` |
 | [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | `acli rovodev auth login` |
 
 ### Issues
