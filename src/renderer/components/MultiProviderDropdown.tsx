@@ -181,7 +181,16 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                           >
                             <p>
                               Run up to {MAX_RUNS} instances of this agent to compare different
-                              solutions
+                              solutions.{' '}
+                              <a
+                                href="https://docs.emdash.sh/best-of-n"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-500 hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Docs
+                              </a>
                             </p>
                           </TooltipContent>
                         </Tooltip>
