@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { Info } from 'lucide-react';
+import { Info, ExternalLink } from 'lucide-react';
 import { type Provider } from '../types';
 import { type ProviderRun } from '../types/chat';
 import { providerConfig } from '../lib/providerConfig';
@@ -186,10 +186,11 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                                 href="https://docs.emdash.sh/best-of-n"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-500 hover:underline"
+                                className="inline-flex items-center gap-0.5 underline hover:opacity-70"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 Docs
+                                <ExternalLink className="h-3 w-3" />
                               </a>
                             </p>
                           </TooltipContent>
