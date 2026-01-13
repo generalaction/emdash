@@ -6,6 +6,7 @@ import jiraLogo from '../../assets/images/jira.png';
 import { type JiraIssueSummary } from '../types/jira';
 import { Separator } from './ui/separator';
 import { Spinner } from './ui/spinner';
+import { JiraIssuePreviewTooltip } from './JiraIssuePreviewTooltip';
 
 interface Props {
   selectedIssue: JiraIssueSummary | null;
@@ -195,12 +196,17 @@ const JiraIssueSelector: React.FC<Props> = ({
           <div className="flex w-full items-center gap-2 overflow-hidden text-left text-foreground">
             {selectedIssue ? (
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                <span className="inline-flex items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
-                  <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-                  <span className="text-[11px] font-medium text-foreground">
-                    {selectedIssue.key}
+                <JiraIssuePreviewTooltip issue={selectedIssue}>
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-medium text-foreground">
+                      {selectedIssue.key}
+                    </span>
                   </span>
-                </span>
+                </JiraIssuePreviewTooltip>
                 {selectedIssue.summary ? (
                   <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                     <span className="text-foreground">-</span>
@@ -237,17 +243,19 @@ const JiraIssueSelector: React.FC<Props> = ({
             <Separator className="my-1" />
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
-                <SelectItem key={issue.id || issue.key} value={issue.key}>
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
-                      <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-                      <span className="text-[11px] font-medium text-foreground">{issue.key}</span>
+                <JiraIssuePreviewTooltip key={issue.id || issue.key} issue={issue} side="left">
+                  <SelectItem value={issue.key}>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
+                        <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
+                        <span className="text-[11px] font-medium text-foreground">{issue.key}</span>
+                      </span>
+                      {issue.summary ? (
+                        <span className="truncate text-foreground">{issue.summary}</span>
+                      ) : null}
                     </span>
-                    {issue.summary ? (
-                      <span className="truncate text-foreground">{issue.summary}</span>
-                    ) : null}
-                  </span>
-                </SelectItem>
+                  </SelectItem>
+                </JiraIssuePreviewTooltip>
               ))
             ) : searchTerm.trim() ? (
               <div className="px-3 py-2 text-sm text-muted-foreground">

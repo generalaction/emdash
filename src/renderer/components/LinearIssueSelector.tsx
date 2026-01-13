@@ -6,6 +6,7 @@ import linearLogo from '../../assets/images/linear.png';
 import { type LinearIssueSummary } from '../types/linear';
 import { Separator } from './ui/separator';
 import { Spinner } from './ui/spinner';
+import { LinearIssuePreviewTooltip } from './LinearIssuePreviewTooltip';
 
 interface LinearIssueSelectorProps {
   selectedIssue: LinearIssueSummary | null;
@@ -245,12 +246,17 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
           <div className="flex w-full items-center gap-2 overflow-hidden text-left text-foreground">
             {selectedIssue ? (
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                <span className="inline-flex items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
-                  <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
-                  <span className="text-[11px] font-medium text-foreground">
-                    {selectedIssue.identifier}
+                <LinearIssuePreviewTooltip issue={selectedIssue}>
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
+                    <span className="text-[11px] font-medium text-foreground">
+                      {selectedIssue.identifier}
+                    </span>
                   </span>
-                </span>
+                </LinearIssuePreviewTooltip>
                 {selectedIssue.title ? (
                   <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                     <span className="text-foreground">-</span>
@@ -287,19 +293,21 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
             <Separator className="my-1" />
             {showIssues.length > 0 ? (
               showIssues.map((issue) => (
-                <SelectItem key={issue.id || issue.identifier} value={issue.identifier}>
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
-                      <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
-                      <span className="text-[11px] font-medium text-foreground">
-                        {issue.identifier}
+                <LinearIssuePreviewTooltip key={issue.id || issue.identifier} issue={issue} side="left">
+                  <SelectItem value={issue.identifier}>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
+                        <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
+                        <span className="text-[11px] font-medium text-foreground">
+                          {issue.identifier}
+                        </span>
                       </span>
+                      {issue.title ? (
+                        <span className="ml-2 truncate text-muted-foreground">{issue.title}</span>
+                      ) : null}
                     </span>
-                    {issue.title ? (
-                      <span className="ml-2 truncate text-muted-foreground">{issue.title}</span>
-                    ) : null}
-                  </span>
-                </SelectItem>
+                  </SelectItem>
+                </LinearIssuePreviewTooltip>
               ))
             ) : searchTerm.trim() ? (
               <div className="px-3 py-2 text-sm text-muted-foreground">
