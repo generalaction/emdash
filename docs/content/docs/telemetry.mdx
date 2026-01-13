@@ -26,17 +26,23 @@ TELEMETRY_ENABLED=false
 
 ## What We Collect
 
-Anonymous, aggregated usage data only.
+Anonymous, aggregated usage data only. If you have authenticated with GitHub, your GitHub username may be included with telemetry events to help us understand user engagement patterns.
 
 ### App Lifecycle
 
 **`app_started`** / **`app_closed`**
 
 - `app_version`, `electron_version`, `platform`, `arch`, `is_dev`, `install_source`
+- `github_username` (if authenticated with GitHub)
 
 **`app_session`** (on quit)
 
 - `session_duration_ms`
+
+**`daily_active_user`** (once per calendar day)
+
+- `date`, `timezone`
+- `github_username` (if authenticated with GitHub)
 
 ### Feature Usage
 
@@ -103,7 +109,7 @@ All events include only: event name, anonymized properties (e.g., `provider: "cl
 - File paths or repository names
 - Prompts or messages sent to agents
 - Environment variables
-- Personally identifiable information (PII)
+- Personally identifiable information (PII) except GitHub username if authenticated
 - User text input or command contents
 - IP-derived location data
 - Session recordings or screen captures

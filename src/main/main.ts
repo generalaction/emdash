@@ -146,8 +146,8 @@ app.whenReady().then(async () => {
     console.error('Failed to initialize database:', error);
   }
 
-  // Initialize telemetry (privacy-first, anonymous)
-  telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
+  // Initialize telemetry (privacy-first, with optional GitHub username)
+  await telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
   try {
     const summary = databaseService.getLastMigrationSummary();
     const toBucket = (n: number) => (n === 0 ? '0' : n === 1 ? '1' : n <= 3 ? '2-3' : '>3');
