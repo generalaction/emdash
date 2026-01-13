@@ -16,7 +16,6 @@ import { registerTelemetryIpc } from './telemetryIpc';
 import { registerJiraIpc } from './jiraIpc';
 import { registerPlanLockIpc } from '../services/planLockIpc';
 import { registerSettingsIpc } from './settingsIpc';
-import { registerContainerIpc } from './containerIpc';
 import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
@@ -36,7 +35,6 @@ export function registerAllIpc() {
   registerGithubIpc();
   registerDatabaseIpc();
   registerGitIpc();
-  registerContainerIpc();
   registerHostPreviewIpc();
   registerBrowserIpc();
   registerNetIpc();

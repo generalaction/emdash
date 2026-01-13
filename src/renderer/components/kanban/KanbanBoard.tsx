@@ -5,12 +5,7 @@ import KanbanCard from './KanbanCard';
 import { Button } from '../ui/button';
 import { Inbox, Plus } from 'lucide-react';
 import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
-import {
-  subscribeDerivedStatus,
-  watchTaskPty,
-  watchTaskContainers,
-  watchTaskActivity,
-} from '../../lib/taskStatus';
+import { subscribeDerivedStatus, watchTaskPty, watchTaskActivity } from '../../lib/taskStatus';
 import { activityStore } from '../../lib/activityStore';
 import { refreshPrStatus } from '../../lib/prStatusStore';
 
@@ -41,7 +36,6 @@ const KanbanBoard: React.FC<{
       // Watch PTY output to capture terminal-based providers as activity
       offs.push(watchTaskPty(ws.id));
       // Watch container run state as another activity source (build/start/ready)
-      offs.push(watchTaskContainers(ws.id));
       // Watch app-wide activity classification (matches left sidebar spinner)
       offs.push(watchTaskActivity(ws.id));
       const off = subscribeDerivedStatus(ws.id, (derived) => {

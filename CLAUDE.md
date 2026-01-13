@@ -87,7 +87,6 @@ npm run docs:build   # Build documentation
 **Services** (`src/main/services/`):
 - `WorktreeService.ts` (37KB) - Git worktree management, file preservation patterns
 - `DatabaseService.ts` (28KB) - SQLite database operations
-- `containerRunnerService.ts` (31KB) - Container orchestration for agents
 - `GitHubService.ts` (30KB) - GitHub integration via CLI
 - `PrGenerationService.ts` (22KB) - Automated PR generation
 - `TerminalConfigParser.ts` (22KB) - Terminal configuration parsing
@@ -140,7 +139,6 @@ npm run docs:build   # Build documentation
 
 ### Shared Code (`src/shared/`)
 
-- **Container module** - Orchestration config, port management, mock runner
 - **Providers registry** - 20+ agent definitions with CLI commands, auth flags
 - **LineComments utility** - Comment formatting helpers
 

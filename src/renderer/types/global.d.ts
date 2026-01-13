@@ -144,11 +144,6 @@ declare global {
         content?: string;
         error?: string;
       }>;
-      createRun: (config: any) => Promise<string>;
-      cancelRun: (runId: string) => Promise<void>;
-      getRunDiff: (runId: string) => Promise<any>;
-      onRunEvent: (callback: (event: any) => void) => void;
-      removeRunEventListeners: () => void;
       githubAuth: () => Promise<{ success: boolean; token?: string; user?: any; error?: string }>;
       githubIsAuthenticated: () => Promise<boolean>;
       githubGetUser: () => Promise<any>;

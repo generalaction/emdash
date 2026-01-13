@@ -1,5 +1,4 @@
 // Updated for Codex integration
-import type { ResolvedContainerConfig, RunnerEvent, RunnerMode } from '../../shared/container';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -445,56 +444,6 @@ declare global {
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
       }>;
-      loadContainerConfig: (taskPath: string) => Promise<
-        | {
-            ok: true;
-            config: ResolvedContainerConfig;
-            sourcePath: string | null;
-          }
-        | {
-            ok: false;
-            error: {
-              code:
-                | 'INVALID_ARGUMENT'
-                | 'INVALID_JSON'
-                | 'VALIDATION_FAILED'
-                | 'IO_ERROR'
-                | 'UNKNOWN'
-                | 'PORT_ALLOC_FAILED';
-              message: string;
-              configPath: string | null;
-              configKey: string | null;
-            };
-          }
-      >;
-      startContainerRun: (args: {
-        taskId: string;
-        taskPath: string;
-        runId?: string;
-        mode?: RunnerMode;
-      }) => Promise<
-        | {
-            ok: true;
-            runId: string;
-            sourcePath: string | null;
-          }
-        | {
-            ok: false;
-            error: {
-              code:
-                | 'INVALID_ARGUMENT'
-                | 'INVALID_JSON'
-                | 'VALIDATION_FAILED'
-                | 'IO_ERROR'
-                | 'PORT_ALLOC_FAILED'
-                | 'UNKNOWN';
-              message: string;
-              configPath: string | null;
-              configKey: string | null;
-            };
-          }
-      >;
-      stopContainerRun: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
         app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
@@ -625,10 +574,6 @@ declare global {
         fileName?: string;
         error?: string;
       }>;
-
-      // Run events
-      onRunEvent: (callback: (event: RunnerEvent) => void) => void;
-      removeRunEventListeners: () => void;
 
       // GitHub integration
       githubAuth: () => Promise<{
@@ -1073,10 +1018,6 @@ export interface ElectronAPI {
     }>;
     error?: string;
   }>;
-
-  // Run events
-  onRunEvent: (callback: (event: RunnerEvent) => void) => void;
-  removeRunEventListeners: () => void;
 
   // GitHub integration
   githubAuth: () => Promise<{

@@ -17,7 +17,6 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Home, ChevronRight, Plus, FolderOpen, Github } from 'lucide-react';
-import ActiveRuns from './ActiveRuns';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
@@ -152,12 +151,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
-          <ActiveRuns
-            projects={projects}
-            onSelectProject={onSelectProject}
-            onSelectTask={onSelectTask}
-          />
-
           {projects.length === 0 && (
             <SidebarEmptyState
               title="No projects yet"
