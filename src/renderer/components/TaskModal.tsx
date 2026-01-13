@@ -287,7 +287,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
           </div>
 
           <div className="flex items-center gap-4">
-            <Label className="shrink-0">AI Provider</Label>
+            <Label className="shrink-0">Agent</Label>
             <MultiProviderDropdown
               providerRuns={providerRuns}
               onChange={setProviderRuns}
