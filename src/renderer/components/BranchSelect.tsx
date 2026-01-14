@@ -11,7 +11,10 @@ export type BranchOption = {
 /**
  * Pick best default: preferredValue if valid, else origin/main > main > first option.
  */
-export function pickDefaultBranch(options: BranchOption[], preferredValue?: string): string | undefined {
+export function pickDefaultBranch(
+  options: BranchOption[],
+  preferredValue?: string
+): string | undefined {
   if (options.length === 0) return undefined;
 
   if (preferredValue && options.some((opt) => opt.value === preferredValue)) {
@@ -76,7 +79,10 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
     return [selectedOption, ...filteredOptions];
   }, [filteredOptions, options, value]);
 
-  const estimatedListHeight = Math.min(MAX_LIST_HEIGHT, Math.max(displayedOptions.length, 1) * ROW_HEIGHT);
+  const estimatedListHeight = Math.min(
+    MAX_LIST_HEIGHT,
+    Math.max(displayedOptions.length, 1) * ROW_HEIGHT
+  );
 
   // Focus search input when dropdown opens
   useEffect(() => {
@@ -147,9 +153,7 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
                 </SelectItem>
               ))
             ) : (
-              <div className="px-3 py-2 text-xs text-muted-foreground">
-                No matching branches
-              </div>
+              <div className="px-3 py-2 text-xs text-muted-foreground">No matching branches</div>
             )}
           </div>
         </ScrollArea>

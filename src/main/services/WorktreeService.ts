@@ -150,7 +150,9 @@ export class WorktreeService {
           baseRefInfo = parsed;
         } else {
           // If parsing failed, fall back to project settings
-          log.warn(`Failed to parse provided baseRef '${baseRef}', falling back to project settings`);
+          log.warn(
+            `Failed to parse provided baseRef '${baseRef}', falling back to project settings`
+          );
           baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
         }
       } else {
