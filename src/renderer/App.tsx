@@ -21,6 +21,7 @@ import RightSidebar from './components/RightSidebar';
 import CodeEditor from './components/FileExplorer/CodeEditor';
 import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
+import { pickDefaultBranch } from './components/BranchSelect';
 import { ThemeProvider } from './components/ThemeProvider';
 import Titlebar from './components/titlebar/Titlebar';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from './components/ui/resizable';
@@ -128,6 +129,12 @@ const AppContent: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
+  // Branch options (loaded when project is selected)
+  const [projectBranchOptions, setProjectBranchOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
@@ -400,6 +407,49 @@ const AppContent: React.FC = () => {
     };
     void check();
   }, []);
+
+  // Load branch options when project is selected
+  useEffect(() => {
+    if (!selectedProject) {
+      setProjectBranchOptions([]);
+      setProjectDefaultBranch('main');
+      return;
+    }
+
+    // Show current baseRef immediately while loading full list, or reset to defaults
+    const currentRef = selectedProject.gitInfo?.baseRef;
+    const initialBranch = currentRef || 'main';
+    setProjectBranchOptions([{ value: initialBranch, label: initialBranch }]);
+    setProjectDefaultBranch(initialBranch);
+
+    let cancelled = false;
+    const loadBranches = async () => {
+      setIsLoadingBranches(true);
+      try {
+        const res = await window.electronAPI.listRemoteBranches({
+          projectPath: selectedProject.path,
+        });
+        if (cancelled) return;
+        if (res.success && res.branches) {
+          const options = res.branches.map((b) => ({ value: b.label, label: b.label }));
+          setProjectBranchOptions(options);
+          const defaultBranch = pickDefaultBranch(options, currentRef);
+          setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');
+        }
+      } catch (error) {
+        console.error('Failed to load branches:', error);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingBranches(false);
+        }
+      }
+    };
+
+    void loadBranches();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject]);
 
   // Load autoRightSidebarBehavior setting on mount and listen for changes
   useEffect(() => {
@@ -1066,7 +1116,8 @@ const AppContent: React.FC = () => {
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
     autoApprove?: boolean,
-    useWorktree: boolean = true
+    useWorktree: boolean = true,
+    baseRef?: string
   ) => {
     if (!selectedProject) return;
 
@@ -1209,6 +1260,7 @@ const AppContent: React.FC = () => {
                 taskName: variantName,
                 projectId: selectedProject.id,
                 autoApprove,
+                baseRef,
               });
               if (!worktreeResult?.success || !worktreeResult.worktree) {
                 throw new Error(
@@ -1287,6 +1339,7 @@ const AppContent: React.FC = () => {
             taskName,
             projectId: selectedProject.id,
             autoApprove,
+            baseRef,
           });
 
           if (!worktreeResult.success) {
@@ -2001,6 +2054,9 @@ const AppContent: React.FC = () => {
               onDeleteTask={handleDeleteTask}
               isCreatingTask={isCreatingTask}
               onDeleteProject={handleDeleteProject}
+              branchOptions={projectBranchOptions}
+              isLoadingBranches={isLoadingBranches}
+              onBaseBranchChange={setProjectDefaultBranch}
             />
           )}
         </div>
@@ -2161,9 +2217,11 @@ const AppContent: React.FC = () => {
                 onClose={() => setShowTaskModal(false)}
                 onCreateTask={handleCreateTask}
                 projectName={selectedProject?.name || ''}
-                defaultBranch={selectedProject?.gitInfo.branch || 'main'}
+                defaultBranch={projectDefaultBranch}
                 existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
                 projectPath={selectedProject?.path}
+                branchOptions={projectBranchOptions}
+                isLoadingBranches={isLoadingBranches}
               />
               <NewProjectModal
                 isOpen={showNewProjectModal}
