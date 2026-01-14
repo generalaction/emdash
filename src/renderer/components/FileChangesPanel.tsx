@@ -244,9 +244,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {fileChanges.length} files changed
-                </span>
                 <div className="flex shrink-0 items-center gap-1 text-xs">
                   <span className="font-medium text-green-600 dark:text-green-400">
                     +{totalChanges.additions}
