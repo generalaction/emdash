@@ -417,12 +417,11 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // Show current baseRef immediately while loading full list
+    // Show current baseRef immediately while loading full list, or reset to defaults
     const currentRef = selectedProject.gitInfo?.baseRef;
-    if (currentRef) {
-      setProjectBranchOptions([{ value: currentRef, label: currentRef }]);
-      setProjectDefaultBranch(currentRef);
-    }
+    const initialBranch = currentRef || 'main';
+    setProjectBranchOptions([{ value: initialBranch, label: initialBranch }]);
+    setProjectDefaultBranch(initialBranch);
 
     let cancelled = false;
     const loadBranches = async () => {
