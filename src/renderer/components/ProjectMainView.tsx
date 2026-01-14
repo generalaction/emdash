@@ -29,8 +29,8 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
-import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
-import { pickDefaultBranch } from './BranchSelect';
+import BaseBranchControls from './BaseBranchControls';
+import { pickDefaultBranch, type BranchOption } from './BranchSelect';
 import { ConfigEditorModal } from './ConfigEditorModal';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -411,7 +411,7 @@ interface ProjectMainViewProps {
   ) => void | Promise<void | boolean>;
   isCreatingTask?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
-  branchOptions: RemoteBranchOption[];
+  branchOptions: BranchOption[];
   isLoadingBranches: boolean;
 }
 

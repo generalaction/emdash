@@ -1,11 +1,9 @@
 import React from 'react';
 import BranchSelect, { type BranchOption } from './BranchSelect';
 
-export type RemoteBranchOption = BranchOption;
-
 interface BaseBranchControlsProps {
   baseBranch?: string;
-  branchOptions: RemoteBranchOption[];
+  branchOptions: BranchOption[];
   isLoadingBranches: boolean;
   isSavingBaseBranch: boolean;
   onBaseBranchChange: (value: string) => void;
