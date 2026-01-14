@@ -53,6 +53,10 @@ export interface Conversation {
   id: string;
   taskId: string;
   title: string;
+  provider?: string | null;
+  isActive?: boolean;
+  displayOrder?: number;
+  metadata?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -308,12 +312,20 @@ export class DatabaseService {
         id: conversation.id,
         taskId: conversation.taskId,
         title: conversation.title,
+        provider: conversation.provider ?? null,
+        isActive: conversation.isActive ? 1 : 0,
+        displayOrder: conversation.displayOrder ?? 0,
+        metadata: conversation.metadata ?? null,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
         target: conversationsTable.id,
         set: {
           title: conversation.title,
+          provider: conversation.provider ?? null,
+          isActive: conversation.isActive ? 1 : 0,
+          displayOrder: conversation.displayOrder ?? 0,
+          metadata: conversation.metadata ?? null,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
@@ -326,7 +338,7 @@ export class DatabaseService {
       .select()
       .from(conversationsTable)
       .where(eq(conversationsTable.taskId, taskId))
-      .orderBy(desc(conversationsTable.updatedAt));
+      .orderBy(asc(conversationsTable.displayOrder), desc(conversationsTable.updatedAt));
     return rows.map((row) => this.mapDrizzleConversationRow(row));
   }
 
@@ -426,6 +438,121 @@ export class DatabaseService {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
     await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  }
+
+  // New multi-chat methods
+  async createConversation(
+    taskId: string,
+    title: string,
+    provider?: string
+  ): Promise<Conversation> {
+    if (this.disabled) {
+      return {
+        id: `conv-${taskId}-${Date.now()}`,
+        taskId,
+        title,
+        provider: provider ?? null,
+        isActive: true,
+        displayOrder: 0,
+        metadata: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    const { db } = await getDrizzleClient();
+
+    // Get the next display order
+    const existingConversations = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.taskId, taskId));
+
+    const maxOrder = Math.max(...existingConversations.map((c) => c.displayOrder || 0), -1);
+
+    // Deactivate other conversations
+    await db
+      .update(conversationsTable)
+      .set({ isActive: 0 })
+      .where(eq(conversationsTable.taskId, taskId));
+
+    // Create the new conversation
+    const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newConversation = {
+      id: conversationId,
+      taskId,
+      title,
+      provider: provider ?? null,
+      isActive: true,
+      displayOrder: maxOrder + 1,
+    };
+
+    await this.saveConversation(newConversation);
+
+    // Fetch the created conversation
+    const [createdRow] = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, conversationId))
+      .limit(1);
+
+    return this.mapDrizzleConversationRow(createdRow);
+  }
+
+  async setActiveConversation(taskId: string, conversationId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+
+    await db.transaction(async (tx) => {
+      // Deactivate all conversations for this task
+      await tx
+        .update(conversationsTable)
+        .set({ isActive: 0 })
+        .where(eq(conversationsTable.taskId, taskId));
+
+      // Activate the selected one
+      await tx
+        .update(conversationsTable)
+        .set({ isActive: 1, updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(conversationsTable.id, conversationId));
+    });
+  }
+
+  async getActiveConversation(taskId: string): Promise<Conversation | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+
+    const results = await db
+      .select()
+      .from(conversationsTable)
+      .where(and(eq(conversationsTable.taskId, taskId), eq(conversationsTable.isActive, 1)))
+      .limit(1);
+
+    return results[0] ? this.mapDrizzleConversationRow(results[0]) : null;
+  }
+
+  async reorderConversations(taskId: string, conversationIds: string[]): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < conversationIds.length; i++) {
+        await tx
+          .update(conversationsTable)
+          .set({ displayOrder: i })
+          .where(eq(conversationsTable.id, conversationIds[i]));
+      }
+    });
+  }
+
+  async updateConversationTitle(conversationId: string, title: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+
+    await db
+      .update(conversationsTable)
+      .set({ title, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(conversationsTable.id, conversationId));
   }
 
   // Line comment management methods
@@ -609,6 +736,10 @@ export class DatabaseService {
       id: row.id,
       taskId: row.taskId,
       title: row.title,
+      provider: row.provider ?? null,
+      isActive: row.isActive === 1,
+      displayOrder: row.displayOrder ?? 0,
+      metadata: row.metadata ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

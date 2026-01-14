@@ -739,7 +739,12 @@ declare global {
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
       deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
 
-      // Message operations
+      // Conversation and Message operations
+      saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
+      getConversations: (
+        taskId: string
+      ) => Promise<{ success: boolean; conversations?: any[]; error?: string }>;
+      deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
       saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
       getMessages: (
         conversationId: string
@@ -747,6 +752,28 @@ declare global {
       getOrCreateDefaultConversation: (
         taskId: string
       ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+
+      // Multi-chat support
+      createConversation: (params: {
+        taskId: string;
+        title: string;
+        provider?: string;
+      }) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+      setActiveConversation: (params: {
+        taskId: string;
+        conversationId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      getActiveConversation: (
+        taskId: string
+      ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+      reorderConversations: (params: {
+        taskId: string;
+        conversationIds: string[];
+      }) => Promise<{ success: boolean; error?: string }>;
+      updateConversationTitle: (params: {
+        conversationId: string;
+        title: string;
+      }) => Promise<{ success: boolean; error?: string }>;
 
       // Debug helpers
       debugAppendLog: (

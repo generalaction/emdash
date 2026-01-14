@@ -415,6 +415,11 @@ export class TerminalSessionManager {
   private connectPty() {
     const { taskId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
     const id = taskId;
+
+    // Don't automatically skip resume for chat terminals
+    // Let the backend decide based on whether conversation history exists
+    const skipResume = undefined;
+
     void window.electronAPI
       .ptyStart({
         id,
@@ -425,6 +430,7 @@ export class TerminalSessionManager {
         rows: initialSize.rows,
         autoApprove,
         initialPrompt,
+        skipResume,
       })
       .then((result) => {
         if (result?.ok) {
@@ -489,11 +495,15 @@ export class TerminalSessionManager {
 
   /**
    * Check if this terminal ID is a provider CLI that supports native resume.
-   * Provider CLIs use the format: `${provider}-main-${taskId}`
+   * Provider CLIs use the format:
+   * - `${provider}-main-${taskId}` for main task terminals
+   * - `${provider}-chat-${conversationId}` for chat-specific terminals
    * If the provider has a resumeFlag, we skip snapshot restoration to avoid duplicate history.
    */
   private isProviderWithResume(id: string): boolean {
-    const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+    const mainMatch = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+    const chatMatch = /^([a-z0-9_-]+)-chat-(.+)$/.exec(id);
+    const match = mainMatch || chatMatch;
     if (!match) return false;
     const providerId = match[1] as ProviderId;
     if (!PROVIDER_IDS.includes(providerId)) return false;

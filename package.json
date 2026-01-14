@@ -50,6 +50,7 @@
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.16",
+    "better-sqlite3": "^12.6.0",
     "concurrently": "^8.2.2",
     "drizzle-kit": "^0.24.1",
     "electron": "^30.5.1",

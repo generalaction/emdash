@@ -7,6 +7,7 @@ import { getAppSettings } from '../settings';
 import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
+import { databaseService } from './DatabaseService';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
@@ -43,16 +44,36 @@ export function registerPtyIpc(): void {
           if (parsed) {
             const provider = getProvider(parsed.providerId);
             if (provider?.resumeFlag) {
-              // Check if snapshot exists before using resume flag
-              try {
-                const snapshot = await terminalSnapshotService.getSnapshot(id);
-                if (!snapshot || !snapshot.data) {
-                  log.info('ptyIpc:noSnapshot - skipping resume flag', { id });
+              // For chat terminals, check if conversation has messages
+              // For main terminals, check if snapshot exists
+              const isChatTerminal = id.includes('-chat-');
+
+              if (isChatTerminal) {
+                // For chat terminals, check if the conversation has any messages
+                // If it's a brand new chat, skip the resume flag
+                try {
+                  const conversationId = parsed.taskId; // For chat terminals, taskId is actually conversationId
+                  const messages = await databaseService.getMessages(conversationId);
+                  if (!messages || messages.length === 0) {
+                    log.info('ptyIpc:newChat - skipping resume flag for new conversation', { id });
+                    shouldSkipResume = true;
+                  }
+                } catch (err) {
+                  log.warn('ptyIpc:messageCheckFailed - skipping resume', { id, error: err });
                   shouldSkipResume = true;
                 }
-              } catch (err) {
-                log.warn('ptyIpc:snapshotCheckFailed - skipping resume', { id, error: err });
-                shouldSkipResume = true;
+              } else {
+                // For main terminals, check if snapshot exists
+                try {
+                  const snapshot = await terminalSnapshotService.getSnapshot(id);
+                  if (!snapshot || !snapshot.data) {
+                    log.info('ptyIpc:noSnapshot - skipping resume flag', { id });
+                    shouldSkipResume = true;
+                  }
+                } catch (err) {
+                  log.warn('ptyIpc:snapshotCheckFailed - skipping resume', { id, error: err });
+                  shouldSkipResume = true;
+                }
               }
             }
           }
@@ -198,12 +219,19 @@ function parseProviderPty(id: string): {
   providerId: ProviderId;
   taskId: string;
 } | null {
-  // Chat terminals are named `${provider}-main-${taskId}`
-  const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+  // Chat terminals can be:
+  // - `${provider}-main-${taskId}` for main task terminals
+  // - `${provider}-chat-${conversationId}` for chat-specific terminals
+  const mainMatch = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+  const chatMatch = /^([a-z0-9_-]+)-chat-(.+)$/.exec(id);
+
+  const match = mainMatch || chatMatch;
   if (!match) return null;
+
   const providerId = match[1] as ProviderId;
   if (!PROVIDER_IDS.includes(providerId)) return null;
-  const taskId = match[2];
+
+  const taskId = match[2]; // This is either taskId or conversationId
   return { providerId, taskId };
 }
 

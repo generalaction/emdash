@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useReducedMotion } from 'motion/react';
+import { Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { providerMeta } from '../providers/meta';
+import { providerConfig } from '../lib/providerConfig';
 import ProviderDisplay from './ProviderDisplay';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
@@ -16,6 +18,8 @@ import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { TaskScopeProvider } from './TaskScopeContext';
+import { CreateChatModal } from './CreateChatModal';
+import { type Conversation } from '../../main/services/DatabaseService';
 
 declare const window: Window & {
   electronAPI: {
@@ -47,7 +51,23 @@ const ChatInterface: React.FC<Props> = ({
   const browser = useBrowser();
   const [cliStartFailed, setCliStartFailed] = useState(false);
   const reduceMotion = useReducedMotion();
-  const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
+
+  // Multi-chat state
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [showCreateChatModal, setShowCreateChatModal] = useState(false);
+  const [installedProviders, setInstalledProviders] = useState<string[]>([]);
+
+  // Update terminal ID to include conversation ID and provider - unique per conversation
+  const terminalId = useMemo(() => {
+    if (activeConversationId) {
+      // Include provider in the ID so the backend can determine the CLI to use
+      // Format: ${provider}-chat-${conversationId}
+      return `${provider}-chat-${activeConversationId}`;
+    }
+    return `${provider}-main-${task.id}`;
+  }, [activeConversationId, provider, task.id]);
+
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
   // Line comments for agent context injection
@@ -55,6 +75,65 @@ const ChatInterface: React.FC<Props> = ({
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
+
+  // Load conversations when task changes
+  useEffect(() => {
+    const loadConversations = async () => {
+      const result = await window.electronAPI.getConversations(task.id);
+      if (result.success && result.conversations && result.conversations.length > 0) {
+        setConversations(result.conversations);
+
+        // Set active conversation
+        const active = result.conversations.find((c: Conversation) => c.isActive);
+        if (active) {
+          setActiveConversationId(active.id);
+          // Update provider to match the active conversation
+          if (active.provider) {
+            setProvider(active.provider as Provider);
+          }
+        } else {
+          // Fallback to first conversation
+          const firstConv = result.conversations[0];
+          setActiveConversationId(firstConv.id);
+          // Update provider to match the first conversation
+          if (firstConv.provider) {
+            setProvider(firstConv.provider as Provider);
+          }
+          await window.electronAPI.setActiveConversation({
+            taskId: task.id,
+            conversationId: firstConv.id,
+          });
+        }
+      } else {
+        // No conversations exist - create default for backward compatibility
+        // This ensures existing tasks always have at least one conversation
+        // (preserves pre-multi-chat behavior)
+        const defaultResult = await window.electronAPI.getOrCreateDefaultConversation(task.id);
+        if (defaultResult.success && defaultResult.conversation) {
+          // Update the default conversation to have the current provider
+          const conversationWithProvider = {
+            ...defaultResult.conversation,
+            provider: provider,
+          };
+          setConversations([conversationWithProvider]);
+          setActiveConversationId(defaultResult.conversation.id);
+
+          // Save the provider to the conversation
+          await window.electronAPI.saveConversation(conversationWithProvider);
+        }
+      }
+    };
+
+    loadConversations();
+  }, [task.id]);
+
+  // Track installed providers
+  useEffect(() => {
+    const installed = Object.entries(providerStatuses)
+      .filter(([_, status]) => status.installed === true)
+      .map(([id]) => id);
+    setInstalledProviders(installed);
+  }, [providerStatuses]);
 
   // Auto-focus terminal when switching to this task
   useEffect(() => {
@@ -187,6 +266,141 @@ const ChatInterface: React.FC<Props> = ({
       setProvider(initialProvider || 'codex');
     }
   }, [task.id, initialProvider]);
+
+  // Chat management handlers
+  const handleCreateChat = useCallback(
+    async (title: string, newProvider: string) => {
+      try {
+        // Don't dispose the current terminal - each chat has its own independent session
+
+        const result = await window.electronAPI.createConversation({
+          taskId: task.id,
+          title,
+          provider: newProvider,
+        });
+
+        if (result.success && result.conversation) {
+          // Reload conversations
+          const conversationsResult = await window.electronAPI.getConversations(task.id);
+          if (conversationsResult.success) {
+            setConversations(conversationsResult.conversations || []);
+          }
+          setActiveConversationId(result.conversation.id);
+          setProvider(newProvider as Provider);
+          toast({
+            title: 'Chat Created',
+            description: `Created new chat: ${title}`,
+          });
+        } else {
+          console.error('Failed to create conversation:', result.error);
+          toast({
+            title: 'Error',
+            description: result.error || 'Failed to create chat',
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        console.error('Exception creating conversation:', error);
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to create chat',
+          variant: 'destructive',
+        });
+      }
+    },
+    [task.id, toast]
+  );
+
+  const handleCreateNewChat = useCallback(() => {
+    setShowCreateChatModal(true);
+  }, []);
+
+  const handleSwitchChat = useCallback(
+    async (conversationId: string) => {
+      // Don't dispose terminals - just switch between them
+      // Each chat maintains its own persistent terminal session
+
+      await window.electronAPI.setActiveConversation({
+        taskId: task.id,
+        conversationId,
+      });
+      setActiveConversationId(conversationId);
+
+      // Update provider based on conversation
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (conv?.provider) {
+        setProvider(conv.provider as Provider);
+      }
+    },
+    [task.id, conversations]
+  );
+
+  const handleCloseChat = useCallback(
+    async (conversationId: string) => {
+      if (conversations.length <= 1) {
+        toast({
+          title: 'Cannot Close',
+          description: 'Cannot close the last chat',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const confirm = window.confirm(
+        'Delete this chat and all its messages? This action cannot be undone.'
+      );
+      if (!confirm) return;
+
+      // Only dispose the terminal when actually deleting the chat
+      // Find the conversation to get its provider
+      const convToDelete = conversations.find((c) => c.id === conversationId);
+      const convProvider = convToDelete?.provider || provider;
+      const terminalToDispose = `${convProvider}-chat-${conversationId}`;
+      terminalSessionRegistry.dispose(terminalToDispose);
+
+      await window.electronAPI.deleteConversation(conversationId);
+
+      // Reload conversations
+      const result = await window.electronAPI.getConversations(task.id);
+      if (result.success) {
+        setConversations(result.conversations || []);
+        // Switch to another chat if we deleted the active one
+        if (
+          conversationId === activeConversationId &&
+          result.conversations &&
+          result.conversations.length > 0
+        ) {
+          const newActive = result.conversations[0];
+          await window.electronAPI.setActiveConversation({
+            taskId: task.id,
+            conversationId: newActive.id,
+          });
+          setActiveConversationId(newActive.id);
+          // Update provider if needed
+          if (newActive.provider) {
+            setProvider(newActive.provider as Provider);
+          }
+        }
+      }
+    },
+    [task.id, conversations, activeConversationId, toast, provider]
+  );
+
+  const handleRenameChat = useCallback(
+    async (conversationId: string, newTitle: string) => {
+      await window.electronAPI.updateConversationTitle({
+        conversationId,
+        title: newTitle,
+      });
+
+      // Reload conversations
+      const result = await window.electronAPI.getConversations(task.id);
+      if (result.success) {
+        setConversations(result.conversations || []);
+      }
+    },
+    [task.id]
+  );
 
   // Persist last-selected provider per task (including Droid)
   useEffect(() => {
@@ -468,17 +682,94 @@ const ChatInterface: React.FC<Props> = ({
       <div
         className={`flex h-full flex-col ${effectiveTheme === 'dark-black' ? 'bg-black' : 'bg-card'} ${className}`}
       >
+        {/* Create Chat Modal */}
+        <CreateChatModal
+          isOpen={showCreateChatModal}
+          onClose={() => setShowCreateChatModal(false)}
+          onCreateChat={handleCreateChat}
+          installedProviders={installedProviders}
+          currentProvider={provider}
+          taskName={task.name}
+        />
+
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">
             <div className="mx-auto max-w-4xl space-y-2">
               <div className="flex items-center justify-between">
-                <ProviderDisplay
-                  provider={provider}
-                  taskId={task.id}
-                  linearIssue={task.metadata?.linearIssue || null}
-                  githubIssue={task.metadata?.githubIssue || null}
-                  jiraIssue={task.metadata?.jiraIssue || null}
-                />
+                <div className="flex items-center gap-2">
+                  {/* Show all chats as tabs - initial chat on left, new ones to the right */}
+                  {conversations
+                    .sort((a, b) => {
+                      // Sort by display order or creation time to maintain consistent order
+                      if (a.displayOrder !== undefined && b.displayOrder !== undefined) {
+                        return a.displayOrder - b.displayOrder;
+                      }
+                      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                    })
+                    .map((conv) => {
+                      const isActive = conv.id === activeConversationId;
+                      const convProvider = conv.provider || provider;
+                      const config = providerConfig[convProvider as Provider];
+                      const providerName = config?.name || convProvider;
+
+                      return (
+                        <button
+                          key={conv.id}
+                          onClick={() => handleSwitchChat(conv.id)}
+                          className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors ${
+                            isActive
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-muted hover:bg-muted/80'
+                          }`}
+                          title={`${providerName} - ${conv.title}`}
+                        >
+                          {config?.logo && (
+                            <img
+                              src={config.logo}
+                              alt=""
+                              className={`h-3.5 w-3.5 flex-shrink-0 object-contain ${
+                                config.invertInDark ? 'dark:invert' : ''
+                              }`}
+                            />
+                          )}
+                          <span className="max-w-[10rem] truncate">{providerName}</span>
+                          {conversations.length > 1 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCloseChat(conv.id);
+                              }}
+                              className="ml-1 rounded hover:bg-background/20"
+                              title="Close chat"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </button>
+                      );
+                    })}
+
+                  <button
+                    onClick={handleCreateNewChat}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-muted transition-colors hover:bg-muted/80"
+                    title="New Chat"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+
+                  {/* Show issue badges separately */}
+                  {(task.metadata?.linearIssue ||
+                    task.metadata?.githubIssue ||
+                    task.metadata?.jiraIssue) && (
+                    <ProviderDisplay
+                      provider={provider}
+                      taskId={task.id}
+                      linearIssue={task.metadata?.linearIssue || null}
+                      githubIssue={task.metadata?.githubIssue || null}
+                      jiraIssue={task.metadata?.jiraIssue || null}
+                    />
+                  )}
+                </div>
                 {autoApproveEnabled && (
                   <div className="inline-flex items-center gap-1.5 rounded-md border border-orange-500/50 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-400">
                     <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
@@ -530,6 +821,7 @@ const ChatInterface: React.FC<Props> = ({
                     : ''
               }`}
             >
+              {/* Always render TerminalPane since we always have at least one conversation */}
               <TerminalPane
                 id={terminalId}
                 cwd={task.path}

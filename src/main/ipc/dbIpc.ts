@@ -120,4 +120,70 @@ export function registerDatabaseIpc() {
       return { success: false, error: (error as Error).message };
     }
   });
+
+  // Multi-chat support handlers
+  ipcMain.handle(
+    'db:createConversation',
+    async (
+      _,
+      { taskId, title, provider }: { taskId: string; title: string; provider?: string }
+    ) => {
+      try {
+        const conversation = await databaseService.createConversation(taskId, title, provider);
+        return { success: true, conversation };
+      } catch (error) {
+        log.error('Failed to create conversation:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'db:setActiveConversation',
+    async (_, { taskId, conversationId }: { taskId: string; conversationId: string }) => {
+      try {
+        await databaseService.setActiveConversation(taskId, conversationId);
+        return { success: true };
+      } catch (error) {
+        log.error('Failed to set active conversation:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle('db:getActiveConversation', async (_, taskId: string) => {
+    try {
+      const conversation = await databaseService.getActiveConversation(taskId);
+      return { success: true, conversation };
+    } catch (error) {
+      log.error('Failed to get active conversation:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle(
+    'db:reorderConversations',
+    async (_, { taskId, conversationIds }: { taskId: string; conversationIds: string[] }) => {
+      try {
+        await databaseService.reorderConversations(taskId, conversationIds);
+        return { success: true };
+      } catch (error) {
+        log.error('Failed to reorder conversations:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'db:updateConversationTitle',
+    async (_, { conversationId, title }: { conversationId: string; title: string }) => {
+      try {
+        await databaseService.updateConversationTitle(conversationId, title);
+        return { success: true };
+      } catch (error) {
+        log.error('Failed to update conversation title:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
 }
