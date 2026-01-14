@@ -670,6 +670,12 @@ const AppContent: React.FC = () => {
               } else {
                 const { log } = await import('./lib/logger');
                 log.error('Failed to save project:', saveResult.error);
+                toast({
+                  title: 'Failed to Add Project',
+                  description:
+                    'Project opened but could not be saved to database. Please check console for details.',
+                  variant: 'destructive',
+                });
               }
             } else {
               const updateHint =
@@ -705,6 +711,12 @@ const AppContent: React.FC = () => {
             } else {
               const { log } = await import('./lib/logger');
               log.error('Failed to save project:', saveResult.error);
+              toast({
+                title: 'Failed to Add Project',
+                description:
+                  'Project opened but could not be saved to database. Please check console for details.',
+                variant: 'destructive',
+              });
             }
           }
         } catch (error) {
