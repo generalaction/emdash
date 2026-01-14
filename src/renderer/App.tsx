@@ -21,6 +21,7 @@ import RightSidebar from './components/RightSidebar';
 import CodeEditor from './components/FileExplorer/CodeEditor';
 import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
+import { pickDefaultBranch } from './components/BranchSelect';
 import { ThemeProvider } from './components/ThemeProvider';
 import Titlebar from './components/titlebar/Titlebar';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from './components/ui/resizable';
@@ -132,6 +133,7 @@ const AppContent: React.FC = () => {
   const [taskModalBranchOptions, setTaskModalBranchOptions] = useState<
     Array<{ value: string; label: string }>
   >([]);
+  const [taskModalDefaultBranch, setTaskModalDefaultBranch] = useState<string>('main');
   const [isLoadingTaskModalBranches, setIsLoadingTaskModalBranches] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
@@ -410,6 +412,7 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!showTaskModal || !selectedProject) {
       setTaskModalBranchOptions([]);
+      setTaskModalDefaultBranch('main');
       return;
     }
 
@@ -423,12 +426,10 @@ const AppContent: React.FC = () => {
         if (cancelled) return;
         if (res.success && res.branches) {
           const options = res.branches.map((b) => ({ value: b.label, label: b.label }));
-          // Ensure current baseRef is included
-          const currentRef = selectedProject.gitInfo?.baseRef;
-          if (currentRef && !options.some((o) => o.value === currentRef)) {
-            options.unshift({ value: currentRef, label: currentRef });
-          }
           setTaskModalBranchOptions(options);
+          // Compute default from fresh options, preferring stored baseRef if it still exists
+          const defaultBranch = pickDefaultBranch(options, selectedProject.gitInfo?.baseRef);
+          setTaskModalDefaultBranch(defaultBranch ?? 'main');
         }
       } catch (error) {
         console.error('Failed to load branches for task modal:', error);
@@ -2208,7 +2209,7 @@ const AppContent: React.FC = () => {
                 onClose={() => setShowTaskModal(false)}
                 onCreateTask={handleCreateTask}
                 projectName={selectedProject?.name || ''}
-                defaultBranch={selectedProject?.gitInfo?.baseRef || selectedProject?.gitInfo?.branch || 'main'}
+                defaultBranch={taskModalDefaultBranch}
                 existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
                 projectPath={selectedProject?.path}
                 branchOptions={taskModalBranchOptions}

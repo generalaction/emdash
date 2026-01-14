@@ -30,6 +30,7 @@ import {
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
 import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
+import { pickDefaultBranch } from './BranchSelect';
 import { ConfigEditorModal } from './ConfigEditorModal';
 import { useToast } from '../hooks/use-toast';
 import ContainerStatusBadge from './ContainerStatusBadge';
@@ -664,22 +665,21 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             label: item.label,
           })) ?? [];
 
-        const current = baseBranch ?? normalizeBaseRef(project.gitInfo.baseRef);
-        const withCurrent =
-          current && !options.some((opt) => opt.value === current)
-            ? [{ value: current, label: current }, ...options]
-            : options;
-
         if (!cancelled) {
-          setBranchOptions(withCurrent);
+          setBranchOptions(options);
+          // Compute best default from fresh options, preferring stored baseRef if it still exists
+          const current = baseBranch ?? normalizeBaseRef(project.gitInfo.baseRef);
+          const validDefault = pickDefaultBranch(options, current);
+          // Update baseBranch if current selection is stale
+          if (validDefault && validDefault !== baseBranch) {
+            setBaseBranch(validDefault);
+          }
         }
       } catch (error) {
         if (!cancelled) {
           setBranchLoadError(error instanceof Error ? error.message : String(error));
-          setBranchOptions((prev) => {
-            if (prev.length > 0) return prev;
-            return baseBranch ? [{ value: baseBranch, label: baseBranch }] : [];
-          });
+          // On error, keep previous options if any, otherwise empty
+          setBranchOptions((prev) => (prev.length > 0 ? prev : []));
         }
       } finally {
         if (!cancelled) {
@@ -692,7 +692,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [project.id, project.path, project.gitInfo.baseRef, baseBranch, branchReloadToken]);
+    // Note: baseBranch intentionally omitted - we update it inside the effect when stale
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id, project.path, project.gitInfo.baseRef, branchReloadToken]);
 
   const handleBaseBranchChange = useCallback(
     async (nextValue: string) => {
