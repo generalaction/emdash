@@ -130,11 +130,13 @@ const AppContent: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
-  const [taskModalBranchOptions, setTaskModalBranchOptions] = useState<
+  // Branch options shared between TaskModal and ProjectMainView
+  const [projectBranchOptions, setProjectBranchOptions] = useState<
     Array<{ value: string; label: string }>
   >([]);
-  const [taskModalDefaultBranch, setTaskModalDefaultBranch] = useState<string>('main');
-  const [isLoadingTaskModalBranches, setIsLoadingTaskModalBranches] = useState(false);
+  const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+  const [branchReloadToken, setBranchReloadToken] = useState(0);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
@@ -408,17 +410,17 @@ const AppContent: React.FC = () => {
     void check();
   }, []);
 
-  // Load branch options when task modal opens
+  // Load branch options when project is selected (shared between TaskModal and ProjectMainView)
   useEffect(() => {
-    if (!showTaskModal || !selectedProject) {
-      setTaskModalBranchOptions([]);
-      setTaskModalDefaultBranch('main');
+    if (!selectedProject) {
+      setProjectBranchOptions([]);
+      setProjectDefaultBranch('main');
       return;
     }
 
     let cancelled = false;
     const loadBranches = async () => {
-      setIsLoadingTaskModalBranches(true);
+      setIsLoadingBranches(true);
       try {
         const res = await window.electronAPI.listRemoteBranches({
           projectPath: selectedProject.path,
@@ -426,16 +428,16 @@ const AppContent: React.FC = () => {
         if (cancelled) return;
         if (res.success && res.branches) {
           const options = res.branches.map((b) => ({ value: b.label, label: b.label }));
-          setTaskModalBranchOptions(options);
+          setProjectBranchOptions(options);
           // Compute default from fresh options, preferring stored baseRef if it still exists
           const defaultBranch = pickDefaultBranch(options, selectedProject.gitInfo?.baseRef);
-          setTaskModalDefaultBranch(defaultBranch ?? 'main');
+          setProjectDefaultBranch(defaultBranch ?? 'main');
         }
       } catch (error) {
-        console.error('Failed to load branches for task modal:', error);
+        console.error('Failed to load branches:', error);
       } finally {
         if (!cancelled) {
-          setIsLoadingTaskModalBranches(false);
+          setIsLoadingBranches(false);
         }
       }
     };
@@ -444,7 +446,12 @@ const AppContent: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [showTaskModal, selectedProject]);
+  }, [selectedProject, branchReloadToken]);
+
+  // Callback to reload branches (used by ProjectMainView)
+  const handleReloadBranches = useCallback(() => {
+    setBranchReloadToken((t) => t + 1);
+  }, []);
 
   // Load autoRightSidebarBehavior setting on mount and listen for changes
   useEffect(() => {
@@ -2049,6 +2056,9 @@ const AppContent: React.FC = () => {
               onDeleteTask={handleDeleteTask}
               isCreatingTask={isCreatingTask}
               onDeleteProject={handleDeleteProject}
+              branchOptions={projectBranchOptions}
+              isLoadingBranches={isLoadingBranches}
+              onReloadBranches={handleReloadBranches}
             />
           )}
         </div>
@@ -2209,11 +2219,11 @@ const AppContent: React.FC = () => {
                 onClose={() => setShowTaskModal(false)}
                 onCreateTask={handleCreateTask}
                 projectName={selectedProject?.name || ''}
-                defaultBranch={taskModalDefaultBranch}
+                defaultBranch={projectDefaultBranch}
                 existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
                 projectPath={selectedProject?.path}
-                branchOptions={taskModalBranchOptions}
-                isLoadingBranches={isLoadingTaskModalBranches}
+                branchOptions={projectBranchOptions}
+                isLoadingBranches={isLoadingBranches}
               />
               <NewProjectModal
                 isOpen={showNewProjectModal}

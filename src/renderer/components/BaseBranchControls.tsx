@@ -8,7 +8,6 @@ interface BaseBranchControlsProps {
   branchOptions: RemoteBranchOption[];
   isLoadingBranches: boolean;
   isSavingBaseBranch: boolean;
-  branchLoadError: string | null;
   onBaseBranchChange: (value: string) => void;
   onOpenChange?: (open: boolean) => void;
   projectPath?: string;
@@ -20,7 +19,6 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   branchOptions,
   isLoadingBranches,
   isSavingBaseBranch,
-  branchLoadError,
   onBaseBranchChange,
   onOpenChange,
   projectPath,
@@ -47,7 +45,6 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
           onOpenChange={onOpenChange}
         />
       </div>
-      {branchLoadError ? <p className="text-xs text-destructive">{branchLoadError}</p> : null}
       <p className="text-xs text-muted-foreground">
         New tasks start from the latest code.
         {projectPath && onEditConfig && (
