@@ -159,6 +159,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     autoNameInitializedRef.current = false;
     customNameTrackedRef.current = false;
     userChangedBranchRef.current = false;
+    setSelectedBranch(defaultBranch);
 
     // Generate initial name
     const suggested = generateFriendlyTaskName(normalizedExisting);
