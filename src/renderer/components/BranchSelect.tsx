@@ -9,26 +9,20 @@ export type BranchOption = {
 };
 
 /**
- * Pick the best default branch from fresh options.
- * If preferredValue exists in options, use it (honors user's previous selection).
- * Otherwise, fall back to common defaults: origin/main > main > origin/master > master > first option.
+ * Pick best default: preferredValue if valid, else origin/main > main > first option.
  */
 export function pickDefaultBranch(options: BranchOption[], preferredValue?: string): string | undefined {
   if (options.length === 0) return undefined;
 
-  // If preferred value exists in options, use it
   if (preferredValue && options.some((opt) => opt.value === preferredValue)) {
     return preferredValue;
   }
 
-  // Fall back to common defaults in order of preference
   const defaults = ['origin/main', 'main', 'origin/master', 'master'];
-  for (const defaultBranch of defaults) {
-    const match = options.find((opt) => opt.value === defaultBranch);
-    if (match) return match.value;
+  for (const branch of defaults) {
+    if (options.some((opt) => opt.value === branch)) return branch;
   }
 
-  // Last resort: first option
   return options[0].value;
 }
 

@@ -9,7 +9,6 @@ interface BaseBranchControlsProps {
   isLoadingBranches: boolean;
   isSavingBaseBranch: boolean;
   onBaseBranchChange: (value: string) => void;
-  onOpenChange?: (open: boolean) => void;
   projectPath?: string;
   onEditConfig?: () => void;
 }
@@ -20,7 +19,6 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   isLoadingBranches,
   isSavingBaseBranch,
   onBaseBranchChange,
-  onOpenChange,
   projectPath,
   onEditConfig,
 }) => {
@@ -42,7 +40,6 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
           isLoading={isLoadingBranches}
           placeholder={placeholder}
           variant="default"
-          onOpenChange={onOpenChange}
         />
       </div>
       <p className="text-xs text-muted-foreground">

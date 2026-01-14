@@ -130,13 +130,12 @@ const AppContent: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
-  // Branch options shared between TaskModal and ProjectMainView
+  // Branch options (loaded when project is selected)
   const [projectBranchOptions, setProjectBranchOptions] = useState<
     Array<{ value: string; label: string }>
   >([]);
   const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
-  const [branchReloadToken, setBranchReloadToken] = useState(0);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
@@ -410,7 +409,7 @@ const AppContent: React.FC = () => {
     void check();
   }, []);
 
-  // Load branch options when project is selected (shared between TaskModal and ProjectMainView)
+  // Load branch options when project is selected
   useEffect(() => {
     if (!selectedProject) {
       setProjectBranchOptions([]);
@@ -429,7 +428,6 @@ const AppContent: React.FC = () => {
         if (res.success && res.branches) {
           const options = res.branches.map((b) => ({ value: b.label, label: b.label }));
           setProjectBranchOptions(options);
-          // Compute default from fresh options, preferring stored baseRef if it still exists
           const defaultBranch = pickDefaultBranch(options, selectedProject.gitInfo?.baseRef);
           setProjectDefaultBranch(defaultBranch ?? 'main');
         }
@@ -446,12 +444,7 @@ const AppContent: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedProject, branchReloadToken]);
-
-  // Callback to reload branches (used by ProjectMainView)
-  const handleReloadBranches = useCallback(() => {
-    setBranchReloadToken((t) => t + 1);
-  }, []);
+  }, [selectedProject]);
 
   // Load autoRightSidebarBehavior setting on mount and listen for changes
   useEffect(() => {
@@ -2058,7 +2051,6 @@ const AppContent: React.FC = () => {
               onDeleteProject={handleDeleteProject}
               branchOptions={projectBranchOptions}
               isLoadingBranches={isLoadingBranches}
-              onReloadBranches={handleReloadBranches}
             />
           )}
         </div>

@@ -411,10 +411,8 @@ interface ProjectMainViewProps {
   ) => void | Promise<void | boolean>;
   isCreatingTask?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
-  // Branch options (loaded by parent)
   branchOptions: RemoteBranchOption[];
   isLoadingBranches: boolean;
-  onReloadBranches: () => void;
 }
 
 const ProjectMainView: React.FC<ProjectMainViewProps> = ({
@@ -427,7 +425,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onDeleteProject,
   branchOptions,
   isLoadingBranches,
-  onReloadBranches,
 }) => {
   const { toast } = useToast();
 
@@ -649,7 +646,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     };
   }, [showDeleteDialog, selectedTasks]);
 
-  // Sync baseBranch when branchOptions change (e.g., if current selection becomes stale)
+  // Sync baseBranch when branchOptions change
   useEffect(() => {
     if (branchOptions.length === 0) return;
     const current = baseBranch ?? normalizeBaseRef(project.gitInfo.baseRef);
@@ -742,11 +739,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   isLoadingBranches={isLoadingBranches}
                   isSavingBaseBranch={isSavingBaseBranch}
                   onBaseBranchChange={handleBaseBranchChange}
-                  onOpenChange={(isOpen) => {
-                    if (isOpen) {
-                      onReloadBranches();
-                    }
-                  }}
                   projectPath={project.path}
                   onEditConfig={() => setShowConfigEditor(true)}
                 />
