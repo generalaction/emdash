@@ -144,6 +144,22 @@ app.whenReady().then(async () => {
     const name = asObj && typeof asObj.name === 'string' ? asObj.name : undefined;
     dbInitErrorType = code || name || 'unknown';
     console.error('Failed to initialize database:', error);
+
+    if (err instanceof Error && err.message.includes('migrations folder')) {
+      const { dialog } = require('electron');
+      dialog.showErrorBox(
+        'Database Initialization Failed',
+        'Unable to initialize the application database.\n\n' +
+          'This may be due to:\n' +
+          '• Running from Downloads or DMG (move to Applications)\n' +
+          '• Homebrew installation issues (try direct download)\n' +
+          '• Incomplete installation\n\n' +
+          'Please try:\n' +
+          '1. Move Emdash to Applications folder\n' +
+          '2. Download directly from GitHub releases\n' +
+          '3. Check console for detailed error information'
+      );
+    }
   }
 
   // Initialize telemetry (privacy-first, with optional GitHub username)

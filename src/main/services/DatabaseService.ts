@@ -655,7 +655,21 @@ export class DatabaseService {
 
     const migrationsPath = resolveMigrationsPath();
     if (!migrationsPath) {
-      throw new Error('Drizzle migrations folder not found');
+      // Provide a detailed error message for debugging
+      const errorMsg = [
+        'Failed to locate database migrations folder.',
+        'This can happen when:',
+        '1. The app was installed via Homebrew (try downloading directly from GitHub)',
+        '2. The app is running from Downloads/DMG (move it to Applications)',
+        '3. The installation is incomplete or corrupted',
+        '4. Security software is blocking file access',
+        '',
+        'To fix: Try downloading and installing Emdash directly from:',
+        'https://github.com/generalaction/emdash/releases',
+        '',
+      ].join('\n');
+
+      throw new Error(errorMsg);
     }
 
     // We run schema migrations with foreign_keys disabled.
