@@ -14,6 +14,7 @@ import {
   isBinaryFile,
 } from '../lib/diffUtils';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
+import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../lib/monacoDiffConfig';
 import { useDiffEditorComments } from '../hooks/useDiffEditorComments';
 import { useTaskComments } from '../hooks/useLineComments';
 import { useTaskScope } from './TaskScopeContext';
@@ -455,6 +456,13 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
         // ignore
       }
       changeDisposableRef.current = null;
+
+      // Reset diagnostic options when closing modal
+      loader.init().then((monaco) => {
+        resetDiagnosticOptions(monaco);
+      }).catch(() => {
+        // Ignore errors during cleanup
+      });
     };
   }, []);
 
@@ -465,6 +473,13 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
     // Define themes when editor is ready
     try {
       const monaco = await loader.init();
+
+      // Configure diagnostics to suppress warnings in diff viewer
+      // Disabling all validation since diff viewer is read-only
+      configureDiffEditorDiagnostics(editor, monaco, {
+        disableAllValidation: true,
+        suppressSpecificErrors: false,
+      });
       monaco.editor.defineTheme('custom-diff-dark', {
         base: 'vs-dark',
         inherit: true,

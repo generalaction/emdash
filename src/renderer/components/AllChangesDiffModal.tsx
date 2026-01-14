@@ -13,6 +13,7 @@ import {
 } from '../lib/diffUtils';
 import { useToast } from '../hooks/use-toast';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
+import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../lib/monacoDiffConfig';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskScope } from './TaskScopeContext';
 
@@ -75,6 +76,13 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
       });
       changeDisposables.current.clear();
       editorRefs.current.clear();
+
+      // Reset diagnostic options when closing modal
+      loader.init().then((monaco) => {
+        resetDiagnosticOptions(monaco);
+      }).catch(() => {
+        // Ignore errors during cleanup
+      });
     };
   }, []);
 
@@ -562,6 +570,14 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     // Define themes when editor is ready and FORCE apply theme
     try {
       const monaco = await loader.init();
+
+      // Configure diagnostics to suppress warnings in diff viewer
+      // Disabling all validation since diff viewer is read-only
+      configureDiffEditorDiagnostics(editor, monaco, {
+        disableAllValidation: true,
+        suppressSpecificErrors: false,
+      });
+
       // Define themes (safe to call multiple times)
       monaco.editor.defineTheme('custom-diff-dark', {
         base: 'vs-dark',
