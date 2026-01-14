@@ -413,6 +413,7 @@ interface ProjectMainViewProps {
   onDeleteProject?: (project: Project) => void | Promise<void>;
   branchOptions: BranchOption[];
   isLoadingBranches: boolean;
+  onBaseBranchChange?: (branch: string) => void;
 }
 
 const ProjectMainView: React.FC<ProjectMainViewProps> = ({
@@ -425,6 +426,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onDeleteProject,
   branchOptions,
   isLoadingBranches,
+  onBaseBranchChange: onBaseBranchChangeCallback,
 }) => {
   const { toast } = useToast();
 
@@ -675,10 +677,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         if (project.gitInfo) {
           project.gitInfo.baseRef = trimmed;
         }
-        toast({
-          title: 'Base branch updated',
-          description: `New task runs will start from ${trimmed}.`,
-        });
+        onBaseBranchChangeCallback?.(trimmed);
       } catch (error) {
         setBaseBranch(previous);
         toast({
@@ -690,7 +689,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         setIsSavingBaseBranch(false);
       }
     },
-    [baseBranch, project.id, toast]
+    [baseBranch, project.id, project.gitInfo, onBaseBranchChangeCallback, toast]
   );
 
   return (

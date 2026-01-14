@@ -2051,6 +2051,7 @@ const AppContent: React.FC = () => {
               onDeleteProject={handleDeleteProject}
               branchOptions={projectBranchOptions}
               isLoadingBranches={isLoadingBranches}
+              onBaseBranchChange={setProjectDefaultBranch}
             />
           )}
         </div>
