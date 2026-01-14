@@ -417,6 +417,13 @@ const AppContent: React.FC = () => {
       return;
     }
 
+    // Show current baseRef immediately while loading full list
+    const currentRef = selectedProject.gitInfo?.baseRef;
+    if (currentRef) {
+      setProjectBranchOptions([{ value: currentRef, label: currentRef }]);
+      setProjectDefaultBranch(currentRef);
+    }
+
     let cancelled = false;
     const loadBranches = async () => {
       setIsLoadingBranches(true);
@@ -428,8 +435,8 @@ const AppContent: React.FC = () => {
         if (res.success && res.branches) {
           const options = res.branches.map((b) => ({ value: b.label, label: b.label }));
           setProjectBranchOptions(options);
-          const defaultBranch = pickDefaultBranch(options, selectedProject.gitInfo?.baseRef);
-          setProjectDefaultBranch(defaultBranch ?? 'main');
+          const defaultBranch = pickDefaultBranch(options, currentRef);
+          setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');
         }
       } catch (error) {
         console.error('Failed to load branches:', error);
