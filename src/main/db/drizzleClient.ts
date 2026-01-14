@@ -18,6 +18,8 @@ interface InternalClient {
   owned: boolean;
 }
 
+
+
 export interface DrizzleClient {
   db: DrizzleDb;
   sqlite: sqlite3Type.Database;
