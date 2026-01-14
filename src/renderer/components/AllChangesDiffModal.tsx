@@ -78,11 +78,14 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
       editorRefs.current.clear();
 
       // Reset diagnostic options when closing modal
-      loader.init().then((monaco) => {
-        resetDiagnosticOptions(monaco);
-      }).catch(() => {
-        // Ignore errors during cleanup
-      });
+      loader
+        .init()
+        .then((monaco) => {
+          resetDiagnosticOptions(monaco);
+        })
+        .catch(() => {
+          // Ignore errors during cleanup
+        });
     };
   }, []);
 

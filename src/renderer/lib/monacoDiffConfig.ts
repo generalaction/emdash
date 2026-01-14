@@ -15,16 +15,16 @@ import type * as monaco from 'monaco-editor';
  * Currently unused as we disable all validation, but kept for future reference
  */
 const DIFF_VIEWER_IGNORED_DIAGNOSTICS = [
-  2307,  // Cannot find module
-  2792,  // Cannot find module (path aliases)
-  2304,  // Cannot find name (global types)
-  1005,  // ':' expected
-  2365,  // Operator '<' cannot be applied (JSX confusion)
+  2307, // Cannot find module
+  2792, // Cannot find module (path aliases)
+  2304, // Cannot find name (global types)
+  1005, // ':' expected
+  2365, // Operator '<' cannot be applied (JSX confusion)
   17004, // Cannot use JSX unless '--jsx' flag provided
-  1161,  // Unterminated regular expression literal
-  1003,  // Identifier expected
-  1109,  // Expression expected
-  1160,  // Unterminated template literal
+  1161, // Unterminated regular expression literal
+  1003, // Identifier expected
+  1109, // Expression expected
+  1160, // Unterminated template literal
 ];
 
 /**
