@@ -649,27 +649,36 @@ export class WorktreeService {
       .replace(/^refs\/remotes\//, '')
       .replace(/^remotes\//, '');
     if (!cleaned) return null;
-    const [remote, ...rest] = cleaned.split('/');
-    if (!remote || rest.length === 0) return null;
-    const branch = rest.join('/');
-    if (!branch) return null;
 
-    // If projectPath is provided, verify that 'remote' is actually a valid git remote
-    // If not, treat the entire string as a local branch name
-    if (projectPath) {
-      try {
-        const { stdout } = await execFileAsync('git', ['remote'], { cwd: projectPath });
-        const remotes = (stdout || '').trim().split('\n').filter(Boolean);
-        if (!remotes.includes(remote)) {
-          // 'remote' is not a valid git remote, treat entire string as local branch
-          return null;
+    // Check if this looks like a remote/branch ref
+    const slashIndex = cleaned.indexOf('/');
+    if (slashIndex > 0) {
+      const potentialRemote = cleaned.substring(0, slashIndex);
+      const branch = cleaned.substring(slashIndex + 1);
+
+      if (branch) {
+        // Verify if potentialRemote is actually a git remote
+        if (projectPath) {
+          try {
+            const { stdout } = await execFileAsync('git', ['remote'], { cwd: projectPath });
+            const remotes = (stdout || '').trim().split('\n').filter(Boolean);
+            if (remotes.includes(potentialRemote)) {
+              return { remote: potentialRemote, branch, fullRef: cleaned };
+            }
+            // Not a valid remote, fall through to treat as local branch
+          } catch {
+            // Can't check remotes, assume it's a remote ref
+            return { remote: potentialRemote, branch, fullRef: cleaned };
+          }
+        } else {
+          // No projectPath to verify, assume it's a remote ref
+          return { remote: potentialRemote, branch, fullRef: cleaned };
         }
-      } catch {
-        // If we can't check remotes, fall back to original behavior
       }
     }
 
-    return { remote, branch, fullRef: `${remote}/${branch}` };
+    // Treat as a local branch (no remote prefix)
+    return { remote: '', branch: cleaned, fullRef: cleaned };
   }
 
   private async resolveProjectBaseRef(
