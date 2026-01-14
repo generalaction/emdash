@@ -352,14 +352,23 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const errStdout = typeof error?.stdout === 'string' ? error.stdout : '';
         const errStderr = typeof error?.stderr === 'string' ? error.stderr : '';
         const combined = [errMsg, errStdout, errStderr].filter(Boolean).join('\n').trim();
+
+        // Check for various error conditions
         const restrictionRe =
           /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i;
-        const code = restrictionRe.test(combined) ? 'ORG_AUTH_APP_RESTRICTED' : undefined;
-        if (code === 'ORG_AUTH_APP_RESTRICTED') {
+        const prExistsRe = /already exists|already has.*pull request|pull request for branch/i;
+
+        let code: string | undefined;
+        if (restrictionRe.test(combined)) {
+          code = 'ORG_AUTH_APP_RESTRICTED';
           log.warn('GitHub org restrictions detected during PR creation');
+        } else if (prExistsRe.test(combined)) {
+          code = 'PR_ALREADY_EXISTS';
+          log.info('PR already exists for branch - push was successful');
         } else {
           log.error('Failed to create PR:', combined || error);
         }
+
         return {
           success: false,
           error: combined || errMsg || 'Failed to create PR',

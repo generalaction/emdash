@@ -138,59 +138,114 @@ export function useCreatePR() {
           // ignore onSuccess errors
         }
       } else {
-        void (async () => {
-          const { captureTelemetry } = await import('../lib/telemetryClient');
-          captureTelemetry('pr_creation_failed', { error_type: res?.error || 'unknown' });
-        })();
-        const details =
-          res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
-        // Offer a browser fallback if org restricts the GitHub CLI app
-        const isOrgRestricted =
-          typeof res?.code === 'string' && res.code === 'ORG_AUTH_APP_RESTRICTED';
+        // Check if PR creation failed because a PR already exists
+        const errorText = (res?.error || '').toLowerCase();
+        const outputText = (res?.output || '').toLowerCase();
+        const isPrAlreadyExists =
+          res?.code === 'PR_ALREADY_EXISTS' ||
+          errorText.includes('already exists') ||
+          errorText.includes('already has') ||
+          errorText.includes('pull request for branch') ||
+          outputText.includes('already exists') ||
+          outputText.includes('already has') ||
+          outputText.includes('pull request for branch');
 
-        toast({
-          title: (
-            <span className="inline-flex items-center gap-2">
-              <img src={githubLogo} alt="GitHub" className="h-5 w-5 rounded-sm object-contain" />
-              Failed to Create PR
-            </span>
-          ),
-          description:
-            (res?.error || 'Unknown error') +
-            (isOrgRestricted
-              ? '\n\nYour organization restricts OAuth apps. You can either:\n' +
-                '• Approve the GitHub CLI app in your org settings, or\n' +
-                '• Authenticate gh with a Personal Access Token that has repo scope, or\n' +
-                '• Create the PR in your browser.'
-              : '') +
-            details,
-          variant: 'destructive',
-          action: isOrgRestricted ? (
-            <ToastAction
-              altText="Open in browser"
-              onClick={() => {
-                void (async () => {
-                  const { captureTelemetry } = await import('../lib/telemetryClient');
-                  captureTelemetry('pr_creation_retry_browser');
-                })();
-                // Retry using web flow
-                void createPR({
-                  taskPath,
-                  commitMessage,
-                  createBranchIfOnDefault,
-                  branchPrefix,
-                  prOptions: { ...(prOptions || {}), web: true, fill: true },
-                  onSuccess,
-                });
-              }}
-            >
-              <span className="inline-flex items-center gap-1">
-                Open in browser
-                <ArrowUpRight className="h-3 w-3" />
+        // If PR already exists, the push was successful - show success message
+        if (isPrAlreadyExists) {
+          void (async () => {
+            const { captureTelemetry } = await import('../lib/telemetryClient');
+            captureTelemetry('pr_push_to_existing');
+          })();
+
+          // Try to extract PR URL from the error output
+          const urlMatch = (res?.output || '').match(/https?:\/\/github\.com\/[^\s]+\/pull\/\d+/);
+          const prUrl = urlMatch ? urlMatch[0] : null;
+
+          toast({
+            title: 'Changes pushed successfully!',
+            description: 'Your changes have been pushed to the existing pull request.',
+            action: prUrl ? (
+              <ToastAction
+                altText="View PR"
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('../lib/telemetryClient');
+                    captureTelemetry('pr_viewed');
+                  })();
+                  if (prUrl && window.electronAPI?.openExternal) {
+                    window.electronAPI.openExternal(prUrl);
+                  }
+                }}
+              >
+                <span className="inline-flex items-center gap-1">
+                  View PR
+                  <ArrowUpRight className="h-3 w-3" />
+                </span>
+              </ToastAction>
+            ) : undefined,
+          });
+
+          try {
+            await onSuccess?.();
+          } catch {
+            // ignore onSuccess errors
+          }
+        } else {
+          // Show error for other failures
+          void (async () => {
+            const { captureTelemetry } = await import('../lib/telemetryClient');
+            captureTelemetry('pr_creation_failed', { error_type: res?.error || 'unknown' });
+          })();
+          const details =
+            res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
+          // Offer a browser fallback if org restricts the GitHub CLI app
+          const isOrgRestricted =
+            typeof res?.code === 'string' && res.code === 'ORG_AUTH_APP_RESTRICTED';
+
+          toast({
+            title: (
+              <span className="inline-flex items-center gap-2">
+                <img src={githubLogo} alt="GitHub" className="h-5 w-5 rounded-sm object-contain" />
+                Failed to Create PR
               </span>
-            </ToastAction>
-          ) : undefined,
-        });
+            ),
+            description:
+              (res?.error || 'Unknown error') +
+              (isOrgRestricted
+                ? '\n\nYour organization restricts OAuth apps. You can either:\n' +
+                  '• Approve the GitHub CLI app in your org settings, or\n' +
+                  '• Authenticate gh with a Personal Access Token that has repo scope, or\n' +
+                  '• Create the PR in your browser.'
+                : '') +
+              details,
+            variant: 'destructive',
+            action: isOrgRestricted ? (
+              <ToastAction
+                altText="Open in browser"
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('../lib/telemetryClient');
+                    captureTelemetry('pr_creation_retry_browser');
+                  })();
+                  // Retry using web flow
+                  void createPR({
+                    taskPath,
+                    commitMessage,
+                    createBranchIfOnDefault,
+                    branchPrefix,
+                    prOptions: { ...(prOptions || {}), web: true, fill: true },
+                    onSuccess,
+                  });
+                }}
+              >
+                <span className="inline-flex items-center gap-1">
+                  Open in browser
+                  <ArrowUpRight className="h-3 w-3" />
+                </span>
+              </ToastAction>
+            ) : undefined,
+          });
+        }
       }
 
       return res as any;
