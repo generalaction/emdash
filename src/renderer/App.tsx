@@ -672,7 +672,8 @@ const AppContent: React.FC = () => {
                 log.error('Failed to save project:', saveResult.error);
                 toast({
                   title: 'Failed to Add Project',
-                  description: 'Project opened but could not be saved to database. Please check console for details.',
+                  description:
+                    'Project opened but could not be saved to database. Please check console for details.',
                   variant: 'destructive',
                 });
               }
@@ -712,7 +713,8 @@ const AppContent: React.FC = () => {
               log.error('Failed to save project:', saveResult.error);
               toast({
                 title: 'Failed to Add Project',
-                description: 'Project opened but could not be saved to database. Please check console for details.',
+                description:
+                  'Project opened but could not be saved to database. Please check console for details.',
                 variant: 'destructive',
               });
             }
