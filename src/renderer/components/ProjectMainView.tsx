@@ -680,16 +680,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         onBaseBranchChangeCallback?.(trimmed);
       } catch (error) {
         setBaseBranch(previous);
-        toast({
-          variant: 'destructive',
-          title: 'Failed to update base branch',
-          description: error instanceof Error ? error.message : String(error),
-        });
+        console.error('Failed to update base branch:', error);
       } finally {
         setIsSavingBaseBranch(false);
       }
     },
-    [baseBranch, project.id, project.gitInfo, onBaseBranchChangeCallback, toast]
+    [baseBranch, project.id, project.gitInfo, onBaseBranchChangeCallback]
   );
 
   return (
