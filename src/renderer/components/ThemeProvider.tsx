@@ -7,7 +7,7 @@ const STORAGE_KEY = 'emdash-theme';
 
 function getSystemTheme(): EffectiveTheme {
   if (typeof window === 'undefined') return 'light';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark-black' : 'light';
 }
 
 function getStoredTheme(): Theme {
@@ -56,6 +56,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     applyTheme(theme);
+  }, [theme, systemTheme]);
+
+  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch {
