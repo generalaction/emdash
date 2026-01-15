@@ -197,7 +197,7 @@ export function UpdateCard(): JSX.Element {
             size="sm"
             variant="default"
             onClick={handleInstall}
-            className="h-7 bg-green-600 text-xs hover:bg-green-700"
+            className="h-7 text-xs"
           >
             <RefreshCw className="mr-1.5 h-3 w-3" />
             Restart
