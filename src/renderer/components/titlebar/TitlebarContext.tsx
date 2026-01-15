@@ -32,6 +32,7 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
   const taskValue = activeTask?.id;
   const projectLabel = selectedProject.name;
   const taskLabel = activeTask?.name ?? '';
+  const selectContentClassName = 'w-[min(280px,90vw)]';
 
   const handleProjectChange = (value: string) => {
     const nextProject = projects.find((project) => project.id === value);
@@ -58,11 +59,15 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
           >
             <SelectValue placeholder="Project" />
           </SelectTrigger>
-          <SelectContent side="bottom" align="start" className="w-[min(320px,90vw)]">
+          <SelectContent side="bottom" align="start" className={selectContentClassName}>
             {projects.length > 0 ? (
               projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  <span className="truncate">{project.name}</span>
+                <SelectItem
+                  key={project.id}
+                  value={project.id}
+                  className="min-w-0 [&>span:last-child]:block [&>span:last-child]:min-w-0 [&>span:last-child]:truncate"
+                >
+                  {project.name}
                 </SelectItem>
               ))
             ) : (
@@ -83,23 +88,19 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
           >
             <SelectValue placeholder="" />
           </SelectTrigger>
-          <SelectContent side="bottom" align="start" className="w-[min(360px,90vw)]">
+          <SelectContent side="bottom" align="start" className={selectContentClassName}>
             {tasks.length > 0 ? (
               tasks.map((task) => (
                 <SelectItem
                   key={task.id}
                   value={task.id}
-                  className="pr-2 [&>span:first-child]:hidden"
+                  className="min-w-0 [&>span:last-child]:block [&>span:last-child]:min-w-0 [&>span:last-child]:truncate"
                 >
-                  <span className="truncate">{task.name}</span>
+                  {task.name}
                 </SelectItem>
               ))
             ) : (
-              <SelectItem
-                value="__empty_tasks__"
-                disabled
-                className="pr-2 [&>span:first-child]:hidden"
-              >
+              <SelectItem value="__empty_tasks__" disabled>
                 No tasks yet
               </SelectItem>
             )}
