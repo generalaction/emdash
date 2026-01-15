@@ -9,6 +9,7 @@ import {
   getStatus as gitGetStatus,
   getFileDiff as gitGetFileDiff,
   stageFile as gitStageFile,
+  unstageFile as gitUnstageFile,
   revertFile as gitRevertFile,
 } from '../services/GitService';
 import { prGenerationService } from '../services/PrGenerationService';
@@ -65,6 +66,19 @@ export function registerGitIpc() {
       return { success: true };
     } catch (error) {
       log.error('Failed to stage file:', { filePath: args.filePath, error });
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Git: Unstage file
+  ipcMain.handle('git:unstage-file', async (_, args: { taskPath: string; filePath: string }) => {
+    try {
+      log.info('Unstaging file:', { taskPath: args.taskPath, filePath: args.filePath });
+      await gitUnstageFile(args.taskPath, args.filePath);
+      log.info('File unstaged successfully:', args.filePath);
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to unstage file:', { filePath: args.filePath, error });
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });

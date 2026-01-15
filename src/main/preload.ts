@@ -159,6 +159,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:get-file-diff', args),
   stageFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:stage-file', args),
+  unstageFile: (args: { taskPath: string; filePath: string }) =>
+    ipcRenderer.invoke('git:unstage-file', args),
   revertFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
   gitCommitAndPush: (args: {
