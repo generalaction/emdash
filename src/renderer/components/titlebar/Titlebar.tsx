@@ -128,7 +128,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
     <>
       <header className="fixed inset-x-0 top-0 z-[80] grid h-[var(--tb,36px)] grid-cols-[1fr_auto_1fr] items-center bg-muted shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background">
         <div className="h-full" />
-        <div className="min-w-0 w-[min(60vw,720px)] justify-self-center">
+        <div className="w-[min(60vw,720px)] min-w-0 justify-self-center">
           <TitlebarContext
             projects={projects}
             selectedProject={selectedProject}
