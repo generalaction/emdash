@@ -48,11 +48,3 @@ export interface Task {
   metadata?: TaskMetadata | null;
   useWorktree?: boolean;
 }
-
-export interface Message {
-  id: string;
-  content: string;
-  sender: 'user' | 'agent';
-  timestamp: Date;
-  attachments?: string[];
-}
