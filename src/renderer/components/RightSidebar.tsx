@@ -180,7 +180,23 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                             </span>
                           </span>
                         </button>
-                        {!isCollapsed && <VariantChangesIfAny path={v.path} taskId={task.id} />}
+                        {!isCollapsed && (
+                          <TaskScopeProvider
+                            value={{ taskId: task.id, taskPath: v.path, projectPath }}
+                          >
+                            <VariantChangesIfAny path={v.path} taskId={task.id} />
+                            <TaskTerminalPanel
+                              task={{
+                                ...task,
+                                path: v.path,
+                                name: v.name || task.name,
+                              }}
+                              provider={v.provider}
+                              projectPath={projectPath || task?.path}
+                              className="min-h-[200px]"
+                            />
+                          </TaskScopeProvider>
+                        )}
                       </div>
                     );
                   })}
