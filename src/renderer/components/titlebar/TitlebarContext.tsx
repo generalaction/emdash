@@ -52,7 +52,7 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
       <div className="flex items-center justify-end [-webkit-app-region:no-drag]">
         <Select value={projectValue} onValueChange={handleProjectChange}>
           <SelectTrigger
-            className="h-7 w-auto max-w-[240px] justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-foreground shadow-none hover:bg-background/70 data-[state=open]:bg-background/80 [&>span]:min-w-0 [&>svg]:hidden"
+            className="h-7 w-auto max-w-[240px] justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[state=open]:text-foreground [&>span]:min-w-0 [&>svg]:hidden"
             aria-label="Select project"
             title={projectLabel}
           >
@@ -77,10 +77,7 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
       <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
         <Select value={taskValue} onValueChange={handleTaskChange} disabled={!selectedProject}>
           <SelectTrigger
-            className={[
-              'h-7 w-auto max-w-[320px] justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-foreground shadow-none hover:bg-background/70 data-[state=open]:bg-background/80 data-[placeholder]:text-muted-foreground/70 [&>span]:min-w-0 [&>svg]:hidden',
-              activeTask ? '' : 'min-w-[84px]',
-            ].join(' ')}
+            className="h-7 w-auto max-w-[320px] justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[state=open]:text-foreground data-[placeholder]:text-muted-foreground/70 [&>span]:min-w-0 [&>svg]:hidden"
             aria-label="Select task"
             title={taskLabel}
           >
