@@ -2099,6 +2099,7 @@ const AppContent: React.FC = () => {
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettings}
                 handleToggleKanban={handleToggleKanban}
+                handleToggleEditor={() => setShowEditorMode((prev) => !prev)}
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
                 handleNewTask={handleNewTask}
