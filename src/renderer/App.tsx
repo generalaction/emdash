@@ -11,6 +11,7 @@ import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import FirstLaunchModal from './components/FirstLaunchModal';
+import { WelcomeScreen } from './components/WelcomeScreen';
 import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
 import KanbanBoard from './components/kanban/KanbanBoard';
 import LeftSidebar from './components/LeftSidebar';
@@ -143,6 +144,7 @@ const AppContent: React.FC = () => {
   const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
 
@@ -353,6 +355,11 @@ const AppContent: React.FC = () => {
     }
   }, [selectedProject]);
 
+  const handleWelcomeGetStarted = useCallback(() => {
+    setShowWelcomeScreen(false);
+    setShowFirstLaunchModal(true);
+  }, []);
+
   const markFirstLaunchSeen = useCallback(() => {
     try {
       localStorage.setItem(FIRST_LAUNCH_KEY, '1');
@@ -403,7 +410,8 @@ const AppContent: React.FC = () => {
       } catch {
         // ignore
       }
-      setShowFirstLaunchModal(true);
+      // Show WelcomeScreen for first-time users
+      setShowWelcomeScreen(true);
     };
     void check();
   }, []);
@@ -2099,6 +2107,7 @@ const AppContent: React.FC = () => {
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettings}
                 handleToggleKanban={handleToggleKanban}
+                handleToggleEditor={() => setShowEditorMode((prev) => !prev)}
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
                 handleNewTask={handleNewTask}
@@ -2107,35 +2116,39 @@ const AppContent: React.FC = () => {
                 onCollapsedChange={handleRightSidebarCollapsedChange}
                 setCollapsedRef={rightSidebarSetCollapsedRef}
               />
-              <Titlebar
-                onToggleSettings={handleToggleSettings}
-                isSettingsOpen={showSettings}
-                currentPath={
-                  activeTask?.metadata?.multiAgent?.enabled
-                    ? null
-                    : activeTask?.path || selectedProject?.path || null
-                }
-                defaultPreviewUrl={
-                  null // Previously: getContainerRunState(activeTask.id)?.previewUrl - Removed: Docker feature
-                }
-                taskId={activeTask?.id || null}
-                taskPath={activeTask?.path || null}
-                projectPath={selectedProject?.path || null}
-                isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
-                githubUser={user}
-                onToggleKanban={handleToggleKanban}
-                isKanbanOpen={Boolean(showKanban)}
-                kanbanAvailable={Boolean(selectedProject)}
-                onToggleEditor={() => setShowEditorMode(!showEditorMode)}
-                showEditorButton={Boolean(activeTask)}
-                isEditorOpen={showEditorMode}
-                projects={projects}
-                selectedProject={selectedProject}
-                activeTask={activeTask}
-                onSelectProject={handleSelectProject}
-                onSelectTask={handleSelectTask}
-              />
-              <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
+              {!showWelcomeScreen && (
+                <Titlebar
+                  onToggleSettings={handleToggleSettings}
+                  isSettingsOpen={showSettings}
+                  currentPath={
+                    activeTask?.metadata?.multiAgent?.enabled
+                      ? null
+                      : activeTask?.path || selectedProject?.path || null
+                  }
+                  defaultPreviewUrl={
+                    null // Previously: getContainerRunState(activeTask.id)?.previewUrl - Removed: Docker feature
+                  }
+                  taskId={activeTask?.id || null}
+                  taskPath={activeTask?.path || null}
+                  projectPath={selectedProject?.path || null}
+                  isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
+                  githubUser={user}
+                  onToggleKanban={handleToggleKanban}
+                  isKanbanOpen={Boolean(showKanban)}
+                  kanbanAvailable={Boolean(selectedProject)}
+                  onToggleEditor={() => setShowEditorMode(!showEditorMode)}
+                  showEditorButton={Boolean(activeTask)}
+                  isEditorOpen={showEditorMode}
+                  projects={projects}
+                  selectedProject={selectedProject}
+                  activeTask={activeTask}
+                  onSelectProject={handleSelectProject}
+                  onSelectTask={handleSelectTask}
+                />
+              )}
+              <div
+                className={`flex flex-1 overflow-hidden ${!showWelcomeScreen ? 'pt-[var(--tb)]' : ''}`}
+              >
                 <ResizablePanelGroup
                   direction="horizontal"
                   className="flex-1 overflow-hidden"
@@ -2250,6 +2263,7 @@ const AppContent: React.FC = () => {
                 onClose={() => setShowCloneModal(false)}
                 onSuccess={handleCloneSuccess}
               />
+              {showWelcomeScreen && <WelcomeScreen onGetStarted={handleWelcomeGetStarted} />}
               <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
               <GithubDeviceFlowModal
                 open={showDeviceFlowModal}
@@ -2262,7 +2276,11 @@ const AppContent: React.FC = () => {
                 taskId={activeTask?.id || null}
                 taskPath={activeTask?.path || null}
                 overlayActive={
-                  showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
+                  showSettings ||
+                  showCommandPalette ||
+                  showTaskModal ||
+                  showWelcomeScreen ||
+                  showFirstLaunchModal
                 }
               />
             </RightSidebarProvider>

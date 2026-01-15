@@ -55,7 +55,6 @@ Events track which features are used, not what you do with them:
 - Plan mode (enable/disable)
 - Settings (theme, notifications, default provider)
 - Integrations (Linear, Jira connections)
-- Container connections
 - UI interactions (toolbar, sidebar, Kanban)
 
 All events include only: event name, anonymized properties (e.g., `provider: "claude"`). No file paths, code, prompts, or identifying information.
@@ -80,8 +79,6 @@ All events include only: event name, anonymized properties (e.g., `provider: "cl
 **Linear:** `linear_connected`, `linear_disconnected`, `linear_issues_searched`, `linear_issue_selected`
 
 **Jira:** `jira_connected`, `jira_disconnected`, `jira_issues_searched`, `jira_issue_selected`
-
-**Containers:** `container_connect_clicked`, `container_connect_success`, `container_connect_failed`
 
 **Toolbar:** `toolbar_feedback_clicked`, `toolbar_left_sidebar_clicked`, `toolbar_right_sidebar_clicked`, `toolbar_settings_clicked`, `toolbar_open_in_menu_clicked`, `toolbar_open_in_selected`, `toolbar_kanban_toggled`
 

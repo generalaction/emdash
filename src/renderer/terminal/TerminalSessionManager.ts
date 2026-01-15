@@ -2,6 +2,7 @@ import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ensureTerminalHost } from './terminalHost';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
@@ -31,6 +32,7 @@ export interface TerminalSessionOptions {
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  onLinkClick?: (url: string) => void;
 }
 
 type CleanupFn = () => void;
@@ -40,6 +42,7 @@ export class TerminalSessionManager {
   private readonly terminal: Terminal;
   private readonly fitAddon: FitAddon;
   private readonly serializeAddon: SerializeAddon;
+  private readonly webLinksAddon: WebLinksAddon;
   private webglAddon: WebglAddon | null = null;
   private readonly metrics: TerminalMetrics;
   private readonly container: HTMLDivElement;
@@ -87,8 +90,27 @@ export class TerminalSessionManager {
 
     this.fitAddon = new FitAddon();
     this.serializeAddon = new SerializeAddon();
+
+    // Initialize WebLinks addon with custom handler
+    this.webLinksAddon = new WebLinksAddon((event, uri) => {
+      // Prevent default behavior
+      event.preventDefault();
+
+      // Call the custom link handler if provided, otherwise use default behavior
+      if (options.onLinkClick) {
+        options.onLinkClick(uri);
+      } else {
+        // Fallback to opening directly via electronAPI
+        window.electronAPI.openExternal(uri).catch((error) => {
+          log.warn('Failed to open external link', { uri, error });
+        });
+      }
+    });
+
     this.terminal.loadAddon(this.fitAddon);
     this.terminal.loadAddon(this.serializeAddon);
+    this.terminal.loadAddon(this.webLinksAddon);
+
     try {
       this.webglAddon = new WebglAddon();
       this.webglAddon.onContextLoss?.(() => {

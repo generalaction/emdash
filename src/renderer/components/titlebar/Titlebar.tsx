@@ -162,7 +162,10 @@ const Titlebar: React.FC<TitlebarProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs font-medium">
-                  <span>{isEditorOpen ? 'Close Editor' : 'Open Editor'}</span>
+                  <div className="flex flex-col gap-1">
+                    <span>{isEditorOpen ? 'Close Editor' : 'Open Editor'}</span>
+                    <ShortcutHint settingsKey="toggleEditor" />
+                  </div>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

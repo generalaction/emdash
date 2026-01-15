@@ -15,6 +15,7 @@ export type ShortcutSettingsKey =
   | 'toggleRightSidebar'
   | 'toggleTheme'
   | 'toggleKanban'
+  | 'toggleEditor'
   | 'closeModal'
   | 'nextProject'
   | 'prevProject'
@@ -83,6 +84,15 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     description: 'Show or hide the Kanban board',
     category: 'Navigation',
     settingsKey: 'toggleKanban',
+  },
+
+  TOGGLE_EDITOR: {
+    key: 'e',
+    modifier: 'cmd',
+    label: 'Toggle Editor',
+    description: 'Show or hide the code editor',
+    category: 'View',
+    settingsKey: 'toggleEditor',
   },
 
   CLOSE_MODAL: {
@@ -245,6 +255,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       toggleRightSidebar: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR, custom),
       toggleTheme: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_THEME, custom),
       toggleKanban: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_KANBAN, custom),
+      toggleEditor: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_EDITOR, custom),
       closeModal: getEffectiveConfig(APP_SHORTCUTS.CLOSE_MODAL, custom),
       nextProject: getEffectiveConfig(APP_SHORTCUTS.NEXT_TASK, custom),
       prevProject: getEffectiveConfig(APP_SHORTCUTS.PREV_TASK, custom),
@@ -288,6 +299,12 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       {
         config: effectiveShortcuts.toggleKanban,
         handler: () => handlers.onToggleKanban?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.toggleEditor,
+        handler: () => handlers.onToggleEditor?.(),
         priority: 'global',
         requiresClosed: true,
       },
