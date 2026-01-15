@@ -47,7 +47,7 @@ const ChatInterface: React.FC<Props> = ({
   >({});
   const [provider, setProvider] = useState<Provider>(initialProvider || 'claude');
   const currentProviderStatus = providerStatuses[provider];
-  const [cliStartFailed, setCliStartFailed] = useState(false);
+  const [cliStartError, setCliStartError] = useState<string | null>(null);
 
   // Multi-chat state
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -222,7 +222,7 @@ const ChatInterface: React.FC<Props> = ({
   }, [provider, terminalId]);
 
   useEffect(() => {
-    setCliStartFailed(false);
+    setCliStartError(null);
     setIsProviderInstalled(null);
   }, [task.id]);
 
@@ -838,16 +838,20 @@ const ChatInterface: React.FC<Props> = ({
                       installCommand={getInstallCommandForProvider(provider as any)}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                      mode="missing"
                     />
                   );
                 }
-                if (cliStartFailed) {
+                if (cliStartError) {
                   return (
                     <InstallBanner
                       provider={provider as any}
                       terminalId={terminalId}
+                      installCommand={null}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                      mode="start_failed"
+                      details={cliStartError}
                     />
                   );
                 }
