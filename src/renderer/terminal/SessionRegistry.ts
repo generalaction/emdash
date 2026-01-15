@@ -16,6 +16,7 @@ interface AttachOptions {
   theme: SessionTheme;
   autoApprove?: boolean;
   initialPrompt?: string;
+  onLinkClick?: (url: string) => void;
 }
 
 class SessionRegistry {
@@ -64,6 +65,7 @@ class SessionRegistry {
       telemetry: null,
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
+      onLinkClick: options.onLinkClick,
     };
 
     const session = new TerminalSessionManager(sessionOptions);

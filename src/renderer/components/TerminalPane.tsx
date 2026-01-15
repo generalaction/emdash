@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { SessionTheme } from '../terminal/TerminalSessionManager';
 import { log } from '../lib/logger';
+import ExternalLinkModal from './ExternalLinkModal';
 
 type Props = {
   id: string;
@@ -49,6 +50,33 @@ const TerminalPaneComponent: React.FC<Props> = ({
   const errorCleanupRef = useRef<(() => void) | null>(null);
   const exitCleanupRef = useRef<(() => void) | null>(null);
 
+  // State for external link modal
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [currentLinkUrl, setCurrentLinkUrl] = useState('');
+
+  // Handle link clicks from terminal
+  const handleLinkClick = useCallback((url: string) => {
+    setCurrentLinkUrl(url);
+    setLinkModalOpen(true);
+  }, []);
+
+  // Handle confirming link open
+  const handleLinkConfirm = useCallback(() => {
+    if (currentLinkUrl) {
+      window.electronAPI.openExternal(currentLinkUrl).catch((error) => {
+        log.warn('Failed to open external link', { url: currentLinkUrl, error });
+      });
+    }
+    setLinkModalOpen(false);
+    setCurrentLinkUrl('');
+  }, [currentLinkUrl]);
+
+  // Handle cancelling link open
+  const handleLinkCancel = useCallback(() => {
+    setLinkModalOpen(false);
+    setCurrentLinkUrl('');
+  }, []);
+
   const theme = useMemo<SessionTheme>(
     () => ({ base: variant, override: themeOverride }),
     [variant, themeOverride]
@@ -68,6 +96,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
       theme,
       autoApprove,
       initialPrompt,
+      onLinkClick: handleLinkClick,
     });
     sessionRef.current = session;
 
@@ -104,6 +133,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
     rows,
     theme,
     autoApprove,
+    handleLinkClick,
     onActivity,
     onStartError,
     onStartSuccess,
@@ -155,32 +185,41 @@ const TerminalPaneComponent: React.FC<Props> = ({
   };
 
   return (
-    <div
-      className={['terminal-pane flex h-full w-full', className].filter(Boolean).join(' ')}
-      style={{
-        width: '100%',
-        height: '100%',
-        minHeight: 0,
-        backgroundColor: variant === 'light' ? '#ffffff' : themeOverride?.background || '#1f2937',
-        boxSizing: 'border-box',
-      }}
-    >
+    <>
       <div
-        ref={containerRef}
-        data-terminal-container
+        className={['terminal-pane flex h-full w-full', className].filter(Boolean).join(' ')}
         style={{
           width: '100%',
           height: '100%',
           minHeight: 0,
-          overflow: 'hidden',
-          filter: contentFilter || undefined,
+          backgroundColor: variant === 'light' ? '#ffffff' : themeOverride?.background || '#1f2937',
+          boxSizing: 'border-box',
         }}
-        onClick={handleFocus}
-        onMouseDown={handleFocus}
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={handleDrop}
+      >
+        <div
+          ref={containerRef}
+          data-terminal-container
+          style={{
+            width: '100%',
+            height: '100%',
+            minHeight: 0,
+            overflow: 'hidden',
+            filter: contentFilter || undefined,
+          }}
+          onClick={handleFocus}
+          onMouseDown={handleFocus}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+        />
+      </div>
+      <ExternalLinkModal
+        open={linkModalOpen}
+        onOpenChange={setLinkModalOpen}
+        url={currentLinkUrl}
+        onConfirm={handleLinkConfirm}
+        onCancel={handleLinkCancel}
       />
-    </div>
+    </>
   );
 };
 
