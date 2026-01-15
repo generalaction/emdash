@@ -377,6 +377,10 @@ declare global {
         success: boolean;
         error?: string;
       }>;
+      unstageFile: (args: { taskPath: string; filePath: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
       revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         action?: 'unstaged' | 'reverted';

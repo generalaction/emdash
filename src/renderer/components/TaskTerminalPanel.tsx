@@ -30,9 +30,12 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   projectPath,
 }) => {
   const { effectiveTheme } = useTheme();
-  const taskKey = task?.id ?? 'task-placeholder';
+  // Use path in the key to differentiate multi-agent variants that share the same task.id
+  const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
-  const globalTerminals = useTaskTerminals('global', projectPath, { defaultCwd: projectPath });
+  // Also differentiate global terminals per variant so each agent has its own
+  const globalKey = task?.path ? `global::${task.path}` : 'global';
+  const globalTerminals = useTaskTerminals(globalKey, projectPath, { defaultCwd: projectPath });
   const [mode, setMode] = useState<'task' | 'global'>(task ? 'task' : 'global');
   useEffect(() => {
     if (!task && mode === 'task') {
