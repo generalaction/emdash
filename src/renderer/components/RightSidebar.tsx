@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import { useFileChanges } from '@/hooks/useFileChanges';
@@ -8,6 +8,7 @@ import { providerAssets } from '@/providers/assets';
 import { providerMeta } from '@/providers/meta';
 import type { Provider } from '../types';
 import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 export interface RightSidebarTask {
   id: string;
@@ -33,7 +34,20 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   ...rest
 }) => {
   const { collapsed } = useRightSidebar();
-  const [isDarkMode, setIsDarkMode] = React.useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [collapsedVariants, setCollapsedVariants] = useState<Set<string>>(new Set());
+
+  const toggleVariantCollapsed = (variantKey: string) => {
+    setCollapsedVariants((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(variantKey)) {
+        newSet.delete(variantKey);
+      } else {
+        newSet.add(variantKey);
+      }
+      return newSet;
+    });
+  };
 
   React.useEffect(() => {
     const checkDarkMode = () => {
@@ -117,41 +131,54 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             <div className="flex h-full flex-col">
               {task && variants.length > 1 ? (
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  {variants.map((v, i) => (
-                    <div
-                      key={`${v.provider}-${i}`}
-                      className="mb-2 border-b border-border last:mb-0 last:border-b-0"
-                    >
-                      <div className="flex min-w-0 items-center justify-between bg-muted px-3 py-2 text-xs font-medium text-foreground dark:bg-background">
-                        <span className="inline-flex min-w-0 items-center gap-2">
-                          {(() => {
-                            const asset = (providerAssets as any)[v.provider] as
-                              | { logo: string; alt: string; name: string; invertInDark?: boolean }
-                              | undefined;
-                            const meta = (providerMeta as any)[v.provider] as
-                              | { label?: string }
-                              | undefined;
-                            return (
-                              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
-                                {asset?.logo ? (
-                                  <img
-                                    src={asset.logo}
-                                    alt={asset.alt || meta?.label || String(v.provider)}
-                                    className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
-                                  />
-                                ) : null}
-                                {getVariantDisplayLabel(v)}
-                              </span>
-                            );
-                          })()}
-                          <span className="truncate" title={v.name}>
-                            {v.name}
+                  {variants.map((v, i) => {
+                    const variantKey = `${v.provider}-${i}`;
+                    const isCollapsed = collapsedVariants.has(variantKey);
+                    return (
+                      <div
+                        key={variantKey}
+                        className="mb-2 border-b border-border last:mb-0 last:border-b-0"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleVariantCollapsed(variantKey)}
+                          className="flex w-full min-w-0 cursor-pointer items-center justify-between bg-muted px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 dark:bg-background dark:hover:bg-muted/20"
+                        >
+                          <span className="inline-flex min-w-0 items-center gap-2">
+                            {isCollapsed ? (
+                              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            )}
+                            {(() => {
+                              const asset = (providerAssets as any)[v.provider] as
+                                | { logo: string; alt: string; name: string; invertInDark?: boolean }
+                                | undefined;
+                              const meta = (providerMeta as any)[v.provider] as
+                                | { label?: string }
+                                | undefined;
+                              return (
+                                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
+                                  {asset?.logo ? (
+                                    <img
+                                      src={asset.logo}
+                                      alt={asset.alt || meta?.label || String(v.provider)}
+                                      className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                                    />
+                                  ) : null}
+                                  {getVariantDisplayLabel(v)}
+                                </span>
+                              );
+                            })()}
+                            <span className="truncate" title={v.name}>
+                              {v.name}
+                            </span>
                           </span>
-                        </span>
+                        </button>
+                        {!isCollapsed && <VariantChangesIfAny path={v.path} taskId={task.id} />}
                       </div>
-                      <VariantChangesIfAny path={v.path} taskId={task.id} />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : task && variants.length === 1 ? (
                 (() => {
