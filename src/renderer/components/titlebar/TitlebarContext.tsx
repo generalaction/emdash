@@ -53,7 +53,7 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
       <div className="flex items-center justify-end [-webkit-app-region:no-drag]">
         <Select value={projectValue} onValueChange={handleProjectChange}>
           <SelectTrigger
-            className="h-7 w-auto justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[state=open]:text-foreground [&>span]:block [&>span]:max-w-[236px] [&>span]:truncate [&>svg]:hidden"
+            className="h-7 w-auto justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[state=open]:text-foreground [&>span]:block [&>span]:max-w-[218px] [&>span]:truncate [&>svg]:hidden"
             aria-label="Select project"
             title={projectLabel}
           >
@@ -82,7 +82,7 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
       <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
         <Select value={taskValue} onValueChange={handleTaskChange} disabled={!selectedProject}>
           <SelectTrigger
-            className="h-7 w-auto justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[state=open]:text-foreground data-[placeholder]:text-muted-foreground/70 [&>span]:block [&>span]:max-w-[236px] [&>span]:truncate [&>svg]:hidden"
+            className="h-7 w-auto justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[state=open]:text-foreground data-[placeholder]:text-muted-foreground/70 [&>span]:block [&>span]:max-w-[218px] [&>span]:truncate [&>svg]:hidden"
             aria-label="Select task"
             title={taskLabel}
           >
