@@ -755,4 +755,77 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
     }
   );
+
+  // Git: Rename branch (local and optionally remote)
+  ipcMain.handle(
+    'git:rename-branch',
+    async (
+      _,
+      args: {
+        repoPath: string;
+        oldBranch: string;
+        newBranch: string;
+      }
+    ) => {
+      const { repoPath, oldBranch, newBranch } = args;
+      try {
+        log.info('Renaming branch:', { repoPath, oldBranch, newBranch });
+
+        // Rename local branch
+        await execFileAsync(GIT, ['branch', '-m', oldBranch, newBranch], { cwd: repoPath });
+        log.info('Local branch renamed successfully');
+
+        // Check if the old branch was pushed to a remote
+        let remotePushed = false;
+        let remoteName = 'origin';
+        try {
+          const { stdout: remoteOut } = await execAsync(
+            `git config --get branch.${oldBranch}.remote`,
+            { cwd: repoPath }
+          );
+          if (remoteOut?.trim()) {
+            remoteName = remoteOut.trim();
+            remotePushed = true;
+          }
+        } catch {
+          // Branch wasn't tracking a remote, check if it exists on origin
+          try {
+            const { stdout: lsRemote } = await execAsync(
+              `git ls-remote --heads origin ${oldBranch}`,
+              { cwd: repoPath }
+            );
+            if (lsRemote?.trim()) {
+              remotePushed = true;
+            }
+          } catch {
+            // No remote branch
+          }
+        }
+
+        // If pushed to remote, delete old and push new
+        if (remotePushed) {
+          log.info('Branch was pushed to remote, updating remote...');
+          try {
+            // Delete old remote branch
+            await execFileAsync(GIT, ['push', remoteName, '--delete', oldBranch], {
+              cwd: repoPath,
+            });
+            log.info('Deleted old remote branch');
+          } catch (deleteErr) {
+            // Remote branch might not exist or already deleted
+            log.warn('Could not delete old remote branch (may not exist):', deleteErr);
+          }
+
+          // Push new branch and set upstream
+          await execFileAsync(GIT, ['push', '-u', remoteName, newBranch], { cwd: repoPath });
+          log.info('Pushed new branch to remote');
+        }
+
+        return { success: true, remotePushed };
+      } catch (error) {
+        log.error('Failed to rename branch:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
 }

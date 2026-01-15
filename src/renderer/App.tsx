@@ -1824,11 +1824,13 @@ const AppContent: React.FC = () => {
 
   const handleRenameTask = async (targetProject: Project, task: Task, newName: string) => {
     const oldName = task.name;
+    const oldBranch = task.branch;
+    const newBranch = newName; // Branch name matches task name
 
-    // Helper to update task name across all state locations
-    const applyTaskNameChange = (name: string) => {
+    // Helper to update task name and branch across all state locations
+    const applyTaskChange = (name: string, branch: string) => {
       const updateTasks = (tasks: Task[] | undefined) =>
-        tasks?.map((t) => (t.id === task.id ? { ...t, name } : t));
+        tasks?.map((t) => (t.id === task.id ? { ...t, name, branch } : t));
 
       setProjects((prev) =>
         prev.map((project) =>
@@ -1841,33 +1843,47 @@ const AppContent: React.FC = () => {
         prev && prev.id === targetProject.id ? { ...prev, tasks: updateTasks(prev.tasks) } : prev
       );
       if (activeTask?.id === task.id) {
-        setActiveTask((prev) => (prev ? { ...prev, name } : prev));
+        setActiveTask((prev) => (prev ? { ...prev, name, branch } : prev));
       }
     };
 
     // Optimistically update local state
-    applyTaskNameChange(newName);
+    applyTaskChange(newName, newBranch);
 
     try {
+      // Rename the git branch (local + remote if pushed)
+      const branchResult = await window.electronAPI.renameBranch({
+        repoPath: task.path,
+        oldBranch,
+        newBranch,
+      });
+
+      if (!branchResult?.success) {
+        throw new Error(branchResult?.error || 'Failed to rename branch');
+      }
+
+      // Save task with new name and branch
       const saveResult = await window.electronAPI.saveTask({
         ...task,
         name: newName,
+        branch: newBranch,
       });
 
       if (!saveResult?.success) {
-        throw new Error(saveResult?.error || 'Failed to rename task');
+        throw new Error(saveResult?.error || 'Failed to save task');
       }
 
+      const remoteNote = branchResult.remotePushed ? ' (remote updated)' : '';
       toast({
         title: 'Task renamed',
-        description: `"${oldName}" → "${newName}"`,
+        description: `"${oldName}" → "${newName}"${remoteNote}`,
       });
     } catch (error) {
       const { log } = await import('./lib/logger');
       log.error('Failed to rename task:', error as any);
 
       // Revert optimistic update
-      applyTaskNameChange(oldName);
+      applyTaskChange(oldName, oldBranch);
 
       toast({
         title: 'Error',
