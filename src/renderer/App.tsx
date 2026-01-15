@@ -1422,21 +1422,64 @@ const AppContent: React.FC = () => {
           useWorktree,
         };
 
-        const saveResult = await window.electronAPI.saveTask({
+        // Optimistic UI update - show task immediately, save in background
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.id === selectedProject.id
+              ? {
+                  ...project,
+                  tasks: [newTask, ...(project.tasks || [])],
+                }
+              : project
+          )
+        );
+
+        setSelectedProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                tasks: [newTask, ...(prev.tasks || [])],
+              }
+            : null
+        );
+
+        // Set the active task and its provider immediately
+        setActiveTask(newTask);
+        if ((newTask.metadata as any)?.multiAgent?.enabled) {
+          setActiveTaskProvider(null);
+        } else {
+          setActiveTaskProvider((newTask.agentId as Provider) || primaryProvider || 'codex');
+        }
+
+        // End loading state - task is visible and ready
+        setIsCreatingTask(false);
+
+        // Background: save to database (non-blocking)
+        window.electronAPI.saveTask({
           ...newTask,
           agentId: primaryProvider,
           metadata: taskMetadata,
           useWorktree,
+        }).then((saveResult) => {
+          if (!saveResult?.success) {
+            import('./lib/logger').then(({ log }) => {
+              log.error('Failed to save task:', saveResult?.error);
+            });
+            // Task is already visible, just log the error
+          }
         });
-        if (!saveResult?.success) {
-          const { log } = await import('./lib/logger');
-          log.error('Failed to save task:', saveResult?.error);
-          toast({ title: 'Error', description: 'Failed to create task.' });
-          setIsCreatingTask(false);
-          return;
-        }
+
+        // Background: telemetry (non-blocking)
+        import('./lib/telemetryClient').then(({ captureTelemetry }) => {
+          const isMultiAgent = (newTask.metadata as any)?.multiAgent?.enabled;
+          captureTelemetry('task_created', {
+            provider: isMultiAgent ? 'multi' : (newTask.agentId as string) || 'codex',
+            has_initial_prompt: !!taskMetadata?.initialPrompt,
+          });
+        });
       }
 
+      // Background: seed issue context (non-blocking)
       {
         if (taskMetadata?.linearIssue) {
           try {
@@ -1580,42 +1623,6 @@ const AppContent: React.FC = () => {
           }
         }
 
-        setProjects((prev) =>
-          prev.map((project) =>
-            project.id === selectedProject.id
-              ? {
-                  ...project,
-                  tasks: [newTask, ...(project.tasks || [])],
-                }
-              : project
-          )
-        );
-
-        setSelectedProject((prev) =>
-          prev
-            ? {
-                ...prev,
-                tasks: [newTask, ...(prev.tasks || [])],
-              }
-            : null
-        );
-
-        // Track task creation
-        const { captureTelemetry } = await import('./lib/telemetryClient');
-        const isMultiAgent = (newTask.metadata as any)?.multiAgent?.enabled;
-        captureTelemetry('task_created', {
-          provider: isMultiAgent ? 'multi' : (newTask.agentId as string) || 'codex',
-          has_initial_prompt: !!taskMetadata?.initialPrompt,
-        });
-
-        // Set the active task and its provider (none if multi-agent)
-        setActiveTask(newTask);
-        if ((newTask.metadata as any)?.multiAgent?.enabled) {
-          setActiveTaskProvider(null);
-        } else {
-          // Use the saved agentId from the task, which should match primaryProvider
-          setActiveTaskProvider((newTask.agentId as Provider) || primaryProvider || 'codex');
-        }
       }
     } catch (error) {
       const { log } = await import('./lib/logger');
@@ -1626,9 +1633,9 @@ const AppContent: React.FC = () => {
           (error as Error)?.message ||
           'Failed to create task. Please check the console for details.',
       });
-    } finally {
       setIsCreatingTask(false);
     }
+    // Note: setIsCreatingTask(false) is called earlier for optimistic UI updates
   };
 
   const handleGoHome = () => {
