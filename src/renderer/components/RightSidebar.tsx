@@ -152,7 +152,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                             )}
                             {(() => {
                               const asset = (providerAssets as any)[v.provider] as
-                                | { logo: string; alt: string; name: string; invertInDark?: boolean }
+                                | {
+                                    logo: string;
+                                    alt: string;
+                                    name: string;
+                                    invertInDark?: boolean;
+                                  }
                                 | undefined;
                               const meta = (providerMeta as any)[v.provider] as
                                 | { label?: string }
