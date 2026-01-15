@@ -72,6 +72,18 @@ export async function startPty(options: {
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     SHELL: process.env.SHELL || defaultShell,
+    ...(process.platform === 'win32' && {
+      // Windows shells (.cmd/.bat) and many tools rely on PATH/PATHEXT to locate executables (e.g. `node`).
+      PATH: process.env.PATH || process.env.Path || '',
+      PATHEXT: process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC',
+      SystemRoot: process.env.SystemRoot || 'C:\\Windows',
+      ComSpec: process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
+      TEMP: process.env.TEMP || '',
+      TMP: process.env.TMP || '',
+      USERPROFILE: process.env.USERPROFILE || os.homedir(),
+      APPDATA: process.env.APPDATA || '',
+      LOCALAPPDATA: process.env.LOCALAPPDATA || '',
+    }),
     ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
