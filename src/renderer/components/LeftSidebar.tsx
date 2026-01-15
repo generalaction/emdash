@@ -275,13 +275,13 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     onCreateTaskForProject?.(typedProject);
                                   }}
                                   disabled={isCreatingTask}
-                                  aria-label={`Add Task to ${typedProject.name}`}
+                                  aria-label={`New Task for ${typedProject.name}`}
                                 >
                                   <Plus
                                     className="h-3 w-3 flex-shrink-0 text-muted-foreground"
                                     aria-hidden
                                   />
-                                  <span className="truncate">Add Task</span>
+                                  <span className="truncate">New Task</span>
                                 </motion.button>
                                 <div className="hidden min-w-0 space-y-0.5 sm:block">
                                   {typedProject.tasks?.map((task) => {

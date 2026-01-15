@@ -569,7 +569,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       ) : (
                         <>
                           <Plus className="mr-2 size-4" />
-                          Start New Task
+                          New Task
                         </>
                       )}
                     </motion.button>
