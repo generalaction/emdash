@@ -88,11 +88,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     })();
   }, []);
 
-  // Default theme (VS Code inspired)
+  // Default theme (matches app theme)
   const defaultTheme = useMemo(() => {
     // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
     const isMistral = provider === 'mistral';
-    const darkBackground = isMistral ? '#202938' : '#1e1e1e';
+    const darkBackground = isMistral ? '#202938' : '#1f2937';
     const blackBackground = isMistral ? '#141820' : '#000000';
 
     return effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
