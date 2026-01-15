@@ -72,6 +72,32 @@ declare global {
         worktreeId: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeGetAll: () => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
+
+      // Worktree pool (reserve) management for instant task creation
+      worktreeEnsureReserve: (args: {
+        projectId: string;
+        projectPath: string;
+        baseRef?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      worktreeHasReserve: (args: {
+        projectId: string;
+      }) => Promise<{ success: boolean; hasReserve?: boolean; error?: string }>;
+      worktreeClaimReserve: (args: {
+        projectId: string;
+        projectPath: string;
+        taskName: string;
+        baseRef?: string;
+        autoApprove?: boolean;
+      }) => Promise<{
+        success: boolean;
+        worktree?: any;
+        needsBaseRefSwitch?: boolean;
+        error?: string;
+      }>;
+      worktreeRemoveReserve: (args: {
+        projectId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+
       openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;
       getProjectSettings: (projectId: string) => Promise<{
         success: boolean;

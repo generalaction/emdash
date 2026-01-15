@@ -118,6 +118,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   worktreeGet: (args: { worktreeId: string }) => ipcRenderer.invoke('worktree:get', args),
   worktreeGetAll: () => ipcRenderer.invoke('worktree:getAll'),
 
+  // Worktree pool (reserve) management for instant task creation
+  worktreeEnsureReserve: (args: { projectId: string; projectPath: string; baseRef?: string }) =>
+    ipcRenderer.invoke('worktree:ensureReserve', args),
+  worktreeHasReserve: (args: { projectId: string }) =>
+    ipcRenderer.invoke('worktree:hasReserve', args),
+  worktreeClaimReserve: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    autoApprove?: boolean;
+  }) => ipcRenderer.invoke('worktree:claimReserve', args),
+  worktreeRemoveReserve: (args: { projectId: string }) =>
+    ipcRenderer.invoke('worktree:removeReserve', args),
+
   // Filesystem helpers
   fsList: (root: string, opts?: { includeDirs?: boolean; maxEntries?: number }) =>
     ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),

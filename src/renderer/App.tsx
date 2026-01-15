@@ -279,6 +279,18 @@ const AppContent: React.FC = () => {
     setSelectedProject(project);
     setShowHomeView(false);
     setActiveTask(null);
+
+    // Start creating a reserve worktree in the background for instant task creation
+    if (project.gitInfo?.isGitRepo) {
+      const baseRef = project.gitInfo?.baseRef || 'HEAD';
+      window.electronAPI.worktreeEnsureReserve({
+        projectId: project.id,
+        projectPath: project.path,
+        baseRef,
+      }).catch(() => {
+        // Silently ignore - reserves are optional optimization
+      });
+    }
   }, []);
 
   const handleRightSidebarCollapsedChange = useCallback((collapsed: boolean) => {
@@ -1353,23 +1365,44 @@ const AppContent: React.FC = () => {
         let taskId: string;
 
         if (useWorktree) {
-          // Create worktree
-          const worktreeResult = await window.electronAPI.worktreeCreate({
+          // Try to claim a pre-created reserve worktree first (instant)
+          const claimStart = performance.now();
+          const claimResult = await window.electronAPI.worktreeClaimReserve({
+            projectId: selectedProject.id,
             projectPath: selectedProject.path,
             taskName,
-            projectId: selectedProject.id,
-            autoApprove,
             baseRef,
+            autoApprove,
           });
 
-          if (!worktreeResult.success) {
-            throw new Error(worktreeResult.error || 'Failed to create worktree');
-          }
+          if (claimResult.success && claimResult.worktree) {
+            // Instant! Reserve was claimed successfully
+            const claimTime = performance.now() - claimStart;
+            console.log(`[WorktreePool] Reserve claimed in ${claimTime.toFixed(0)}ms (INSTANT!)`);
+            const worktree = claimResult.worktree;
+            branch = worktree.branch;
+            path = worktree.path;
+            taskId = worktree.id;
+          } else {
+            console.log('[WorktreePool] No reserve available, falling back to sync creation...');
+            // Fallback: Create worktree synchronously (no reserve available)
+            const worktreeResult = await window.electronAPI.worktreeCreate({
+              projectPath: selectedProject.path,
+              taskName,
+              projectId: selectedProject.id,
+              autoApprove,
+              baseRef,
+            });
 
-          const worktree = worktreeResult.worktree;
-          branch = worktree.branch;
-          path = worktree.path;
-          taskId = worktree.id;
+            if (!worktreeResult.success) {
+              throw new Error(worktreeResult.error || 'Failed to create worktree');
+            }
+
+            const worktree = worktreeResult.worktree;
+            branch = worktree.branch;
+            path = worktree.path;
+            taskId = worktree.id;
+          }
         } else {
           // Direct branch mode - use current project path and branch
           branch = selectedProject.gitInfo.branch || 'main';

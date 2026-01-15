@@ -102,6 +102,7 @@ import { registerAllIpc } from './ipc';
 import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
+import { worktreePoolService } from './services/WorktreePoolService';
 import * as telemetry from './telemetry';
 import { join } from 'path';
 
@@ -237,4 +238,7 @@ app.on('before-quit', () => {
 
   // Cleanup auto-update service
   autoUpdateService.shutdown();
+
+  // Cleanup reserve worktrees (fire and forget - don't block quit)
+  worktreePoolService.cleanup().catch(() => {});
 });

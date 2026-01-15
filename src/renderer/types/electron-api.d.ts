@@ -322,6 +322,31 @@ declare global {
         error?: string;
       }>;
 
+      // Worktree pool (reserve) management for instant task creation
+      worktreeEnsureReserve: (args: {
+        projectId: string;
+        projectPath: string;
+        baseRef?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      worktreeHasReserve: (args: {
+        projectId: string;
+      }) => Promise<{ success: boolean; hasReserve?: boolean; error?: string }>;
+      worktreeClaimReserve: (args: {
+        projectId: string;
+        projectPath: string;
+        taskName: string;
+        baseRef?: string;
+        autoApprove?: boolean;
+      }) => Promise<{
+        success: boolean;
+        worktree?: any;
+        needsBaseRefSwitch?: boolean;
+        error?: string;
+      }>;
+      worktreeRemoveReserve: (args: {
+        projectId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+
       // Project management
       openProject: () => Promise<{
         success: boolean;
@@ -881,6 +906,31 @@ export interface ElectronAPI {
     worktrees?: any[];
     error?: string;
   }>;
+
+  // Worktree pool (reserve) management for instant task creation
+  worktreeEnsureReserve: (args: {
+    projectId: string;
+    projectPath: string;
+    baseRef?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  worktreeHasReserve: (args: {
+    projectId: string;
+  }) => Promise<{ success: boolean; hasReserve?: boolean; error?: string }>;
+  worktreeClaimReserve: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    autoApprove?: boolean;
+  }) => Promise<{
+    success: boolean;
+    worktree?: any;
+    needsBaseRefSwitch?: boolean;
+    error?: string;
+  }>;
+  worktreeRemoveReserve: (args: {
+    projectId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
 
   // Project management
   openProject: () => Promise<{
