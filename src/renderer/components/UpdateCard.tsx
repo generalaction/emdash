@@ -193,12 +193,7 @@ export function UpdateCard(): JSX.Element {
 
       case 'downloaded':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={handleInstall}
-            className="h-7 text-xs"
-          >
+          <Button size="sm" variant="default" onClick={handleInstall} className="h-7 text-xs">
             <RefreshCw className="mr-1.5 h-3 w-3" />
             Restart
           </Button>
