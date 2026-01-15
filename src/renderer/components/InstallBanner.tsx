@@ -29,7 +29,7 @@ export const InstallBanner: React.FC<Props> = ({
 
   const command =
     installCommand === undefined ? getInstallCommandForProvider(provider) : installCommand;
-  const canRunInstall = Boolean(command && (onRunInstall || terminalId)); 
+  const canRunInstall = Boolean(command && (onRunInstall || terminalId));
   const [copied, setCopied] = useState(false);
   const copyResetRef = useRef<number | null>(null);
 
@@ -79,7 +79,8 @@ export const InstallBanner: React.FC<Props> = ({
   const showDetails = mode === 'start_failed' && Boolean(details?.trim());
   const isPtyDisabled =
     mode === 'start_failed' &&
-    (details?.includes('EMDASH_DISABLE_PTY=1') || details?.toLowerCase().includes('pty unavailable'));
+    (details?.includes('EMDASH_DISABLE_PTY=1') ||
+      details?.toLowerCase().includes('pty unavailable'));
 
   return (
     <div className="rounded-md border border-border bg-muted p-3 text-sm text-foreground dark:border-border dark:bg-background dark:text-foreground">
@@ -95,9 +96,9 @@ export const InstallBanner: React.FC<Props> = ({
                 {baseLabel}
                 <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
-              ) : (
-                baseLabel
-              )}{' '}
+            ) : (
+              baseLabel
+            )}{' '}
             {mode === 'start_failed' ? 'couldn’t start.' : 'isn’t installed.'}
           </span>{' '}
           {showInstall ? (
@@ -110,7 +111,8 @@ export const InstallBanner: React.FC<Props> = ({
             <span className="font-medium">Error:</span> {details}
             {isPtyDisabled ? (
               <div className="mt-1 text-muted-foreground">
-                Embedded terminals are disabled/unavailable. Unset `EMDASH_DISABLE_PTY` (or set it to `0`) and ensure the PTY native module is installed.
+                Embedded terminals are disabled/unavailable. Unset `EMDASH_DISABLE_PTY` (or set it
+                to `0`) and ensure the PTY native module is installed.
               </div>
             ) : null}
           </div>
