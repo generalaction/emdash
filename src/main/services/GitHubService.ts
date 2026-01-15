@@ -677,6 +677,27 @@ export class GitHubService {
   }
 
   /**
+   * Get current authenticated user information
+   * This is a convenience method that doesn't require a token parameter
+   */
+  async getCurrentUser(): Promise<GitHubUser | null> {
+    try {
+      // Check if authenticated first
+      const isAuth = await this.isAuthenticated();
+      if (!isAuth) {
+        return null;
+      }
+
+      // Get user info using the existing method
+      // Note: The token parameter is ignored in getUserInfo since it uses gh CLI
+      return await this.getUserInfo('');
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get user's repositories using GitHub CLI
    */
   async getRepositories(_token: string): Promise<GitHubRepo[]> {
@@ -1061,3 +1082,6 @@ export class GitHubService {
     }
   }
 }
+
+// Export singleton instance
+export const githubService = new GitHubService();
