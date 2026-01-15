@@ -236,7 +236,8 @@ class ConnectionsService {
         const execPath = resolvedPath ?? command;
         const execExt = process.platform === 'win32' ? extname(execPath).toLowerCase() : '';
         const needsShell =
-          process.platform === 'win32' && (execExt === '.cmd' || execExt === '.bat' || execExt === '.ps1');
+          process.platform === 'win32' &&
+          (execExt === '.cmd' || execExt === '.bat' || execExt === '.ps1');
         const child = spawn(execPath, args, { shell: needsShell, windowsHide: true });
 
         let stdout = '';
@@ -316,7 +317,7 @@ class ConnectionsService {
   }
 
   private resolveCommandPath(command: string): string | null {
-    const resolver = process.platform === 'win32' ? 'where' : 'which';    
+    const resolver = process.platform === 'win32' ? 'where' : 'which';
     try {
       const result = execFileSync(resolver, [command], { encoding: 'utf8' });
       const lines = result

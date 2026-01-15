@@ -48,7 +48,7 @@ const ChatInterface: React.FC<Props> = ({
   const [cliStartError, setCliStartError] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
   const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
-  const { activeTerminalId } = useTaskTerminals(task.id, task.path);      
+  const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
   // Line comments for agent context injection
   const { formatted: commentsContext } = useTaskComments(task.id);
