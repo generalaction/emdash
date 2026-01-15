@@ -15,7 +15,6 @@ import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
-import { terminalSessionRegistry } from '@/terminal/SessionRegistry';
 
 interface Props {
   task: Task;
@@ -348,31 +347,17 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     activityStore.setTaskBusy(task.id, anyBusy);
   }, [variantBusy, task.id]);
 
-  // Auto-focus terminal and scroll when task or active tab changes
+  // Ref to the active terminal
+  const activeTerminalRef = useRef<{ focus: () => void }>(null);
+
+  // Auto-scroll and focus when task or active tab changes
   useEffect(() => {
     if (variants.length > 0 && activeTabIndex >= 0 && activeTabIndex < variants.length) {
-      const activeVariant = variants[activeTabIndex];
-      const terminalId = `${activeVariant.worktreeId}-main`;
-
-      // Focus terminal with retry logic to handle async mounting
-      const focusWithRetry = (attempts = 0) => {
-        const session = terminalSessionRegistry.getSession(terminalId);
-        if (session) {
-          session.focus();
-          // Double-check focus after a frame to ensure it sticks
-          requestAnimationFrame(() => {
-            session.focus();
-          });
-        } else if (attempts < 3) {
-          // Retry with exponential backoff: 100ms, 200ms, 400ms
-          setTimeout(() => focusWithRetry(attempts + 1), 100 * Math.pow(2, attempts));
-        }
-      };
-
       // Small delay to ensure the tab content is rendered
       const timeout = setTimeout(() => {
         scrollToBottom({ onlyIfNearTop: true });
-        focusWithRetry(0);
+        // Focus the active terminal when switching tabs
+        activeTerminalRef.current?.focus();
       }, 150);
 
       return () => clearTimeout(timeout);
@@ -460,6 +445,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                   }`}
                 >
                   <TerminalPane
+                    ref={isActive ? activeTerminalRef : undefined}
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
