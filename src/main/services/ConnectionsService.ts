@@ -1,5 +1,6 @@
 import { spawn, execFileSync } from 'child_process';
 import { BrowserWindow } from 'electron';
+import { extname } from 'node:path';
 import { providerStatusCache, type ProviderStatus } from './providerStatusCache';
 import { listDetectableProviders, type ProviderDefinition } from '@shared/providers/registry';
 import { log } from '../lib/logger';
@@ -232,7 +233,11 @@ class ConnectionsService {
     const resolvedPath = this.resolveCommandPath(command);
     return new Promise((resolve) => {
       try {
-        const child = spawn(command, args);
+        const execPath = resolvedPath ?? command;
+        const execExt = process.platform === 'win32' ? extname(execPath).toLowerCase() : '';
+        const needsShell =
+          process.platform === 'win32' && (execExt === '.cmd' || execExt === '.bat' || execExt === '.ps1');
+        const child = spawn(execPath, args, { shell: needsShell, windowsHide: true });
 
         let stdout = '';
         let stderr = '';
@@ -311,14 +316,39 @@ class ConnectionsService {
   }
 
   private resolveCommandPath(command: string): string | null {
-    const resolver = process.platform === 'win32' ? 'where' : 'which';
+    const resolver = process.platform === 'win32' ? 'where' : 'which';    
     try {
       const result = execFileSync(resolver, [command], { encoding: 'utf8' });
       const lines = result
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter(Boolean);
-      return lines[0] ?? null;
+
+      if (process.platform !== 'win32') {
+        return lines[0] ?? null;
+      }
+
+      // On Windows, `where <cmd>` can return an extensionless shim first (e.g. `codex`)
+      // which is not directly executable via CreateProcess, causing ENOENT at spawn time.
+      // Prefer actual executable extensions when present.
+      const extensionPreference: Record<string, number> = {
+        '.exe': 0,
+        '.cmd': 1,
+        '.bat': 2,
+        '.com': 3,
+        '.ps1': 50,
+        '': 100,
+      };
+
+      const best = [...lines].sort((a, b) => {
+        const aExt = extname(a).toLowerCase();
+        const bExt = extname(b).toLowerCase();
+        const aRank = extensionPreference[aExt] ?? extensionPreference[''];
+        const bRank = extensionPreference[bExt] ?? extensionPreference[''];
+        return aRank - bRank;
+      })[0];
+
+      return best ?? null;
     } catch {
       return null;
     }
