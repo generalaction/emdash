@@ -262,7 +262,30 @@ export class TerminalSessionManager {
   }
 
   focus() {
+    // Ensure container is focusable and focus it first
+    if (this.attachedContainer) {
+      // Find and focus the terminal container div
+      const terminalContainer = this.attachedContainer.querySelector(
+        '[data-terminal-container]'
+      ) as HTMLElement;
+      if (terminalContainer) {
+        if (terminalContainer.tabIndex < 0) {
+          terminalContainer.tabIndex = -1;
+        }
+        terminalContainer.focus();
+      }
+    }
+
+    // Focus the xterm terminal
     this.terminal.focus();
+
+    // Also focus the terminal's textarea element directly for reliability
+    const textarea = this.container.querySelector(
+      'textarea.xterm-helper-textarea'
+    ) as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.focus();
+    }
   }
 
   scrollToBottom() {

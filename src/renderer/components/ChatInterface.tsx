@@ -58,13 +58,23 @@ const ChatInterface: React.FC<Props> = ({
 
   // Auto-focus terminal when switching to this task
   useEffect(() => {
-    // Small delay to ensure terminal is mounted and attached
-    const timer = setTimeout(() => {
+    // Focus terminal with retry logic to handle async mounting
+    const focusWithRetry = (attempts = 0) => {
       const session = terminalSessionRegistry.getSession(terminalId);
       if (session) {
         session.focus();
+        // Double-check focus after a frame to ensure it sticks
+        requestAnimationFrame(() => {
+          session.focus();
+        });
+      } else if (attempts < 3) {
+        // Retry with exponential backoff: 100ms, 200ms, 400ms
+        setTimeout(() => focusWithRetry(attempts + 1), 100 * Math.pow(2, attempts));
       }
-    }, 100);
+    };
+
+    // Initial delay to allow terminal mounting
+    const timer = setTimeout(() => focusWithRetry(0), 150);
 
     return () => clearTimeout(timer);
   }, [task.id, terminalId]);

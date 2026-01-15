@@ -100,12 +100,23 @@ const TerminalPaneComponent: React.FC<Props> = ({
     });
     sessionRef.current = session;
 
+    // Try to focus immediately after attach (in case terminal is already ready)
+    setTimeout(() => {
+      session.focus();
+    }, 50);
+
     if (onActivity) {
       activityCleanupRef.current = session.registerActivityListener(onActivity);
     }
-    if (onStartSuccess) {
-      readyCleanupRef.current = session.registerReadyListener(onStartSuccess);
-    }
+
+    // Register ready listener for both onStartSuccess callback and auto-focus
+    readyCleanupRef.current = session.registerReadyListener(() => {
+      if (onStartSuccess) {
+        onStartSuccess();
+      }
+      // Auto-focus when terminal is ready
+      session.focus();
+    });
     if (onStartError) {
       errorCleanupRef.current = session.registerErrorListener(onStartError);
     }
@@ -161,6 +172,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
       const { captureTelemetry } = await import('../lib/telemetryClient');
       captureTelemetry('terminal_entered');
     })();
+    // Focus the terminal session
     sessionRef.current?.focus();
   };
 
@@ -199,12 +211,14 @@ const TerminalPaneComponent: React.FC<Props> = ({
         <div
           ref={containerRef}
           data-terminal-container
+          tabIndex={-1}
           style={{
             width: '100%',
             height: '100%',
             minHeight: 0,
             overflow: 'hidden',
             filter: contentFilter || undefined,
+            outline: 'none',
           }}
           onClick={handleFocus}
           onMouseDown={handleFocus}
