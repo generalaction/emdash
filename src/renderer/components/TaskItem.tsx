@@ -1,5 +1,5 @@
-import React from 'react';
-import { GitBranch, ArrowUpRight, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { GitBranch, ArrowUpRight, AlertCircle, Check, X, Pencil } from 'lucide-react';
 import TaskDeleteButton from './TaskDeleteButton';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
@@ -7,6 +7,39 @@ import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskBusy } from '../hooks/useTaskBusy';
 import PrPreviewTooltip from './PrPreviewTooltip';
+import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from './ui/context-menu';
+
+function stopPropagation(e: React.MouseEvent): void {
+  e.stopPropagation();
+}
+
+interface EditActionButtonProps {
+  onClick: () => void;
+  'aria-label': string;
+  children: React.ReactNode;
+}
+
+function EditActionButton({ onClick, 'aria-label': ariaLabel, children }: EditActionButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+      aria-label={ariaLabel}
+    >
+      {children}
+    </button>
+  );
+}
 
 interface Task {
   id: string;
@@ -21,6 +54,7 @@ interface Task {
 interface TaskItemProps {
   task: Task;
   onDelete?: () => void | Promise<void | boolean>;
+  onRename?: (newName: string) => void | Promise<void>;
   showDelete?: boolean;
   showDirectBadge?: boolean;
 }
@@ -28,6 +62,7 @@ interface TaskItemProps {
 export const TaskItem: React.FC<TaskItemProps> = ({
   task,
   onDelete,
+  onRename,
   showDelete,
   showDirectBadge = true,
 }) => {
@@ -35,9 +70,60 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const { pr } = usePrStatus(task.path);
   const isRunning = useTaskBusy(task.id);
 
-  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(task.name);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  return (
+  const handleStartEdit = useCallback(() => {
+    if (!onRename) return;
+    setEditValue(task.name);
+    setIsEditing(true);
+  }, [onRename, task.name]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setEditValue(task.name);
+  }, [task.name]);
+
+  const handleConfirmEdit = useCallback(async () => {
+    const normalized = normalizeTaskName(editValue);
+    if (!normalized) {
+      handleCancelEdit();
+      return;
+    }
+    if (normalized === normalizeTaskName(task.name)) {
+      setIsEditing(false);
+      return;
+    }
+    setIsEditing(false);
+    await onRename?.(normalized);
+  }, [editValue, task.name, onRename, handleCancelEdit]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleConfirmEdit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancelEdit();
+      }
+    },
+    [handleConfirmEdit, handleCancelEdit]
+  );
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      // Small delay to ensure context menu has closed and input is ready
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
+    }
+  }, [isEditing]);
+
+  const taskContent = (
     <div className="flex min-w-0 items-center justify-between">
       <div className="flex min-w-0 flex-1 items-center gap-2 py-1">
         {isRunning || task.status === 'running' ? (
@@ -45,7 +131,29 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         ) : (
           <GitBranch className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
-        <span className="block truncate text-xs font-medium text-foreground">{task.name}</span>
+        {isEditing ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleConfirmEdit}
+              maxLength={MAX_TASK_NAME_LENGTH}
+              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+              onClick={stopPropagation}
+            />
+            <EditActionButton onClick={handleConfirmEdit} aria-label="Confirm rename">
+              <Check className="h-3 w-3" />
+            </EditActionButton>
+            <EditActionButton onClick={handleCancelEdit} aria-label="Cancel rename">
+              <X className="h-3 w-3" />
+            </EditActionButton>
+          </div>
+        ) : (
+          <span className="block truncate text-xs font-medium text-foreground">{task.name}</span>
+        )}
         {showDirectBadge && task.useWorktree === false && (
           <span
             className="inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground"
@@ -105,4 +213,26 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       </div>
     </div>
   );
+
+  // Wrap with context menu if rename is available
+  if (onRename) {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{taskContent}</ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStartEdit();
+            }}
+          >
+            <Pencil className="mr-2 h-3.5 w-3.5" />
+            Rename
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  }
+
+  return taskContent;
 };

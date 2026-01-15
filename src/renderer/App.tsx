@@ -1822,6 +1822,61 @@ const AppContent: React.FC = () => {
     return runDeletion();
   };
 
+  const handleRenameTask = async (targetProject: Project, task: Task, newName: string) => {
+    const oldName = task.name;
+
+    // Helper to update task name across all state locations
+    const applyTaskNameChange = (name: string) => {
+      const updateTasks = (tasks: Task[] | undefined) =>
+        tasks?.map((t) => (t.id === task.id ? { ...t, name } : t));
+
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === targetProject.id
+            ? { ...project, tasks: updateTasks(project.tasks) }
+            : project
+        )
+      );
+      setSelectedProject((prev) =>
+        prev && prev.id === targetProject.id ? { ...prev, tasks: updateTasks(prev.tasks) } : prev
+      );
+      if (activeTask?.id === task.id) {
+        setActiveTask((prev) => (prev ? { ...prev, name } : prev));
+      }
+    };
+
+    // Optimistically update local state
+    applyTaskNameChange(newName);
+
+    try {
+      const saveResult = await window.electronAPI.saveTask({
+        ...task,
+        name: newName,
+      });
+
+      if (!saveResult?.success) {
+        throw new Error(saveResult?.error || 'Failed to rename task');
+      }
+
+      toast({
+        title: 'Task renamed',
+        description: `"${oldName}" → "${newName}"`,
+      });
+    } catch (error) {
+      const { log } = await import('./lib/logger');
+      log.error('Failed to rename task:', error as any);
+
+      // Revert optimistic update
+      applyTaskNameChange(oldName);
+
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Could not rename task.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleReorderProjects = (sourceId: string, targetId: string) => {
     setProjects((prev) => {
       const list = [...prev];
@@ -2164,6 +2219,7 @@ const AppContent: React.FC = () => {
                       onCreateTaskForProject={handleStartCreateTaskFromSidebar}
                       isCreatingTask={isCreatingTask}
                       onDeleteTask={handleDeleteTask}
+                      onRenameTask={handleRenameTask}
                       onDeleteProject={handleDeleteProject}
                       isHomeView={showHomeView}
                     />
