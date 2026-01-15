@@ -14,6 +14,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
 import BrowserToggleButton from './BrowserToggleButton';
+import TitlebarContext from './TitlebarContext';
+import type { Project, Task } from '../../types/app';
 
 interface GithubUser {
   login?: string;
@@ -38,6 +40,11 @@ interface TitlebarProps {
   onToggleEditor?: () => void;
   showEditorButton?: boolean;
   isEditorOpen?: boolean;
+  projects: Project[];
+  selectedProject: Project | null;
+  activeTask: Task | null;
+  onSelectProject: (project: Project) => void;
+  onSelectTask: (task: Task) => void;
 }
 
 const Titlebar: React.FC<TitlebarProps> = ({
@@ -56,6 +63,11 @@ const Titlebar: React.FC<TitlebarProps> = ({
   onToggleEditor,
   showEditorButton = false,
   isEditorOpen = false,
+  projects,
+  selectedProject,
+  activeTask,
+  onSelectProject,
+  onSelectTask,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -114,8 +126,18 @@ const Titlebar: React.FC<TitlebarProps> = ({
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background">
-        <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
+      <header className="fixed inset-x-0 top-0 z-[80] grid h-[var(--tb,36px)] grid-cols-[1fr_auto_1fr] items-center bg-muted shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background">
+        <div className="h-full" />
+        <div className="min-w-0 w-[min(60vw,720px)] justify-self-center">
+          <TitlebarContext
+            projects={projects}
+            selectedProject={selectedProject}
+            activeTask={activeTask}
+            onSelectProject={onSelectProject}
+            onSelectTask={onSelectTask}
+          />
+        </div>
+        <div className="pointer-events-auto flex items-center gap-1 justify-self-end pr-2 [-webkit-app-region:no-drag]">
           {currentPath ? <OpenInMenu path={currentPath} align="right" /> : null}
           {showEditorButton ? (
             <TooltipProvider delayDuration={200}>

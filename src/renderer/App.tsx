@@ -2129,6 +2129,11 @@ const AppContent: React.FC = () => {
                 onToggleEditor={() => setShowEditorMode(!showEditorMode)}
                 showEditorButton={Boolean(activeTask)}
                 isEditorOpen={showEditorMode}
+                projects={projects}
+                selectedProject={selectedProject}
+                activeTask={activeTask}
+                onSelectProject={handleSelectProject}
+                onSelectTask={handleSelectTask}
               />
               <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
                 <ResizablePanelGroup
