@@ -1361,6 +1361,42 @@ const AppContent: React.FC = () => {
           setIsCreatingTask(false);
           return;
         }
+
+        // Update UI state after successful save
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.id === selectedProject.id
+              ? {
+                  ...project,
+                  tasks: [newTask, ...(project.tasks || [])],
+                }
+              : project
+          )
+        );
+
+        setSelectedProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                tasks: [newTask, ...(prev.tasks || [])],
+              }
+            : null
+        );
+
+        // Set the active task and provider (null for multi-agent)
+        setActiveTask(newTask);
+        setActiveTaskProvider(null);
+
+        // End loading state - task is visible and ready
+        setIsCreatingTask(false);
+
+        // Background: telemetry (non-blocking)
+        import('./lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('task_created', {
+            provider: 'multi',
+            has_initial_prompt: !!taskMetadata?.initialPrompt,
+          });
+        });
       } else {
         let branch: string;
         let path: string;
@@ -1899,6 +1935,15 @@ const AppContent: React.FC = () => {
 
   const handleDeleteProject = async (project: Project) => {
     try {
+      // Clean up reserve worktree if it exists
+      try {
+        await window.electronAPI.worktreeRemoveReserve({ projectId: project.id });
+      } catch (reserveErr) {
+        // Log but don't fail - reserve may not exist
+        const { log } = await import('./lib/logger');
+        log.debug('Failed to remove reserve worktree during project deletion:', reserveErr);
+      }
+
       const res = await window.electronAPI.deleteProject(project.id);
       if (!res?.success) throw new Error(res?.error || 'Failed to delete project');
 
