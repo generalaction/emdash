@@ -63,7 +63,7 @@ export interface ErrorContext {
   git_operation?: string;
 
   // Additional context
-  [key: string]: any;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 /**
