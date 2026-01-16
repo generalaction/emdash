@@ -771,11 +771,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       try {
         log.info('Renaming branch:', { repoPath, oldBranch, newBranch });
 
-        // Rename local branch
-        await execFileAsync(GIT, ['branch', '-m', oldBranch, newBranch], { cwd: repoPath });
-        log.info('Local branch renamed successfully');
-
-        // Check if the old branch was pushed to a remote
+        // Check if the old branch was pushed to a remote BEFORE renaming
+        // (git branch -m also renames the config section, so we must query first)
         let remotePushed = false;
         let remoteName = 'origin';
         try {
@@ -801,6 +798,10 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
             // No remote branch
           }
         }
+
+        // Rename local branch
+        await execFileAsync(GIT, ['branch', '-m', oldBranch, newBranch], { cwd: repoPath });
+        log.info('Local branch renamed successfully');
 
         // If pushed to remote, delete old and push new
         if (remotePushed) {

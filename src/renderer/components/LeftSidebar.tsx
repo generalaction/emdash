@@ -316,7 +316,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                               : undefined
                                           }
                                           onRename={
-                                            onRenameTask
+                                            // Disable rename for multi-agent tasks (variant metadata would become stale)
+                                            onRenameTask && !task.metadata?.multiAgent?.enabled
                                               ? (newName) =>
                                                   onRenameTask(typedProject, task, newName)
                                               : undefined
