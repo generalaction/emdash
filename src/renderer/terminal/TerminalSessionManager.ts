@@ -12,6 +12,7 @@ import { getProvider, type ProviderId } from '@shared/providers/registry';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
+const CTRL_J_ASCII = '\x0A'; // Line feed (LF) character for Ctrl+J
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -136,9 +137,9 @@ export class TerminalSessionManager {
 
     // Map Shift+Enter to Ctrl+J for CLI agents
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-      if (event.type === 'keydown' && event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        // Send Ctrl+J (ASCII code 10, which is line feed)
-        window.electronAPI.ptyInput({ id: this.id, data: '\x0A' });
+      if (this.isShiftEnterOnly(event)) {
+        // Send Ctrl+J (line feed) instead of Shift+Enter
+        window.electronAPI.ptyInput({ id: this.id, data: CTRL_J_ASCII });
         return false; // Prevent xterm from processing the Shift+Enter
       }
       return true; // Let xterm handle all other keys normally
@@ -329,6 +330,17 @@ export class TerminalSessionManager {
     return () => {
       this.exitListeners.delete(listener);
     };
+  }
+
+  private isShiftEnterOnly(event: KeyboardEvent): boolean {
+    return (
+      event.type === 'keydown' &&
+      event.key === 'Enter' &&
+      event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    );
   }
 
   private applyTheme(theme: SessionTheme) {
