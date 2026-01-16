@@ -11,7 +11,8 @@ import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
-const CTRL_J_ASCII = '\x0A'; // Line feed (LF) character for Ctrl+J
+// Ctrl+J sends line feed (LF) to the PTY, which CLI agents interpret as a newline
+const CTRL_J_ASCII = '\x0A';
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -107,7 +108,7 @@ export class TerminalSessionManager {
 
     // Map Shift+Enter to Ctrl+J for CLI agents
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-      if (this.isShiftEnterOnly(event)) {
+      if (this.shouldMapShiftEnterToCtrlJ(event)) {
         // Send Ctrl+J (line feed) instead of Shift+Enter
         window.electronAPI.ptyInput({ id: this.id, data: CTRL_J_ASCII });
         return false; // Prevent xterm from processing the Shift+Enter
@@ -292,7 +293,7 @@ export class TerminalSessionManager {
     };
   }
 
-  private isShiftEnterOnly(event: KeyboardEvent): boolean {
+  private shouldMapShiftEnterToCtrlJ(event: KeyboardEvent): boolean {
     return (
       event.type === 'keydown' &&
       event.key === 'Enter' &&
