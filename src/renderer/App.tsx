@@ -48,6 +48,7 @@ import { type Provider } from './types';
 import type { Project, Task } from './types/app';
 import type { TaskMetadata } from './types/chat';
 import { type GitHubIssueSummary } from './types/github';
+import { type GitHubIssueLink } from './types/chat';
 import { type JiraIssueSummary } from './types/jira';
 import { type LinearIssueSummary } from './types/linear';
 
@@ -67,6 +68,21 @@ const TERMINAL_PROVIDER_IDS = [
   'kiro',
   'rovo',
 ] as const;
+
+const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIssueLink> => {
+  const linked = new Map<number, GitHubIssueLink>();
+  if (!tasks?.length) return linked;
+  for (const task of tasks) {
+    const issueNumber = task.metadata?.githubIssue?.number;
+    if (typeof issueNumber !== 'number' || linked.has(issueNumber)) continue;
+    linked.set(issueNumber, {
+      number: issueNumber,
+      taskId: task.id,
+      taskName: task.name,
+    });
+  }
+  return linked;
+};
 
 const RightSidebarBridge: React.FC<{
   onCollapsedChange: (collapsed: boolean) => void;
@@ -1946,6 +1962,11 @@ const AppContent: React.FC = () => {
     };
   }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
 
+  const linkedGithubIssueMap = useMemo(
+    () => buildLinkedGithubIssueMap(selectedProject?.tasks),
+    [selectedProject?.tasks]
+  );
+
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
       return (
@@ -2244,6 +2265,7 @@ const AppContent: React.FC = () => {
                 projectName={selectedProject?.name || ''}
                 defaultBranch={projectDefaultBranch}
                 existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
+                linkedGithubIssueMap={linkedGithubIssueMap}
                 projectPath={selectedProject?.path}
                 branchOptions={projectBranchOptions}
                 isLoadingBranches={isLoadingBranches}

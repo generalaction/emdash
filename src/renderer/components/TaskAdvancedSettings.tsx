@@ -14,6 +14,7 @@ import LinearSetupForm from './integrations/LinearSetupForm';
 import JiraSetupForm from './integrations/JiraSetupForm';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
+import { type GitHubIssueLink } from '../types/chat';
 import { type JiraIssueSummary } from '../types/jira';
 
 interface TaskAdvancedSettingsProps {
@@ -43,6 +44,7 @@ interface TaskAdvancedSettingsProps {
   // GitHub
   selectedGithubIssue: GitHubIssueSummary | null;
   onGithubIssueChange: (issue: GitHubIssueSummary | null) => void;
+  linkedGithubIssueMap?: ReadonlyMap<number, GitHubIssueLink>;
   isGithubConnected: boolean;
   onGithubConnect: () => Promise<void>;
   githubLoading: boolean;
@@ -72,6 +74,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   onLinearConnect,
   selectedGithubIssue,
   onGithubIssueChange,
+  linkedGithubIssueMap,
   isGithubConnected,
   onGithubConnect,
   githubLoading,
@@ -324,6 +327,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                       projectPath={projectPath || ''}
                       selectedIssue={selectedGithubIssue}
                       onIssueChange={handleGithubIssueChange}
+                      linkedIssueMap={linkedGithubIssueMap}
                       isOpen={isOpen}
                       disabled={
                         !hasInitialPromptSupport ||

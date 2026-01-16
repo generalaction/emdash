@@ -7,6 +7,7 @@ import { Separator } from './ui/separator';
 import { Badge } from './ui/badge';
 import { Spinner } from './ui/spinner';
 import { type GitHubIssueSummary } from '../types/github';
+import { type GitHubIssueLink } from '../types/chat';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { GitHubIssuePreviewTooltip } from './GitHubIssuePreviewTooltip';
 
@@ -14,16 +15,22 @@ interface GitHubIssueSelectorProps {
   projectPath: string;
   selectedIssue: GitHubIssueSummary | null;
   onIssueChange: (issue: GitHubIssueSummary | null) => void;
+  linkedIssueMap?: ReadonlyMap<number, GitHubIssueLink>;
+  linkedIssueMode?: 'disable' | 'hide';
   isOpen?: boolean;
   className?: string;
   disabled?: boolean;
   placeholder?: string;
 }
 
+const EMPTY_LINKED_ISSUE_MAP = new Map<number, GitHubIssueLink>();
+
 export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   projectPath,
   selectedIssue,
   onIssueChange,
+  linkedIssueMap,
+  linkedIssueMode = 'disable',
   isOpen = false,
   className = '',
   disabled = false,
@@ -125,22 +132,29 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
     return availableIssues;
   }, [searchResults, availableIssues, searchTerm]);
 
+  const linkedIssueLookup = linkedIssueMap ?? EMPTY_LINKED_ISSUE_MAP;
+
+  const filteredIssues = useMemo(() => {
+    if (linkedIssueMode !== 'hide' || linkedIssueLookup.size === 0) return displayIssues;
+    return displayIssues.filter((issue) => !linkedIssueLookup.has(issue.number));
+  }, [displayIssues, linkedIssueLookup, linkedIssueMode]);
+
   useEffect(() => setVisibleCount(10), [searchTerm]);
 
   const showIssues = useMemo(
-    () => displayIssues.slice(0, Math.max(10, visibleCount)),
-    [displayIssues, visibleCount]
+    () => filteredIssues.slice(0, Math.max(10, visibleCount)),
+    [filteredIssues, visibleCount]
   );
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const el = e.currentTarget;
       const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 16;
-      if (nearBottom && showIssues.length < displayIssues.length) {
-        setVisibleCount((prev) => Math.min(prev + 10, displayIssues.length));
+      if (nearBottom && showIssues.length < filteredIssues.length) {
+        setVisibleCount((prev) => Math.min(prev + 10, filteredIssues.length));
       }
     },
-    [displayIssues.length, showIssues.length]
+    [filteredIssues.length, showIssues.length]
   );
 
   const handleIssueSelect = (value: string) => {
@@ -149,7 +163,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
       return;
     }
     const num = Number(String(value).replace(/^#/, ''));
-    const issue = displayIssues.find((i) => i.number === num) ?? null;
+    const issue = filteredIssues.find((i) => i.number === num) ?? null;
     onIssueChange(issue);
   };
 
@@ -228,23 +242,37 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
           </SelectItem>
           <Separator className="my-1" />
           {showIssues.length > 0 ? (
-            showIssues.map((issue) => (
-              <GitHubIssuePreviewTooltip key={issue.number} issue={issue} side="left">
-                <SelectItem value={`#${issue.number}`}>
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
-                      <img src={githubLogo} alt="GitHub" className="h-3.5 w-3.5" />
-                      <span className="text-[11px] font-medium text-foreground">
-                        #{issue.number}
+            showIssues.map((issue) => {
+              const linkedIssue = linkedIssueLookup.get(issue.number);
+              const isLinked = Boolean(linkedIssue);
+              const isDisabled = linkedIssueMode === 'disable' && isLinked;
+              return (
+                <GitHubIssuePreviewTooltip key={issue.number} issue={issue} side="left">
+                  <SelectItem value={`#${issue.number}`} disabled={isDisabled}>
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
+                        <img src={githubLogo} alt="GitHub" className="h-3.5 w-3.5" />
+                        <span className="text-[11px] font-medium text-foreground">
+                          #{issue.number}
+                        </span>
                       </span>
+                      {issue.title ? (
+                        <span className="truncate text-muted-foreground">{issue.title}</span>
+                      ) : null}
+                      {linkedIssueMode === 'disable' && isLinked ? (
+                        <Badge
+                          variant="outline"
+                          className="ml-auto shrink-0 text-[10px]"
+                          title={`Linked to task "${linkedIssue?.taskName ?? 'another task'}"`}
+                        >
+                          In use
+                        </Badge>
+                      ) : null}
                     </span>
-                    {issue.title ? (
-                      <span className="ml-2 truncate text-muted-foreground">{issue.title}</span>
-                    ) : null}
-                  </span>
-                </SelectItem>
-              </GitHubIssuePreviewTooltip>
-            ))
+                  </SelectItem>
+                </GitHubIssuePreviewTooltip>
+              );
+            })
           ) : searchTerm.trim() ? (
             <div className="px-3 py-2 text-sm text-muted-foreground">
               {isSearching ? (
