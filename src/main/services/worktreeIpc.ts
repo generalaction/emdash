@@ -146,18 +146,15 @@ export function registerWorktreeIpc(): void {
   );
 
   // Check if a reserve is available for a project
-  ipcMain.handle(
-    'worktree:hasReserve',
-    async (event, args: { projectId: string }) => {
-      try {
-        const hasReserve = worktreePoolService.hasReserve(args.projectId);
-        return { success: true, hasReserve };
-      } catch (error) {
-        console.error('Failed to check reserve:', error);
-        return { success: false, error: (error as Error).message };
-      }
+  ipcMain.handle('worktree:hasReserve', async (event, args: { projectId: string }) => {
+    try {
+      const hasReserve = worktreePoolService.hasReserve(args.projectId);
+      return { success: true, hasReserve };
+    } catch (error) {
+      console.error('Failed to check reserve:', error);
+      return { success: false, error: (error as Error).message };
     }
-  );
+  });
 
   // Claim a reserve worktree for a new task (instant operation)
   ipcMain.handle(
@@ -196,16 +193,13 @@ export function registerWorktreeIpc(): void {
   );
 
   // Remove reserve for a project (cleanup)
-  ipcMain.handle(
-    'worktree:removeReserve',
-    async (event, args: { projectId: string }) => {
-      try {
-        await worktreePoolService.removeReserve(args.projectId);
-        return { success: true };
-      } catch (error) {
-        console.error('Failed to remove reserve:', error);
-        return { success: false, error: (error as Error).message };
-      }
+  ipcMain.handle('worktree:removeReserve', async (event, args: { projectId: string }) => {
+    try {
+      await worktreePoolService.removeReserve(args.projectId);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to remove reserve:', error);
+      return { success: false, error: (error as Error).message };
     }
-  );
+  });
 }

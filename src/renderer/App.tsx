@@ -283,13 +283,15 @@ const AppContent: React.FC = () => {
     // Start creating a reserve worktree in the background for instant task creation
     if (project.gitInfo?.isGitRepo) {
       const baseRef = project.gitInfo?.baseRef || 'HEAD';
-      window.electronAPI.worktreeEnsureReserve({
-        projectId: project.id,
-        projectPath: project.path,
-        baseRef,
-      }).catch(() => {
-        // Silently ignore - reserves are optional optimization
-      });
+      window.electronAPI
+        .worktreeEnsureReserve({
+          projectId: project.id,
+          projectPath: project.path,
+          baseRef,
+        })
+        .catch(() => {
+          // Silently ignore - reserves are optional optimization
+        });
     }
   }, []);
 
@@ -1455,19 +1457,21 @@ const AppContent: React.FC = () => {
         setIsCreatingTask(false);
 
         // Background: save to database (non-blocking)
-        window.electronAPI.saveTask({
-          ...newTask,
-          agentId: primaryProvider,
-          metadata: taskMetadata,
-          useWorktree,
-        }).then((saveResult) => {
-          if (!saveResult?.success) {
-            import('./lib/logger').then(({ log }) => {
-              log.error('Failed to save task:', saveResult?.error);
-            });
-            // Task is already visible, just log the error
-          }
-        });
+        window.electronAPI
+          .saveTask({
+            ...newTask,
+            agentId: primaryProvider,
+            metadata: taskMetadata,
+            useWorktree,
+          })
+          .then((saveResult) => {
+            if (!saveResult?.success) {
+              import('./lib/logger').then(({ log }) => {
+                log.error('Failed to save task:', saveResult?.error);
+              });
+              // Task is already visible, just log the error
+            }
+          });
 
         // Background: telemetry (non-blocking)
         import('./lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -1622,7 +1626,6 @@ const AppContent: React.FC = () => {
             log.error('Failed to seed task with Jira issue context:', seedError as any);
           }
         }
-
       }
     } catch (error) {
       const { log } = await import('./lib/logger');

@@ -86,11 +86,7 @@ export class WorktreePoolService {
    * Ensure a reserve worktree exists for a project.
    * Creates one in the background if not present.
    */
-  async ensureReserve(
-    projectId: string,
-    projectPath: string,
-    baseRef?: string
-  ): Promise<void> {
+  async ensureReserve(projectId: string, projectPath: string, baseRef?: string): Promise<void> {
     // Already have a reserve
     if (this.reserves.has(projectId)) {
       log.debug('WorktreePool: Reserve already exists for project', { projectId });
@@ -148,11 +144,9 @@ export class WorktreePoolService {
     }
 
     // Create the worktree
-    await execFileAsync(
-      'git',
-      ['worktree', 'add', '-b', reserveBranch, reservePath, useBaseRef],
-      { cwd: projectPath }
-    );
+    await execFileAsync('git', ['worktree', 'add', '-b', reserveBranch, reservePath, useBaseRef], {
+      cwd: projectPath,
+    });
 
     log.info('WorktreePool: Created reserve worktree', {
       projectId,
@@ -208,12 +202,7 @@ export class WorktreePoolService {
     this.reserves.delete(projectId);
 
     try {
-      const result = await this.transformReserve(
-        reserve,
-        taskName,
-        requestedBaseRef,
-        autoApprove
-      );
+      const result = await this.transformReserve(reserve, taskName, requestedBaseRef, autoApprove);
 
       // Start background replenishment
       this.replenishReserve(projectId, projectPath, requestedBaseRef);
@@ -315,11 +304,7 @@ export class WorktreePoolService {
   }
 
   /** Replenish reserve in background after claiming */
-  private replenishReserve(
-    projectId: string,
-    projectPath: string,
-    baseRef?: string
-  ): void {
+  private replenishReserve(projectId: string, projectPath: string, baseRef?: string): void {
     // Fire and forget
     this.ensureReserve(projectId, projectPath, baseRef).catch((error) => {
       log.warn('WorktreePool: Failed to replenish reserve', { projectId, error });
