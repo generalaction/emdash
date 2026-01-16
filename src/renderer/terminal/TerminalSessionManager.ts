@@ -109,8 +109,10 @@ export class TerminalSessionManager {
     // Map Shift+Enter to Ctrl+J for CLI agents
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
       if (this.shouldMapShiftEnterToCtrlJ(event)) {
-        // Send Ctrl+J (line feed) instead of Shift+Enter
-        window.electronAPI.ptyInput({ id: this.id, data: CTRL_J_ASCII });
+        if (!this.disposed) {
+          // Send Ctrl+J (line feed) instead of Shift+Enter
+          window.electronAPI.ptyInput({ id: this.id, data: CTRL_J_ASCII });
+        }
         return false; // Prevent xterm from processing the Shift+Enter
       }
       return true; // Let xterm handle all other keys normally
