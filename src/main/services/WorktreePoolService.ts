@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { minimatch } from 'minimatch';
 import { log } from '../lib/logger';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 
@@ -87,10 +88,17 @@ export class WorktreePoolService {
    * Creates one in the background if not present.
    */
   async ensureReserve(projectId: string, projectPath: string, baseRef?: string): Promise<void> {
-    // Already have a reserve
-    if (this.reserves.has(projectId)) {
-      log.debug('WorktreePool: Reserve already exists for project', { projectId });
+    // Check if we have a fresh reserve
+    const existingReserve = this.reserves.get(projectId);
+    if (existingReserve && !this.isReserveStale(existingReserve)) {
+      log.debug('WorktreePool: Fresh reserve already exists for project', { projectId });
       return;
+    }
+
+    // If we have a stale reserve, remove it first
+    if (existingReserve && this.isReserveStale(existingReserve)) {
+      log.info('WorktreePool: Removing stale reserve for project', { projectId });
+      await this.removeReserve(projectId);
     }
 
     // Creation already in progress
@@ -506,14 +514,58 @@ export class WorktreePoolService {
     targetPath: string,
     patterns: string[]
   ): Promise<void> {
-    for (const pattern of patterns) {
-      const sourceFile = path.join(sourcePath, pattern);
-      const targetFile = path.join(targetPath, pattern);
-      if (fs.existsSync(sourceFile) && !fs.existsSync(targetFile)) {
-        try {
-          fs.copyFileSync(sourceFile, targetFile);
-        } catch {}
+    try {
+      // Get all ignored files in the source directory
+      const { stdout } = await execFileAsync(
+        'git',
+        ['ls-files', '--others', '--ignored', '--exclude-standard'],
+        {
+          cwd: sourcePath,
+          maxBuffer: 10 * 1024 * 1024,
+        }
+      );
+
+      const ignoredFiles = stdout
+        .split('\n')
+        .map((f) => f.trim())
+        .filter((f) => f.length > 0);
+
+      // Match files against patterns
+      for (const file of ignoredFiles) {
+        const fileName = path.basename(file);
+        let matches = false;
+
+        for (const pattern of patterns) {
+          // Match against filename
+          if (minimatch(fileName, pattern, { dot: true })) {
+            matches = true;
+            break;
+          }
+          // Match against full path
+          if (minimatch(file, pattern, { dot: true })) {
+            matches = true;
+            break;
+          }
+          // Match against full path with ** prefix for nested matches
+          if (minimatch(file, `**/${pattern}`, { dot: true })) {
+            matches = true;
+            break;
+          }
+        }
+
+        if (matches) {
+          const sourceFile = path.join(sourcePath, file);
+          const targetFile = path.join(targetPath, file);
+          if (fs.existsSync(sourceFile) && !fs.existsSync(targetFile)) {
+            try {
+              fs.copyFileSync(sourceFile, targetFile);
+            } catch {}
+          }
+        }
       }
+    } catch (error) {
+      // Silently fail if git command fails or directory doesn't exist
+      log.debug('WorktreePool: Failed to get ignored files for preserve', { error });
     }
   }
 
