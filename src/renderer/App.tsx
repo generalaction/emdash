@@ -1421,6 +1421,15 @@ const AppContent: React.FC = () => {
             branch = worktree.branch;
             path = worktree.path;
             taskId = worktree.id;
+
+            // Warn user if base ref switch failed
+            if (claimResult.needsBaseRefSwitch) {
+              toast({
+                title: 'Base ref switch failed',
+                description: `Failed to switch to base ref "${baseRef}". The worktree is on a different base ref. You may need to manually reset it.`,
+                variant: 'destructive',
+              });
+            }
           } else {
             console.log('[WorktreePool] No reserve available, falling back to sync creation...');
             // Fallback: Create worktree synchronously (no reserve available)
