@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GitBranch, ArrowUpRight, AlertCircle, Check, X, Pencil } from 'lucide-react';
+import { GitBranch, ArrowUpRight, AlertCircle, Pencil } from 'lucide-react';
 import TaskDeleteButton from './TaskDeleteButton';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
@@ -17,28 +17,6 @@ import {
 
 function stopPropagation(e: React.MouseEvent): void {
   e.stopPropagation();
-}
-
-interface EditActionButtonProps {
-  onClick: () => void;
-  'aria-label': string;
-  children: React.ReactNode;
-}
-
-function EditActionButton({ onClick, 'aria-label': ariaLabel, children }: EditActionButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-      aria-label={ariaLabel}
-    >
-      {children}
-    </button>
-  );
 }
 
 interface Task {
@@ -132,25 +110,17 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           <GitBranch className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
         {isEditing ? (
-          <div className="flex min-w-0 flex-1 items-center gap-1">
-            <input
-              ref={inputRef}
-              type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleConfirmEdit}
-              maxLength={MAX_TASK_NAME_LENGTH}
-              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
-              onClick={stopPropagation}
-            />
-            <EditActionButton onClick={handleConfirmEdit} aria-label="Confirm rename">
-              <Check className="h-3 w-3" />
-            </EditActionButton>
-            <EditActionButton onClick={handleCancelEdit} aria-label="Cancel rename">
-              <X className="h-3 w-3" />
-            </EditActionButton>
-          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleConfirmEdit}
+            maxLength={MAX_TASK_NAME_LENGTH}
+            className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+            onClick={stopPropagation}
+          />
         ) : (
           <span className="block truncate text-xs font-medium text-foreground">{task.name}</span>
         )}
