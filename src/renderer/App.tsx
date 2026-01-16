@@ -11,6 +11,7 @@ import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import FirstLaunchModal from './components/FirstLaunchModal';
+import { WelcomeScreen } from './components/WelcomeScreen';
 import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
 import KanbanBoard from './components/kanban/KanbanBoard';
 import LeftSidebar from './components/LeftSidebar';
@@ -21,6 +22,7 @@ import RightSidebar from './components/RightSidebar';
 import CodeEditor from './components/FileExplorer/CodeEditor';
 import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
+import { pickDefaultBranch } from './components/BranchSelect';
 import { ThemeProvider } from './components/ThemeProvider';
 import Titlebar from './components/titlebar/Titlebar';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from './components/ui/resizable';
@@ -128,6 +130,12 @@ const AppContent: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
+  // Branch options (loaded when project is selected)
+  const [projectBranchOptions, setProjectBranchOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
@@ -136,6 +144,7 @@ const AppContent: React.FC = () => {
   const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
 
@@ -346,6 +355,11 @@ const AppContent: React.FC = () => {
     }
   }, [selectedProject]);
 
+  const handleWelcomeGetStarted = useCallback(() => {
+    setShowWelcomeScreen(false);
+    setShowFirstLaunchModal(true);
+  }, []);
+
   const markFirstLaunchSeen = useCallback(() => {
     try {
       localStorage.setItem(FIRST_LAUNCH_KEY, '1');
@@ -396,10 +410,54 @@ const AppContent: React.FC = () => {
       } catch {
         // ignore
       }
-      setShowFirstLaunchModal(true);
+      // Show WelcomeScreen for first-time users
+      setShowWelcomeScreen(true);
     };
     void check();
   }, []);
+
+  // Load branch options when project is selected
+  useEffect(() => {
+    if (!selectedProject) {
+      setProjectBranchOptions([]);
+      setProjectDefaultBranch('main');
+      return;
+    }
+
+    // Show current baseRef immediately while loading full list, or reset to defaults
+    const currentRef = selectedProject.gitInfo?.baseRef;
+    const initialBranch = currentRef || 'main';
+    setProjectBranchOptions([{ value: initialBranch, label: initialBranch }]);
+    setProjectDefaultBranch(initialBranch);
+
+    let cancelled = false;
+    const loadBranches = async () => {
+      setIsLoadingBranches(true);
+      try {
+        const res = await window.electronAPI.listRemoteBranches({
+          projectPath: selectedProject.path,
+        });
+        if (cancelled) return;
+        if (res.success && res.branches) {
+          const options = res.branches.map((b) => ({ value: b.label, label: b.label }));
+          setProjectBranchOptions(options);
+          const defaultBranch = pickDefaultBranch(options, currentRef);
+          setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');
+        }
+      } catch (error) {
+        console.error('Failed to load branches:', error);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingBranches(false);
+        }
+      }
+    };
+
+    void loadBranches();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject]);
 
   // Load autoRightSidebarBehavior setting on mount and listen for changes
   useEffect(() => {
@@ -620,6 +678,12 @@ const AppContent: React.FC = () => {
               } else {
                 const { log } = await import('./lib/logger');
                 log.error('Failed to save project:', saveResult.error);
+                toast({
+                  title: 'Failed to Add Project',
+                  description:
+                    'Project opened but could not be saved to database. Please check console for details.',
+                  variant: 'destructive',
+                });
               }
             } else {
               const updateHint =
@@ -655,6 +719,12 @@ const AppContent: React.FC = () => {
             } else {
               const { log } = await import('./lib/logger');
               log.error('Failed to save project:', saveResult.error);
+              toast({
+                title: 'Failed to Add Project',
+                description:
+                  'Project opened but could not be saved to database. Please check console for details.',
+                variant: 'destructive',
+              });
             }
           }
         } catch (error) {
@@ -1066,7 +1136,8 @@ const AppContent: React.FC = () => {
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
     autoApprove?: boolean,
-    useWorktree: boolean = true
+    useWorktree: boolean = true,
+    baseRef?: string
   ) => {
     if (!selectedProject) return;
 
@@ -1209,6 +1280,7 @@ const AppContent: React.FC = () => {
                 taskName: variantName,
                 projectId: selectedProject.id,
                 autoApprove,
+                baseRef,
               });
               if (!worktreeResult?.success || !worktreeResult.worktree) {
                 throw new Error(
@@ -1287,6 +1359,7 @@ const AppContent: React.FC = () => {
             taskName,
             projectId: selectedProject.id,
             autoApprove,
+            baseRef,
           });
 
           if (!worktreeResult.success) {
@@ -1766,6 +1839,110 @@ const AppContent: React.FC = () => {
     return runDeletion();
   };
 
+  const handleRenameTask = async (targetProject: Project, task: Task, newName: string) => {
+    const oldName = task.name;
+    const oldBranch = task.branch;
+
+    // Parse old branch to preserve prefix and hash: "prefix/name-hash"
+    let newBranch: string;
+    const branchMatch = oldBranch.match(/^([^/]+)\/(.+)-([a-z0-9]+)$/i);
+    if (branchMatch) {
+      const [, prefix, , hash] = branchMatch;
+      const sluggedName = newName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      newBranch = `${prefix}/${sluggedName}-${hash}`;
+    } else {
+      // Non-standard branch (direct mode) - keep unchanged
+      newBranch = oldBranch;
+    }
+
+    // Helper to update task name and branch across all state locations
+    const applyTaskChange = (name: string, branch: string) => {
+      const updateTasks = (tasks: Task[] | undefined) =>
+        tasks?.map((t) => (t.id === task.id ? { ...t, name, branch } : t));
+
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === targetProject.id
+            ? { ...project, tasks: updateTasks(project.tasks) }
+            : project
+        )
+      );
+      setSelectedProject((prev) =>
+        prev && prev.id === targetProject.id ? { ...prev, tasks: updateTasks(prev.tasks) } : prev
+      );
+      // Check inside updater to avoid stale closure
+      setActiveTask((prev) => (prev?.id === task.id ? { ...prev, name, branch } : prev));
+    };
+
+    // Optimistically update local state
+    applyTaskChange(newName, newBranch);
+
+    let branchRenamed = false;
+    try {
+      let remotePushed = false;
+
+      // Only rename git branch if it's actually changing
+      if (newBranch !== oldBranch) {
+        const branchResult = await window.electronAPI.renameBranch({
+          repoPath: task.path,
+          oldBranch,
+          newBranch,
+        });
+
+        if (!branchResult?.success) {
+          throw new Error(branchResult?.error || 'Failed to rename branch');
+        }
+        branchRenamed = true;
+        remotePushed = branchResult.remotePushed ?? false;
+      }
+
+      // Save task with new name and branch
+      const saveResult = await window.electronAPI.saveTask({
+        ...task,
+        name: newName,
+        branch: newBranch,
+      });
+
+      if (!saveResult?.success) {
+        throw new Error(saveResult?.error || 'Failed to save task');
+      }
+
+      const remoteNote = remotePushed ? ' (remote updated)' : '';
+      toast({
+        title: 'Task renamed',
+        description: `"${oldName}" → "${newName}"${remoteNote}`,
+      });
+    } catch (error) {
+      const { log } = await import('./lib/logger');
+      log.error('Failed to rename task:', error as any);
+
+      // Rollback git branch if it was renamed
+      if (branchRenamed) {
+        try {
+          await window.electronAPI.renameBranch({
+            repoPath: task.path,
+            oldBranch: newBranch,
+            newBranch: oldBranch,
+          });
+        } catch (rollbackErr) {
+          log.error('Failed to rollback branch rename:', rollbackErr as any);
+        }
+      }
+
+      // Revert optimistic update
+      applyTaskChange(oldName, oldBranch);
+
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Could not rename task.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleReorderProjects = (sourceId: string, targetId: string) => {
     setProjects((prev) => {
       const list = [...prev];
@@ -2010,6 +2187,9 @@ const AppContent: React.FC = () => {
               onDeleteTask={handleDeleteTask}
               isCreatingTask={isCreatingTask}
               onDeleteProject={handleDeleteProject}
+              branchOptions={projectBranchOptions}
+              isLoadingBranches={isLoadingBranches}
+              onBaseBranchChange={setProjectDefaultBranch}
             />
           )}
         </div>
@@ -2040,6 +2220,7 @@ const AppContent: React.FC = () => {
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettings}
                 handleToggleKanban={handleToggleKanban}
+                handleToggleEditor={() => setShowEditorMode((prev) => !prev)}
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
                 handleNewTask={handleNewTask}
@@ -2048,30 +2229,34 @@ const AppContent: React.FC = () => {
                 onCollapsedChange={handleRightSidebarCollapsedChange}
                 setCollapsedRef={rightSidebarSetCollapsedRef}
               />
-              <Titlebar
-                onToggleSettings={handleToggleSettings}
-                isSettingsOpen={showSettings}
-                currentPath={
-                  activeTask?.metadata?.multiAgent?.enabled
-                    ? null
-                    : activeTask?.path || selectedProject?.path || null
-                }
-                defaultPreviewUrl={
-                  null // Previously: getContainerRunState(activeTask.id)?.previewUrl - Removed: Docker feature
-                }
-                taskId={activeTask?.id || null}
-                taskPath={activeTask?.path || null}
-                projectPath={selectedProject?.path || null}
-                isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
-                githubUser={user}
-                onToggleKanban={handleToggleKanban}
-                isKanbanOpen={Boolean(showKanban)}
-                kanbanAvailable={Boolean(selectedProject)}
-                onToggleEditor={() => setShowEditorMode(!showEditorMode)}
-                showEditorButton={Boolean(activeTask)}
-                isEditorOpen={showEditorMode}
-              />
-              <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
+              {!showWelcomeScreen && (
+                <Titlebar
+                  onToggleSettings={handleToggleSettings}
+                  isSettingsOpen={showSettings}
+                  currentPath={
+                    activeTask?.metadata?.multiAgent?.enabled
+                      ? null
+                      : activeTask?.path || selectedProject?.path || null
+                  }
+                  defaultPreviewUrl={
+                    null // Previously: getContainerRunState(activeTask.id)?.previewUrl - Removed: Docker feature
+                  }
+                  taskId={activeTask?.id || null}
+                  taskPath={activeTask?.path || null}
+                  projectPath={selectedProject?.path || null}
+                  isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
+                  githubUser={user}
+                  onToggleKanban={handleToggleKanban}
+                  isKanbanOpen={Boolean(showKanban)}
+                  kanbanAvailable={Boolean(selectedProject)}
+                  onToggleEditor={() => setShowEditorMode(!showEditorMode)}
+                  showEditorButton={Boolean(activeTask)}
+                  isEditorOpen={showEditorMode}
+                />
+              )}
+              <div
+                className={`flex flex-1 overflow-hidden ${!showWelcomeScreen ? 'pt-[var(--tb)]' : ''}`}
+              >
                 <ResizablePanelGroup
                   direction="horizontal"
                   className="flex-1 overflow-hidden"
@@ -2104,6 +2289,7 @@ const AppContent: React.FC = () => {
                       onCreateTaskForProject={handleStartCreateTaskFromSidebar}
                       isCreatingTask={isCreatingTask}
                       onDeleteTask={handleDeleteTask}
+                      onRenameTask={handleRenameTask}
                       onDeleteProject={handleDeleteProject}
                       isHomeView={showHomeView}
                     />
@@ -2170,9 +2356,11 @@ const AppContent: React.FC = () => {
                 onClose={() => setShowTaskModal(false)}
                 onCreateTask={handleCreateTask}
                 projectName={selectedProject?.name || ''}
-                defaultBranch={selectedProject?.gitInfo.branch || 'main'}
+                defaultBranch={projectDefaultBranch}
                 existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
                 projectPath={selectedProject?.path}
+                branchOptions={projectBranchOptions}
+                isLoadingBranches={isLoadingBranches}
               />
               <NewProjectModal
                 isOpen={showNewProjectModal}
@@ -2184,6 +2372,7 @@ const AppContent: React.FC = () => {
                 onClose={() => setShowCloneModal(false)}
                 onSuccess={handleCloneSuccess}
               />
+              {showWelcomeScreen && <WelcomeScreen onGetStarted={handleWelcomeGetStarted} />}
               <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
               <GithubDeviceFlowModal
                 open={showDeviceFlowModal}
@@ -2196,7 +2385,11 @@ const AppContent: React.FC = () => {
                 taskId={activeTask?.id || null}
                 taskPath={activeTask?.path || null}
                 overlayActive={
-                  showSettings || showCommandPalette || showTaskModal || showFirstLaunchModal
+                  showSettings ||
+                  showCommandPalette ||
+                  showTaskModal ||
+                  showWelcomeScreen ||
+                  showFirstLaunchModal
                 }
               />
             </RightSidebarProvider>

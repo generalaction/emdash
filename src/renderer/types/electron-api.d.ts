@@ -295,6 +295,7 @@ declare global {
         taskName: string;
         projectId: string;
         autoApprove?: boolean;
+        baseRef?: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
         projectPath: string;
@@ -376,6 +377,10 @@ declare global {
         success: boolean;
         error?: string;
       }>;
+      unstageFile: (args: { taskPath: string; filePath: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
       revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         action?: 'unstaged' | 'reverted';
@@ -437,6 +442,11 @@ declare global {
         defaultBranch?: string;
         ahead?: number;
         behind?: number;
+        error?: string;
+      }>;
+      renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) => Promise<{
+        success: boolean;
+        remotePushed?: boolean;
         error?: string;
       }>;
       listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
@@ -881,6 +891,7 @@ export interface ElectronAPI {
     taskName: string;
     projectId: string;
     autoApprove?: boolean;
+    baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
     projectPath: string;

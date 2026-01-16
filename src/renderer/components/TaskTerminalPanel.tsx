@@ -6,6 +6,14 @@ import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Button } from './ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 import type { Provider } from '../types';
 
 interface Task {
@@ -30,24 +38,106 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   projectPath,
 }) => {
   const { effectiveTheme } = useTheme();
-  const taskKey = task?.id ?? 'task-placeholder';
+  // Use path in the key to differentiate multi-agent variants that share the same task.id
+  const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
-  const globalTerminals = useTaskTerminals('global', projectPath, { defaultCwd: projectPath });
-  const [mode, setMode] = useState<'task' | 'global'>(task ? 'task' : 'global');
-  useEffect(() => {
-    if (!task && mode === 'task') {
-      setMode('global');
-    }
-  }, [task, mode]);
+  // Also differentiate global terminals per variant so each agent has its own
+  const globalKey = task?.path ? `global::${task.path}` : 'global';
+  const globalTerminals = useTaskTerminals(globalKey, projectPath, { defaultCwd: projectPath });
 
-  const {
-    terminals,
-    activeTerminalId,
-    activeTerminal,
-    createTerminal,
-    setActiveTerminal,
-    closeTerminal,
-  } = mode === 'global' ? globalTerminals : taskTerminals;
+  // Combined selection state: "task::id" or "global::id"
+  const [selectedValue, setSelectedValue] = useState<string | null>(() => {
+    if (task && taskTerminals.activeTerminalId) {
+      return `task::${taskTerminals.activeTerminalId}`;
+    }
+    if (globalTerminals.activeTerminalId) {
+      return `global::${globalTerminals.activeTerminalId}`;
+    }
+    return null;
+  });
+
+  // Parse the selected value to get mode and terminal ID
+  const parseValue = (value: string): { mode: 'task' | 'global'; id: string } | null => {
+    const match = value.match(/^(task|global)::(.+)$/);
+    if (!match) return null;
+    return { mode: match[1] as 'task' | 'global', id: match[2] };
+  };
+
+  const parsed = selectedValue ? parseValue(selectedValue) : null;
+
+  // Sync selection when store's active terminal changes (e.g., after creating a new terminal)
+  useEffect(() => {
+    if (taskTerminals.activeTerminalId) {
+      const newValue = `task::${taskTerminals.activeTerminalId}`;
+      if (selectedValue !== newValue) {
+        setSelectedValue(newValue);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync when store's activeId changes
+  }, [taskTerminals.activeTerminalId]);
+
+  useEffect(() => {
+    if (globalTerminals.activeTerminalId) {
+      const newValue = `global::${globalTerminals.activeTerminalId}`;
+      // Only sync if we're currently in global mode or have no selection
+      if (!selectedValue || parsed?.mode === 'global') {
+        if (selectedValue !== newValue) {
+          setSelectedValue(newValue);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync when store's activeId changes
+  }, [globalTerminals.activeTerminalId]);
+
+  // Initialize selection and handle terminal removal
+  useEffect(() => {
+    if (!selectedValue) {
+      // Initialize with first available terminal
+      if (task && taskTerminals.terminals.length > 0) {
+        setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
+      } else if (globalTerminals.terminals.length > 0) {
+        setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
+      }
+    } else {
+      // Verify selected terminal still exists
+      const p = parseValue(selectedValue);
+      if (p) {
+        const terminals = p.mode === 'task' ? taskTerminals.terminals : globalTerminals.terminals;
+        const exists = terminals.some((t) => t.id === p.id);
+        if (!exists) {
+          // Fall back to first available
+          if (p.mode === 'task' && taskTerminals.terminals.length > 0) {
+            setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
+          } else if (globalTerminals.terminals.length > 0) {
+            setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
+          } else if (taskTerminals.terminals.length > 0) {
+            setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
+          } else {
+            setSelectedValue(null);
+          }
+        }
+      }
+    }
+  }, [selectedValue, taskTerminals.terminals, globalTerminals.terminals, task]);
+
+  // Handle selection change
+  const handleSelectChange = (value: string) => {
+    setSelectedValue(value);
+    const p = parseValue(value);
+    if (p) {
+      if (p.mode === 'task') {
+        taskTerminals.setActiveTerminal(p.id);
+      } else {
+        globalTerminals.setActiveTerminal(p.id);
+      }
+    }
+  };
+
+  // Get current active terminal info
+  const activeTerminalId = parsed?.id ?? null;
+
+  // Total terminal count for close button visibility
+  const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -173,123 +263,119 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   return (
     <div className={cn('flex h-full flex-col bg-card', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
-        <div className="flex items-center gap-1">
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              {!task ? (
-                <>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block">
-                      <button
-                        type="button"
-                        className={cn(
-                          'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-                          mode === 'task'
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:bg-background/70',
-                          'cursor-not-allowed opacity-50'
-                        )}
-                        disabled={true}
-                        onClick={() => setMode('task')}
-                      >
-                        Worktree
-                      </button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[200px]">
-                    <p className="text-xs">Select a task to access its worktree terminal.</p>
-                  </TooltipContent>
-                </>
-              ) : (
-                <TooltipTrigger asChild>
+        <Select value={selectedValue ?? undefined} onValueChange={handleSelectChange}>
+          <SelectTrigger className="h-7 min-w-0 flex-1 border-none bg-transparent px-2 text-xs shadow-none">
+            <Terminal className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+            <SelectValue placeholder="Select terminal" />
+          </SelectTrigger>
+          <SelectContent>
+            {task && (
+              <SelectGroup>
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <span className="text-[10px] font-semibold text-muted-foreground">Worktree</span>
                   <button
                     type="button"
-                    className={cn(
-                      'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-                      mode === 'task'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:bg-background/70'
-                    )}
-                    onClick={() => setMode('task')}
-                  >
-                    Worktree
-                  </button>
-                </TooltipTrigger>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-          <button
-            type="button"
-            className={cn(
-              'rounded px-2 py-1 text-[11px] font-semibold transition-colors',
-              mode === 'global'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-background/70'
-            )}
-            disabled={!projectPath}
-            onClick={() => setMode('global')}
-            title={projectPath ? 'Global terminal at project root' : 'No project selected'}
-          >
-            Global
-          </button>
-        </div>
-        <div className="flex min-w-0 flex-1 items-center space-x-1 overflow-x-auto">
-          {terminals.map((terminal) => {
-            const isActive = terminal.id === activeTerminalId;
-            return (
-              <button
-                key={terminal.id}
-                type="button"
-                onClick={() => setActiveTerminal(terminal.id)}
-                className={cn(
-                  'group flex items-center space-x-1 rounded px-2 py-1 text-xs font-medium transition-colors',
-                  isActive
-                    ? 'bg-background text-foreground shadow-sm dark:bg-card dark:text-foreground'
-                    : 'text-muted-foreground hover:bg-background/70 dark:hover:bg-accent'
-                )}
-                title={terminal.title}
-              >
-                <Terminal className="h-3.5 w-3.5 shrink-0" />
-                <span className="max-w-[130px] truncate">{terminal.title}</span>
-                {terminals.length > 1 ? (
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    onClick={(event) => {
-                      event.stopPropagation();
+                    className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       void (async () => {
                         const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('terminal_deleted');
+                        captureTelemetry('terminal_new_terminal_created', { scope: 'task' });
                       })();
-                      closeTerminal(terminal.id);
+                      taskTerminals.createTerminal({ cwd: task?.path });
                     }}
-                    className="flex h-4 w-4 items-center justify-center rounded opacity-60 transition-opacity hover:bg-muted hover:opacity-100"
+                    title="New worktree terminal"
                   >
-                    <X className="h-3 w-3" />
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => {
-            void (async () => {
-              const { captureTelemetry } = await import('../lib/telemetryClient');
-              captureTelemetry('terminal_new_terminal_created', { scope: mode });
-            })();
-            createTerminal({
-              cwd: mode === 'global' ? projectPath : task?.path,
-            });
-          }}
-          className="ml-2 text-muted-foreground"
-          title={mode === 'global' ? 'New global terminal' : 'New task terminal'}
-          disabled={mode === 'task' && !task}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </div>
+                {taskTerminals.terminals.map((terminal) => (
+                  <SelectItem
+                    key={`task::${terminal.id}`}
+                    value={`task::${terminal.id}`}
+                    className="text-xs"
+                  >
+                    {terminal.title}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )}
+            {projectPath && (
+              <SelectGroup>
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <span className="text-[10px] font-semibold text-muted-foreground">Global</span>
+                  <button
+                    type="button"
+                    className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void (async () => {
+                        const { captureTelemetry } = await import('../lib/telemetryClient');
+                        captureTelemetry('terminal_new_terminal_created', { scope: 'global' });
+                      })();
+                      globalTerminals.createTerminal({ cwd: projectPath });
+                    }}
+                    title="New global terminal"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </div>
+                {globalTerminals.terminals.map((terminal) => (
+                  <SelectItem
+                    key={`global::${terminal.id}`}
+                    value={`global::${terminal.id}`}
+                    className="text-xs"
+                  >
+                    {terminal.title}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )}
+          </SelectContent>
+        </Select>
+        {(() => {
+          // Can only delete if current group has more than 1 terminal
+          const canDelete =
+            parsed?.mode === 'task'
+              ? taskTerminals.terminals.length > 1
+              : globalTerminals.terminals.length > 1;
+          return (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => {
+                      if (activeTerminalId && parsed && canDelete) {
+                        void (async () => {
+                          const { captureTelemetry } = await import('../lib/telemetryClient');
+                          captureTelemetry('terminal_deleted');
+                        })();
+                        if (parsed.mode === 'task') {
+                          taskTerminals.closeTerminal(activeTerminalId);
+                        } else {
+                          globalTerminals.closeTerminal(activeTerminalId);
+                        }
+                      }
+                    }}
+                    className="ml-auto text-muted-foreground hover:text-destructive"
+                    disabled={!activeTerminalId || !canDelete}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p className="text-xs">
+                    {canDelete ? 'Close terminal' : 'Cannot close last terminal'}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        })()}
       </div>
 
       <div
@@ -304,21 +390,20 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             : 'bg-white'
         )}
       >
-        {terminals.map((terminal) => {
-          const cwd =
-            terminal.cwd ||
-            (mode === 'global' ? projectPath || terminal.cwd : task?.path || terminal.cwd);
+        {/* Render worktree terminals */}
+        {taskTerminals.terminals.map((terminal) => {
+          const isActive = parsed?.mode === 'task' && terminal.id === activeTerminalId;
           return (
             <div
-              key={terminal.id}
+              key={`task::${terminal.id}`}
               className={cn(
                 'absolute inset-0 h-full w-full transition-opacity',
-                terminal.id === activeTerminalId ? 'opacity-100' : 'pointer-events-none opacity-0'
+                isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
               )}
             >
               <TerminalPane
                 id={terminal.id}
-                cwd={cwd}
+                cwd={terminal.cwd || task?.path}
                 variant={
                   effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
                 }
@@ -329,7 +414,31 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             </div>
           );
         })}
-        {!terminals.length || !activeTerminal ? (
+        {/* Render global terminals */}
+        {globalTerminals.terminals.map((terminal) => {
+          const isActive = parsed?.mode === 'global' && terminal.id === activeTerminalId;
+          return (
+            <div
+              key={`global::${terminal.id}`}
+              className={cn(
+                'absolute inset-0 h-full w-full transition-opacity',
+                isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
+              )}
+            >
+              <TerminalPane
+                id={terminal.id}
+                cwd={terminal.cwd || projectPath}
+                variant={
+                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+                }
+                themeOverride={themeOverride}
+                className="h-full w-full"
+                keepAlive
+              />
+            </div>
+          );
+        })}
+        {totalTerminals === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
             <p>No terminal found.</p>
           </div>

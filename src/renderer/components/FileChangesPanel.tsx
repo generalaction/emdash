@@ -10,7 +10,7 @@ import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Plus, Undo2, ArrowUpRight, FileDiff } from 'lucide-react';
+import { Plus, Minus, Undo2, ArrowUpRight, FileDiff } from 'lucide-react';
 import { useTaskScope } from './TaskScopeContext';
 
 interface FileChangesPanelProps {
@@ -34,6 +34,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [showAllChangesModal, setShowAllChangesModal] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
+  const [unstagingFiles, setUnstagingFiles] = useState<Set<string>>(new Set());
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
@@ -99,6 +100,41 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       });
     } finally {
       setStagingFiles((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(filePath);
+        return newSet;
+      });
+    }
+  };
+
+  const handleUnstageFile = async (filePath: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent opening diff modal
+    setUnstagingFiles((prev) => new Set(prev).add(filePath));
+
+    try {
+      const result = await window.electronAPI.unstageFile({
+        taskPath: safeTaskPath,
+        filePath,
+      });
+
+      if (result.success) {
+        await refreshChanges();
+      } else {
+        toast({
+          title: 'Unstage Failed',
+          description: result.error || 'Failed to unstage file.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Unstage error:', error);
+      toast({
+        title: 'Unstage Failed',
+        description: 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUnstagingFiles((prev) => {
         const newSet = new Set(prev);
         newSet.delete(filePath);
         return newSet;
@@ -244,9 +280,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {fileChanges.length} files changed
-                </span>
                 <div className="flex shrink-0 items-center gap-1 text-xs">
                   <span className="font-medium text-green-600 dark:text-green-400">
                     +{totalChanges.additions}
@@ -450,6 +483,37 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     </Tooltip>
                   </TooltipProvider>
                 )}
+                {change.isStaged && (
+                  <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                          onClick={(e) => handleUnstageFile(change.path, e)}
+                          disabled={unstagingFiles.has(change.path)}
+                        >
+                          {unstagingFiles.has(change.path) ? (
+                            <Spinner size="sm" />
+                          ) : (
+                            <Minus className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="left"
+                        className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+                      >
+                        <p className="font-medium">Unstage file</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Remove this file from staging so it will not be included in the next
+                          commit
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
                 <TooltipProvider delayDuration={100}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -471,23 +535,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                       side="left"
                       className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
                     >
-                      {change.isStaged ? (
-                        <>
-                          <p className="font-medium">Unstage file</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            Remove this file from staging. Click again to discard all changes to
-                            this file.
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="font-medium">Revert file changes</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            Discard all uncommitted changes to this file and restore it to the last
-                            committed version
-                          </p>
-                        </>
-                      )}
+                      <p className="font-medium">Revert file changes</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Discard all uncommitted changes to this file and restore it to the last
+                        committed version
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>

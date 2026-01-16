@@ -9,6 +9,7 @@ import {
   getStatus as gitGetStatus,
   getFileDiff as gitGetFileDiff,
   stageFile as gitStageFile,
+  unstageFile as gitUnstageFile,
   revertFile as gitRevertFile,
 } from '../services/GitService';
 import { prGenerationService } from '../services/PrGenerationService';
@@ -65,6 +66,19 @@ export function registerGitIpc() {
       return { success: true };
     } catch (error) {
       log.error('Failed to stage file:', { filePath: args.filePath, error });
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Git: Unstage file
+  ipcMain.handle('git:unstage-file', async (_, args: { taskPath: string; filePath: string }) => {
+    try {
+      log.info('Unstaging file:', { taskPath: args.taskPath, filePath: args.filePath });
+      await gitUnstageFile(args.taskPath, args.filePath);
+      log.info('File unstaged successfully:', args.filePath);
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to unstage file:', { filePath: args.filePath, error });
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -751,6 +765,81 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         return { success: true, branches };
       } catch (error) {
         log.error('Failed to list branches:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  // Git: Rename branch (local and optionally remote)
+  ipcMain.handle(
+    'git:rename-branch',
+    async (
+      _,
+      args: {
+        repoPath: string;
+        oldBranch: string;
+        newBranch: string;
+      }
+    ) => {
+      const { repoPath, oldBranch, newBranch } = args;
+      try {
+        log.info('Renaming branch:', { repoPath, oldBranch, newBranch });
+
+        // Check remote tracking BEFORE rename (git branch -m renames config section)
+        let remotePushed = false;
+        let remoteName = 'origin';
+        try {
+          const { stdout: remoteOut } = await execFileAsync(
+            GIT,
+            ['config', '--get', `branch.${oldBranch}.remote`],
+            { cwd: repoPath }
+          );
+          if (remoteOut?.trim()) {
+            remoteName = remoteOut.trim();
+            remotePushed = true;
+          }
+        } catch {
+          // Branch wasn't tracking a remote, check if it exists on origin
+          try {
+            const { stdout: lsRemote } = await execFileAsync(
+              GIT,
+              ['ls-remote', '--heads', 'origin', oldBranch],
+              { cwd: repoPath }
+            );
+            if (lsRemote?.trim()) {
+              remotePushed = true;
+            }
+          } catch {
+            // No remote branch
+          }
+        }
+
+        // Rename local branch
+        await execFileAsync(GIT, ['branch', '-m', oldBranch, newBranch], { cwd: repoPath });
+        log.info('Local branch renamed successfully');
+
+        // If pushed to remote, delete old and push new
+        if (remotePushed) {
+          log.info('Branch was pushed to remote, updating remote...');
+          try {
+            // Delete old remote branch
+            await execFileAsync(GIT, ['push', remoteName, '--delete', oldBranch], {
+              cwd: repoPath,
+            });
+            log.info('Deleted old remote branch');
+          } catch (deleteErr) {
+            // Remote branch might not exist or already deleted
+            log.warn('Could not delete old remote branch (may not exist):', deleteErr);
+          }
+
+          // Push new branch and set upstream
+          await execFileAsync(GIT, ['push', '-u', remoteName, newBranch], { cwd: repoPath });
+          log.info('Pushed new branch to remote');
+        }
+
+        return { success: true, remotePushed };
+      } catch (error) {
+        log.error('Failed to rename branch:', error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }

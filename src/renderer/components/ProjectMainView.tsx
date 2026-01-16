@@ -21,7 +21,8 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
-import BaseBranchControls, { RemoteBranchOption } from './BaseBranchControls';
+import BaseBranchControls from './BaseBranchControls';
+import { pickDefaultBranch, type BranchOption } from './BranchSelect';
 import { ConfigEditorModal } from './ConfigEditorModal';
 import { useToast } from '../hooks/use-toast';
 import DeletePrNotice from './DeletePrNotice';
@@ -174,6 +175,9 @@ interface ProjectMainViewProps {
   ) => void | Promise<void | boolean>;
   isCreatingTask?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
+  branchOptions: BranchOption[];
+  isLoadingBranches: boolean;
+  onBaseBranchChange?: (branch: string) => void;
 }
 
 const ProjectMainView: React.FC<ProjectMainViewProps> = ({
@@ -184,17 +188,16 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onDeleteTask,
   isCreatingTask = false,
   onDeleteProject,
+  branchOptions,
+  isLoadingBranches,
+  onBaseBranchChange: onBaseBranchChangeCallback,
 }) => {
   const { toast } = useToast();
 
   const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
     normalizeBaseRef(project.gitInfo.baseRef)
   );
-  const [branchOptions, setBranchOptions] = useState<RemoteBranchOption[]>([]);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
-  const [branchLoadError, setBranchLoadError] = useState<string | null>(null);
-  const [branchReloadToken, setBranchReloadToken] = useState(0);
 
   // Multi-select state
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -409,54 +412,16 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     };
   }, [showDeleteDialog, selectedTasks]);
 
+  // Sync baseBranch when branchOptions change
   useEffect(() => {
-    let cancelled = false;
-
-    const loadBranches = async () => {
-      if (!project.path) return;
-      setIsLoadingBranches(true);
-      setBranchLoadError(null);
-      try {
-        const res = await window.electronAPI.listRemoteBranches({ projectPath: project.path });
-        if (!res?.success) {
-          throw new Error(res?.error || 'Failed to load remote branches');
-        }
-
-        const options =
-          res.branches?.map((item) => ({
-            value: item.label,
-            label: item.label,
-          })) ?? [];
-
-        const current = baseBranch ?? normalizeBaseRef(project.gitInfo.baseRef);
-        const withCurrent =
-          current && !options.some((opt) => opt.value === current)
-            ? [{ value: current, label: current }, ...options]
-            : options;
-
-        if (!cancelled) {
-          setBranchOptions(withCurrent);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setBranchLoadError(error instanceof Error ? error.message : String(error));
-          setBranchOptions((prev) => {
-            if (prev.length > 0) return prev;
-            return baseBranch ? [{ value: baseBranch, label: baseBranch }] : [];
-          });
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingBranches(false);
-        }
-      }
-    };
-
-    loadBranches();
-    return () => {
-      cancelled = true;
-    };
-  }, [project.id, project.path, project.gitInfo.baseRef, baseBranch, branchReloadToken]);
+    if (branchOptions.length === 0) return;
+    const current = baseBranch ?? normalizeBaseRef(project.gitInfo.baseRef);
+    const validDefault = pickDefaultBranch(branchOptions, current);
+    if (validDefault && validDefault !== baseBranch) {
+      setBaseBranch(validDefault);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchOptions]);
 
   const handleBaseBranchChange = useCallback(
     async (nextValue: string) => {
@@ -476,14 +441,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         if (project.gitInfo) {
           project.gitInfo.baseRef = trimmed;
         }
-        setBranchOptions((prev) => {
-          if (prev.some((opt) => opt.value === trimmed)) return prev;
-          return [{ value: trimmed, label: trimmed }, ...prev];
-        });
-        toast({
-          title: 'Base branch updated',
-          description: `New task runs will start from ${trimmed}.`,
-        });
+        onBaseBranchChangeCallback?.(trimmed);
       } catch (error) {
         setBaseBranch(previous);
         toast({
@@ -495,7 +453,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         setIsSavingBaseBranch(false);
       }
     },
-    [baseBranch, project.id, toast]
+    [baseBranch, project.id, project.gitInfo, onBaseBranchChangeCallback, toast]
   );
 
   return (
@@ -543,13 +501,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   branchOptions={branchOptions}
                   isLoadingBranches={isLoadingBranches}
                   isSavingBaseBranch={isSavingBaseBranch}
-                  branchLoadError={branchLoadError}
                   onBaseBranchChange={handleBaseBranchChange}
-                  onOpenChange={(isOpen) => {
-                    if (isOpen) {
-                      setBranchReloadToken((token) => token + 1);
-                    }
-                  }}
                   projectPath={project.path}
                   onEditConfig={() => setShowConfigEditor(true)}
                 />
@@ -617,7 +569,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       ) : (
                         <>
                           <Plus className="mr-2 size-4" />
-                          Start New Task
+                          New Task
                         </>
                       )}
                     </motion.button>

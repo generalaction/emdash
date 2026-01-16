@@ -1,11 +1,15 @@
 import React from 'react';
+import { captureComponentError } from '../lib/errorTracking';
 
 type ErrorBoundaryState = {
   hasError: boolean;
   error: Error | null;
 };
 
-type ErrorBoundaryProps = { children?: React.ReactNode };
+type ErrorBoundaryProps = {
+  children?: React.ReactNode;
+  componentName?: string;
+};
 
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -19,7 +23,14 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     try {
-      // Best-effort: log to app logger if available
+      // Track error with PostHog
+      captureComponentError(error, this.props.componentName || 'App', {
+        component_stack: info.componentStack,
+        error_boundary: true,
+        severity: 'critical',
+      });
+
+      // Also log to app logger if available
       void import('../lib/logger').then(({ log }) => {
         try {
           log.error('Renderer crash caught by ErrorBoundary', { error, info });

@@ -391,6 +391,39 @@ export function capture(event: TelemetryEvent, properties?: Record<string, any>)
   void posthogCapture(event, properties);
 }
 
+/**
+ * Capture an exception for PostHog error tracking.
+ * This sends a properly formatted $exception event as required by PostHog.
+ *
+ * @param error - The error object or error message
+ * @param additionalProperties - Additional context properties
+ */
+export function captureException(
+  error: Error | unknown,
+  additionalProperties?: Record<string, any>
+) {
+  if (!isEnabled()) return;
+
+  // Build error object
+  const errorObj = error instanceof Error ? error : new Error(String(error));
+  const errorMessage = errorObj.message || 'Unknown error';
+  const errorStack = errorObj.stack || '';
+
+  // Build PostHog $exception event properties
+  const properties: Record<string, any> = {
+    // Required fields for PostHog error tracking
+    $exception_message: errorMessage,
+    $exception_type: errorObj.name || 'Error',
+    $exception_stack_trace_raw: errorStack,
+
+    // Merge additional properties
+    ...additionalProperties,
+  };
+
+  // Send as $exception event (required for PostHog error tracking)
+  void posthogCapture('$exception' as any, properties);
+}
+
 export function shutdown() {
   // No-op for now (no batching). Left for future posthog-node integration.
 }

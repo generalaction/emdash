@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
+import { errorTracking } from '../errorTracking';
 import {
   projects as projectsTable,
   tasks as tasksTable,
@@ -100,19 +101,29 @@ export class DatabaseService {
         // @ts-ignore
         this.sqlite3 = (await import('sqlite3')) as unknown as typeof sqlite3Type;
       } catch (e) {
+        // Track critical database initialization error
+        await errorTracking.captureDatabaseError(e, 'initialize_sqlite3_import');
         return Promise.reject(e);
       }
     }
     return new Promise((resolve, reject) => {
-      this.db = new this.sqlite3!.Database(this.dbPath, (err) => {
+      this.db = new this.sqlite3!.Database(this.dbPath, async (err) => {
         if (err) {
+          // Track critical database connection error
+          await errorTracking.captureDatabaseError(err, 'initialize_connection', {
+            db_path: this.dbPath,
+          });
           reject(err);
           return;
         }
 
         this.ensureMigrations()
           .then(() => resolve())
-          .catch(reject);
+          .catch(async (migrationError) => {
+            // Track critical migration error
+            await errorTracking.captureDatabaseError(migrationError, 'initialize_migrations');
+            reject(migrationError);
+          });
       });
     });
   }
@@ -786,7 +797,21 @@ export class DatabaseService {
 
     const migrationsPath = resolveMigrationsPath();
     if (!migrationsPath) {
-      throw new Error('Drizzle migrations folder not found');
+      // Provide a detailed error message for debugging
+      const errorMsg = [
+        'Failed to locate database migrations folder.',
+        'This can happen when:',
+        '1. The app was installed via Homebrew (try downloading directly from GitHub)',
+        '2. The app is running from Downloads/DMG (move it to Applications)',
+        '3. The installation is incomplete or corrupted',
+        '4. Security software is blocking file access',
+        '',
+        'To fix: Try downloading and installing Emdash directly from:',
+        'https://github.com/generalaction/emdash/releases',
+        '',
+      ].join('\n');
+
+      throw new Error(errorMsg);
     }
 
     // We run schema migrations with foreign_keys disabled.

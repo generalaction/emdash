@@ -125,7 +125,7 @@ export const ProviderDisplay: React.FC<Props> = ({
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Provider locked for this conversation</p>
+            <p>Agent locked for this conversation</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

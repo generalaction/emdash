@@ -51,11 +51,3 @@ export interface Task {
   updatedAt?: string;
   agentId?: string;
 }
-
-export interface Message {
-  id: string;
-  content: string;
-  sender: 'user' | 'agent';
-  timestamp: Date;
-  attachments?: string[];
-}

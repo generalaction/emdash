@@ -2,6 +2,7 @@ import { ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
 import { startPty, writePty, resizePty, killPty, getPty } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
+import { errorTracking } from '../errorTracking';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
 import { getAppSettings } from '../settings';
 import * as telemetry from '../telemetry';
@@ -81,7 +82,7 @@ export function registerPtyIpc(): void {
 
         const proc =
           existing ??
-          startPty({
+          (await startPty({
             id,
             cwd,
             shell,
@@ -91,7 +92,7 @@ export function registerPtyIpc(): void {
             autoApprove,
             initialPrompt,
             skipResume: shouldSkipResume,
-          });
+          }));
         const envKeys = env ? Object.keys(env) : [];
         log.debug('pty:start OK', {
           id,
@@ -141,6 +142,20 @@ export function registerPtyIpc(): void {
           shell: args.shell,
           error: err?.message || err,
         });
+
+        // Track PTY start errors
+        const parsed = parseProviderPty(args.id);
+        await errorTracking.captureAgentSpawnError(
+          err,
+          parsed?.providerId || args.shell || 'unknown',
+          parsed?.taskId || args.id,
+          {
+            cwd: args.cwd,
+            autoApprove: args.autoApprove,
+            hasInitialPrompt: !!args.initialPrompt,
+          }
+        );
+
         return { ok: false, error: String(err?.message || err) };
       }
     }

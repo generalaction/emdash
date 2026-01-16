@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
@@ -16,10 +16,10 @@ import { useBrowser } from '@/providers/BrowserProvider';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
-import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
+import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
 declare const window: Window & {
   electronAPI: {
@@ -40,8 +40,8 @@ const ChatInterface: React.FC<Props> = ({
   className,
   initialProvider,
 }) => {
-  const { toast } = useToast();
   const { effectiveTheme } = useTheme();
+  const { toast } = useToast();
   const [isProviderInstalled, setIsProviderInstalled] = useState<boolean | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<
     Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
@@ -135,6 +135,9 @@ const ChatInterface: React.FC<Props> = ({
     setInstalledProviders(installed);
   }, [providerStatuses]);
 
+  // Ref to control terminal focus imperatively if needed
+  const terminalRef = useRef<{ focus: () => void }>(null);
+
   // Auto-focus terminal when switching to this task
   useEffect(() => {
     // Small delay to ensure terminal is mounted and attached
@@ -144,9 +147,17 @@ const ChatInterface: React.FC<Props> = ({
         session.focus();
       }
     }, 100);
-
     return () => clearTimeout(timer);
   }, [task.id, terminalId]);
+
+  // Focus terminal when this task becomes active (for already-mounted terminals)
+  useEffect(() => {
+    // Small delay to ensure terminal is visible after tab switch
+    const timer = setTimeout(() => {
+      terminalRef.current?.focus();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [task.id]);
 
   useEffect(() => {
     const meta = providerMeta[provider];
@@ -823,6 +834,7 @@ const ChatInterface: React.FC<Props> = ({
             >
               {/* Always render TerminalPane since we always have at least one conversation */}
               <TerminalPane
+                ref={terminalRef}
                 id={terminalId}
                 cwd={task.path}
                 shell={providerMeta[provider].cli}
