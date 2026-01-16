@@ -245,14 +245,30 @@ export class WorktreePoolService {
     const newId = this.stableIdFromPath(newPath);
 
     // Move the worktree (instant operation)
-    await execFileAsync('git', ['worktree', 'move', reserve.path, newPath], {
-      cwd: reserve.projectPath,
-    });
+    let moved = false;
+    try {
+      await execFileAsync('git', ['worktree', 'move', reserve.path, newPath], {
+        cwd: reserve.projectPath,
+      });
+      moved = true;
 
-    // Rename the branch (instant operation)
-    await execFileAsync('git', ['branch', '-m', reserve.branch, newBranch], {
-      cwd: newPath,
-    });
+      // Rename the branch (instant operation)
+      await execFileAsync('git', ['branch', '-m', reserve.branch, newBranch], {
+        cwd: newPath,
+      });
+    } catch (error) {
+      // If we moved but failed to rename, roll back the move
+      if (moved) {
+        try {
+          await execFileAsync('git', ['worktree', 'move', newPath, reserve.path], {
+            cwd: reserve.projectPath,
+          });
+        } catch (rollbackError) {
+          log.error('WorktreePool: Failed to rollback worktree move', { rollbackError });
+        }
+      }
+      throw error;
+    }
 
     log.info('WorktreePool: Transformed reserve to task worktree', {
       oldPath: reserve.path,
@@ -558,6 +574,11 @@ export class WorktreePoolService {
           const targetFile = path.join(targetPath, file);
           if (fs.existsSync(sourceFile) && !fs.existsSync(targetFile)) {
             try {
+              // Ensure destination directory exists
+              const destDir = path.dirname(targetFile);
+              if (!fs.existsSync(destDir)) {
+                fs.mkdirSync(destDir, { recursive: true });
+              }
               fs.copyFileSync(sourceFile, targetFile);
             } catch {}
           }
