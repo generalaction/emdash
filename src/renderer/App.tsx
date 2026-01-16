@@ -1856,9 +1856,8 @@ const AppContent: React.FC = () => {
       setSelectedProject((prev) =>
         prev && prev.id === targetProject.id ? { ...prev, tasks: updateTasks(prev.tasks) } : prev
       );
-      if (activeTask?.id === task.id) {
-        setActiveTask((prev) => (prev ? { ...prev, name, branch } : prev));
-      }
+      // Check inside updater to avoid stale closure
+      setActiveTask((prev) => (prev?.id === task.id ? { ...prev, name, branch } : prev));
     };
 
     // Optimistically update local state

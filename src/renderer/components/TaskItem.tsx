@@ -52,10 +52,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isSubmittingRef = useRef(false);
 
   const handleStartEdit = useCallback(() => {
     if (!onRename) return;
     setEditValue(task.name);
+    isSubmittingRef.current = false;
     setIsEditing(true);
   }, [onRename, task.name]);
 
@@ -65,6 +67,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   }, [task.name]);
 
   const handleConfirmEdit = useCallback(async () => {
+    // Prevent double calls from Enter + blur
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     const normalized = normalizeTaskName(editValue);
     if (!normalized) {
       handleCancelEdit();
