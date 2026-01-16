@@ -177,10 +177,10 @@ const Titlebar: React.FC<TitlebarProps> = ({
           {showEditorButton ? (
             <TitlebarToggleButton
               isOpen={isEditorOpen}
-              openLabel="Back to App"
+              openLabel="Home"
               openIcon={ArrowLeft}
               closedIcon={Code2}
-              ariaLabelOpen="Back to app view"
+              ariaLabelOpen="Back to Home"
               ariaLabelClosed="Open Editor"
               onClick={() => {
                 void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -192,7 +192,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
               }}
               tooltip={
                 <div className="flex flex-col gap-1">
-                  <span>{isEditorOpen ? 'Back to App' : 'Open Editor'}</span>
+                  <span>{isEditorOpen ? 'Home' : 'Open Editor'}</span>
                   <ShortcutHint settingsKey="toggleEditor" />
                 </div>
               }
@@ -201,10 +201,10 @@ const Titlebar: React.FC<TitlebarProps> = ({
           {kanbanAvailable ? (
             <TitlebarToggleButton
               isOpen={isKanbanOpen}
-              openLabel="Back to App"
+              openLabel="Home"
               openIcon={ArrowLeft}
               closedIcon={KanbanSquare}
-              ariaLabelOpen="Back to app view"
+              ariaLabelOpen="Back to Home"
               ariaLabelClosed="Toggle Kanban view"
               onClick={() => {
                 const newState = !isKanbanOpen;
@@ -217,7 +217,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
               }}
               tooltip={
                 <div className="flex flex-col gap-1">
-                  <span>{isKanbanOpen ? 'Back to App' : 'Toggle Kanban view'}</span>
+                  <span>{isKanbanOpen ? 'Home' : 'Toggle Kanban view'}</span>
                   <ShortcutHint settingsKey="toggleKanban" />
                 </div>
               }
