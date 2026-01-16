@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useReducedMotion } from 'motion/react';
-import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
@@ -14,7 +13,6 @@ import { useBrowser } from '@/providers/BrowserProvider';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
-import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { TaskScopeProvider } from './TaskScopeContext';
 
 declare const window: Window & {
@@ -36,7 +34,6 @@ const ChatInterface: React.FC<Props> = ({
   className,
   initialProvider,
 }) => {
-  const { toast } = useToast();
   const { effectiveTheme } = useTheme();
   const [isProviderInstalled, setIsProviderInstalled] = useState<boolean | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<
@@ -56,18 +53,17 @@ const ChatInterface: React.FC<Props> = ({
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
 
-  // Auto-focus terminal when switching to this task
-  useEffect(() => {
-    // Small delay to ensure terminal is mounted and attached
-    const timer = setTimeout(() => {
-      const session = terminalSessionRegistry.getSession(terminalId);
-      if (session) {
-        session.focus();
-      }
-    }, 100);
+  // Ref to control terminal focus imperatively if needed
+  const terminalRef = useRef<{ focus: () => void }>(null);
 
+  // Focus terminal when this task becomes active (for already-mounted terminals)
+  useEffect(() => {
+    // Small delay to ensure terminal is visible after tab switch
+    const timer = setTimeout(() => {
+      terminalRef.current?.focus();
+    }, 50);
     return () => clearTimeout(timer);
-  }, [task.id, terminalId]);
+  }, [task.id]);
 
   useEffect(() => {
     const meta = providerMeta[provider];
@@ -531,6 +527,7 @@ const ChatInterface: React.FC<Props> = ({
               }`}
             >
               <TerminalPane
+                ref={terminalRef}
                 id={terminalId}
                 cwd={task.path}
                 shell={providerMeta[provider].cli}

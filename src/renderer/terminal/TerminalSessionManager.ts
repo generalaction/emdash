@@ -262,6 +262,7 @@ export class TerminalSessionManager {
   }
 
   focus() {
+    // Simply focus the xterm terminal - let React handle DOM management
     this.terminal.focus();
   }
 
