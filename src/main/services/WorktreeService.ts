@@ -6,6 +6,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
 import { minimatch } from 'minimatch';
+import { errorTracking } from '../errorTracking';
 
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 
@@ -236,6 +237,15 @@ export class WorktreeService {
     } catch (error) {
       log.error('Failed to create worktree:', error);
       const message = error instanceof Error ? error.message : String(error);
+
+      // Track worktree creation errors
+      await errorTracking.captureWorktreeError(error, 'create', worktreePath, branchName, {
+        project_id: projectId,
+        project_path: projectPath,
+        workspace_id: workspaceName,
+        timestamp_suffix: timestamp,
+      });
+
       throw new Error(message || 'Failed to create worktree');
     }
   }

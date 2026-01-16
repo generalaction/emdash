@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import {
   capture,
+  captureException,
   isTelemetryEnabled,
   getTelemetryStatus,
   setTelemetryEnabledViaUser,
@@ -11,6 +12,8 @@ import {
 // Main process-only events (app_started, app_closed, app_window_focused, github_connection_triggered,
 // github_connected, task_snapshot, app_session, agent_run_start, agent_run_finish) should NOT be here
 const RENDERER_ALLOWED_EVENTS = new Set([
+  // Error tracking
+  '$exception',  // PostHog error tracking format
   // Legacy
   'feature_used',
   'error',
@@ -83,7 +86,22 @@ export function registerTelemetryIpc() {
       }
       const props =
         args?.properties && typeof args.properties === 'object' ? args.properties : undefined;
-      capture(ev, props);
+
+      // Handle $exception events specially for PostHog error tracking
+      if (ev === '$exception') {
+        // Extract error details from properties
+        const errorMessage = props?.$exception_message || 'Unknown error';
+        const error = new Error(errorMessage);
+        error.stack = props?.$exception_stack_trace_raw || '';
+        error.name = props?.$exception_type || 'Error';
+
+        // Call captureException with the error and additional properties
+        captureException(error, props);
+      } else {
+        // Regular telemetry events
+        capture(ev, props);
+      }
+
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || 'capture_failed' };
