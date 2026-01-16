@@ -1864,6 +1864,7 @@ const AppContent: React.FC = () => {
     // Optimistically update local state
     applyTaskChange(newName, newBranch);
 
+    let branchRenamed = false;
     try {
       let remotePushed = false;
 
@@ -1878,6 +1879,7 @@ const AppContent: React.FC = () => {
         if (!branchResult?.success) {
           throw new Error(branchResult?.error || 'Failed to rename branch');
         }
+        branchRenamed = true;
         remotePushed = branchResult.remotePushed ?? false;
       }
 
@@ -1900,6 +1902,19 @@ const AppContent: React.FC = () => {
     } catch (error) {
       const { log } = await import('./lib/logger');
       log.error('Failed to rename task:', error as any);
+
+      // Rollback git branch if it was renamed
+      if (branchRenamed) {
+        try {
+          await window.electronAPI.renameBranch({
+            repoPath: task.path,
+            oldBranch: newBranch,
+            newBranch: oldBranch,
+          });
+        } catch (rollbackErr) {
+          log.error('Failed to rollback branch rename:', rollbackErr as any);
+        }
+      }
 
       // Revert optimistic update
       applyTaskChange(oldName, oldBranch);

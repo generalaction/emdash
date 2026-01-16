@@ -775,8 +775,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         let remotePushed = false;
         let remoteName = 'origin';
         try {
-          const { stdout: remoteOut } = await execAsync(
-            `git config --get branch.${oldBranch}.remote`,
+          const { stdout: remoteOut } = await execFileAsync(
+            GIT,
+            ['config', '--get', `branch.${oldBranch}.remote`],
             { cwd: repoPath }
           );
           if (remoteOut?.trim()) {
@@ -786,8 +787,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         } catch {
           // Branch wasn't tracking a remote, check if it exists on origin
           try {
-            const { stdout: lsRemote } = await execAsync(
-              `git ls-remote --heads origin ${oldBranch}`,
+            const { stdout: lsRemote } = await execFileAsync(
+              GIT,
+              ['ls-remote', '--heads', 'origin', oldBranch],
               { cwd: repoPath }
             );
             if (lsRemote?.trim()) {
