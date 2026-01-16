@@ -771,8 +771,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       try {
         log.info('Renaming branch:', { repoPath, oldBranch, newBranch });
 
-        // Check if the old branch was pushed to a remote BEFORE renaming
-        // (git branch -m also renames the config section, so we must query first)
+        // Check remote tracking BEFORE rename (git branch -m renames config section)
         let remotePushed = false;
         let remoteName = 'origin';
         try {

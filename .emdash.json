@@ -1,0 +1,3 @@
+{
+  "preservePatterns": [".env", ".env.keys", ".env.*.local", ".envrc", "docker-compose.override.yml"]
+}

@@ -1837,7 +1837,7 @@ const AppContent: React.FC = () => {
         .replace(/^-|-$/g, '');
       newBranch = `${prefix}/${sluggedName}-${hash}`;
     } else {
-      // Non-standard branch (e.g., direct mode on "main") - don't rename branch
+      // Non-standard branch (direct mode) - keep unchanged
       newBranch = oldBranch;
     }
 
