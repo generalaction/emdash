@@ -104,6 +104,16 @@ export class TerminalSessionManager {
 
     this.applyTheme(options.theme);
 
+    // Map Shift+Enter to Ctrl+J for CLI agents
+    this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      if (event.type === 'keydown' && event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        // Send Ctrl+J (ASCII code 10, which is line feed)
+        window.electronAPI.ptyInput({ id: this.id, data: '\x0A' });
+        return false; // Prevent xterm from processing the Shift+Enter
+      }
+      return true; // Let xterm handle all other keys normally
+    });
+
     this.metrics = new TerminalMetrics({
       maxDataWindowBytes: MAX_DATA_WINDOW_BYTES,
       telemetry: options.telemetry ?? null,
