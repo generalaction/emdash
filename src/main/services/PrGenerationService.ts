@@ -1,10 +1,54 @@
-import { exec, execFile, spawn } from 'child_process';
+import { exec, execFile, execFileSync, spawn } from 'child_process';
+import { extname } from 'node:path';
 import { promisify } from 'util';
 import { log } from '../lib/logger';
 import { getProvider, PROVIDER_IDS, type ProviderId } from '../../shared/providers/registry';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
+
+function resolveCliPath(command: string): string | null {
+  const resolver = process.platform === 'win32' ? 'where' : 'which';
+  try {
+    const result = execFileSync(resolver, [command], { encoding: 'utf8' });
+    const lines = result
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    if (process.platform !== 'win32') {
+      return lines[0] ?? null;
+    }
+
+    // Prefer actual executable extensions on Windows (avoid extensionless shims like `%APPDATA%\\npm\\codex`).
+    const extensionPreference: Record<string, number> = {
+      '.exe': 0,
+      '.cmd': 1,
+      '.bat': 2,
+      '.com': 3,
+      '.ps1': 50,
+      '': 100,
+    };
+
+    const best = [...lines].sort((a, b) => {
+      const aExt = extname(a).toLowerCase();
+      const bExt = extname(b).toLowerCase();
+      const aRank = extensionPreference[aExt] ?? extensionPreference[''];
+      const bRank = extensionPreference[bExt] ?? extensionPreference[''];
+      return aRank - bRank;
+    })[0];
+
+    return best ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function shouldUseShellForWindows(execPath: string): boolean {
+  if (process.platform !== 'win32') return false;
+  const ext = extname(execPath).toLowerCase();
+  return ext === '.cmd' || ext === '.bat' || ext === '.ps1';
+}
 
 export interface GeneratedPrContent {
   title: string;
@@ -254,10 +298,23 @@ export class PrGenerationService {
       return null;
     }
 
+    const resolvedCliPath = resolveCliPath(cliCommand) ?? cliCommand;
+    const needsShell = shouldUseShellForWindows(resolvedCliPath);
+
     // Check if provider CLI is available
     try {
-      await execFileAsync(cliCommand, provider.versionArgs || ['--version'], {
-        cwd: taskPath,
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(resolvedCliPath, provider.versionArgs || ['--version'], {
+          cwd: taskPath,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          shell: needsShell,
+          windowsHide: true,
+        });
+        child.on('error', reject);
+        child.on('exit', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`Exit code ${code ?? 'null'}`));
+        });
       });
     } catch {
       log.debug(`Provider ${providerId} CLI not available`);
@@ -293,9 +350,11 @@ export class PrGenerationService {
       }
 
       // Spawn the provider CLI
-      const child = spawn(cliCommand, args, {
+      const child = spawn(resolvedCliPath, args, {
         cwd: taskPath,
         stdio: ['pipe', 'pipe', 'pipe'],
+        shell: needsShell,
+        windowsHide: true,
         env: {
           ...process.env,
           // Ensure we have a proper terminal environment

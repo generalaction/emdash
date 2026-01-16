@@ -42,7 +42,7 @@ const ChatInterface: React.FC<Props> = ({
   const [provider, setProvider] = useState<Provider>(initialProvider || 'codex');
   const currentProviderStatus = providerStatuses[provider];
   const browser = useBrowser();
-  const [cliStartFailed, setCliStartFailed] = useState(false);
+  const [cliStartError, setCliStartError] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
   const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
@@ -105,7 +105,7 @@ const ChatInterface: React.FC<Props> = ({
   }, [provider, terminalId]);
 
   useEffect(() => {
-    setCliStartFailed(false);
+    setCliStartError(null);
     setIsProviderInstalled(null);
   }, [task.id]);
 
@@ -491,16 +491,20 @@ const ChatInterface: React.FC<Props> = ({
                       installCommand={getInstallCommandForProvider(provider as any)}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                      mode="missing"
                     />
                   );
                 }
-                if (cliStartFailed) {
+                if (cliStartError) {
                   return (
                     <InstallBanner
                       provider={provider as any}
                       terminalId={terminalId}
+                      installCommand={null}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                      mode="start_failed"
+                      details={cliStartError}
                     />
                   );
                 }
@@ -539,11 +543,11 @@ const ChatInterface: React.FC<Props> = ({
                     window.localStorage.setItem(`provider:locked:${task.id}`, provider);
                   } catch {}
                 }}
-                onStartError={() => {
-                  setCliStartFailed(true);
+                onStartError={(message) => {
+                  setCliStartError(message || 'Failed to start terminal');
                 }}
                 onStartSuccess={() => {
-                  setCliStartFailed(false);
+                  setCliStartError(null);
                   // Mark initial injection as sent so it won't re-run on restart
                   if (initialInjection && !task.metadata?.initialInjectionSent) {
                     void window.electronAPI.saveTask({
