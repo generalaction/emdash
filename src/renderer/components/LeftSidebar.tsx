@@ -43,6 +43,7 @@ interface LeftSidebarProps {
   onCreateTaskForProject?: (project: Project) => void;
   isCreatingTask?: boolean;
   onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
+  onRenameTask?: (project: Project, task: Task, newName: string) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   isHomeView?: boolean;
 }
@@ -102,6 +103,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onCreateTaskForProject,
   isCreatingTask,
   onDeleteTask,
+  onRenameTask,
   onDeleteProject,
   isHomeView,
 }) => {
@@ -311,6 +313,13 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                           onDelete={
                                             onDeleteTask
                                               ? () => onDeleteTask(typedProject, task)
+                                              : undefined
+                                          }
+                                          onRename={
+                                            // Disable rename for multi-agent tasks (variant metadata would become stale)
+                                            onRenameTask && !task.metadata?.multiAgent?.enabled
+                                              ? (newName) =>
+                                                  onRenameTask(typedProject, task, newName)
                                               : undefined
                                           }
                                         />

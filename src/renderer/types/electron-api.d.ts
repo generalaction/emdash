@@ -444,6 +444,11 @@ declare global {
         behind?: number;
         error?: string;
       }>;
+      renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) => Promise<{
+        success: boolean;
+        remotePushed?: boolean;
+        error?: string;
+      }>;
       listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
