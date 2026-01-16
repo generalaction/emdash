@@ -61,7 +61,7 @@ export function registerPtyIpc(): void {
 
         const proc =
           existing ??
-          await startPty({
+          (await startPty({
             id,
             cwd,
             shell,
@@ -71,7 +71,7 @@ export function registerPtyIpc(): void {
             autoApprove,
             initialPrompt,
             skipResume: shouldSkipResume,
-          });
+          }));
         const envKeys = env ? Object.keys(env) : [];
         log.debug('pty:start OK', {
           id,
@@ -124,7 +124,8 @@ export function registerPtyIpc(): void {
 
         // Track PTY start errors
         const parsed = parseProviderPty(args.id);
-        await errorTracking.captureAgentSpawnError(err,
+        await errorTracking.captureAgentSpawnError(
+          err,
           parsed?.providerId || args.shell || 'unknown',
           parsed?.taskId || args.id,
           {

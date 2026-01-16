@@ -398,7 +398,10 @@ export function capture(event: TelemetryEvent, properties?: Record<string, any>)
  * @param error - The error object or error message
  * @param additionalProperties - Additional context properties
  */
-export function captureException(error: Error | unknown, additionalProperties?: Record<string, any>) {
+export function captureException(
+  error: Error | unknown,
+  additionalProperties?: Record<string, any>
+) {
   if (!isEnabled()) return;
 
   // Build error object

@@ -13,7 +13,7 @@ import {
 // github_connected, task_snapshot, app_session, agent_run_start, agent_run_finish) should NOT be here
 const RENDERER_ALLOWED_EVENTS = new Set([
   // Error tracking
-  '$exception',  // PostHog error tracking format
+  '$exception', // PostHog error tracking format
   // Legacy
   'feature_used',
   'error',

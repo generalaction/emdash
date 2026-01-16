@@ -11,25 +11,25 @@ export type ErrorSeverity = 'critical' | 'high' | 'medium' | 'low';
  * Common error types for categorization
  */
 export type ErrorType =
-  | 'spawn_error'        // PTY/process spawn failures
-  | 'git_error'          // Git operations
-  | 'worktree_error'     // Worktree creation/management
-  | 'database_error'     // Database operations
-  | 'network_error'      // API calls, network requests
-  | 'auth_error'         // Authentication failures
-  | 'permission_error'   // File system permissions
-  | 'file_not_found'     // Missing files/resources
-  | 'render_error'       // React rendering errors
-  | 'type_error'         // JavaScript type errors
-  | 'reference_error'    // Undefined references
-  | 'syntax_error'       // Code syntax issues
-  | 'api_error'          // API response errors
-  | 'user_action_error'  // User interaction failures
-  | 'unhandled_error'    // Uncaught exceptions
+  | 'spawn_error' // PTY/process spawn failures
+  | 'git_error' // Git operations
+  | 'worktree_error' // Worktree creation/management
+  | 'database_error' // Database operations
+  | 'network_error' // API calls, network requests
+  | 'auth_error' // Authentication failures
+  | 'permission_error' // File system permissions
+  | 'file_not_found' // Missing files/resources
+  | 'render_error' // React rendering errors
+  | 'type_error' // JavaScript type errors
+  | 'reference_error' // Undefined references
+  | 'syntax_error' // Code syntax issues
+  | 'api_error' // API response errors
+  | 'user_action_error' // User interaction failures
+  | 'unhandled_error' // Uncaught exceptions
   | 'unhandled_rejection' // Unhandled promise rejections
-  | 'project_error'      // Project operations
-  | 'github_error'       // GitHub API errors
-  | 'unknown_error';     // Unclassified errors
+  | 'project_error' // Project operations
+  | 'github_error' // GitHub API errors
+  | 'unknown_error'; // Unclassified errors
 
 /**
  * Main error context structure
@@ -44,12 +44,12 @@ export interface ErrorContext {
   severity?: ErrorSeverity;
 
   // Location context
-  operation?: string;    // What operation was being performed
-  service?: string;      // Which service threw the error
-  component?: string;    // Component name (main/renderer/specific)
+  operation?: string; // What operation was being performed
+  service?: string; // Which service threw the error
+  component?: string; // Component name (main/renderer/specific)
 
   // Agent/Task context
-  provider?: string;     // Agent provider (claude-code, codex, etc.)
+  provider?: string; // Agent provider (claude-code, codex, etc.)
   task_id?: string;
   workspace_id?: string;
 

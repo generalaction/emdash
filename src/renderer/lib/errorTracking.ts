@@ -1,17 +1,17 @@
 interface ErrorContext {
   // Component/UI context
   component?: string;
-  action?: string; 
+  action?: string;
 
   // User interaction context
-  user_action?: string; 
+  user_action?: string;
 
   // Operation context
-  operation?: string; 
-  endpoint?: string; 
+  operation?: string;
+  endpoint?: string;
 
   // Error classification
-  error_type?: string; 
+  error_type?: string;
   severity?: 'low' | 'medium' | 'high' | 'critical';
 
   // Task/Project context
@@ -99,7 +99,6 @@ class RendererErrorTracking {
         component: context?.component,
         action: context?.action,
       });
-
     } catch (trackingError) {
       // Never let error tracking crash the renderer
       console.warn('Failed to capture exception:', trackingError);
@@ -179,7 +178,10 @@ class RendererErrorTracking {
     }
   }
 
-  private determineSeverity(errorMessage: string, context?: ErrorContext): ErrorContext['severity'] {
+  private determineSeverity(
+    errorMessage: string,
+    context?: ErrorContext
+  ): ErrorContext['severity'] {
     // Critical errors
     if (
       errorMessage.includes('FATAL') ||
@@ -213,13 +215,25 @@ class RendererErrorTracking {
   }
 
   private classifyError(errorMessage: string): string {
-    if (errorMessage.includes('fetch') || errorMessage.includes('network') || errorMessage.includes('API')) {
+    if (
+      errorMessage.includes('fetch') ||
+      errorMessage.includes('network') ||
+      errorMessage.includes('API')
+    ) {
       return 'network_error';
     }
-    if (errorMessage.includes('render') || errorMessage.includes('component') || errorMessage.includes('React')) {
+    if (
+      errorMessage.includes('render') ||
+      errorMessage.includes('component') ||
+      errorMessage.includes('React')
+    ) {
       return 'render_error';
     }
-    if (errorMessage.includes('TypeError') || errorMessage.includes('undefined') || errorMessage.includes('null')) {
+    if (
+      errorMessage.includes('TypeError') ||
+      errorMessage.includes('undefined') ||
+      errorMessage.includes('null')
+    ) {
       return 'type_error';
     }
     if (errorMessage.includes('ReferenceError')) {
@@ -236,12 +250,20 @@ class RendererErrorTracking {
 
     const sanitized: Record<string, any> = {};
     const sensitiveKeys = ['password', 'token', 'secret', 'key', 'auth'];
-    const skipKeys = ['severity', 'component', 'action', 'user_action', 'operation', 'endpoint', 'error_type'];
+    const skipKeys = [
+      'severity',
+      'component',
+      'action',
+      'user_action',
+      'operation',
+      'endpoint',
+      'error_type',
+    ];
 
     for (const [key, value] of Object.entries(context)) {
       // Skip already processed or sensitive keys
       if (skipKeys.includes(key)) continue;
-      if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) continue;
+      if (sensitiveKeys.some((sensitive) => key.toLowerCase().includes(sensitive))) continue;
 
       // Sanitize value
       if (typeof value === 'string') {

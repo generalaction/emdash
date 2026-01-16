@@ -11,16 +11,16 @@ interface ErrorContext {
   github_username?: string | null;
 
   // Operation context
-  operation?: string; 
-  service?: string; 
-  component?: string; 
+  operation?: string;
+  service?: string;
+  component?: string;
 
   // Error classification
-  error_type?: string; 
+  error_type?: string;
   severity?: 'low' | 'medium' | 'high' | 'critical';
 
   // Agent/Provider context
-  provider?: string; 
+  provider?: string;
   task_id?: string;
   workspace_id?: string;
 
@@ -56,10 +56,7 @@ class ErrorTracking {
     }
   }
 
-  async captureException(
-    error: Error | unknown,
-    context?: ErrorContext
-  ): Promise<void> {
+  async captureException(error: Error | unknown, context?: ErrorContext): Promise<void> {
     try {
       // Rate limiting to prevent error spam
       const now = Date.now();
@@ -144,7 +141,6 @@ class ErrorTracking {
         operation: context?.operation,
         service: context?.service,
       });
-
     } catch (trackingError) {
       // Never let error tracking crash the app
       log.warn('Failed to capture exception', { error: trackingError });
@@ -154,10 +150,7 @@ class ErrorTracking {
   /**
    * Capture a critical error that might affect app stability
    */
-  async captureCriticalError(
-    error: Error | unknown,
-    context?: ErrorContext
-  ): Promise<void> {
+  async captureCriticalError(error: Error | unknown, context?: ErrorContext): Promise<void> {
     await this.captureException(error, {
       ...context,
       severity: 'critical',
@@ -286,7 +279,10 @@ class ErrorTracking {
     }
   }
 
-  private determineSeverity(errorMessage: string, context?: ErrorContext): ErrorContext['severity'] {
+  private determineSeverity(
+    errorMessage: string,
+    context?: ErrorContext
+  ): ErrorContext['severity'] {
     // Critical errors
     if (
       errorMessage.includes('FATAL') ||
@@ -344,10 +340,12 @@ class ErrorTracking {
 
   private isAuthError(error: unknown): boolean {
     const message = error instanceof Error ? error.message : String(error);
-    return message.includes('auth') ||
-           message.includes('unauthorized') ||
-           message.includes('401') ||
-           message.includes('403');
+    return (
+      message.includes('auth') ||
+      message.includes('unauthorized') ||
+      message.includes('401') ||
+      message.includes('403')
+    );
   }
 
   private sanitizeContext(context?: ErrorContext): Record<string, any> {
@@ -362,7 +360,7 @@ class ErrorTracking {
       if (['severity', 'operation', 'service', 'component', 'error_type'].includes(key)) {
         continue;
       }
-      if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
+      if (sensitiveKeys.some((sensitive) => key.toLowerCase().includes(sensitive))) {
         continue;
       }
 
