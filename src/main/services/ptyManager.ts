@@ -29,7 +29,7 @@ export async function startPty(options: {
   autoApprove?: boolean;
   initialPrompt?: string;
   skipResume?: boolean;
-}): IPty {
+}): Promise<IPty> {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
