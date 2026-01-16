@@ -396,6 +396,110 @@ export class WorktreePoolService {
     this.reserves.clear();
   }
 
+  /**
+   * Clean up orphaned reserve worktrees from previous sessions.
+   * Called on app startup to handle reserves left behind from crashes or forced quits.
+   * Runs in background and doesn't block app startup.
+   */
+  async cleanupOrphanedReserves(): Promise<void> {
+    // Small delay to not compete with critical startup tasks
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    log.debug('WorktreePool: Scanning for orphaned reserves...');
+
+    // Find all worktree directories that might contain reserves
+    const homedir = require('os').homedir();
+    const possibleWorktreeDirs = [
+      path.join(homedir, 'cursor', 'worktrees'),
+      path.join(homedir, 'Documents', 'worktrees'),
+      path.join(homedir, 'Projects', 'worktrees'),
+      path.join(homedir, 'code', 'worktrees'),
+      path.join(homedir, 'dev', 'worktrees'),
+    ];
+
+    // Collect all orphaned reserves first (fast sync scan)
+    const orphanedReserves: { path: string; name: string }[] = [];
+    for (const worktreesDir of possibleWorktreeDirs) {
+      if (!fs.existsSync(worktreesDir)) continue;
+      try {
+        const entries = fs.readdirSync(worktreesDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && entry.name.startsWith(this.RESERVE_PREFIX)) {
+            orphanedReserves.push({
+              path: path.join(worktreesDir, entry.name),
+              name: entry.name,
+            });
+          }
+        }
+      } catch {
+        // Ignore unreadable directories
+      }
+    }
+
+    if (orphanedReserves.length === 0) {
+      log.debug('WorktreePool: No orphaned reserves found');
+      return;
+    }
+
+    log.info('WorktreePool: Found orphaned reserves', { count: orphanedReserves.length });
+
+    // Clean up all reserves in parallel
+    const results = await Promise.allSettled(
+      orphanedReserves.map((reserve) => this.cleanupOrphanedReserve(reserve.path, reserve.name))
+    );
+
+    const cleanedCount = results.filter((r) => r.status === 'fulfilled' && r.value).length;
+    if (cleanedCount > 0) {
+      log.info('WorktreePool: Cleaned up orphaned reserves', { count: cleanedCount });
+    }
+  }
+
+  /** Clean up a single orphaned reserve */
+  private async cleanupOrphanedReserve(reservePath: string, name: string): Promise<boolean> {
+    try {
+      // Try to find the parent git repo to properly remove the worktree
+      const gitDirPath = path.join(reservePath, '.git');
+      if (fs.existsSync(gitDirPath)) {
+        const gitDirContent = fs.readFileSync(gitDirPath, 'utf8');
+        const match = gitDirContent.match(/gitdir:\s*(.+)/);
+        if (match) {
+          // Extract the main repo path from the gitdir reference
+          const gitWorktreePath = match[1].trim();
+          const mainGitDir = gitWorktreePath.replace(/\/\.git\/worktrees\/.*$/, '');
+
+          if (fs.existsSync(mainGitDir)) {
+            // Remove worktree via git
+            await execFileAsync('git', ['worktree', 'remove', '--force', reservePath], {
+              cwd: mainGitDir,
+            });
+
+            // Try to remove the reserve branch
+            const branchMatch = name.match(/^_reserve-(.+)$/);
+            if (branchMatch) {
+              const branchName = `_reserve/${branchMatch[1]}`;
+              try {
+                await execFileAsync('git', ['branch', '-D', branchName], { cwd: mainGitDir });
+              } catch {
+                // Branch may not exist
+              }
+            }
+
+            log.debug('WorktreePool: Cleaned orphaned reserve', { path: reservePath });
+            return true;
+          }
+        }
+      }
+
+      // Fallback: just remove the directory
+      fs.rmSync(reservePath, { recursive: true, force: true });
+      log.debug('WorktreePool: Removed orphaned reserve directory', { path: reservePath });
+      return true;
+    } catch (error) {
+      log.warn('WorktreePool: Failed to cleanup orphaned reserve', { path: reservePath, error });
+      return false;
+    }
+  }
+
   /** Slugify task name */
   private slugify(name: string): string {
     return name

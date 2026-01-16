@@ -206,6 +206,12 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   registerAllIpc();
+
+  // Clean up any orphaned reserve worktrees from previous sessions
+  worktreePoolService.cleanupOrphanedReserves().catch((error) => {
+    console.warn('Failed to cleanup orphaned reserves:', error);
+  });
+
   // Warm provider installation cache
   try {
     await connectionsService.initProviderStatusCache();
