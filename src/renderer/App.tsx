@@ -1825,7 +1825,21 @@ const AppContent: React.FC = () => {
   const handleRenameTask = async (targetProject: Project, task: Task, newName: string) => {
     const oldName = task.name;
     const oldBranch = task.branch;
-    const newBranch = newName; // Branch name matches task name
+
+    // Parse old branch to preserve prefix and hash: "prefix/name-hash"
+    let newBranch: string;
+    const branchMatch = oldBranch.match(/^([^/]+)\/(.+)-([a-z0-9]+)$/i);
+    if (branchMatch) {
+      const [, prefix, , hash] = branchMatch;
+      const sluggedName = newName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      newBranch = `${prefix}/${sluggedName}-${hash}`;
+    } else {
+      // Non-standard branch (e.g., direct mode on "main") - don't rename branch
+      newBranch = oldBranch;
+    }
 
     // Helper to update task name and branch across all state locations
     const applyTaskChange = (name: string, branch: string) => {
@@ -1851,15 +1865,20 @@ const AppContent: React.FC = () => {
     applyTaskChange(newName, newBranch);
 
     try {
-      // Rename the git branch (local + remote if pushed)
-      const branchResult = await window.electronAPI.renameBranch({
-        repoPath: task.path,
-        oldBranch,
-        newBranch,
-      });
+      let remotePushed = false;
 
-      if (!branchResult?.success) {
-        throw new Error(branchResult?.error || 'Failed to rename branch');
+      // Only rename git branch if it's actually changing
+      if (newBranch !== oldBranch) {
+        const branchResult = await window.electronAPI.renameBranch({
+          repoPath: task.path,
+          oldBranch,
+          newBranch,
+        });
+
+        if (!branchResult?.success) {
+          throw new Error(branchResult?.error || 'Failed to rename branch');
+        }
+        remotePushed = branchResult.remotePushed ?? false;
       }
 
       // Save task with new name and branch
@@ -1873,7 +1892,7 @@ const AppContent: React.FC = () => {
         throw new Error(saveResult?.error || 'Failed to save task');
       }
 
-      const remoteNote = branchResult.remotePushed ? ' (remote updated)' : '';
+      const remoteNote = remotePushed ? ' (remote updated)' : '';
       toast({
         title: 'Task renamed',
         description: `"${oldName}" → "${newName}"${remoteNote}`,
