@@ -693,14 +693,12 @@ const ChatInterface: React.FC<Props> = ({
       <div
         className={`flex h-full flex-col ${effectiveTheme === 'dark-black' ? 'bg-black' : 'bg-card'} ${className}`}
       >
-        {/* Create Chat Modal */}
         <CreateChatModal
           isOpen={showCreateChatModal}
           onClose={() => setShowCreateChatModal(false)}
           onCreateChat={handleCreateChat}
           installedProviders={installedProviders}
           currentProvider={provider}
-          taskName={task.name}
         />
 
         <div className="flex min-h-0 flex-1 flex-col">
