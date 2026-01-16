@@ -69,13 +69,13 @@ function TitlebarToggleButton({
         <TooltipTrigger asChild>
           <Button
             type="button"
-            variant={isOpen ? 'secondary' : 'ghost'}
+            variant="ghost"
             size={isOpen ? 'sm' : 'icon'}
             aria-label={isOpen ? ariaLabelOpen : ariaLabelClosed}
             onClick={onClick}
-            className={`h-8 hover:bg-background/80 ${
+            className={`h-8 hover:bg-accent hover:text-accent-foreground ${
               isOpen
-                ? 'gap-1.5 px-2 text-xs font-medium text-foreground'
+                ? 'gap-1.5 px-2 text-xs font-medium'
                 : 'w-8 text-muted-foreground'
             }`}
           >
