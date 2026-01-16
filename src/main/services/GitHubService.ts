@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { GITHUB_CONFIG } from '../config/github.config';
 import { getMainWindow } from '../app/window';
+import { errorTracking } from '../errorTracking';
 
 const execAsync = promisify(exec);
 
@@ -171,6 +172,12 @@ export class GitHubService {
         if (result.success && result.token) {
           // Success! Emit immediately
           this.stopPolling();
+
+          // Update error tracking with GitHub username
+          if (result.user?.login) {
+            await errorTracking.updateGithubUsername(result.user.login);
+          }
+
           const mainWindow = getMainWindow();
           if (mainWindow) {
             mainWindow.webContents.send('github:auth:success', {
@@ -233,6 +240,10 @@ export class GitHubService {
         }
       } catch (error) {
         console.error('Polling error:', error);
+
+        // Track polling errors
+        await errorTracking.captureGitHubError(error, 'poll_device_code');
+
         const mainWindow = getMainWindow();
         if (mainWindow) {
           mainWindow.webContents.send('github:auth:error', {
@@ -585,6 +596,12 @@ export class GitHubService {
       if (user) {
         // Store token securely
         await this.storeToken(token);
+
+        // Update error tracking with GitHub username
+        if (user.login) {
+          await errorTracking.updateGithubUsername(user.login);
+        }
+
         return { success: true, token, user };
       }
 

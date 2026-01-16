@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
+import { errorTracking } from '../errorTracking';
 import {
   projects as projectsTable,
   tasks as tasksTable,
@@ -96,19 +97,29 @@ export class DatabaseService {
         // @ts-ignore
         this.sqlite3 = (await import('sqlite3')) as unknown as typeof sqlite3Type;
       } catch (e) {
+        // Track critical database initialization error
+        await errorTracking.captureDatabaseError(e, 'initialize_sqlite3_import');
         return Promise.reject(e);
       }
     }
     return new Promise((resolve, reject) => {
-      this.db = new this.sqlite3!.Database(this.dbPath, (err) => {
+      this.db = new this.sqlite3!.Database(this.dbPath, async (err) => {
         if (err) {
+          // Track critical database connection error
+          await errorTracking.captureDatabaseError(err, 'initialize_connection', {
+            db_path: this.dbPath,
+          });
           reject(err);
           return;
         }
 
         this.ensureMigrations()
           .then(() => resolve())
-          .catch(reject);
+          .catch(async (migrationError) => {
+            // Track critical migration error
+            await errorTracking.captureDatabaseError(migrationError, 'initialize_migrations');
+            reject(migrationError);
+          });
       });
     });
   }
