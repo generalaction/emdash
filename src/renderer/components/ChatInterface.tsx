@@ -534,6 +534,7 @@ const ChatInterface: React.FC<Props> = ({
                 id={terminalId}
                 cwd={task.path}
                 shell={providerMeta[provider].cli}
+                mapShiftEnterToCtrlJ
                 autoApprove={autoApproveEnabled}
                 env={undefined}
                 keepAlive={true}

@@ -442,6 +442,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     shell={providerMeta[v.provider].cli}
+                    mapShiftEnterToCtrlJ
                     autoApprove={
                       Boolean(task.metadata?.autoApprove) &&
                       Boolean(providerMeta[v.provider]?.autoApproveFlag)

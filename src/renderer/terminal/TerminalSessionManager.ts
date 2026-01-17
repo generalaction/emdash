@@ -8,11 +8,10 @@ import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '@shared/providers/registry';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
+import { CTRL_J_ASCII, shouldMapShiftEnterToCtrlJ } from './terminalKeybindings';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
-// Ctrl+J sends line feed (LF) to the PTY, which CLI agents interpret as a newline
-const CTRL_J_ASCII = '\x0A';
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -33,6 +32,7 @@ export interface TerminalSessionOptions {
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  mapShiftEnterToCtrlJ?: boolean;
 }
 
 type CleanupFn = () => void;
@@ -106,20 +106,21 @@ export class TerminalSessionManager {
 
     this.applyTheme(options.theme);
 
-    // Map Shift+Enter to Ctrl+J for CLI agents
-    this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-      if (this.shouldMapShiftEnterToCtrlJ(event)) {
-        event.preventDefault();
-        event.stopPropagation();
-        if ((event as any).stopImmediatePropagation) {
-          (event as any).stopImmediatePropagation();
+    // Map Shift+Enter to Ctrl+J for CLI agents only
+    if (options.mapShiftEnterToCtrlJ) {
+      this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+        if (shouldMapShiftEnterToCtrlJ(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+
+          // Send Ctrl+J (line feed) instead of Shift+Enter
+          this.handleTerminalInput(CTRL_J_ASCII);
+          return false; // Prevent xterm from processing the Shift+Enter
         }
-        // Send Ctrl+J (line feed) instead of Shift+Enter
-        this.handleTerminalInput(CTRL_J_ASCII);
-        return false; // Prevent xterm from processing the Shift+Enter
-      }
-      return true; // Let xterm handle all other keys normally
-    });
+        return true; // Let xterm handle all other keys normally
+      });
+    }
 
     this.metrics = new TerminalMetrics({
       maxDataWindowBytes: MAX_DATA_WINDOW_BYTES,
@@ -269,17 +270,6 @@ export class TerminalSessionManager {
     return () => {
       this.exitListeners.delete(listener);
     };
-  }
-
-  private shouldMapShiftEnterToCtrlJ(event: KeyboardEvent): boolean {
-    return (
-      event.type === 'keydown' &&
-      event.key === 'Enter' &&
-      event.shiftKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.altKey
-    );
   }
 
   private handleTerminalInput(data: string) {

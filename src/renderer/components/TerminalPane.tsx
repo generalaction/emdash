@@ -17,6 +17,7 @@ type Props = {
   keepAlive?: boolean;
   autoApprove?: boolean;
   initialPrompt?: string;
+  mapShiftEnterToCtrlJ?: boolean;
   onActivity?: () => void;
   onStartError?: (message: string) => void;
   onStartSuccess?: () => void;
@@ -37,6 +38,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
   keepAlive = true,
   autoApprove,
   initialPrompt,
+  mapShiftEnterToCtrlJ,
   onActivity,
   onStartError,
   onStartSuccess,
@@ -68,6 +70,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
       theme,
       autoApprove,
       initialPrompt,
+      mapShiftEnterToCtrlJ,
     });
     sessionRef.current = session;
 
