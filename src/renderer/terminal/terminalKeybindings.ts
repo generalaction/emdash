@@ -20,4 +20,3 @@ export function shouldMapShiftEnterToCtrlJ(event: KeyEventLike): boolean {
     !event.altKey
   );
 }
-
