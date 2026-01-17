@@ -253,11 +253,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                           <CollapsibleContent asChild>
                             <div className="mt-1 flex min-w-0 pl-2">
-                              {/* Vertical indent line */}
                               <div className="flex w-4 shrink-0 justify-center py-1">
                                 <div className="w-px bg-border" />
                               </div>
-                              {/* Task content */}
                               <div className="min-w-0 flex-1">
                                 <motion.button
                                   type="button"

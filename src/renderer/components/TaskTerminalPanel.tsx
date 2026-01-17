@@ -390,7 +390,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             : 'bg-white'
         )}
       >
-        {/* Render worktree terminals */}
         {taskTerminals.terminals.map((terminal) => {
           const isActive = parsed?.mode === 'task' && terminal.id === activeTerminalId;
           return (
@@ -414,7 +413,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             </div>
           );
         })}
-        {/* Render global terminals */}
         {globalTerminals.terminals.map((terminal) => {
           const isActive = parsed?.mode === 'global' && terminal.id === activeTerminalId;
           return (

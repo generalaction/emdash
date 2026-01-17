@@ -94,7 +94,6 @@ export const ProviderDisplay: React.FC<Props> = ({
 
   return (
     <div className="inline-flex items-center gap-2">
-      {/* Provider Badge */}
       <TooltipProvider delayDuration={250}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -130,7 +129,6 @@ export const ProviderDisplay: React.FC<Props> = ({
         </Tooltip>
       </TooltipProvider>
 
-      {/* Issue Badges */}
       {linearIssue && (
         <TooltipProvider delayDuration={250}>
           <Tooltip>
@@ -268,7 +266,6 @@ export const ProviderDisplay: React.FC<Props> = ({
         </TooltipProvider>
       )}
 
-      {/* Comments Button - only show when there are unsent comments */}
       {resolvedTaskId && unsentCount > 0 && (
         <CommentsPopover
           tooltipContent="Selected comments are appended to your next agent message."
