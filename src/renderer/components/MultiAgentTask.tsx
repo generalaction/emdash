@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { type Task } from '../types/chat';
-import { type Provider } from '../types';
+import { type Agent } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import OpenInMenu from './titlebar/OpenInMenu';
 import { TerminalPane } from './TerminalPane';
-import { providerMeta } from '@/providers/meta';
-import { providerAssets } from '@/providers/assets';
+import { agentMeta } from '@/providers/meta';
+import { agentAssets } from '@/providers/assets';
 import { useTheme } from '@/hooks/useTheme';
 import { classifyActivity } from '@/lib/activityClassifier';
 import { activityStore } from '@/lib/activityStore';
@@ -24,7 +24,7 @@ interface Props {
 
 type Variant = {
   id: string;
-  provider: Provider;
+  agent: Agent;
   name: string;
   branch: string;
   path: string;
@@ -44,21 +44,21 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
 
   // Helper to generate display label with instance number if needed
   const getVariantDisplayLabel = (variant: Variant): string => {
-    const meta = providerMeta[variant.provider];
-    const baseName = meta?.label || variant.provider;
+    const meta = agentMeta[variant.agent];
+    const baseName = meta?.label || variant.agent;
 
-    // Count how many variants use this provider
-    const providerVariants = variants.filter((v) => v.provider === variant.provider);
+    // Count how many variants use this agent
+    const agentVariants = variants.filter((v) => v.agent === variant.agent);
 
-    // If only one instance of this provider, just show base name
-    if (providerVariants.length === 1) {
+    // If only one instance of this agent, just show base name
+    if (agentVariants.length === 1) {
       return baseName;
     }
 
     // Multiple instances: extract instance number from variant name
-    // variant.name format: "task-provider-1", "task-provider-2", etc.
+    // variant.name format: "task-agent-1", "task-agent-2", etc.
     const match = variant.name.match(/-(\d+)$/);
-    const instanceNum = match ? match[1] : String(providerVariants.indexOf(variant) + 1);
+    const instanceNum = match ? match[1] : String(agentVariants.indexOf(variant) + 1);
 
     return `${baseName} #${instanceNum}`;
   };
@@ -156,7 +156,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     return null;
   }, [task.metadata]);
 
-  const injectPrompt = async (ptyId: string, provider: Provider, text: string) => {
+  const injectPrompt = async (ptyId: string, agent: Agent, text: string) => {
     const trimmed = (text || '').trim();
     if (!trimmed) return;
     let sent = false;
@@ -174,7 +174,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
         if (!sent) send();
       }, 1000);
       try {
-        const signal = classifyActivity(provider, chunk);
+        const signal = classifyActivity(agent, chunk);
         if (signal === 'idle' && !sent) {
           setTimeout(send, 200);
         }
@@ -210,11 +210,11 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
   const handleRunAll = async () => {
     const msg = prompt.trim();
     if (!msg) return;
-    // Send concurrently via PTY injection for all providers (Codex/Claude included)
+    // Send concurrently via PTY injection for all agents (Codex/Claude included)
     const tasks: Promise<any>[] = [];
     variants.forEach((v) => {
       const termId = `${v.worktreeId}-main`;
-      tasks.push(injectPrompt(termId, v.provider, msg));
+      tasks.push(injectPrompt(termId, v.agent, msg));
     });
     await Promise.all(tasks);
     setPrompt('');
@@ -299,7 +299,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
 
       const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
         try {
-          const signal = classifyActivity(variant.provider, chunk || '');
+          const signal = classifyActivity(variant.agent, chunk || '');
           if (signal === 'busy') setBusy(variantId, true);
           else if (signal === 'idle') setBusy(variantId, false);
           else armNeutral(variantId);
@@ -390,8 +390,8 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                 <TooltipProvider delayDuration={250}>
                   <div className="flex items-center gap-2">
                     {variants.map((variant, tabIdx) => {
-                      const asset = providerAssets[variant.provider];
-                      const meta = providerMeta[variant.provider];
+                      const asset = agentAssets[variant.agent];
+                      const meta = agentMeta[variant.agent];
                       const isTabActive = tabIdx === activeTabIndex;
                       return (
                         <Tooltip key={variant.worktreeId}>
@@ -408,7 +408,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                               {asset?.logo ? (
                                 <img
                                   src={asset.logo}
-                                  alt={asset.alt || meta?.label || variant.provider}
+                                  alt={asset.alt || meta?.label || variant.agent}
                                   className={`h-4 w-4 shrink-0 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
                                 />
                               ) : null}
@@ -435,7 +435,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
               <div className="min-h-0 flex-1 px-6 pt-4">
                 <div
                   className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                    v.provider === 'mistral'
+                    v.agent === 'mistral'
                       ? isDark
                         ? 'bg-[#202938]'
                         : 'bg-white'
@@ -448,13 +448,13 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                     ref={isActive ? activeTerminalRef : undefined}
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
-                    shell={providerMeta[v.provider].cli}
+                    shell={agentMeta[v.agent].cli}
                     autoApprove={
                       Boolean(task.metadata?.autoApprove) &&
-                      Boolean(providerMeta[v.provider]?.autoApproveFlag)
+                      Boolean(agentMeta[v.agent]?.autoApproveFlag)
                     }
                     initialPrompt={
-                      providerMeta[v.provider]?.initialPromptFlag !== undefined &&
+                      agentMeta[v.agent]?.initialPromptFlag !== undefined &&
                       !task.metadata?.initialInjectionSent
                         ? (initialInjection ?? undefined)
                         : undefined
@@ -462,7 +462,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                     keepAlive
                     variant={isDark ? 'dark' : 'light'}
                     themeOverride={
-                      v.provider === 'mistral'
+                      v.agent === 'mistral'
                         ? {
                             background:
                               effectiveTheme === 'dark-black'
@@ -483,13 +483,13 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                     }
                     className="h-full w-full"
                     onStartSuccess={() => {
-                      // For providers WITHOUT CLI flag support, use keystroke injection
+                      // For agents WITHOUT CLI flag support, use keystroke injection
                       if (
                         initialInjection &&
                         !task.metadata?.initialInjectionSent &&
-                        providerMeta[v.provider]?.initialPromptFlag === undefined
+                        agentMeta[v.agent]?.initialPromptFlag === undefined
                       ) {
-                        void injectPrompt(`${v.worktreeId}-main`, v.provider, initialInjection);
+                        void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
                       }
                       // Mark initial injection as sent so it won't re-run on restart
                       if (initialInjection && !task.metadata?.initialInjectionSent) {

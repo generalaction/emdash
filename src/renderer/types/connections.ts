@@ -1,6 +1,6 @@
 export type CliStatusCode = 'connected' | 'missing' | 'needs_key' | 'error';
 
-export interface CliProviderStatus {
+export interface CliAgentStatus {
   id: string;
   name: string;
   status: CliStatusCode;

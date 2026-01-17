@@ -1,4 +1,4 @@
-import type { Provider } from '../types';
+import type { Agent } from '../types';
 import openaiLogo from '../../assets/images/openai.png';
 import kiroLogo from '../../assets/images/kiro.png';
 import claudeLogo from '../../assets/images/claude.png';
@@ -20,15 +20,15 @@ import continueLogo from '../../assets/images/continue.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
 
-export type ProviderInfo = {
+export type AgentInfo = {
   name: string;
   logo: string;
   alt: string;
   invertInDark?: boolean;
 };
 
-// Providers with initial prompt support first, then those without
-export const providerConfig: Record<Provider, ProviderInfo> = {
+// Agents with initial prompt support first, then those without
+export const agentConfig: Record<Agent, AgentInfo> = {
   claude: { name: 'Claude Code', logo: claudeLogo, alt: 'Claude Code' },
   codex: { name: 'Codex', logo: openaiLogo, alt: 'Codex', invertInDark: true },
   cursor: { name: 'Cursor', logo: cursorLogo, alt: 'Cursor CLI', invertInDark: true },
@@ -48,6 +48,6 @@ export const providerConfig: Record<Provider, ProviderInfo> = {
   // Without initial prompt support
   amp: { name: 'Amp', logo: ampLogo, alt: 'Amp Code' },
   copilot: { name: 'Copilot', logo: copilotLogo, alt: 'GitHub Copilot CLI', invertInDark: true },
-  charm: { name: 'Charm', logo: charmLogo, alt: 'Charm' },
-  rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev CLI' },
+  charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
+  rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
 };

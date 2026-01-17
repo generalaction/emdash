@@ -44,7 +44,7 @@ import {
 } from './lib/projectUtils';
 import { BrowserProvider } from './providers/BrowserProvider';
 import { terminalSessionRegistry } from './terminal/SessionRegistry';
-import { type Provider } from './types';
+import { type Agent } from './types';
 import type { Project, Task } from './types/app';
 import type { TaskMetadata } from './types/chat';
 import { type GitHubIssueSummary } from './types/github';
@@ -141,7 +141,7 @@ const AppContent: React.FC = () => {
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [activeTaskProvider, setActiveTaskProvider] = useState<Provider | null>(null);
+  const [activeTaskAgent, setActiveTaskAgent] = useState<Agent | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
@@ -326,9 +326,9 @@ const AppContent: React.FC = () => {
     activateProjectView(project);
     setActiveTask(task);
     if ((task.metadata as any)?.multiAgent?.enabled) {
-      setActiveTaskProvider(null);
+      setActiveTaskAgent(null);
     } else {
-      setActiveTaskProvider((task.agentId as Provider) || 'codex');
+      setActiveTaskAgent((task.agentId as Agent) || 'codex');
     }
   }, [allTasks, activeTask, activateProjectView]);
 
@@ -342,9 +342,9 @@ const AppContent: React.FC = () => {
     activateProjectView(project);
     setActiveTask(task);
     if ((task.metadata as any)?.multiAgent?.enabled) {
-      setActiveTaskProvider(null);
+      setActiveTaskAgent(null);
     } else {
-      setActiveTaskProvider((task.agentId as Provider) || 'codex');
+      setActiveTaskAgent((task.agentId as Agent) || 'codex');
     }
   }, [allTasks, activeTask, activateProjectView]);
 
@@ -1131,7 +1131,7 @@ const AppContent: React.FC = () => {
   const handleCreateTask = async (
     taskName: string,
     initialPrompt?: string,
-    providerRuns: import('./types/chat').ProviderRun[] = [{ provider: 'claude', runs: 1 }],
+    agentRuns: import('./types/chat').AgentRun[] = [{ agent: 'claude', runs: 1 }],
     linkedLinearIssue: LinearIssueSummary | null = null,
     linkedGithubIssue: GitHubIssueSummary | null = null,
     linkedJiraIssue: JiraIssueSummary | null = null,
@@ -1249,26 +1249,26 @@ const AppContent: React.FC = () => {
           : null;
 
       // Calculate total runs and determine if multi-agent
-      const totalRuns = providerRuns.reduce((sum, pr) => sum + pr.runs, 0);
+      const totalRuns = agentRuns.reduce((sum, ar) => sum + ar.runs, 0);
       const isMultiAgent = totalRuns > 1;
-      const primaryProvider = providerRuns[0]?.provider || 'claude';
+      const primaryAgent = agentRuns[0]?.agent || 'claude';
 
       let newTask: Task;
       if (isMultiAgent) {
         // Multi-agent task: create worktrees for each provider×runs combo
         const variants: Array<{
           id: string;
-          provider: Provider;
+          agent: Agent;
           name: string;
           branch: string;
           path: string;
           worktreeId: string;
         }> = [];
 
-        for (const { provider, runs } of providerRuns) {
+        for (const { agent, runs } of agentRuns) {
           for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
             const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
-            const variantName = `${taskName}-${provider.toLowerCase()}${instanceSuffix}`;
+            const variantName = `${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
 
             let branch: string;
             let path: string;
@@ -1284,8 +1284,7 @@ const AppContent: React.FC = () => {
               });
               if (!worktreeResult?.success || !worktreeResult.worktree) {
                 throw new Error(
-                  worktreeResult?.error ||
-                    `Failed to create worktree for ${provider}${instanceSuffix}`
+                  worktreeResult?.error || `Failed to create worktree for ${agent}${instanceSuffix}`
                 );
               }
               const worktree = worktreeResult.worktree;
@@ -1296,12 +1295,12 @@ const AppContent: React.FC = () => {
               // Direct branch mode - use current project path and branch
               branch = selectedProject.gitInfo.branch || 'main';
               path = selectedProject.path;
-              worktreeId = `direct-${taskName}-${provider.toLowerCase()}${instanceSuffix}`;
+              worktreeId = `direct-${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
             }
 
             variants.push({
-              id: `${taskName}-${provider.toLowerCase()}${instanceSuffix}`,
-              provider: provider,
+              id: `${taskName}-${agent.toLowerCase()}${instanceSuffix}`,
+              agent: agent,
               name: variantName,
               branch,
               path,
@@ -1314,10 +1313,10 @@ const AppContent: React.FC = () => {
           ...(taskMetadata || {}),
           multiAgent: {
             enabled: true,
-            maxProviders: 4,
-            providerRuns,
+            maxAgents: 4,
+            agentRuns,
             variants,
-            selectedProvider: null,
+            selectedAgent: null,
           },
         };
 
@@ -1329,14 +1328,14 @@ const AppContent: React.FC = () => {
           branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
           path: variants[0]?.path || selectedProject.path,
           status: 'idle',
-          agentId: primaryProvider,
+          agentId: primaryAgent,
           metadata: multiMeta,
           useWorktree,
         };
 
         const saveResult = await window.electronAPI.saveTask({
           ...newTask,
-          agentId: primaryProvider,
+          agentId: primaryAgent,
           metadata: multiMeta,
           useWorktree,
         });
@@ -1384,14 +1383,14 @@ const AppContent: React.FC = () => {
           branch,
           path,
           status: 'idle',
-          agentId: primaryProvider,
+          agentId: primaryAgent,
           metadata: taskMetadata,
           useWorktree,
         };
 
         const saveResult = await window.electronAPI.saveTask({
           ...newTask,
-          agentId: primaryProvider,
+          agentId: primaryAgent,
           metadata: taskMetadata,
           useWorktree,
         });
@@ -1578,10 +1577,10 @@ const AppContent: React.FC = () => {
         // Set the active task and its provider (none if multi-agent)
         setActiveTask(newTask);
         if ((newTask.metadata as any)?.multiAgent?.enabled) {
-          setActiveTaskProvider(null);
+          setActiveTaskAgent(null);
         } else {
-          // Use the saved agentId from the task, which should match primaryProvider
-          setActiveTaskProvider((newTask.agentId as Provider) || primaryProvider || 'codex');
+          // Use the saved agentId from the task, which should match primaryAgent
+          setActiveTaskAgent((newTask.agentId as Agent) || primaryAgent || 'codex');
         }
       }
     } catch (error) {
@@ -1613,10 +1612,10 @@ const AppContent: React.FC = () => {
     // Load provider from task.agentId if it exists, otherwise default to null
     // This ensures the selected provider persists across app restarts
     if ((task.metadata as any)?.multiAgent?.enabled) {
-      setActiveTaskProvider(null);
+      setActiveTaskAgent(null);
     } else {
       // Use agentId from task if available, otherwise fall back to 'codex' for backwards compatibility
-      setActiveTaskProvider((task.agentId as Provider) || 'codex');
+      setActiveTaskAgent((task.agentId as Agent) || 'codex');
     }
   };
 
@@ -1644,7 +1643,7 @@ const AppContent: React.FC = () => {
 
     if (wasActive) {
       setActiveTask(null);
-      setActiveTaskProvider(null);
+      setActiveTaskAgent(null);
     }
   };
 
@@ -2166,7 +2165,7 @@ const AppContent: React.FC = () => {
                 task={activeTask}
                 projectName={selectedProject.name}
                 className="min-h-0 flex-1"
-                initialProvider={activeTaskProvider || undefined}
+                initialAgent={activeTaskAgent || undefined}
               />
             )
           ) : (

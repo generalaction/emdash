@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import type { Provider } from '../types';
+import type { Agent } from '../types';
 
 interface Task {
   id: string;
@@ -26,17 +26,12 @@ interface Task {
 
 interface Props {
   task: Task | null;
-  provider?: Provider;
+  agent?: Agent;
   className?: string;
   projectPath?: string;
 }
 
-const TaskTerminalPanelComponent: React.FC<Props> = ({
-  task,
-  provider,
-  className,
-  projectPath,
-}) => {
+const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, projectPath }) => {
   const { effectiveTheme } = useTheme();
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
@@ -181,7 +176,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   // Default theme (VS Code inspired)
   const defaultTheme = useMemo(() => {
     // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
-    const isMistral = provider === 'mistral';
+    const isMistral = agent === 'mistral';
     const darkBackground = isMistral ? '#202938' : '#1e1e1e';
     const blackBackground = isMistral ? '#141820' : '#000000';
 
@@ -234,7 +229,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           brightCyan: '#0598bc',
           brightWhite: '#a5a5a5',
         };
-  }, [effectiveTheme, provider]);
+  }, [effectiveTheme, agent]);
 
   // Merge native theme with defaults (native theme takes precedence)
   const themeOverride = useMemo(() => {
@@ -382,7 +377,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         className={cn(
           'bw-terminal relative flex-1 overflow-hidden',
           effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-            ? provider === 'mistral'
+            ? agent === 'mistral'
               ? effectiveTheme === 'dark-black'
                 ? 'bg-[#141820]'
                 : 'bg-[#202938]'

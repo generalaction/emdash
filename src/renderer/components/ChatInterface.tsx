@@ -3,11 +3,11 @@ import { useReducedMotion } from 'motion/react';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
-import { providerMeta } from '../providers/meta';
-import ProviderDisplay from './ProviderDisplay';
+import { agentMeta } from '../providers/meta';
+import AgentDisplay from './AgentDisplay';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
-import { type Provider } from '../types';
+import { type Agent } from '../types';
 import { Task } from '../types/chat';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
@@ -25,26 +25,26 @@ interface Props {
   task: Task;
   projectName: string;
   className?: string;
-  initialProvider?: Provider;
+  initialAgent?: Agent;
 }
 
 const ChatInterface: React.FC<Props> = ({
   task,
   projectName: _projectName,
   className,
-  initialProvider,
+  initialAgent,
 }) => {
   const { effectiveTheme } = useTheme();
-  const [isProviderInstalled, setIsProviderInstalled] = useState<boolean | null>(null);
-  const [providerStatuses, setProviderStatuses] = useState<
+  const [isAgentInstalled, setIsAgentInstalled] = useState<boolean | null>(null);
+  const [agentStatuses, setAgentStatuses] = useState<
     Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
   >({});
-  const [provider, setProvider] = useState<Provider>(initialProvider || 'codex');
-  const currentProviderStatus = providerStatuses[provider];
+  const [agent, setAgent] = useState<Agent>(initialAgent || 'codex');
+  const currentAgentStatus = agentStatuses[agent];
   const browser = useBrowser();
   const [cliStartFailed, setCliStartFailed] = useState(false);
   const reduceMotion = useReducedMotion();
-  const terminalId = useMemo(() => `${provider}-main-${task.id}`, [provider, task.id]);
+  const terminalId = useMemo(() => `${agent}-main-${task.id}`, [agent, task.id]);
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
   // Line comments for agent context injection
@@ -66,7 +66,7 @@ const ChatInterface: React.FC<Props> = ({
   }, [task.id]);
 
   useEffect(() => {
-    const meta = providerMeta[provider];
+    const meta = agentMeta[agent];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;
 
     const onceKey = `cli:autoStart:${terminalId}`;
@@ -102,11 +102,11 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
       clearTimeout(t);
     };
-  }, [provider, terminalId]);
+  }, [agent, terminalId]);
 
   useEffect(() => {
     setCliStartFailed(false);
-    setIsProviderInstalled(null);
+    setIsAgentInstalled(null);
   }, [task.id]);
 
   const runInstallCommand = useCallback(
@@ -147,17 +147,17 @@ const ChatInterface: React.FC<Props> = ({
     [activeTerminalId]
   );
 
-  // On task change, restore last-selected provider (including Droid).
-  // If a locked provider exists (including Droid), prefer locked.
+  // On task change, restore last-selected agent (including Droid).
+  // If a locked agent exists (including Droid), prefer locked.
   useEffect(() => {
     try {
-      const lastKey = `provider:last:${task.id}`;
-      const last = window.localStorage.getItem(lastKey) as Provider | null;
+      const lastKey = `agent:last:${task.id}`;
+      const last = window.localStorage.getItem(lastKey) as Agent | null;
 
-      if (initialProvider) {
-        setProvider(initialProvider);
+      if (initialAgent) {
+        setAgent(initialAgent);
       } else {
-        const validProviders: Provider[] = [
+        const validAgents: Agent[] = [
           'qwen',
           'codex',
           'claude',
@@ -173,40 +173,40 @@ const ChatInterface: React.FC<Props> = ({
           'kiro',
           'rovo',
         ];
-        if (last && (validProviders as string[]).includes(last)) {
-          setProvider(last as Provider);
+        if (last && (validAgents as string[]).includes(last)) {
+          setAgent(last as Agent);
         } else {
-          setProvider('codex');
+          setAgent('codex');
         }
       }
     } catch {
-      setProvider(initialProvider || 'codex');
+      setAgent(initialAgent || 'codex');
     }
-  }, [task.id, initialProvider]);
+  }, [task.id, initialAgent]);
 
-  // Persist last-selected provider per task (including Droid)
+  // Persist last-selected agent per task (including Droid)
   useEffect(() => {
     try {
-      window.localStorage.setItem(`provider:last:${task.id}`, provider);
+      window.localStorage.setItem(`agent:last:${task.id}`, agent);
     } catch {}
-  }, [provider, task.id]);
+  }, [agent, task.id]);
 
-  // Track provider switching
-  const prevProviderRef = React.useRef<Provider | null>(null);
+  // Track agent switching
+  const prevAgentRef = React.useRef<Agent | null>(null);
   useEffect(() => {
-    if (prevProviderRef.current && prevProviderRef.current !== provider) {
+    if (prevAgentRef.current && prevAgentRef.current !== agent) {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('task_provider_switched', { provider });
+        captureTelemetry('task_agent_switched', { agent });
       })();
     }
-    prevProviderRef.current = provider;
-  }, [provider]);
+    prevAgentRef.current = agent;
+  }, [agent]);
 
   useEffect(() => {
-    const installed = currentProviderStatus?.installed === true;
-    setIsProviderInstalled(installed);
-  }, [provider, currentProviderStatus]);
+    const installed = currentAgentStatus?.installed === true;
+    setIsAgentInstalled(installed);
+  }, [agent, currentAgentStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -215,31 +215,31 @@ const ChatInterface: React.FC<Props> = ({
 
     const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
       if (!statuses) return;
-      setProviderStatuses(statuses);
+      setAgentStatuses(statuses);
       if (cancelled) return;
-      const installed = statuses?.[provider]?.installed === true;
-      setIsProviderInstalled(installed);
+      const installed = statuses?.[agent]?.installed === true;
+      setIsAgentInstalled(installed);
     };
 
     const maybeRefreshMissing = async (statuses?: Record<string, any> | undefined | null) => {
       if (cancelled || missingCheckRequested) return;
       if (!api?.getProviderStatuses) return;
-      if (statuses && statuses[provider]) return;
+      if (statuses && statuses[agent]) return;
       missingCheckRequested = true;
       try {
-        const refreshed = await api.getProviderStatuses({ refresh: true, providers: [provider] });
+        const refreshed = await api.getProviderStatuses({ refresh: true, providers: [agent] });
         if (cancelled) return;
         if (refreshed?.success) {
           applyStatuses(refreshed.statuses ?? {});
         }
       } catch (error) {
-        console.error('Provider status refresh failed', error);
+        console.error('Agent status refresh failed', error);
       }
     };
 
     const load = async () => {
       if (!api?.getProviderStatuses) {
-        setIsProviderInstalled(false);
+        setIsAgentInstalled(false);
         return;
       }
       try {
@@ -249,23 +249,23 @@ const ChatInterface: React.FC<Props> = ({
           applyStatuses(res.statuses ?? {});
           void maybeRefreshMissing(res.statuses);
         } else {
-          setIsProviderInstalled(false);
+          setIsAgentInstalled(false);
         }
       } catch (error) {
-        if (!cancelled) setIsProviderInstalled(false);
-        console.error('Provider status load failed', error);
+        if (!cancelled) setIsAgentInstalled(false);
+        console.error('Agent status load failed', error);
       }
     };
 
     const off =
       api?.onProviderStatusUpdated?.((payload: { providerId: string; status: any }) => {
         if (!payload?.providerId) return;
-        setProviderStatuses((prev) => {
+        setAgentStatuses((prev) => {
           const next = { ...prev, [payload.providerId]: payload.status };
           return next;
         });
-        if (payload.providerId === provider) {
-          setIsProviderInstalled(payload.status?.installed === true);
+        if (payload.providerId === agent) {
+          setIsAgentInstalled(payload.status?.installed === true);
         }
       }) || null;
 
@@ -275,57 +275,57 @@ const ChatInterface: React.FC<Props> = ({
       cancelled = true;
       off?.();
     };
-  }, [provider, task.id]);
+  }, [agent, task.id]);
 
-  // If we don't even have a cached status entry for the current provider, pessimistically
+  // If we don't even have a cached status entry for the current agent, pessimistically
   // show the install banner and kick off a background refresh to populate it.
   useEffect(() => {
     const api: any = (window as any).electronAPI;
     if (!api?.getProviderStatuses) {
-      setIsProviderInstalled(false);
+      setIsAgentInstalled(false);
       return;
     }
-    if (currentProviderStatus) {
+    if (currentAgentStatus) {
       return;
     }
 
     let cancelled = false;
-    setIsProviderInstalled(false);
+    setIsAgentInstalled(false);
 
     (async () => {
       try {
-        const res = await api.getProviderStatuses({ refresh: true, providers: [provider] });
+        const res = await api.getProviderStatuses({ refresh: true, providers: [agent] });
         if (cancelled) return;
         if (res?.success) {
           const statuses = res.statuses ?? {};
-          setProviderStatuses(statuses);
-          const installed = statuses?.[provider]?.installed === true;
-          setIsProviderInstalled(installed);
+          setAgentStatuses(statuses);
+          const installed = statuses?.[agent]?.installed === true;
+          setIsAgentInstalled(installed);
         }
       } catch (error) {
         if (!cancelled) {
-          setIsProviderInstalled(false);
+          setIsAgentInstalled(false);
         }
-        console.error('Provider status refresh (missing entry) failed', error);
+        console.error('Agent status refresh (missing entry) failed', error);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [provider, currentProviderStatus]);
+  }, [agent, currentAgentStatus]);
 
-  // When switching providers, ensure other streams are stopped
+  // When switching agents, ensure other streams are stopped
   useEffect(() => {
     (async () => {
       try {
       } catch {}
     })();
-  }, [provider, task.id]);
+  }, [agent, task.id]);
 
-  const isTerminal = providerMeta[provider]?.terminalOnly === true;
+  const isTerminal = agentMeta[agent]?.terminalOnly === true;
   const autoApproveEnabled =
-    Boolean(task.metadata?.autoApprove) && Boolean(providerMeta[provider]?.autoApproveFlag);
+    Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[agent]?.autoApproveFlag);
 
   const initialInjection = useMemo(() => {
     if (!isTerminal) return null;
@@ -439,21 +439,21 @@ const ChatInterface: React.FC<Props> = ({
     return null;
   }, [isTerminal, task.metadata, commentsContext]);
 
-  // Only use keystroke injection for providers WITHOUT CLI flag support
-  // Providers with initialPromptFlag use CLI arg injection via TerminalPane instead
+  // Only use keystroke injection for agents WITHOUT CLI flag support
+  // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead
   useInitialPromptInjection({
     taskId: task.id,
-    providerId: provider,
+    providerId: agent,
     prompt: initialInjection,
-    enabled: isTerminal && providerMeta[provider]?.initialPromptFlag === undefined,
+    enabled: isTerminal && agentMeta[agent]?.initialPromptFlag === undefined,
   });
 
-  // Ensure a provider is stored for this task so fallbacks can subscribe immediately
+  // Ensure an agent is stored for this task so fallbacks can subscribe immediately
   useEffect(() => {
     try {
-      localStorage.setItem(`taskProvider:${task.id}`, provider);
+      localStorage.setItem(`taskAgent:${task.id}`, agent);
     } catch {}
-  }, [provider, task.id]);
+  }, [agent, task.id]);
 
   if (!isTerminal) {
     return null;
@@ -468,8 +468,8 @@ const ChatInterface: React.FC<Props> = ({
           <div className="px-6 pt-4">
             <div className="mx-auto max-w-4xl space-y-2">
               <div className="flex items-center justify-between">
-                <ProviderDisplay
-                  provider={provider}
+                <AgentDisplay
+                  agent={agent}
                   taskId={task.id}
                   linearIssue={task.metadata?.linearIssue || null}
                   githubIssue={task.metadata?.githubIssue || null}
@@ -483,12 +483,12 @@ const ChatInterface: React.FC<Props> = ({
                 )}
               </div>
               {(() => {
-                if (isProviderInstalled !== true) {
+                if (isAgentInstalled !== true) {
                   return (
                     <InstallBanner
-                      provider={provider as any}
+                      agent={agent as any}
                       terminalId={terminalId}
-                      installCommand={getInstallCommandForProvider(provider as any)}
+                      installCommand={getInstallCommandForProvider(agent as any)}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
                     />
@@ -497,7 +497,7 @@ const ChatInterface: React.FC<Props> = ({
                 if (cliStartFailed) {
                   return (
                     <InstallBanner
-                      provider={provider as any}
+                      agent={agent as any}
                       terminalId={terminalId}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
@@ -511,13 +511,13 @@ const ChatInterface: React.FC<Props> = ({
           <div className="mt-4 min-h-0 flex-1 px-6">
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                provider === 'charm'
+                agent === 'charm'
                   ? effectiveTheme === 'dark-black'
                     ? 'bg-black'
                     : effectiveTheme === 'dark'
                       ? 'bg-card'
                       : 'bg-white'
-                  : provider === 'mistral'
+                  : agent === 'mistral'
                     ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
                       ? effectiveTheme === 'dark-black'
                         ? 'bg-[#141820]'
@@ -530,13 +530,13 @@ const ChatInterface: React.FC<Props> = ({
                 ref={terminalRef}
                 id={terminalId}
                 cwd={task.path}
-                shell={providerMeta[provider].cli}
+                shell={agentMeta[agent].cli}
                 autoApprove={autoApproveEnabled}
                 env={undefined}
                 keepAlive={true}
                 onActivity={() => {
                   try {
-                    window.localStorage.setItem(`provider:locked:${task.id}`, provider);
+                    window.localStorage.setItem(`agent:locked:${task.id}`, agent);
                   } catch {}
                 }}
                 onStartError={() => {
@@ -559,7 +559,7 @@ const ChatInterface: React.FC<Props> = ({
                   effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
                 }
                 themeOverride={
-                  provider === 'charm'
+                  agent === 'charm'
                     ? {
                         background:
                           effectiveTheme === 'dark-black'
@@ -570,7 +570,7 @@ const ChatInterface: React.FC<Props> = ({
                         selectionBackground: 'rgba(96, 165, 250, 0.35)',
                         selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
                       }
-                    : provider === 'mistral'
+                    : agent === 'mistral'
                       ? {
                           background:
                             effectiveTheme === 'dark-black'
@@ -590,14 +590,12 @@ const ChatInterface: React.FC<Props> = ({
                         : undefined
                 }
                 contentFilter={
-                  provider === 'charm' &&
-                  effectiveTheme !== 'dark' &&
-                  effectiveTheme !== 'dark-black'
+                  agent === 'charm' && effectiveTheme !== 'dark' && effectiveTheme !== 'dark-black'
                     ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
                     : undefined
                 }
                 initialPrompt={
-                  providerMeta[provider]?.initialPromptFlag !== undefined &&
+                  agentMeta[agent]?.initialPromptFlag !== undefined &&
                   !task.metadata?.initialInjectionSent
                     ? (initialInjection ?? undefined)
                     : undefined
