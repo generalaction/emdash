@@ -72,6 +72,7 @@ export function configureDiffEditorDiagnostics(
   }
 
   try {
+    // @ts-ignore - This API might not exist in older versions
     if (monaco.editor.setModelMarkers) {
       // Clear existing markers for this model
       monaco.editor.setModelMarkers(model, 'typescript', []);
