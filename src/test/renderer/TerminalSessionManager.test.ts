@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Tests for the Shift+Enter to Ctrl+J keyboard mapping in TerminalSessionManager
- * 
+ *
  * These tests verify the shouldMapShiftEnterToCtrlJ method logic and ensure that
  * Shift+Enter is correctly mapped to Ctrl+J for CLI agents.
  */
