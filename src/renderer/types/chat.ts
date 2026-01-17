@@ -9,6 +9,12 @@ export interface ProviderRun {
   runs: number;
 }
 
+export interface GitHubIssueLink {
+  number: number;
+  taskId: string;
+  taskName: string;
+}
+
 export interface TaskMetadata {
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
