@@ -221,7 +221,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
           </AccordionTrigger>
           <AccordionContent className="space-y-4 overflow-hidden px-0 pt-2" id="task-advanced">
             <div className="flex flex-col gap-4 p-2">
-              {/* Worktree option */}
               <div className="flex items-center gap-4">
                 <Label className="w-32 shrink-0">Run in worktree</Label>
                 <div className="min-w-0 flex-1">
@@ -247,7 +246,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 </div>
               </div>
 
-              {/* Auto-approve option */}
               {hasAutoApproveSupport ? (
                 <div className="flex items-center gap-4">
                   <Label className="w-32 shrink-0">Auto-approve</Label>
@@ -313,7 +311,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 </div>
               </div>
 
-              {/* GitHub issue selector */}
               <div className="grid grid-cols-[128px_1fr] items-start gap-4">
                 <Label htmlFor="github-issue" className="pt-2">
                   GitHub issue
@@ -359,7 +356,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 </div>
               </div>
 
-              {/* Jira issue selector */}
               <div className="grid grid-cols-[128px_1fr] items-start gap-4">
                 <Label htmlFor="jira-issue" className="pt-2">
                   Jira issue
@@ -395,7 +391,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
               </div>
             </div>
 
-            {/* Initial prompt */}
             <div className="flex items-start gap-4 p-2">
               <Label htmlFor="initial-prompt" className="w-32 shrink-0">
                 Initial prompt
@@ -416,7 +411,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         </AccordionItem>
       </Accordion>
 
-      {/* Linear setup modal */}
       <AnimatePresence>
         {linearSetupOpen ? (
           <motion.div
@@ -448,7 +442,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         ) : null}
       </AnimatePresence>
 
-      {/* Jira setup modal */}
       <AnimatePresence>
         {jiraSetupOpen ? (
           <motion.div

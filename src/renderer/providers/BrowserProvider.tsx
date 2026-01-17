@@ -170,9 +170,7 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
   return (
     <Ctx.Provider value={value}>
       {children}
-      {/* Portal: inline consumer component owns the actual webview element */}
       <div id="emdash-browser-root" />
-      {/* Hidden ref target used by BrowserPane to bind the underlying <webview> */}
       <BrowserViewRefBinder refObj={webviewRef} onUrlChange={setUrl} />
     </Ctx.Provider>
   );
