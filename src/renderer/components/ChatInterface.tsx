@@ -434,7 +434,6 @@ const ChatInterface: React.FC<Props> = ({
     setShowDeleteChatModal(false);
   }, [chatToDelete, conversations, provider, task.id, activeConversationId]);
 
-
   // Persist last-selected provider per task (including Droid)
   useEffect(() => {
     try {
