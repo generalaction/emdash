@@ -121,6 +121,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'droid',
     initialPromptFlag: '',
+    resumeFlag: '-r',
     icon: 'factorydroid.png',
     terminalOnly: true,
   },

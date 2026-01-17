@@ -2,6 +2,7 @@ import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ensureTerminalHost } from './terminalHost';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
@@ -33,6 +34,8 @@ export interface TerminalSessionOptions {
   autoApprove?: boolean;
   initialPrompt?: string;
   mapShiftEnterToCtrlJ?: boolean;
+  disableSnapshots?: boolean;
+  onLinkClick?: (url: string) => void;
 }
 
 type CleanupFn = () => void;
@@ -42,6 +45,7 @@ export class TerminalSessionManager {
   private readonly terminal: Terminal;
   private readonly fitAddon: FitAddon;
   private readonly serializeAddon: SerializeAddon;
+  private readonly webLinksAddon: WebLinksAddon;
   private webglAddon: WebglAddon | null = null;
   private readonly metrics: TerminalMetrics;
   private readonly container: HTMLDivElement;
@@ -89,8 +93,27 @@ export class TerminalSessionManager {
 
     this.fitAddon = new FitAddon();
     this.serializeAddon = new SerializeAddon();
+
+    // Initialize WebLinks addon with custom handler
+    this.webLinksAddon = new WebLinksAddon((event, uri) => {
+      // Prevent default behavior
+      event.preventDefault();
+
+      // Call the custom link handler if provided, otherwise use default behavior
+      if (options.onLinkClick) {
+        options.onLinkClick(uri);
+      } else {
+        // Fallback to opening directly via electronAPI
+        window.electronAPI.openExternal(uri).catch((error) => {
+          log.warn('Failed to open external link', { uri, error });
+        });
+      }
+    });
+
     this.terminal.loadAddon(this.fitAddon);
     this.terminal.loadAddon(this.serializeAddon);
+    this.terminal.loadAddon(this.webLinksAddon);
+
     try {
       this.webglAddon = new WebglAddon();
       this.webglAddon.onContextLoss?.(() => {
@@ -141,7 +164,10 @@ export class TerminalSessionManager {
     );
 
     void this.restoreSnapshot().finally(() => this.connectPty());
-    this.startSnapshotTimer();
+    // Only start snapshot timer if snapshots are enabled (main chats only)
+    if (!this.options.disableSnapshots) {
+      this.startSnapshotTimer();
+    }
   }
 
   attach(container: HTMLElement) {
@@ -194,7 +220,10 @@ export class TerminalSessionManager {
       this.resizeObserver = null;
       ensureTerminalHost().appendChild(this.container);
       this.attachedContainer = null;
-      void this.captureSnapshot('detach');
+      // Only capture snapshot on detach if snapshots are enabled
+      if (!this.options.disableSnapshots) {
+        void this.captureSnapshot('detach');
+      }
     }
   }
 
@@ -207,7 +236,10 @@ export class TerminalSessionManager {
     this.disposed = true;
     this.detach();
     this.stopSnapshotTimer();
-    void this.captureSnapshot('dispose');
+    // Only capture final snapshot if snapshots are enabled
+    if (!this.options.disableSnapshots) {
+      void this.captureSnapshot('dispose');
+    }
     // Clean up stored viewport position when session is disposed
     viewportPositions.delete(this.id);
     try {
@@ -231,6 +263,7 @@ export class TerminalSessionManager {
   }
 
   focus() {
+    // Simply focus the xterm terminal - let React handle DOM management
     this.terminal.focus();
   }
 
@@ -439,6 +472,11 @@ export class TerminalSessionManager {
   private connectPty() {
     const { taskId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
     const id = taskId;
+
+    // Let the backend determine whether to skip resume based on session existence
+    // The backend will check if a Claude session directory exists
+    const skipResume = undefined;
+
     void window.electronAPI
       .ptyStart({
         id,
@@ -449,6 +487,7 @@ export class TerminalSessionManager {
         rows: initialSize.rows,
         autoApprove,
         initialPrompt,
+        skipResume,
       })
       .then((result) => {
         if (result?.ok) {
@@ -513,11 +552,15 @@ export class TerminalSessionManager {
 
   /**
    * Check if this terminal ID is a provider CLI that supports native resume.
-   * Provider CLIs use the format: `${provider}-main-${taskId}`
+   * Provider CLIs use the format:
+   * - `${provider}-main-${taskId}` for main task terminals
+   * - `${provider}-chat-${conversationId}` for chat-specific terminals
    * If the provider has a resumeFlag, we skip snapshot restoration to avoid duplicate history.
    */
   private isProviderWithResume(id: string): boolean {
-    const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+    const mainMatch = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+    const chatMatch = /^([a-z0-9_-]+)-chat-(.+)$/.exec(id);
+    const match = mainMatch || chatMatch;
     if (!match) return false;
     const providerId = match[1] as ProviderId;
     if (!PROVIDER_IDS.includes(providerId)) return false;
@@ -527,6 +570,12 @@ export class TerminalSessionManager {
 
   private async restoreSnapshot(): Promise<void> {
     if (!window.electronAPI.ptyGetSnapshot) return;
+
+    // Skip snapshot restoration for non-main chats
+    if (this.options.disableSnapshots) {
+      log.debug('terminalSession:skippingSnapshotForNonMainChat', { id: this.id });
+      return;
+    }
 
     // Skip snapshot restoration for providers with native resume capability
     // The CLI will handle resuming the conversation, so we don't want duplicate history
@@ -573,6 +622,8 @@ export class TerminalSessionManager {
   private captureSnapshot(reason: 'interval' | 'detach' | 'dispose'): Promise<void> {
     if (!window.electronAPI.ptySaveSnapshot) return Promise.resolve();
     if (this.disposed) return Promise.resolve();
+    // Skip snapshots for non-main chats
+    if (this.options.disableSnapshots) return Promise.resolve();
     if (reason === 'detach' && this.lastSnapshotReason === 'detach' && this.lastSnapshotAt) {
       const elapsed = Date.now() - this.lastSnapshotAt;
       if (elapsed < 1500) return Promise.resolve();

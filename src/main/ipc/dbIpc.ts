@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { databaseService } from '../services/DatabaseService';
+import fs from 'fs';
+import path from 'path';
 
 export function registerDatabaseIpc() {
   ipcMain.handle('db:getProjects', async () => {
@@ -111,6 +113,40 @@ export function registerDatabaseIpc() {
     }
   });
 
+  ipcMain.handle(
+    'db:cleanupSessionDirectory',
+    async (_, args: { taskPath: string; conversationId: string }) => {
+      try {
+        const sessionDir = path.join(args.taskPath, '.emdash-sessions', args.conversationId);
+
+        // Check if directory exists before trying to remove it
+        if (fs.existsSync(sessionDir)) {
+          // Remove the directory and its contents
+          fs.rmSync(sessionDir, { recursive: true, force: true });
+          log.info('Cleaned up session directory:', sessionDir);
+
+          // Also try to remove the parent .emdash-sessions if it's empty
+          const parentDir = path.join(args.taskPath, '.emdash-sessions');
+          try {
+            const entries = fs.readdirSync(parentDir);
+            if (entries.length === 0) {
+              fs.rmdirSync(parentDir);
+              log.info('Removed empty .emdash-sessions directory');
+            }
+          } catch (err) {
+            // Parent directory removal is optional
+          }
+        }
+
+        return { success: true };
+      } catch (error) {
+        log.warn('Failed to cleanup session directory:', error);
+        // This is best-effort, don't fail the operation
+        return { success: true };
+      }
+    }
+  );
+
   ipcMain.handle('db:deleteTask', async (_, taskId: string) => {
     try {
       await databaseService.deleteTask(taskId);
@@ -120,4 +156,80 @@ export function registerDatabaseIpc() {
       return { success: false, error: (error as Error).message };
     }
   });
+
+  // Multi-chat support handlers
+  ipcMain.handle(
+    'db:createConversation',
+    async (
+      _,
+      {
+        taskId,
+        title,
+        provider,
+        isMain,
+      }: { taskId: string; title: string; provider?: string; isMain?: boolean }
+    ) => {
+      try {
+        const conversation = await databaseService.createConversation(
+          taskId,
+          title,
+          provider,
+          isMain
+        );
+        return { success: true, conversation };
+      } catch (error) {
+        log.error('Failed to create conversation:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'db:setActiveConversation',
+    async (_, { taskId, conversationId }: { taskId: string; conversationId: string }) => {
+      try {
+        await databaseService.setActiveConversation(taskId, conversationId);
+        return { success: true };
+      } catch (error) {
+        log.error('Failed to set active conversation:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle('db:getActiveConversation', async (_, taskId: string) => {
+    try {
+      const conversation = await databaseService.getActiveConversation(taskId);
+      return { success: true, conversation };
+    } catch (error) {
+      log.error('Failed to get active conversation:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle(
+    'db:reorderConversations',
+    async (_, { taskId, conversationIds }: { taskId: string; conversationIds: string[] }) => {
+      try {
+        await databaseService.reorderConversations(taskId, conversationIds);
+        return { success: true };
+      } catch (error) {
+        log.error('Failed to reorder conversations:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'db:updateConversationTitle',
+    async (_, { conversationId, title }: { conversationId: string; title: string }) => {
+      try {
+        await databaseService.updateConversationTitle(conversationId, title);
+        return { success: true };
+      } catch (error) {
+        log.error('Failed to update conversation title:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
 }

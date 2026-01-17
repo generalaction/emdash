@@ -17,6 +17,8 @@ interface AttachOptions {
   autoApprove?: boolean;
   initialPrompt?: string;
   mapShiftEnterToCtrlJ?: boolean;
+  disableSnapshots?: boolean;
+  onLinkClick?: (url: string) => void;
 }
 
 class SessionRegistry {
@@ -66,6 +68,8 @@ class SessionRegistry {
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
       mapShiftEnterToCtrlJ: options.mapShiftEnterToCtrlJ,
+      disableSnapshots: options.disableSnapshots,
+      onLinkClick: options.onLinkClick,
     };
 
     const session = new TerminalSessionManager(sessionOptions);

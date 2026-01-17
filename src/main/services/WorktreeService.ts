@@ -6,6 +6,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
 import { minimatch } from 'minimatch';
+import { errorTracking } from '../errorTracking';
 
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 
@@ -119,14 +120,18 @@ export class WorktreeService {
     autoApprove?: boolean,
     baseRef?: string
   ): Promise<WorktreeInfo> {
+    // Declare variables outside try block for access in catch block
+    let branchName: string | undefined;
+    let worktreePath: string | undefined;
+    const sluggedName = this.slugify(taskName);
+    const hash = this.generateShortHash();
+
     try {
-      const sluggedName = this.slugify(taskName);
-      const hash = this.generateShortHash();
       const { getAppSettings } = await import('../settings');
       const settings = getAppSettings();
       const prefix = settings?.repository?.branchPrefix || 'emdash';
-      const branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
-      const worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+      branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
+      worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 
       log.info(`Creating worktree: ${branchName} -> ${worktreePath}`);
@@ -236,6 +241,15 @@ export class WorktreeService {
     } catch (error) {
       log.error('Failed to create worktree:', error);
       const message = error instanceof Error ? error.message : String(error);
+
+      // Track worktree creation errors
+      await errorTracking.captureWorktreeError(error, 'create', worktreePath, branchName, {
+        project_id: projectId,
+        project_path: projectPath,
+        task_name: taskName,
+        hash: hash,
+      });
+
       throw new Error(message || 'Failed to create worktree');
     }
   }

@@ -47,4 +47,7 @@ export interface Task {
   status: 'active' | 'idle' | 'running';
   metadata?: TaskMetadata | null;
   useWorktree?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  agentId?: string;
 }

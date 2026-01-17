@@ -493,7 +493,6 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
 
   return (
     <div className="fixed inset-0 z-30 flex flex-col bg-background">
-      {/* Header */}
       <div className="flex h-12 items-center justify-between border-b border-border bg-muted/30 px-4">
         <div className="flex items-center gap-2">
           <FolderOpen className="h-5 w-5" />

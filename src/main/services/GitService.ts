@@ -113,6 +113,10 @@ export async function stageFile(taskPath: string, filePath: string): Promise<voi
   await execFileAsync('git', ['add', '--', filePath], { cwd: taskPath });
 }
 
+export async function unstageFile(taskPath: string, filePath: string): Promise<void> {
+  await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: taskPath });
+}
+
 export async function revertFile(
   taskPath: string,
   filePath: string
