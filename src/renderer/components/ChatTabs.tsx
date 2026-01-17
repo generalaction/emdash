@@ -27,7 +27,6 @@ export function ChatTabs({
   onTabClick,
   onCloseTab,
   onRenameTab,
-  onDuplicateTab,
 }: ChatTabsProps) {
   const [draggedTab, setDraggedTab] = useState<string | null>(null);
 
@@ -59,7 +58,6 @@ export function ChatTabs({
 
   return (
     <div className="flex items-center gap-1 overflow-x-auto border-b bg-background/95 px-2 py-1 backdrop-blur">
-      {/* Render existing tabs */}
       {tabs.map((tab) => {
         const config = tab.provider ? providerConfig[tab.provider as Provider] : null;
         return (
@@ -91,7 +89,6 @@ export function ChatTabs({
             </span>
 
             <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-              {/* Rename button */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -103,7 +100,6 @@ export function ChatTabs({
                 <Edit2 className="h-3 w-3" />
               </button>
 
-              {/* Close button - only show if not the last tab */}
               {tabs.length > 1 && (
                 <button
                   onClick={(e) => {
