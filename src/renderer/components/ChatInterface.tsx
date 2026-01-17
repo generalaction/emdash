@@ -764,10 +764,10 @@ const ChatInterface: React.FC<Props> = ({
                         <button
                           key={conv.id}
                           onClick={() => handleSwitchChat(conv.id)}
-                          className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors ${
+                          className={`inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground transition-colors ${
                             isActive
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-border bg-muted hover:bg-muted/80'
+                              ? 'font-semibold' // Just make active tab bold
+                              : 'hover:bg-muted/80' // Only inactive tabs have hover effect
                           }`}
                           title={`${providerName}${showNumber ? ` (${sameProviderCount})` : ''}`}
                         >
