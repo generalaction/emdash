@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { databaseService } from '../services/DatabaseService';
+import fs from 'fs';
+import path from 'path';
 
 export function registerDatabaseIpc() {
   ipcMain.handle('db:getProjects', async () => {
@@ -111,6 +113,40 @@ export function registerDatabaseIpc() {
     }
   });
 
+  ipcMain.handle(
+    'db:cleanupSessionDirectory',
+    async (_, args: { taskPath: string; conversationId: string }) => {
+      try {
+        const sessionDir = path.join(args.taskPath, '.emdash-sessions', args.conversationId);
+
+        // Check if directory exists before trying to remove it
+        if (fs.existsSync(sessionDir)) {
+          // Remove the directory and its contents
+          fs.rmSync(sessionDir, { recursive: true, force: true });
+          log.info('Cleaned up session directory:', sessionDir);
+
+          // Also try to remove the parent .emdash-sessions if it's empty
+          const parentDir = path.join(args.taskPath, '.emdash-sessions');
+          try {
+            const entries = fs.readdirSync(parentDir);
+            if (entries.length === 0) {
+              fs.rmdirSync(parentDir);
+              log.info('Removed empty .emdash-sessions directory');
+            }
+          } catch (err) {
+            // Parent directory removal is optional
+          }
+        }
+
+        return { success: true };
+      } catch (error) {
+        log.warn('Failed to cleanup session directory:', error);
+        // This is best-effort, don't fail the operation
+        return { success: true };
+      }
+    }
+  );
+
   ipcMain.handle('db:deleteTask', async (_, taskId: string) => {
     try {
       await databaseService.deleteTask(taskId);
@@ -126,10 +162,20 @@ export function registerDatabaseIpc() {
     'db:createConversation',
     async (
       _,
-      { taskId, title, provider }: { taskId: string; title: string; provider?: string }
+      {
+        taskId,
+        title,
+        provider,
+        isMain,
+      }: { taskId: string; title: string; provider?: string; isMain?: boolean }
     ) => {
       try {
-        const conversation = await databaseService.createConversation(taskId, title, provider);
+        const conversation = await databaseService.createConversation(
+          taskId,
+          title,
+          provider,
+          isMain
+        );
         return { success: true, conversation };
       } catch (error) {
         log.error('Failed to create conversation:', error);

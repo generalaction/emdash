@@ -38,46 +38,82 @@ export function registerPtyIpc(): void {
         const { id, cwd, shell, env, cols, rows, autoApprove, initialPrompt, skipResume } = args;
         const existing = getPty(id);
 
-        // Only use resume flag if there's actually a conversation history to resume
-        let shouldSkipResume = skipResume || false;
-        if (!existing && !skipResume && shell) {
-          const parsed = parseProviderPty(id);
-          if (parsed) {
-            const provider = getProvider(parsed.providerId);
-            if (provider?.resumeFlag) {
-              // For chat terminals, check if conversation has messages
-              // For main terminals, check if snapshot exists
-              const isChatTerminal = id.includes('-chat-');
+        // Determine if we should skip resume
+        let shouldSkipResume = skipResume;
 
-              if (isChatTerminal) {
-                // For chat terminals, check if the conversation has any messages
-                // If it's a brand new chat, skip the resume flag
-                try {
-                  const conversationId = parsed.taskId; // For chat terminals, taskId is actually conversationId
-                  const messages = await databaseService.getMessages(conversationId);
-                  if (!messages || messages.length === 0) {
-                    log.info('ptyIpc:newChat - skipping resume flag for new conversation', { id });
-                    shouldSkipResume = true;
-                  }
-                } catch (err) {
-                  log.warn('ptyIpc:messageCheckFailed - skipping resume', { id, error: err });
-                  shouldSkipResume = true;
+        // Check if this is an additional (non-main) chat
+        // Additional chats should always skip resume as they don't have persistence
+        const isAdditionalChat = id.includes('-chat-') && !id.includes('-main-');
+
+        if (isAdditionalChat) {
+          // Additional chats always start fresh (no resume)
+          shouldSkipResume = true;
+        } else if (shouldSkipResume === undefined) {
+          // For main chats, check if this is a first-time start
+          // For Claude and similar providers, check if a session directory exists
+          if (cwd && shell) {
+            try {
+              const fs = require('fs');
+              const path = require('path');
+              const os = require('os');
+              const crypto = require('crypto');
+
+              // Check if this is Claude by looking at the shell
+              const isClaudeOrSimilar = shell.includes('claude') || shell.includes('aider');
+
+              if (isClaudeOrSimilar) {
+                // Claude stores sessions in ~/.claude/projects/ with various naming schemes
+                // Check both hash-based and path-based directory names
+                const cwdHash = crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 16);
+                const claudeHashDir = path.join(os.homedir(), '.claude', 'projects', cwdHash);
+
+                // Also check for path-based directory name (Claude's actual format)
+                // Replace path separators with hyphens for the directory name
+                const pathBasedName = cwd.replace(/\//g, '-');
+                const claudePathDir = path.join(os.homedir(), '.claude', 'projects', pathBasedName);
+
+                // Check if any Claude session directory exists for this working directory
+                const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+                let sessionExists = false;
+
+                // Check if the hash-based directory exists
+                sessionExists = fs.existsSync(claudeHashDir);
+
+                // If not, check for path-based directory
+                if (!sessionExists) {
+                  sessionExists = fs.existsSync(claudePathDir);
                 }
+
+                // If still not found, scan the projects directory for any matching directory
+                if (!sessionExists && fs.existsSync(projectsDir)) {
+                  try {
+                    const dirs = fs.readdirSync(projectsDir);
+                    // Check if any directory contains part of the working directory path
+                    const cwdParts = cwd.split('/').filter((p) => p.length > 0);
+                    const lastParts = cwdParts.slice(-3).join('-'); // Use last 3 parts of path
+                    sessionExists = dirs.some((dir: string) => dir.includes(lastParts));
+                  } catch (e) {
+                    log.debug('pty:start error scanning Claude projects directory', { error: e });
+                  }
+                }
+
+                // Skip resume if no session directory exists (new task)
+                shouldSkipResume = !sessionExists;
               } else {
-                // For main terminals, check if snapshot exists
-                try {
-                  const snapshot = await terminalSnapshotService.getSnapshot(id);
-                  if (!snapshot || !snapshot.data) {
-                    log.info('ptyIpc:noSnapshot - skipping resume flag', { id });
-                    shouldSkipResume = true;
-                  }
-                } catch (err) {
-                  log.warn('ptyIpc:snapshotCheckFailed - skipping resume', { id, error: err });
-                  shouldSkipResume = true;
-                }
+                // For other providers, default to not skipping (allow resume if supported)
+                shouldSkipResume = false;
               }
+            } catch (e) {
+              // On error, default to not skipping
+              shouldSkipResume = false;
             }
+          } else {
+            // If no cwd or shell, default to not skipping
+            shouldSkipResume = false;
           }
+        } else {
+          // Use the explicitly provided value
+          shouldSkipResume = shouldSkipResume || false;
         }
 
         const proc =
@@ -101,7 +137,9 @@ export function registerPtyIpc(): void {
           cols,
           rows,
           autoApprove,
-          skipResume,
+          skipResumeRequested: skipResume,
+          skipResumeActual: shouldSkipResume,
+          isAdditionalChat,
           reused: !!existing,
           envKeys,
         });

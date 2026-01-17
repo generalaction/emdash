@@ -1,4 +1,6 @@
 import os from 'os';
+import fs from 'fs';
+import path from 'path';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';

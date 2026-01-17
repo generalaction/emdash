@@ -56,6 +56,7 @@ export interface Conversation {
   title: string;
   provider?: string | null;
   isActive?: boolean;
+  isMain?: boolean;
   displayOrder?: number;
   metadata?: string | null;
   createdAt: string;
@@ -325,6 +326,7 @@ export class DatabaseService {
         title: conversation.title,
         provider: conversation.provider ?? null,
         isActive: conversation.isActive ? 1 : 0,
+        isMain: conversation.isMain ? 1 : 0,
         displayOrder: conversation.displayOrder ?? 0,
         metadata: conversation.metadata ?? null,
         updatedAt: sql`CURRENT_TIMESTAMP`,
@@ -335,6 +337,7 @@ export class DatabaseService {
           title: conversation.title,
           provider: conversation.provider ?? null,
           isActive: conversation.isActive ? 1 : 0,
+          isMain: conversation.isMain ? 1 : 0,
           displayOrder: conversation.displayOrder ?? 0,
           metadata: conversation.metadata ?? null,
           updatedAt: sql`CURRENT_TIMESTAMP`,
@@ -359,6 +362,7 @@ export class DatabaseService {
         id: `conv-${taskId}-default`,
         taskId,
         title: 'Default Conversation',
+        isMain: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -381,6 +385,7 @@ export class DatabaseService {
       id: conversationId,
       taskId,
       title: 'Default Conversation',
+      isMain: true,
     });
 
     const [createdRow] = await db
@@ -455,7 +460,8 @@ export class DatabaseService {
   async createConversation(
     taskId: string,
     title: string,
-    provider?: string
+    provider?: string,
+    isMain?: boolean
   ): Promise<Conversation> {
     if (this.disabled) {
       return {
@@ -464,6 +470,7 @@ export class DatabaseService {
         title,
         provider: provider ?? null,
         isActive: true,
+        isMain: isMain ?? false,
         displayOrder: 0,
         metadata: null,
         createdAt: new Date().toISOString(),
@@ -481,6 +488,18 @@ export class DatabaseService {
 
     const maxOrder = Math.max(...existingConversations.map((c) => c.displayOrder || 0), -1);
 
+    // Check if this should be the main conversation
+    // If explicitly set as main, check if one already exists
+    if (isMain === true) {
+      const hasMain = existingConversations.some((c) => c.isMain === 1);
+      if (hasMain) {
+        isMain = false; // Don't allow multiple main conversations
+      }
+    } else if (isMain === undefined) {
+      // If not specified, make it main only if it's the first conversation
+      isMain = existingConversations.length === 0;
+    }
+
     // Deactivate other conversations
     await db
       .update(conversationsTable)
@@ -495,6 +514,7 @@ export class DatabaseService {
       title,
       provider: provider ?? null,
       isActive: true,
+      isMain: isMain ?? false,
       displayOrder: maxOrder + 1,
     };
 
@@ -749,6 +769,8 @@ export class DatabaseService {
       title: row.title,
       provider: row.provider ?? null,
       isActive: row.isActive === 1,
+      // For backward compatibility: treat missing isMain as true (assume first/only conversation is main)
+      isMain: row.isMain !== undefined ? row.isMain === 1 : true,
       displayOrder: row.displayOrder ?? 0,
       metadata: row.metadata ?? null,
       createdAt: row.createdAt,

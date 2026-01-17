@@ -32,6 +32,7 @@ export interface TerminalSessionOptions {
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
 }
 
@@ -172,7 +173,10 @@ export class TerminalSessionManager {
     );
 
     void this.restoreSnapshot().finally(() => this.connectPty());
-    this.startSnapshotTimer();
+    // Only start snapshot timer if snapshots are enabled (main chats only)
+    if (!this.options.disableSnapshots) {
+      this.startSnapshotTimer();
+    }
   }
 
   attach(container: HTMLElement) {
@@ -225,7 +229,10 @@ export class TerminalSessionManager {
       this.resizeObserver = null;
       ensureTerminalHost().appendChild(this.container);
       this.attachedContainer = null;
-      void this.captureSnapshot('detach');
+      // Only capture snapshot on detach if snapshots are enabled
+      if (!this.options.disableSnapshots) {
+        void this.captureSnapshot('detach');
+      }
     }
   }
 
@@ -238,7 +245,10 @@ export class TerminalSessionManager {
     this.disposed = true;
     this.detach();
     this.stopSnapshotTimer();
-    void this.captureSnapshot('dispose');
+    // Only capture final snapshot if snapshots are enabled
+    if (!this.options.disableSnapshots) {
+      void this.captureSnapshot('dispose');
+    }
     // Clean up stored viewport position when session is disposed
     viewportPositions.delete(this.id);
     try {
@@ -439,8 +449,8 @@ export class TerminalSessionManager {
     const { taskId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
     const id = taskId;
 
-    // Don't automatically skip resume for chat terminals
-    // Let the backend decide based on whether conversation history exists
+    // Let the backend determine whether to skip resume based on session existence
+    // The backend will check if a Claude session directory exists
     const skipResume = undefined;
 
     void window.electronAPI
@@ -537,6 +547,12 @@ export class TerminalSessionManager {
   private async restoreSnapshot(): Promise<void> {
     if (!window.electronAPI.ptyGetSnapshot) return;
 
+    // Skip snapshot restoration for non-main chats
+    if (this.options.disableSnapshots) {
+      log.debug('terminalSession:skippingSnapshotForNonMainChat', { id: this.id });
+      return;
+    }
+
     // Skip snapshot restoration for providers with native resume capability
     // The CLI will handle resuming the conversation, so we don't want duplicate history
     if (this.isProviderWithResume(this.id)) {
@@ -582,6 +598,8 @@ export class TerminalSessionManager {
   private captureSnapshot(reason: 'interval' | 'detach' | 'dispose'): Promise<void> {
     if (!window.electronAPI.ptySaveSnapshot) return Promise.resolve();
     if (this.disposed) return Promise.resolve();
+    // Skip snapshots for non-main chats
+    if (this.options.disableSnapshots) return Promise.resolve();
     if (reason === 'detach' && this.lastSnapshotReason === 'detach' && this.lastSnapshotAt) {
       const elapsed = Date.now() - this.lastSnapshotAt;
       if (elapsed < 1500) return Promise.resolve();

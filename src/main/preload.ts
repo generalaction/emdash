@@ -315,6 +315,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (conversationId: string) => ipcRenderer.invoke('db:getMessages', conversationId),
   deleteConversation: (conversationId: string) =>
     ipcRenderer.invoke('db:deleteConversation', conversationId),
+  cleanupSessionDirectory: (args: { taskPath: string; conversationId: string }) =>
+    ipcRenderer.invoke('db:cleanupSessionDirectory', args),
 
   // Multi-chat support
   createConversation: (params: { taskId: string; title: string; provider?: string }) =>
@@ -648,6 +650,10 @@ export interface ElectronAPI {
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
   deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
+  cleanupSessionDirectory: (args: {
+    taskPath: string;
+    conversationId: string;
+  }) => Promise<{ success: boolean }>;
 
   // Multi-chat support
   createConversation: (params: {

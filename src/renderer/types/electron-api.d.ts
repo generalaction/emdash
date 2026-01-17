@@ -755,6 +755,10 @@ declare global {
         taskId: string
       ) => Promise<{ success: boolean; conversations?: any[]; error?: string }>;
       deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
+      cleanupSessionDirectory: (args: {
+        taskPath: string;
+        conversationId: string;
+      }) => Promise<{ success: boolean }>;
       saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
       getMessages: (
         conversationId: string
@@ -768,6 +772,7 @@ declare global {
         taskId: string;
         title: string;
         provider?: string;
+        isMain?: boolean;
       }) => Promise<{ success: boolean; conversation?: any; error?: string }>;
       setActiveConversation: (params: {
         taskId: string;

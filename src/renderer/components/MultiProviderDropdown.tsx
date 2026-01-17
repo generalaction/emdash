@@ -15,6 +15,7 @@ interface MultiProviderDropdownProps {
   onChange: (providerRuns: ProviderRun[]) => void;
   defaultProvider?: Provider;
   className?: string;
+  disabledProviders?: string[];
 }
 
 export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
@@ -22,6 +23,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   onChange,
   defaultProvider = 'claude',
   className = '',
+  disabledProviders = [],
 }) => {
   // Sort providers with default provider first
   const sortedProviders = Object.entries(providerConfig).sort(([keyA], [keyB]) => {
@@ -37,6 +39,9 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
 
   // Checkbox: always add/remove (multi-select)
   const toggleProvider = (provider: Provider) => {
+    // Don't allow toggling disabled providers
+    if (disabledProviders.includes(provider)) return;
+
     if (selectedProviders.has(provider)) {
       if (providerRuns.length > 1) {
         onChange(providerRuns.filter((pr) => pr.provider !== provider));
@@ -48,6 +53,9 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
 
   // Row click: switch when single, add when multiple
   const handleRowClick = (provider: Provider) => {
+    // Don't allow selecting disabled providers
+    if (disabledProviders.includes(provider)) return;
+
     if (selectedProviders.has(provider)) return;
     if (providerRuns.length === 1) {
       onChange([{ provider, runs: 1 }]);
@@ -111,8 +119,9 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
               const provider = key as Provider;
               const isSelected = selectedProviders.has(provider);
               const isLastSelected = isSelected && providerRuns.length === 1;
+              const isDisabled = disabledProviders.includes(provider);
 
-              return (
+              return !isDisabled ? (
                 <ProviderTooltipRow
                   key={key}
                   id={provider as UiProvider}
@@ -199,6 +208,34 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                     )}
                   </div>
                 </ProviderTooltipRow>
+              ) : (
+                /* Disabled providers with tooltip */
+                <Tooltip key={key}>
+                  <TooltipTrigger asChild>
+                    <div className="flex h-8 cursor-not-allowed items-center justify-between rounded-sm px-2 opacity-50">
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={true}
+                          className="h-4 w-4 cursor-not-allowed"
+                        />
+                        <img
+                          src={config.logo}
+                          alt={config.alt}
+                          className={`h-4 w-4 flex-shrink-0 rounded-sm ${config.invertInDark ? 'dark:invert' : ''} grayscale`}
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          {config.name}
+                          <span className="ml-1 text-xs">(in use)</span>
+                        </span>
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="z-[10000]" style={{ zIndex: 10000 }}>
+                    <p className="text-xs">This provider already has an active chat in this task</p>
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </TooltipProvider>

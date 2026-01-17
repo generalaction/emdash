@@ -26,6 +26,7 @@ type Props = {
   keepAlive?: boolean;
   autoApprove?: boolean;
   initialPrompt?: string;
+  disableSnapshots?: boolean; // If true, don't save/restore terminal snapshots (for non-main chats)
   onActivity?: () => void;
   onStartError?: (message: string) => void;
   onStartSuccess?: () => void;
@@ -48,6 +49,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       keepAlive = true,
       autoApprove,
       initialPrompt,
+      disableSnapshots = false,
       onActivity,
       onStartError,
       onStartSuccess,
@@ -119,6 +121,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         theme,
         autoApprove,
         initialPrompt,
+        disableSnapshots,
         onLinkClick: handleLinkClick,
       });
       sessionRef.current = session;

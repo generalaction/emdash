@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useReducedMotion } from 'motion/react';
 import { Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
@@ -12,12 +11,12 @@ import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Provider } from '../types';
 import { Task } from '../types/chat';
-import { useBrowser } from '@/providers/BrowserProvider';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
+import { DeleteChatModal } from './DeleteChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
@@ -46,27 +45,41 @@ const ChatInterface: React.FC<Props> = ({
   const [providerStatuses, setProviderStatuses] = useState<
     Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
   >({});
-  const [provider, setProvider] = useState<Provider>(initialProvider || 'codex');
+  const [provider, setProvider] = useState<Provider>(initialProvider || 'claude');
   const currentProviderStatus = providerStatuses[provider];
-  const browser = useBrowser();
   const [cliStartFailed, setCliStartFailed] = useState(false);
-  const reduceMotion = useReducedMotion();
 
   // Multi-chat state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
+  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [installedProviders, setInstalledProviders] = useState<string[]>([]);
 
   // Update terminal ID to include conversation ID and provider - unique per conversation
   const terminalId = useMemo(() => {
-    if (activeConversationId) {
-      // Include provider in the ID so the backend can determine the CLI to use
+    // Find the active conversation to check if it's the main one
+    const activeConversation = conversations.find((c) => c.id === activeConversationId);
+
+    if (activeConversation?.isMain) {
+      // Main conversations use task-based ID for backward compatibility
+      // This ensures terminal sessions persist correctly
+      return `${provider}-main-${task.id}`;
+    } else if (activeConversationId) {
+      // Additional conversations use conversation-specific ID
       // Format: ${provider}-chat-${conversationId}
       return `${provider}-chat-${activeConversationId}`;
     }
+    // Fallback to main format if no active conversation
     return `${provider}-main-${task.id}`;
-  }, [activeConversationId, provider, task.id]);
+  }, [activeConversationId, provider, task.id, conversations]);
+
+  // Claude needs consistent working directory to maintain session state
+  const terminalCwd = useMemo(() => {
+    return task.path;
+  }, [task.path]);
 
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
@@ -79,7 +92,9 @@ const ChatInterface: React.FC<Props> = ({
   // Load conversations when task changes
   useEffect(() => {
     const loadConversations = async () => {
+      setConversationsLoaded(false);
       const result = await window.electronAPI.getConversations(task.id);
+
       if (result.success && result.conversations && result.conversations.length > 0) {
         setConversations(result.conversations);
 
@@ -104,28 +119,36 @@ const ChatInterface: React.FC<Props> = ({
             conversationId: firstConv.id,
           });
         }
+        setConversationsLoaded(true);
       } else {
         // No conversations exist - create default for backward compatibility
         // This ensures existing tasks always have at least one conversation
         // (preserves pre-multi-chat behavior)
         const defaultResult = await window.electronAPI.getOrCreateDefaultConversation(task.id);
         if (defaultResult.success && defaultResult.conversation) {
-          // Update the default conversation to have the current provider
+          // For backward compatibility: use task.agentId if available, otherwise use current provider
+          // This preserves the original provider choice for tasks created before multi-chat
+          const taskProvider = task.agentId || provider;
           const conversationWithProvider = {
             ...defaultResult.conversation,
-            provider: provider,
+            provider: taskProvider,
+            isMain: true,
           };
           setConversations([conversationWithProvider]);
           setActiveConversationId(defaultResult.conversation.id);
 
+          // Update the provider state to match
+          setProvider(taskProvider as Provider);
+
           // Save the provider to the conversation
           await window.electronAPI.saveConversation(conversationWithProvider);
+          setConversationsLoaded(true);
         }
       }
     };
 
     loadConversations();
-  }, [task.id]);
+  }, [task.id, task.agentId]); // provider is intentionally not included as a dependency
 
   // Track installed providers
   useEffect(() => {
@@ -252,9 +275,9 @@ const ChatInterface: React.FC<Props> = ({
         setProvider(initialProvider);
       } else {
         const validProviders: Provider[] = [
-          'qwen',
           'codex',
           'claude',
+          'qwen',
           'droid',
           'gemini',
           'cursor',
@@ -263,18 +286,24 @@ const ChatInterface: React.FC<Props> = ({
           'opencode',
           'charm',
           'auggie',
+          'goose',
           'kimi',
+          'kilocode',
           'kiro',
           'rovo',
+          'cline',
+          'continue',
+          'codebuff',
+          'mistral',
         ];
         if (last && (validProviders as string[]).includes(last)) {
           setProvider(last as Provider);
         } else {
-          setProvider('codex');
+          setProvider('claude');
         }
       }
     } catch {
-      setProvider(initialProvider || 'codex');
+      setProvider(initialProvider || 'claude');
     }
   }, [task.id, initialProvider]);
 
@@ -288,6 +317,7 @@ const ChatInterface: React.FC<Props> = ({
           taskId: task.id,
           title,
           provider: newProvider,
+          isMain: false, // Additional chats are never main
         });
 
         if (result.success && result.conversation) {
@@ -347,7 +377,7 @@ const ChatInterface: React.FC<Props> = ({
   );
 
   const handleCloseChat = useCallback(
-    async (conversationId: string) => {
+    (conversationId: string) => {
       if (conversations.length <= 1) {
         toast({
           title: 'Cannot Close',
@@ -357,61 +387,53 @@ const ChatInterface: React.FC<Props> = ({
         return;
       }
 
-      const confirm = window.confirm(
-        'Delete this chat and all its messages? This action cannot be undone.'
-      );
-      if (!confirm) return;
+      // Show the delete confirmation modal
+      setChatToDelete(conversationId);
+      setShowDeleteChatModal(true);
+    },
+    [conversations.length, toast]
+  );
 
-      // Only dispose the terminal when actually deleting the chat
-      // Find the conversation to get its provider
-      const convToDelete = conversations.find((c) => c.id === conversationId);
-      const convProvider = convToDelete?.provider || provider;
-      const terminalToDispose = `${convProvider}-chat-${conversationId}`;
-      terminalSessionRegistry.dispose(terminalToDispose);
+  const handleConfirmDeleteChat = useCallback(async () => {
+    if (!chatToDelete) return;
 
-      await window.electronAPI.deleteConversation(conversationId);
+    // Only dispose the terminal when actually deleting the chat
+    // Find the conversation to get its provider
+    const convToDelete = conversations.find((c) => c.id === chatToDelete);
+    const convProvider = convToDelete?.provider || provider;
+    const terminalToDispose = `${convProvider}-chat-${chatToDelete}`;
+    terminalSessionRegistry.dispose(terminalToDispose);
 
-      // Reload conversations
-      const result = await window.electronAPI.getConversations(task.id);
-      if (result.success) {
-        setConversations(result.conversations || []);
-        // Switch to another chat if we deleted the active one
-        if (
-          conversationId === activeConversationId &&
-          result.conversations &&
-          result.conversations.length > 0
-        ) {
-          const newActive = result.conversations[0];
-          await window.electronAPI.setActiveConversation({
-            taskId: task.id,
-            conversationId: newActive.id,
-          });
-          setActiveConversationId(newActive.id);
-          // Update provider if needed
-          if (newActive.provider) {
-            setProvider(newActive.provider as Provider);
-          }
+    await window.electronAPI.deleteConversation(chatToDelete);
+
+    // Reload conversations
+    const result = await window.electronAPI.getConversations(task.id);
+    if (result.success) {
+      setConversations(result.conversations || []);
+      // Switch to another chat if we deleted the active one
+      if (
+        chatToDelete === activeConversationId &&
+        result.conversations &&
+        result.conversations.length > 0
+      ) {
+        const newActive = result.conversations[0];
+        await window.electronAPI.setActiveConversation({
+          taskId: task.id,
+          conversationId: newActive.id,
+        });
+        setActiveConversationId(newActive.id);
+        // Update provider if needed
+        if (newActive.provider) {
+          setProvider(newActive.provider as Provider);
         }
       }
-    },
-    [task.id, conversations, activeConversationId, toast, provider]
-  );
+    }
 
-  const handleRenameChat = useCallback(
-    async (conversationId: string, newTitle: string) => {
-      await window.electronAPI.updateConversationTitle({
-        conversationId,
-        title: newTitle,
-      });
+    // Clear the state
+    setChatToDelete(null);
+    setShowDeleteChatModal(false);
+  }, [chatToDelete, conversations, provider, task.id, activeConversationId]);
 
-      // Reload conversations
-      const result = await window.electronAPI.getConversations(task.id);
-      if (result.success) {
-        setConversations(result.conversations || []);
-      }
-    },
-    [task.id]
-  );
 
   // Persist last-selected provider per task (including Droid)
   useEffect(() => {
@@ -699,6 +721,17 @@ const ChatInterface: React.FC<Props> = ({
           onCreateChat={handleCreateChat}
           installedProviders={installedProviders}
           currentProvider={provider}
+          existingConversations={conversations}
+        />
+
+        <DeleteChatModal
+          open={showDeleteChatModal}
+          onOpenChange={setShowDeleteChatModal}
+          onConfirm={handleConfirmDeleteChat}
+          onCancel={() => {
+            setChatToDelete(null);
+            setShowDeleteChatModal(false);
+          }}
         />
 
         <div className="flex min-h-0 flex-1 flex-col">
@@ -706,7 +739,6 @@ const ChatInterface: React.FC<Props> = ({
             <div className="mx-auto max-w-4xl space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {/* Show all chats as tabs - initial chat on left, new ones to the right */}
                   {conversations
                     .sort((a, b) => {
                       // Sort by display order or creation time to maintain consistent order
@@ -715,11 +747,19 @@ const ChatInterface: React.FC<Props> = ({
                       }
                       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
                     })
-                    .map((conv) => {
+                    .map((conv, index) => {
                       const isActive = conv.id === activeConversationId;
                       const convProvider = conv.provider || provider;
                       const config = providerConfig[convProvider as Provider];
                       const providerName = config?.name || convProvider;
+
+                      // Count how many chats use the same provider up to this point
+                      const sameProviderCount = conversations
+                        .slice(0, index + 1)
+                        .filter((c) => (c.provider || provider) === convProvider).length;
+                      const showNumber =
+                        conversations.filter((c) => (c.provider || provider) === convProvider)
+                          .length > 1;
 
                       return (
                         <button
@@ -730,7 +770,7 @@ const ChatInterface: React.FC<Props> = ({
                               ? 'border-primary bg-primary text-primary-foreground'
                               : 'border-border bg-muted hover:bg-muted/80'
                           }`}
-                          title={`${providerName} - ${conv.title}`}
+                          title={`${providerName}${showNumber ? ` (${sameProviderCount})` : ''}`}
                         >
                           {config?.logo && (
                             <img
@@ -741,7 +781,12 @@ const ChatInterface: React.FC<Props> = ({
                               }`}
                             />
                           )}
-                          <span className="max-w-[10rem] truncate">{providerName}</span>
+                          <span className="max-w-[10rem] truncate">
+                            {providerName}
+                            {showNumber && (
+                              <span className="ml-1 opacity-60">{sameProviderCount}</span>
+                            )}
+                          </span>
                           {conversations.length > 1 && (
                             <button
                               onClick={(e) => {
@@ -766,7 +811,6 @@ const ChatInterface: React.FC<Props> = ({
                     <Plus className="h-3.5 w-3.5" />
                   </button>
 
-                  {/* Show issue badges separately */}
                   {(task.metadata?.linearIssue ||
                     task.metadata?.githubIssue ||
                     task.metadata?.jiraIssue) && (
@@ -830,85 +874,90 @@ const ChatInterface: React.FC<Props> = ({
                     : ''
               }`}
             >
-              {/* Always render TerminalPane since we always have at least one conversation */}
-              <TerminalPane
-                ref={terminalRef}
-                id={terminalId}
-                cwd={task.path}
-                shell={providerMeta[provider].cli}
-                autoApprove={autoApproveEnabled}
-                env={undefined}
-                keepAlive={true}
-                onActivity={() => {
-                  try {
-                    window.localStorage.setItem(`provider:locked:${task.id}`, provider);
-                  } catch {}
-                }}
-                onStartError={() => {
-                  setCliStartFailed(true);
-                }}
-                onStartSuccess={() => {
-                  setCliStartFailed(false);
-                  // Mark initial injection as sent so it won't re-run on restart
-                  if (initialInjection && !task.metadata?.initialInjectionSent) {
-                    void window.electronAPI.saveTask({
-                      ...task,
-                      metadata: {
-                        ...task.metadata,
-                        initialInjectionSent: true,
-                      },
-                    });
+              {/* Only render TerminalPane after conversations are loaded to ensure correct terminal ID and snapshot settings */}
+              {conversationsLoaded ? (
+                <TerminalPane
+                  ref={terminalRef}
+                  id={terminalId}
+                  cwd={terminalCwd}
+                  shell={providerMeta[provider].cli}
+                  autoApprove={autoApproveEnabled}
+                  env={undefined}
+                  keepAlive={true}
+                  disableSnapshots={
+                    !conversations.find((c) => c.id === activeConversationId)?.isMain
                   }
-                }}
-                variant={
-                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                }
-                themeOverride={
-                  provider === 'charm'
-                    ? {
-                        background:
-                          effectiveTheme === 'dark-black'
-                            ? '#0a0a0a'
-                            : effectiveTheme === 'dark'
-                              ? '#1f2937'
-                              : '#ffffff',
-                        selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                        selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
-                      }
-                    : provider === 'mistral'
+                  onActivity={() => {
+                    try {
+                      window.localStorage.setItem(`provider:locked:${task.id}`, provider);
+                    } catch {}
+                  }}
+                  onStartError={() => {
+                    setCliStartFailed(true);
+                  }}
+                  onStartSuccess={() => {
+                    setCliStartFailed(false);
+                    // Mark initial injection as sent so it won't re-run on restart
+                    if (initialInjection && !task.metadata?.initialInjectionSent) {
+                      void window.electronAPI.saveTask({
+                        ...task,
+                        metadata: {
+                          ...task.metadata,
+                          initialInjectionSent: true,
+                        },
+                      });
+                    }
+                  }}
+                  variant={
+                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+                  }
+                  themeOverride={
+                    provider === 'charm'
                       ? {
                           background:
                             effectiveTheme === 'dark-black'
-                              ? '#141820'
+                              ? '#0a0a0a'
                               : effectiveTheme === 'dark'
-                                ? '#202938'
+                                ? '#1f2937'
                                 : '#ffffff',
                           selectionBackground: 'rgba(96, 165, 250, 0.35)',
                           selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
                         }
-                      : effectiveTheme === 'dark-black'
+                      : provider === 'mistral'
                         ? {
-                            background: '#000000',
+                            background:
+                              effectiveTheme === 'dark-black'
+                                ? '#141820'
+                                : effectiveTheme === 'dark'
+                                  ? '#202938'
+                                  : '#ffffff',
                             selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                            selectionForeground: '#f9fafb',
+                            selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
                           }
-                        : undefined
-                }
-                contentFilter={
-                  provider === 'charm' &&
-                  effectiveTheme !== 'dark' &&
-                  effectiveTheme !== 'dark-black'
-                    ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
-                    : undefined
-                }
-                initialPrompt={
-                  providerMeta[provider]?.initialPromptFlag !== undefined &&
-                  !task.metadata?.initialInjectionSent
-                    ? (initialInjection ?? undefined)
-                    : undefined
-                }
-                className="h-full w-full"
-              />
+                        : effectiveTheme === 'dark-black'
+                          ? {
+                              background: '#000000',
+                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                              selectionForeground: '#f9fafb',
+                            }
+                          : undefined
+                  }
+                  contentFilter={
+                    provider === 'charm' &&
+                    effectiveTheme !== 'dark' &&
+                    effectiveTheme !== 'dark-black'
+                      ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
+                      : undefined
+                  }
+                  initialPrompt={
+                    providerMeta[provider]?.initialPromptFlag !== undefined &&
+                    !task.metadata?.initialInjectionSent
+                      ? (initialInjection ?? undefined)
+                      : undefined
+                  }
+                  className="h-full w-full"
+                />
+              ) : null}
             </div>
           </div>
         </div>
