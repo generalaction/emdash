@@ -58,6 +58,11 @@ export const conversations = sqliteTable(
       .notNull()
       .references(() => tasks.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
+    provider: text('provider'), // AI provider for this chat (claude, codex, qwen, etc.)
+    isActive: integer('is_active').notNull().default(0), // 1 if this is the active chat for the task
+    isMain: integer('is_main').notNull().default(0), // 1 if this is the main/primary chat (gets full persistence)
+    displayOrder: integer('display_order').notNull().default(0), // Order in the tab bar
+    metadata: text('metadata'), // JSON for additional chat-specific data
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -67,6 +72,7 @@ export const conversations = sqliteTable(
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
+    activeIdx: index('idx_conversations_active').on(table.taskId, table.isActive), // Index for quick active conversation lookup
   })
 );
 

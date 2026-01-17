@@ -8,6 +8,7 @@ import { getAppSettings } from '../settings';
 import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
+import { databaseService } from './DatabaseService';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
@@ -37,26 +38,82 @@ export function registerPtyIpc(): void {
         const { id, cwd, shell, env, cols, rows, autoApprove, initialPrompt, skipResume } = args;
         const existing = getPty(id);
 
-        // Only use resume flag if there's actually a conversation history to resume
-        let shouldSkipResume = skipResume || false;
-        if (!existing && !skipResume && shell) {
-          const parsed = parseProviderPty(id);
-          if (parsed) {
-            const provider = getProvider(parsed.providerId);
-            if (provider?.resumeFlag) {
-              // Check if snapshot exists before using resume flag
-              try {
-                const snapshot = await terminalSnapshotService.getSnapshot(id);
-                if (!snapshot || !snapshot.data) {
-                  log.info('ptyIpc:noSnapshot - skipping resume flag', { id });
-                  shouldSkipResume = true;
+        // Determine if we should skip resume
+        let shouldSkipResume = skipResume;
+
+        // Check if this is an additional (non-main) chat
+        // Additional chats should always skip resume as they don't have persistence
+        const isAdditionalChat = id.includes('-chat-') && !id.includes('-main-');
+
+        if (isAdditionalChat) {
+          // Additional chats always start fresh (no resume)
+          shouldSkipResume = true;
+        } else if (shouldSkipResume === undefined) {
+          // For main chats, check if this is a first-time start
+          // For Claude and similar providers, check if a session directory exists
+          if (cwd && shell) {
+            try {
+              const fs = require('fs');
+              const path = require('path');
+              const os = require('os');
+              const crypto = require('crypto');
+
+              // Check if this is Claude by looking at the shell
+              const isClaudeOrSimilar = shell.includes('claude') || shell.includes('aider');
+
+              if (isClaudeOrSimilar) {
+                // Claude stores sessions in ~/.claude/projects/ with various naming schemes
+                // Check both hash-based and path-based directory names
+                const cwdHash = crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 16);
+                const claudeHashDir = path.join(os.homedir(), '.claude', 'projects', cwdHash);
+
+                // Also check for path-based directory name (Claude's actual format)
+                // Replace path separators with hyphens for the directory name
+                const pathBasedName = cwd.replace(/\//g, '-');
+                const claudePathDir = path.join(os.homedir(), '.claude', 'projects', pathBasedName);
+
+                // Check if any Claude session directory exists for this working directory
+                const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+                let sessionExists = false;
+
+                // Check if the hash-based directory exists
+                sessionExists = fs.existsSync(claudeHashDir);
+
+                // If not, check for path-based directory
+                if (!sessionExists) {
+                  sessionExists = fs.existsSync(claudePathDir);
                 }
-              } catch (err) {
-                log.warn('ptyIpc:snapshotCheckFailed - skipping resume', { id, error: err });
-                shouldSkipResume = true;
+
+                // If still not found, scan the projects directory for any matching directory
+                if (!sessionExists && fs.existsSync(projectsDir)) {
+                  try {
+                    const dirs = fs.readdirSync(projectsDir);
+                    // Check if any directory contains part of the working directory path
+                    const cwdParts = cwd.split('/').filter((p) => p.length > 0);
+                    const lastParts = cwdParts.slice(-3).join('-'); // Use last 3 parts of path
+                    sessionExists = dirs.some((dir: string) => dir.includes(lastParts));
+                  } catch (e) {
+                    log.debug('pty:start error scanning Claude projects directory', { error: e });
+                  }
+                }
+
+                // Skip resume if no session directory exists (new task)
+                shouldSkipResume = !sessionExists;
+              } else {
+                // For other providers, default to not skipping (allow resume if supported)
+                shouldSkipResume = false;
               }
+            } catch (e) {
+              // On error, default to not skipping
+              shouldSkipResume = false;
             }
+          } else {
+            // If no cwd or shell, default to not skipping
+            shouldSkipResume = false;
           }
+        } else {
+          // Use the explicitly provided value
+          shouldSkipResume = shouldSkipResume || false;
         }
 
         const proc =
@@ -80,7 +137,9 @@ export function registerPtyIpc(): void {
           cols,
           rows,
           autoApprove,
-          skipResume,
+          skipResumeRequested: skipResume,
+          skipResumeActual: shouldSkipResume,
+          isAdditionalChat,
           reused: !!existing,
           envKeys,
         });
@@ -213,12 +272,19 @@ function parseProviderPty(id: string): {
   providerId: ProviderId;
   taskId: string;
 } | null {
-  // Chat terminals are named `${provider}-main-${taskId}`
-  const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+  // Chat terminals can be:
+  // - `${provider}-main-${taskId}` for main task terminals
+  // - `${provider}-chat-${conversationId}` for chat-specific terminals
+  const mainMatch = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+  const chatMatch = /^([a-z0-9_-]+)-chat-(.+)$/.exec(id);
+
+  const match = mainMatch || chatMatch;
   if (!match) return null;
+
   const providerId = match[1] as ProviderId;
   if (!PROVIDER_IDS.includes(providerId)) return null;
-  const taskId = match[2];
+
+  const taskId = match[2]; // This is either taskId or conversationId
   return { providerId, taskId };
 }
 

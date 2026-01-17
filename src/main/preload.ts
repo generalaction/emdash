@@ -315,6 +315,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (conversationId: string) => ipcRenderer.invoke('db:getMessages', conversationId),
   deleteConversation: (conversationId: string) =>
     ipcRenderer.invoke('db:deleteConversation', conversationId),
+  cleanupSessionDirectory: (args: { taskPath: string; conversationId: string }) =>
+    ipcRenderer.invoke('db:cleanupSessionDirectory', args),
+
+  // Multi-chat support
+  createConversation: (params: { taskId: string; title: string; provider?: string }) =>
+    ipcRenderer.invoke('db:createConversation', params),
+  setActiveConversation: (params: { taskId: string; conversationId: string }) =>
+    ipcRenderer.invoke('db:setActiveConversation', params),
+  getActiveConversation: (taskId: string) => ipcRenderer.invoke('db:getActiveConversation', taskId),
+  reorderConversations: (params: { taskId: string; conversationIds: string[] }) =>
+    ipcRenderer.invoke('db:reorderConversations', params),
+  updateConversationTitle: (params: { conversationId: string; title: string }) =>
+    ipcRenderer.invoke('db:updateConversationTitle', params),
 
   // Line comments management
   lineCommentsCreate: (input: any) => ipcRenderer.invoke('lineComments:create', input),
@@ -637,6 +650,32 @@ export interface ElectronAPI {
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
   deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
+  cleanupSessionDirectory: (args: {
+    taskPath: string;
+    conversationId: string;
+  }) => Promise<{ success: boolean }>;
+
+  // Multi-chat support
+  createConversation: (params: {
+    taskId: string;
+    title: string;
+    provider?: string;
+  }) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+  setActiveConversation: (params: {
+    taskId: string;
+    conversationId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  getActiveConversation: (
+    taskId: string
+  ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+  reorderConversations: (params: {
+    taskId: string;
+    conversationIds: string[];
+  }) => Promise<{ success: boolean; error?: string }>;
+  updateConversationTitle: (params: {
+    conversationId: string;
+    title: string;
+  }) => Promise<{ success: boolean; error?: string }>;
 
   // Host preview (non-container)
   hostPreviewStart: (args: {
