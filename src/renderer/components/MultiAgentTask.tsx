@@ -493,6 +493,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                         : undefined
                     }
                     keepAlive
+                    mapShiftEnterToCtrlJ
                     variant={isDark ? 'dark' : 'light'}
                     themeOverride={
                       v.agent === 'mistral'
