@@ -1,6 +1,8 @@
+import { execFileSync } from 'child_process';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
+import { extname } from 'node:path';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';
@@ -12,6 +14,43 @@ type PtyRecord = {
 };
 
 const ptys = new Map<string, PtyRecord>();
+
+function resolveCliPath(command: string): string | null {
+  const resolver = process.platform === 'win32' ? 'where' : 'which';
+  try {
+    const result = execFileSync(resolver, [command], { encoding: 'utf8' });
+    const lines = result
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    if (process.platform !== 'win32') {
+      return lines[0] ?? null;
+    }
+
+    // Prefer actual executable extensions on Windows (avoid extensionless shims like `%APPDATA%\\npm\\codex`).
+    const extensionPreference: Record<string, number> = {
+      '.exe': 0,
+      '.cmd': 1,
+      '.bat': 2,
+      '.com': 3,
+      '.ps1': 50,
+      '': 100,
+    };
+
+    const best = [...lines].sort((a, b) => {
+      const aExt = extname(a).toLowerCase();
+      const bExt = extname(b).toLowerCase();
+      const aRank = extensionPreference[aExt] ?? extensionPreference[''];
+      const bRank = extensionPreference[bExt] ?? extensionPreference[''];
+      return aRank - bRank;
+    })[0];
+
+    return best ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function getDefaultShell(): string {
   if (process.platform === 'win32') {
@@ -183,14 +222,18 @@ export async function startPty(options: {
         }
 
         const cliCommand = provider.cli || baseLower;
+        const resolvedCliPath = resolveCliPath(cliCommand);
+        const finalCommand = resolvedCliPath || cliCommand;
+        const quotedFinalCommand =
+          /[\s'"\\$`\n\r\t]/.test(finalCommand) ? `'${finalCommand.replace(/'/g, "'\\''")}'` : finalCommand;
         const commandString =
           cliArgs.length > 0
-            ? `${cliCommand} ${cliArgs
+            ? `${quotedFinalCommand} ${cliArgs
                 .map((arg) =>
                   /[\s'"\\$`\n\r\t]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg
                 )
                 .join(' ')}`
-            : cliCommand;
+            : quotedFinalCommand;
 
         // After the provider exits, exec back into the user's shell (login+interactive)
         const resumeShell = `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
