@@ -1,6 +1,12 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
+// CI builds (GitHub Actions, etc.) should rebuild native modules in explicit steps,
+// not during `npm ci`/`npm install`, to avoid failing early on toolchain differences.
+if (process.env.CI || process.env.EMDASH_SKIP_ELECTRON_REBUILD === '1') {
+  process.exit(0);
+}
+
 function getElectronRebuildBin() {
   const binName = process.platform === 'win32' ? 'electron-rebuild.cmd' : 'electron-rebuild';
   return path.resolve(__dirname, '..', 'node_modules', '.bin', binName);

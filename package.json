@@ -192,9 +192,16 @@
       ]
     },
     "win": {
+      "icon": "src/assets/images/emdash/icon-light.png",
       "target": [
         {
           "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "msi",
           "arch": [
             "x64"
           ]
@@ -206,6 +213,10 @@
           ]
         }
       ]
+    },
+    "msi": {
+      "oneClick": false,
+      "perMachine": false
     },
     "nsis": {
       "differentialPackage": true,

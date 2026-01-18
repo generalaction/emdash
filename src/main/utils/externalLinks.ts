@@ -8,9 +8,17 @@ import { BrowserWindow, shell } from 'electron';
 export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean) {
   const wc = win.webContents;
 
+  const isInternalAppUrl = (url: string) => {
+    if (isDev) return url.startsWith('http://localhost:3000');
+    return (
+      url.startsWith('file://') ||
+      /^http:\/\/(127\.0\.0\.1|localhost):\d+(?:\/|$)/i.test(url)
+    );
+  };
+
   // Handle window.open and target="_blank"
   wc.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) {
+    if (!isInternalAppUrl(url) && /^https?:\/\//i.test(url)) {
       shell.openExternal(url);
       return { action: 'deny' };
     }
@@ -19,8 +27,7 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
 
   // Intercept navigations that would leave the app
   wc.on('will-navigate', (event, url) => {
-    const isAppUrl = isDev ? url.startsWith('http://localhost:3000') : url.startsWith('file://');
-    if (!isAppUrl && /^https?:\/\//i.test(url)) {
+    if (!isInternalAppUrl(url) && /^https?:\/\//i.test(url)) {
       event.preventDefault();
       shell.openExternal(url);
     }

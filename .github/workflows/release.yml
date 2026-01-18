@@ -488,7 +488,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest
+            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           # Upload stapled DMGs, ZIPs (for auto-update), and update files
           FILES=(release/emdash-*.dmg release/emdash-*.zip)
@@ -526,3 +526,99 @@ jobs:
             release/*.blockmap
             release/latest-mac.yml
           if-no-files-found: ignore
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - name: Init flags
+        id: init
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRY=${{ inputs.dry_run || '' }}
+          if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
+          # For branch pushes, always do a dry run to avoid creating "releases" for branch names.
+          if [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ]; then
+            DRY=true
+          fi
+          DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
+          case "$DRY" in
+            true|1|yes) DRY=true ;;
+            *) DRY=false ;;
+          esac
+          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Node 22 triggers native module source builds (e.g. node-pty) that can fail on Windows.
+          # Node 20 is within our supported engines range and matches Electron's Node baseline more closely.
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python 3.11 for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python build deps (setuptools shim for distutils)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Install dependencies (strict lockfile)
+        shell: bash
+        env:
+          npm_config_python: ${{ env.python }}
+        run: npm ci
+
+      - name: Build app (ts + vite)
+        shell: bash
+        run: npm run build
+
+      - name: Rebuild native modules (x64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
+          npm_config_build_from_source=true npx @electron/rebuild -f -a x64 -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
+
+      - name: Build MSI (no publish)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx electron-builder --win msi --x64 --publish never --config.npmRebuild=false
+          ls -lah release || true
+
+      - name: Publish GitHub Release and upload MSI
+        if: ${{ steps.init.outputs.dry_run != 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          # Create if missing, or publish if draft
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --draft=false --prerelease=false
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
+          fi
+          if ! ls release/*.msi >/dev/null 2>&1; then
+            echo "::error::No MSI files found in release/."
+            ls -lah release || true
+            exit 1
+          fi
+          gh release upload "$TAG" release/*.msi --clobber
+
+      - name: Upload MSI (dry-run)
+        if: ${{ steps.init.outputs.dry_run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: WINDOWS-MSI
+          path: release/*.msi
+          if-no-files-found: error
