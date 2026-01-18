@@ -623,6 +623,24 @@ export class GitHubService {
       // First check if gh CLI is authenticated system-wide
       const isGHAuth = await this.isGHCLIAuthenticated();
       if (isGHAuth) {
+        // Best-effort: if user is logged in via gh but we don't have a stored token yet,
+        // retrieve it and store it for subsequent gh command retries and API calls.
+        try {
+          const existingToken = await this.getStoredToken();
+          if (!existingToken) {
+            const { stdout } = await this.execGH('gh auth token');
+            const token = String(stdout || '').trim();
+            if (token) {
+              try {
+                await this.storeToken(token);
+              } catch {
+                // Non-fatal: user is still authenticated via gh CLI
+              }
+            }
+          }
+        } catch {
+          // Non-fatal: user is still authenticated via gh CLI
+        }
         return true;
       }
 

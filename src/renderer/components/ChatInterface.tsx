@@ -895,11 +895,11 @@ const ChatInterface: React.FC<Props> = ({
                       window.localStorage.setItem(`provider:locked:${task.id}`, provider);
                     } catch {}
                   }}
-                  onStartError={() => {
-                    setCliStartFailed(true);
+                  onStartError={(message) => {
+                    setCliStartError(message);
                   }}
                   onStartSuccess={() => {
-                    setCliStartFailed(false);
+                    setCliStartError(null);
                     // Mark initial injection as sent so it won't re-run on restart
                     if (initialInjection && !task.metadata?.initialInjectionSent) {
                       void window.electronAPI.saveTask({
