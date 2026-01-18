@@ -5,9 +5,17 @@ import { log } from '../lib/logger';
 import { getProvider, PROVIDER_IDS, type ProviderId } from '../../shared/providers/registry';
 
 const execAsync = promisify(exec);
-const execFileAsync = promisify(execFile);
+
+const cliPathCache = new Map<string, string | null>();
 
 function resolveCliPath(command: string): string | null {
+  if (!command) return null;
+
+  // If it's already a path (absolute or relative), just use it.
+  if (command.includes('/') || command.includes('\\')) return command;
+
+  if (cliPathCache.has(command)) return cliPathCache.get(command) ?? null;
+
   const resolver = process.platform === 'win32' ? 'where' : 'which';
   try {
     const result = execFileSync(resolver, [command], { encoding: 'utf8' });
@@ -17,7 +25,9 @@ function resolveCliPath(command: string): string | null {
       .filter(Boolean);
 
     if (process.platform !== 'win32') {
-      return lines[0] ?? null;
+      const resolved = lines[0] ?? null;
+      cliPathCache.set(command, resolved);
+      return resolved;
     }
 
     // Prefer actual executable extensions on Windows (avoid extensionless shims like `%APPDATA%\\npm\\codex`).
@@ -38,8 +48,11 @@ function resolveCliPath(command: string): string | null {
       return aRank - bRank;
     })[0];
 
-    return best ?? null;
+    const resolved = best ?? null;
+    cliPathCache.set(command, resolved);
+    return resolved;
   } catch {
+    cliPathCache.set(command, null);
     return null;
   }
 }
