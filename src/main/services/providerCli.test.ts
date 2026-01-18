@@ -18,8 +18,9 @@ describe('providerCli', () => {
   it('builds args with auto-approve', () => {
     const provider = getProvider('codex');
     expect(provider).toBeTruthy();
+    expect(provider?.autoApproveFlag).toBeTruthy();
     const args = buildProviderCliArgs(provider!, { autoApprove: true });
-    expect(args).toContain('--yolo');
+    expect(args).toContain(provider!.autoApproveFlag!);
   });
 
   it('includes resume flag unless skipped', () => {
@@ -34,4 +35,3 @@ describe('providerCli', () => {
     expect(skipped).not.toContain('-r');
   });
 });
-

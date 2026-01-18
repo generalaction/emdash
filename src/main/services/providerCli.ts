@@ -1,7 +1,9 @@
 import path from 'path';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 
-export function detectProviderFromShellCommand(shellCommand: string | undefined): ProviderDefinition | undefined {
+export function detectProviderFromShellCommand(
+  shellCommand: string | undefined
+): ProviderDefinition | undefined {
   if (!shellCommand) return undefined;
 
   const base = path.basename(shellCommand).toLowerCase();
@@ -43,4 +45,3 @@ export function buildProviderCliArgs(
 
   return cliArgs;
 }
-
