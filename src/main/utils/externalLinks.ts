@@ -10,10 +10,7 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
 
   const isInternalAppUrl = (url: string) => {
     if (isDev) return url.startsWith('http://localhost:3000');
-    return (
-      url.startsWith('file://') ||
-      /^http:\/\/(127\.0\.0\.1|localhost):\d+(?:\/|$)/i.test(url)
-    );
+    return url.startsWith('file://') || /^http:\/\/(127\.0\.0\.1|localhost):\d+(?:\/|$)/i.test(url);
   };
 
   // Handle window.open and target="_blank"
