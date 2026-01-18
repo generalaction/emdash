@@ -7,6 +7,7 @@ import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';
 import { errorTracking } from '../errorTracking';
+import { buildProviderCliArgs, detectProviderFromShellCommand } from './providerCli';
 
 type PtyRecord = {
   id: string;
@@ -201,41 +202,27 @@ export async function startPty(options: {
   // For provider CLIs, spawn the user's shell and run the provider command via -c,
   // then exec back into the shell to allow users to stay in a normal prompt after exiting the agent.
   const args: string[] = [];
-  if (process.platform !== 'win32') {
-    try {
-      const base = String(useShell).split('/').pop() || '';
-      const baseLower = base.toLowerCase();
-      const provider = PROVIDERS.find((p) => p.cli === baseLower);
+  try {
+    const provider = detectProviderFromShellCommand(useShell);
 
-      if (provider) {
-        // Build the provider command with flags
-        const cliArgs: string[] = [];
-
-        // Add resume flag FIRST if available (unless skipResume is true)
-        if (provider.resumeFlag && !skipResume) {
-          const resumeParts = provider.resumeFlag.split(' ');
-          cliArgs.push(...resumeParts);
-        }
-
-        // Then add default args
-        if (provider.defaultArgs?.length) {
-          cliArgs.push(...provider.defaultArgs);
-        }
-
-        // Then auto-approve flag
-        if (autoApprove && provider.autoApproveFlag) {
-          cliArgs.push(provider.autoApproveFlag);
-        }
-
-        // Finally initial prompt
-        if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
-          if (provider.initialPromptFlag) {
-            cliArgs.push(provider.initialPromptFlag);
-          }
-          cliArgs.push(initialPrompt.trim());
-        }
-
-        const cliCommand = provider.cli || baseLower;
+    if (provider) {
+      if (process.platform === 'win32') {
+        // On Windows, spawn the provider CLI directly with args.
+        const cliCommand = provider.cli || String(useShell);
+        const resolvedCliPath = resolveCliPath(cliCommand);
+        if (resolvedCliPath) useShell = resolvedCliPath;
+        args.push(
+          ...buildProviderCliArgs(provider, {
+            autoApprove,
+            initialPrompt,
+            skipResume,
+          })
+        );
+      } else {
+        // On POSIX shells, spawn the user's shell and run the provider via `-c`,
+        // then exec back into an interactive login shell.
+        const cliArgs = buildProviderCliArgs(provider, { autoApprove, initialPrompt, skipResume });
+        const cliCommand = provider.cli || String(useShell);
         const resolvedCliPath = resolveCliPath(cliCommand);
         const finalCommand = resolvedCliPath || cliCommand;
         const quotedFinalCommand = /[\s'"\\$`\n\r\t]/.test(finalCommand)
@@ -250,28 +237,27 @@ export async function startPty(options: {
                 .join(' ')}`
             : quotedFinalCommand;
 
-        // After the provider exits, exec back into the user's shell (login+interactive)
         const resumeShell = `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
         const chainCommand = `${commandString}; exec ${resumeShell}`;
 
-        // Always use the default shell for the -c command to avoid re-detecting provider CLI
         useShell = defaultShell;
         const shellBase = defaultShell.split('/').pop() || '';
         if (shellBase === 'zsh') args.push('-lic', chainCommand);
         else if (shellBase === 'bash') args.push('-lic', chainCommand);
         else if (shellBase === 'fish') args.push('-ic', chainCommand);
         else if (shellBase === 'sh') args.push('-lc', chainCommand);
-        else args.push('-c', chainCommand); // Fallback for other shells
-      } else {
-        // For normal shells, use login + interactive to load user configs
-        if (base === 'zsh') args.push('-il');
-        else if (base === 'bash') args.push('-il');
-        else if (base === 'fish') args.push('-il');
-        else if (base === 'sh') args.push('-il');
-        else args.push('-i'); // Fallback for other shells
+        else args.push('-c', chainCommand);
       }
-    } catch {}
-  }
+    } else if (process.platform !== 'win32') {
+      // For normal shells on POSIX, use login + interactive to load user configs
+      const base = String(useShell).split('/').pop() || '';
+      if (base === 'zsh') args.push('-il');
+      else if (base === 'bash') args.push('-il');
+      else if (base === 'fish') args.push('-il');
+      else if (base === 'sh') args.push('-il');
+      else args.push('-i');
+    }
+  } catch {}
 
   let proc: IPty;
   try {
