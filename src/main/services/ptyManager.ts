@@ -238,8 +238,9 @@ export async function startPty(options: {
         const cliCommand = provider.cli || baseLower;
         const resolvedCliPath = resolveCliPath(cliCommand);
         const finalCommand = resolvedCliPath || cliCommand;
-        const quotedFinalCommand =
-          /[\s'"\\$`\n\r\t]/.test(finalCommand) ? `'${finalCommand.replace(/'/g, "'\\''")}'` : finalCommand;
+        const quotedFinalCommand = /[\s'"\\$`\n\r\t]/.test(finalCommand)
+          ? `'${finalCommand.replace(/'/g, "'\\''")}'`
+          : finalCommand;
         const commandString =
           cliArgs.length > 0
             ? `${quotedFinalCommand} ${cliArgs
