@@ -32,6 +32,7 @@ import { KeyboardSettingsProvider } from './contexts/KeyboardSettingsContext';
 import { ToastAction } from './components/ui/toast';
 import { Toaster } from './components/ui/toaster';
 import { useToast } from './hooks/use-toast';
+import { useAutoPrRefresh } from './hooks/useAutoPrRefresh';
 import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
@@ -150,6 +151,9 @@ const AppContent: React.FC = () => {
 
   // Show toast on update availability and kick off a background check
   useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => setShowSettings(true) });
+
+  // Auto-refresh PR status on window focus and periodic polling for active task
+  useAutoPrRefresh(activeTask?.path);
 
   const defaultPanelLayout = React.useMemo(() => {
     const stored = loadPanelSizes(PANEL_LAYOUT_STORAGE_KEY, DEFAULT_PANEL_LAYOUT);
