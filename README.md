@@ -1,4 +1,4 @@
-<img width="4856" height="1000" alt="Github_banner (1)" src="https://github.com/user-attachments/assets/9dfdd1fd-ea4f-4b86-9daf-d4a46952594a" />
+<img alt="Emdash banner" src="https://github.com/user-attachments/assets/85836268-a4a4-4cc6-8969-462dee683817" />
 
 <div align="center" style="margin:24px 0;">
   
