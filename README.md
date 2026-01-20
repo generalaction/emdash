@@ -54,7 +54,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 # Providers
 
-<img width="4856" height="1000" alt="integration_banner" src="https://github.com/user-attachments/assets/894c3db8-3be5-4730-ae7d-197958b0a044" />
+<img alt="Providers banner" src="https://github.com/user-attachments/assets/6b563230-2263-4603-bcc5-99785b77187d" />
 
 ### Supported CLI Providers
 
