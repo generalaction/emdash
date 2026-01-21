@@ -164,7 +164,7 @@ export function registerPtyIpc(): void {
         const wc = event.sender;
         owners.set(id, wc);
 
-        // Attach listeners once per PTY id
+        // Attach data/exit listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
             safeSendToOwner(id, `pty:data:${id}`, data);
@@ -177,18 +177,23 @@ export function registerPtyIpc(): void {
             listeners.delete(id);
           });
 
-          // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
-          wc.once('destroyed', () => {
-            log.debug('pty:ownerDestroyed', { id });
-            try {
-              killPty(id);
-            } catch {}
-            owners.delete(id);
-            listeners.delete(id);
-          });
-
           listeners.add(id);
         }
+
+        // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
+        // Registered per-owner so ownership transfers are handled correctly
+        wc.once('destroyed', () => {
+          if (owners.get(id) !== wc) {
+            log.debug('pty:staleOwnerDestroyed', { id });
+            return;
+          }
+          log.debug('pty:ownerDestroyed', { id });
+          try {
+            killPty(id);
+          } catch {}
+          owners.delete(id);
+          listeners.delete(id);
+        });
 
         if (!existing) {
           maybeMarkProviderStart(id);
