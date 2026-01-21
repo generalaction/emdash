@@ -7,9 +7,10 @@ import ExternalLinkModal from './ExternalLinkModal';
 type Props = {
   id: string;
   cwd?: string;
+  providerId?: string; // If set, uses direct CLI spawn (no shell)
+  shell?: string; // Used for shell-based spawn when providerId not set
   cols?: number;
   rows?: number;
-  shell?: string;
   env?: Record<string, string>;
   className?: string;
   variant?: 'dark' | 'light';
@@ -18,6 +19,7 @@ type Props = {
   keepAlive?: boolean;
   autoApprove?: boolean;
   initialPrompt?: string;
+  deferSpawn?: boolean; // If true, delays PTY spawn until browser is idle
   onActivity?: () => void;
   onStartError?: (message: string) => void;
   onStartSuccess?: () => void;
@@ -27,9 +29,10 @@ type Props = {
 const TerminalPaneComponent: React.FC<Props> = ({
   id,
   cwd,
+  providerId,
+  shell,
   cols = 120,
   rows = 32,
-  shell,
   env,
   className,
   variant = 'dark',
@@ -38,6 +41,7 @@ const TerminalPaneComponent: React.FC<Props> = ({
   keepAlive = true,
   autoApprove,
   initialPrompt,
+  deferSpawn = false,
   onActivity,
   onStartError,
   onStartSuccess,
@@ -90,12 +94,14 @@ const TerminalPaneComponent: React.FC<Props> = ({
       taskId: id,
       container,
       cwd,
+      providerId,
       shell,
       env,
       initialSize: { cols, rows },
       theme,
       autoApprove,
       initialPrompt,
+      deferSpawn,
       onLinkClick: handleLinkClick,
     });
     sessionRef.current = session;
@@ -127,12 +133,14 @@ const TerminalPaneComponent: React.FC<Props> = ({
   }, [
     id,
     cwd,
+    providerId,
     shell,
     env,
     cols,
     rows,
     theme,
     autoApprove,
+    deferSpawn,
     handleLinkClick,
     onActivity,
     onStartError,

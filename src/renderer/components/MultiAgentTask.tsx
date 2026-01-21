@@ -441,7 +441,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                   <TerminalPane
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
-                    shell={providerMeta[v.provider].cli}
+                    providerId={v.provider}
                     autoApprove={
                       Boolean(task.metadata?.autoApprove) &&
                       Boolean(providerMeta[v.provider]?.autoApproveFlag)

@@ -237,6 +237,25 @@ declare global {
         initialPrompt?: string;
         skipResume?: boolean;
       }) => Promise<{ ok: boolean; error?: string }>;
+      ptyStartDirect: (opts: {
+        id: string;
+        providerId: string;
+        cwd: string;
+        cols?: number;
+        rows?: number;
+        autoApprove?: boolean;
+        initialPrompt?: string;
+        taskCreateStartTime?: number; // Date.now() when task creation started
+      }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
+      ptyGetBenchmarks: () => Promise<{
+        ok: boolean;
+        benchmarks: Array<{
+          id: string;
+          method: 'shell' | 'direct' | 'warm-inject';
+          spawnMs: number;
+          timestamp: number;
+        }>;
+      }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
@@ -854,6 +873,25 @@ export interface ElectronAPI {
     initialPrompt?: string;
     skipResume?: boolean;
   }) => Promise<{ ok: boolean; error?: string }>;
+  ptyStartDirect: (opts: {
+    id: string;
+    providerId: string;
+    cwd: string;
+    cols?: number;
+    rows?: number;
+    autoApprove?: boolean;
+    initialPrompt?: string;
+    taskCreateStartTime?: number; // Date.now() when task creation started
+  }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
+  ptyGetBenchmarks: () => Promise<{
+    ok: boolean;
+    benchmarks: Array<{
+      id: string;
+      method: 'shell' | 'direct' | 'warm-inject';
+      spawnMs: number;
+      timestamp: number;
+    }>;
+  }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
   ptyKill: (id: string) => void;

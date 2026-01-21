@@ -306,4 +306,3 @@ export const ProviderDisplay: React.FC<Props> = ({
 };
 
 export default ProviderDisplay;
-console.log('PROVIDER DISPLAY LOADED');

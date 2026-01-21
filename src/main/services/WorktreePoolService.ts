@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { log } from '../lib/logger';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 
+
 const execFileAsync = promisify(execFile);
 
 interface ReserveWorktree {
@@ -87,21 +88,13 @@ export class WorktreePoolService {
    * Creates one in the background if not present.
    */
   async ensureReserve(projectId: string, projectPath: string, baseRef?: string): Promise<void> {
-    // Already have a reserve
-    if (this.reserves.has(projectId)) {
-      log.debug('WorktreePool: Reserve already exists for project', { projectId });
-      return;
-    }
-
-    // Creation already in progress
-    if (this.creationInProgress.has(projectId)) {
-      log.debug('WorktreePool: Reserve creation already in progress', { projectId });
+    // Already have a reserve or creation in progress
+    if (this.reserves.has(projectId) || this.creationInProgress.has(projectId)) {
       return;
     }
 
     // Start background creation
     this.creationInProgress.add(projectId);
-    log.info('WorktreePool: Starting reserve creation for project', { projectId });
 
     try {
       await this.createReserve(projectId, projectPath, baseRef);
@@ -133,29 +126,19 @@ export class WorktreePoolService {
     // Resolve base ref (default to HEAD if not specified)
     const useBaseRef = baseRef || 'HEAD';
 
-    // Fetch latest from remote first (best effort)
-    try {
-      await execFileAsync('git', ['fetch', '--quiet'], {
-        cwd: projectPath,
-        timeout: 30000,
-      });
-    } catch (fetchErr) {
-      log.debug('WorktreePool: Fetch failed (continuing with local)', { error: fetchErr });
-    }
+    // Note: We skip git fetch for reserve creation to avoid SSH prompts blocking
+    // The worktree will use local refs which is fine for pre-warming purposes
 
     // Create the worktree
     await execFileAsync('git', ['worktree', 'add', '-b', reserveBranch, reservePath, useBaseRef], {
       cwd: projectPath,
     });
 
-    log.info('WorktreePool: Created reserve worktree', {
-      projectId,
-      path: reservePath,
-      branch: reserveBranch,
-    });
 
+
+    const reserveId = this.stableIdFromPath(reservePath);
     const reserve: ReserveWorktree = {
-      id: this.stableIdFromPath(reservePath),
+      id: reserveId,
       path: reservePath,
       branch: reserveBranch,
       projectId,
@@ -246,12 +229,7 @@ export class WorktreePoolService {
       cwd: newPath,
     });
 
-    log.info('WorktreePool: Transformed reserve to task worktree', {
-      oldPath: reserve.path,
-      newPath,
-      oldBranch: reserve.branch,
-      newBranch,
-    });
+
 
     // Check if we need to switch base refs
     let needsBaseRefSwitch = false;
@@ -338,9 +316,8 @@ export class WorktreePoolService {
         cwd: worktreePath,
         timeout: 60000,
       });
-      log.info('WorktreePool: Pushed branch to remote', { branchName, remote });
-    } catch (error) {
-      log.warn('WorktreePool: Failed to push branch', { branchName, error });
+    } catch {
+      // Push failures are non-critical, ignore silently
     }
   }
 
@@ -354,9 +331,8 @@ export class WorktreePoolService {
       await execFileAsync('git', ['branch', '-D', reserve.branch], {
         cwd: reserve.projectPath,
       });
-      log.info('WorktreePool: Cleaned up reserve', { path: reserve.path });
-    } catch (error) {
-      log.warn('WorktreePool: Failed to cleanup reserve', { error });
+    } catch {
+      // Cleanup failures are non-critical
     }
   }
 
@@ -390,8 +366,6 @@ export class WorktreePoolService {
     // Small delay to not compete with critical startup tasks
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    log.debug('WorktreePool: Scanning for orphaned reserves...');
-
     // Find all worktree directories that might contain reserves
     const homedir = require('os').homedir();
     const possibleWorktreeDirs = [
@@ -422,21 +396,13 @@ export class WorktreePoolService {
     }
 
     if (orphanedReserves.length === 0) {
-      log.debug('WorktreePool: No orphaned reserves found');
       return;
     }
 
-    log.info('WorktreePool: Found orphaned reserves', { count: orphanedReserves.length });
-
-    // Clean up all reserves in parallel
-    const results = await Promise.allSettled(
+    // Clean up all reserves in parallel (silently)
+    await Promise.allSettled(
       orphanedReserves.map((reserve) => this.cleanupOrphanedReserve(reserve.path, reserve.name))
     );
-
-    const cleanedCount = results.filter((r) => r.status === 'fulfilled' && r.value).length;
-    if (cleanedCount > 0) {
-      log.info('WorktreePool: Cleaned up orphaned reserves', { count: cleanedCount });
-    }
   }
 
   /** Clean up a single orphaned reserve */
@@ -469,7 +435,6 @@ export class WorktreePoolService {
               }
             }
 
-            log.debug('WorktreePool: Cleaned orphaned reserve', { path: reservePath });
             return true;
           }
         }
@@ -477,10 +442,8 @@ export class WorktreePoolService {
 
       // Fallback: just remove the directory
       fs.rmSync(reservePath, { recursive: true, force: true });
-      log.debug('WorktreePool: Removed orphaned reserve directory', { path: reservePath });
       return true;
-    } catch (error) {
-      log.warn('WorktreePool: Failed to cleanup orphaned reserve', { path: reservePath, error });
+    } catch {
       return false;
     }
   }

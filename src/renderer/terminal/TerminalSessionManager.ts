@@ -24,7 +24,8 @@ export interface SessionTheme {
 export interface TerminalSessionOptions {
   taskId: string;
   cwd?: string;
-  shell?: string;
+  providerId?: string; // If set, uses direct CLI spawn
+  shell?: string; // Used for shell-based spawn when providerId not set
   env?: Record<string, string>;
   initialSize: { cols: number; rows: number };
   scrollbackLines: number;
@@ -32,6 +33,7 @@ export interface TerminalSessionOptions {
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  deferSpawn?: boolean; // If true, delays PTY spawn until browser is idle
   onLinkClick?: (url: string) => void;
 }
 
@@ -64,7 +66,13 @@ export class TerminalSessionManager {
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
 
+  // Timing for startup performance measurement
+  private initStartTime: number = 0;
+  private snapshotRestoreTime: number = 0;
+  private ptyConnectStartTime: number = 0;
+
   constructor(private readonly options: TerminalSessionOptions) {
+    this.initStartTime = performance.now();
     this.id = options.taskId;
 
     this.container = document.createElement('div');
@@ -171,7 +179,24 @@ export class TerminalSessionManager {
       () => resizeDisposable.dispose()
     );
 
-    void this.restoreSnapshot().finally(() => this.connectPty());
+    const terminalSetupTime = performance.now() - this.initStartTime;
+    log.info('terminalSession:setup timing', {
+      id: this.id,
+      setupMs: Math.round(terminalSetupTime),
+    });
+
+    void this.restoreSnapshot().finally(() => {
+      if (this.options.deferSpawn) {
+        // Defer PTY spawn until browser is idle (lower priority than active work)
+        if ('requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(() => this.connectPty(), { timeout: 2000 });
+        } else {
+          setTimeout(() => this.connectPty(), 100);
+        }
+      } else {
+        this.connectPty();
+      }
+    });
     this.startSnapshotTimer();
   }
 
@@ -435,21 +460,55 @@ export class TerminalSessionManager {
   }
 
   private connectPty() {
-    const { taskId, cwd, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
+    this.ptyConnectStartTime = performance.now();
+    const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
     const id = taskId;
-    void window.electronAPI
-      .ptyStart({
-        id,
-        cwd,
-        shell,
-        env,
-        cols: initialSize.cols,
-        rows: initialSize.rows,
-        autoApprove,
-        initialPrompt,
-      })
-      .then((result) => {
+
+    // Toggle this to compare direct vs shell-based spawn for provider CLIs
+    // - true: NEW direct spawn (bypasses shell config loading)  
+    // - false: OLD shell-based spawn (shell loads config, then runs CLI)
+    const USE_DIRECT_SPAWN = true;
+    
+    // Pass task creation start time for end-to-end timing
+    const taskCreateStartTime = (window as any).__taskCreateStartTime as number | undefined;
+    
+    const ptyPromise = providerId && cwd && USE_DIRECT_SPAWN
+      ? window.electronAPI.ptyStartDirect({
+          id,
+          providerId,
+          cwd,
+          cols: initialSize.cols,
+          rows: initialSize.rows,
+          autoApprove,
+          initialPrompt,
+          taskCreateStartTime,
+        })
+      : window.electronAPI.ptyStart({
+          id,
+          cwd,
+          // For shell-based provider spawn: pass CLI name as shell, ptyManager handles the rest
+          shell: providerId || shell,
+          env: {
+            ...env,
+            // Pass timing info for shell-based spawn too
+            __TASK_CREATE_START_TIME: taskCreateStartTime?.toString() || '',
+          },
+          cols: initialSize.cols,
+          rows: initialSize.rows,
+          autoApprove,
+          initialPrompt,
+        });
+
+    void ptyPromise.then((result) => {
         if (result?.ok) {
+          const ptyConnectTime = performance.now() - this.ptyConnectStartTime;
+          const totalStartupTime = performance.now() - this.initStartTime;
+          log.info('terminalSession:ptyConnected timing', {
+            id: this.id,
+            ptyConnectMs: Math.round(ptyConnectTime),
+            snapshotRestoreMs: Math.round(this.snapshotRestoreTime),
+            totalStartupMs: Math.round(totalStartupTime),
+          });
           this.ptyStarted = true;
           this.sendSizeIfStarted();
           this.emitReady();
@@ -488,6 +547,11 @@ export class TerminalSessionManager {
       this.terminal.write(chunk);
       if (!this.firstFrameRendered) {
         this.firstFrameRendered = true;
+        const firstFrameTime = performance.now() - this.initStartTime;
+        log.info('terminalSession:firstFrame timing', {
+          id: this.id,
+          firstFrameMs: Math.round(firstFrameTime),
+        });
         try {
           this.terminal.refresh(0, this.terminal.rows - 1);
         } catch {}
@@ -524,18 +588,26 @@ export class TerminalSessionManager {
   }
 
   private async restoreSnapshot(): Promise<void> {
-    if (!window.electronAPI.ptyGetSnapshot) return;
+    const restoreStart = performance.now();
+    if (!window.electronAPI.ptyGetSnapshot) {
+      this.snapshotRestoreTime = performance.now() - restoreStart;
+      return;
+    }
 
     // Skip snapshot restoration for providers with native resume capability
     // The CLI will handle resuming the conversation, so we don't want duplicate history
     if (this.isProviderWithResume(this.id)) {
       log.debug('terminalSession:skippingSnapshotForResume', { id: this.id });
+      this.snapshotRestoreTime = performance.now() - restoreStart;
       return;
     }
 
     try {
       const response = await window.electronAPI.ptyGetSnapshot({ id: this.id });
-      if (!response?.ok || !response.snapshot?.data) return;
+      if (!response?.ok || !response.snapshot?.data) {
+        this.snapshotRestoreTime = performance.now() - restoreStart;
+        return;
+      }
 
       const snapshot = response.snapshot as TerminalSnapshotPayload & {
         cols?: number;
@@ -547,6 +619,7 @@ export class TerminalSessionManager {
           id: this.id,
           version: snapshot.version,
         });
+        this.snapshotRestoreTime = performance.now() - restoreStart;
         return;
       }
 
@@ -558,9 +631,11 @@ export class TerminalSessionManager {
         this.terminal.resize(snapshot.cols, snapshot.rows);
       }
 
+      this.snapshotRestoreTime = performance.now() - restoreStart;
       // Note: Viewport position restoration happens in attach() after terminal is opened
       // This ensures the terminal is fully initialized before we try to scroll
     } catch (error) {
+      this.snapshotRestoreTime = performance.now() - restoreStart;
       log.warn('terminalSession:snapshotRestoreFailed', {
         id: this.id,
         error: (error as Error)?.message ?? String(error),

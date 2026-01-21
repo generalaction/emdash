@@ -1,5 +1,5 @@
 import { ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
-import { startPty, writePty, resizePty, killPty, getPty } from './ptyManager';
+import { startPty, writePty, resizePty, killPty, getPty, startDirectPty, getSpawnBenchmarks, logFirstDataTiming } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
@@ -29,6 +29,7 @@ export function registerPtyIpc(): void {
         skipResume?: boolean;
       }
     ) => {
+      const ptyStartTime = performance.now();
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
@@ -38,6 +39,7 @@ export function registerPtyIpc(): void {
 
         // Only use resume flag if there's actually a conversation history to resume
         let shouldSkipResume = skipResume || false;
+        const snapshotCheckStart = performance.now();
         if (!existing && !skipResume && shell) {
           const parsed = parseProviderPty(id);
           if (parsed) {
@@ -57,7 +59,9 @@ export function registerPtyIpc(): void {
             }
           }
         }
+        const snapshotCheckTime = performance.now() - snapshotCheckStart;
 
+        const spawnStart = performance.now();
         const proc =
           existing ??
           startPty({
@@ -71,24 +75,22 @@ export function registerPtyIpc(): void {
             initialPrompt,
             skipResume: shouldSkipResume,
           });
-        const envKeys = env ? Object.keys(env) : [];
-        log.debug('pty:start OK', {
-          id,
-          cwd,
-          shell,
-          cols,
-          rows,
-          autoApprove,
-          skipResume,
-          reused: !!existing,
-          envKeys,
-        });
+        const spawnTime = performance.now() - spawnStart;
+
+        const totalTime = performance.now() - ptyStartTime;
+        if (!existing) {
+          console.log(`\n🐚 PTY SPAWN: ${shell || 'shell'} → ${Math.round(totalTime)}ms (shell-based)\n`);
+        }
         const wc = event.sender;
         owners.set(id, wc);
 
+        // Extract task create start time from env if passed (for shell-based provider spawn timing)
+        const taskCreateStartTime = env?.__TASK_CREATE_START_TIME ? parseInt(env.__TASK_CREATE_START_TIME, 10) : undefined;
+        
         // Attach listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
+            logFirstDataTiming(id, taskCreateStartTime); // Log time to first output + e2e if available
             owners.get(id)?.send(`pty:data:${id}`, data);
           });
 
@@ -191,6 +193,93 @@ export function registerPtyIpc(): void {
       log.error('terminal:getTheme failed', { error });
       return { ok: false, error: error?.message || String(error) };
     }
+  });
+
+  // Start a PTY by spawning CLI directly (no shell wrapper)
+  // This is faster but falls back to shell-based spawn if CLI path unknown
+  ipcMain.handle(
+    'pty:startDirect',
+    async (
+      event,
+      args: {
+        id: string;
+        providerId: string;
+        cwd: string;
+        cols?: number;
+        rows?: number;
+        autoApprove?: boolean;
+        initialPrompt?: string;
+        taskCreateStartTime?: number;
+      }
+    ) => {
+      const startTime = performance.now();
+      if (process.env.EMDASH_DISABLE_PTY === '1') {
+        return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
+      }
+      
+      try {
+        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, taskCreateStartTime } = args;
+        const existing = getPty(id);
+        
+        if (existing) {
+          const wc = event.sender;
+          owners.set(id, wc);
+          return { ok: true, reused: true };
+        }
+
+        const proc = startDirectPty({
+          id,
+          providerId,
+          cwd,
+          cols,
+          rows,
+          autoApprove,
+          initialPrompt,
+        });
+
+        if (!proc) {
+          return { ok: false, error: `CLI path not found for provider: ${providerId}` };
+        }
+
+        const wc = event.sender;
+        owners.set(id, wc);
+
+        if (!listeners.has(id)) {
+          proc.onData((data) => {
+            logFirstDataTiming(id, taskCreateStartTime); // Log time to first output + e2e
+            owners.get(id)?.send(`pty:data:${id}`, data);
+          });
+
+          proc.onExit(({ exitCode, signal }) => {
+            owners.get(id)?.send(`pty:exit:${id}`, { exitCode, signal });
+            maybeMarkProviderFinish(id, exitCode, signal);
+            owners.delete(id);
+            listeners.delete(id);
+          });
+          listeners.add(id);
+        }
+
+        maybeMarkProviderStart(id);
+
+        try {
+          const windows = BrowserWindow.getAllWindows();
+          windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
+        } catch {}
+
+        const totalMs = performance.now() - startTime;
+        console.log(`\n⚡ PTY SPAWN: ${providerId} → ${Math.round(totalMs)}ms (direct)\n`);
+
+        return { ok: true };
+      } catch (err: any) {
+        log.error('pty:startDirect FAIL', { id: args.id, error: err?.message || err });
+        return { ok: false, error: String(err?.message || err) };
+      }
+    }
+  );
+
+  // Get spawn benchmarks for performance analysis
+  ipcMain.handle('pty:getBenchmarks', async () => {
+    return { ok: true, benchmarks: getSpawnBenchmarks() };
   });
 }
 

@@ -533,7 +533,7 @@ const ChatInterface: React.FC<Props> = ({
               <TerminalPane
                 id={terminalId}
                 cwd={task.path}
-                shell={providerMeta[provider].cli}
+                providerId={provider}
                 autoApprove={autoApproveEnabled}
                 env={undefined}
                 keepAlive={true}

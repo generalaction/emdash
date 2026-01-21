@@ -1221,7 +1221,6 @@ export class WorktreeService {
    */
   registerWorktree(worktree: WorktreeInfo): void {
     this.worktrees.set(worktree.id, worktree);
-    log.debug('Registered external worktree', { id: worktree.id, name: worktree.name });
   }
 }
 

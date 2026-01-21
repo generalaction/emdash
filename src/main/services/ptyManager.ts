@@ -2,13 +2,161 @@ import os from 'os';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';
+import { providerStatusCache } from './providerStatusCache';
 
 type PtyRecord = {
   id: string;
   proc: IPty;
+  spawnedAt?: number; // Timestamp when PTY was spawned (for benchmarking)
+  spawnMethod?: 'shell' | 'direct'; // How the PTY was spawned
+  firstDataLogged?: boolean; // Whether we've logged first data timing
 };
 
 const ptys = new Map<string, PtyRecord>();
+
+// Benchmarking: track spawn times
+const spawnBenchmarks: Array<{
+  id: string;
+  method: 'shell' | 'direct' | 'warm-inject';
+  spawnMs: number;
+  timestamp: number;
+}> = [];
+
+export function getSpawnBenchmarks() {
+  return [...spawnBenchmarks];
+}
+
+export function clearSpawnBenchmarks() {
+  spawnBenchmarks.length = 0;
+}
+
+/**
+ * Call this when first data is received from a PTY to log the config load time.
+ * Only logs once per PTY.
+ * @param taskCreateStartTime - Date.now() timestamp when task creation started (from renderer)
+ */
+export function logFirstDataTiming(id: string, taskCreateStartTime?: number): void {
+  const rec = ptys.get(id);
+  if (!rec || rec.firstDataLogged || !rec.spawnedAt) return;
+  
+  rec.firstDataLogged = true;
+  const loadTimeMs = Date.now() - rec.spawnedAt;
+  const method = rec.spawnMethod || 'unknown';
+  
+  if (method === 'shell') {
+    console.log(`   └─ First output: ${loadTimeMs}ms (shell-based)`);
+  } else {
+    console.log(`   └─ First output: ${loadTimeMs}ms (direct)`);
+  }
+  // Log end-to-end time for both approaches
+  if (taskCreateStartTime && taskCreateStartTime > 0) {
+    const e2eMs = Date.now() - taskCreateStartTime;
+    console.log(`   └─ End-to-end (click → ready): ${e2eMs}ms`);
+  }
+}
+
+/**
+ * Spawn a CLI directly without a shell wrapper.
+ * This is faster because it skips shell config loading (oh-my-zsh, nvm, etc.)
+ * 
+ * Returns null if the CLI path is not known (not in providerStatusCache).
+ */
+export function startDirectPty(options: {
+  id: string;
+  providerId: string;
+  cwd: string;
+  cols?: number;
+  rows?: number;
+  autoApprove?: boolean;
+  initialPrompt?: string;
+}): IPty | null {
+  const startTime = performance.now();
+  
+  if (process.env.EMDASH_DISABLE_PTY === '1') {
+    throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+  }
+
+  const { id, providerId, cwd, cols = 120, rows = 32, autoApprove, initialPrompt } = options;
+
+  // Get the CLI path from cache
+  const status = providerStatusCache.get(providerId);
+  if (!status?.installed || !status?.path) {
+    log.warn('ptyManager:directSpawn - CLI path not found', { providerId });
+    return null;
+  }
+
+  const cliPath = status.path;
+  const provider = PROVIDERS.find((p) => p.id === providerId);
+  
+  // Build CLI arguments
+  const cliArgs: string[] = [];
+  
+  if (provider) {
+    // Add default args
+    if (provider.defaultArgs?.length) {
+      cliArgs.push(...provider.defaultArgs);
+    }
+    
+    // Add auto-approve flag
+    if (autoApprove && provider.autoApproveFlag) {
+      cliArgs.push(provider.autoApproveFlag);
+    }
+    
+    // Add initial prompt
+    if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
+      if (provider.initialPromptFlag) {
+        cliArgs.push(provider.initialPromptFlag);
+      }
+      cliArgs.push(initialPrompt.trim());
+    }
+  }
+
+  // Build minimal environment - just what the CLI needs
+  const useEnv: Record<string, string> = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    // Include PATH so CLI can find its dependencies
+    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+    // Pass through any API key env vars that might be set
+    ...(process.env.ANTHROPIC_API_KEY && { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
+    ...(process.env.OPENAI_API_KEY && { OPENAI_API_KEY: process.env.OPENAI_API_KEY }),
+  };
+
+  // Lazy load native module
+  let pty: typeof import('node-pty');
+  try {
+    pty = require('node-pty');
+  } catch (e: any) {
+    throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
+  }
+
+  const proc = pty.spawn(cliPath, cliArgs, {
+    name: 'xterm-256color',
+    cols,
+    rows,
+    cwd,
+    env: useEnv,
+  });
+
+  const spawnMs = performance.now() - startTime;
+
+  // Record benchmark
+  spawnBenchmarks.push({
+    id,
+    method: 'direct',
+    spawnMs,
+    timestamp: Date.now(),
+  });
+
+  const rec: PtyRecord = { id, proc, spawnedAt: Date.now(), spawnMethod: 'direct' };
+  ptys.set(id, rec);
+  return proc;
+}
 
 function getDefaultShell(): string {
   if (process.platform === 'win32') {
@@ -200,6 +348,7 @@ export function startPty(options: {
     } catch {}
   }
 
+  const spawnStart = performance.now();
   let proc: IPty;
   try {
     proc = pty.spawn(useShell, args, {
@@ -209,7 +358,6 @@ export function startPty(options: {
       cwd: useCwd,
       env: useEnv,
     });
-    log.debug('ptyManager:spawned', { id, shell: useShell, args, cwd: useCwd });
   } catch (err: any) {
     try {
       const fallbackShell = getDefaultShell();
@@ -225,7 +373,17 @@ export function startPty(options: {
     }
   }
 
-  const rec: PtyRecord = { id, proc };
+  const spawnMs = performance.now() - spawnStart;
+  
+  // Record benchmark for shell-based spawn
+  spawnBenchmarks.push({
+    id,
+    method: 'shell',
+    spawnMs,
+    timestamp: Date.now(),
+  });
+
+  const rec: PtyRecord = { id, proc, spawnedAt: Date.now(), spawnMethod: 'shell' };
   ptys.set(id, rec);
   return proc;
 }
@@ -242,7 +400,7 @@ export function writePty(id: string, data: string): void {
 export function resizePty(id: string, cols: number, rows: number): void {
   const rec = ptys.get(id);
   if (!rec) {
-    log.warn('ptyManager:resizeMissing', { id, cols, rows });
+    // PTY not ready yet - this is normal during startup, ignore silently
     return;
   }
   try {

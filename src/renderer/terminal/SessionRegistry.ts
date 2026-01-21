@@ -10,12 +10,14 @@ interface AttachOptions {
   taskId: string;
   container: HTMLElement;
   cwd?: string;
-  shell?: string;
+  providerId?: string; // If set, uses direct CLI spawn
+  shell?: string; // Used for shell-based spawn when providerId not set
   env?: Record<string, string>;
   initialSize: { cols: number; rows: number };
   theme: SessionTheme;
   autoApprove?: boolean;
   initialPrompt?: string;
+  deferSpawn?: boolean; // If true, delays PTY spawn until browser is idle
   onLinkClick?: (url: string) => void;
 }
 
@@ -57,6 +59,7 @@ class SessionRegistry {
     const sessionOptions: TerminalSessionOptions = {
       taskId: options.taskId,
       cwd: options.cwd,
+      providerId: options.providerId,
       shell: options.shell,
       env: options.env,
       initialSize: options.initialSize,
@@ -65,6 +68,7 @@ class SessionRegistry {
       telemetry: null,
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
+      deferSpawn: options.deferSpawn,
       onLinkClick: options.onLinkClick,
     };
 

@@ -34,11 +34,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   const { effectiveTheme } = useTheme();
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
 
-  // Debug log the taskPath on mount
-  useEffect(() => {
-    console.log('EditorMode mounted with taskPath:', taskPath);
-    console.log('TaskName:', taskName);
-  }, [taskPath, taskName]);
+
   const [files, setFiles] = useState<FileNode | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
@@ -54,9 +50,6 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   // Whitelist approach - only show files we explicitly want
   const shouldIncludeFile = (fullPath: string): boolean => {
     const lowerPath = fullPath.toLowerCase();
-
-    // Log what we're checking
-    console.log('Checking path:', fullPath);
 
     // IMMEDIATELY REJECT anything with these ANYWHERE in the path
     const blacklistPatterns = [
@@ -94,7 +87,6 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
     // Check each pattern
     for (const pattern of blacklistPatterns) {
       if (lowerPath.includes(pattern)) {
-        console.log(`BLOCKED: "${fullPath}" contains "${pattern}"`);
         return false; // Exclude
       }
     }
@@ -176,26 +168,19 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
       // For directories, only allow non-hidden ones and specific hidden ones
       if (fileName.startsWith('.')) {
         const allowedHiddenDirs = ['.github', '.vscode', '.gitlab'];
-        const isAllowed = allowedHiddenDirs.includes(fileName);
-        if (!isAllowed) {
-          console.log(`BLOCKED hidden dir: ${fullPath}`);
-        }
-        return isAllowed;
+        return allowedHiddenDirs.includes(fileName);
       }
       // Non-hidden directory - allow it (already passed blacklist check)
-      console.log(`ALLOWED dir: ${fullPath}`);
       return true;
     }
 
     // For files, check if extension is allowed
     for (const ext of allowedExtensions) {
       if (lowerFileName.endsWith(ext) || lowerFileName === ext) {
-        console.log(`ALLOWED file: ${fullPath}`);
         return true;
       }
     }
 
-    console.log(`BLOCKED file (unknown type): ${fullPath}`);
     return false; // Exclude everything else
   };
 
@@ -203,12 +188,8 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   const loadFileTree = useCallback(async () => {
     setIsLoading(true);
     try {
-      console.log('Loading file tree for:', taskPath);
-
       // Use the existing fsRead API to list directory contents
       const result = await window.electronAPI.fsList(taskPath, { includeDirs: true });
-
-      console.log('Directory listing result:', result);
 
       if (result.success && result.items) {
         // Filter using whitelist approach
@@ -238,10 +219,9 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
           })),
         };
         setFiles(tree);
-        console.log('File tree set:', tree);
       }
     } catch (error) {
-      console.error('Failed to load files:', error);
+      // Error loading files - handled silently
     } finally {
       setIsLoading(false);
     }
@@ -266,7 +246,6 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
     if (!hasUnsavedChanges || !selectedFile) return;
 
     const timer = setTimeout(() => {
-      console.log('Auto-saving file...');
       saveFile();
     }, 2000);
 
@@ -276,7 +255,6 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   // Load file content
   const loadFile = async (filePath: string) => {
     try {
-      console.log('Loading file:', taskPath, filePath);
       const result = await window.electronAPI.fsRead(taskPath, filePath);
 
       if (result.success && result.content !== undefined) {
@@ -285,12 +263,10 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
         setSelectedFile(filePath);
         setHasUnsavedChanges(false);
       } else {
-        console.error('Failed to load file:', result.error);
         setFileContent('// Failed to load file');
         setOriginalContent('// Failed to load file');
       }
-    } catch (error) {
-      console.error('Error loading file:', error);
+    } catch {
       setFileContent('// Error loading file');
       setOriginalContent('// Error loading file');
     }
@@ -301,16 +277,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
     if (!selectedFile) return;
 
     setIsSaving(true);
-
-    // Enhanced logging to debug path issues
     const fullSavePath = `${taskPath}/${selectedFile}`;
-    console.log('🔴 SAVE DEBUG:', {
-      taskPath,
-      selectedFile,
-      fullSavePath,
-      contentLength: fileContent.length,
-      firstLine: fileContent.split('\n')[0],
-    });
 
     try {
       const result = await window.electronAPI.fsWriteFile(
@@ -321,30 +288,12 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
       );
 
       if (!result.success) {
-        console.error('Failed to save file:', result.error);
         alert(`Failed to save file: ${result.error}\nPath: ${fullSavePath}`);
       } else {
-        console.log('File saved successfully to:', fullSavePath);
         setOriginalContent(fileContent);
         setHasUnsavedChanges(false);
-
-        // Verify the save by reading it back
-        console.log('Verifying save by reading back...');
-        const verifyResult = await window.electronAPI.fsRead(taskPath, selectedFile);
-        if (verifyResult.success) {
-          if (verifyResult.content === fileContent) {
-            console.log('Verification SUCCESS: Content matches!');
-          } else {
-            console.error('Verification FAILED: Content mismatch!');
-            console.log('Expected length:', fileContent.length);
-            console.log('Got length:', verifyResult.content?.length);
-          }
-        } else {
-          console.error('Could not verify save:', verifyResult.error);
-        }
       }
     } catch (error) {
-      console.error('Error saving file:', error);
       alert(`Error saving file: ${error}`);
     } finally {
       setIsSaving(false);

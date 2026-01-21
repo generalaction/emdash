@@ -325,6 +325,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 themeOverride={themeOverride}
                 className="h-full w-full"
                 keepAlive
+                deferSpawn={mode === 'task'}
               />
             </div>
           );

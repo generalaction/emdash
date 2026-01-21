@@ -68,6 +68,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptyResize: (args: { id: string; cols: number; rows: number }) =>
     ipcRenderer.send('pty:resize', args),
   ptyKill: (id: string) => ipcRenderer.send('pty:kill', { id }),
+  
+  // Direct PTY spawn (no shell wrapper)
+  ptyStartDirect: (opts: {
+    id: string;
+    providerId: string;
+    cwd: string;
+    cols?: number;
+    rows?: number;
+    autoApprove?: boolean;
+    initialPrompt?: string;
+    taskCreateStartTime?: number;
+  }) => ipcRenderer.invoke('pty:startDirect', opts),
+  
+  // Get spawn benchmarks
+  ptyGetBenchmarks: () => ipcRenderer.invoke('pty:getBenchmarks'),
 
   onPtyData: (id: string, listener: (data: string) => void) => {
     const channel = `pty:data:${id}`;
