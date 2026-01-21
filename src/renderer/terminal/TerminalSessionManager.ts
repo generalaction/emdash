@@ -31,7 +31,9 @@ export interface TerminalSessionOptions {
   initialSize: { cols: number; rows: number };
   scrollbackLines: number;
   theme: SessionTheme;
-  telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
+  telemetry?: {
+    track: (event: string, payload?: Record<string, unknown>) => void;
+  } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
   mapShiftEnterToCtrlJ?: boolean;
@@ -97,6 +99,26 @@ export class TerminalSessionManager {
       allowProposedApi: true,
       scrollOnUserInput: false,
     });
+
+    const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
+    const applyFont = (customFont?: string) => {
+      const trimmed = customFont?.trim();
+      this.terminal.options.fontFamily = trimmed ? `${trimmed}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
+    };
+
+    window.electronAPI.getSettings().then((result) => {
+      applyFont(result?.settings?.terminal?.fontFamily);
+    });
+
+    const handleFontChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
+      applyFont(detail?.fontFamily);
+      this.fitAddon.fit();
+    };
+    window.addEventListener('terminal-font-changed', handleFontChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-font-changed', handleFontChange)
+    );
 
     this.fitAddon = new FitAddon();
     this.serializeAddon = new SerializeAddon();
@@ -261,7 +283,10 @@ export class TerminalSessionManager {
       try {
         dispose();
       } catch (error) {
-        log.warn('Terminal session dispose callback failed', { id: this.id, error });
+        log.warn('Terminal session dispose callback failed', {
+          id: this.id,
+          error,
+        });
       }
     }
     this.metrics.dispose();
@@ -420,7 +445,10 @@ export class TerminalSessionManager {
               this.terminal.scrollToLine(targetLine);
             }
           } catch (error) {
-            log.warn('Terminal scroll restore failed after fit', { id: this.id, error });
+            log.warn('Terminal scroll restore failed after fit', {
+              id: this.id,
+              error,
+            });
           }
         });
       }
@@ -682,7 +710,10 @@ export class TerminalSessionManager {
           payload,
         });
         if (!result?.ok) {
-          log.warn('Terminal snapshot save failed', { id: this.id, error: result?.error });
+          log.warn('Terminal snapshot save failed', {
+            id: this.id,
+            error: result?.error,
+          });
         } else {
           this.metrics.markSnapshot();
         }
