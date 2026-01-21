@@ -126,7 +126,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         type="button"
         variant="ghost"
         size="sm"
-        className="h-8 gap-1 px-2 text-muted-foreground hover:bg-background/80"
+        className={[
+          'h-7 gap-1.5 px-2 text-[13px] font-medium leading-none text-muted-foreground hover:bg-background/70 hover:text-foreground',
+          open ? 'bg-background/80 text-foreground' : '',
+        ].join(' ')}
         onClick={async () => {
           const newState = !open;
           void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -141,7 +144,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
       >
         <span>Open in</span>
         <ChevronDown
-          className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`h-3 w-3 opacity-50 transition-transform duration-200 ${
+            open ? 'rotate-180' : ''
+          }`}
         />
       </Button>
       <AnimatePresence>

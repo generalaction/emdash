@@ -16,6 +16,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
 import BrowserToggleButton from './BrowserToggleButton';
+import TitlebarContext from './TitlebarContext';
+import type { Project, Task } from '../../types/app';
 
 interface GithubUser {
   login?: string;
@@ -40,6 +42,11 @@ interface TitlebarProps {
   onToggleEditor?: () => void;
   showEditorButton?: boolean;
   isEditorOpen?: boolean;
+  projects: Project[];
+  selectedProject: Project | null;
+  activeTask: Task | null;
+  onSelectProject: (project: Project) => void;
+  onSelectTask: (task: Task) => void;
 }
 
 interface TitlebarToggleButtonProps {
@@ -111,6 +118,11 @@ const Titlebar: React.FC<TitlebarProps> = ({
   onToggleEditor,
   showEditorButton = false,
   isEditorOpen = false,
+  projects,
+  selectedProject,
+  activeTask,
+  onSelectProject,
+  onSelectTask,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -170,6 +182,17 @@ const Titlebar: React.FC<TitlebarProps> = ({
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background">
+        <div className="pointer-events-none absolute inset-x-0 flex justify-center">
+          <div className="w-[min(60vw,720px)]">
+            <TitlebarContext
+              projects={projects}
+              selectedProject={selectedProject}
+              activeTask={activeTask}
+              onSelectProject={onSelectProject}
+              onSelectTask={onSelectTask}
+            />
+          </div>
+        </div>
         <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
           {currentPath ? <OpenInMenu path={currentPath} align="right" /> : null}
           {showEditorButton ? (
