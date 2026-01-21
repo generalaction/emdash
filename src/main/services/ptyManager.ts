@@ -141,10 +141,8 @@ export function startDirectPty(options: {
   proc.onExit(() => {
     const rec = ptys.get(id);
     if (rec?.isDirectSpawn && rec.cwd && onDirectCliExitCallback) {
-      // Small delay to let exit event propagate first
-      setTimeout(() => {
-        onDirectCliExitCallback!(id, rec.cwd!);
-      }, 100);
+      // Spawn shell immediately after CLI exits
+      onDirectCliExitCallback(id, rec.cwd);
     }
   });
 

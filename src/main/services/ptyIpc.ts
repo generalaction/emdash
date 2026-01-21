@@ -282,7 +282,7 @@ export function registerPtyIpc(): void {
           proc.onExit(({ exitCode, signal }) => {
             owners.get(id)?.send(`pty:exit:${id}`, { exitCode, signal });
             maybeMarkProviderFinish(id, exitCode, signal);
-            owners.delete(id);
+            // DON'T delete owner/listeners - shell will be spawned and reuse them
             listeners.delete(id);
           });
           listeners.add(id);
