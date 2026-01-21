@@ -171,6 +171,11 @@ export function registerPtyIpc(): void {
           });
 
           proc.onExit(({ exitCode, signal }) => {
+            // Check if this PTY is still active (not replaced by a newer instance)
+            if (getPty(id) !== proc) {
+              log.debug('pty:staleOnExit', { id });
+              return;
+            }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             maybeMarkProviderFinish(id, exitCode, signal);
             owners.delete(id);
