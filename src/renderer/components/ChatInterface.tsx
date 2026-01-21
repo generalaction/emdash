@@ -880,6 +880,7 @@ const ChatInterface: React.FC<Props> = ({
                   id={terminalId}
                   cwd={terminalCwd}
                   shell={providerMeta[provider].cli}
+                  mapShiftEnterToCtrlJ
                   autoApprove={autoApproveEnabled}
                   env={undefined}
                   keepAlive={true}

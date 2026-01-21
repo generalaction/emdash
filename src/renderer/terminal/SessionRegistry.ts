@@ -16,6 +16,7 @@ interface AttachOptions {
   theme: SessionTheme;
   autoApprove?: boolean;
   initialPrompt?: string;
+  mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
 }
@@ -66,6 +67,7 @@ class SessionRegistry {
       telemetry: null,
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
+      mapShiftEnterToCtrlJ: options.mapShiftEnterToCtrlJ,
       disableSnapshots: options.disableSnapshots,
       onLinkClick: options.onLinkClick,
     };
