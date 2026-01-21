@@ -1,5 +1,14 @@
 import { ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
-import { startPty, writePty, resizePty, killPty, getPty, startDirectPty, getSpawnBenchmarks, setOnDirectCliExit } from './ptyManager';
+import {
+  startPty,
+  writePty,
+  resizePty,
+  killPty,
+  getPty,
+  startDirectPty,
+  getSpawnBenchmarks,
+  setOnDirectCliExit,
+} from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
@@ -246,11 +255,11 @@ export function registerPtyIpc(): void {
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
-      
+
       try {
         const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt } = args;
         const existing = getPty(id);
-        
+
         if (existing) {
           const wc = event.sender;
           owners.set(id, wc);

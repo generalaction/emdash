@@ -6,7 +6,6 @@ import crypto from 'crypto';
 import { log } from '../lib/logger';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 
-
 const execFileAsync = promisify(execFile);
 
 interface ReserveWorktree {
@@ -135,8 +134,6 @@ export class WorktreePoolService {
       cwd: projectPath,
     });
 
-
-
     const reserveId = this.stableIdFromPath(reservePath);
     const reserve: ReserveWorktree = {
       id: reserveId,
@@ -229,8 +226,6 @@ export class WorktreePoolService {
     await execFileAsync('git', ['branch', '-m', reserve.branch, newBranch], {
       cwd: newPath,
     });
-
-
 
     // Check if we need to switch base refs
     let needsBaseRefSwitch = false;

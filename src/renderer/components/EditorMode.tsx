@@ -34,7 +34,6 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   const { effectiveTheme } = useTheme();
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
 
-
   const [files, setFiles] = useState<FileNode | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>('');

@@ -461,33 +461,36 @@ export class TerminalSessionManager {
 
   private connectPty() {
     this.ptyConnectStartTime = performance.now();
-    const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
+    const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
+      this.options;
     const id = taskId;
 
     // Provider CLIs use direct spawn (bypasses shell config loading)
     // Regular shell terminals use shell-based spawn
-    const ptyPromise = providerId && cwd
-      ? window.electronAPI.ptyStartDirect({
-          id,
-          providerId,
-          cwd,
-          cols: initialSize.cols,
-          rows: initialSize.rows,
-          autoApprove,
-          initialPrompt,
-        })
-      : window.electronAPI.ptyStart({
-          id,
-          cwd,
-          shell,
-          env,
-          cols: initialSize.cols,
-          rows: initialSize.rows,
-          autoApprove,
-          initialPrompt,
-        });
+    const ptyPromise =
+      providerId && cwd
+        ? window.electronAPI.ptyStartDirect({
+            id,
+            providerId,
+            cwd,
+            cols: initialSize.cols,
+            rows: initialSize.rows,
+            autoApprove,
+            initialPrompt,
+          })
+        : window.electronAPI.ptyStart({
+            id,
+            cwd,
+            shell,
+            env,
+            cols: initialSize.cols,
+            rows: initialSize.rows,
+            autoApprove,
+            initialPrompt,
+          });
 
-    void ptyPromise.then((result) => {
+    void ptyPromise
+      .then((result) => {
         if (result?.ok) {
           const ptyConnectTime = performance.now() - this.ptyConnectStartTime;
           const totalStartupTime = performance.now() - this.initStartTime;

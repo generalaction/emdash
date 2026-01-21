@@ -39,7 +39,7 @@ export function clearSpawnBenchmarks() {
 /**
  * Spawn a CLI directly without a shell wrapper.
  * This is faster because it skips shell config loading (oh-my-zsh, nvm, etc.)
- * 
+ *
  * Returns null if the CLI path is not known (not in providerStatusCache).
  */
 export function startDirectPty(options: {
@@ -52,7 +52,7 @@ export function startDirectPty(options: {
   initialPrompt?: string;
 }): IPty | null {
   const startTime = performance.now();
-  
+
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
@@ -68,21 +68,21 @@ export function startDirectPty(options: {
 
   const cliPath = status.path;
   const provider = PROVIDERS.find((p) => p.id === providerId);
-  
+
   // Build CLI arguments
   const cliArgs: string[] = [];
-  
+
   if (provider) {
     // Add default args
     if (provider.defaultArgs?.length) {
       cliArgs.push(...provider.defaultArgs);
     }
-    
+
     // Add auto-approve flag
     if (autoApprove && provider.autoApproveFlag) {
       cliArgs.push(provider.autoApproveFlag);
     }
-    
+
     // Add initial prompt
     if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
       if (provider.initialPromptFlag) {
@@ -365,7 +365,7 @@ export function startPty(options: {
   }
 
   const spawnMs = performance.now() - spawnStart;
-  
+
   // Record benchmark for shell-based spawn
   spawnBenchmarks.push({
     id,
