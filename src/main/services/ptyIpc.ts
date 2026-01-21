@@ -1,4 +1,4 @@
-import { ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
+import { app, ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
 import { startPty, writePty, resizePty, killPty, getPty } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -13,6 +13,24 @@ import { databaseService } from './DatabaseService';
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
 const providerPtyTimers = new Map<string, number>();
+
+// Guard IPC sends to prevent crashes when WebContents is destroyed
+function safeSendToOwner(id: string, channel: string, payload: unknown): boolean {
+  const wc = owners.get(id);
+  if (!wc) return false;
+  try {
+    if (typeof wc.isDestroyed === 'function' && wc.isDestroyed()) return false;
+    wc.send(channel, payload);
+    return true;
+  } catch (err) {
+    log.warn('ptyIpc:safeSendFailed', {
+      id,
+      channel,
+      error: String((err as Error)?.message || err),
+    });
+    return false;
+  }
+}
 
 export function registerPtyIpc(): void {
   ipcMain.handle(
@@ -149,11 +167,11 @@ export function registerPtyIpc(): void {
         // Attach listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
-            owners.get(id)?.send(`pty:data:${id}`, data);
+            safeSendToOwner(id, `pty:data:${id}`, data);
           });
 
           proc.onExit(({ exitCode, signal }) => {
-            owners.get(id)?.send(`pty:exit:${id}`, { exitCode, signal });
+            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             maybeMarkProviderFinish(id, exitCode, signal);
             owners.delete(id);
             listeners.delete(id);
@@ -161,15 +179,30 @@ export function registerPtyIpc(): void {
           listeners.add(id);
         }
 
+        // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
+        wc.once('destroyed', () => {
+          log.debug('pty:ownerDestroyed', { id });
+          try {
+            killPty(id);
+          } catch {}
+          owners.delete(id);
+          listeners.delete(id);
+        });
+
         if (!existing) {
           maybeMarkProviderStart(id);
         }
 
         // Signal that PTY is ready so renderer may inject initial prompt safely
         try {
-          const { BrowserWindow } = require('electron');
           const windows = BrowserWindow.getAllWindows();
-          windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
+          windows.forEach((w) => {
+            try {
+              if (!w.webContents.isDestroyed()) {
+                w.webContents.send('pty:started', { id });
+              }
+            } catch {}
+          });
         } catch {}
 
         return { ok: true };
@@ -353,3 +386,16 @@ function showCompletionNotification(providerName: string) {
     log.warn('Failed to show completion notification', { error });
   }
 }
+
+// Kill all PTYs on app shutdown to prevent crash loop
+try {
+  app.on('before-quit', () => {
+    for (const id of Array.from(owners.keys())) {
+      try {
+        killPty(id);
+      } catch {}
+    }
+    owners.clear();
+    listeners.clear();
+  });
+} catch {}
