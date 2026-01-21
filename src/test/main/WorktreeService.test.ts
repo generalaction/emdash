@@ -154,8 +154,11 @@ describe('WorktreeService', () => {
       await service.preserveFilesToWorktree(sourceDir, destDir);
 
       const destStat = fs.statSync(path.join(destDir, '.env'));
-      // Check that permissions are preserved (at least the readable/writable bits)
-      expect(destStat.mode & 0o777).toBe(0o600);
+      // POSIX-only: Windows doesn't reliably preserve/represent these permission bits.
+      if (process.platform !== 'win32') {
+        // Check that permissions are preserved (at least the readable/writable bits)
+        expect(destStat.mode & 0o777).toBe(0o600);
+      }
     });
 
     it('should return empty result when no patterns match', async () => {

@@ -1,10 +1,13 @@
+import { execFileSync } from 'child_process';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
+import { extname } from 'node:path';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';
 import { errorTracking } from '../errorTracking';
+import { buildProviderCliArgs, detectProviderFromShellCommand } from './providerCli';
 
 type PtyRecord = {
   id: string;
@@ -12,6 +15,57 @@ type PtyRecord = {
 };
 
 const ptys = new Map<string, PtyRecord>();
+
+const cliPathCache = new Map<string, string | null>();
+
+function resolveCliPath(command: string): string | null {
+  if (!command) return null;
+
+  // If it's already a path (absolute or relative), just use it.
+  if (command.includes('/') || command.includes('\\')) return command;
+
+  if (cliPathCache.has(command)) return cliPathCache.get(command) ?? null;
+
+  const resolver = process.platform === 'win32' ? 'where' : 'which';
+  try {
+    const result = execFileSync(resolver, [command], { encoding: 'utf8' });
+    const lines = result
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    if (process.platform !== 'win32') {
+      const resolved = lines[0] ?? null;
+      cliPathCache.set(command, resolved);
+      return resolved;
+    }
+
+    // Prefer actual executable extensions on Windows (avoid extensionless shims like `%APPDATA%\\npm\\codex`).
+    const extensionPreference: Record<string, number> = {
+      '.exe': 0,
+      '.cmd': 1,
+      '.bat': 2,
+      '.com': 3,
+      '.ps1': 50,
+      '': 100,
+    };
+
+    const best = [...lines].sort((a, b) => {
+      const aExt = extname(a).toLowerCase();
+      const bExt = extname(b).toLowerCase();
+      const aRank = extensionPreference[aExt] ?? extensionPreference[''];
+      const bRank = extensionPreference[bExt] ?? extensionPreference[''];
+      return aRank - bRank;
+    })[0];
+
+    const resolved = best ?? null;
+    cliPathCache.set(command, resolved);
+    return resolved;
+  } catch {
+    cliPathCache.set(command, null);
+    return null;
+  }
+}
 
 function getDefaultShell(): string {
   if (process.platform === 'win32') {
@@ -72,6 +126,18 @@ export async function startPty(options: {
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     SHELL: process.env.SHELL || defaultShell,
+    ...(process.platform === 'win32' && {
+      // Windows shells (.cmd/.bat) and many tools rely on PATH/PATHEXT to locate executables (e.g. `node`).
+      PATH: process.env.PATH || process.env.Path || '',
+      PATHEXT: process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC',
+      SystemRoot: process.env.SystemRoot || 'C:\\Windows',
+      ComSpec: process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
+      TEMP: process.env.TEMP || '',
+      TMP: process.env.TMP || '',
+      USERPROFILE: process.env.USERPROFILE || os.homedir(),
+      APPDATA: process.env.APPDATA || '',
+      LOCALAPPDATA: process.env.LOCALAPPDATA || '',
+    }),
     ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
@@ -136,72 +202,62 @@ export async function startPty(options: {
   // For provider CLIs, spawn the user's shell and run the provider command via -c,
   // then exec back into the shell to allow users to stay in a normal prompt after exiting the agent.
   const args: string[] = [];
-  if (process.platform !== 'win32') {
-    try {
-      const base = String(useShell).split('/').pop() || '';
-      const baseLower = base.toLowerCase();
-      const provider = PROVIDERS.find((p) => p.cli === baseLower);
+  try {
+    const provider = detectProviderFromShellCommand(useShell);
 
-      if (provider) {
-        // Build the provider command with flags
-        const cliArgs: string[] = [];
-
-        // Add resume flag FIRST if available (unless skipResume is true)
-        if (provider.resumeFlag && !skipResume) {
-          const resumeParts = provider.resumeFlag.split(' ');
-          cliArgs.push(...resumeParts);
-        }
-
-        // Then add default args
-        if (provider.defaultArgs?.length) {
-          cliArgs.push(...provider.defaultArgs);
-        }
-
-        // Then auto-approve flag
-        if (autoApprove && provider.autoApproveFlag) {
-          cliArgs.push(provider.autoApproveFlag);
-        }
-
-        // Finally initial prompt
-        if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
-          if (provider.initialPromptFlag) {
-            cliArgs.push(provider.initialPromptFlag);
-          }
-          cliArgs.push(initialPrompt.trim());
-        }
-
-        const cliCommand = provider.cli || baseLower;
+    if (provider) {
+      if (process.platform === 'win32') {
+        // On Windows, spawn the provider CLI directly with args.
+        const cliCommand = provider.cli || String(useShell);
+        const resolvedCliPath = resolveCliPath(cliCommand);
+        if (resolvedCliPath) useShell = resolvedCliPath;
+        args.push(
+          ...buildProviderCliArgs(provider, {
+            autoApprove,
+            initialPrompt,
+            skipResume,
+          })
+        );
+      } else {
+        // On POSIX shells, spawn the user's shell and run the provider via `-c`,
+        // then exec back into an interactive login shell.
+        const cliArgs = buildProviderCliArgs(provider, { autoApprove, initialPrompt, skipResume });
+        const cliCommand = provider.cli || String(useShell);
+        const resolvedCliPath = resolveCliPath(cliCommand);
+        const finalCommand = resolvedCliPath || cliCommand;
+        const quotedFinalCommand = /[\s'"\\$`\n\r\t]/.test(finalCommand)
+          ? `'${finalCommand.replace(/'/g, "'\\''")}'`
+          : finalCommand;
         const commandString =
           cliArgs.length > 0
-            ? `${cliCommand} ${cliArgs
+            ? `${quotedFinalCommand} ${cliArgs
                 .map((arg) =>
                   /[\s'"\\$`\n\r\t]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg
                 )
                 .join(' ')}`
-            : cliCommand;
+            : quotedFinalCommand;
 
-        // After the provider exits, exec back into the user's shell (login+interactive)
         const resumeShell = `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
         const chainCommand = `${commandString}; exec ${resumeShell}`;
 
-        // Always use the default shell for the -c command to avoid re-detecting provider CLI
         useShell = defaultShell;
         const shellBase = defaultShell.split('/').pop() || '';
         if (shellBase === 'zsh') args.push('-lic', chainCommand);
         else if (shellBase === 'bash') args.push('-lic', chainCommand);
         else if (shellBase === 'fish') args.push('-ic', chainCommand);
         else if (shellBase === 'sh') args.push('-lc', chainCommand);
-        else args.push('-c', chainCommand); // Fallback for other shells
-      } else {
-        // For normal shells, use login + interactive to load user configs
-        if (base === 'zsh') args.push('-il');
-        else if (base === 'bash') args.push('-il');
-        else if (base === 'fish') args.push('-il');
-        else if (base === 'sh') args.push('-il');
-        else args.push('-i'); // Fallback for other shells
+        else args.push('-c', chainCommand);
       }
-    } catch {}
-  }
+    } else if (process.platform !== 'win32') {
+      // For normal shells on POSIX, use login + interactive to load user configs
+      const base = String(useShell).split('/').pop() || '';
+      if (base === 'zsh') args.push('-il');
+      else if (base === 'bash') args.push('-il');
+      else if (base === 'fish') args.push('-il');
+      else if (base === 'sh') args.push('-il');
+      else args.push('-i');
+    }
+  } catch {}
 
   let proc: IPty;
   try {
