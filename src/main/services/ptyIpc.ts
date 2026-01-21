@@ -194,6 +194,8 @@ export function registerPtyIpc(): void {
           }
           log.debug('pty:ownerDestroyed', { id });
           try {
+            // Ensure telemetry timers are cleared on owner destruction
+            maybeMarkProviderFinish(id, null, undefined);
             killPty(id);
           } catch {}
           owners.delete(id);
@@ -403,6 +405,8 @@ try {
   app.on('before-quit', () => {
     for (const id of Array.from(owners.keys())) {
       try {
+        // Ensure telemetry timers are cleared on app quit
+        maybeMarkProviderFinish(id, null, undefined);
         killPty(id);
       } catch {}
     }
