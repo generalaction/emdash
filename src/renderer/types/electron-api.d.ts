@@ -245,7 +245,6 @@ declare global {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
-        taskCreateStartTime?: number; // Date.now() when task creation started
       }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyGetBenchmarks: () => Promise<{
         ok: boolean;
@@ -881,7 +880,6 @@ export interface ElectronAPI {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
-    taskCreateStartTime?: number; // Date.now() when task creation started
   }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
   ptyGetBenchmarks: () => Promise<{
     ok: boolean;

@@ -69,7 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('pty:resize', args),
   ptyKill: (id: string) => ipcRenderer.send('pty:kill', { id }),
   
-  // Direct PTY spawn (no shell wrapper)
+  // Direct PTY spawn (no shell wrapper, bypasses shell config loading)
   ptyStartDirect: (opts: {
     id: string;
     providerId: string;
@@ -78,7 +78,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
-    taskCreateStartTime?: number;
   }) => ipcRenderer.invoke('pty:startDirect', opts),
   
   // Get spawn benchmarks

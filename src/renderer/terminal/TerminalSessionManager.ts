@@ -464,15 +464,9 @@ export class TerminalSessionManager {
     const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } = this.options;
     const id = taskId;
 
-    // Toggle this to compare direct vs shell-based spawn for provider CLIs
-    // - true: NEW direct spawn (bypasses shell config loading)  
-    // - false: OLD shell-based spawn (shell loads config, then runs CLI)
-    const USE_DIRECT_SPAWN = true;
-    
-    // Pass task creation start time for end-to-end timing
-    const taskCreateStartTime = (window as any).__taskCreateStartTime as number | undefined;
-    
-    const ptyPromise = providerId && cwd && USE_DIRECT_SPAWN
+    // Provider CLIs use direct spawn (bypasses shell config loading)
+    // Regular shell terminals use shell-based spawn
+    const ptyPromise = providerId && cwd
       ? window.electronAPI.ptyStartDirect({
           id,
           providerId,
@@ -481,18 +475,12 @@ export class TerminalSessionManager {
           rows: initialSize.rows,
           autoApprove,
           initialPrompt,
-          taskCreateStartTime,
         })
       : window.electronAPI.ptyStart({
           id,
           cwd,
-          // For shell-based provider spawn: pass CLI name as shell, ptyManager handles the rest
-          shell: providerId || shell,
-          env: {
-            ...env,
-            // Pass timing info for shell-based spawn too
-            __TASK_CREATE_START_TIME: taskCreateStartTime?.toString() || '',
-          },
+          shell,
+          env,
           cols: initialSize.cols,
           rows: initialSize.rows,
           autoApprove,

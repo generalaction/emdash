@@ -1154,10 +1154,6 @@ const AppContent: React.FC = () => {
     baseRef?: string
   ) => {
     if (!selectedProject) return;
-
-    // Store task creation start time for end-to-end timing (use Date.now for cross-process)
-    (window as any).__taskCreateStartTime = Date.now();
-
     setIsCreatingTask(true);
     try {
       let preparedPrompt: string | undefined = undefined;
@@ -1370,54 +1366,22 @@ const AppContent: React.FC = () => {
         let taskId: string;
 
         if (useWorktree) {
-          // BENCHMARK TOGGLE: Set to false to test baseline (no reserve, like main branch)
-          const USE_RESERVE = true;
+          // Try to claim a pre-created reserve worktree (instant)
+          const claimResult = await window.electronAPI.worktreeClaimReserve({
+            projectId: selectedProject.id,
+            projectPath: selectedProject.path,
+            taskName,
+            baseRef,
+            autoApprove,
+          });
 
-          if (USE_RESERVE) {
-            // Try to claim a pre-created reserve worktree first (instant)
-            const claimStart = performance.now();
-            const claimResult = await window.electronAPI.worktreeClaimReserve({
-              projectId: selectedProject.id,
-              projectPath: selectedProject.path,
-              taskName,
-              baseRef,
-              autoApprove,
-            });
-
-            if (claimResult.success && claimResult.worktree) {
-              // Instant! Reserve was claimed successfully
-              const claimTime = performance.now() - claimStart;
-              console.log(`\n📦 WORKTREE: reserve claimed → ${claimTime.toFixed(0)}ms\n`);
-              const worktree = claimResult.worktree;
-              branch = worktree.branch;
-              path = worktree.path;
-              taskId = worktree.id;
-            } else {
-              // Fallback: Create worktree synchronously (no reserve available)
-              const createStart = performance.now();
-              const worktreeResult = await window.electronAPI.worktreeCreate({
-                projectPath: selectedProject.path,
-                taskName,
-                projectId: selectedProject.id,
-                autoApprove,
-                baseRef,
-              });
-
-              if (!worktreeResult.success) {
-                throw new Error(worktreeResult.error || 'Failed to create worktree');
-              }
-
-              const createTime = performance.now() - createStart;
-              console.log(`\n📦 WORKTREE: created (no reserve) → ${createTime.toFixed(0)}ms\n`);
-
-              const worktree = worktreeResult.worktree;
-              branch = worktree.branch;
-              path = worktree.path;
-              taskId = worktree.id;
-            }
+          if (claimResult.success && claimResult.worktree) {
+            const worktree = claimResult.worktree;
+            branch = worktree.branch;
+            path = worktree.path;
+            taskId = worktree.id;
           } else {
-            // BASELINE: Direct worktree creation (same as main branch)
-            const createStart = performance.now();
+            // Fallback: Create worktree (no reserve available)
             const worktreeResult = await window.electronAPI.worktreeCreate({
               projectPath: selectedProject.path,
               taskName,
@@ -1429,9 +1393,6 @@ const AppContent: React.FC = () => {
             if (!worktreeResult.success) {
               throw new Error(worktreeResult.error || 'Failed to create worktree');
             }
-
-            const createTime = performance.now() - createStart;
-            console.log(`\n📦 WORKTREE: created (baseline) → ${createTime.toFixed(0)}ms\n`);
 
             const worktree = worktreeResult.worktree;
             branch = worktree.branch;

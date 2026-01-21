@@ -7,17 +7,14 @@ import { providerStatusCache } from './providerStatusCache';
 type PtyRecord = {
   id: string;
   proc: IPty;
-  spawnedAt?: number; // Timestamp when PTY was spawned (for benchmarking)
-  spawnMethod?: 'shell' | 'direct'; // How the PTY was spawned
-  firstDataLogged?: boolean; // Whether we've logged first data timing
 };
 
 const ptys = new Map<string, PtyRecord>();
 
-// Benchmarking: track spawn times
+// Benchmarking: track spawn times (kept for debugging/analysis)
 const spawnBenchmarks: Array<{
   id: string;
-  method: 'shell' | 'direct' | 'warm-inject';
+  method: 'shell' | 'direct';
   spawnMs: number;
   timestamp: number;
 }> = [];
@@ -28,31 +25,6 @@ export function getSpawnBenchmarks() {
 
 export function clearSpawnBenchmarks() {
   spawnBenchmarks.length = 0;
-}
-
-/**
- * Call this when first data is received from a PTY to log the config load time.
- * Only logs once per PTY.
- * @param taskCreateStartTime - Date.now() timestamp when task creation started (from renderer)
- */
-export function logFirstDataTiming(id: string, taskCreateStartTime?: number): void {
-  const rec = ptys.get(id);
-  if (!rec || rec.firstDataLogged || !rec.spawnedAt) return;
-  
-  rec.firstDataLogged = true;
-  const loadTimeMs = Date.now() - rec.spawnedAt;
-  const method = rec.spawnMethod || 'unknown';
-  
-  if (method === 'shell') {
-    console.log(`   └─ First output: ${loadTimeMs}ms (shell-based)`);
-  } else {
-    console.log(`   └─ First output: ${loadTimeMs}ms (direct)`);
-  }
-  // Log end-to-end time for both approaches
-  if (taskCreateStartTime && taskCreateStartTime > 0) {
-    const e2eMs = Date.now() - taskCreateStartTime;
-    console.log(`   └─ End-to-end (click → ready): ${e2eMs}ms`);
-  }
 }
 
 /**
@@ -153,8 +125,7 @@ export function startDirectPty(options: {
     timestamp: Date.now(),
   });
 
-  const rec: PtyRecord = { id, proc, spawnedAt: Date.now(), spawnMethod: 'direct' };
-  ptys.set(id, rec);
+  ptys.set(id, { id, proc });
   return proc;
 }
 
@@ -383,8 +354,7 @@ export function startPty(options: {
     timestamp: Date.now(),
   });
 
-  const rec: PtyRecord = { id, proc, spawnedAt: Date.now(), spawnMethod: 'shell' };
-  ptys.set(id, rec);
+  ptys.set(id, { id, proc });
   return proc;
 }
 

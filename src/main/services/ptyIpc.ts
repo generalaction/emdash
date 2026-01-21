@@ -1,5 +1,5 @@
 import { ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
-import { startPty, writePty, resizePty, killPty, getPty, startDirectPty, getSpawnBenchmarks, logFirstDataTiming } from './ptyManager';
+import { startPty, writePty, resizePty, killPty, getPty, startDirectPty, getSpawnBenchmarks } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
@@ -75,22 +75,12 @@ export function registerPtyIpc(): void {
             initialPrompt,
             skipResume: shouldSkipResume,
           });
-        const spawnTime = performance.now() - spawnStart;
-
-        const totalTime = performance.now() - ptyStartTime;
-        if (!existing) {
-          console.log(`\n🐚 PTY SPAWN: ${shell || 'shell'} → ${Math.round(totalTime)}ms (shell-based)\n`);
-        }
         const wc = event.sender;
         owners.set(id, wc);
 
-        // Extract task create start time from env if passed (for shell-based provider spawn timing)
-        const taskCreateStartTime = env?.__TASK_CREATE_START_TIME ? parseInt(env.__TASK_CREATE_START_TIME, 10) : undefined;
-        
         // Attach listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
-            logFirstDataTiming(id, taskCreateStartTime); // Log time to first output + e2e if available
             owners.get(id)?.send(`pty:data:${id}`, data);
           });
 
@@ -209,16 +199,14 @@ export function registerPtyIpc(): void {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
-        taskCreateStartTime?: number;
       }
     ) => {
-      const startTime = performance.now();
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
       
       try {
-        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, taskCreateStartTime } = args;
+        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt } = args;
         const existing = getPty(id);
         
         if (existing) {
@@ -246,7 +234,6 @@ export function registerPtyIpc(): void {
 
         if (!listeners.has(id)) {
           proc.onData((data) => {
-            logFirstDataTiming(id, taskCreateStartTime); // Log time to first output + e2e
             owners.get(id)?.send(`pty:data:${id}`, data);
           });
 
@@ -265,9 +252,6 @@ export function registerPtyIpc(): void {
           const windows = BrowserWindow.getAllWindows();
           windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
         } catch {}
-
-        const totalMs = performance.now() - startTime;
-        console.log(`\n⚡ PTY SPAWN: ${providerId} → ${Math.round(totalMs)}ms (direct)\n`);
 
         return { ok: true };
       } catch (err: any) {
