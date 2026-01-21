@@ -38,7 +38,8 @@ export class WorktreePoolService {
   private creationInProgress = new Set<string>();
   private readonly RESERVE_PREFIX = '_reserve';
   // Reserves older than this are considered stale and will be recreated
-  private readonly MAX_RESERVE_AGE_MS = 5 * 60 * 1000; // 5 minutes
+  // 30 minutes is reasonable since users don't create tasks that frequently
+  private readonly MAX_RESERVE_AGE_MS = 30 * 60 * 1000; // 30 minutes
 
   /** Generate a unique hash for reserve identification */
   private generateReserveHash(): string {

@@ -7,9 +7,18 @@ import { providerStatusCache } from './providerStatusCache';
 type PtyRecord = {
   id: string;
   proc: IPty;
+  cwd?: string; // Working directory (for respawning shell after CLI exit)
+  isDirectSpawn?: boolean; // Whether this was a direct CLI spawn
 };
 
 const ptys = new Map<string, PtyRecord>();
+
+// Callback to spawn shell after direct CLI exits (set by ptyIpc)
+let onDirectCliExitCallback: ((id: string, cwd: string) => void) | null = null;
+
+export function setOnDirectCliExit(callback: (id: string, cwd: string) => void): void {
+  onDirectCliExitCallback = callback;
+}
 
 // Benchmarking: track spawn times (kept for debugging/analysis)
 const spawnBenchmarks: Array<{
@@ -125,7 +134,20 @@ export function startDirectPty(options: {
     timestamp: Date.now(),
   });
 
-  ptys.set(id, { id, proc });
+  // Store record with cwd for shell respawn after CLI exits
+  ptys.set(id, { id, proc, cwd, isDirectSpawn: true });
+
+  // When CLI exits, spawn a shell so user can continue working
+  proc.onExit(() => {
+    const rec = ptys.get(id);
+    if (rec?.isDirectSpawn && rec.cwd && onDirectCliExitCallback) {
+      // Small delay to let exit event propagate first
+      setTimeout(() => {
+        onDirectCliExitCallback!(id, rec.cwd!);
+      }, 100);
+    }
+  });
+
   return proc;
 }
 

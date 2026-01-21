@@ -1,5 +1,5 @@
 import { ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
-import { startPty, writePty, resizePty, killPty, getPty, startDirectPty, getSpawnBenchmarks } from './ptyManager';
+import { startPty, writePty, resizePty, killPty, getPty, startDirectPty, getSpawnBenchmarks, setOnDirectCliExit } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
@@ -13,6 +13,48 @@ const listeners = new Set<string>();
 const providerPtyTimers = new Map<string, number>();
 
 export function registerPtyIpc(): void {
+  // When a direct-spawned CLI exits, spawn a shell so user can continue working
+  setOnDirectCliExit((id: string, cwd: string) => {
+    const wc = owners.get(id);
+    if (!wc) return;
+
+    try {
+      // Spawn a shell in the same terminal
+      const proc = startPty({
+        id,
+        cwd,
+        cols: 120,
+        rows: 32,
+      });
+
+      if (!proc) {
+        log.warn('ptyIpc: Failed to spawn shell after CLI exit', { id });
+        return;
+      }
+
+      // Re-attach listeners for the new shell process
+      listeners.delete(id); // Clear old listener registration
+      if (!listeners.has(id)) {
+        proc.onData((data) => {
+          owners.get(id)?.send(`pty:data:${id}`, data);
+        });
+
+        proc.onExit(({ exitCode, signal }) => {
+          owners.get(id)?.send(`pty:exit:${id}`, { exitCode, signal });
+          owners.delete(id);
+          listeners.delete(id);
+        });
+        listeners.add(id);
+      }
+
+      // Notify renderer that shell is ready
+      wc.send('pty:shellSpawned', { id });
+      log.info('ptyIpc: Spawned shell after CLI exit', { id, cwd });
+    } catch (err) {
+      log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
+    }
+  });
+
   ipcMain.handle(
     'pty:start',
     async (
