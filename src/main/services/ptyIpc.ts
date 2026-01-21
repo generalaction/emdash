@@ -180,11 +180,15 @@ export function registerPtyIpc(): void {
           // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
           wc.once('destroyed', () => {
             log.debug('pty:ownerDestroyed', { id });
-            try {
-              killPty(id);
-            } catch {}
-            owners.delete(id);
-            listeners.delete(id);
+            // Only kill the PTY if this WebContents is still the current owner
+            // (prevents stale listeners from killing PTYs reused by other windows)
+            if (owners.get(id) === wc) {
+              try {
+                killPty(id);
+              } catch {}
+              owners.delete(id);
+              listeners.delete(id);
+            }
           });
 
           listeners.add(id);
