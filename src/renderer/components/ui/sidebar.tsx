@@ -109,7 +109,7 @@ const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(
 
     const baseClasses =
       variant === 'default'
-        ? 'group/sidebar relative z-50 flex h-full flex-col border-r border-border bg-muted/10 text-sm text-foreground transition-all duration-200 ease-linear overflow-hidden flex-shrink-0 data-[state=collapsed]:border-r-0 data-[state=collapsed]:pointer-events-none'
+        ? 'group group/sidebar relative z-50 flex h-full flex-col border-r border-border bg-muted/10 text-sm text-foreground transition-all duration-200 ease-linear overflow-hidden flex-shrink-0 data-[state=collapsed]:border-r-0 data-[state=collapsed]:pointer-events-none'
         : '';
     const responsiveClasses =
       variant === 'default'

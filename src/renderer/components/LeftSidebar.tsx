@@ -109,6 +109,25 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
+  const emptyStateRef = React.useRef<HTMLDivElement>(null);
+  const [emptyStateWidth, setEmptyStateWidth] = React.useState<number | null>(null);
+  const prevOpenRef = React.useRef<boolean>(open);
+
+  React.useEffect(() => {
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = open;
+
+    if (wasOpen && !open && emptyStateRef.current) {
+      // Transitioning from open to closed - capture and lock width
+      setEmptyStateWidth(emptyStateRef.current.offsetWidth);
+    } else if (!wasOpen && open) {
+      // Transitioning from closed to open - clear width after animation completes
+      const timer = setTimeout(() => {
+        setEmptyStateWidth(null);
+      }, 300); // Match sidebar transition duration
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
 
   const handleDeleteProject = React.useCallback(
     async (project: Project) => {
@@ -152,16 +171,22 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent>
+        <SidebarContent className={projects.length === 0 ? 'overflow-x-hidden' : undefined}>
           {projects.length === 0 && (
-            <SidebarEmptyState
-              title="No projects yet"
-              description="Open a project to start creating worktrees and running coding agents."
-              actionLabel={onOpenProject ? 'Open Project' : undefined}
-              onAction={onOpenProject}
-              secondaryActionLabel={onNewProject ? 'New Project' : undefined}
-              onSecondaryAction={onNewProject}
-            />
+            <div
+              ref={emptyStateRef}
+              className="overflow-hidden"
+              style={{ minWidth: emptyStateWidth ?? undefined }}
+            >
+              <SidebarEmptyState
+                title="No projects yet"
+                description="Open a project to start creating worktrees and running coding agents."
+                actionLabel={onOpenProject ? 'Open Project' : undefined}
+                onAction={onOpenProject}
+                secondaryActionLabel={onNewProject ? 'New Project' : undefined}
+                onSecondaryAction={onNewProject}
+              />
+            </div>
           )}
 
           <SidebarGroup>
