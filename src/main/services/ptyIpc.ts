@@ -176,18 +176,19 @@ export function registerPtyIpc(): void {
             owners.delete(id);
             listeners.delete(id);
           });
+
+          // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
+          wc.once('destroyed', () => {
+            log.debug('pty:ownerDestroyed', { id });
+            try {
+              killPty(id);
+            } catch {}
+            owners.delete(id);
+            listeners.delete(id);
+          });
+
           listeners.add(id);
         }
-
-        // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
-        wc.once('destroyed', () => {
-          log.debug('pty:ownerDestroyed', { id });
-          try {
-            killPty(id);
-          } catch {}
-          owners.delete(id);
-          listeners.delete(id);
-        });
 
         if (!existing) {
           maybeMarkProviderStart(id);
