@@ -1379,6 +1379,15 @@ const AppContent: React.FC = () => {
             branch = worktree.branch;
             path = worktree.path;
             taskId = worktree.id;
+
+            // Warn if base ref switch failed
+            if (claimResult.needsBaseRefSwitch) {
+              toast({
+                title: 'Base ref switch failed',
+                description: `Task created but couldn't switch to requested base ref: ${baseRef}. Working tree may be on a different commit.`,
+                variant: 'destructive',
+              });
+            }
           } else {
             // Fallback (or forced): Create worktree
             const worktreeResult = await window.electronAPI.worktreeCreate({
@@ -1461,7 +1470,11 @@ const AppContent: React.FC = () => {
               import('./lib/logger').then(({ log }) => {
                 log.error('Failed to save task:', saveResult?.error);
               });
-              // Task is already visible, just log the error
+              toast({
+                title: 'Failed to save task',
+                description: saveResult?.error || 'Task is visible but not persisted to database',
+                variant: 'destructive',
+              });
             }
           });
 

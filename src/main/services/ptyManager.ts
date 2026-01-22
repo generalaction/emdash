@@ -76,6 +76,12 @@ export function startDirectPty(options: {
   const cliArgs: string[] = [];
 
   if (provider) {
+    // Add resume flag FIRST if available
+    if (provider.resumeFlag) {
+      const resumeParts = provider.resumeFlag.split(' ');
+      cliArgs.push(...resumeParts);
+    }
+
     // Add default args
     if (provider.defaultArgs?.length) {
       cliArgs.push(...provider.defaultArgs);

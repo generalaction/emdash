@@ -43,13 +43,13 @@ function safeSendToOwner(id: string, channel: string, payload: unknown): boolean
 
 export function registerPtyIpc(): void {
   // When a direct-spawned CLI exits, spawn a shell so user can continue working
-  setOnDirectCliExit((id: string, cwd: string) => {
+  setOnDirectCliExit(async (id: string, cwd: string) => {
     const wc = owners.get(id);
     if (!wc) return;
 
     try {
       // Spawn a shell in the same terminal
-      const proc = startPty({
+      const proc = await startPty({
         id,
         cwd,
         cols: 120,
@@ -425,6 +425,22 @@ export function registerPtyIpc(): void {
           });
           listeners.add(id);
         }
+
+        // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
+        wc.once('destroyed', () => {
+          if (owners.get(id) !== wc) {
+            log.debug('pty:staleOwnerDestroyed', { id });
+            return;
+          }
+          log.debug('pty:ownerDestroyed', { id });
+          try {
+            // Ensure telemetry timers are cleared on owner destruction
+            maybeMarkProviderFinish(id, null, undefined);
+            killPty(id);
+          } catch {}
+          owners.delete(id);
+          listeners.delete(id);
+        });
 
         maybeMarkProviderStart(id);
 

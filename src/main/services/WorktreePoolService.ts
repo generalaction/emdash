@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { minimatch } from 'minimatch';
 import { log } from '../lib/logger';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 
@@ -465,13 +466,33 @@ export class WorktreePoolService {
     targetPath: string,
     patterns: string[]
   ): Promise<void> {
+    // For each pattern, check if it's a glob or literal filename
     for (const pattern of patterns) {
-      const sourceFile = path.join(sourcePath, pattern);
-      const targetFile = path.join(targetPath, pattern);
-      if (fs.existsSync(sourceFile) && !fs.existsSync(targetFile)) {
+      // If pattern contains glob characters, match files in the source directory
+      if (pattern.includes('*') || pattern.includes('?') || pattern.includes('[')) {
         try {
-          fs.copyFileSync(sourceFile, targetFile);
+          const files = fs.readdirSync(sourcePath);
+          for (const file of files) {
+            if (minimatch(file, pattern, { dot: true })) {
+              const sourceFile = path.join(sourcePath, file);
+              const targetFile = path.join(targetPath, file);
+              if (fs.existsSync(sourceFile) && !fs.existsSync(targetFile)) {
+                try {
+                  fs.copyFileSync(sourceFile, targetFile);
+                } catch {}
+              }
+            }
+          }
         } catch {}
+      } else {
+        // Literal filename
+        const sourceFile = path.join(sourcePath, pattern);
+        const targetFile = path.join(targetPath, pattern);
+        if (fs.existsSync(sourceFile) && !fs.existsSync(targetFile)) {
+          try {
+            fs.copyFileSync(sourceFile, targetFile);
+          } catch {}
+        }
       }
     }
   }
