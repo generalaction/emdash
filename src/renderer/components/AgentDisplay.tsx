@@ -128,7 +128,6 @@ export const AgentDisplay: React.FC<Props> = ({
         </Tooltip>
       </TooltipProvider>
 
-      {/* Issue Badges */}
       {linearIssue && (
         <TooltipProvider delayDuration={250}>
           <Tooltip>
@@ -266,7 +265,6 @@ export const AgentDisplay: React.FC<Props> = ({
         </TooltipProvider>
       )}
 
-      {/* Comments Button - only show when there are unsent comments */}
       {resolvedTaskId && unsentCount > 0 && (
         <CommentsPopover
           tooltipContent="Selected comments are appended to your next agent message."

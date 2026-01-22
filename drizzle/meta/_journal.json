@@ -43,6 +43,20 @@
       "when": 1765592430357,
       "tag": "0005_add_use_worktree_to_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1765592430358,
+      "tag": "0006_add_multi_chat_support",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1765592430359,
+      "tag": "0007_add_is_main_to_conversations",
+      "breakpoints": true
     }
   ]
 }

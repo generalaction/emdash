@@ -15,6 +15,7 @@ interface MultiAgentDropdownProps {
   onChange: (agentRuns: AgentRun[]) => void;
   defaultAgent?: Agent;
   className?: string;
+  disabledAgents?: string[];
 }
 
 export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
@@ -22,6 +23,7 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
   onChange,
   defaultAgent = 'claude',
   className = '',
+  disabledAgents = [],
 }) => {
   // Sort agents with default agent first
   const sortedAgents = Object.entries(agentConfig).sort(([keyA], [keyB]) => {
@@ -37,6 +39,9 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
 
   // Checkbox: always add/remove (multi-select)
   const toggleAgent = (agent: Agent) => {
+    // Don't allow toggling disabled agents
+    if (disabledAgents.includes(agent)) return;
+
     if (selectedAgents.has(agent)) {
       if (agentRuns.length > 1) {
         onChange(agentRuns.filter((ar) => ar.agent !== agent));
@@ -48,6 +53,8 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
 
   // Row click: switch when single, add when multiple
   const handleRowClick = (agent: Agent) => {
+    // Don't allow clicking disabled agents
+    if (disabledAgents.includes(agent)) return;
     if (selectedAgents.has(agent)) return;
     if (agentRuns.length === 1) {
       onChange([{ agent, runs: 1 }]);
@@ -111,8 +118,9 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
               const agent = key as Agent;
               const isSelected = selectedAgents.has(agent);
               const isLastSelected = isSelected && agentRuns.length === 1;
+              const isDisabled = disabledAgents.includes(agent);
 
-              return (
+              return !isDisabled ? (
                 <AgentTooltipRow
                   key={key}
                   id={agent as UiAgent}
@@ -199,6 +207,34 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                     )}
                   </div>
                 </AgentTooltipRow>
+              ) : (
+                /* Disabled agents with tooltip */
+                <Tooltip key={key}>
+                  <TooltipTrigger asChild>
+                    <div className="flex h-8 cursor-not-allowed items-center justify-between rounded-sm px-2 opacity-50">
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={true}
+                          className="h-4 w-4 cursor-not-allowed"
+                        />
+                        <img
+                          src={config.logo}
+                          alt={config.alt}
+                          className={`h-4 w-4 flex-shrink-0 rounded-sm ${config.invertInDark ? 'dark:invert' : ''} grayscale`}
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          {config.name}
+                          <span className="ml-1 text-xs">(in use)</span>
+                        </span>
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="z-[10000]" style={{ zIndex: 10000 }}>
+                    <p className="text-xs">This agent already has an active chat in this task</p>
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </TooltipProvider>
