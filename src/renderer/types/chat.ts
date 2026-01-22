@@ -3,9 +3,9 @@ import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
 
-/** Per-provider run configuration for task creation */
-export interface ProviderRun {
-  provider: ProviderId;
+/** Per-agent run configuration for task creation */
+export interface AgentRun {
+  agent: ProviderId;
   runs: number;
 }
 
@@ -21,20 +21,20 @@ export interface TaskMetadata {
   multiAgent?: {
     enabled: boolean;
     // Max panes allowed when the task was created (UI hint)
-    maxProviders?: number;
-    // Per-provider run configuration
-    providerRuns?: ProviderRun[];
-    // Legacy list of provider ids before providerRuns existed (for backward compatibility)
-    providers?: ProviderId[];
+    maxAgents?: number;
+    // Per-agent run configuration
+    agentRuns?: AgentRun[];
+    // Legacy list of agent ids before agentRuns existed (for backward compatibility)
+    agents?: ProviderId[];
     variants: Array<{
       id: string;
-      provider: ProviderId;
-      name: string; // worktree display name, e.g. taskName-providerSlug
+      agent: ProviderId;
+      name: string; // worktree display name, e.g. taskName-agentSlug
       branch: string;
       path: string; // filesystem path of the worktree
       worktreeId: string; // WorktreeService id (stable hash of path)
     }>;
-    selectedProvider?: ProviderId | null;
+    selectedAgent?: ProviderId | null;
   } | null;
 }
 

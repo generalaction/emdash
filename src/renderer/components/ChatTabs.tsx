@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { X, Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { providerConfig } from '../lib/providerConfig';
-import type { Provider } from '../types';
+import { agentConfig } from '../lib/agentConfig';
+import type { Agent } from '../types';
 
 interface ChatTab {
   id: string;
@@ -59,7 +59,7 @@ export function ChatTabs({
   return (
     <div className="flex items-center gap-1 overflow-x-auto border-b bg-background/95 px-2 py-1 backdrop-blur">
       {tabs.map((tab) => {
-        const config = tab.provider ? providerConfig[tab.provider as Provider] : null;
+        const config = tab.provider ? agentConfig[tab.provider as Agent] : null;
         return (
           <div
             key={tab.id}

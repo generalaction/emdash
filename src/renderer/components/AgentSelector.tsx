@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { ProviderInfoCard } from './ProviderInfoCard';
+import { AgentInfoCard } from './AgentInfoCard';
 import RoutingInfoCard from './RoutingInfoCard';
 import { Workflow } from 'lucide-react';
 import { Badge } from './ui/badge';
-import type { UiProvider } from '@/providers/meta';
-import { type Provider } from '../types';
-import { providerConfig } from '../lib/providerConfig';
+import type { UiAgent } from '@/providers/meta';
+import { type Agent } from '../types';
+import { agentConfig } from '../lib/agentConfig';
 
-interface ProviderSelectorProps {
-  value: Provider;
-  onChange: (provider: Provider) => void;
+interface AgentSelectorProps {
+  value: Agent;
+  onChange: (agent: Agent) => void;
   disabled?: boolean;
   className?: string;
 }
 
-export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
+export const AgentSelector: React.FC<AgentSelectorProps> = ({
   value,
   onChange,
   disabled = false,
@@ -28,7 +28,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
         value={value}
         onValueChange={(v) => {
           if (!disabled) {
-            onChange(v as Provider);
+            onChange(v as Agent);
           }
         }}
         disabled={disabled}
@@ -58,8 +58,8 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
         )}
         <SelectContent side="top" className="z-[120]">
           <TooltipProvider delayDuration={150}>
-            {Object.entries(providerConfig).map(([key, config]) => (
-              <TooltipRow key={key} id={key as UiProvider}>
+            {Object.entries(agentConfig).map(([key, config]) => (
+              <TooltipRow key={key} id={key as UiAgent}>
                 <SelectItem value={key}>
                   <div className="flex items-center gap-2">
                     <img
@@ -99,10 +99,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
   );
 };
 
-const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = ({
-  id,
-  children,
-}) => {
+const TooltipRow: React.FC<{ id: UiAgent; children: React.ReactElement }> = ({ id, children }) => {
   const [open, setOpen] = useState(false);
   return (
     <Tooltip open={open}>
@@ -123,13 +120,13 @@ const TooltipRow: React.FC<{ id: UiProvider; children: React.ReactElement }> = (
         onPointerEnter={() => setOpen(true)}
         onPointerLeave={() => setOpen(false)}
       >
-        <ProviderInfoCard id={id} />
+        <AgentInfoCard id={id} />
       </TooltipContent>
     </Tooltip>
   );
 };
 
-export default ProviderSelector;
+export default AgentSelector;
 
 export const RoutingTooltipRow: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const [open, setOpen] = useState(false);

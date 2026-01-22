@@ -1,7 +1,7 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 
-interface ProviderRowProps {
+interface AgentRowProps {
   icon: LucideIcon;
   label: string;
   detail?: string | null;
@@ -9,7 +9,7 @@ interface ProviderRowProps {
   right: React.ReactNode;
 }
 
-const ProviderRow: React.FC<ProviderRowProps> = ({ icon: Icon, label, detail, middle, right }) => {
+const AgentRow: React.FC<AgentRowProps> = ({ icon: Icon, label, detail, middle, right }) => {
   return (
     <div className="grid grid-cols-12 items-center gap-4 rounded-xl border border-border/60 bg-background px-4 py-3 transition hover:bg-muted/40">
       <div className="col-span-12 flex items-center gap-3 sm:col-span-4">
@@ -27,4 +27,4 @@ const ProviderRow: React.FC<ProviderRowProps> = ({ icon: Icon, label, detail, mi
   );
 };
 
-export default ProviderRow;
+export default AgentRow;
