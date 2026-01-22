@@ -1249,7 +1249,6 @@ const AppContent: React.FC = () => {
         parts.push(initialPrompt.trim());
         preparedPrompt = parts.join('\n');
       }
-
       const taskMetadata: TaskMetadata | null =
         linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
           ? {
@@ -1381,7 +1380,7 @@ const AppContent: React.FC = () => {
             path = worktree.path;
             taskId = worktree.id;
           } else {
-            // Fallback: Create worktree (no reserve available)
+            // Fallback (or forced): Create worktree
             const worktreeResult = await window.electronAPI.worktreeCreate({
               projectPath: selectedProject.path,
               taskName,
@@ -1446,7 +1445,6 @@ const AppContent: React.FC = () => {
         } else {
           setActiveTaskProvider((newTask.agentId as Provider) || primaryProvider || 'codex');
         }
-
         // End loading state - task is visible and ready
         setIsCreatingTask(false);
 
