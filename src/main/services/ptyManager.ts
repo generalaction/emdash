@@ -88,7 +88,44 @@ export function startDirectPty(options: {
   if (provider) {
     // Add resume flag FIRST if available (unless skipResume is true)
     // This enables conversation continuity for Claude, Aider, Codex, Gemini, etc.
-    if (provider.resumeFlag && !skipResume) {
+    // But only if a session actually exists - otherwise the CLI may fail/exit immediately
+    let shouldAddResumeFlag = provider.resumeFlag && !skipResume;
+
+    if (shouldAddResumeFlag && (providerId === 'claude' || providerId === 'aider')) {
+      // Check if session exists before adding resume flag
+      const os = require('os');
+      const crypto = require('crypto');
+      const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+
+      if (fs.existsSync(projectsDir)) {
+        // Check various Claude session directory naming schemes
+        const cwdHash = crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 16);
+        const pathBasedName = cwd.replace(/\//g, '-');
+        const cwdParts = cwd.split('/').filter((p: string) => p.length > 0);
+        const lastParts = cwdParts.slice(-3).join('-');
+
+        let sessionExists = false;
+        try {
+          const dirs = fs.readdirSync(projectsDir);
+          sessionExists = dirs.some(
+            (dir: string) =>
+              dir === cwdHash ||
+              dir === pathBasedName ||
+              dir.includes(lastParts)
+          );
+        } catch {}
+
+        if (!sessionExists) {
+          shouldAddResumeFlag = false;
+          log.debug('ptyManager:directSpawn - no session found, skipping resume flag', { providerId, cwd });
+        }
+      } else {
+        // No projects directory = no sessions
+        shouldAddResumeFlag = false;
+      }
+    }
+
+    if (shouldAddResumeFlag && provider.resumeFlag) {
       const resumeParts = provider.resumeFlag.split(' ');
       cliArgs.push(...resumeParts);
     }
