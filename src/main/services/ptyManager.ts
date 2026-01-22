@@ -12,14 +12,16 @@ type PtyRecord = {
   proc: IPty;
   cwd?: string; // Working directory (for respawning shell after CLI exit)
   isDirectSpawn?: boolean; // Whether this was a direct CLI spawn
+  cols?: number; // Terminal columns (for respawning shell with correct dimensions)
+  rows?: number; // Terminal rows (for respawning shell with correct dimensions)
 };
 
 const ptys = new Map<string, PtyRecord>();
 
 // Callback to spawn shell after direct CLI exits (set by ptyIpc)
-let onDirectCliExitCallback: ((id: string, cwd: string) => void) | null = null;
+let onDirectCliExitCallback: ((id: string, cwd: string, cols: number, rows: number) => void) | null = null;
 
-export function setOnDirectCliExit(callback: (id: string, cwd: string) => void): void {
+export function setOnDirectCliExit(callback: (id: string, cwd: string, cols: number, rows: number) => void): void {
   onDirectCliExitCallback = callback;
 }
 
@@ -191,15 +193,17 @@ export function startDirectPty(options: {
     timestamp: Date.now(),
   });
 
-  // Store record with cwd for shell respawn after CLI exits
-  ptys.set(id, { id, proc, cwd, isDirectSpawn: true });
+  // Store record with cwd and dimensions for shell respawn after CLI exits
+  ptys.set(id, { id, proc, cwd, isDirectSpawn: true, cols, rows });
 
   // When CLI exits, spawn a shell so user can continue working
   proc.onExit(() => {
     const rec = ptys.get(id);
     if (rec?.isDirectSpawn && rec.cwd && onDirectCliExitCallback) {
-      // Spawn shell immediately after CLI exits
-      onDirectCliExitCallback(id, rec.cwd);
+      // Spawn shell immediately after CLI exits with correct dimensions
+      const shellCols = rec.cols ?? 120;
+      const shellRows = rec.rows ?? 32;
+      onDirectCliExitCallback(id, rec.cwd, shellCols, shellRows);
     }
   });
 

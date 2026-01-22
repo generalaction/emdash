@@ -43,17 +43,17 @@ function safeSendToOwner(id: string, channel: string, payload: unknown): boolean
 
 export function registerPtyIpc(): void {
   // When a direct-spawned CLI exits, spawn a shell so user can continue working
-  setOnDirectCliExit(async (id: string, cwd: string) => {
+  setOnDirectCliExit(async (id: string, cwd: string, cols: number, rows: number) => {
     const wc = owners.get(id);
     if (!wc) return;
 
     try {
-      // Spawn a shell in the same terminal
+      // Spawn a shell in the same terminal with correct dimensions
       const proc = await startPty({
         id,
         cwd,
-        cols: 120,
-        rows: 32,
+        cols,
+        rows,
       });
 
       if (!proc) {
@@ -76,9 +76,9 @@ export function registerPtyIpc(): void {
         listeners.add(id);
       }
 
-      // Notify renderer that shell is ready
-      wc.send('pty:shellSpawned', { id });
-      log.info('ptyIpc: Spawned shell after CLI exit', { id, cwd });
+      // Notify renderer that shell is ready (reuse pty:started so renderer recognizes it)
+      wc.send('pty:started', { id });
+      log.info('ptyIpc: Spawned shell after CLI exit', { id, cwd, cols, rows });
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
     }
@@ -395,6 +395,11 @@ export function registerPtyIpc(): void {
           return { ok: true, reused: true };
         }
 
+        // Check if this is an additional (non-main) chat
+        // Additional chats should always skip resume as they don't have persistence
+        const isAdditionalChat = id.includes('-chat-') && !id.includes('-main-');
+        const skipResume = isAdditionalChat;
+
         const proc = startDirectPty({
           id,
           providerId,
@@ -403,6 +408,7 @@ export function registerPtyIpc(): void {
           rows,
           autoApprove,
           initialPrompt,
+          skipResume,
         });
 
         if (!proc) {
