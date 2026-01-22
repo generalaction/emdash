@@ -88,8 +88,22 @@ export class WorktreePoolService {
    * Creates one in the background if not present.
    */
   async ensureReserve(projectId: string, projectPath: string, baseRef?: string): Promise<void> {
-    // Already have a reserve or creation in progress
-    if (this.reserves.has(projectId) || this.creationInProgress.has(projectId)) {
+    // Check if we have a fresh (non-stale) reserve
+    const existingReserve = this.reserves.get(projectId);
+    if (existingReserve && !this.isReserveStale(existingReserve)) {
+      // Already have a fresh reserve
+      return;
+    }
+
+    // If we have a stale reserve, remove it before creating a new one
+    if (existingReserve && this.isReserveStale(existingReserve)) {
+      log.info('WorktreePool: Replacing stale reserve proactively', { projectId });
+      this.reserves.delete(projectId);
+      this.cleanupReserve(existingReserve).catch(() => {});
+    }
+
+    // Already creating a reserve
+    if (this.creationInProgress.has(projectId)) {
       return;
     }
 
@@ -182,6 +196,19 @@ export class WorktreePoolService {
     // Remove from pool immediately to prevent double-claims
     this.reserves.delete(projectId);
 
+    // Fetch latest refs before transforming to ensure up-to-date code
+    // This is a quick operation (non-blocking) and ensures users always work on fresh code
+    try {
+      const useBaseRef = requestedBaseRef || reserve.baseRef;
+      await this.fetchBaseRef(projectPath, useBaseRef);
+    } catch (fetchError) {
+      log.warn('WorktreePool: Failed to fetch latest refs, proceeding with local refs', {
+        projectId,
+        error: fetchError,
+      });
+      // Continue with local refs - this is not a critical failure
+    }
+
     try {
       const result = await this.transformReserve(reserve, taskName, requestedBaseRef, autoApprove);
 
@@ -191,8 +218,50 @@ export class WorktreePoolService {
       return result;
     } catch (error) {
       log.error('WorktreePool: Failed to claim reserve', { projectId, taskName, error });
-      // Try to clean up the reserve on failure
-      this.cleanupReserve(reserve).catch(() => {});
+      
+      // Clean up: Check if reserve was moved by looking for non-existent original path
+      // If original path doesn't exist, the worktree was moved and we need to find it
+      const originalExists = fs.existsSync(reserve.path);
+      
+      if (originalExists) {
+        // Worktree is still at original location, clean up normally
+        this.cleanupReserve(reserve).catch(() => {});
+      } else {
+        // Worktree was moved but transform failed
+        // Look for the moved worktree in the worktrees directory
+        try {
+          const worktreesDir = path.join(reserve.projectPath, '..', 'worktrees');
+          const sluggedName = this.slugify(taskName);
+          
+          if (fs.existsSync(worktreesDir)) {
+            const entries = fs.readdirSync(worktreesDir, { withFileTypes: true });
+            // Find worktree that starts with the slugged task name (since hash is random)
+            const movedEntry = entries.find(
+              (e) => e.isDirectory() && e.name.startsWith(sluggedName)
+            );
+            
+            if (movedEntry) {
+              const movedPath = path.join(worktreesDir, movedEntry.name);
+              log.debug('WorktreePool: Found moved worktree, cleaning up', { movedPath });
+              
+              // Try to remove via git worktree command
+              try {
+                await execFileAsync('git', ['worktree', 'remove', '--force', movedPath], {
+                  cwd: reserve.projectPath,
+                });
+              } catch {
+                // Fallback to direct removal
+                try {
+                  fs.rmSync(movedPath, { recursive: true, force: true });
+                } catch {}
+              }
+            }
+          }
+        } catch (cleanupError) {
+          log.warn('WorktreePool: Failed to clean up moved worktree', { cleanupError });
+        }
+      }
+      
       return null;
     }
   }
@@ -332,6 +401,39 @@ export class WorktreePoolService {
     }
   }
 
+  /** Fetch latest refs for a base branch (non-blocking, handles errors gracefully) */
+  private async fetchBaseRef(projectPath: string, baseRef: string): Promise<void> {
+    try {
+      // Parse the base ref to extract remote and branch
+      // Common formats: "origin/main", "main", "origin/develop"
+      const parts = baseRef.split('/');
+      const remote = parts.length > 1 ? parts[0] : 'origin';
+      const branch = parts.length > 1 ? parts.slice(1).join('/') : baseRef;
+
+      // Check if remote exists
+      const { stdout: remotesOut } = await execFileAsync('git', ['remote'], {
+        cwd: projectPath,
+      });
+      const remotes = remotesOut.trim().split('\n').filter(Boolean);
+      
+      if (!remotes.includes(remote)) {
+        log.debug('WorktreePool: No remote found, skipping fetch', { remote });
+        return;
+      }
+
+      // Perform fetch with timeout to avoid hanging
+      await execFileAsync('git', ['fetch', remote, branch], {
+        cwd: projectPath,
+        timeout: 10000, // 10 second timeout
+      });
+      log.debug('WorktreePool: Successfully fetched latest refs', { remote, branch });
+    } catch (error) {
+      // Fetch failures are non-critical (could be SSH issues, network issues, etc.)
+      // Just log and continue
+      throw error;
+    }
+  }
+
   /** Remove reserve for a project (e.g., when project is removed) */
   async removeReserve(projectId: string): Promise<void> {
     const reserve = this.reserves.get(projectId);
@@ -362,15 +464,35 @@ export class WorktreePoolService {
     // Small delay to not compete with critical startup tasks
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Find all worktree directories that might contain reserves
+    // Get all worktree directories from database projects
+    const possibleWorktreeDirs = new Set<string>();
+    
+    try {
+      // Import DatabaseService dynamically to avoid circular dependencies
+      const { databaseService } = await import('./DatabaseService');
+      const projects = await databaseService.getProjects();
+      
+      // Add worktree directories from all known projects
+      for (const project of projects) {
+        if (project.path) {
+          const worktreesDir = path.join(project.path, '..', 'worktrees');
+          possibleWorktreeDirs.add(path.resolve(worktreesDir));
+        }
+      }
+    } catch (error) {
+      log.warn('WorktreePool: Failed to load projects from database for cleanup', { error });
+    }
+
+    // Also include common hardcoded directories as fallback
     const homedir = require('os').homedir();
-    const possibleWorktreeDirs = [
+    const commonDirs = [
       path.join(homedir, 'cursor', 'worktrees'),
       path.join(homedir, 'Documents', 'worktrees'),
       path.join(homedir, 'Projects', 'worktrees'),
       path.join(homedir, 'code', 'worktrees'),
       path.join(homedir, 'dev', 'worktrees'),
     ];
+    commonDirs.forEach((dir) => possibleWorktreeDirs.add(dir));
 
     // Collect all orphaned reserves first (fast sync scan)
     const orphanedReserves: { path: string; name: string }[] = [];
@@ -394,6 +516,10 @@ export class WorktreePoolService {
     if (orphanedReserves.length === 0) {
       return;
     }
+
+    log.info('WorktreePool: Found orphaned reserves, cleaning up', {
+      count: orphanedReserves.length,
+    });
 
     // Clean up all reserves in parallel (silently)
     await Promise.allSettled(

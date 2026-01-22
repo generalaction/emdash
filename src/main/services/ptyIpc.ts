@@ -65,19 +65,19 @@ export function registerPtyIpc(): void {
       listeners.delete(id); // Clear old listener registration
       if (!listeners.has(id)) {
         proc.onData((data) => {
-          owners.get(id)?.send(`pty:data:${id}`, data);
+          safeSendToOwner(id, `pty:data:${id}`, data);
         });
 
         proc.onExit(({ exitCode, signal }) => {
-          owners.get(id)?.send(`pty:exit:${id}`, { exitCode, signal });
+          safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
           owners.delete(id);
           listeners.delete(id);
         });
         listeners.add(id);
       }
 
-      // Notify renderer that shell is ready
-      wc.send('pty:shellSpawned', { id });
+      // Notify renderer that shell is ready using pty:started event (which renderer already listens for)
+      safeSendToOwner(id, 'pty:started', { id });
       log.info('ptyIpc: Spawned shell after CLI exit', { id, cwd });
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
