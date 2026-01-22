@@ -459,19 +459,44 @@ export class WorktreePoolService {
     return bytes.readUIntBE(0, 3).toString(36).slice(0, 3).padStart(3, '0');
   }
 
-  /** Preserve files from source to target */
+  /** Preserve files from source to target, supporting glob patterns */
   private async preserveFiles(
     sourcePath: string,
     targetPath: string,
     patterns: string[]
   ): Promise<void> {
     for (const pattern of patterns) {
-      const sourceFile = path.join(sourcePath, pattern);
-      const targetFile = path.join(targetPath, pattern);
-      if (fs.existsSync(sourceFile) && !fs.existsSync(targetFile)) {
+      // Check if pattern contains glob characters
+      if (pattern.includes('*')) {
+        // Handle glob pattern - scan directory and match
         try {
-          fs.copyFileSync(sourceFile, targetFile);
+          const entries = fs.readdirSync(sourcePath, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry.isFile()) continue;
+            // Simple glob matching for patterns like .env.*.local
+            const regex = new RegExp(
+              '^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$'
+            );
+            if (regex.test(entry.name)) {
+              const sourceFile = path.join(sourcePath, entry.name);
+              const targetFile = path.join(targetPath, entry.name);
+              if (!fs.existsSync(targetFile)) {
+                try {
+                  fs.copyFileSync(sourceFile, targetFile);
+                } catch {}
+              }
+            }
+          }
         } catch {}
+      } else {
+        // Handle literal filename
+        const sourceFile = path.join(sourcePath, pattern);
+        const targetFile = path.join(targetPath, pattern);
+        if (fs.existsSync(sourceFile) && !fs.existsSync(targetFile)) {
+          try {
+            fs.copyFileSync(sourceFile, targetFile);
+          } catch {}
+        }
       }
     }
   }

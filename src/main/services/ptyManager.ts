@@ -53,6 +53,7 @@ export function startDirectPty(options: {
   rows?: number;
   autoApprove?: boolean;
   initialPrompt?: string;
+  skipResume?: boolean;
 }): IPty | null {
   const startTime = performance.now();
 
@@ -60,7 +61,16 @@ export function startDirectPty(options: {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
 
-  const { id, providerId, cwd, cols = 120, rows = 32, autoApprove, initialPrompt } = options;
+  const {
+    id,
+    providerId,
+    cwd,
+    cols = 120,
+    rows = 32,
+    autoApprove,
+    initialPrompt,
+    skipResume,
+  } = options;
 
   // Get the CLI path from cache
   const status = providerStatusCache.get(providerId);
@@ -76,6 +86,13 @@ export function startDirectPty(options: {
   const cliArgs: string[] = [];
 
   if (provider) {
+    // Add resume flag FIRST if available (unless skipResume is true)
+    // This enables conversation continuity for Claude, Aider, Codex, Gemini, etc.
+    if (provider.resumeFlag && !skipResume) {
+      const resumeParts = provider.resumeFlag.split(' ');
+      cliArgs.push(...resumeParts);
+    }
+
     // Add default args
     if (provider.defaultArgs?.length) {
       cliArgs.push(...provider.defaultArgs);
