@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
+import type { OpenInAppId } from '../shared/openInApps';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -40,18 +41,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Open a path in a specific app
   openIn: (args: {
-    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
+    app: OpenInAppId;
     path: string;
   }) => ipcRenderer.invoke('app:openIn', args),
 
   // Check which apps are installed
   checkInstalledApps: () =>
-    ipcRenderer.invoke('app:checkInstalledApps') as Promise<
-      Record<
-        'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
-        boolean
-      >
-    >,
+    ipcRenderer.invoke('app:checkInstalledApps') as Promise<Record<OpenInAppId, boolean>>,
 
   // PTY management
   ptyStart: (opts: {
