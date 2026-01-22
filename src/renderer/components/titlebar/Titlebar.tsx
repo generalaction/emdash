@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import {
+  ArrowLeft,
   Command,
   MessageSquare,
   Settings as SettingsIcon,
@@ -14,6 +16,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
 import BrowserToggleButton from './BrowserToggleButton';
+import TitlebarContext from './TitlebarContext';
+import type { Project, Task } from '../../types/app';
 
 interface GithubUser {
   login?: string;
@@ -38,6 +42,64 @@ interface TitlebarProps {
   onToggleEditor?: () => void;
   showEditorButton?: boolean;
   isEditorOpen?: boolean;
+  projects: Project[];
+  selectedProject: Project | null;
+  activeTask: Task | null;
+  onSelectProject: (project: Project) => void;
+  onSelectTask: (task: Task) => void;
+}
+
+interface TitlebarToggleButtonProps {
+  isOpen: boolean;
+  openLabel: string;
+  openIcon: LucideIcon;
+  closedIcon: LucideIcon;
+  ariaLabelOpen: string;
+  ariaLabelClosed: string;
+  onClick: () => void;
+  tooltip: React.ReactNode;
+}
+
+function TitlebarToggleButton({
+  isOpen,
+  openLabel,
+  openIcon: OpenIcon,
+  closedIcon: ClosedIcon,
+  ariaLabelOpen,
+  ariaLabelClosed,
+  onClick,
+  tooltip,
+}: TitlebarToggleButtonProps) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size={isOpen ? 'sm' : 'icon'}
+            aria-label={isOpen ? ariaLabelOpen : ariaLabelClosed}
+            onClick={onClick}
+            className={`h-8 hover:bg-accent hover:text-accent-foreground ${
+              isOpen ? 'gap-1.5 px-2 text-xs font-medium' : 'w-8 text-muted-foreground'
+            }`}
+          >
+            {isOpen ? (
+              <>
+                <OpenIcon className="h-3.5 w-3.5" />
+                <span>{openLabel}</span>
+              </>
+            ) : (
+              <ClosedIcon className="h-4 w-4" />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs font-medium">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 const Titlebar: React.FC<TitlebarProps> = ({
@@ -56,6 +118,11 @@ const Titlebar: React.FC<TitlebarProps> = ({
   onToggleEditor,
   showEditorButton = false,
   isEditorOpen = false,
+  projects,
+  selectedProject,
+  activeTask,
+  onSelectProject,
+  onSelectTask,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -115,70 +182,67 @@ const Titlebar: React.FC<TitlebarProps> = ({
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background">
+        <div className="pointer-events-none absolute inset-x-0 flex justify-center">
+          <div className="w-[min(60vw,720px)]">
+            <TitlebarContext
+              projects={projects}
+              selectedProject={selectedProject}
+              activeTask={activeTask}
+              onSelectProject={onSelectProject}
+              onSelectTask={onSelectTask}
+            />
+          </div>
+        </div>
         <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
           {currentPath ? <OpenInMenu path={currentPath} align="right" /> : null}
           {showEditorButton ? (
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={isEditorOpen ? 'Close Editor' : 'Open Editor'}
-                    onClick={async () => {
-                      void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-                        captureTelemetry('toolbar_editor_clicked', {
-                          action: isEditorOpen ? 'close' : 'open',
-                        });
-                      });
-                      onToggleEditor?.();
-                    }}
-                    className="h-8 w-8 text-muted-foreground hover:bg-background/80"
-                  >
-                    <Code2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs font-medium">
-                  <div className="flex flex-col gap-1">
-                    <span>{isEditorOpen ? 'Close Editor' : 'Open Editor'}</span>
-                    <ShortcutHint settingsKey="toggleEditor" />
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <TitlebarToggleButton
+              isOpen={isEditorOpen}
+              openLabel="Home"
+              openIcon={ArrowLeft}
+              closedIcon={Code2}
+              ariaLabelOpen="Back to Home"
+              ariaLabelClosed="Open Editor"
+              onClick={() => {
+                void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+                  captureTelemetry('toolbar_editor_clicked', {
+                    action: isEditorOpen ? 'close' : 'open',
+                  });
+                });
+                onToggleEditor?.();
+              }}
+              tooltip={
+                <div className="flex flex-col gap-1">
+                  <span>{isEditorOpen ? 'Home' : 'Open Editor'}</span>
+                  <ShortcutHint settingsKey="toggleEditor" />
+                </div>
+              }
+            />
           ) : null}
           {kanbanAvailable ? (
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Toggle Kanban view"
-                    onClick={async () => {
-                      const newState = !isKanbanOpen;
-                      void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-                        captureTelemetry('toolbar_kanban_toggled', {
-                          state: newState ? 'open' : 'closed',
-                        });
-                      });
-                      onToggleKanban?.();
-                    }}
-                    className="h-8 w-8 text-muted-foreground hover:bg-background/80"
-                  >
-                    <KanbanSquare className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs font-medium">
-                  <div className="flex flex-col gap-1">
-                    <span>Toggle Kanban view</span>
-                    <ShortcutHint settingsKey="toggleKanban" />
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <TitlebarToggleButton
+              isOpen={isKanbanOpen}
+              openLabel="Home"
+              openIcon={ArrowLeft}
+              closedIcon={KanbanSquare}
+              ariaLabelOpen="Back to Home"
+              ariaLabelClosed="Toggle Kanban view"
+              onClick={() => {
+                const newState = !isKanbanOpen;
+                void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+                  captureTelemetry('toolbar_kanban_toggled', {
+                    state: newState ? 'open' : 'closed',
+                  });
+                });
+                onToggleKanban?.();
+              }}
+              tooltip={
+                <div className="flex flex-col gap-1">
+                  <span>{isKanbanOpen ? 'Home' : 'Toggle Kanban view'}</span>
+                  <ShortcutHint settingsKey="toggleKanban" />
+                </div>
+              }
+            />
           ) : null}
           {taskId && !isTaskMultiAgent ? (
             <BrowserToggleButton

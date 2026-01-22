@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { getMainWindow } from '../app/window';
+import { errorTracking } from '../errorTracking';
 
 const execAsync = promisify(exec);
 const DEFAULT_REMOTE = 'origin';
@@ -73,6 +74,10 @@ export function registerProjectIpc() {
       return { success: true, path: projectPath };
     } catch (error) {
       console.error('Failed to open project:', error);
+
+      // Track project open errors
+      await errorTracking.captureProjectError(error, 'open');
+
       return { success: false, error: 'Failed to open project directory' };
     }
   });

@@ -33,7 +33,7 @@ export interface TerminalSessionOptions {
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
-  deferSpawn?: boolean; // If true, delays PTY spawn until browser is idle
+  disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
 }
 
@@ -179,25 +179,11 @@ export class TerminalSessionManager {
       () => resizeDisposable.dispose()
     );
 
-    const terminalSetupTime = performance.now() - this.initStartTime;
-    log.info('terminalSession:setup timing', {
-      id: this.id,
-      setupMs: Math.round(terminalSetupTime),
-    });
-
-    void this.restoreSnapshot().finally(() => {
-      if (this.options.deferSpawn) {
-        // Defer PTY spawn until browser is idle (lower priority than active work)
-        if ('requestIdleCallback' in window) {
-          (window as any).requestIdleCallback(() => this.connectPty(), { timeout: 2000 });
-        } else {
-          setTimeout(() => this.connectPty(), 100);
-        }
-      } else {
-        this.connectPty();
-      }
-    });
-    this.startSnapshotTimer();
+    void this.restoreSnapshot().finally(() => this.connectPty());
+    // Only start snapshot timer if snapshots are enabled (main chats only)
+    if (!this.options.disableSnapshots) {
+      this.startSnapshotTimer();
+    }
   }
 
   attach(container: HTMLElement) {
@@ -250,7 +236,10 @@ export class TerminalSessionManager {
       this.resizeObserver = null;
       ensureTerminalHost().appendChild(this.container);
       this.attachedContainer = null;
-      void this.captureSnapshot('detach');
+      // Only capture snapshot on detach if snapshots are enabled
+      if (!this.options.disableSnapshots) {
+        void this.captureSnapshot('detach');
+      }
     }
   }
 
@@ -263,7 +252,10 @@ export class TerminalSessionManager {
     this.disposed = true;
     this.detach();
     this.stopSnapshotTimer();
-    void this.captureSnapshot('dispose');
+    // Only capture final snapshot if snapshots are enabled
+    if (!this.options.disableSnapshots) {
+      void this.captureSnapshot('dispose');
+    }
     // Clean up stored viewport position when session is disposed
     viewportPositions.delete(this.id);
     try {
@@ -287,6 +279,7 @@ export class TerminalSessionManager {
   }
 
   focus() {
+    // Simply focus the xterm terminal - let React handle DOM management
     this.terminal.focus();
   }
 
@@ -566,11 +559,15 @@ export class TerminalSessionManager {
 
   /**
    * Check if this terminal ID is a provider CLI that supports native resume.
-   * Provider CLIs use the format: `${provider}-main-${taskId}`
+   * Provider CLIs use the format:
+   * - `${provider}-main-${taskId}` for main task terminals
+   * - `${provider}-chat-${conversationId}` for chat-specific terminals
    * If the provider has a resumeFlag, we skip snapshot restoration to avoid duplicate history.
    */
   private isProviderWithResume(id: string): boolean {
-    const match = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+    const mainMatch = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
+    const chatMatch = /^([a-z0-9_-]+)-chat-(.+)$/.exec(id);
+    const match = mainMatch || chatMatch;
     if (!match) return false;
     const providerId = match[1] as ProviderId;
     if (!PROVIDER_IDS.includes(providerId)) return false;
@@ -582,6 +579,12 @@ export class TerminalSessionManager {
     const restoreStart = performance.now();
     if (!window.electronAPI.ptyGetSnapshot) {
       this.snapshotRestoreTime = performance.now() - restoreStart;
+      return;
+    }
+
+    // Skip snapshot restoration for non-main chats
+    if (this.options.disableSnapshots) {
+      log.debug('terminalSession:skippingSnapshotForNonMainChat', { id: this.id });
       return;
     }
 
@@ -637,6 +640,8 @@ export class TerminalSessionManager {
   private captureSnapshot(reason: 'interval' | 'detach' | 'dispose'): Promise<void> {
     if (!window.electronAPI.ptySaveSnapshot) return Promise.resolve();
     if (this.disposed) return Promise.resolve();
+    // Skip snapshots for non-main chats
+    if (this.options.disableSnapshots) return Promise.resolve();
     if (reason === 'detach' && this.lastSnapshotReason === 'detach' && this.lastSnapshotAt) {
       const elapsed = Date.now() - this.lastSnapshotAt;
       if (elapsed < 1500) return Promise.resolve();

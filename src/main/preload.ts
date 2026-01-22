@@ -188,6 +188,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:get-file-diff', args),
   stageFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:stage-file', args),
+  unstageFile: (args: { taskPath: string; filePath: string }) =>
+    ipcRenderer.invoke('git:unstage-file', args),
   revertFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
   gitCommitAndPush: (args: {
@@ -211,6 +213,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrStatus: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
   getBranchStatus: (args: { taskPath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
+  renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) =>
+    ipcRenderer.invoke('git:rename-branch', args),
   listRemoteBranches: (args: { projectPath: string; remote?: string }) =>
     ipcRenderer.invoke('git:list-remote-branches', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
@@ -340,6 +344,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (conversationId: string) => ipcRenderer.invoke('db:getMessages', conversationId),
   deleteConversation: (conversationId: string) =>
     ipcRenderer.invoke('db:deleteConversation', conversationId),
+  cleanupSessionDirectory: (args: { taskPath: string; conversationId: string }) =>
+    ipcRenderer.invoke('db:cleanupSessionDirectory', args),
+
+  // Multi-chat support
+  createConversation: (params: { taskId: string; title: string; provider?: string }) =>
+    ipcRenderer.invoke('db:createConversation', params),
+  setActiveConversation: (params: { taskId: string; conversationId: string }) =>
+    ipcRenderer.invoke('db:setActiveConversation', params),
+  getActiveConversation: (taskId: string) => ipcRenderer.invoke('db:getActiveConversation', taskId),
+  reorderConversations: (params: { taskId: string; conversationIds: string[] }) =>
+    ipcRenderer.invoke('db:reorderConversations', params),
+  updateConversationTitle: (params: { conversationId: string; title: string }) =>
+    ipcRenderer.invoke('db:updateConversationTitle', params),
 
   // Line comments management
   lineCommentsCreate: (input: any) => ipcRenderer.invoke('lineComments:create', input),
@@ -662,6 +679,32 @@ export interface ElectronAPI {
     conversationId: string
   ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
   deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
+  cleanupSessionDirectory: (args: {
+    taskPath: string;
+    conversationId: string;
+  }) => Promise<{ success: boolean }>;
+
+  // Multi-chat support
+  createConversation: (params: {
+    taskId: string;
+    title: string;
+    provider?: string;
+  }) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+  setActiveConversation: (params: {
+    taskId: string;
+    conversationId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  getActiveConversation: (
+    taskId: string
+  ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
+  reorderConversations: (params: {
+    taskId: string;
+    conversationIds: string[];
+  }) => Promise<{ success: boolean; error?: string }>;
+  updateConversationTitle: (params: {
+    conversationId: string;
+    title: string;
+  }) => Promise<{ success: boolean; error?: string }>;
 
   // Host preview (non-container)
   hostPreviewStart: (args: {

@@ -21,7 +21,7 @@ const SidebarEmptyState: React.FC<Props> = ({
   onSecondaryAction,
 }) => {
   return (
-    <div>
+    <div className="min-w-0 overflow-hidden">
       <Card className="bg-muted/20">
         <CardHeader className="py-3 sm:py-4">
           <CardTitle className="text-base leading-tight">{title}</CardTitle>

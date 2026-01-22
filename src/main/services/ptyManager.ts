@@ -1,8 +1,11 @@
 import os from 'os';
+import fs from 'fs';
+import path from 'path';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';
 import { providerStatusCache } from './providerStatusCache';
+import { errorTracking } from '../errorTracking';
 
 type PtyRecord = {
   id: string;
@@ -157,7 +160,7 @@ function getDefaultShell(): string {
   return process.env.SHELL || '/bin/bash';
 }
 
-export function startPty(options: {
+export async function startPty(options: {
   id: string;
   cwd?: string;
   shell?: string;
@@ -167,7 +170,7 @@ export function startPty(options: {
   autoApprove?: boolean;
   initialPrompt?: string;
   skipResume?: boolean;
-}): IPty {
+}): Promise<IPty> {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
@@ -350,6 +353,14 @@ export function startPty(options: {
       env: useEnv,
     });
   } catch (err: any) {
+    // Track initial spawn error
+    const provider = args.find((arg) => PROVIDERS.some((p) => p.cli === arg));
+    await errorTracking.captureAgentSpawnError(err, shell || 'unknown', id, {
+      cwd: useCwd,
+      args: args.join(' '),
+      provider: provider || undefined,
+    });
+
     try {
       const fallbackShell = getDefaultShell();
       proc = pty.spawn(fallbackShell, [], {
@@ -360,6 +371,14 @@ export function startPty(options: {
         env: useEnv,
       });
     } catch (err2: any) {
+      // Track the fallback spawn error as critical
+      await errorTracking.captureCriticalError(err2, {
+        operation: 'pty_spawn_fallback',
+        service: 'ptyManager',
+        error_type: 'spawn_error',
+        shell: getDefaultShell(),
+        original_error: err?.message,
+      });
       throw new Error(`PTY spawn failed: ${err2?.message || err?.message || String(err2 || err)}`);
     }
   }

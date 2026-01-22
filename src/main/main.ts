@@ -91,6 +91,7 @@ import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
 import * as telemetry from './telemetry';
+import { errorTracking } from './errorTracking';
 import { join } from 'path';
 
 // Set app name for macOS dock and menu bar
@@ -151,6 +152,10 @@ app.whenReady().then(async () => {
 
   // Initialize telemetry (privacy-first, with optional GitHub username)
   await telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
+
+  // Initialize error tracking
+  await errorTracking.init();
+
   try {
     const summary = databaseService.getLastMigrationSummary();
     const toBucket = (n: number) => (n === 0 ? '0' : n === 1 ? '1' : n <= 3 ? '2-3' : '>3');

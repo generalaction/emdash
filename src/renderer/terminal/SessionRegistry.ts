@@ -17,7 +17,7 @@ interface AttachOptions {
   theme: SessionTheme;
   autoApprove?: boolean;
   initialPrompt?: string;
-  deferSpawn?: boolean; // If true, delays PTY spawn until browser is idle
+  disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
 }
 
@@ -68,7 +68,7 @@ class SessionRegistry {
       telemetry: null,
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
-      deferSpawn: options.deferSpawn,
+      disableSnapshots: options.disableSnapshots,
       onLinkClick: options.onLinkClick,
     };
 

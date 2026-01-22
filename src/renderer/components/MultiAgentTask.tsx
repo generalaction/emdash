@@ -347,16 +347,22 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     activityStore.setTaskBusy(task.id, anyBusy);
   }, [variantBusy, task.id]);
 
-  // Scroll to bottom when active tab changes
+  // Ref to the active terminal
+  const activeTerminalRef = useRef<{ focus: () => void }>(null);
+
+  // Auto-scroll and focus when task or active tab changes
   useEffect(() => {
     if (variants.length > 0 && activeTabIndex >= 0 && activeTabIndex < variants.length) {
       // Small delay to ensure the tab content is rendered
       const timeout = setTimeout(() => {
         scrollToBottom({ onlyIfNearTop: true });
+        // Focus the active terminal when switching tabs
+        activeTerminalRef.current?.focus();
       }, 150);
+
       return () => clearTimeout(timeout);
     }
-  }, [activeTabIndex, variants.length, scrollToBottom]);
+  }, [task.id, activeTabIndex, variants.length, scrollToBottom]);
 
   if (!multi?.enabled || variants.length === 0) {
     return (
@@ -439,6 +445,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                   }`}
                 >
                   <TerminalPane
+                    ref={isActive ? activeTerminalRef : undefined}
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     providerId={v.provider}
