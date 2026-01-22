@@ -199,20 +199,6 @@ export function registerPtyIpc(): void {
             initialPrompt,
             skipResume: shouldSkipResume,
           }));
-        const envKeys = env ? Object.keys(env) : [];
-        log.debug('pty:start OK', {
-          id,
-          cwd,
-          shell,
-          cols,
-          rows,
-          autoApprove,
-          skipResumeRequested: skipResume,
-          skipResumeActual: shouldSkipResume,
-          isAdditionalChat,
-          reused: !!existing,
-          envKeys,
-        });
         const wc = event.sender;
         owners.set(id, wc);
 
@@ -379,6 +365,10 @@ export function registerPtyIpc(): void {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        // E2E timing
+        taskCreateStartTime?: number;
+        worktreeMs?: number;
+        worktreeMethod?: string;
       }
     ) => {
       if (process.env.EMDASH_DISABLE_PTY === '1') {

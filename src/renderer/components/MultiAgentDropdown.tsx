@@ -2,87 +2,86 @@ import React, { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Info, ExternalLink } from 'lucide-react';
-import { type Provider } from '../types';
-import { type ProviderRun } from '../types/chat';
-import { providerConfig } from '../lib/providerConfig';
-import { ProviderInfoCard } from './ProviderInfoCard';
-import type { UiProvider } from '@/providers/meta';
+import { type Agent } from '../types';
+import { type AgentRun } from '../types/chat';
+import { agentConfig } from '../lib/agentConfig';
+import { AgentInfoCard } from './AgentInfoCard';
+import type { UiAgent } from '@/providers/meta';
 
 const MAX_RUNS = 4;
 
-interface MultiProviderDropdownProps {
-  providerRuns: ProviderRun[];
-  onChange: (providerRuns: ProviderRun[]) => void;
-  defaultProvider?: Provider;
+interface MultiAgentDropdownProps {
+  agentRuns: AgentRun[];
+  onChange: (agentRuns: AgentRun[]) => void;
+  defaultAgent?: Agent;
   className?: string;
-  disabledProviders?: string[];
+  disabledAgents?: string[];
 }
 
-export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
-  providerRuns,
+export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
+  agentRuns,
   onChange,
-  defaultProvider = 'claude',
+  defaultAgent = 'claude',
   className = '',
-  disabledProviders = [],
+  disabledAgents = [],
 }) => {
-  // Sort providers with default provider first
-  const sortedProviders = Object.entries(providerConfig).sort(([keyA], [keyB]) => {
-    if (keyA === defaultProvider) return -1;
-    if (keyB === defaultProvider) return 1;
+  // Sort agents with default agent first
+  const sortedAgents = Object.entries(agentConfig).sort(([keyA], [keyB]) => {
+    if (keyA === defaultAgent) return -1;
+    if (keyB === defaultAgent) return 1;
     return 0;
   });
   const [open, setOpen] = useState(false);
-  const [hoveredProvider, setHoveredProvider] = useState<Provider | null>(null);
-  const [runsSelectOpenFor, setRunsSelectOpenFor] = useState<Provider | null>(null);
+  const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null);
+  const [runsSelectOpenFor, setRunsSelectOpenFor] = useState<Agent | null>(null);
 
-  const selectedProviders = new Set(providerRuns.map((pr) => pr.provider));
+  const selectedAgents = new Set(agentRuns.map((ar) => ar.agent));
 
   // Checkbox: always add/remove (multi-select)
-  const toggleProvider = (provider: Provider) => {
-    // Don't allow toggling disabled providers
-    if (disabledProviders.includes(provider)) return;
+  const toggleAgent = (agent: Agent) => {
+    // Don't allow toggling disabled agents
+    if (disabledAgents.includes(agent)) return;
 
-    if (selectedProviders.has(provider)) {
-      if (providerRuns.length > 1) {
-        onChange(providerRuns.filter((pr) => pr.provider !== provider));
+    if (selectedAgents.has(agent)) {
+      if (agentRuns.length > 1) {
+        onChange(agentRuns.filter((ar) => ar.agent !== agent));
       }
     } else {
-      onChange([...providerRuns, { provider, runs: 1 }]);
+      onChange([...agentRuns, { agent, runs: 1 }]);
     }
   };
 
   // Row click: switch when single, add when multiple
-  const handleRowClick = (provider: Provider) => {
-    // Don't allow selecting disabled providers
-    if (disabledProviders.includes(provider)) return;
-
-    if (selectedProviders.has(provider)) return;
-    if (providerRuns.length === 1) {
-      onChange([{ provider, runs: 1 }]);
+  const handleRowClick = (agent: Agent) => {
+    // Don't allow clicking disabled agents
+    if (disabledAgents.includes(agent)) return;
+    if (selectedAgents.has(agent)) return;
+    if (agentRuns.length === 1) {
+      onChange([{ agent, runs: 1 }]);
     } else {
-      onChange([...providerRuns, { provider, runs: 1 }]);
+      onChange([...agentRuns, { agent, runs: 1 }]);
     }
   };
 
-  const updateRuns = (provider: Provider, runs: number) => {
-    onChange(providerRuns.map((pr) => (pr.provider === provider ? { ...pr, runs } : pr)));
+  const updateRuns = (agent: Agent, runs: number) => {
+    onChange(agentRuns.map((ar) => (ar.agent === agent ? { ...ar, runs } : ar)));
   };
 
-  const getProviderRuns = (provider: Provider): number => {
-    return providerRuns.find((pr) => pr.provider === provider)?.runs ?? 1;
+  const getAgentRuns = (agent: Agent): number => {
+    return agentRuns.find((ar) => ar.agent === agent)?.runs ?? 1;
   };
 
   // Build trigger text: "Cursor, Gemini (2x), ..." - only show runs if >1
-  const triggerText = providerRuns
-    .map((pr) => {
-      const name = providerConfig[pr.provider]?.name;
-      return pr.runs > 1 ? `${name} (${pr.runs}x)` : name;
+  const triggerText = agentRuns
+    .map((ar) => {
+      const name = agentConfig[ar.agent]?.name;
+      return ar.runs > 1 ? `${name} (${ar.runs}x)` : name;
     })
     .join(', ');
 
-  // Show logo only when single provider selected
-  const singleProvider = providerRuns.length === 1 ? providerRuns[0] : null;
-  const singleProviderConfig = singleProvider ? providerConfig[singleProvider.provider] : null;
+  // Show logo only when single agent selected
+  const singleAgent = agentRuns.length === 1 ? agentRuns[0] : null;
+  const singleAgentConfig = singleAgent ? agentConfig[singleAgent.agent] : null;
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -91,7 +90,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
         onOpenChange={(isOpen) => {
           setOpen(isOpen);
           if (!isOpen) {
-            setHoveredProvider(null);
+            setHoveredAgent(null);
             setRunsSelectOpenFor(null);
           }
         }}
@@ -100,11 +99,11 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
           className={`flex h-9 w-full items-center justify-between border-none bg-muted px-3 text-sm ${className}`}
         >
           <div className="flex min-w-0 items-center gap-2">
-            {singleProviderConfig && (
+            {singleAgentConfig && (
               <img
-                src={singleProviderConfig.logo}
-                alt={singleProviderConfig.alt}
-                className={`h-4 w-4 flex-shrink-0 rounded-sm ${singleProviderConfig.invertInDark ? 'dark:invert' : ''}`}
+                src={singleAgentConfig.logo}
+                alt={singleAgentConfig.alt}
+                className={`h-4 w-4 flex-shrink-0 rounded-sm ${singleAgentConfig.invertInDark ? 'dark:invert' : ''}`}
               />
             )}
             <span className="truncate">{triggerText}</span>
@@ -115,27 +114,27 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
           className="z-[1000] max-h-80 w-[var(--radix-select-trigger-width)] overflow-y-auto p-1"
         >
           <TooltipProvider delayDuration={150}>
-            {sortedProviders.map(([key, config]) => {
-              const provider = key as Provider;
-              const isSelected = selectedProviders.has(provider);
-              const isLastSelected = isSelected && providerRuns.length === 1;
-              const isDisabled = disabledProviders.includes(provider);
+            {sortedAgents.map(([key, config]) => {
+              const agent = key as Agent;
+              const isSelected = selectedAgents.has(agent);
+              const isLastSelected = isSelected && agentRuns.length === 1;
+              const isDisabled = disabledAgents.includes(agent);
 
               return !isDisabled ? (
-                <ProviderTooltipRow
+                <AgentTooltipRow
                   key={key}
-                  id={provider as UiProvider}
-                  isHovered={hoveredProvider === provider || runsSelectOpenFor === provider}
-                  onHover={() => setHoveredProvider(provider)}
+                  id={agent as UiAgent}
+                  isHovered={hoveredAgent === agent || runsSelectOpenFor === agent}
+                  onHover={() => setHoveredAgent(agent)}
                   onLeave={() => {
-                    if (runsSelectOpenFor !== provider) {
-                      setHoveredProvider(null);
+                    if (runsSelectOpenFor !== agent) {
+                      setHoveredAgent(null);
                     }
                   }}
                 >
                   <div
                     className="flex h-8 cursor-pointer items-center justify-between rounded-sm px-2 hover:bg-accent"
-                    onClick={() => handleRowClick(provider)}
+                    onClick={() => handleRowClick(agent)}
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <input
@@ -144,7 +143,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                         disabled={isLastSelected}
                         onChange={(e) => {
                           e.stopPropagation();
-                          toggleProvider(provider);
+                          toggleAgent(agent);
                         }}
                         onClick={(e) => e.stopPropagation()}
                         className="h-4 w-4 cursor-pointer"
@@ -159,10 +158,10 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                     {isSelected && (
                       <div className="flex items-center gap-1">
                         <Select
-                          value={String(getProviderRuns(provider))}
-                          onValueChange={(v) => updateRuns(provider, parseInt(v, 10))}
+                          value={String(getAgentRuns(agent))}
+                          onValueChange={(v) => updateRuns(agent, parseInt(v, 10))}
                           onOpenChange={(isSelectOpen) => {
-                            setRunsSelectOpenFor(isSelectOpen ? provider : null);
+                            setRunsSelectOpenFor(isSelectOpen ? agent : null);
                           }}
                         >
                           <SelectTrigger
@@ -207,9 +206,9 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                       </div>
                     )}
                   </div>
-                </ProviderTooltipRow>
+                </AgentTooltipRow>
               ) : (
-                /* Disabled providers with tooltip */
+                /* Disabled agents with tooltip */
                 <Tooltip key={key}>
                   <TooltipTrigger asChild>
                     <div className="flex h-8 cursor-not-allowed items-center justify-between rounded-sm px-2 opacity-50">
@@ -233,7 +232,7 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="z-[10000]" style={{ zIndex: 10000 }}>
-                    <p className="text-xs">This provider already has an active chat in this task</p>
+                    <p className="text-xs">This agent already has an active chat in this task</p>
                   </TooltipContent>
                 </Tooltip>
               );
@@ -245,8 +244,8 @@ export const MultiProviderDropdown: React.FC<MultiProviderDropdownProps> = ({
   );
 };
 
-const ProviderTooltipRow: React.FC<{
-  id: UiProvider;
+const AgentTooltipRow: React.FC<{
+  id: UiAgent;
   children: React.ReactElement;
   isHovered: boolean;
   onHover: () => void;
@@ -271,10 +270,10 @@ const ProviderTooltipRow: React.FC<{
         onPointerEnter={onHover}
         onPointerLeave={onLeave}
       >
-        <ProviderInfoCard id={id} />
+        <AgentInfoCard id={id} />
       </TooltipContent>
     </Tooltip>
   );
 };
 
-export default MultiProviderDropdown;
+export default MultiAgentDropdown;

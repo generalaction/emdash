@@ -18,11 +18,11 @@ import clineLogo from '../../assets/images/cline.png';
 import continueLogo from '../../assets/images/continue.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
-import type { UiProvider } from './meta';
+import type { UiAgent } from './meta';
 
-export type ProviderAsset = { logo: string; alt: string; invertInDark?: boolean; name: string };
+export type AgentAsset = { logo: string; alt: string; invertInDark?: boolean; name: string };
 
-export const providerAssets: Record<UiProvider, ProviderAsset> = {
+export const agentAssets: Record<UiAgent, AgentAsset> = {
   codex: { name: 'OpenAI', logo: openaiLogo, alt: 'Codex', invertInDark: true },
   qwen: { name: 'Qwen Code', logo: qwenLogo, alt: 'Qwen Code CLI' },
   claude: { name: 'Anthropic', logo: claudeLogo, alt: 'Claude Code' },

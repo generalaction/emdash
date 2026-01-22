@@ -1,12 +1,12 @@
 import React from 'react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
-import { providerAssets } from '../../providers/assets';
-import { providerMeta, type UiProvider } from '../../providers/meta';
+import { agentAssets } from '../../providers/assets';
+import { agentMeta, type UiAgent } from '../../providers/meta';
 import { GitBranch } from 'lucide-react';
 
-type ProviderTooltipProps = {
-  providers: UiProvider[];
-  adminProvider?: UiProvider | null;
+type AgentTooltipProps = {
+  agents: UiAgent[];
+  adminAgent?: UiAgent | null;
   side?: 'top' | 'bottom' | 'left' | 'right';
   delay?: number;
   children: React.ReactNode;
@@ -14,9 +14,9 @@ type ProviderTooltipProps = {
   taskName?: string;
 };
 
-export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
-  providers,
-  adminProvider = null,
+export const AgentTooltip: React.FC<AgentTooltipProps> = ({
+  agents,
+  adminAgent = null,
   side = 'top',
   delay = 150,
   children,
@@ -25,14 +25,14 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
 }) => {
   const items = React.useMemo(() => {
     const seen = new Set<string>();
-    const ids = (Array.isArray(providers) ? providers : []).filter(Boolean);
+    const ids = (Array.isArray(agents) ? agents : []).filter(Boolean);
     return ids
       .map((id) => {
-        const meta = providerMeta[id as UiProvider];
-        const asset = providerAssets[id as UiProvider];
+        const meta = agentMeta[id as UiAgent];
+        const asset = agentAssets[id as UiAgent];
         const label = meta?.label || asset?.name || String(id);
         return {
-          id: id as UiProvider,
+          id: id as UiAgent,
           label,
           logo: asset?.logo,
           invert: !!asset?.invertInDark,
@@ -44,14 +44,14 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
         seen.add(x.label);
         return true;
       });
-  }, [providers]);
+  }, [agents]);
 
   const adminLabel = React.useMemo(() => {
-    if (!adminProvider) return null;
-    const meta = providerMeta[adminProvider as UiProvider];
-    const asset = providerAssets[adminProvider as UiProvider];
-    return meta?.label || asset?.name || String(adminProvider);
-  }, [adminProvider]);
+    if (!adminAgent) return null;
+    const meta = agentMeta[adminAgent as UiAgent];
+    const asset = agentAssets[adminAgent as UiAgent];
+    return meta?.label || asset?.name || String(adminAgent);
+  }, [adminAgent]);
 
   // Diff summary state
   const [open, setOpen] = React.useState(false);
@@ -179,4 +179,4 @@ export const ProviderTooltip: React.FC<ProviderTooltipProps> = ({
   );
 };
 
-export default ProviderTooltip;
+export default AgentTooltip;

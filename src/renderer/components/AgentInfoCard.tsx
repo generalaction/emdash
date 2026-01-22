@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { type UiProvider } from '@/providers/meta';
-import { providerAssets } from '@/providers/assets';
+import { type UiAgent } from '@/providers/meta';
+import { agentAssets } from '@/providers/assets';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import { Button } from './ui/button';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
 
-export type ProviderInfo = {
+export type AgentInfo = {
   title: string;
   description?: string;
   knowledgeCutoff?: string;
@@ -14,11 +14,11 @@ export type ProviderInfo = {
   installCommand?: string;
 };
 
-export const providerInfo: Record<UiProvider, ProviderInfo> = {
+export const agentInfo: Record<UiAgent, AgentInfo> = {
   codex: {
     title: 'Codex',
     description:
-      'CLI that connects to OpenAI models for project‑aware code assistance and terminal workflows.',
+      'CLI that connects to OpenAI models for project-aware code assistance and terminal workflows.',
   },
   claude: {
     title: 'Claude Code',
@@ -28,21 +28,21 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
   qwen: {
     title: 'Qwen Code',
     description:
-      'Command‑line interface to Alibaba’s Qwen Code models for coding assistance and code completion.',
+      "Command-line interface to Alibaba's Qwen Code models for coding assistance and code completion.",
   },
   droid: {
     title: 'Droid',
-    description: 'Factory AI’s agent CLI for running multi‑step coding tasks from the terminal.',
+    description: "Factory AI's agent CLI for running multi-step coding tasks from the terminal.",
   },
   gemini: {
     title: 'Gemini',
     description:
-      'CLI that uses Google Gemini models to assist with coding, reasoning, and command‑line tasks.',
+      'CLI that uses Google Gemini models to assist with coding, reasoning, and command-line tasks.',
   },
   cursor: {
     title: 'Cursor',
     description:
-      'Cursor’s agent CLI; provides editor‑style, project‑aware assistance from the shell.',
+      "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
   },
   copilot: {
     title: 'GitHub Copilot',
@@ -61,7 +61,7 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
   },
   charm: {
     title: 'Charm',
-    description: 'Charm Crush agent CLI providing terminal‑first AI assistance for coding tasks.',
+    description: 'Charm Crush agent CLI providing terminal-first AI assistance for coding tasks.',
   },
   auggie: {
     title: 'Auggie',
@@ -75,7 +75,7 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
   kimi: {
     title: 'Kimi',
     description:
-      'Kimi CLI by Moonshot AI — a shell-like coding agent with raw shell execution, Zsh integration, ACP and MCP support (technical preview).',
+      'Kimi CLI by Moonshot AI - a shell-like coding agent with raw shell execution, Zsh integration, ACP and MCP support (technical preview).',
     hostingNote: 'macOS/Linux only; first run on macOS may take ~10s due to security checks.',
   },
   kilocode: {
@@ -86,7 +86,7 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
   kiro: {
     title: 'Kiro',
     description:
-      'Kiro CLI by Amazon Web Services — interactive, terminal-first AI development assistant with MCP integrations and workflow automation.',
+      'Kiro CLI by Amazon Web Services - interactive, terminal-first AI development assistant with MCP integrations and workflow automation.',
   },
   rovo: {
     title: 'Rovo Dev',
@@ -116,12 +116,12 @@ export const providerInfo: Record<UiProvider, ProviderInfo> = {
 };
 
 type Props = {
-  id: UiProvider;
+  id: UiAgent;
 };
 
-export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
-  const info = providerInfo[id];
-  const asset = providerAssets[id];
+export const AgentInfoCard: React.FC<Props> = ({ id }) => {
+  const info = agentInfo[id];
+  const asset = agentAssets[id];
   const logo = asset.logo;
   const brand = asset.name;
   const installCommand =
@@ -238,4 +238,4 @@ export const ProviderInfoCard: React.FC<Props> = ({ id }) => {
   );
 };
 
-export default ProviderInfoCard;
+export default AgentInfoCard;

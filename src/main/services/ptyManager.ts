@@ -53,7 +53,6 @@ export function startDirectPty(options: {
   rows?: number;
   autoApprove?: boolean;
   initialPrompt?: string;
-  skipResume?: boolean;
 }): IPty | null {
   const startTime = performance.now();
 
@@ -61,16 +60,7 @@ export function startDirectPty(options: {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
 
-  const {
-    id,
-    providerId,
-    cwd,
-    cols = 120,
-    rows = 32,
-    autoApprove,
-    initialPrompt,
-    skipResume,
-  } = options;
+  const { id, providerId, cwd, cols = 120, rows = 32, autoApprove, initialPrompt } = options;
 
   // Get the CLI path from cache
   const status = providerStatusCache.get(providerId);
@@ -86,49 +76,9 @@ export function startDirectPty(options: {
   const cliArgs: string[] = [];
 
   if (provider) {
-    // Add resume flag FIRST if available (unless skipResume is true)
-    // This enables conversation continuity for Claude, Aider, Codex, Gemini, etc.
-    // But only if a session actually exists - otherwise the CLI may fail/exit immediately
-    let shouldAddResumeFlag = provider.resumeFlag && !skipResume;
-
-    if (shouldAddResumeFlag && (providerId === 'claude' || providerId === 'aider')) {
-      // Check if session exists before adding resume flag
-      const os = require('os');
-      const crypto = require('crypto');
-      const projectsDir = path.join(os.homedir(), '.claude', 'projects');
-
-      if (fs.existsSync(projectsDir)) {
-        // Check various Claude session directory naming schemes
-        const cwdHash = crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-        const pathBasedName = cwd.replace(/\//g, '-');
-        const cwdParts = cwd.split('/').filter((p: string) => p.length > 0);
-        const lastParts = cwdParts.slice(-3).join('-');
-
-        let sessionExists = false;
-        try {
-          const dirs = fs.readdirSync(projectsDir);
-          sessionExists = dirs.some(
-            (dir: string) =>
-              dir === cwdHash ||
-              dir === pathBasedName ||
-              dir.includes(lastParts)
-          );
-        } catch {}
-
-        if (!sessionExists) {
-          shouldAddResumeFlag = false;
-          log.debug('ptyManager:directSpawn - no session found, skipping resume flag', { providerId, cwd });
-        }
-      } else {
-        // No projects directory = no sessions
-        shouldAddResumeFlag = false;
-      }
-    }
-
-    if (shouldAddResumeFlag && provider.resumeFlag) {
-      const resumeParts = provider.resumeFlag.split(' ');
-      cliArgs.push(...resumeParts);
-    }
+    // NOTE: We intentionally skip resume flag for direct spawn.
+    // Resume is handled by shell-based spawn which has session existence checks.
+    // Direct spawn is used for fresh task creation where there's no session to resume.
 
     // Add default args
     if (provider.defaultArgs?.length) {
@@ -193,6 +143,16 @@ export function startDirectPty(options: {
 
   // Store record with cwd for shell respawn after CLI exits
   ptys.set(id, { id, proc, cwd, isDirectSpawn: true });
+
+  // Track time to first data (CLI ready)
+  let firstDataLogged = false;
+  proc.onData(() => {
+    if (!firstDataLogged) {
+      firstDataLogged = true;
+      const readyMs = performance.now() - startTime;
+      console.log(`[E2E] ${providerId} CLI ready: ${Math.round(readyMs)}ms`);
+    }
+  });
 
   // When CLI exits, spawn a shell so user can continue working
   proc.onExit(() => {

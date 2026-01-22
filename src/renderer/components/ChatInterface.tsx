@@ -4,12 +4,12 @@ import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
-import { providerMeta } from '../providers/meta';
-import { providerConfig } from '../lib/providerConfig';
-import ProviderDisplay from './ProviderDisplay';
+import { agentMeta } from '../providers/meta';
+import { agentConfig } from '../lib/agentConfig';
+import AgentDisplay from './AgentDisplay';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
-import { type Provider } from '../types';
+import { type Agent } from '../types';
 import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
@@ -30,23 +30,23 @@ interface Props {
   task: Task;
   projectName: string;
   className?: string;
-  initialProvider?: Provider;
+  initialAgent?: Agent;
 }
 
 const ChatInterface: React.FC<Props> = ({
   task,
   projectName: _projectName,
   className,
-  initialProvider,
+  initialAgent,
 }) => {
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
-  const [isProviderInstalled, setIsProviderInstalled] = useState<boolean | null>(null);
-  const [providerStatuses, setProviderStatuses] = useState<
+  const [isAgentInstalled, setIsAgentInstalled] = useState<boolean | null>(null);
+  const [agentStatuses, setAgentStatuses] = useState<
     Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
   >({});
-  const [provider, setProvider] = useState<Provider>(initialProvider || 'claude');
-  const currentProviderStatus = providerStatuses[provider];
+  const [agent, setAgent] = useState<Agent>(initialAgent || 'claude');
+  const currentAgentStatus = agentStatuses[agent];
   const [cliStartFailed, setCliStartFailed] = useState(false);
 
   // Multi-chat state
@@ -56,9 +56,9 @@ const ChatInterface: React.FC<Props> = ({
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
-  const [installedProviders, setInstalledProviders] = useState<string[]>([]);
+  const [installedAgents, setInstalledAgents] = useState<string[]>([]);
 
-  // Update terminal ID to include conversation ID and provider - unique per conversation
+  // Update terminal ID to include conversation ID and agent - unique per conversation
   const terminalId = useMemo(() => {
     // Find the active conversation to check if it's the main one
     const activeConversation = conversations.find((c) => c.id === activeConversationId);
@@ -66,15 +66,15 @@ const ChatInterface: React.FC<Props> = ({
     if (activeConversation?.isMain) {
       // Main conversations use task-based ID for backward compatibility
       // This ensures terminal sessions persist correctly
-      return `${provider}-main-${task.id}`;
+      return `${agent}-main-${task.id}`;
     } else if (activeConversationId) {
       // Additional conversations use conversation-specific ID
-      // Format: ${provider}-chat-${conversationId}
-      return `${provider}-chat-${activeConversationId}`;
+      // Format: ${agent}-chat-${conversationId}
+      return `${agent}-chat-${activeConversationId}`;
     }
     // Fallback to main format if no active conversation
-    return `${provider}-main-${task.id}`;
-  }, [activeConversationId, provider, task.id, conversations]);
+    return `${agent}-main-${task.id}`;
+  }, [activeConversationId, agent, task.id, conversations]);
 
   // Claude needs consistent working directory to maintain session state
   const terminalCwd = useMemo(() => {
@@ -102,17 +102,17 @@ const ChatInterface: React.FC<Props> = ({
         const active = result.conversations.find((c: Conversation) => c.isActive);
         if (active) {
           setActiveConversationId(active.id);
-          // Update provider to match the active conversation
+          // Update agent to match the active conversation
           if (active.provider) {
-            setProvider(active.provider as Provider);
+            setAgent(active.provider as Agent);
           }
         } else {
           // Fallback to first conversation
           const firstConv = result.conversations[0];
           setActiveConversationId(firstConv.id);
-          // Update provider to match the first conversation
+          // Update agent to match the first conversation
           if (firstConv.provider) {
-            setProvider(firstConv.provider as Provider);
+            setAgent(firstConv.provider as Agent);
           }
           await window.electronAPI.setActiveConversation({
             taskId: task.id,
@@ -126,22 +126,22 @@ const ChatInterface: React.FC<Props> = ({
         // (preserves pre-multi-chat behavior)
         const defaultResult = await window.electronAPI.getOrCreateDefaultConversation(task.id);
         if (defaultResult.success && defaultResult.conversation) {
-          // For backward compatibility: use task.agentId if available, otherwise use current provider
-          // This preserves the original provider choice for tasks created before multi-chat
-          const taskProvider = task.agentId || provider;
-          const conversationWithProvider = {
+          // For backward compatibility: use task.agentId if available, otherwise use current agent
+          // This preserves the original agent choice for tasks created before multi-chat
+          const taskAgent = task.agentId || agent;
+          const conversationWithAgent = {
             ...defaultResult.conversation,
-            provider: taskProvider,
+            provider: taskAgent,
             isMain: true,
           };
-          setConversations([conversationWithProvider]);
+          setConversations([conversationWithAgent]);
           setActiveConversationId(defaultResult.conversation.id);
 
-          // Update the provider state to match
-          setProvider(taskProvider as Provider);
+          // Update the agent state to match
+          setAgent(taskAgent as Agent);
 
-          // Save the provider to the conversation
-          await window.electronAPI.saveConversation(conversationWithProvider);
+          // Save the agent to the conversation
+          await window.electronAPI.saveConversation(conversationWithAgent);
           setConversationsLoaded(true);
         }
       }
@@ -150,13 +150,13 @@ const ChatInterface: React.FC<Props> = ({
     loadConversations();
   }, [task.id, task.agentId]); // provider is intentionally not included as a dependency
 
-  // Track installed providers
+  // Track installed agents
   useEffect(() => {
-    const installed = Object.entries(providerStatuses)
+    const installed = Object.entries(agentStatuses)
       .filter(([_, status]) => status.installed === true)
       .map(([id]) => id);
-    setInstalledProviders(installed);
-  }, [providerStatuses]);
+    setInstalledAgents(installed);
+  }, [agentStatuses]);
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
@@ -183,7 +183,7 @@ const ChatInterface: React.FC<Props> = ({
   }, [task.id]);
 
   useEffect(() => {
-    const meta = providerMeta[provider];
+    const meta = agentMeta[agent];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;
 
     const onceKey = `cli:autoStart:${terminalId}`;
@@ -219,11 +219,11 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
       clearTimeout(t);
     };
-  }, [provider, terminalId]);
+  }, [agent, terminalId]);
 
   useEffect(() => {
     setCliStartFailed(false);
-    setIsProviderInstalled(null);
+    setIsAgentInstalled(null);
   }, [task.id]);
 
   const runInstallCommand = useCallback(
@@ -264,17 +264,17 @@ const ChatInterface: React.FC<Props> = ({
     [activeTerminalId]
   );
 
-  // On task change, restore last-selected provider (including Droid).
-  // If a locked provider exists (including Droid), prefer locked.
+  // On task change, restore last-selected agent (including Droid).
+  // If a locked agent exists (including Droid), prefer locked.
   useEffect(() => {
     try {
-      const lastKey = `provider:last:${task.id}`;
-      const last = window.localStorage.getItem(lastKey) as Provider | null;
+      const lastKey = `agent:last:${task.id}`;
+      const last = window.localStorage.getItem(lastKey) as Agent | null;
 
-      if (initialProvider) {
-        setProvider(initialProvider);
+      if (initialAgent) {
+        setAgent(initialAgent);
       } else {
-        const validProviders: Provider[] = [
+        const validAgents: Agent[] = [
           'codex',
           'claude',
           'qwen',
@@ -296,27 +296,27 @@ const ChatInterface: React.FC<Props> = ({
           'codebuff',
           'mistral',
         ];
-        if (last && (validProviders as string[]).includes(last)) {
-          setProvider(last as Provider);
+        if (last && (validAgents as string[]).includes(last)) {
+          setAgent(last as Agent);
         } else {
-          setProvider('claude');
+          setAgent('codex');
         }
       }
     } catch {
-      setProvider(initialProvider || 'claude');
+      setAgent(initialAgent || 'codex');
     }
-  }, [task.id, initialProvider]);
+  }, [task.id, initialAgent]);
 
   // Chat management handlers
   const handleCreateChat = useCallback(
-    async (title: string, newProvider: string) => {
+    async (title: string, newAgent: string) => {
       try {
         // Don't dispose the current terminal - each chat has its own independent session
 
         const result = await window.electronAPI.createConversation({
           taskId: task.id,
           title,
-          provider: newProvider,
+          provider: newAgent,
           isMain: false, // Additional chats are never main
         });
 
@@ -327,7 +327,7 @@ const ChatInterface: React.FC<Props> = ({
             setConversations(conversationsResult.conversations || []);
           }
           setActiveConversationId(result.conversation.id);
-          setProvider(newProvider as Provider);
+          setAgent(newAgent as Agent);
           toast({
             title: 'Chat Created',
             description: `Created new chat: ${title}`,
@@ -370,7 +370,7 @@ const ChatInterface: React.FC<Props> = ({
       // Update provider based on conversation
       const conv = conversations.find((c) => c.id === conversationId);
       if (conv?.provider) {
-        setProvider(conv.provider as Provider);
+        setAgent(conv.provider as Agent);
       }
     },
     [task.id, conversations]
@@ -400,8 +400,8 @@ const ChatInterface: React.FC<Props> = ({
     // Only dispose the terminal when actually deleting the chat
     // Find the conversation to get its provider
     const convToDelete = conversations.find((c) => c.id === chatToDelete);
-    const convProvider = convToDelete?.provider || provider;
-    const terminalToDispose = `${convProvider}-chat-${chatToDelete}`;
+    const convAgent = convToDelete?.provider || agent;
+    const terminalToDispose = `${convAgent}-chat-${chatToDelete}`;
     terminalSessionRegistry.dispose(terminalToDispose);
 
     await window.electronAPI.deleteConversation(chatToDelete);
@@ -424,7 +424,7 @@ const ChatInterface: React.FC<Props> = ({
         setActiveConversationId(newActive.id);
         // Update provider if needed
         if (newActive.provider) {
-          setProvider(newActive.provider as Provider);
+          setAgent(newActive.provider as Agent);
         }
       }
     }
@@ -432,31 +432,31 @@ const ChatInterface: React.FC<Props> = ({
     // Clear the state
     setChatToDelete(null);
     setShowDeleteChatModal(false);
-  }, [chatToDelete, conversations, provider, task.id, activeConversationId]);
+  }, [chatToDelete, conversations, agent, task.id, activeConversationId]);
 
-  // Persist last-selected provider per task (including Droid)
+  // Persist last-selected agent per task (including Droid)
   useEffect(() => {
     try {
-      window.localStorage.setItem(`provider:last:${task.id}`, provider);
+      window.localStorage.setItem(`agent:last:${task.id}`, agent);
     } catch {}
-  }, [provider, task.id]);
+  }, [agent, task.id]);
 
-  // Track provider switching
-  const prevProviderRef = React.useRef<Provider | null>(null);
+  // Track agent switching
+  const prevAgentRef = React.useRef<Agent | null>(null);
   useEffect(() => {
-    if (prevProviderRef.current && prevProviderRef.current !== provider) {
+    if (prevAgentRef.current && prevAgentRef.current !== agent) {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('task_provider_switched', { provider });
+        captureTelemetry('task_agent_switched', { agent });
       })();
     }
-    prevProviderRef.current = provider;
-  }, [provider]);
+    prevAgentRef.current = agent;
+  }, [agent]);
 
   useEffect(() => {
-    const installed = currentProviderStatus?.installed === true;
-    setIsProviderInstalled(installed);
-  }, [provider, currentProviderStatus]);
+    const installed = currentAgentStatus?.installed === true;
+    setIsAgentInstalled(installed);
+  }, [agent, currentAgentStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -465,31 +465,31 @@ const ChatInterface: React.FC<Props> = ({
 
     const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
       if (!statuses) return;
-      setProviderStatuses(statuses);
+      setAgentStatuses(statuses);
       if (cancelled) return;
-      const installed = statuses?.[provider]?.installed === true;
-      setIsProviderInstalled(installed);
+      const installed = statuses?.[agent]?.installed === true;
+      setIsAgentInstalled(installed);
     };
 
     const maybeRefreshMissing = async (statuses?: Record<string, any> | undefined | null) => {
       if (cancelled || missingCheckRequested) return;
       if (!api?.getProviderStatuses) return;
-      if (statuses && statuses[provider]) return;
+      if (statuses && statuses[agent]) return;
       missingCheckRequested = true;
       try {
-        const refreshed = await api.getProviderStatuses({ refresh: true, providers: [provider] });
+        const refreshed = await api.getProviderStatuses({ refresh: true, providers: [agent] });
         if (cancelled) return;
         if (refreshed?.success) {
           applyStatuses(refreshed.statuses ?? {});
         }
       } catch (error) {
-        console.error('Provider status refresh failed', error);
+        console.error('Agent status refresh failed', error);
       }
     };
 
     const load = async () => {
       if (!api?.getProviderStatuses) {
-        setIsProviderInstalled(false);
+        setIsAgentInstalled(false);
         return;
       }
       try {
@@ -499,23 +499,23 @@ const ChatInterface: React.FC<Props> = ({
           applyStatuses(res.statuses ?? {});
           void maybeRefreshMissing(res.statuses);
         } else {
-          setIsProviderInstalled(false);
+          setIsAgentInstalled(false);
         }
       } catch (error) {
-        if (!cancelled) setIsProviderInstalled(false);
-        console.error('Provider status load failed', error);
+        if (!cancelled) setIsAgentInstalled(false);
+        console.error('Agent status load failed', error);
       }
     };
 
     const off =
       api?.onProviderStatusUpdated?.((payload: { providerId: string; status: any }) => {
         if (!payload?.providerId) return;
-        setProviderStatuses((prev) => {
+        setAgentStatuses((prev) => {
           const next = { ...prev, [payload.providerId]: payload.status };
           return next;
         });
-        if (payload.providerId === provider) {
-          setIsProviderInstalled(payload.status?.installed === true);
+        if (payload.providerId === agent) {
+          setIsAgentInstalled(payload.status?.installed === true);
         }
       }) || null;
 
@@ -525,57 +525,57 @@ const ChatInterface: React.FC<Props> = ({
       cancelled = true;
       off?.();
     };
-  }, [provider, task.id]);
+  }, [agent, task.id]);
 
-  // If we don't even have a cached status entry for the current provider, pessimistically
+  // If we don't even have a cached status entry for the current agent, pessimistically
   // show the install banner and kick off a background refresh to populate it.
   useEffect(() => {
     const api: any = (window as any).electronAPI;
     if (!api?.getProviderStatuses) {
-      setIsProviderInstalled(false);
+      setIsAgentInstalled(false);
       return;
     }
-    if (currentProviderStatus) {
+    if (currentAgentStatus) {
       return;
     }
 
     let cancelled = false;
-    setIsProviderInstalled(false);
+    setIsAgentInstalled(false);
 
     (async () => {
       try {
-        const res = await api.getProviderStatuses({ refresh: true, providers: [provider] });
+        const res = await api.getProviderStatuses({ refresh: true, providers: [agent] });
         if (cancelled) return;
         if (res?.success) {
           const statuses = res.statuses ?? {};
-          setProviderStatuses(statuses);
-          const installed = statuses?.[provider]?.installed === true;
-          setIsProviderInstalled(installed);
+          setAgentStatuses(statuses);
+          const installed = statuses?.[agent]?.installed === true;
+          setIsAgentInstalled(installed);
         }
       } catch (error) {
         if (!cancelled) {
-          setIsProviderInstalled(false);
+          setIsAgentInstalled(false);
         }
-        console.error('Provider status refresh (missing entry) failed', error);
+        console.error('Agent status refresh (missing entry) failed', error);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [provider, currentProviderStatus]);
+  }, [agent, currentAgentStatus]);
 
-  // When switching providers, ensure other streams are stopped
+  // When switching agents, ensure other streams are stopped
   useEffect(() => {
     (async () => {
       try {
       } catch {}
     })();
-  }, [provider, task.id]);
+  }, [agent, task.id]);
 
-  const isTerminal = providerMeta[provider]?.terminalOnly === true;
+  const isTerminal = agentMeta[agent]?.terminalOnly === true;
   const autoApproveEnabled =
-    Boolean(task.metadata?.autoApprove) && Boolean(providerMeta[provider]?.autoApproveFlag);
+    Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[agent]?.autoApproveFlag);
 
   const initialInjection = useMemo(() => {
     if (!isTerminal) return null;
@@ -689,21 +689,21 @@ const ChatInterface: React.FC<Props> = ({
     return null;
   }, [isTerminal, task.metadata, commentsContext]);
 
-  // Only use keystroke injection for providers WITHOUT CLI flag support
-  // Providers with initialPromptFlag use CLI arg injection via TerminalPane instead
+  // Only use keystroke injection for agents WITHOUT CLI flag support
+  // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead
   useInitialPromptInjection({
     taskId: task.id,
-    providerId: provider,
+    providerId: agent,
     prompt: initialInjection,
-    enabled: isTerminal && providerMeta[provider]?.initialPromptFlag === undefined,
+    enabled: isTerminal && agentMeta[agent]?.initialPromptFlag === undefined,
   });
 
-  // Ensure a provider is stored for this task so fallbacks can subscribe immediately
+  // Ensure an agent is stored for this task so fallbacks can subscribe immediately
   useEffect(() => {
     try {
-      localStorage.setItem(`taskProvider:${task.id}`, provider);
+      localStorage.setItem(`taskAgent:${task.id}`, agent);
     } catch {}
-  }, [provider, task.id]);
+  }, [agent, task.id]);
 
   if (!isTerminal) {
     return null;
@@ -718,8 +718,8 @@ const ChatInterface: React.FC<Props> = ({
           isOpen={showCreateChatModal}
           onClose={() => setShowCreateChatModal(false)}
           onCreateChat={handleCreateChat}
-          installedProviders={installedProviders}
-          currentProvider={provider}
+          installedProviders={installedAgents}
+          currentProvider={agent}
           existingConversations={conversations}
         />
 
@@ -748,17 +748,16 @@ const ChatInterface: React.FC<Props> = ({
                     })
                     .map((conv, index) => {
                       const isActive = conv.id === activeConversationId;
-                      const convProvider = conv.provider || provider;
-                      const config = providerConfig[convProvider as Provider];
-                      const providerName = config?.name || convProvider;
+                      const convAgent = conv.provider || agent;
+                      const config = agentConfig[convAgent as Agent];
+                      const agentName = config?.name || convAgent;
 
-                      // Count how many chats use the same provider up to this point
-                      const sameProviderCount = conversations
+                      // Count how many chats use the same agent up to this point
+                      const sameAgentCount = conversations
                         .slice(0, index + 1)
-                        .filter((c) => (c.provider || provider) === convProvider).length;
+                        .filter((c) => (c.provider || agent) === convAgent).length;
                       const showNumber =
-                        conversations.filter((c) => (c.provider || provider) === convProvider)
-                          .length > 1;
+                        conversations.filter((c) => (c.provider || agent) === convAgent).length > 1;
 
                       return (
                         <button
@@ -769,7 +768,7 @@ const ChatInterface: React.FC<Props> = ({
                               ? 'font-semibold' // Just make active tab bold
                               : 'hover:bg-muted/80' // Only inactive tabs have hover effect
                           }`}
-                          title={`${providerName}${showNumber ? ` (${sameProviderCount})` : ''}`}
+                          title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
                         >
                           {config?.logo && (
                             <img
@@ -781,9 +780,9 @@ const ChatInterface: React.FC<Props> = ({
                             />
                           )}
                           <span className="max-w-[10rem] truncate">
-                            {providerName}
+                            {agentName}
                             {showNumber && (
-                              <span className="ml-1 opacity-60">{sameProviderCount}</span>
+                              <span className="ml-1 opacity-60">{sameAgentCount}</span>
                             )}
                           </span>
                           {conversations.length > 1 && (
@@ -813,8 +812,8 @@ const ChatInterface: React.FC<Props> = ({
                   {(task.metadata?.linearIssue ||
                     task.metadata?.githubIssue ||
                     task.metadata?.jiraIssue) && (
-                    <ProviderDisplay
-                      provider={provider}
+                    <AgentDisplay
+                      agent={agent}
                       taskId={task.id}
                       linearIssue={task.metadata?.linearIssue || null}
                       githubIssue={task.metadata?.githubIssue || null}
@@ -830,12 +829,12 @@ const ChatInterface: React.FC<Props> = ({
                 )}
               </div>
               {(() => {
-                if (isProviderInstalled !== true) {
+                if (isAgentInstalled !== true) {
                   return (
                     <InstallBanner
-                      provider={provider as any}
+                      agent={agent as any}
                       terminalId={terminalId}
-                      installCommand={getInstallCommandForProvider(provider as any)}
+                      installCommand={getInstallCommandForProvider(agent as any)}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
                     />
@@ -844,7 +843,7 @@ const ChatInterface: React.FC<Props> = ({
                 if (cliStartFailed) {
                   return (
                     <InstallBanner
-                      provider={provider as any}
+                      agent={agent as any}
                       terminalId={terminalId}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
@@ -858,13 +857,13 @@ const ChatInterface: React.FC<Props> = ({
           <div className="mt-4 min-h-0 flex-1 px-6">
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                provider === 'charm'
+                agent === 'charm'
                   ? effectiveTheme === 'dark-black'
                     ? 'bg-black'
                     : effectiveTheme === 'dark'
                       ? 'bg-card'
                       : 'bg-white'
-                  : provider === 'mistral'
+                  : agent === 'mistral'
                     ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
                       ? effectiveTheme === 'dark-black'
                         ? 'bg-[#141820]'
@@ -879,7 +878,7 @@ const ChatInterface: React.FC<Props> = ({
                   ref={terminalRef}
                   id={terminalId}
                   cwd={terminalCwd}
-                  providerId={provider}
+                  providerId={agent}
                   autoApprove={autoApproveEnabled}
                   env={undefined}
                   keepAlive={true}
@@ -888,7 +887,7 @@ const ChatInterface: React.FC<Props> = ({
                   }
                   onActivity={() => {
                     try {
-                      window.localStorage.setItem(`provider:locked:${task.id}`, provider);
+                      window.localStorage.setItem(`agent:locked:${task.id}`, agent);
                     } catch {}
                   }}
                   onStartError={() => {
@@ -911,7 +910,7 @@ const ChatInterface: React.FC<Props> = ({
                     effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
                   }
                   themeOverride={
-                    provider === 'charm'
+                    agent === 'charm'
                       ? {
                           background:
                             effectiveTheme === 'dark-black'
@@ -922,7 +921,7 @@ const ChatInterface: React.FC<Props> = ({
                           selectionBackground: 'rgba(96, 165, 250, 0.35)',
                           selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
                         }
-                      : provider === 'mistral'
+                      : agent === 'mistral'
                         ? {
                             background:
                               effectiveTheme === 'dark-black'
@@ -942,14 +941,14 @@ const ChatInterface: React.FC<Props> = ({
                           : undefined
                   }
                   contentFilter={
-                    provider === 'charm' &&
+                    agent === 'charm' &&
                     effectiveTheme !== 'dark' &&
                     effectiveTheme !== 'dark-black'
                       ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
                       : undefined
                   }
                   initialPrompt={
-                    providerMeta[provider]?.initialPromptFlag !== undefined &&
+                    agentMeta[agent]?.initialPromptFlag !== undefined &&
                     !task.metadata?.initialInjectionSent
                       ? (initialInjection ?? undefined)
                       : undefined

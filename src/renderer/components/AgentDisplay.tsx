@@ -1,6 +1,6 @@
 import React from 'react';
 import { ExternalLink, MessageSquare } from 'lucide-react';
-import { type Provider } from '../types';
+import { type Agent } from '../types';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
@@ -10,7 +10,7 @@ import { Button } from './ui/button';
 import { useTaskComments } from '../hooks/useLineComments';
 import { useTaskScope } from './TaskScopeContext';
 
-// Provider logos
+// Agent logos
 import openaiLogo from '../../assets/images/openai.png';
 import kiroLogo from '../../assets/images/kiro.png';
 import linearLogo from '../../assets/images/linear.png';
@@ -36,14 +36,14 @@ import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
 
 type Props = {
-  provider: Provider;
+  agent: Agent;
   taskId?: string;
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
 };
 
-const providerConfig: Record<Provider, { name: string; logo: string }> = {
+const agentConfig: Record<Agent, { name: string; logo: string }> = {
   qwen: { name: 'Qwen Code', logo: qwenLogo },
   codex: { name: 'Codex', logo: openaiLogo },
   claude: { name: 'Claude Code', logo: claudeLogo },
@@ -66,14 +66,14 @@ const providerConfig: Record<Provider, { name: string; logo: string }> = {
   mistral: { name: 'Mistral Vibe', logo: mistralLogo },
 };
 
-export const ProviderDisplay: React.FC<Props> = ({
-  provider,
+export const AgentDisplay: React.FC<Props> = ({
+  agent,
   taskId,
   linearIssue,
   githubIssue,
   jiraIssue,
 }) => {
-  const config = providerConfig[provider] ?? { name: provider, logo: '' };
+  const config = agentConfig[agent] ?? { name: agent, logo: '' };
   const { taskId: scopedTaskId } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
   const { unsentCount } = useTaskComments(resolvedTaskId);
@@ -94,22 +94,21 @@ export const ProviderDisplay: React.FC<Props> = ({
 
   return (
     <div className="inline-flex items-center gap-2">
+      {/* Agent Badge */}
       <TooltipProvider delayDuration={250}>
         <Tooltip>
           <TooltipTrigger asChild>
             <div
               className="inline-flex h-7 cursor-default select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground dark:border-border dark:bg-muted"
               role="status"
-              aria-label={`Current provider: ${config.name}`}
+              aria-label={`Current agent: ${config.name}`}
             >
               {config.logo ? (
                 <img
                   src={config.logo}
                   alt={config.name}
                   className={`h-3.5 w-3.5 flex-shrink-0 rounded-sm object-contain ${
-                    provider === 'codex' || provider === 'auggie'
-                      ? 'dark-black:invert dark:invert'
-                      : ''
+                    agent === 'codex' || agent === 'auggie' ? 'dark-black:invert dark:invert' : ''
                   }`}
                 />
               ) : (
@@ -302,4 +301,4 @@ export const ProviderDisplay: React.FC<Props> = ({
   );
 };
 
-export default ProviderDisplay;
+export default AgentDisplay;

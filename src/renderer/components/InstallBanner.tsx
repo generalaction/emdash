@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Play } from 'lucide-react';
 import { Button } from './ui/button';
-import { providerMeta, type UiProvider } from '../providers/meta';
+import { agentMeta, type UiAgent } from '../providers/meta';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
 
 type Props = {
-  provider: UiProvider;
+  agent: UiAgent;
   onOpenExternal: (url: string) => void;
   installCommand?: string | null;
   terminalId?: string;
@@ -13,17 +13,17 @@ type Props = {
 };
 
 export const InstallBanner: React.FC<Props> = ({
-  provider,
+  agent,
   onOpenExternal,
   installCommand,
   terminalId,
   onRunInstall,
 }) => {
-  const meta = providerMeta[provider];
-  const helpUrl = getDocUrlForProvider(provider) ?? null;
-  const baseLabel = meta?.label || 'this provider';
+  const meta = agentMeta[agent];
+  const helpUrl = getDocUrlForProvider(agent) ?? null;
+  const baseLabel = meta?.label || 'this agent';
 
-  const command = installCommand || getInstallCommandForProvider(provider);
+  const command = installCommand || getInstallCommandForProvider(agent);
   const canRunInstall = Boolean(command && (onRunInstall || terminalId));
   const [copied, setCopied] = useState(false);
   const copyResetRef = useRef<number | null>(null);

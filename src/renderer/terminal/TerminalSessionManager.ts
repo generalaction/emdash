@@ -485,14 +485,6 @@ export class TerminalSessionManager {
     void ptyPromise
       .then((result) => {
         if (result?.ok) {
-          const ptyConnectTime = performance.now() - this.ptyConnectStartTime;
-          const totalStartupTime = performance.now() - this.initStartTime;
-          log.info('terminalSession:ptyConnected timing', {
-            id: this.id,
-            ptyConnectMs: Math.round(ptyConnectTime),
-            snapshotRestoreMs: Math.round(this.snapshotRestoreTime),
-            totalStartupMs: Math.round(totalStartupTime),
-          });
           this.ptyStarted = true;
           this.sendSizeIfStarted();
           this.emitReady();

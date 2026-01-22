@@ -1,17 +1,17 @@
 import React from 'react';
 import type { Task } from '../../types/app';
-import { providerAssets } from '../../providers/assets';
-import { providerMeta, type UiProvider } from '../../providers/meta';
+import { agentAssets } from '../../providers/assets';
+import { agentMeta, type UiAgent } from '../../providers/meta';
 import { activityStore } from '../../lib/activityStore';
-import ProviderTooltip from './ProviderTooltip';
+import AgentTooltip from './AgentTooltip';
 import { Spinner } from '../ui/spinner';
 
-function resolveProvider(taskId: string): UiProvider | null {
+function resolveAgent(taskId: string): UiAgent | null {
   try {
-    const v = localStorage.getItem(`taskProvider:${taskId}`);
+    const v = localStorage.getItem(`taskAgent:${taskId}`);
     if (!v) return null;
-    const id = v.trim() as UiProvider;
-    return id in providerAssets ? id : null;
+    const id = v.trim() as UiAgent;
+    return id in agentAssets ? id : null;
   } catch {
     return null;
   }
@@ -22,26 +22,26 @@ const KanbanCard: React.FC<{
   onOpen?: (ws: Task) => void;
   draggable?: boolean;
 }> = ({ ws, onOpen, draggable = true }) => {
-  const SHOW_PROVIDER_LOGOS = false;
-  // Resolve single-provider from legacy localStorage (single-agent tasks)
-  const provider = resolveProvider(ws.id);
-  const asset = provider ? providerAssets[provider] : null;
+  const SHOW_AGENT_LOGOS = false;
+  // Resolve single-agent from legacy localStorage (single-agent tasks)
+  const agent = resolveAgent(ws.id);
+  const asset = agent ? agentAssets[agent] : null;
 
-  // Multi‑agent badges (metadata lists selected providers)
+  // Multi‑agent badges (metadata lists selected agents)
   const multi = ws.metadata?.multiAgent?.enabled ? ws.metadata?.multiAgent : null;
-  const providerRuns = (multi?.providerRuns?.map((pr) => pr.provider) ?? []) as UiProvider[];
-  const legacyProviders = Array.isArray(multi?.providers) ? (multi?.providers as UiProvider[]) : [];
-  const providers = Array.from(new Set([...providerRuns, ...legacyProviders]));
-  const adminProvider: UiProvider | null = (multi?.selectedProvider as UiProvider) || null;
+  const agentRuns = (multi?.agentRuns?.map((ar) => ar.agent) ?? []) as UiAgent[];
+  const legacyAgents = Array.isArray(multi?.agents) ? (multi?.agents as UiAgent[]) : [];
+  const agents = Array.from(new Set([...agentRuns, ...legacyAgents]));
+  const adminAgent: UiAgent | null = (multi?.selectedAgent as UiAgent) || null;
 
   const handleClick = () => onOpen?.(ws);
   const [busy, setBusy] = React.useState<boolean>(false);
   React.useEffect(() => activityStore.subscribe(ws.id, setBusy), [ws.id]);
 
   return (
-    <ProviderTooltip
-      providers={providers.length > 0 ? providers : provider ? [provider] : []}
-      adminProvider={adminProvider}
+    <AgentTooltip
+      agents={agents.length > 0 ? agents : agent ? [agent] : []}
+      adminAgent={adminAgent}
       side="top"
       delay={150}
       taskPath={ws.path}
@@ -70,43 +70,43 @@ const KanbanCard: React.FC<{
             <div className="mt-0.5 text-[11px] text-muted-foreground">{ws.branch}</div>
           </div>
 
-          {providers.length > 0 && (SHOW_PROVIDER_LOGOS || busy) ? (
+          {agents.length > 0 && (SHOW_AGENT_LOGOS || busy) ? (
             <div className="flex shrink-0 items-center gap-1">
               {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
-              {SHOW_PROVIDER_LOGOS
-                ? providers.slice(0, 3).map((p) => {
-                    const a = providerAssets[p];
-                    if (!a) return null;
-                    const isAdmin = adminProvider && p === adminProvider;
-                    const label = providerMeta[p]?.label ?? a.name;
+              {SHOW_AGENT_LOGOS
+                ? agents.slice(0, 3).map((a) => {
+                    const asset = agentAssets[a];
+                    if (!asset) return null;
+                    const isAdmin = adminAgent && a === adminAgent;
+                    const label = agentMeta[a]?.label ?? asset.name;
                     const tooltip = isAdmin ? `${label} (admin)` : label;
                     return (
                       <span
-                        key={`${ws.id}-prov-${p}`}
+                        key={`${ws.id}-agent-${a}`}
                         className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground ${
                           isAdmin ? 'ring-1 ring-primary/60' : ''
                         }`}
                         title={tooltip}
                       >
                         <img
-                          src={a.logo}
-                          alt={a.alt}
+                          src={asset.logo}
+                          alt={asset.alt}
                           className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
-                            a.invertInDark ? 'dark:invert' : ''
+                            asset.invertInDark ? 'dark:invert' : ''
                           }`}
                         />
                       </span>
                     );
                   })
                 : null}
-              {SHOW_PROVIDER_LOGOS && providers.length > 3 ? (
+              {SHOW_AGENT_LOGOS && agents.length > 3 ? (
                 <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                  +{providers.length - 3}
+                  +{agents.length - 3}
                 </span>
               ) : null}
             </div>
           ) : asset ? (
-            SHOW_PROVIDER_LOGOS ? (
+            SHOW_AGENT_LOGOS ? (
               <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
                 {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
                 <img
@@ -121,22 +121,22 @@ const KanbanCard: React.FC<{
           ) : null}
         </div>
 
-        {SHOW_PROVIDER_LOGOS && adminProvider && providerAssets[adminProvider] ? (
+        {SHOW_AGENT_LOGOS && adminAgent && agentAssets[adminAgent] ? (
           <div className="mt-2">
             <span className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
               <span className="font-medium text-foreground/80">Admin:</span>
               <img
-                src={providerAssets[adminProvider].logo}
-                alt={providerAssets[adminProvider].alt}
+                src={agentAssets[adminAgent].logo}
+                alt={agentAssets[adminAgent].alt}
                 className={`h-3.5 w-3.5 rounded-sm ${
-                  providerAssets[adminProvider].invertInDark ? 'dark:invert' : ''
+                  agentAssets[adminAgent].invertInDark ? 'dark:invert' : ''
                 }`}
               />
             </span>
           </div>
         ) : null}
       </div>
-    </ProviderTooltip>
+    </AgentTooltip>
   );
 };
 

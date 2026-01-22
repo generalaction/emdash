@@ -117,6 +117,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         taskId: id,
         container,
         cwd,
+        providerId,
         shell,
         env,
         initialSize: { cols, rows },
