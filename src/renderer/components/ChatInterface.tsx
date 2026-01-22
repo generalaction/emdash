@@ -757,8 +757,7 @@ const ChatInterface: React.FC<Props> = ({
                         .slice(0, index + 1)
                         .filter((c) => (c.provider || agent) === convAgent).length;
                       const showNumber =
-                        conversations.filter((c) => (c.provider || agent) === convAgent)
-                          .length > 1;
+                        conversations.filter((c) => (c.provider || agent) === convAgent).length > 1;
 
                       return (
                         <button
