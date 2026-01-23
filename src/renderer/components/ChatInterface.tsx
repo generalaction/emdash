@@ -882,7 +882,7 @@ const ChatInterface: React.FC<Props> = ({
                 autoApprove={autoApproveEnabled}
                 env={undefined}
                 keepAlive={true}
-                disableSnapshots={!conversations.find((c) => c.id === activeConversationId)?.isMain}
+                disableSnapshots={false}
                 onActivity={() => {
                   try {
                     window.localStorage.setItem(`agent:locked:${task.id}`, agent);

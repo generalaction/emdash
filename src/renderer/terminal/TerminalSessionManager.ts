@@ -582,13 +582,9 @@ export class TerminalSessionManager {
       return;
     }
 
-    // Skip snapshot restoration for providers with native resume capability
-    // The CLI will handle resuming the conversation, so we don't want duplicate history
-    if (this.isProviderWithResume(this.id)) {
-      log.debug('terminalSession:skippingSnapshotForResume', { id: this.id });
-      this.snapshotRestoreTime = performance.now() - restoreStart;
-      return;
-    }
+    // NOTE: Previously skipped snapshot for providers with resumeFlag (claude, codex)
+    // but this breaks hot reload where PTY is reused but not restarted.
+    // Snapshots are now always restored to ensure terminal content is visible.
 
     try {
       const response = await window.electronAPI.ptyGetSnapshot({ id: this.id });
