@@ -7,7 +7,6 @@ import { ensureTerminalHost } from './terminalHost';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
-import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '@shared/providers/registry';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
@@ -179,7 +178,7 @@ export class TerminalSessionManager {
       () => resizeDisposable.dispose()
     );
 
-    void this.restoreSnapshot().finally(() => this.connectPty());
+    void this.initializeTerminal();
     // Only start snapshot timer if snapshots are enabled (main chats only)
     if (!this.options.disableSnapshots) {
       this.startSnapshotTimer();
@@ -452,7 +451,73 @@ export class TerminalSessionManager {
     }
   }
 
-  private connectPty() {
+  /**
+   * Initialize terminal: connect to PTY and conditionally restore snapshot.
+   *
+   * For CLIs with resume capability (claude, codex):
+   * - Hot reload (PTY reused): restore snapshot for visual continuity
+   * - Full restart: skip snapshot, let CLI show history via resume flag
+   *
+   * For CLIs without resume:
+   * - Always restore snapshot for visual context
+   */
+  private async initializeTerminal(): Promise<void> {
+    // Check if snapshot exists (indicates previous session)
+    const snapshot = await this.fetchSnapshot();
+    const hasSnapshot = !!snapshot;
+
+    // Connect to PTY - pass resume flag if we have a previous session
+    const result = await this.connectPty(hasSnapshot);
+
+    // Decide whether to restore snapshot based on PTY result
+    if (result?.reused) {
+      // Hot reload - PTY still running, restore snapshot for visual continuity
+      if (snapshot) {
+        this.applySnapshot(snapshot);
+      }
+    } else if (!this.providerHasResume()) {
+      // Full restart with non-resume CLI - show snapshot for context
+      if (snapshot) {
+        this.applySnapshot(snapshot);
+      }
+    }
+    // For full restart with resume CLI - skip snapshot, CLI handles history
+  }
+
+  private providerHasResume(): boolean {
+    const { providerId } = this.options;
+    if (!providerId) return false;
+    // These providers have resumeFlag defined in registry
+    return ['claude', 'codex'].includes(providerId);
+  }
+
+  private async fetchSnapshot(): Promise<any | null> {
+    if (this.options.disableSnapshots) return null;
+    if (!window.electronAPI.ptyGetSnapshot) return null;
+
+    try {
+      const response = await window.electronAPI.ptyGetSnapshot({ id: this.id });
+      if (!response?.ok || !response.snapshot?.data) return null;
+      if (response.snapshot.version && response.snapshot.version !== TERMINAL_SNAPSHOT_VERSION) {
+        return null;
+      }
+      return response.snapshot;
+    } catch {
+      return null;
+    }
+  }
+
+  private applySnapshot(snapshot: any): void {
+    if (typeof snapshot.data === 'string' && snapshot.data.length > 0) {
+      this.terminal.reset();
+      this.terminal.write(snapshot.data);
+    }
+    if (snapshot.cols && snapshot.rows) {
+      this.terminal.resize(snapshot.cols, snapshot.rows);
+    }
+  }
+
+  private async connectPty(hasExistingSession: boolean = false): Promise<{ ok: boolean; reused?: boolean; error?: string }> {
     this.ptyConnectStartTime = performance.now();
     const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
       this.options;
@@ -471,7 +536,8 @@ export class TerminalSessionManager {
             rows: initialSize.rows,
             autoApprove,
             initialPrompt,
-            clickTime, // Pass through for true E2E timing
+            clickTime,
+            resume: hasExistingSession,
           })
         : window.electronAPI.ptyStart({
             id,
@@ -484,41 +550,45 @@ export class TerminalSessionManager {
             initialPrompt,
           });
 
-    void ptyPromise
-      .then((result) => {
-        if (result?.ok) {
-          this.ptyStarted = true;
-          this.sendSizeIfStarted();
-          this.emitReady();
-          try {
-            const offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
-              if (payload?.id === id) {
-                this.ptyStarted = true;
-                this.sendSizeIfStarted();
-              }
-            });
-            if (offStarted) this.disposables.push(offStarted);
-          } catch {}
-        } else {
-          const message = result?.error || 'Failed to start PTY';
-          log.warn('terminalSession:ptyStartFailed', { id, error: message });
-          this.emitError(message);
-        }
-      })
-      .catch((error: any) => {
-        const message = error?.message || String(error);
-        log.error('terminalSession:ptyStartError', { id, error });
-        this.emitError(message);
-      });
+    const result = await ptyPromise.catch((error: any) => {
+      const message = error?.message || String(error);
+      log.error('terminalSession:ptyStartError', { id, error });
+      this.emitError(message);
+      return { ok: false, error: message };
+    });
 
+    if (result?.ok) {
+      this.ptyStarted = true;
+      this.sendSizeIfStarted();
+      this.emitReady();
+      try {
+        const offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
+          if (payload?.id === id) {
+            this.ptyStarted = true;
+            this.sendSizeIfStarted();
+          }
+        });
+        if (offStarted) this.disposables.push(offStarted);
+      } catch {}
+    } else {
+      const message = result?.error || 'Failed to start PTY';
+      log.warn('terminalSession:ptyStartFailed', { id, error: message });
+      this.emitError(message);
+    }
+
+    // Set up data listener (runs regardless of success for potential reuse)
+    this.setupPtyDataListener(id);
+
+    return result || { ok: false, error: 'Unknown error' };
+  }
+
+  private setupPtyDataListener(id: string): void {
     const offData = window.electronAPI.onPtyData(id, (chunk) => {
       if (!this.metrics.canAccept(chunk)) {
         log.warn('Terminal scrollback truncated to protect memory', { id });
         this.terminal.clear();
         this.terminal.writeln('[scrollback truncated to protect memory]');
       }
-      // Check if at bottom BEFORE writing - if yes, we'll scroll to stay at bottom
-      // If user has scrolled up, they stay where they are
       const buffer = this.terminal.buffer?.active;
       const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
 
@@ -534,11 +604,9 @@ export class TerminalSessionManager {
           this.terminal.refresh(0, this.terminal.rows - 1);
         } catch {}
       }
-      // Only auto-scroll if we were already at bottom (stay at bottom behavior)
+
       if (isAtBottom) {
-        try {
-          this.terminal.scrollToBottom();
-        } catch {}
+        this.terminal.scrollToBottom();
       }
     });
 
@@ -549,82 +617,6 @@ export class TerminalSessionManager {
     });
 
     this.disposables.push(offData, offExit);
-  }
-
-  /**
-   * Check if this terminal ID is a provider CLI that supports native resume.
-   * Provider CLIs use the format:
-   * - `${provider}-main-${taskId}` for main task terminals
-   * - `${provider}-chat-${conversationId}` for chat-specific terminals
-   * If the provider has a resumeFlag, we skip snapshot restoration to avoid duplicate history.
-   */
-  private isProviderWithResume(id: string): boolean {
-    const mainMatch = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
-    const chatMatch = /^([a-z0-9_-]+)-chat-(.+)$/.exec(id);
-    const match = mainMatch || chatMatch;
-    if (!match) return false;
-    const providerId = match[1] as ProviderId;
-    if (!PROVIDER_IDS.includes(providerId)) return false;
-    const provider = PROVIDERS.find((p) => p.id === providerId);
-    return provider?.resumeFlag !== undefined;
-  }
-
-  private async restoreSnapshot(): Promise<void> {
-    const restoreStart = performance.now();
-    if (!window.electronAPI.ptyGetSnapshot) {
-      this.snapshotRestoreTime = performance.now() - restoreStart;
-      return;
-    }
-
-    // Skip snapshot restoration for non-main chats
-    if (this.options.disableSnapshots) {
-      log.debug('terminalSession:skippingSnapshotForNonMainChat', { id: this.id });
-      return;
-    }
-
-    // NOTE: Previously skipped snapshot for providers with resumeFlag (claude, codex)
-    // but this breaks hot reload where PTY is reused but not restarted.
-    // Snapshots are now always restored to ensure terminal content is visible.
-
-    try {
-      const response = await window.electronAPI.ptyGetSnapshot({ id: this.id });
-      if (!response?.ok || !response.snapshot?.data) {
-        this.snapshotRestoreTime = performance.now() - restoreStart;
-        return;
-      }
-
-      const snapshot = response.snapshot as TerminalSnapshotPayload & {
-        cols?: number;
-        rows?: number;
-      };
-
-      if (snapshot.version && snapshot.version !== TERMINAL_SNAPSHOT_VERSION) {
-        log.warn('terminalSession:snapshotIgnoredVersion', {
-          id: this.id,
-          version: snapshot.version,
-        });
-        this.snapshotRestoreTime = performance.now() - restoreStart;
-        return;
-      }
-
-      if (typeof snapshot.data === 'string' && snapshot.data.length > 0) {
-        this.terminal.reset();
-        this.terminal.write(snapshot.data);
-      }
-      if (snapshot.cols && snapshot.rows) {
-        this.terminal.resize(snapshot.cols, snapshot.rows);
-      }
-
-      this.snapshotRestoreTime = performance.now() - restoreStart;
-      // Note: Viewport position restoration happens in attach() after terminal is opened
-      // This ensures the terminal is fully initialized before we try to scroll
-    } catch (error) {
-      this.snapshotRestoreTime = performance.now() - restoreStart;
-      log.warn('terminalSession:snapshotRestoreFailed', {
-        id: this.id,
-        error: (error as Error)?.message ?? String(error),
-      });
-    }
   }
 
   private captureSnapshot(reason: 'interval' | 'detach' | 'dispose'): Promise<void> {

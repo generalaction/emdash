@@ -78,6 +78,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
+    clickTime?: number;
+    resume?: boolean;
   }) => ipcRenderer.invoke('pty:startDirect', opts),
 
   // Get spawn benchmarks

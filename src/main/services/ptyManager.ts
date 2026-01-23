@@ -53,7 +53,8 @@ export function startDirectPty(options: {
   rows?: number;
   autoApprove?: boolean;
   initialPrompt?: string;
-  clickTime?: number; // When user clicked Create (for true E2E timing)
+  clickTime?: number;
+  resume?: boolean;
 }): IPty | null {
   const startTime = performance.now();
 
@@ -70,6 +71,7 @@ export function startDirectPty(options: {
     autoApprove,
     initialPrompt,
     clickTime,
+    resume,
   } = options;
 
   // Get the CLI path from cache
@@ -86,9 +88,11 @@ export function startDirectPty(options: {
   const cliArgs: string[] = [];
 
   if (provider) {
-    // NOTE: We intentionally skip resume flag for direct spawn.
-    // Resume is handled by shell-based spawn which has session existence checks.
-    // Direct spawn is used for fresh task creation where there's no session to resume.
+    // Add resume flag if resuming an existing session (e.g., after app reload)
+    if (resume && provider.resumeFlag) {
+      const resumeParts = provider.resumeFlag.split(' ');
+      cliArgs.push(...resumeParts);
+    }
 
     // Add default args
     if (provider.defaultArgs?.length) {
