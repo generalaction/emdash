@@ -245,9 +245,7 @@ declare global {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
-        taskCreateStartTime?: number;
-        worktreeMs?: number;
-        worktreeMethod?: string;
+        clickTime?: number;
       }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyGetBenchmarks: () => Promise<{
         ok: boolean;
@@ -924,9 +922,7 @@ export interface ElectronAPI {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
-    taskCreateStartTime?: number;
-    worktreeMs?: number;
-    worktreeMethod?: string;
+    clickTime?: number;
   }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
   ptyGetBenchmarks: () => Promise<{
     ok: boolean;

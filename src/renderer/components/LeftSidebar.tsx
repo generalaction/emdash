@@ -41,7 +41,6 @@ interface LeftSidebarProps {
     setOpen: (next: boolean) => void;
   }) => void;
   onCreateTaskForProject?: (project: Project) => void;
-  isCreatingTask?: boolean;
   onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onRenameTask?: (project: Project, task: Task, newName: string) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
@@ -101,7 +100,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onReorderProjectsFull,
   onSidebarContextChange,
   onCreateTaskForProject,
-  isCreatingTask,
   onDeleteTask,
   onRenameTask,
   onDeleteProject,
@@ -274,7 +272,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     }
                                     onCreateTaskForProject?.(typedProject);
                                   }}
-                                  disabled={isCreatingTask}
                                   aria-label={`New Task for ${typedProject.name}`}
                                 >
                                   <Plus

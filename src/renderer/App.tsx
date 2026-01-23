@@ -139,7 +139,6 @@ const AppContent: React.FC = () => {
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
-  const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskAgent, setActiveTaskAgent] = useState<Agent | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -1154,96 +1153,21 @@ const AppContent: React.FC = () => {
     baseRef?: string
   ) => {
     if (!selectedProject) return;
-    setIsCreatingTask(true);
     try {
+      // Build basic prompt without enrichment (enrichment happens in background later)
+      // This makes task creation instant - user sees the task immediately
       let preparedPrompt: string | undefined = undefined;
       if (initialPrompt && initialPrompt.trim()) {
         const parts: string[] = [];
+        // Add basic issue info without API enrichment
         if (linkedLinearIssue) {
-          // Enrich linked issue with description from Linear, if available
-          let issue = linkedLinearIssue;
-          try {
-            const api: any = (window as any).electronAPI;
-            let description: string | undefined;
-            // Try bulk search first
-            try {
-              const res = await api?.linearGetIssues?.([linkedLinearIssue.identifier]);
-              const arr = res?.issues || res || [];
-              const node = Array.isArray(arr)
-                ? arr.find(
-                    (n: any) => String(n?.identifier) === String(linkedLinearIssue.identifier)
-                  )
-                : null;
-              if (node?.description) description = String(node.description);
-            } catch {}
-            // Fallback to single issue endpoint
-            if (!description) {
-              const single = await api?.linearGetIssue?.(linkedLinearIssue.identifier);
-              if (single?.success && single.issue?.description) {
-                description = String(single.issue.description);
-              } else if (single?.description) {
-                description = String(single.description);
-              }
-            }
-            if (description) {
-              issue = { ...linkedLinearIssue, description } as any;
-            }
-          } catch {}
-          const detailParts: string[] = [];
-          const stateName = issue.state?.name?.trim();
-          const assigneeName = issue.assignee?.displayName?.trim() || issue.assignee?.name?.trim();
-          const teamKey = issue.team?.key?.trim();
-          const projectName = issue.project?.name?.trim();
-          if (stateName) detailParts.push(`State: ${stateName}`);
-          if (assigneeName) detailParts.push(`Assignee: ${assigneeName}`);
-          if (teamKey) detailParts.push(`Team: ${teamKey}`);
-          if (projectName) detailParts.push(`Project: ${projectName}`);
-          parts.push(`Linear: ${issue.identifier} — ${issue.title}`);
-          if (detailParts.length) parts.push(`Details: ${detailParts.join(' • ')}`);
-          if (issue.url) parts.push(`URL: ${issue.url}`);
-          if ((issue as any).description) {
-            parts.push('');
-            parts.push('Issue Description:');
-            parts.push(String((issue as any).description).trim());
-          }
+          parts.push(`Linear: ${linkedLinearIssue.identifier} — ${linkedLinearIssue.title}`);
+          if (linkedLinearIssue.url) parts.push(`URL: ${linkedLinearIssue.url}`);
           parts.push('');
         }
         if (linkedGithubIssue) {
-          // Enrich linked GitHub issue with body via gh if available
-          let issue = linkedGithubIssue;
-          try {
-            const api: any = (window as any).electronAPI;
-            const res = await api?.githubIssueGet?.(selectedProject.path, linkedGithubIssue.number);
-            if (res?.success) {
-              const body: string | undefined = res?.issue?.body || res?.body;
-              if (body) issue = { ...linkedGithubIssue, body } as any;
-            }
-          } catch {}
-          const detailParts: string[] = [];
-          const stateName = issue.state?.toString()?.trim();
-          const assignees = Array.isArray(issue.assignees)
-            ? issue.assignees
-                .map((a) => a?.name || a?.login)
-                .filter(Boolean)
-                .join(', ')
-            : '';
-          const labels = Array.isArray(issue.labels)
-            ? issue.labels
-                .map((l) => l?.name)
-                .filter(Boolean)
-                .join(', ')
-            : '';
-          if (stateName) detailParts.push(`State: ${stateName}`);
-          if (assignees) detailParts.push(`Assignees: ${assignees}`);
-          if (labels) detailParts.push(`Labels: ${labels}`);
-          parts.push(`GitHub: #${issue.number} — ${issue.title}`);
-          if (detailParts.length) parts.push(`Details: ${detailParts.join(' • ')}`);
-          if (issue.url) parts.push(`URL: ${issue.url}`);
-          if ((issue as any).body) {
-            parts.push('');
-            parts.push('Issue Description:');
-            parts.push(String((issue as any).body).trim());
-          }
+          parts.push(`GitHub: #${linkedGithubIssue.number} — ${linkedGithubIssue.title}`);
+          if (linkedGithubIssue.url) parts.push(`URL: ${linkedGithubIssue.url}`);
           parts.push('');
         }
         parts.push(initialPrompt.trim());
@@ -1355,7 +1279,6 @@ const AppContent: React.FC = () => {
           const { log } = await import('./lib/logger');
           log.error('Failed to save multi-agent task:', saveResult?.error);
           toast({ title: 'Error', description: 'Failed to create multi-agent task.' });
-          setIsCreatingTask(false);
           return;
         }
       } else {
@@ -1452,8 +1375,6 @@ const AppContent: React.FC = () => {
         } else {
           setActiveTaskAgent((newTask.agentId as Agent) || primaryAgent || 'codex');
         }
-        // End loading state - task is visible and ready
-        setIsCreatingTask(false);
 
         // Background: save to database (non-blocking)
         window.electronAPI
@@ -1486,159 +1407,161 @@ const AppContent: React.FC = () => {
             has_initial_prompt: !!taskMetadata?.initialPrompt,
           });
         });
-      }
 
-      // Seed conversation with issue context if applicable
-      // Only create/get conversation once, not multiple times
-      {
-        const hasIssueContext =
-          taskMetadata?.linearIssue || taskMetadata?.githubIssue || taskMetadata?.jiraIssue;
-        let conversationId: string | undefined;
+        // Background: seed conversation with issue context (non-blocking)
+        // This runs after modal closes so user sees task immediately
+        (async () => {
+          const hasIssueContext =
+            taskMetadata?.linearIssue || taskMetadata?.githubIssue || taskMetadata?.jiraIssue;
+          let conversationId: string | undefined;
 
-        if (hasIssueContext) {
-          try {
-            // Get or create default conversation only once
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
-            if (convoResult?.success && convoResult.conversation?.id) {
-              conversationId = convoResult.conversation.id;
+          if (hasIssueContext) {
+            try {
+              // Get or create default conversation only once
+              const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
+                newTask.id
+              );
+              if (convoResult?.success && convoResult.conversation?.id) {
+                conversationId = convoResult.conversation.id;
+              }
+            } catch (error) {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to get or create default conversation:', error as any);
             }
-          } catch (error) {
-            const { log } = await import('./lib/logger');
-            log.error('Failed to get or create default conversation:', error as any);
           }
-        }
 
-        if (conversationId && taskMetadata?.linearIssue) {
-          try {
-            const issue = taskMetadata.linearIssue;
-            const detailParts: string[] = [];
-            const stateName = issue.state?.name?.trim();
-            const assigneeName =
-              issue.assignee?.displayName?.trim() || issue.assignee?.name?.trim();
-            const teamKey = issue.team?.key?.trim();
-            const projectName = issue.project?.name?.trim();
+          if (conversationId && taskMetadata?.linearIssue) {
+            try {
+              const issue = taskMetadata.linearIssue;
+              const detailParts: string[] = [];
+              const stateName = issue.state?.name?.trim();
+              const assigneeName =
+                issue.assignee?.displayName?.trim() || issue.assignee?.name?.trim();
+              const teamKey = issue.team?.key?.trim();
+              const projectName = issue.project?.name?.trim();
 
-            if (stateName) detailParts.push(`State: ${stateName}`);
-            if (assigneeName) detailParts.push(`Assignee: ${assigneeName}`);
-            if (teamKey) detailParts.push(`Team: ${teamKey}`);
-            if (projectName) detailParts.push(`Project: ${projectName}`);
+              if (stateName) detailParts.push(`State: ${stateName}`);
+              if (assigneeName) detailParts.push(`Assignee: ${assigneeName}`);
+              if (teamKey) detailParts.push(`Team: ${teamKey}`);
+              if (projectName) detailParts.push(`Project: ${projectName}`);
 
-            const lines = [`Linked Linear issue: ${issue.identifier} — ${issue.title}`];
+              const lines = [`Linked Linear issue: ${issue.identifier} — ${issue.title}`];
 
-            if (detailParts.length) {
-              lines.push(`Details: ${detailParts.join(' • ')}`);
+              if (detailParts.length) {
+                lines.push(`Details: ${detailParts.join(' • ')}`);
+              }
+
+              if (issue.url) {
+                lines.push(`URL: ${issue.url}`);
+              }
+
+              if ((issue as any)?.description) {
+                lines.push('');
+                lines.push('Issue Description:');
+                lines.push(String((issue as any).description).trim());
+              }
+
+              await window.electronAPI.saveMessage({
+                id: `linear-context-${newTask.id}`,
+                conversationId,
+                content: lines.join('\n'),
+                sender: 'agent',
+                metadata: JSON.stringify({
+                  isLinearContext: true,
+                  linearIssue: issue,
+                }),
+              });
+            } catch (seedError) {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to seed task with Linear issue context:', seedError as any);
             }
-
-            if (issue.url) {
-              lines.push(`URL: ${issue.url}`);
-            }
-
-            if ((issue as any)?.description) {
-              lines.push('');
-              lines.push('Issue Description:');
-              lines.push(String((issue as any).description).trim());
-            }
-
-            await window.electronAPI.saveMessage({
-              id: `linear-context-${newTask.id}`,
-              conversationId,
-              content: lines.join('\n'),
-              sender: 'agent',
-              metadata: JSON.stringify({
-                isLinearContext: true,
-                linearIssue: issue,
-              }),
-            });
-          } catch (seedError) {
-            const { log } = await import('./lib/logger');
-            log.error('Failed to seed task with Linear issue context:', seedError as any);
           }
-        }
 
-        if (conversationId && taskMetadata?.githubIssue) {
-          try {
-            const issue = taskMetadata.githubIssue;
-            const detailParts: string[] = [];
-            const stateName = issue.state?.toString()?.trim();
-            const assignees = Array.isArray(issue.assignees)
-              ? issue.assignees
-                  .map((a) => a?.name || a?.login)
-                  .filter(Boolean)
-                  .join(', ')
-              : '';
-            const labels = Array.isArray(issue.labels)
-              ? issue.labels
-                  .map((l) => l?.name)
-                  .filter(Boolean)
-                  .join(', ')
-              : '';
-            if (stateName) detailParts.push(`State: ${stateName}`);
-            if (assignees) detailParts.push(`Assignees: ${assignees}`);
-            if (labels) detailParts.push(`Labels: ${labels}`);
+          if (conversationId && taskMetadata?.githubIssue) {
+            try {
+              const issue = taskMetadata.githubIssue;
+              const detailParts: string[] = [];
+              const stateName = issue.state?.toString()?.trim();
+              const assignees = Array.isArray(issue.assignees)
+                ? issue.assignees
+                    .map((a) => a?.name || a?.login)
+                    .filter(Boolean)
+                    .join(', ')
+                : '';
+              const labels = Array.isArray(issue.labels)
+                ? issue.labels
+                    .map((l) => l?.name)
+                    .filter(Boolean)
+                    .join(', ')
+                : '';
+              if (stateName) detailParts.push(`State: ${stateName}`);
+              if (assignees) detailParts.push(`Assignees: ${assignees}`);
+              if (labels) detailParts.push(`Labels: ${labels}`);
 
-            const lines = [`Linked GitHub issue: #${issue.number} — ${issue.title}`];
+              const lines = [`Linked GitHub issue: #${issue.number} — ${issue.title}`];
 
-            if (detailParts.length) {
-              lines.push(`Details: ${detailParts.join(' • ')}`);
+              if (detailParts.length) {
+                lines.push(`Details: ${detailParts.join(' • ')}`);
+              }
+
+              if (issue.url) {
+                lines.push(`URL: ${issue.url}`);
+              }
+
+              if ((issue as any)?.body) {
+                lines.push('');
+                lines.push('Issue Description:');
+                lines.push(String((issue as any).body).trim());
+              }
+
+              await window.electronAPI.saveMessage({
+                id: `github-context-${newTask.id}`,
+                conversationId,
+                content: lines.join('\n'),
+                sender: 'agent',
+                metadata: JSON.stringify({
+                  isGitHubContext: true,
+                  githubIssue: issue,
+                }),
+              });
+            } catch (seedError) {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to seed task with GitHub issue context:', seedError as any);
             }
-
-            if (issue.url) {
-              lines.push(`URL: ${issue.url}`);
-            }
-
-            if ((issue as any)?.body) {
-              lines.push('');
-              lines.push('Issue Description:');
-              lines.push(String((issue as any).body).trim());
-            }
-
-            await window.electronAPI.saveMessage({
-              id: `github-context-${newTask.id}`,
-              conversationId,
-              content: lines.join('\n'),
-              sender: 'agent',
-              metadata: JSON.stringify({
-                isGitHubContext: true,
-                githubIssue: issue,
-              }),
-            });
-          } catch (seedError) {
-            const { log } = await import('./lib/logger');
-            log.error('Failed to seed task with GitHub issue context:', seedError as any);
           }
-        }
 
-        if (conversationId && taskMetadata?.jiraIssue) {
-          try {
-            const issue: any = taskMetadata.jiraIssue;
-            const lines: string[] = [];
-            const line1 =
-              `Linked Jira issue: ${issue.key || ''}${issue.summary ? ` — ${issue.summary}` : ''}`.trim();
-            if (line1) lines.push(line1);
+          if (conversationId && taskMetadata?.jiraIssue) {
+            try {
+              const issue: any = taskMetadata.jiraIssue;
+              const lines: string[] = [];
+              const line1 =
+                `Linked Jira issue: ${issue.key || ''}${issue.summary ? ` — ${issue.summary}` : ''}`.trim();
+              if (line1) lines.push(line1);
 
-            const details: string[] = [];
-            if (issue.status?.name) details.push(`Status: ${issue.status.name}`);
-            if (issue.assignee?.displayName || issue.assignee?.name)
-              details.push(`Assignee: ${issue.assignee?.displayName || issue.assignee?.name}`);
-            if (issue.project?.key) details.push(`Project: ${issue.project.key}`);
-            if (details.length) lines.push(`Details: ${details.join(' • ')}`);
-            if (issue.url) lines.push(`URL: ${issue.url}`);
+              const details: string[] = [];
+              if (issue.status?.name) details.push(`Status: ${issue.status.name}`);
+              if (issue.assignee?.displayName || issue.assignee?.name)
+                details.push(`Assignee: ${issue.assignee?.displayName || issue.assignee?.name}`);
+              if (issue.project?.key) details.push(`Project: ${issue.project.key}`);
+              if (details.length) lines.push(`Details: ${details.join(' • ')}`);
+              if (issue.url) lines.push(`URL: ${issue.url}`);
 
-            await window.electronAPI.saveMessage({
-              id: `jira-context-${newTask.id}`,
-              conversationId,
-              content: lines.join('\n'),
-              sender: 'agent',
-              metadata: JSON.stringify({
-                isJiraContext: true,
-                jiraIssue: issue,
-              }),
-            });
-          } catch (seedError) {
-            const { log } = await import('./lib/logger');
-            log.error('Failed to seed task with Jira issue context:', seedError as any);
+              await window.electronAPI.saveMessage({
+                id: `jira-context-${newTask.id}`,
+                conversationId,
+                content: lines.join('\n'),
+                sender: 'agent',
+                metadata: JSON.stringify({
+                  isJiraContext: true,
+                  jiraIssue: issue,
+                }),
+              });
+            } catch (seedError) {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to seed task with Jira issue context:', seedError as any);
+            }
           }
-        }
+        })();
       }
     } catch (error) {
       const { log } = await import('./lib/logger');
@@ -1649,9 +1572,7 @@ const AppContent: React.FC = () => {
           (error as Error)?.message ||
           'Failed to create task. Please check the console for details.',
       });
-      setIsCreatingTask(false);
     }
-    // Note: setIsCreatingTask(false) is called earlier for optimistic UI updates
   };
 
   const handleGoHome = () => {
@@ -2232,7 +2153,6 @@ const AppContent: React.FC = () => {
               activeTask={activeTask}
               onSelectTask={handleSelectTask}
               onDeleteTask={handleDeleteTask}
-              isCreatingTask={isCreatingTask}
               onDeleteProject={handleDeleteProject}
               branchOptions={projectBranchOptions}
               isLoadingBranches={isLoadingBranches}
@@ -2339,7 +2259,6 @@ const AppContent: React.FC = () => {
                       onReorderProjectsFull={handleReorderProjectsFull}
                       onSidebarContextChange={handleSidebarContextChange}
                       onCreateTaskForProject={handleStartCreateTaskFromSidebar}
-                      isCreatingTask={isCreatingTask}
                       onDeleteTask={handleDeleteTask}
                       onRenameTask={handleRenameTask}
                       onDeleteProject={handleDeleteProject}

@@ -53,6 +53,7 @@ export function startDirectPty(options: {
   rows?: number;
   autoApprove?: boolean;
   initialPrompt?: string;
+  clickTime?: number; // When user clicked Create (for true E2E timing)
 }): IPty | null {
   const startTime = performance.now();
 
@@ -60,7 +61,16 @@ export function startDirectPty(options: {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
 
-  const { id, providerId, cwd, cols = 120, rows = 32, autoApprove, initialPrompt } = options;
+  const {
+    id,
+    providerId,
+    cwd,
+    cols = 120,
+    rows = 32,
+    autoApprove,
+    initialPrompt,
+    clickTime,
+  } = options;
 
   // Get the CLI path from cache
   const status = providerStatusCache.get(providerId);
@@ -144,13 +154,16 @@ export function startDirectPty(options: {
   // Store record with cwd for shell respawn after CLI exits
   ptys.set(id, { id, proc, cwd, isDirectSpawn: true });
 
-  // Track time to first data (CLI ready)
+  // Track time to first data (CLI ready) - true E2E from user click
   let firstDataLogged = false;
   proc.onData(() => {
     if (!firstDataLogged) {
       firstDataLogged = true;
-      const readyMs = performance.now() - startTime;
-      console.log(`[E2E] ${providerId} CLI ready: ${Math.round(readyMs)}ms`);
+      if (clickTime) {
+        const e2eMs = Date.now() - clickTime;
+        const cliMs = Math.round(performance.now() - startTime);
+        console.log(`[E2E] ${providerId} | Total: ${e2eMs}ms | CLI startup: ${cliMs}ms`);
+      }
     }
   });
 

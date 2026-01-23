@@ -61,7 +61,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
   const [defaultAgentFromSettings, setDefaultAgentFromSettings] = useState<Agent>(DEFAULT_AGENT);
-  const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -226,9 +225,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
       return;
     }
 
-    setIsCreating(true);
+    // Close modal immediately - task creation happens in background
+    // The task will appear in sidebar via optimistic UI update
+    (window as any).__createClickTime = Date.now();
+    onClose();
+
+    // Fire and forget - don't await
     try {
-      await onCreateTask(
+      onCreateTask(
         normalizeTaskName(taskName),
         hasInitialPromptSupport && initialPrompt.trim() ? initialPrompt.trim() : undefined,
         agentRuns,
@@ -239,16 +243,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
         useWorktree,
         selectedBranch
       );
-      onClose();
     } catch (error) {
       console.error('Failed to create task:', error);
-    } finally {
-      setIsCreating(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isCreating && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100vh-48px)] max-w-md overflow-visible">
         <DialogHeader>
           <DialogTitle>New Task</DialogTitle>
@@ -334,15 +335,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
           />
 
           <DialogFooter>
-            <Button type="submit" disabled={!!validate(taskName) || isCreating}>
-              {isCreating ? (
-                <>
-                  <Spinner size="sm" className="mr-2" />
-                  Creating...
-                </>
-              ) : (
-                'Create'
-              )}
+            <Button type="submit" disabled={!!validate(taskName)}>
+              Create
             </Button>
           </DialogFooter>
         </form>

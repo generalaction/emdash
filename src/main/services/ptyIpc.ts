@@ -365,10 +365,7 @@ export function registerPtyIpc(): void {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
-        // E2E timing
-        taskCreateStartTime?: number;
-        worktreeMs?: number;
-        worktreeMethod?: string;
+        clickTime?: number; // When user clicked Create (for true E2E timing)
       }
     ) => {
       if (process.env.EMDASH_DISABLE_PTY === '1') {
@@ -376,7 +373,7 @@ export function registerPtyIpc(): void {
       }
 
       try {
-        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt } = args;
+        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, clickTime } = args;
         const existing = getPty(id);
 
         if (existing) {
@@ -393,6 +390,7 @@ export function registerPtyIpc(): void {
           rows,
           autoApprove,
           initialPrompt,
+          clickTime,
         });
 
         if (!proc) {
