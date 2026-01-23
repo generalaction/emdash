@@ -364,10 +364,20 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     }
   }, [task.id, activeTabIndex, variants.length, scrollToBottom]);
 
-  if (!multi?.enabled || variants.length === 0) {
+  if (!multi?.enabled) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Multi-agent config missing for this task.
+      </div>
+    );
+  }
+
+  // Show loading state while worktrees are being created
+  if (variants.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-sm text-muted-foreground">Creating task...</p>
       </div>
     );
   }

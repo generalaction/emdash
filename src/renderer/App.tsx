@@ -1191,96 +1191,174 @@ const AppContent: React.FC = () => {
 
       let newTask: Task;
       if (isMultiAgent) {
-        // Multi-agent task: create worktrees for each provider×runs combo
-        const variants: Array<{
-          id: string;
-          agent: Agent;
-          name: string;
-          branch: string;
-          path: string;
-          worktreeId: string;
-        }> = [];
+        // Multi-agent task: show UI immediately with loading state, create worktrees in background
+        const groupId = `ws-${taskName}-${Date.now()}`;
 
-        for (const { agent, runs } of agentRuns) {
-          for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
-            const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
-            const variantName = `${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
-
-            let branch: string;
-            let path: string;
-            let worktreeId: string;
-
-            if (useWorktree) {
-              const worktreeResult = await window.electronAPI.worktreeCreate({
-                projectPath: selectedProject.path,
-                taskName: variantName,
-                projectId: selectedProject.id,
-                autoApprove,
-                baseRef,
-              });
-              if (!worktreeResult?.success || !worktreeResult.worktree) {
-                throw new Error(
-                  worktreeResult?.error || `Failed to create worktree for ${agent}${instanceSuffix}`
-                );
-              }
-              const worktree = worktreeResult.worktree;
-              branch = worktree.branch;
-              path = worktree.path;
-              worktreeId = worktree.id;
-            } else {
-              // Direct branch mode - use current project path and branch
-              branch = selectedProject.gitInfo.branch || 'main';
-              path = selectedProject.path;
-              worktreeId = `direct-${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
-            }
-
-            variants.push({
-              id: `${taskName}-${agent.toLowerCase()}${instanceSuffix}`,
-              agent: agent,
-              name: variantName,
-              branch,
-              path,
-              worktreeId,
-            });
-          }
-        }
-
-        const multiMeta: TaskMetadata = {
+        // Create optimistic task with empty variants - triggers loading state in MultiAgentTask
+        const optimisticMeta: TaskMetadata = {
           ...(taskMetadata || {}),
           multiAgent: {
             enabled: true,
             maxAgents: 4,
             agentRuns,
-            variants,
+            variants: [], // Empty initially - shows loading spinner
             selectedAgent: null,
           },
         };
 
-        const groupId = `ws-${taskName}-${Date.now()}`;
         newTask = {
           id: groupId,
           projectId: selectedProject.id,
           name: taskName,
-          branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
-          path: variants[0]?.path || selectedProject.path,
+          branch: selectedProject.gitInfo.branch || 'main',
+          path: selectedProject.path,
           status: 'idle',
           agentId: primaryAgent,
-          metadata: multiMeta,
+          metadata: optimisticMeta,
           useWorktree,
         };
 
-        const saveResult = await window.electronAPI.saveTask({
-          ...newTask,
-          agentId: primaryAgent,
-          metadata: multiMeta,
-          useWorktree,
+        // Update UI immediately - shows MultiAgentTask with loading spinner
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.id === selectedProject.id
+              ? { ...project, tasks: [newTask, ...(project.tasks || [])] }
+              : project
+          )
+        );
+        setSelectedProject((prev) =>
+          prev ? { ...prev, tasks: [newTask, ...(prev.tasks || [])] } : null
+        );
+        setActiveTask(newTask);
+        setActiveTaskAgent(null);
+
+        // Create worktrees in background, then update task with real variants
+        (async () => {
+          const variants: Array<{
+            id: string;
+            agent: Agent;
+            name: string;
+            branch: string;
+            path: string;
+            worktreeId: string;
+          }> = [];
+
+          try {
+            for (const { agent, runs } of agentRuns) {
+              for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
+                const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
+                const variantName = `${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
+
+                let branch: string;
+                let path: string;
+                let worktreeId: string;
+
+                if (useWorktree) {
+                  const worktreeResult = await window.electronAPI.worktreeCreate({
+                    projectPath: selectedProject.path,
+                    taskName: variantName,
+                    projectId: selectedProject.id,
+                    autoApprove,
+                    baseRef,
+                  });
+                  if (!worktreeResult?.success || !worktreeResult.worktree) {
+                    throw new Error(
+                      worktreeResult?.error ||
+                        `Failed to create worktree for ${agent}${instanceSuffix}`
+                    );
+                  }
+                  const worktree = worktreeResult.worktree;
+                  branch = worktree.branch;
+                  path = worktree.path;
+                  worktreeId = worktree.id;
+                } else {
+                  // Direct branch mode - use current project path and branch
+                  branch = selectedProject.gitInfo.branch || 'main';
+                  path = selectedProject.path;
+                  worktreeId = `direct-${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
+                }
+
+                variants.push({
+                  id: `${taskName}-${agent.toLowerCase()}${instanceSuffix}`,
+                  agent: agent,
+                  name: variantName,
+                  branch,
+                  path,
+                  worktreeId,
+                });
+              }
+            }
+
+            // Build final metadata with real variants
+            const finalMeta: TaskMetadata = {
+              ...(taskMetadata || {}),
+              multiAgent: {
+                enabled: true,
+                maxAgents: 4,
+                agentRuns,
+                variants,
+                selectedAgent: null,
+              },
+            };
+
+            const finalTask: Task = {
+              ...newTask,
+              branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
+              path: variants[0]?.path || selectedProject.path,
+              metadata: finalMeta,
+            };
+
+            // Save to DB
+            const saveResult = await window.electronAPI.saveTask({
+              ...finalTask,
+              agentId: primaryAgent,
+              metadata: finalMeta,
+              useWorktree,
+            });
+
+            if (!saveResult?.success) {
+              const { log } = await import('./lib/logger');
+              log.error('Failed to save multi-agent task:', saveResult?.error);
+              toast({ title: 'Error', description: 'Failed to save multi-agent task.' });
+              return;
+            }
+
+            // Update UI with final task containing real variants
+            setProjects((prev) =>
+              prev.map((project) =>
+                project.id === selectedProject.id
+                  ? {
+                      ...project,
+                      tasks: project.tasks?.map((t) => (t.id === groupId ? finalTask : t)),
+                    }
+                  : project
+              )
+            );
+            setSelectedProject((prev) =>
+              prev
+                ? { ...prev, tasks: prev.tasks?.map((t) => (t.id === groupId ? finalTask : t)) }
+                : null
+            );
+            setActiveTask(finalTask);
+          } catch (error) {
+            const { log } = await import('./lib/logger');
+            log.error('Failed to create multi-agent worktrees:', error as Error);
+            toast({
+              title: 'Error',
+              description:
+                error instanceof Error ? error.message : 'Failed to create multi-agent workspaces.',
+              variant: 'destructive',
+            });
+          }
+        })();
+
+        // Telemetry
+        import('./lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('task_created', {
+            provider: 'multi',
+            has_initial_prompt: !!taskMetadata?.initialPrompt,
+          });
         });
-        if (!saveResult?.success) {
-          const { log } = await import('./lib/logger');
-          log.error('Failed to save multi-agent task:', saveResult?.error);
-          toast({ title: 'Error', description: 'Failed to create multi-agent task.' });
-          return;
-        }
       } else {
         let branch: string;
         let path: string;
