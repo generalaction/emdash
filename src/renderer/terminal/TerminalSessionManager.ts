@@ -66,6 +66,7 @@ export class TerminalSessionManager {
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
+  private userFontFamily: string | undefined;
 
   constructor(private readonly options: TerminalSessionOptions) {
     this.id = options.taskId;
@@ -98,12 +99,17 @@ export class TerminalSessionManager {
     };
 
     window.electronAPI.getSettings().then((result) => {
-      applyFont(result?.settings?.terminal?.fontFamily);
+      this.userFontFamily = result?.settings?.terminal?.fontFamily;
+      applyFont(this.userFontFamily);
+      if (this.opened) {
+        this.fitAddon.fit();
+      }
     });
 
     const handleFontChange = (e: Event) => {
       const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
-      applyFont(detail?.fontFamily);
+      this.userFontFamily = detail?.fontFamily;
+      applyFont(this.userFontFamily);
       this.fitAddon.fit();
     };
     window.addEventListener('terminal-font-changed', handleFontChange);
@@ -381,6 +387,12 @@ export class TerminalSessionManager {
     }
     if (fontSize) {
       this.terminal.options.fontSize = fontSize;
+    }
+
+    // User font setting takes precedence over theme font
+    if (this.userFontFamily?.trim()) {
+      const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
+      this.terminal.options.fontFamily = `${this.userFontFamily.trim()}, ${FALLBACK_FONTS}`;
     }
   }
 
