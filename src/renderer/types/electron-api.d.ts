@@ -102,6 +102,9 @@ declare global {
           interface?: {
             autoRightSidebarBehavior?: boolean;
           };
+          terminal?: {
+            fontFamily: string;
+          };
         };
         error?: string;
       }>;
@@ -162,6 +165,9 @@ declare global {
           interface?: {
             autoRightSidebarBehavior?: boolean;
           };
+          terminal?: {
+            fontFamily?: string;
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -220,6 +226,9 @@ declare global {
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+          };
+          terminal?: {
+            fontFamily: string;
           };
         };
         error?: string;

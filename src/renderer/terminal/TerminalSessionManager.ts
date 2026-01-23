@@ -29,7 +29,9 @@ export interface TerminalSessionOptions {
   initialSize: { cols: number; rows: number };
   scrollbackLines: number;
   theme: SessionTheme;
-  telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
+  telemetry?: {
+    track: (event: string, payload?: Record<string, unknown>) => void;
+  } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
   disableSnapshots?: boolean;
@@ -64,6 +66,7 @@ export class TerminalSessionManager {
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
+  private userFontFamily: string | undefined;
 
   constructor(private readonly options: TerminalSessionOptions) {
     this.id = options.taskId;
@@ -88,6 +91,31 @@ export class TerminalSessionManager {
       allowProposedApi: true,
       scrollOnUserInput: false,
     });
+
+    const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
+    const applyFont = (customFont?: string) => {
+      const trimmed = customFont?.trim();
+      this.terminal.options.fontFamily = trimmed ? `${trimmed}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
+    };
+
+    window.electronAPI.getSettings().then((result) => {
+      this.userFontFamily = result?.settings?.terminal?.fontFamily;
+      applyFont(this.userFontFamily);
+      if (this.opened) {
+        this.fitAddon.fit();
+      }
+    });
+
+    const handleFontChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
+      this.userFontFamily = detail?.fontFamily;
+      applyFont(this.userFontFamily);
+      this.fitAddon.fit();
+    };
+    window.addEventListener('terminal-font-changed', handleFontChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-font-changed', handleFontChange)
+    );
 
     this.fitAddon = new FitAddon();
     this.serializeAddon = new SerializeAddon();
@@ -260,7 +288,10 @@ export class TerminalSessionManager {
       try {
         dispose();
       } catch (error) {
-        log.warn('Terminal session dispose callback failed', { id: this.id, error });
+        log.warn('Terminal session dispose callback failed', {
+          id: this.id,
+          error,
+        });
       }
     }
     this.metrics.dispose();
@@ -357,6 +388,12 @@ export class TerminalSessionManager {
     if (fontSize) {
       this.terminal.options.fontSize = fontSize;
     }
+
+    // User font setting takes precedence over theme font
+    if (this.userFontFamily?.trim()) {
+      const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
+      this.terminal.options.fontFamily = `${this.userFontFamily.trim()}, ${FALLBACK_FONTS}`;
+    }
   }
 
   /**
@@ -386,7 +423,10 @@ export class TerminalSessionManager {
               this.terminal.scrollToLine(targetLine);
             }
           } catch (error) {
-            log.warn('Terminal scroll restore failed after fit', { id: this.id, error });
+            log.warn('Terminal scroll restore failed after fit', {
+              id: this.id,
+              error,
+            });
           }
         });
       }
@@ -549,7 +589,9 @@ export class TerminalSessionManager {
 
     // Skip snapshot restoration for non-main chats
     if (this.options.disableSnapshots) {
-      log.debug('terminalSession:skippingSnapshotForNonMainChat', { id: this.id });
+      log.debug('terminalSession:skippingSnapshotForNonMainChat', {
+        id: this.id,
+      });
       return;
     }
 
@@ -625,7 +667,10 @@ export class TerminalSessionManager {
           payload,
         });
         if (!result?.ok) {
-          log.warn('Terminal snapshot save failed', { id: this.id, error: result?.error });
+          log.warn('Terminal snapshot save failed', {
+            id: this.id,
+            error: result?.error,
+          });
         } else {
           this.metrics.markSnapshot();
         }

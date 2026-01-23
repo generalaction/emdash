@@ -65,6 +65,9 @@ export interface AppSettings {
   };
   keyboard?: KeyboardSettings;
   interface?: InterfaceSettings;
+  terminal?: {
+    fontFamily: string;
+  };
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -110,6 +113,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   interface: {
     autoRightSidebarBehavior: false,
+  },
+  terminal: {
+    fontFamily: '',
   },
 };
 
@@ -316,6 +322,11 @@ function normalizeSettings(input: AppSettings): AppSettings {
       iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
     ),
   };
+
+  // Terminal
+  const term = (input as any)?.terminal || {};
+  const fontFamily = String(term?.fontFamily ?? '').trim();
+  out.terminal = { fontFamily };
 
   return out;
 }
