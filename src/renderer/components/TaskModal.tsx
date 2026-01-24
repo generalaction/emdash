@@ -227,7 +227,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
     // Close modal immediately - task creation happens in background
     // The task will appear in sidebar via optimistic UI update
-    (window as any).__createClickTime = Date.now();
     onClose();
 
     // Fire and forget - don't await

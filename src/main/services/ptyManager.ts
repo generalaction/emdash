@@ -91,7 +91,6 @@ export function startDirectPty(options: {
   rows?: number;
   autoApprove?: boolean;
   initialPrompt?: string;
-  clickTime?: number;
   resume?: boolean;
 }): IPty | null {
   const startTime = performance.now();
@@ -108,7 +107,6 @@ export function startDirectPty(options: {
     rows = 32,
     autoApprove,
     initialPrompt,
-    clickTime,
     resume,
   } = options;
 
@@ -199,19 +197,6 @@ export function startDirectPty(options: {
 
   // Store record with cwd for shell respawn after CLI exits
   ptys.set(id, { id, proc, cwd, isDirectSpawn: true });
-
-  // Track time to first data (CLI ready) - true E2E from user click
-  let firstDataLogged = false;
-  proc.onData(() => {
-    if (!firstDataLogged) {
-      firstDataLogged = true;
-      if (clickTime) {
-        const e2eMs = Date.now() - clickTime;
-        const cliMs = Math.round(performance.now() - startTime);
-        console.log(`[E2E] ${providerId} | Total: ${e2eMs}ms | CLI startup: ${cliMs}ms`);
-      }
-    }
-  });
 
   // When CLI exits, spawn a shell so user can continue working
   proc.onExit(() => {

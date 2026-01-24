@@ -22,6 +22,8 @@ import { databaseService } from './DatabaseService';
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
 const providerPtyTimers = new Map<string, number>();
+// Track WebContents that have a 'destroyed' listener to avoid duplicates
+const wcDestroyedListeners = new Set<number>();
 
 // Guard IPC sends to prevent crashes when WebContents is destroyed
 function safeSendToOwner(id: string, channel: string, payload: unknown): boolean {
@@ -225,20 +227,25 @@ export function registerPtyIpc(): void {
           listeners.add(id);
         }
 
-        // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
-        // Registered per-owner so ownership transfers are handled correctly
-        wc.once('destroyed', () => {
-          if (owners.get(id) !== wc) {
-            return;
-          }
-          try {
-            // Ensure telemetry timers are cleared on owner destruction
-            maybeMarkProviderFinish(id, null, undefined);
-            killPty(id);
-          } catch {}
-          owners.delete(id);
-          listeners.delete(id);
-        });
+        // Clean up all PTYs owned by this WebContents when it's destroyed
+        // Only register once per WebContents to avoid MaxListenersExceededWarning
+        if (!wcDestroyedListeners.has(wc.id)) {
+          wcDestroyedListeners.add(wc.id);
+          wc.once('destroyed', () => {
+            wcDestroyedListeners.delete(wc.id);
+            // Clean up all PTYs owned by this WebContents
+            for (const [ptyId, owner] of owners.entries()) {
+              if (owner === wc) {
+                try {
+                  maybeMarkProviderFinish(ptyId, null, undefined);
+                  killPty(ptyId);
+                } catch {}
+                owners.delete(ptyId);
+                listeners.delete(ptyId);
+              }
+            }
+          });
+        }
 
         if (!existing) {
           maybeMarkProviderStart(id);
@@ -365,7 +372,6 @@ export function registerPtyIpc(): void {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
-        clickTime?: number;
         resume?: boolean;
       }
     ) => {
@@ -374,8 +380,7 @@ export function registerPtyIpc(): void {
       }
 
       try {
-        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, clickTime, resume } =
-          args;
+        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, resume } = args;
         const existing = getPty(id);
 
         if (existing) {
@@ -392,7 +397,6 @@ export function registerPtyIpc(): void {
           rows,
           autoApprove,
           initialPrompt,
-          clickTime,
           resume,
         });
 
@@ -417,18 +421,24 @@ export function registerPtyIpc(): void {
           listeners.add(id);
         }
 
-        // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
-        wc.once('destroyed', () => {
-          if (owners.get(id) !== wc) {
-            return;
-          }
-          try {
-            maybeMarkProviderFinish(id, null, undefined);
-            killPty(id);
-          } catch {}
-          owners.delete(id);
-          listeners.delete(id);
-        });
+        // Clean up all PTYs owned by this WebContents when it's destroyed
+        // Only register once per WebContents to avoid MaxListenersExceededWarning
+        if (!wcDestroyedListeners.has(wc.id)) {
+          wcDestroyedListeners.add(wc.id);
+          wc.once('destroyed', () => {
+            wcDestroyedListeners.delete(wc.id);
+            for (const [ptyId, owner] of owners.entries()) {
+              if (owner === wc) {
+                try {
+                  maybeMarkProviderFinish(ptyId, null, undefined);
+                  killPty(ptyId);
+                } catch {}
+                owners.delete(ptyId);
+                listeners.delete(ptyId);
+              }
+            }
+          });
+        }
 
         maybeMarkProviderStart(id);
 

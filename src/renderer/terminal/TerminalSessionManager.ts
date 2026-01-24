@@ -528,7 +528,6 @@ export class TerminalSessionManager {
 
     // Provider CLIs use direct spawn (bypasses shell config loading)
     // Regular shell terminals use shell-based spawn
-    const clickTime = (window as any).__createClickTime;
     const ptyPromise =
       providerId && cwd
         ? window.electronAPI.ptyStartDirect({
@@ -539,7 +538,6 @@ export class TerminalSessionManager {
             rows: initialSize.rows,
             autoApprove,
             initialPrompt,
-            clickTime,
             resume: hasExistingSession,
           })
         : window.electronAPI.ptyStart({

@@ -245,7 +245,6 @@ declare global {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
-        clickTime?: number;
         resume?: boolean;
       }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyGetBenchmarks: () => Promise<{
@@ -923,7 +922,6 @@ export interface ElectronAPI {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
-    clickTime?: number;
     resume?: boolean;
   }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
   ptyGetBenchmarks: () => Promise<{
