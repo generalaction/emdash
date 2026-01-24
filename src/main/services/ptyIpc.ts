@@ -77,8 +77,10 @@ export function registerPtyIpc(): void {
         listeners.add(id);
       }
 
-      // Notify renderer that shell is ready
-      wc.send('pty:shellSpawned', { id });
+      // Notify renderer that shell is ready (reuse pty:started so existing listener handles it)
+      if (!wc.isDestroyed()) {
+        wc.send('pty:started', { id });
+      }
       log.info('ptyIpc: Spawned shell after CLI exit', { id, cwd });
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
