@@ -1693,19 +1693,15 @@ const AppContent: React.FC = () => {
           } catch {}
         } catch {}
         try {
-          window.electronAPI.ptyKill?.(`task-${task.id}`);
-        } catch {}
-        try {
           for (const provider of TERMINAL_PROVIDER_IDS) {
             try {
               window.electronAPI.ptyKill?.(`${provider}-main-${task.id}`);
             } catch {}
           }
         } catch {}
-        const sessionIds = [
-          `task-${task.id}`,
-          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${task.id}`),
-        ];
+        const sessionIds = TERMINAL_PROVIDER_IDS.map(
+          (provider) => `${provider}-main-${task.id}`
+        );
 
         await Promise.allSettled(
           sessionIds.map(async (sessionId) => {
