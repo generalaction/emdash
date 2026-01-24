@@ -1218,6 +1218,21 @@ const AppContent: React.FC = () => {
           useWorktree,
         };
 
+        // Helper to remove optimistic task on failure
+        const removeOptimisticTask = () => {
+          setProjects((prev) =>
+            prev.map((project) =>
+              project.id === selectedProject.id
+                ? { ...project, tasks: project.tasks?.filter((t) => t.id !== groupId) }
+                : project
+            )
+          );
+          setSelectedProject((prev) =>
+            prev ? { ...prev, tasks: prev.tasks?.filter((t) => t.id !== groupId) } : null
+          );
+          setActiveTask(null);
+        };
+
         // Update UI immediately - shows MultiAgentTask with loading spinner
         setProjects((prev) =>
           prev.map((project) =>
@@ -1319,7 +1334,12 @@ const AppContent: React.FC = () => {
             if (!saveResult?.success) {
               const { log } = await import('./lib/logger');
               log.error('Failed to save multi-agent task:', saveResult?.error);
-              toast({ title: 'Error', description: 'Failed to save multi-agent task.' });
+              toast({
+                title: 'Error',
+                description: 'Failed to save multi-agent task.',
+                variant: 'destructive',
+              });
+              removeOptimisticTask();
               return;
             }
 
@@ -1349,6 +1369,7 @@ const AppContent: React.FC = () => {
                 error instanceof Error ? error.message : 'Failed to create multi-agent workspaces.',
               variant: 'destructive',
             });
+            removeOptimisticTask();
           }
         })();
 
