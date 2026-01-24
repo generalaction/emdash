@@ -222,6 +222,9 @@ export class WorktreePoolService {
       cwd: reserve.projectPath,
     });
 
+    // Update reserve path so cleanup uses correct location if we fail later
+    reserve.path = newPath;
+
     // Rename the branch (instant operation)
     await execFileAsync('git', ['branch', '-m', reserve.branch, newBranch], {
       cwd: newPath,
