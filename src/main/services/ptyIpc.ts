@@ -166,8 +166,8 @@ export function registerPtyIpc(): void {
                     const lastParts = cwdParts.slice(-3).join('-'); // Use last 3 parts of path
                     sessionExists = dirs.some((dir: string) => dir.includes(lastParts));
                   } catch {
-                  // Ignore scan errors
-                }
+                    // Ignore scan errors
+                  }
                 }
 
                 // Skip resume if no session directory exists (new task)
