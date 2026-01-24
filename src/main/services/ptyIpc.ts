@@ -388,7 +388,7 @@ export function registerPtyIpc(): void {
           return { ok: true, reused: true };
         }
 
-        const proc = startDirectPty({
+        let proc = startDirectPty({
           id,
           providerId,
           cwd,
@@ -399,8 +399,23 @@ export function registerPtyIpc(): void {
           resume,
         });
 
+        // Fallback to shell-based spawn if direct spawn fails (CLI not in cache)
         if (!proc) {
-          return { ok: false, error: `CLI path not found for provider: ${providerId}` };
+          const provider = getProvider(providerId as ProviderId);
+          if (!provider?.cli) {
+            return { ok: false, error: `CLI path not found for provider: ${providerId}` };
+          }
+          log.info('pty:startDirect - falling back to shell spawn', { id, providerId });
+          proc = await startPty({
+            id,
+            cwd,
+            shell: provider.cli,
+            cols,
+            rows,
+            autoApprove,
+            initialPrompt,
+            skipResume: !resume,
+          });
         }
 
         const wc = event.sender;
