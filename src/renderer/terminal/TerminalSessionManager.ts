@@ -8,6 +8,7 @@ import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
+import { getProvider, type ProviderId } from '@shared/providers/registry';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -487,8 +488,8 @@ export class TerminalSessionManager {
   private providerHasResume(): boolean {
     const { providerId } = this.options;
     if (!providerId) return false;
-    // These providers have resumeFlag defined in registry
-    return ['claude', 'codex'].includes(providerId);
+    const provider = getProvider(providerId as ProviderId);
+    return !!provider?.resumeFlag;
   }
 
   private async fetchSnapshot(): Promise<any | null> {
