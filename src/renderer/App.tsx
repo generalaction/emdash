@@ -36,6 +36,7 @@ import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
+import { disposeTaskTerminals } from './lib/taskTerminalsStore';
 import {
   computeBaseRef,
   getProjectRepoKey,
@@ -1713,6 +1714,10 @@ const AppContent: React.FC = () => {
             } catch {}
           })
         );
+
+        // Clean up task terminal panel terminals (bottom-right shell terminals)
+        disposeTaskTerminals(`${task.id}::${task.path}`);
+        disposeTaskTerminals(`global::${task.path}`);
 
         // Only remove worktree if the task was created with one
         // IMPORTANT: Tasks without worktrees have useWorktree === false
