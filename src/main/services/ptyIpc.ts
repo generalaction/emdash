@@ -432,8 +432,8 @@ export function registerPtyIpc(): void {
           proc.onExit(({ exitCode, signal }) => {
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             maybeMarkProviderFinish(id, exitCode, signal);
-            // For direct spawn: DON'T delete owner/listeners - shell will be spawned and reuse them
-            // For fallback: clean up since no shell respawn happens
+            // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
+            // For fallback: clean up owner since no shell respawn happens
             if (usedFallback) {
               owners.delete(id);
             }

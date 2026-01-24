@@ -471,18 +471,22 @@ export class TerminalSessionManager {
     const result = await this.connectPty(hasSnapshot);
 
     // Decide whether to restore snapshot based on PTY result
-    if (result?.reused) {
-      // Hot reload - PTY still running, restore snapshot for visual continuity
-      if (snapshot) {
-        this.applySnapshot(snapshot);
+    try {
+      if (result?.reused) {
+        // Hot reload - PTY still running, restore snapshot for visual continuity
+        if (snapshot) {
+          this.applySnapshot(snapshot);
+        }
+      } else if (!this.providerHasResume()) {
+        // Full restart with non-resume CLI - show snapshot for context
+        if (snapshot) {
+          this.applySnapshot(snapshot);
+        }
       }
-    } else if (!this.providerHasResume()) {
-      // Full restart with non-resume CLI - show snapshot for context
-      if (snapshot) {
-        this.applySnapshot(snapshot);
-      }
+      // For full restart with resume CLI - skip snapshot, CLI handles history
+    } catch (err) {
+      log.warn('terminalSession:applySnapshotError', { id: this.id, error: err });
     }
-    // For full restart with resume CLI - skip snapshot, CLI handles history
   }
 
   private providerHasResume(): boolean {
