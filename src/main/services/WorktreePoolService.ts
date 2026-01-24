@@ -88,9 +88,20 @@ export class WorktreePoolService {
    * Creates one in the background if not present.
    */
   async ensureReserve(projectId: string, projectPath: string, baseRef?: string): Promise<void> {
-    // Already have a reserve or creation in progress
-    if (this.reserves.has(projectId) || this.creationInProgress.has(projectId)) {
+    // Creation already in progress
+    if (this.creationInProgress.has(projectId)) {
       return;
+    }
+
+    // Check existing reserve
+    const existing = this.reserves.get(projectId);
+    if (existing) {
+      if (!this.isReserveStale(existing)) {
+        return; // Fresh reserve exists
+      }
+      // Stale reserve - clean it up and create fresh one
+      this.reserves.delete(projectId);
+      this.cleanupReserve(existing).catch(() => {});
     }
 
     // Start background creation
