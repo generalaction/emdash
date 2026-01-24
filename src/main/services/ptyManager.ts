@@ -7,6 +7,44 @@ import { PROVIDERS } from '@shared/providers/registry';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 
+/**
+ * Environment variables to pass through for agent authentication.
+ * These are passed to CLI tools during direct spawn (which skips shell config).
+ */
+const AGENT_ENV_VARS = [
+  'AMP_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'AUGMENT_SESSION_AUTH',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_DEFAULT_REGION',
+  'AWS_PROFILE',
+  'AWS_REGION',
+  'AWS_SECRET_ACCESS_KEY',
+  'AWS_SESSION_TOKEN',
+  'AZURE_OPENAI_API_ENDPOINT',
+  'AZURE_OPENAI_API_KEY',
+  'CODEBUFF_API_KEY',
+  'COPILOT_CLI_TOKEN',
+  'CURSOR_API_KEY',
+  'DASHSCOPE_API_KEY',
+  'FACTORY_API_KEY',
+  'GEMINI_API_KEY',
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+  'GOOGLE_API_KEY',
+  'GOOGLE_APPLICATION_CREDENTIALS',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_CLOUD_PROJECT',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'KIMI_API_KEY',
+  'MISTRAL_API_KEY',
+  'MOONSHOT_API_KEY',
+  'NO_PROXY',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+];
+
 type PtyRecord = {
   id: string;
   proc: IPty;
@@ -124,10 +162,14 @@ export function startDirectPty(options: {
     PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
     ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
-    // Pass through any API key env vars that might be set
-    ...(process.env.ANTHROPIC_API_KEY && { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
-    ...(process.env.OPENAI_API_KEY && { OPENAI_API_KEY: process.env.OPENAI_API_KEY }),
   };
+
+  // Pass through agent authentication env vars
+  for (const key of AGENT_ENV_VARS) {
+    if (process.env[key]) {
+      useEnv[key] = process.env[key];
+    }
+  }
 
   // Lazy load native module
   let pty: typeof import('node-pty');
