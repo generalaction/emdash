@@ -237,6 +237,16 @@ declare global {
         initialPrompt?: string;
         skipResume?: boolean;
       }) => Promise<{ ok: boolean; error?: string }>;
+      ptyStartDirect: (opts: {
+        id: string;
+        providerId: string;
+        cwd: string;
+        cols?: number;
+        rows?: number;
+        autoApprove?: boolean;
+        initialPrompt?: string;
+        resume?: boolean;
+      }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
@@ -321,6 +331,31 @@ declare global {
         worktrees?: any[];
         error?: string;
       }>;
+
+      // Worktree pool (reserve) management for instant task creation
+      worktreeEnsureReserve: (args: {
+        projectId: string;
+        projectPath: string;
+        baseRef?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      worktreeHasReserve: (args: {
+        projectId: string;
+      }) => Promise<{ success: boolean; hasReserve?: boolean; error?: string }>;
+      worktreeClaimReserve: (args: {
+        projectId: string;
+        projectPath: string;
+        taskName: string;
+        baseRef?: string;
+        autoApprove?: boolean;
+      }) => Promise<{
+        success: boolean;
+        worktree?: any;
+        needsBaseRefSwitch?: boolean;
+        error?: string;
+      }>;
+      worktreeRemoveReserve: (args: {
+        projectId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
 
       // Project management
       openProject: () => Promise<{
@@ -870,6 +905,16 @@ export interface ElectronAPI {
     initialPrompt?: string;
     skipResume?: boolean;
   }) => Promise<{ ok: boolean; error?: string }>;
+  ptyStartDirect: (opts: {
+    id: string;
+    providerId: string;
+    cwd: string;
+    cols?: number;
+    rows?: number;
+    autoApprove?: boolean;
+    initialPrompt?: string;
+    resume?: boolean;
+  }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
   ptyKill: (id: string) => void;
@@ -922,6 +967,31 @@ export interface ElectronAPI {
     worktrees?: any[];
     error?: string;
   }>;
+
+  // Worktree pool (reserve) management for instant task creation
+  worktreeEnsureReserve: (args: {
+    projectId: string;
+    projectPath: string;
+    baseRef?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  worktreeHasReserve: (args: {
+    projectId: string;
+  }) => Promise<{ success: boolean; hasReserve?: boolean; error?: string }>;
+  worktreeClaimReserve: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    autoApprove?: boolean;
+  }) => Promise<{
+    success: boolean;
+    worktree?: any;
+    needsBaseRefSwitch?: boolean;
+    error?: string;
+  }>;
+  worktreeRemoveReserve: (args: {
+    projectId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
 
   // Project management
   openProject: () => Promise<{

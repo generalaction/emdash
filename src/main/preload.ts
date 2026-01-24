@@ -69,6 +69,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('pty:resize', args),
   ptyKill: (id: string) => ipcRenderer.send('pty:kill', { id }),
 
+  // Direct PTY spawn (no shell wrapper, bypasses shell config loading)
+  ptyStartDirect: (opts: {
+    id: string;
+    providerId: string;
+    cwd: string;
+    cols?: number;
+    rows?: number;
+    autoApprove?: boolean;
+    initialPrompt?: string;
+    clickTime?: number;
+    resume?: boolean;
+  }) => ipcRenderer.invoke('pty:startDirect', opts),
+
   onPtyData: (id: string, listener: (data: string) => void) => {
     const channel = `pty:data:${id}`;
     const wrapped = (_: Electron.IpcRendererEvent, data: string) => listener(data);
@@ -117,6 +130,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('worktree:merge', args),
   worktreeGet: (args: { worktreeId: string }) => ipcRenderer.invoke('worktree:get', args),
   worktreeGetAll: () => ipcRenderer.invoke('worktree:getAll'),
+
+  // Worktree pool (reserve) management for instant task creation
+  worktreeEnsureReserve: (args: { projectId: string; projectPath: string; baseRef?: string }) =>
+    ipcRenderer.invoke('worktree:ensureReserve', args),
+  worktreeHasReserve: (args: { projectId: string }) =>
+    ipcRenderer.invoke('worktree:hasReserve', args),
+  worktreeClaimReserve: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    autoApprove?: boolean;
+  }) => ipcRenderer.invoke('worktree:claimReserve', args),
+  worktreeRemoveReserve: (args: { projectId: string }) =>
+    ipcRenderer.invoke('worktree:removeReserve', args),
 
   // Filesystem helpers
   fsList: (root: string, opts?: { includeDirs?: boolean; maxEntries?: number }) =>

@@ -302,4 +302,3 @@ export const AgentDisplay: React.FC<Props> = ({
 };
 
 export default AgentDisplay;
-console.log('AGENT DISPLAY LOADED');

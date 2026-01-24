@@ -1,5 +1,13 @@
 import { app, ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
-import { startPty, writePty, resizePty, killPty, getPty } from './ptyManager';
+import {
+  startPty,
+  writePty,
+  resizePty,
+  killPty,
+  getPty,
+  startDirectPty,
+  setOnDirectCliExit,
+} from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import { errorTracking } from '../errorTracking';
@@ -13,6 +21,8 @@ import { databaseService } from './DatabaseService';
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
 const providerPtyTimers = new Map<string, number>();
+// Track WebContents that have a 'destroyed' listener to avoid duplicates
+const wcDestroyedListeners = new Set<number>();
 
 // Guard IPC sends to prevent crashes when WebContents is destroyed
 function safeSendToOwner(id: string, channel: string, payload: unknown): boolean {
@@ -33,6 +43,51 @@ function safeSendToOwner(id: string, channel: string, payload: unknown): boolean
 }
 
 export function registerPtyIpc(): void {
+  // When a direct-spawned CLI exits, spawn a shell so user can continue working
+  setOnDirectCliExit(async (id: string, cwd: string) => {
+    const wc = owners.get(id);
+    if (!wc) return;
+
+    try {
+      // Spawn a shell in the same terminal
+      const proc = await startPty({
+        id,
+        cwd,
+        cols: 120,
+        rows: 32,
+      });
+
+      if (!proc) {
+        log.warn('ptyIpc: Failed to spawn shell after CLI exit', { id });
+        killPty(id); // Clean up dead PTY record
+        return;
+      }
+
+      // Re-attach listeners for the new shell process
+      listeners.delete(id); // Clear old listener registration
+      if (!listeners.has(id)) {
+        proc.onData((data) => {
+          safeSendToOwner(id, `pty:data:${id}`, data);
+        });
+
+        proc.onExit(({ exitCode, signal }) => {
+          safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+          owners.delete(id);
+          listeners.delete(id);
+        });
+        listeners.add(id);
+      }
+
+      // Notify renderer that shell is ready (reuse pty:started so existing listener handles it)
+      if (!wc.isDestroyed()) {
+        wc.send('pty:started', { id });
+      }
+    } catch (err) {
+      log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
+      killPty(id); // Clean up dead PTY record
+    }
+  });
+
   ipcMain.handle(
     'pty:start',
     async (
@@ -49,6 +104,7 @@ export function registerPtyIpc(): void {
         skipResume?: boolean;
       }
     ) => {
+      const ptyStartTime = performance.now();
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
@@ -110,8 +166,8 @@ export function registerPtyIpc(): void {
                     const cwdParts = cwd.split('/').filter((p) => p.length > 0);
                     const lastParts = cwdParts.slice(-3).join('-'); // Use last 3 parts of path
                     sessionExists = dirs.some((dir: string) => dir.includes(lastParts));
-                  } catch (e) {
-                    log.debug('pty:start error scanning Claude projects directory', { error: e });
+                  } catch {
+                    // Ignore scan errors
                   }
                 }
 
@@ -147,20 +203,6 @@ export function registerPtyIpc(): void {
             initialPrompt,
             skipResume: shouldSkipResume,
           }));
-        const envKeys = env ? Object.keys(env) : [];
-        log.debug('pty:start OK', {
-          id,
-          cwd,
-          shell,
-          cols,
-          rows,
-          autoApprove,
-          skipResumeRequested: skipResume,
-          skipResumeActual: shouldSkipResume,
-          isAdditionalChat,
-          reused: !!existing,
-          envKeys,
-        });
         const wc = event.sender;
         owners.set(id, wc);
 
@@ -173,7 +215,6 @@ export function registerPtyIpc(): void {
           proc.onExit(({ exitCode, signal }) => {
             // Check if this PTY is still active (not replaced by a newer instance)
             if (getPty(id) !== proc) {
-              log.debug('pty:staleOnExit', { id });
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
@@ -185,22 +226,25 @@ export function registerPtyIpc(): void {
           listeners.add(id);
         }
 
-        // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
-        // Registered per-owner so ownership transfers are handled correctly
-        wc.once('destroyed', () => {
-          if (owners.get(id) !== wc) {
-            log.debug('pty:staleOwnerDestroyed', { id });
-            return;
-          }
-          log.debug('pty:ownerDestroyed', { id });
-          try {
-            // Ensure telemetry timers are cleared on owner destruction
-            maybeMarkProviderFinish(id, null, undefined);
-            killPty(id);
-          } catch {}
-          owners.delete(id);
-          listeners.delete(id);
-        });
+        // Clean up all PTYs owned by this WebContents when it's destroyed
+        // Only register once per WebContents to avoid MaxListenersExceededWarning
+        if (!wcDestroyedListeners.has(wc.id)) {
+          wcDestroyedListeners.add(wc.id);
+          wc.once('destroyed', () => {
+            wcDestroyedListeners.delete(wc.id);
+            // Clean up all PTYs owned by this WebContents
+            for (const [ptyId, owner] of owners.entries()) {
+              if (owner === wc) {
+                try {
+                  maybeMarkProviderFinish(ptyId, null, undefined);
+                  killPty(ptyId);
+                } catch {}
+                owners.delete(ptyId);
+                listeners.delete(ptyId);
+              }
+            }
+          });
+        }
 
         if (!existing) {
           maybeMarkProviderStart(id);
@@ -312,6 +356,125 @@ export function registerPtyIpc(): void {
       return { ok: false, error: error?.message || String(error) };
     }
   });
+
+  // Start a PTY by spawning CLI directly (no shell wrapper)
+  // This is faster but falls back to shell-based spawn if CLI path unknown
+  ipcMain.handle(
+    'pty:startDirect',
+    async (
+      event,
+      args: {
+        id: string;
+        providerId: string;
+        cwd: string;
+        cols?: number;
+        rows?: number;
+        autoApprove?: boolean;
+        initialPrompt?: string;
+        resume?: boolean;
+      }
+    ) => {
+      if (process.env.EMDASH_DISABLE_PTY === '1') {
+        return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
+      }
+
+      try {
+        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, resume } = args;
+        const existing = getPty(id);
+
+        if (existing) {
+          const wc = event.sender;
+          owners.set(id, wc);
+          return { ok: true, reused: true };
+        }
+
+        let proc = startDirectPty({
+          id,
+          providerId,
+          cwd,
+          cols,
+          rows,
+          autoApprove,
+          initialPrompt,
+          resume,
+        });
+
+        // Fallback to shell-based spawn if direct spawn fails (CLI not in cache)
+        // Track fallback so we know to clean up owners on exit (no shell respawn for fallback)
+        let usedFallback = false;
+        if (!proc) {
+          const provider = getProvider(providerId as ProviderId);
+          if (!provider?.cli) {
+            return { ok: false, error: `CLI path not found for provider: ${providerId}` };
+          }
+          log.info('pty:startDirect - falling back to shell spawn', { id, providerId });
+          proc = await startPty({
+            id,
+            cwd,
+            shell: provider.cli,
+            cols,
+            rows,
+            autoApprove,
+            initialPrompt,
+            skipResume: !resume,
+          });
+          usedFallback = true;
+        }
+
+        const wc = event.sender;
+        owners.set(id, wc);
+
+        if (!listeners.has(id)) {
+          proc.onData((data) => {
+            safeSendToOwner(id, `pty:data:${id}`, data);
+          });
+
+          proc.onExit(({ exitCode, signal }) => {
+            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            maybeMarkProviderFinish(id, exitCode, signal);
+            // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
+            // For fallback: clean up owner since no shell respawn happens
+            if (usedFallback) {
+              owners.delete(id);
+            }
+            listeners.delete(id);
+          });
+          listeners.add(id);
+        }
+
+        // Clean up all PTYs owned by this WebContents when it's destroyed
+        // Only register once per WebContents to avoid MaxListenersExceededWarning
+        if (!wcDestroyedListeners.has(wc.id)) {
+          wcDestroyedListeners.add(wc.id);
+          wc.once('destroyed', () => {
+            wcDestroyedListeners.delete(wc.id);
+            for (const [ptyId, owner] of owners.entries()) {
+              if (owner === wc) {
+                try {
+                  maybeMarkProviderFinish(ptyId, null, undefined);
+                  killPty(ptyId);
+                } catch {}
+                owners.delete(ptyId);
+                listeners.delete(ptyId);
+              }
+            }
+          });
+        }
+
+        maybeMarkProviderStart(id);
+
+        try {
+          const windows = BrowserWindow.getAllWindows();
+          windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
+        } catch {}
+
+        return { ok: true };
+      } catch (err: any) {
+        log.error('pty:startDirect FAIL', { id: args.id, error: err?.message || err });
+        return { ok: false, error: String(err?.message || err) };
+      }
+    }
+  );
 }
 
 function parseProviderPty(id: string): {

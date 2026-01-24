@@ -872,19 +872,17 @@ const ChatInterface: React.FC<Props> = ({
                     : ''
               }`}
             >
-              {/* Only render TerminalPane after conversations are loaded to ensure correct terminal ID and snapshot settings */}
-              {conversationsLoaded ? (
+              {/* Wait for conversations to load to ensure stable terminalId */}
+              {conversationsLoaded && (
                 <TerminalPane
                   ref={terminalRef}
                   id={terminalId}
                   cwd={terminalCwd}
-                  shell={agentMeta[agent].cli}
+                  providerId={agent}
                   autoApprove={autoApproveEnabled}
                   env={undefined}
                   keepAlive={true}
-                  disableSnapshots={
-                    !conversations.find((c) => c.id === activeConversationId)?.isMain
-                  }
+                  disableSnapshots={false}
                   onActivity={() => {
                     try {
                       window.localStorage.setItem(`agent:locked:${task.id}`, agent);
@@ -955,7 +953,7 @@ const ChatInterface: React.FC<Props> = ({
                   }
                   className="h-full w-full"
                 />
-              ) : null}
+              )}
             </div>
           </div>
         </div>

@@ -4,14 +4,183 @@ import path from 'path';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';
+import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
+
+/**
+ * Environment variables to pass through for agent authentication.
+ * These are passed to CLI tools during direct spawn (which skips shell config).
+ */
+const AGENT_ENV_VARS = [
+  'AMP_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'AUGMENT_SESSION_AUTH',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_DEFAULT_REGION',
+  'AWS_PROFILE',
+  'AWS_REGION',
+  'AWS_SECRET_ACCESS_KEY',
+  'AWS_SESSION_TOKEN',
+  'AZURE_OPENAI_API_ENDPOINT',
+  'AZURE_OPENAI_API_KEY',
+  'CODEBUFF_API_KEY',
+  'COPILOT_CLI_TOKEN',
+  'CURSOR_API_KEY',
+  'DASHSCOPE_API_KEY',
+  'FACTORY_API_KEY',
+  'GEMINI_API_KEY',
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+  'GOOGLE_API_KEY',
+  'GOOGLE_APPLICATION_CREDENTIALS',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_CLOUD_PROJECT',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'KIMI_API_KEY',
+  'MISTRAL_API_KEY',
+  'MOONSHOT_API_KEY',
+  'NO_PROXY',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+];
 
 type PtyRecord = {
   id: string;
   proc: IPty;
+  cwd?: string; // Working directory (for respawning shell after CLI exit)
+  isDirectSpawn?: boolean; // Whether this was a direct CLI spawn
 };
 
 const ptys = new Map<string, PtyRecord>();
+
+// Callback to spawn shell after direct CLI exits (set by ptyIpc)
+let onDirectCliExitCallback: ((id: string, cwd: string) => void) | null = null;
+
+export function setOnDirectCliExit(callback: (id: string, cwd: string) => void): void {
+  onDirectCliExitCallback = callback;
+}
+
+/**
+ * Spawn a CLI directly without a shell wrapper.
+ * This is faster because it skips shell config loading (oh-my-zsh, nvm, etc.)
+ *
+ * Returns null if the CLI path is not known (not in providerStatusCache).
+ */
+export function startDirectPty(options: {
+  id: string;
+  providerId: string;
+  cwd: string;
+  cols?: number;
+  rows?: number;
+  autoApprove?: boolean;
+  initialPrompt?: string;
+  resume?: boolean;
+}): IPty | null {
+  if (process.env.EMDASH_DISABLE_PTY === '1') {
+    throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+  }
+
+  const {
+    id,
+    providerId,
+    cwd,
+    cols = 120,
+    rows = 32,
+    autoApprove,
+    initialPrompt,
+    resume,
+  } = options;
+
+  // Get the CLI path from cache
+  const status = providerStatusCache.get(providerId);
+  if (!status?.installed || !status?.path) {
+    log.warn('ptyManager:directSpawn - CLI path not found', { providerId });
+    return null;
+  }
+
+  const cliPath = status.path;
+  const provider = PROVIDERS.find((p) => p.id === providerId);
+
+  // Build CLI arguments
+  const cliArgs: string[] = [];
+
+  if (provider) {
+    // Add resume flag if resuming an existing session (e.g., after app reload)
+    if (resume && provider.resumeFlag) {
+      const resumeParts = provider.resumeFlag.split(' ');
+      cliArgs.push(...resumeParts);
+    }
+
+    // Add default args
+    if (provider.defaultArgs?.length) {
+      cliArgs.push(...provider.defaultArgs);
+    }
+
+    // Add auto-approve flag
+    if (autoApprove && provider.autoApproveFlag) {
+      cliArgs.push(provider.autoApproveFlag);
+    }
+
+    // Add initial prompt
+    if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
+      if (provider.initialPromptFlag) {
+        cliArgs.push(provider.initialPromptFlag);
+      }
+      cliArgs.push(initialPrompt.trim());
+    }
+  }
+
+  // Build minimal environment - just what the CLI needs
+  const useEnv: Record<string, string> = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    // Include PATH so CLI can find its dependencies
+    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+  };
+
+  // Pass through agent authentication env vars
+  for (const key of AGENT_ENV_VARS) {
+    if (process.env[key]) {
+      useEnv[key] = process.env[key];
+    }
+  }
+
+  // Lazy load native module
+  let pty: typeof import('node-pty');
+  try {
+    pty = require('node-pty');
+  } catch (e: any) {
+    throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
+  }
+
+  const proc = pty.spawn(cliPath, cliArgs, {
+    name: 'xterm-256color',
+    cols,
+    rows,
+    cwd,
+    env: useEnv,
+  });
+
+  // Store record with cwd for shell respawn after CLI exits
+  ptys.set(id, { id, proc, cwd, isDirectSpawn: true });
+
+  // When CLI exits, spawn a shell so user can continue working
+  proc.onExit(() => {
+    const rec = ptys.get(id);
+    if (rec?.isDirectSpawn && rec.cwd && onDirectCliExitCallback) {
+      // Spawn shell immediately after CLI exits
+      onDirectCliExitCallback(id, rec.cwd);
+    }
+  });
+
+  return proc;
+}
 
 function getDefaultShell(): string {
   if (process.platform === 'win32') {
@@ -212,7 +381,6 @@ export async function startPty(options: {
       cwd: useCwd,
       env: useEnv,
     });
-    log.debug('ptyManager:spawned', { id, shell: useShell, args, cwd: useCwd });
   } catch (err: any) {
     // Track initial spawn error
     const provider = args.find((arg) => PROVIDERS.some((p) => p.cli === arg));
@@ -244,15 +412,13 @@ export async function startPty(options: {
     }
   }
 
-  const rec: PtyRecord = { id, proc };
-  ptys.set(id, rec);
+  ptys.set(id, { id, proc });
   return proc;
 }
 
 export function writePty(id: string, data: string): void {
   const rec = ptys.get(id);
   if (!rec) {
-    log.warn('ptyManager:writeMissing', { id, bytes: data.length });
     return;
   }
   rec.proc.write(data);
@@ -261,7 +427,7 @@ export function writePty(id: string, data: string): void {
 export function resizePty(id: string, cols: number, rows: number): void {
   const rec = ptys.get(id);
   if (!rec) {
-    log.warn('ptyManager:resizeMissing', { id, cols, rows });
+    // PTY not ready yet - this is normal during startup, ignore silently
     return;
   }
   try {
@@ -274,7 +440,7 @@ export function resizePty(id: string, cols: number, rows: number): void {
         /Napi::Error/.test(String(error)) ||
         error.message?.includes('not open'))
     ) {
-      log.warn('ptyManager:resizeAfterExit', { id, cols, rows, error: String(error) });
+      // Expected during shutdown - PTY already exited
       return;
     }
     log.error('ptyManager:resizeFailed', { id, cols, rows, error: String(error) });

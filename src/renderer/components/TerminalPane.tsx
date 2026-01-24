@@ -15,9 +15,10 @@ import ExternalLinkModal from './ExternalLinkModal';
 type Props = {
   id: string;
   cwd?: string;
+  providerId?: string; // If set, uses direct CLI spawn (no shell)
+  shell?: string; // Used for shell-based spawn when providerId not set
   cols?: number;
   rows?: number;
-  shell?: string;
   env?: Record<string, string>;
   className?: string;
   variant?: 'dark' | 'light';
@@ -38,6 +39,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     {
       id,
       cwd,
+      providerId,
       cols = 120,
       rows = 32,
       shell,
@@ -115,6 +117,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         taskId: id,
         container,
         cwd,
+        providerId,
         shell,
         env,
         initialSize: { cols, rows },
@@ -154,6 +157,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     }, [
       id,
       cwd,
+      providerId,
       shell,
       env,
       cols,

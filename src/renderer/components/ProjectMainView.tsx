@@ -173,7 +173,6 @@ interface ProjectMainViewProps {
     task: Task,
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
-  isCreatingTask?: boolean;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   branchOptions: BranchOption[];
   isLoadingBranches: boolean;
@@ -186,7 +185,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   activeTask,
   onSelectTask,
   onDeleteTask,
-  isCreatingTask = false,
   onDeleteProject,
   branchOptions,
   isLoadingBranches,
@@ -558,20 +556,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       transition={{ duration: 0.1, ease: 'easeInOut' }}
                       className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                       onClick={onCreateTask}
-                      disabled={isCreatingTask}
-                      aria-busy={isCreatingTask}
                     >
-                      {isCreatingTask ? (
-                        <>
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                          Starting…
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-2 size-4" />
-                          New Task
-                        </>
-                      )}
+                      <Plus className="mr-2 size-4" />
+                      New Task
                     </motion.button>
                   </div>
                 )}
