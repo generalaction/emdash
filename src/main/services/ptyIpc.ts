@@ -58,6 +58,7 @@ export function registerPtyIpc(): void {
 
       if (!proc) {
         log.warn('ptyIpc: Failed to spawn shell after CLI exit', { id });
+        killPty(id); // Clean up dead PTY record
         return;
       }
 
@@ -81,6 +82,7 @@ export function registerPtyIpc(): void {
       log.info('ptyIpc: Spawned shell after CLI exit', { id, cwd });
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
+      killPty(id); // Clean up dead PTY record
     }
   });
 
