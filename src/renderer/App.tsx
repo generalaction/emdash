@@ -1230,7 +1230,7 @@ const AppContent: React.FC = () => {
           setSelectedProject((prev) =>
             prev ? { ...prev, tasks: prev.tasks?.filter((t) => t.id !== groupId) } : null
           );
-          setActiveTask((current) => (current?.projectId === selectedProject.id ? null : current));
+          setActiveTask((current) => (current?.id === groupId ? null : current));
         };
 
         // Update UI immediately - shows MultiAgentTask with loading spinner
@@ -1370,9 +1370,7 @@ const AppContent: React.FC = () => {
                 ? { ...prev, tasks: prev.tasks?.map((t) => (t.id === groupId ? finalTask : t)) }
                 : null
             );
-            setActiveTask((current) =>
-              current?.projectId === selectedProject.id ? finalTask : current
-            );
+            setActiveTask((current) => (current?.id === groupId ? finalTask : current));
           } catch (error) {
             const { log } = await import('./lib/logger');
             log.error('Failed to create multi-agent worktrees:', error as Error);
