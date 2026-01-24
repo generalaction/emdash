@@ -400,6 +400,8 @@ export function registerPtyIpc(): void {
         });
 
         // Fallback to shell-based spawn if direct spawn fails (CLI not in cache)
+        // Track fallback so we know to clean up owners on exit (no shell respawn for fallback)
+        let usedFallback = false;
         if (!proc) {
           const provider = getProvider(providerId as ProviderId);
           if (!provider?.cli) {
@@ -416,6 +418,7 @@ export function registerPtyIpc(): void {
             initialPrompt,
             skipResume: !resume,
           });
+          usedFallback = true;
         }
 
         const wc = event.sender;
@@ -429,7 +432,11 @@ export function registerPtyIpc(): void {
           proc.onExit(({ exitCode, signal }) => {
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             maybeMarkProviderFinish(id, exitCode, signal);
-            // DON'T delete owner/listeners - shell will be spawned and reuse them
+            // For direct spawn: DON'T delete owner/listeners - shell will be spawned and reuse them
+            // For fallback: clean up since no shell respawn happens
+            if (usedFallback) {
+              owners.delete(id);
+            }
             listeners.delete(id);
           });
           listeners.add(id);
