@@ -172,16 +172,11 @@ export class WorktreePoolService {
   ): Promise<ClaimResult | null> {
     const reserve = this.reserves.get(projectId);
     if (!reserve) {
-      log.debug('WorktreePool: No reserve available for project', { projectId });
       return null;
     }
 
     // Check if reserve is stale (too old)
     if (this.isReserveStale(reserve)) {
-      log.info('WorktreePool: Reserve is stale, discarding', {
-        projectId,
-        ageMinutes: ((Date.now() - new Date(reserve.createdAt).getTime()) / 60000).toFixed(1),
-      });
       // Remove stale reserve and clean it up in background
       this.reserves.delete(projectId);
       this.cleanupReserve(reserve).catch(() => {});
@@ -250,7 +245,6 @@ export class WorktreePoolService {
         await execFileAsync('git', ['reset', '--hard', requestedBaseRef], {
           cwd: newPath,
         });
-        log.info('WorktreePool: Switched base ref', { newPath, requestedBaseRef });
         needsBaseRefSwitch = false; // Successfully switched
       } catch (error) {
         log.warn('WorktreePool: Failed to switch base ref', { error });
@@ -318,7 +312,6 @@ export class WorktreePoolService {
       const remote = remotes.includes('origin') ? 'origin' : remotes[0];
 
       if (!remote) {
-        log.debug('WorktreePool: No remote configured, skipping push');
         return;
       }
 

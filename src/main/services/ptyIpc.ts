@@ -81,7 +81,6 @@ export function registerPtyIpc(): void {
       if (!wc.isDestroyed()) {
         wc.send('pty:started', { id });
       }
-      log.info('ptyIpc: Spawned shell after CLI exit', { id, cwd });
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
       killPty(id); // Clean up dead PTY record
@@ -166,9 +165,9 @@ export function registerPtyIpc(): void {
                     const cwdParts = cwd.split('/').filter((p) => p.length > 0);
                     const lastParts = cwdParts.slice(-3).join('-'); // Use last 3 parts of path
                     sessionExists = dirs.some((dir: string) => dir.includes(lastParts));
-                  } catch (e) {
-                    log.debug('pty:start error scanning Claude projects directory', { error: e });
-                  }
+                  } catch {
+                  // Ignore scan errors
+                }
                 }
 
                 // Skip resume if no session directory exists (new task)
@@ -215,7 +214,6 @@ export function registerPtyIpc(): void {
           proc.onExit(({ exitCode, signal }) => {
             // Check if this PTY is still active (not replaced by a newer instance)
             if (getPty(id) !== proc) {
-              log.debug('pty:staleOnExit', { id });
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
@@ -231,10 +229,8 @@ export function registerPtyIpc(): void {
         // Registered per-owner so ownership transfers are handled correctly
         wc.once('destroyed', () => {
           if (owners.get(id) !== wc) {
-            log.debug('pty:staleOwnerDestroyed', { id });
             return;
           }
-          log.debug('pty:ownerDestroyed', { id });
           try {
             // Ensure telemetry timers are cleared on owner destruction
             maybeMarkProviderFinish(id, null, undefined);
@@ -424,10 +420,8 @@ export function registerPtyIpc(): void {
         // Clean up PTY when owner WebContents is destroyed (e.g., window closed)
         wc.once('destroyed', () => {
           if (owners.get(id) !== wc) {
-            log.debug('pty:startDirect staleOwnerDestroyed', { id });
             return;
           }
-          log.debug('pty:startDirect ownerDestroyed', { id });
           try {
             maybeMarkProviderFinish(id, null, undefined);
             killPty(id);

@@ -473,7 +473,6 @@ export async function startPty(options: {
 export function writePty(id: string, data: string): void {
   const rec = ptys.get(id);
   if (!rec) {
-    log.warn('ptyManager:writeMissing', { id, bytes: data.length });
     return;
   }
   rec.proc.write(data);
@@ -495,7 +494,7 @@ export function resizePty(id: string, cols: number, rows: number): void {
         /Napi::Error/.test(String(error)) ||
         error.message?.includes('not open'))
     ) {
-      log.warn('ptyManager:resizeAfterExit', { id, cols, rows, error: String(error) });
+      // Expected during shutdown - PTY already exited
       return;
     }
     log.error('ptyManager:resizeFailed', { id, cols, rows, error: String(error) });
