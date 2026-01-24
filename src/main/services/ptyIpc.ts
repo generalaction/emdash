@@ -6,7 +6,6 @@ import {
   killPty,
   getPty,
   startDirectPty,
-  getSpawnBenchmarks,
   setOnDirectCliExit,
 } from './ptyManager';
 import { log } from '../lib/logger';
@@ -454,11 +453,6 @@ export function registerPtyIpc(): void {
       }
     }
   );
-
-  // Get spawn benchmarks for performance analysis
-  ipcMain.handle('pty:getBenchmarks', async () => {
-    return { ok: true, benchmarks: getSpawnBenchmarks() };
-  });
 }
 
 function parseProviderPty(id: string): {

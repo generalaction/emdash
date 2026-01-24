@@ -82,9 +82,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     resume?: boolean;
   }) => ipcRenderer.invoke('pty:startDirect', opts),
 
-  // Get spawn benchmarks
-  ptyGetBenchmarks: () => ipcRenderer.invoke('pty:getBenchmarks'),
-
   onPtyData: (id: string, listener: (data: string) => void) => {
     const channel = `pty:data:${id}`;
     const wrapped = (_: Electron.IpcRendererEvent, data: string) => listener(data);

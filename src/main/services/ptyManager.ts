@@ -61,22 +61,6 @@ export function setOnDirectCliExit(callback: (id: string, cwd: string) => void):
   onDirectCliExitCallback = callback;
 }
 
-// Benchmarking: track spawn times (kept for debugging/analysis)
-const spawnBenchmarks: Array<{
-  id: string;
-  method: 'shell' | 'direct';
-  spawnMs: number;
-  timestamp: number;
-}> = [];
-
-export function getSpawnBenchmarks() {
-  return [...spawnBenchmarks];
-}
-
-export function clearSpawnBenchmarks() {
-  spawnBenchmarks.length = 0;
-}
-
 /**
  * Spawn a CLI directly without a shell wrapper.
  * This is faster because it skips shell config loading (oh-my-zsh, nvm, etc.)
@@ -93,8 +77,6 @@ export function startDirectPty(options: {
   initialPrompt?: string;
   resume?: boolean;
 }): IPty | null {
-  const startTime = performance.now();
-
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
@@ -183,16 +165,6 @@ export function startDirectPty(options: {
     rows,
     cwd,
     env: useEnv,
-  });
-
-  const spawnMs = performance.now() - startTime;
-
-  // Record benchmark
-  spawnBenchmarks.push({
-    id,
-    method: 'direct',
-    spawnMs,
-    timestamp: Date.now(),
   });
 
   // Store record with cwd for shell respawn after CLI exits
@@ -400,7 +372,6 @@ export async function startPty(options: {
     } catch {}
   }
 
-  const spawnStart = performance.now();
   let proc: IPty;
   try {
     proc = pty.spawn(useShell, args, {
@@ -440,16 +411,6 @@ export async function startPty(options: {
       throw new Error(`PTY spawn failed: ${err2?.message || err?.message || String(err2 || err)}`);
     }
   }
-
-  const spawnMs = performance.now() - spawnStart;
-
-  // Record benchmark for shell-based spawn
-  spawnBenchmarks.push({
-    id,
-    method: 'shell',
-    spawnMs,
-    timestamp: Date.now(),
-  });
 
   ptys.set(id, { id, proc });
   return proc;

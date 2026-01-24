@@ -247,15 +247,6 @@ declare global {
         initialPrompt?: string;
         resume?: boolean;
       }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
-      ptyGetBenchmarks: () => Promise<{
-        ok: boolean;
-        benchmarks: Array<{
-          id: string;
-          method: 'shell' | 'direct' | 'warm-inject';
-          spawnMs: number;
-          timestamp: number;
-        }>;
-      }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
@@ -924,15 +915,6 @@ export interface ElectronAPI {
     initialPrompt?: string;
     resume?: boolean;
   }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
-  ptyGetBenchmarks: () => Promise<{
-    ok: boolean;
-    benchmarks: Array<{
-      id: string;
-      method: 'shell' | 'direct' | 'warm-inject';
-      spawnMs: number;
-      timestamp: number;
-    }>;
-  }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
   ptyKill: (id: string) => void;
