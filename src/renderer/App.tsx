@@ -1334,6 +1334,17 @@ const AppContent: React.FC = () => {
             if (!saveResult?.success) {
               const { log } = await import('./lib/logger');
               log.error('Failed to save multi-agent task:', saveResult?.error);
+              // Clean up worktrees that were created before the save failed
+              for (const variant of variants) {
+                if (variant.worktreeId && !variant.worktreeId.startsWith('direct-')) {
+                  window.electronAPI
+                    .worktreeRemove({
+                      projectPath: selectedProject.path,
+                      worktreeId: variant.worktreeId,
+                    })
+                    .catch(() => {});
+                }
+              }
               toast({
                 title: 'Error',
                 description: 'Failed to save multi-agent task.',
@@ -1365,6 +1376,17 @@ const AppContent: React.FC = () => {
           } catch (error) {
             const { log } = await import('./lib/logger');
             log.error('Failed to create multi-agent worktrees:', error as Error);
+            // Clean up any worktrees that were created before the failure
+            for (const variant of variants) {
+              if (variant.worktreeId && !variant.worktreeId.startsWith('direct-')) {
+                window.electronAPI
+                  .worktreeRemove({
+                    projectPath: selectedProject.path,
+                    worktreeId: variant.worktreeId,
+                  })
+                  .catch(() => {});
+              }
+            }
             toast({
               title: 'Error',
               description:
