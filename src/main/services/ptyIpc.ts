@@ -374,7 +374,8 @@ export function registerPtyIpc(): void {
       }
 
       try {
-        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, clickTime, resume } = args;
+        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, clickTime, resume } =
+          args;
         const existing = getPty(id);
 
         if (existing) {

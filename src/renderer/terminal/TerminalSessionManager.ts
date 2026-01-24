@@ -517,7 +517,9 @@ export class TerminalSessionManager {
     }
   }
 
-  private async connectPty(hasExistingSession: boolean = false): Promise<{ ok: boolean; reused?: boolean; error?: string }> {
+  private async connectPty(
+    hasExistingSession: boolean = false
+  ): Promise<{ ok: boolean; reused?: boolean; error?: string }> {
     this.ptyConnectStartTime = performance.now();
     const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
       this.options;
