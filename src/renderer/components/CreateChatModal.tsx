@@ -10,17 +10,18 @@ import {
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
-import { MultiAgentDropdown } from './MultiAgentDropdown';
+import { AgentDropdown } from './AgentDropdown';
+import { agentConfig } from '../lib/agentConfig';
+import { isValidProviderId } from '@shared/providers/registry';
 import type { Agent } from '../types';
-import type { AgentRun } from '../types/chat';
 import type { Conversation } from '../../main/services/DatabaseService';
+
+const DEFAULT_AGENT: Agent = 'claude';
 
 interface CreateChatModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateChat: (title: string, agent: string) => void;
-  installedProviders: string[];
-  currentProvider?: string;
   existingConversations?: Conversation[];
 }
 
@@ -28,13 +29,9 @@ export function CreateChatModal({
   isOpen,
   onClose,
   onCreateChat,
-  installedProviders,
-  currentProvider,
   existingConversations = [],
 }: CreateChatModalProps) {
-  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([
-    { agent: (currentProvider || 'claude') as Agent, runs: 1 },
-  ]);
+  const [selectedAgent, setSelectedAgent] = useState<Agent>(DEFAULT_AGENT);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,63 +46,64 @@ export function CreateChatModal({
     return agents;
   }, [existingConversations]);
 
-  // Reset state when modal opens
+  // Find first available agent in agentConfig order
+  const findFirstAvailableAgent = (usedSet: Set<string>): Agent | null => {
+    for (const key of Object.keys(agentConfig)) {
+      if (!usedSet.has(key)) {
+        return key as Agent;
+      }
+    }
+    return null;
+  };
+
+  // Load default agent from settings and reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setError(null);
 
-      // Find first available agent (installed but not already used)
-      const availableAgents = installedProviders.filter((p) => !usedAgents.has(p));
+      window.electronAPI.getSettings().then((res) => {
+        const settings = res?.success ? res.settings : undefined;
+        const settingsAgent = settings?.defaultProvider;
+        const defaultFromSettings: Agent = isValidProviderId(settingsAgent)
+          ? (settingsAgent as Agent)
+          : DEFAULT_AGENT;
 
-      if (availableAgents.length > 0) {
-        // Prefer current agent if it's available, otherwise use first available
-        const defaultAgent = availableAgents.includes(currentProvider || '')
-          ? currentProvider
-          : availableAgents[0];
-        setAgentRuns([{ agent: defaultAgent as Agent, runs: 1 }]);
-      } else {
-        // All agents are in use - this shouldn't normally happen but handle gracefully
-        setAgentRuns([]);
-        setError('All installed agents are already in use for this task');
-      }
+        // Priority: settings default (if available) > first available in agentConfig order
+        if (!usedAgents.has(defaultFromSettings)) {
+          setSelectedAgent(defaultFromSettings);
+        } else {
+          const firstAvailable = findFirstAvailableAgent(usedAgents);
+          if (firstAvailable) {
+            setSelectedAgent(firstAvailable);
+          } else {
+            setError('All agents are already in use for this task');
+          }
+        }
+      });
     }
-  }, [isOpen, currentProvider, installedProviders, usedAgents]);
+  }, [isOpen, usedAgents]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (agentRuns.length === 0) {
-      setError('Please select an agent');
+    if (usedAgents.has(selectedAgent)) {
+      setError('Please select an available agent');
       return;
     }
 
     setIsCreating(true);
     try {
-      // For multi-chat, we only use single agent
-      const agent = agentRuns[0].agent;
-      // Simple title for internal use (not displayed in UI)
       const chatTitle = `Chat ${Date.now()}`;
-      onCreateChat(chatTitle, agent);
+      onCreateChat(chatTitle, selectedAgent);
       onClose();
-
-      // Reset state
       setError(null);
-    } catch (error) {
-      console.error('Failed to create chat:', error);
+    } catch (err) {
+      console.error('Failed to create chat:', err);
       setError('Failed to create chat');
     } finally {
       setIsCreating(false);
     }
   };
-
-  // Filter available agents to only installed and not already used
-  const defaultAgent = useMemo(() => {
-    const availableAgents = installedProviders.filter((p) => !usedAgents.has(p));
-    if (currentProvider && availableAgents.includes(currentProvider)) {
-      return currentProvider as Agent;
-    }
-    return (availableAgents[0] || 'claude') as Agent;
-  }, [currentProvider, installedProviders, usedAgents]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isCreating && onClose()}>
@@ -121,11 +119,10 @@ export function CreateChatModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-center gap-4">
-            <Label className="shrink-0">Select AI Agent</Label>
-            <MultiAgentDropdown
-              agentRuns={agentRuns}
-              onChange={setAgentRuns}
-              defaultAgent={defaultAgent}
+            <Label className="shrink-0">Agent</Label>
+            <AgentDropdown
+              value={selectedAgent}
+              onChange={setSelectedAgent}
               disabledAgents={Array.from(usedAgents)}
             />
           </div>
@@ -133,7 +130,7 @@ export function CreateChatModal({
 
           <DialogFooter>
             <Button type="submit" disabled={!!error || isCreating}>
-              {isCreating ? 'Creating...' : 'Create Chat'}
+              {isCreating ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

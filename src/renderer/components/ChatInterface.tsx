@@ -718,8 +718,6 @@ const ChatInterface: React.FC<Props> = ({
           isOpen={showCreateChatModal}
           onClose={() => setShowCreateChatModal(false)}
           onCreateChat={handleCreateChat}
-          installedProviders={installedAgents}
-          currentProvider={agent}
           existingConversations={conversations}
         />
 
