@@ -14,6 +14,7 @@ import { agentMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
+import { type GitHubIssueLink } from '../types/chat';
 import { type JiraIssueSummary } from '../types/jira';
 import {
   generateFriendlyTaskName,
@@ -41,6 +42,7 @@ interface TaskModalProps {
   projectName: string;
   defaultBranch: string;
   existingNames?: string[];
+  linkedGithubIssueMap?: ReadonlyMap<number, GitHubIssueLink>;
   projectPath?: string;
   branchOptions?: BranchOption[];
   isLoadingBranches?: boolean;
@@ -53,6 +55,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   projectName,
   defaultBranch,
   existingNames = [],
+  linkedGithubIssueMap,
   projectPath,
   branchOptions = [],
   isLoadingBranches = false,
@@ -323,6 +326,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
             onLinearConnect={integrations.handleLinearConnect}
             selectedGithubIssue={selectedGithubIssue}
             onGithubIssueChange={setSelectedGithubIssue}
+            linkedGithubIssueMap={linkedGithubIssueMap}
             isGithubConnected={integrations.isGithubConnected}
             onGithubConnect={integrations.handleGithubConnect}
             githubLoading={integrations.githubLoading}
