@@ -61,7 +61,10 @@ export function CreateChatModal({
     if (isOpen) {
       setError(null);
 
+      let cancel = false;
       window.electronAPI.getSettings().then((res) => {
+        if (cancel) return;
+
         const settings = res?.success ? res.settings : undefined;
         const settingsAgent = settings?.defaultProvider;
         const defaultFromSettings: Agent = isValidProviderId(settingsAgent)
@@ -80,6 +83,10 @@ export function CreateChatModal({
           }
         }
       });
+
+      return () => {
+        cancel = true;
+      };
     }
   }, [isOpen, usedAgents]);
 
