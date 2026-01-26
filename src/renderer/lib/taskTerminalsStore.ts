@@ -294,6 +294,31 @@ function closeTerminal(taskId: string, terminalId: string, taskPath?: string) {
   }
 }
 
+export function disposeTaskTerminals(taskKey: string): void {
+  const state = taskStates.get(taskKey) ?? loadFromStorage(taskKey);
+  if (state) {
+    for (const terminal of state.terminals) {
+      try {
+        (window as any).electronAPI?.ptyKill?.(terminal.id);
+      } catch {
+        // ignore kill errors
+      }
+    }
+  }
+
+  taskStates.delete(taskKey);
+  taskSnapshots.delete(taskKey);
+  taskListeners.delete(taskKey);
+
+  if (storageAvailable) {
+    try {
+      window.localStorage.removeItem(storageKey(taskKey));
+    } catch {
+      // ignore storage errors
+    }
+  }
+}
+
 export function useTaskTerminals(
   taskId: string | null,
   taskPath?: string,

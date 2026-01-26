@@ -36,6 +36,7 @@ import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
+import { disposeTaskTerminals } from './lib/taskTerminalsStore';
 import {
   computeBaseRef,
   getProjectRepoKey,
@@ -1798,9 +1799,7 @@ const AppContent: React.FC = () => {
             }
           } catch {}
         } catch {}
-        try {
-          window.electronAPI.ptyKill?.(`task-${task.id}`);
-        } catch {}
+        // Kill main agent terminals (first agent for this task)
         try {
           for (const provider of TERMINAL_PROVIDER_IDS) {
             try {
@@ -1808,9 +1807,27 @@ const AppContent: React.FC = () => {
             } catch {}
           }
         } catch {}
+
+        // Kill chat agent terminals (agents added via "+")
+        const chatSessionIds: string[] = [];
+        try {
+          const convResult = await window.electronAPI.getConversations(task.id);
+          if (convResult.success && convResult.conversations) {
+            for (const conv of convResult.conversations) {
+              if (!conv.isMain && conv.provider) {
+                const chatId = `${conv.provider}-chat-${conv.id}`;
+                chatSessionIds.push(chatId);
+                try {
+                  window.electronAPI.ptyKill?.(chatId);
+                } catch {}
+              }
+            }
+          }
+        } catch {}
+
         const sessionIds = [
-          `task-${task.id}`,
           ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${task.id}`),
+          ...chatSessionIds,
         ];
 
         await Promise.allSettled(
@@ -1823,6 +1840,10 @@ const AppContent: React.FC = () => {
             } catch {}
           })
         );
+
+        // Clean up task terminal panel terminals (bottom-right shell terminals)
+        disposeTaskTerminals(`${task.id}::${task.path}`);
+        disposeTaskTerminals(`global::${task.path}`);
 
         // Only remove worktree if the task was created with one
         // IMPORTANT: Tasks without worktrees have useWorktree === false
