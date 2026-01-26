@@ -60,7 +60,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
   // Form state
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
-  const [defaultAgentFromSettings, setDefaultAgentFromSettings] = useState<Agent>(DEFAULT_AGENT);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -176,7 +175,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
       const agent: Agent = isValidProviderId(settingsAgent)
         ? (settingsAgent as Agent)
         : DEFAULT_AGENT;
-      setDefaultAgentFromSettings(agent);
       setAgentRuns([{ agent, runs: 1 }]);
 
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
@@ -302,7 +300,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
             <MultiAgentDropdown
               agentRuns={agentRuns}
               onChange={setAgentRuns}
-              defaultAgent={defaultAgentFromSettings}
             />
           </div>
 

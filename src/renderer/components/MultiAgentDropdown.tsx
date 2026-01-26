@@ -13,7 +13,6 @@ const MAX_RUNS = 4;
 interface MultiAgentDropdownProps {
   agentRuns: AgentRun[];
   onChange: (agentRuns: AgentRun[]) => void;
-  defaultAgent?: Agent;
   className?: string;
   disabledAgents?: string[];
 }
@@ -21,7 +20,6 @@ interface MultiAgentDropdownProps {
 export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
   agentRuns,
   onChange,
-  defaultAgent = 'claude',
   className = '',
   disabledAgents = [],
 }) => {

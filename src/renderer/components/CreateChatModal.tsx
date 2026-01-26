@@ -74,10 +74,12 @@ export function CreateChatModal({
         // Priority: settings default (if available) > first available in agentConfig order
         if (!usedAgents.has(defaultFromSettings)) {
           setSelectedAgent(defaultFromSettings);
+          setError(null);
         } else {
           const firstAvailable = findFirstAvailableAgent(usedAgents);
           if (firstAvailable) {
             setSelectedAgent(firstAvailable);
+            setError(null);
           } else {
             setError('All agents are already in use for this task');
           }

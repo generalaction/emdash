@@ -56,7 +56,6 @@ const ChatInterface: React.FC<Props> = ({
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
-  const [installedAgents, setInstalledAgents] = useState<string[]>([]);
 
   // Update terminal ID to include conversation ID and agent - unique per conversation
   const terminalId = useMemo(() => {
@@ -149,14 +148,6 @@ const ChatInterface: React.FC<Props> = ({
 
     loadConversations();
   }, [task.id, task.agentId]); // provider is intentionally not included as a dependency
-
-  // Track installed agents
-  useEffect(() => {
-    const installed = Object.entries(agentStatuses)
-      .filter(([_, status]) => status.installed === true)
-      .map(([id]) => id);
-    setInstalledAgents(installed);
-  }, [agentStatuses]);
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
