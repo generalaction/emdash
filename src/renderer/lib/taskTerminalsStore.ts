@@ -305,16 +305,14 @@ export function disposeTaskTerminals(taskKey: string): void {
         // ignore kill errors
       }
       try {
-        // Dispose xterm.js session from registry
         terminalSessionRegistry.dispose(terminal.id);
       } catch {
         // ignore dispose errors
       }
       try {
-        // Clear PTY snapshot from main process
         (window as any).electronAPI?.ptyClearSnapshot?.({ id: terminal.id });
       } catch {
-        // ignore snapshot clear errors
+        // ignore snapshot errors
       }
     }
   }
