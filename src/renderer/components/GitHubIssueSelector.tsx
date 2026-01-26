@@ -265,7 +265,11 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
                           className="ml-auto shrink-0 text-[10px] opacity-75"
                           title={`Already linked to task: ${linkedIssue?.taskName ?? 'another task'}`}
                         >
-                          Linked to: {linkedIssue?.taskName ? linkedIssue.taskName.slice(0, 20) + (linkedIssue.taskName.length > 20 ? '...' : '') : 'task'}
+                          Linked to:{' '}
+                          {linkedIssue?.taskName
+                            ? linkedIssue.taskName.slice(0, 20) +
+                              (linkedIssue.taskName.length > 20 ? '...' : '')
+                            : 'task'}
                         </Badge>
                       ) : null}
                     </span>
