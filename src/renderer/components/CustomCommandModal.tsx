@@ -340,7 +340,13 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                 Reset to Defaults
               </Button>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={onClose}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onClose}
+                  disabled={saving}
+                >
                   Cancel
                 </Button>
                 <Button

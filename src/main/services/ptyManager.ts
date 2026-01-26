@@ -214,8 +214,11 @@ export async function startPty(options: {
 
         // Resolve values: custom config overrides provider defaults
         // Empty string means "disabled", undefined means "use default"
+        // For CLI specifically, empty string falls back to default (can't have empty CLI)
         const resolvedCli =
-          customConfig?.cli !== undefined ? customConfig.cli : provider.cli || baseLower;
+          customConfig?.cli !== undefined && customConfig.cli !== ''
+            ? customConfig.cli
+            : provider.cli || baseLower;
         const resolvedResumeFlag =
           customConfig?.resumeFlag !== undefined ? customConfig.resumeFlag : provider.resumeFlag;
         const resolvedDefaultArgs =
