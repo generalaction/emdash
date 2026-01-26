@@ -1844,6 +1844,8 @@ const AppContent: React.FC = () => {
         // Clean up task terminal panel terminals (bottom-right shell terminals)
         disposeTaskTerminals(`${task.id}::${task.path}`);
         disposeTaskTerminals(`global::${task.path}`);
+        // Clean up ChatInterface's terminal state (uses task.id as key)
+        disposeTaskTerminals(task.id);
 
         // Only remove worktree if the task was created with one
         // IMPORTANT: Tasks without worktrees have useWorktree === false

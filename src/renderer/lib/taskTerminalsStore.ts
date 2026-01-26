@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
+import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
 type TaskTerminal = {
   id: string;
@@ -302,6 +303,18 @@ export function disposeTaskTerminals(taskKey: string): void {
         (window as any).electronAPI?.ptyKill?.(terminal.id);
       } catch {
         // ignore kill errors
+      }
+      try {
+        // Dispose xterm.js session from registry
+        terminalSessionRegistry.dispose(terminal.id);
+      } catch {
+        // ignore dispose errors
+      }
+      try {
+        // Clear PTY snapshot from main process
+        (window as any).electronAPI?.ptyClearSnapshot?.({ id: terminal.id });
+      } catch {
+        // ignore snapshot clear errors
       }
     }
   }
