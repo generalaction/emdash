@@ -1799,14 +1799,28 @@ const AppContent: React.FC = () => {
             }
           } catch {}
         } catch {}
-        // Kill main agent terminals (first agent for this task)
-        try {
-          for (const provider of TERMINAL_PROVIDER_IDS) {
+        // Kill main agent terminals
+        // Single-agent: ${provider}-main-${task.id}
+        // Multi-agent: ${variant.worktreeId}-main
+        const variants = task.metadata?.multiAgent?.variants || [];
+        const mainSessionIds: string[] = [];
+        if (variants.length > 0) {
+          for (const v of variants) {
+            const id = `${v.worktreeId}-main`;
+            mainSessionIds.push(id);
             try {
-              window.electronAPI.ptyKill?.(`${provider}-main-${task.id}`);
+              window.electronAPI.ptyKill?.(id);
             } catch {}
           }
-        } catch {}
+        } else {
+          for (const provider of TERMINAL_PROVIDER_IDS) {
+            const id = `${provider}-main-${task.id}`;
+            mainSessionIds.push(id);
+            try {
+              window.electronAPI.ptyKill?.(id);
+            } catch {}
+          }
+        }
 
         // Kill chat agent terminals (agents added via "+")
         const chatSessionIds: string[] = [];
@@ -1825,10 +1839,7 @@ const AppContent: React.FC = () => {
           }
         } catch {}
 
-        const sessionIds = [
-          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${task.id}`),
-          ...chatSessionIds,
-        ];
+        const sessionIds = [...mainSessionIds, ...chatSessionIds];
 
         await Promise.allSettled(
           sessionIds.map(async (sessionId) => {
@@ -1842,12 +1853,17 @@ const AppContent: React.FC = () => {
         );
 
         // Clean up task terminal panel terminals (bottom-right shell terminals)
-        disposeTaskTerminals(`${task.id}::${task.path}`);
-        // Global terminals are shared by non-worktree tasks on the same path
-        if (task.useWorktree !== false) {
-          disposeTaskTerminals(`global::${task.path}`);
+        // Multi-agent tasks have terminals per variant path
+        const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
+        const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
+        for (const path of pathsToClean) {
+          disposeTaskTerminals(`${task.id}::${path}`);
+          // Global terminals are shared by non-worktree tasks on the same path
+          if (task.useWorktree !== false) {
+            disposeTaskTerminals(`global::${path}`);
+          }
         }
-        // ChatInterface uses task.id as key
+        // ChatInterface uses task.id as key (single-agent tasks only)
         disposeTaskTerminals(task.id);
 
         // Only remove worktree if the task was created with one
