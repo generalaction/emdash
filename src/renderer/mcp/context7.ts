@@ -1,6 +1,6 @@
-import type { Provider } from '../types';
+import type { Agent } from '../types';
 
-export type Context7ProviderId = Provider;
+export type Context7ProviderId = Agent;
 
 export interface Context7SetupSnippet {
   label: string;
@@ -274,12 +274,12 @@ export const CONTEXT7_INTEGRATION: Context7IntegrationMeta = {
   },
 };
 
-export function getContext7InvocationForProvider(provider: Provider): string {
-  const cfg = CONTEXT7_INTEGRATION.byProvider[provider];
+export function getContext7InvocationForProvider(agent: Agent): string {
+  const cfg = CONTEXT7_INTEGRATION.byProvider[agent];
   return (cfg?.invocation || CONTEXT7_INTEGRATION.defaultInvocation).trim();
 }
 
-export function getContext7SnippetsForProvider(provider: Provider): Context7SetupSnippet[] {
-  const cfg = CONTEXT7_INTEGRATION.byProvider[provider];
+export function getContext7SnippetsForProvider(agent: Agent): Context7SetupSnippet[] {
+  const cfg = CONTEXT7_INTEGRATION.byProvider[agent];
   return cfg?.setup?.length ? cfg.setup : [SNIPPETS.genericRemote];
 }

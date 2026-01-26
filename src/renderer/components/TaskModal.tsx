@@ -5,12 +5,12 @@ import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
-import { MultiProviderDropdown } from './MultiProviderDropdown';
+import { MultiAgentDropdown } from './MultiAgentDropdown';
 import { TaskAdvancedSettings } from './TaskAdvancedSettings';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
-import { type Provider } from '../types';
-import { type ProviderRun } from '../types/chat';
-import { providerMeta } from '../providers/meta';
+import { type Agent } from '../types';
+import { type AgentRun } from '../types/chat';
+import { agentMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
@@ -22,7 +22,7 @@ import {
 } from '../lib/taskNames';
 import BranchSelect, { type BranchOption } from './BranchSelect';
 
-const DEFAULT_PROVIDER: Provider = 'claude';
+const DEFAULT_AGENT: Agent = 'claude';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -30,7 +30,7 @@ interface TaskModalProps {
   onCreateTask: (
     name: string,
     initialPrompt?: string,
-    providerRuns?: ProviderRun[],
+    agentRuns?: AgentRun[],
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: JiraIssueSummary | null,
@@ -59,12 +59,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
 }) => {
   // Form state
   const [taskName, setTaskName] = useState('');
-  const [providerRuns, setProviderRuns] = useState<ProviderRun[]>([
-    { provider: DEFAULT_PROVIDER, runs: 1 },
-  ]);
-  const [defaultProviderFromSettings, setDefaultProviderFromSettings] =
-    useState<Provider>(DEFAULT_PROVIDER);
-  const [isCreating, setIsCreating] = useState(false);
+  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
+  const [defaultAgentFromSettings, setDefaultAgentFromSettings] = useState<Agent>(DEFAULT_AGENT);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -102,10 +98,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const integrations = useIntegrationStatus(isOpen);
 
   // Computed values
-  const activeProviders = useMemo(() => providerRuns.map((pr) => pr.provider), [providerRuns]);
-  const hasAutoApproveSupport = activeProviders.every((id) => !!providerMeta[id]?.autoApproveFlag);
-  const hasInitialPromptSupport = activeProviders.every(
-    (id) => providerMeta[id]?.initialPromptFlag !== undefined
+  const activeAgents = useMemo(() => agentRuns.map((ar) => ar.agent), [agentRuns]);
+  const hasAutoApproveSupport = activeAgents.every((id) => !!agentMeta[id]?.autoApproveFlag);
+  const hasInitialPromptSupport = activeAgents.every(
+    (id) => agentMeta[id]?.initialPromptFlag !== undefined
   );
 
   const normalizedExisting = useMemo(
@@ -176,15 +172,15 @@ const TaskModal: React.FC<TaskModalProps> = ({
       if (cancel) return;
       const settings = res?.success ? res.settings : undefined;
 
-      const settingsProvider = settings?.defaultProvider;
-      const provider: Provider = isValidProviderId(settingsProvider)
-        ? (settingsProvider as Provider)
-        : DEFAULT_PROVIDER;
-      setDefaultProviderFromSettings(provider);
-      setProviderRuns([{ provider, runs: 1 }]);
+      const settingsAgent = settings?.defaultProvider;
+      const agent: Agent = isValidProviderId(settingsAgent)
+        ? (settingsAgent as Agent)
+        : DEFAULT_AGENT;
+      setDefaultAgentFromSettings(agent);
+      setAgentRuns([{ agent, runs: 1 }]);
 
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
-      setAutoApprove(autoApproveByDefault && !!providerMeta[provider]?.autoApproveFlag);
+      setAutoApprove(autoApproveByDefault && !!agentMeta[agent]?.autoApproveFlag);
 
       // Handle auto-generate setting
       if (settings?.tasks?.autoGenerateName === false && !userHasTypedRef.current) {
@@ -229,12 +225,16 @@ const TaskModal: React.FC<TaskModalProps> = ({
       return;
     }
 
-    setIsCreating(true);
+    // Close modal immediately - task creation happens in background
+    // The task will appear in sidebar via optimistic UI update
+    onClose();
+
+    // Fire and forget - don't await
     try {
-      await onCreateTask(
+      onCreateTask(
         normalizeTaskName(taskName),
         hasInitialPromptSupport && initialPrompt.trim() ? initialPrompt.trim() : undefined,
-        providerRuns,
+        agentRuns,
         selectedLinearIssue,
         selectedGithubIssue,
         selectedJiraIssue,
@@ -242,16 +242,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
         useWorktree,
         selectedBranch
       );
-      onClose();
     } catch (error) {
       console.error('Failed to create task:', error);
-    } finally {
-      setIsCreating(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isCreating && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100vh-48px)] max-w-md overflow-visible">
         <DialogHeader>
           <DialogTitle>New Task</DialogTitle>
@@ -302,10 +299,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
           <div className="flex items-center gap-4">
             <Label className="shrink-0">Agent</Label>
-            <MultiProviderDropdown
-              providerRuns={providerRuns}
-              onChange={setProviderRuns}
-              defaultProvider={defaultProviderFromSettings}
+            <MultiAgentDropdown
+              agentRuns={agentRuns}
+              onChange={setAgentRuns}
+              defaultAgent={defaultAgentFromSettings}
             />
           </div>
 
@@ -337,15 +334,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
           />
 
           <DialogFooter>
-            <Button type="submit" disabled={!!validate(taskName) || isCreating}>
-              {isCreating ? (
-                <>
-                  <Spinner size="sm" className="mr-2" />
-                  Creating...
-                </>
-              ) : (
-                'Create'
-              )}
+            <Button type="submit" disabled={!!validate(taskName)}>
+              Create
             </Button>
           </DialogFooter>
         </form>

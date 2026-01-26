@@ -17,16 +17,9 @@ interface Props {
   activeTask: Task | null;
   onSelectTask: (task: Task) => void;
   onCreateTask: () => void;
-  isCreatingTask?: boolean;
 }
 
-export const TaskList: React.FC<Props> = ({
-  tasks,
-  activeTask,
-  onSelectTask,
-  onCreateTask,
-  isCreatingTask = false,
-}) => {
+export const TaskList: React.FC<Props> = ({ tasks, activeTask, onSelectTask, onCreateTask }) => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'running':
@@ -42,17 +35,8 @@ export const TaskList: React.FC<Props> = ({
     <div className="flex h-full flex-col p-4">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold">Tasks</h2>
-        <Button variant="default" size="sm" onClick={onCreateTask} disabled={isCreatingTask}>
-          {isCreatingTask ? (
-            <>
-              <Spinner size="sm" className="mr-2" />
-              Creating...
-            </>
-          ) : (
-            <>
-              <Plus className="mr-2 h-4 w-4" /> New
-            </>
-          )}
+        <Button variant="default" size="sm" onClick={onCreateTask}>
+          <Plus className="mr-2 h-4 w-4" /> New
         </Button>
       </div>
 

@@ -21,7 +21,7 @@ import continueIcon from '../../assets/images/continue.png';
 import codebuffIcon from '../../assets/images/codebuff.png';
 import mistralIcon from '../../assets/images/mistral.png';
 
-export type UiProvider = ProviderId;
+export type UiAgent = ProviderId;
 
 const ICONS: Record<string, string> = {
   'augmentcode.png': augmentcodeIcon,
@@ -46,7 +46,7 @@ const ICONS: Record<string, string> = {
   'mistral.png': mistralIcon,
 };
 
-export type ProviderMeta = {
+export type AgentMeta = {
   label: string;
   icon?: string;
   terminalOnly: boolean;
@@ -57,7 +57,7 @@ export type ProviderMeta = {
   initialPromptFlag?: string;
 };
 
-export const providerMeta: Record<UiProvider, ProviderMeta> = Object.fromEntries(
+export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
   PROVIDERS.map((p) => [
     p.id,
     {
@@ -71,4 +71,4 @@ export const providerMeta: Record<UiProvider, ProviderMeta> = Object.fromEntries
       initialPromptFlag: p.initialPromptFlag,
     },
   ])
-) as Record<UiProvider, ProviderMeta>;
+) as Record<UiAgent, AgentMeta>;

@@ -1,11 +1,11 @@
 import React from 'react';
-import type { Provider } from '../types';
+import type { Agent } from '../types';
 import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import { Badge } from './ui/badge';
 import context7Logo from '../../assets/images/context7.png';
 
 type Props = {
-  provider: Provider;
+  agent: Agent;
   enabled: boolean;
 };
 

@@ -10,15 +10,15 @@ import {
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
-import { MultiProviderDropdown } from './MultiProviderDropdown';
-import type { Provider } from '../types';
-import type { ProviderRun } from '../types/chat';
+import { MultiAgentDropdown } from './MultiAgentDropdown';
+import type { Agent } from '../types';
+import type { AgentRun } from '../types/chat';
 import type { Conversation } from '../../main/services/DatabaseService';
 
 interface CreateChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateChat: (title: string, provider: string) => void;
+  onCreateChat: (title: string, agent: string) => void;
   installedProviders: string[];
   currentProvider?: string;
   existingConversations?: Conversation[];
@@ -32,21 +32,21 @@ export function CreateChatModal({
   currentProvider,
   existingConversations = [],
 }: CreateChatModalProps) {
-  const [providerRuns, setProviderRuns] = useState<ProviderRun[]>([
-    { provider: (currentProvider || 'claude') as Provider, runs: 1 },
+  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([
+    { agent: (currentProvider || 'claude') as Agent, runs: 1 },
   ]);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Extract providers that are already in use
-  const usedProviders = useMemo(() => {
-    const providers = new Set<string>();
+  // Extract agents that are already in use
+  const usedAgents = useMemo(() => {
+    const agents = new Set<string>();
     existingConversations.forEach((conv) => {
       if (conv.provider) {
-        providers.add(conv.provider);
+        agents.add(conv.provider);
       }
     });
-    return providers;
+    return agents;
   }, [existingConversations]);
 
   // Reset state when modal opens
@@ -54,38 +54,38 @@ export function CreateChatModal({
     if (isOpen) {
       setError(null);
 
-      // Find first available provider (installed but not already used)
-      const availableProviders = installedProviders.filter((p) => !usedProviders.has(p));
+      // Find first available agent (installed but not already used)
+      const availableAgents = installedProviders.filter((p) => !usedAgents.has(p));
 
-      if (availableProviders.length > 0) {
-        // Prefer current provider if it's available, otherwise use first available
-        const defaultProvider = availableProviders.includes(currentProvider || '')
+      if (availableAgents.length > 0) {
+        // Prefer current agent if it's available, otherwise use first available
+        const defaultAgent = availableAgents.includes(currentProvider || '')
           ? currentProvider
-          : availableProviders[0];
-        setProviderRuns([{ provider: defaultProvider as Provider, runs: 1 }]);
+          : availableAgents[0];
+        setAgentRuns([{ agent: defaultAgent as Agent, runs: 1 }]);
       } else {
-        // All providers are in use - this shouldn't normally happen but handle gracefully
-        setProviderRuns([]);
-        setError('All installed providers are already in use for this task');
+        // All agents are in use - this shouldn't normally happen but handle gracefully
+        setAgentRuns([]);
+        setError('All installed agents are already in use for this task');
       }
     }
-  }, [isOpen, currentProvider, installedProviders, usedProviders]);
+  }, [isOpen, currentProvider, installedProviders, usedAgents]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (providerRuns.length === 0) {
-      setError('Please select a provider');
+    if (agentRuns.length === 0) {
+      setError('Please select an agent');
       return;
     }
 
     setIsCreating(true);
     try {
-      // For multi-chat, we only use single provider
-      const provider = providerRuns[0].provider;
+      // For multi-chat, we only use single agent
+      const agent = agentRuns[0].agent;
       // Simple title for internal use (not displayed in UI)
       const chatTitle = `Chat ${Date.now()}`;
-      onCreateChat(chatTitle, provider);
+      onCreateChat(chatTitle, agent);
       onClose();
 
       // Reset state
@@ -98,14 +98,14 @@ export function CreateChatModal({
     }
   };
 
-  // Filter available providers to only installed and not already used
-  const defaultProvider = useMemo(() => {
-    const availableProviders = installedProviders.filter((p) => !usedProviders.has(p));
-    if (currentProvider && availableProviders.includes(currentProvider)) {
-      return currentProvider as Provider;
+  // Filter available agents to only installed and not already used
+  const defaultAgent = useMemo(() => {
+    const availableAgents = installedProviders.filter((p) => !usedAgents.has(p));
+    if (currentProvider && availableAgents.includes(currentProvider)) {
+      return currentProvider as Agent;
     }
-    return (availableProviders[0] || 'claude') as Provider;
-  }, [currentProvider, installedProviders, usedProviders]);
+    return (availableAgents[0] || 'claude') as Agent;
+  }, [currentProvider, installedProviders, usedAgents]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isCreating && onClose()}>
@@ -113,7 +113,7 @@ export function CreateChatModal({
         <DialogHeader>
           <DialogTitle>New Chat</DialogTitle>
           <DialogDescription className="text-xs">
-            Start a new conversation with a different AI provider
+            Start a new conversation with a different AI agent
           </DialogDescription>
         </DialogHeader>
 
@@ -121,12 +121,12 @@ export function CreateChatModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-center gap-4">
-            <Label className="shrink-0">Select AI Provider</Label>
-            <MultiProviderDropdown
-              providerRuns={providerRuns}
-              onChange={setProviderRuns}
-              defaultProvider={defaultProvider}
-              disabledProviders={Array.from(usedProviders)}
+            <Label className="shrink-0">Select AI Agent</Label>
+            <MultiAgentDropdown
+              agentRuns={agentRuns}
+              onChange={setAgentRuns}
+              defaultAgent={defaultAgent}
+              disabledAgents={Array.from(usedAgents)}
             />
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}

@@ -47,7 +47,7 @@ export interface Task {
   repos: Repo[];
 }
 
-export type Provider = ProviderId;
+export type Agent = ProviderId;
 
 // Keyboard shortcuts types
 export type {

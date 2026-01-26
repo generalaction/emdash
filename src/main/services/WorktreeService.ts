@@ -1229,6 +1229,13 @@ export class WorktreeService {
 
     return worktreeInfo;
   }
+
+  /**
+   * Register a worktree created externally (e.g., by WorktreePoolService)
+   */
+  registerWorktree(worktree: WorktreeInfo): void {
+    this.worktrees.set(worktree.id, worktree);
+  }
 }
 
 export const worktreeService = new WorktreeService();

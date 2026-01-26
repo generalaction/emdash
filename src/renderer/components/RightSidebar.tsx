@@ -4,9 +4,9 @@ import FileChangesPanel from './FileChangesPanel';
 import { useFileChanges } from '@/hooks/useFileChanges';
 import TaskTerminalPanel from './TaskTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
-import { providerAssets } from '@/providers/assets';
-import { providerMeta } from '@/providers/meta';
-import type { Provider } from '../types';
+import { agentAssets } from '@/providers/assets';
+import { agentMeta } from '@/providers/meta';
+import type { Agent } from '../types';
 import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -60,37 +60,37 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   }, []);
 
   // Detect multi-agent variants in task metadata
-  const variants: Array<{ provider: Provider; name: string; path: string }> = (() => {
+  const variants: Array<{ agent: Agent; name: string; path: string }> = (() => {
     try {
       const v = task?.metadata?.multiAgent?.variants || [];
       if (Array.isArray(v))
         return v
-          .map((x: any) => ({ provider: x?.provider as Provider, name: x?.name, path: x?.path }))
+          .map((x: any) => ({ agent: x?.agent as Agent, name: x?.name, path: x?.path }))
           .filter((x) => x?.path);
     } catch {}
     return [];
   })();
 
   // Helper to generate display label with instance number if needed
-  const getVariantDisplayLabel = (variant: { provider: Provider; name: string }): string => {
-    const meta = providerMeta[variant.provider];
-    const asset = providerAssets[variant.provider];
-    const baseName = meta?.label || asset?.name || String(variant.provider);
+  const getVariantDisplayLabel = (variant: { agent: Agent; name: string }): string => {
+    const meta = agentMeta[variant.agent];
+    const asset = agentAssets[variant.agent];
+    const baseName = meta?.label || asset?.name || String(variant.agent);
 
-    // Count how many variants use this provider
-    const providerVariants = variants.filter((v) => v.provider === variant.provider);
+    // Count how many variants use this agent
+    const agentVariants = variants.filter((v) => v.agent === variant.agent);
 
-    // If only one instance of this provider, just show base name
-    if (providerVariants.length === 1) {
+    // If only one instance of this agent, just show base name
+    if (agentVariants.length === 1) {
       return baseName;
     }
 
     // Multiple instances: extract instance number from variant name
-    // variant.name format: "task-provider-1", "task-provider-2", etc.
+    // variant.name format: "task-agent-1", "task-agent-2", etc.
     const match = variant.name.match(/-(\d+)$/);
     const instanceNum = match
       ? match[1]
-      : String(providerVariants.findIndex((v) => v.name === variant.name) + 1);
+      : String(agentVariants.findIndex((v) => v.name === variant.name) + 1);
 
     return `${baseName} #${instanceNum}`;
   };
@@ -132,7 +132,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               {task && variants.length > 1 ? (
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   {variants.map((v, i) => {
-                    const variantKey = `${v.provider}-${i}`;
+                    const variantKey = `${v.agent}-${i}`;
                     const isCollapsed = collapsedVariants.has(variantKey);
                     return (
                       <div
@@ -151,7 +151,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                             )}
                             {(() => {
-                              const asset = (providerAssets as any)[v.provider] as
+                              const asset = (agentAssets as any)[v.agent] as
                                 | {
                                     logo: string;
                                     alt: string;
@@ -159,7 +159,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                     invertInDark?: boolean;
                                   }
                                 | undefined;
-                              const meta = (providerMeta as any)[v.provider] as
+                              const meta = (agentMeta as any)[v.agent] as
                                 | { label?: string }
                                 | undefined;
                               return (
@@ -167,7 +167,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                   {asset?.logo ? (
                                     <img
                                       src={asset.logo}
-                                      alt={asset.alt || meta?.label || String(v.provider)}
+                                      alt={asset.alt || meta?.label || String(v.agent)}
                                       className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
                                     />
                                   ) : null}
@@ -191,7 +191,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                 path: v.path,
                                 name: v.name || task.name,
                               }}
-                              provider={v.provider}
+                              agent={v.agent}
                               projectPath={projectPath || task?.path}
                               className="min-h-[200px]"
                             />
@@ -218,7 +218,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                       />
                       <TaskTerminalPanel
                         task={derived}
-                        provider={v.provider}
+                        agent={v.agent}
                         projectPath={projectPath || task?.path}
                         className="min-h-0 flex-1"
                       />
@@ -230,7 +230,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   <FileChangesPanel className="min-h-0 flex-1 border-b border-border" />
                   <TaskTerminalPanel
                     task={task}
-                    provider={task.agentId as Provider}
+                    agent={task.agentId as Agent}
                     projectPath={projectPath || task?.path}
                     className="min-h-0 flex-1"
                   />
@@ -249,7 +249,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   </div>
                   <TaskTerminalPanel
                     task={null}
-                    provider={undefined}
+                    agent={undefined}
                     projectPath={projectPath || undefined}
                     className="h-1/2 min-h-0"
                   />

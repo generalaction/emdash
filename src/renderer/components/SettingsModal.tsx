@@ -6,7 +6,7 @@ import { Spinner } from './ui/spinner';
 import { X, Settings2, Cable, RefreshCw, GitBranch, Puzzle, PanelLeft } from 'lucide-react';
 import { UpdateCard } from './UpdateCard';
 import IntegrationsCard from './IntegrationsCard';
-import CliProvidersList, { BASE_CLI_PROVIDERS } from './CliProvidersList';
+import CliAgentsList, { BASE_CLI_AGENTS } from './CliAgentsList';
 import TelemetryCard from './TelemetryCard';
 import ThemeCard from './ThemeCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
@@ -15,55 +15,55 @@ import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
 import Context7SettingsCard from './Context7SettingsCard';
-import DefaultProviderSettingsCard from './DefaultProviderSettingsCard';
+import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
-import { CliProviderStatus } from '../types/connections';
+import { CliAgentStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
-const createDefaultCliProviders = (): CliProviderStatus[] =>
-  BASE_CLI_PROVIDERS.map((provider) => ({ ...provider }));
+const createDefaultCliAgents = (): CliAgentStatus[] =>
+  BASE_CLI_AGENTS.map((agent) => ({ ...agent }));
 
-const mergeCliProviders = (incoming: CliProviderStatus[]): CliProviderStatus[] => {
-  const mergedMap = new Map<string, CliProviderStatus>();
+const mergeCliAgents = (incoming: CliAgentStatus[]): CliAgentStatus[] => {
+  const mergedMap = new Map<string, CliAgentStatus>();
 
-  BASE_CLI_PROVIDERS.forEach((provider) => {
-    mergedMap.set(provider.id, { ...provider });
+  BASE_CLI_AGENTS.forEach((agent) => {
+    mergedMap.set(agent.id, { ...agent });
   });
 
-  incoming.forEach((provider) => {
-    mergedMap.set(provider.id, {
-      ...(mergedMap.get(provider.id) ?? {}),
-      ...provider,
+  incoming.forEach((agent) => {
+    mergedMap.set(agent.id, {
+      ...(mergedMap.get(agent.id) ?? {}),
+      ...agent,
     });
   });
 
   return Array.from(mergedMap.values());
 };
 
-type CachedProviderStatus = {
+type CachedAgentStatus = {
   installed: boolean;
   path?: string | null;
   version?: string | null;
   lastChecked?: number;
 };
 
-const mapProviderStatusesToCli = (
-  statuses: Record<string, CachedProviderStatus | undefined>
-): CliProviderStatus[] => {
-  return Object.entries(statuses).reduce<CliProviderStatus[]>((acc, [providerId, status]) => {
+const mapAgentStatusesToCli = (
+  statuses: Record<string, CachedAgentStatus | undefined>
+): CliAgentStatus[] => {
+  return Object.entries(statuses).reduce<CliAgentStatus[]>((acc, [agentId, status]) => {
     if (!status) return acc;
-    const base = BASE_CLI_PROVIDERS.find((provider) => provider.id === providerId);
+    const base = BASE_CLI_AGENTS.find((agent) => agent.id === agentId);
     acc.push({
       ...(base ?? {
-        id: providerId,
-        name: providerId,
+        id: agentId,
+        name: agentId,
         status: 'missing' as const,
         docUrl: null,
         installCommand: null,
       }),
-      id: providerId,
-      name: base?.name ?? providerId,
+      id: agentId,
+      name: base?.name ?? agentId,
       status: status.installed ? 'connected' : 'missing',
       version: status.version ?? null,
       command: status.path ?? null,
@@ -90,9 +90,7 @@ const ORDERED_TABS: SettingsTab[] = ['general', 'interface', 'repository', 'mcp'
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const [cliProviders, setCliProviders] = useState<CliProviderStatus[]>(() =>
-    createDefaultCliProviders()
-  );
+  const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const [cliError, setCliError] = useState<string | null>(null);
   const [cliLoading, setCliLoading] = useState<boolean>(false);
   const shouldReduceMotion = useReducedMotion();
@@ -114,11 +112,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     let cancelled = false;
 
-    const applyCachedStatuses = (statuses: Record<string, CachedProviderStatus> | undefined) => {
+    const applyCachedStatuses = (statuses: Record<string, CachedAgentStatus> | undefined) => {
       if (!statuses) return;
-      const providers = mapProviderStatusesToCli(statuses);
-      if (!providers.length) return;
-      setCliProviders((prev) => mergeCliProviders([...prev, ...providers]));
+      const agents = mapAgentStatusesToCli(statuses);
+      if (!agents.length) return;
+      setCliAgents((prev) => mergeCliAgents([...prev, ...agents]));
     };
 
     const loadCachedStatuses = async () => {
@@ -131,14 +129,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         }
       } catch (error) {
         if (!cancelled) {
-          console.error('Failed to load cached CLI provider statuses:', error);
+          console.error('Failed to load cached CLI agent statuses:', error);
         }
       }
     };
 
     const off =
       window?.electronAPI?.onProviderStatusUpdated?.(
-        (payload: { providerId: string; status: CachedProviderStatus }) => {
+        (payload: { providerId: string; status: CachedAgentStatus }) => {
           if (!payload?.providerId || !payload.status) return;
           applyCachedStatuses({ [payload.providerId]: payload.status });
         }
@@ -152,10 +150,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     };
   }, []);
 
-  const fetchCliProviders = useCallback(async () => {
+  const fetchCliAgents = useCallback(async () => {
     if (!window?.electronAPI?.getProviderStatuses) {
-      setCliProviders(createDefaultCliProviders());
-      setCliError('Provider status detection is unavailable in this build.');
+      setCliAgents(createDefaultCliAgents());
+      setCliError('Agent status detection is unavailable in this build.');
       return;
     }
 
@@ -165,14 +163,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     try {
       const result = await window.electronAPI.getProviderStatuses({ refresh: true });
       if (result?.success && result.statuses) {
-        const providers = mapProviderStatusesToCli(result.statuses);
-        setCliProviders((prev) => mergeCliProviders([...prev, ...providers]));
+        const agents = mapAgentStatusesToCli(result.statuses);
+        setCliAgents((prev) => mergeCliAgents([...prev, ...agents]));
       } else {
-        setCliError(result?.error || 'Failed to detect CLI providers.');
+        setCliError(result?.error || 'Failed to detect CLI agents.');
       }
     } catch (error) {
       console.error('CLI detection failed:', error);
-      setCliError('Unable to detect CLI providers.');
+      setCliError('Unable to detect CLI agents.');
     } finally {
       setCliLoading(false);
     }
@@ -187,7 +185,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         description: '',
         sections: [
           { title: 'Privacy & Telemetry', render: () => <TelemetryCard /> },
-          { title: 'Default agent', render: () => <DefaultProviderSettingsCard /> },
+          { title: 'Default agent', render: () => <DefaultAgentSettingsCard /> },
           { title: 'Tasks', render: () => <TaskSettingsCard /> },
           { title: 'Project prep', render: () => <ProjectPrepSettingsCard /> },
           { title: 'Updates', render: () => <UpdateCard /> },
@@ -241,23 +239,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         sections: [
           { title: 'Integrations', render: () => <IntegrationsCard /> },
           {
-            title: 'CLI providers',
+            title: 'CLI agents',
             action: (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={fetchCliProviders}
+                onClick={fetchCliAgents}
                 disabled={cliLoading}
                 aria-busy={cliLoading}
-                aria-label="Refresh CLI providers"
+                aria-label="Refresh CLI agents"
               >
                 {cliLoading ? <Spinner size="sm" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             ),
             render: () => (
-              <CliProvidersList providers={cliProviders} isLoading={cliLoading} error={cliError} />
+              <CliAgentsList agents={cliAgents} isLoading={cliLoading} error={cliError} />
             ),
           },
         ],
@@ -269,7 +267,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         sections: [{ title: 'MCP Tools', render: () => <Context7SettingsCard /> }],
       },
     } as const;
-  }, [cliProviders, cliLoading, cliError, fetchCliProviders]);
+  }, [cliAgents, cliLoading, cliError, fetchCliAgents]);
 
   const activeTabDetails = tabDetails[activeTab];
 

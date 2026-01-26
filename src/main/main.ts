@@ -78,22 +78,9 @@ if (process.platform === 'win32') {
   const npmPath = require('path').join(process.env.APPDATA || '', 'npm');
   const cur = process.env.PATH || '';
   const parts = cur.split(';').filter(Boolean);
-  console.log('[PATH DEBUG] npmPath:', npmPath);
-  console.log('[PATH DEBUG] Already in PATH?', parts.includes(npmPath));
   if (npmPath && !parts.includes(npmPath)) {
     parts.unshift(npmPath);
     process.env.PATH = parts.join(';');
-    console.log('[PATH DEBUG] Added npm path to PATH');
-  }
-  console.log('[PATH DEBUG] Final PATH includes npm?', process.env.PATH?.includes(npmPath));
-
-  // Test if codex is accessible
-  try {
-    const { execSync } = require('child_process');
-    const codexPath = execSync('where codex', { encoding: 'utf8' }).trim();
-    console.log('[PATH DEBUG] Codex found at:', codexPath);
-  } catch (e: any) {
-    console.error('[PATH DEBUG] Codex not found:', e.message);
   }
 }
 import { createMainWindow } from './app/window';
@@ -102,6 +89,7 @@ import { registerAllIpc } from './ipc';
 import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
+import { worktreePoolService } from './services/WorktreePoolService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
@@ -137,7 +125,6 @@ app.whenReady().then(async () => {
   try {
     await databaseService.initialize();
     dbInitOk = true;
-    console.log('Database initialized successfully');
   } catch (error) {
     const err = error as unknown;
     const asObj = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
@@ -210,6 +197,12 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   registerAllIpc();
+
+  // Clean up any orphaned reserve worktrees from previous sessions
+  worktreePoolService.cleanupOrphanedReserves().catch((error) => {
+    console.warn('Failed to cleanup orphaned reserves:', error);
+  });
+
   // Warm provider installation cache
   try {
     await connectionsService.initProviderStatusCache();
@@ -242,4 +235,7 @@ app.on('before-quit', () => {
 
   // Cleanup auto-update service
   autoUpdateService.shutdown();
+
+  // Cleanup reserve worktrees (fire and forget - don't block quit)
+  worktreePoolService.cleanup().catch(() => {});
 });
