@@ -128,7 +128,7 @@ export function CreateChatModal({
         <DialogHeader>
           <DialogTitle>New Chat</DialogTitle>
           <DialogDescription className="text-xs">
-            Start a new conversation with a different AI agent
+            Start a new conversation with a different agent
           </DialogDescription>
         </DialogHeader>
 
