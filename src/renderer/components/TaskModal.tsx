@@ -297,10 +297,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
           <div className="flex items-center gap-4">
             <Label className="shrink-0">Agent</Label>
-            <MultiAgentDropdown
-              agentRuns={agentRuns}
-              onChange={setAgentRuns}
-            />
+            <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
           </div>
 
           <TaskAdvancedSettings

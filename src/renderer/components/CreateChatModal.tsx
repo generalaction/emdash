@@ -22,6 +22,7 @@ interface CreateChatModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateChat: (title: string, agent: string) => void;
+  installedAgents: string[];
   existingConversations?: Conversation[];
 }
 
@@ -29,6 +30,7 @@ export function CreateChatModal({
   isOpen,
   onClose,
   onCreateChat,
+  installedAgents,
   existingConversations = [],
 }: CreateChatModalProps) {
   const [selectedAgent, setSelectedAgent] = useState<Agent>(DEFAULT_AGENT);
@@ -46,10 +48,12 @@ export function CreateChatModal({
     return agents;
   }, [existingConversations]);
 
-  // Find first available agent in agentConfig order
+  const installedSet = useMemo(() => new Set(installedAgents), [installedAgents]);
+
+  // Find first available agent: must be installed and not in use
   const findFirstAvailableAgent = (usedSet: Set<string>): Agent | null => {
     for (const key of Object.keys(agentConfig)) {
-      if (!usedSet.has(key)) {
+      if (installedSet.has(key) && !usedSet.has(key)) {
         return key as Agent;
       }
     }
@@ -71,8 +75,8 @@ export function CreateChatModal({
           ? (settingsAgent as Agent)
           : DEFAULT_AGENT;
 
-        // Priority: settings default (if available) > first available in agentConfig order
-        if (!usedAgents.has(defaultFromSettings)) {
+        // Priority: settings default (if installed and available) > first available in agentConfig order
+        if (installedSet.has(defaultFromSettings) && !usedAgents.has(defaultFromSettings)) {
           setSelectedAgent(defaultFromSettings);
           setError(null);
         } else {
@@ -81,7 +85,11 @@ export function CreateChatModal({
             setSelectedAgent(firstAvailable);
             setError(null);
           } else {
-            setError('All agents are already in use for this task');
+            setError(
+              installedAgents.length === 0
+                ? 'No agents installed'
+                : 'All installed agents are already in use for this task'
+            );
           }
         }
       });
@@ -90,12 +98,12 @@ export function CreateChatModal({
         cancel = true;
       };
     }
-  }, [isOpen, usedAgents]);
+  }, [isOpen, usedAgents, installedSet]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (usedAgents.has(selectedAgent)) {
+    if (!installedSet.has(selectedAgent) || usedAgents.has(selectedAgent)) {
       setError('Please select an available agent');
       return;
     }
@@ -132,6 +140,7 @@ export function CreateChatModal({
             <AgentDropdown
               value={selectedAgent}
               onChange={setSelectedAgent}
+              installedAgents={installedAgents}
               disabledAgents={Array.from(usedAgents)}
             />
           </div>

@@ -80,6 +80,14 @@ const ChatInterface: React.FC<Props> = ({
     return task.path;
   }, [task.path]);
 
+  const installedAgents = useMemo(
+    () =>
+      Object.entries(agentStatuses)
+        .filter(([, status]) => status.installed === true)
+        .map(([id]) => id),
+    [agentStatuses]
+  );
+
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
   // Line comments for agent context injection
@@ -709,6 +717,7 @@ const ChatInterface: React.FC<Props> = ({
           isOpen={showCreateChatModal}
           onClose={() => setShowCreateChatModal(false)}
           onCreateChat={handleCreateChat}
+          installedAgents={installedAgents}
           existingConversations={conversations}
         />
 
