@@ -1316,6 +1316,7 @@ const AppContent: React.FC = () => {
         );
         setActiveTask(newTask);
         setActiveTaskAgent(null);
+        saveActiveIds(newTask.projectId, newTask.id);
 
         // Create worktrees in background, then update task with real variants
         (async () => {
@@ -1561,11 +1562,8 @@ const AppContent: React.FC = () => {
 
         // Set the active task and its agent immediately
         setActiveTask(newTask);
-        if ((newTask.metadata as any)?.multiAgent?.enabled) {
-          setActiveTaskAgent(null);
-        } else {
-          setActiveTaskAgent((newTask.agentId as Agent) || primaryAgent || 'codex');
-        }
+        setActiveTaskAgent(getAgentForTask(newTask) ?? primaryAgent ?? 'codex');
+        saveActiveIds(newTask.projectId, newTask.id);
 
         // Background: save to database (non-blocking)
         window.electronAPI
