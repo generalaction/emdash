@@ -163,7 +163,6 @@
   .dark-black *::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.4);
   }
-
 }
 
 @layer components {
