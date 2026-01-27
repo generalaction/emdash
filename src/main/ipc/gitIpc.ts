@@ -616,10 +616,22 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   // Git: Get branch status (current branch, default branch, ahead/behind counts)
   ipcMain.handle('git:get-branch-status', async (_, args: { taskPath: string }) => {
     const { taskPath } = args || ({} as { taskPath: string });
-    try {
-      // Ensure repo (avoid /bin/sh by using execFile)
-      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
 
+    // Early exit for missing/invalid path
+    if (!taskPath || !fs.existsSync(taskPath)) {
+      log.warn(`getBranchStatus: path does not exist: ${taskPath}`);
+      return { success: false, error: 'Path does not exist' };
+    }
+
+    // Check if it's a git repo - expected to fail often for non-git paths
+    try {
+      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+    } catch {
+      log.warn(`getBranchStatus: not a git repository: ${taskPath}`);
+      return { success: false, error: 'Not a git repository' };
+    }
+
+    try {
       // Current branch
       const { stdout: currentBranchOut } = await execFileAsync(GIT, ['branch', '--show-current'], {
         cwd: taskPath,
@@ -678,7 +690,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
       return { success: true, branch, defaultBranch, ahead, behind };
     } catch (error) {
-      log.error('Failed to get branch status:', error);
+      log.error(`getBranchStatus: unexpected error for ${taskPath}:`, error);
       return { success: false, error: error as string };
     }
   });
