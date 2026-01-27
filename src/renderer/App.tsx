@@ -113,6 +113,42 @@ const LEFT_SIDEBAR_MAX_SIZE = 30;
 const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 const RIGHT_SIDEBAR_MIN_SIZE = 16;
 const RIGHT_SIDEBAR_MAX_SIZE = 50;
+const ACTIVE_PROJECT_KEY = 'emdash:activeProjectId';
+const ACTIVE_TASK_KEY = 'emdash:activeTaskId';
+
+const getStoredActiveIds = (): { projectId: string | null; taskId: string | null } => {
+  try {
+    return {
+      projectId: localStorage.getItem(ACTIVE_PROJECT_KEY),
+      taskId: localStorage.getItem(ACTIVE_TASK_KEY),
+    };
+  } catch {
+    return { projectId: null, taskId: null };
+  }
+};
+
+const saveActiveIds = (projectId: string | null, taskId: string | null): void => {
+  try {
+    if (projectId) {
+      localStorage.setItem(ACTIVE_PROJECT_KEY, projectId);
+    } else {
+      localStorage.removeItem(ACTIVE_PROJECT_KEY);
+    }
+    if (taskId) {
+      localStorage.setItem(ACTIVE_TASK_KEY, taskId);
+    } else {
+      localStorage.removeItem(ACTIVE_TASK_KEY);
+    }
+  } catch {}
+};
+
+const getAgentForTask = (task: Task): Agent | null => {
+  if ((task.metadata as any)?.multiAgent?.enabled) {
+    return null;
+  }
+  return (task.agentId as Agent) || 'codex';
+};
+
 const clampLeftSidebarSize = (value: number) =>
   Math.min(
     Math.max(Number.isFinite(value) ? value : DEFAULT_PANEL_LAYOUT[0], LEFT_SIDEBAR_MIN_SIZE),
@@ -155,9 +191,15 @@ const AppContent: React.FC = () => {
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
-  const [showHomeView, setShowHomeView] = useState<boolean>(true);
+  // Read stored active IDs synchronously to prevent flash on reload
+  const storedActiveIds = useMemo(() => getStoredActiveIds(), []);
+  const hasPendingRestore = storedActiveIds.projectId !== null;
+  // Start with showHomeView=false if we have a pending restore to prevent flash
+  const [showHomeView, setShowHomeView] = useState<boolean>(!hasPendingRestore);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskAgent, setActiveTaskAgent] = useState<Agent | null>(null);
+  // Track whether initial restore has completed to defer sidebar auto-behavior
+  const [isInitialLoadComplete, setIsInitialLoadComplete] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
@@ -297,6 +339,7 @@ const AppContent: React.FC = () => {
     setActiveTask(null);
     setShowEditorMode(false);
     setShowKanban(false);
+    saveActiveIds(project.id, null);
 
     // Start creating a reserve worktree in the background for instant task creation
     if (project.gitInfo?.isGitRepo) {
@@ -355,17 +398,17 @@ const AppContent: React.FC = () => {
       : -1;
     const nextIndex = (currentIndex + 1) % allTasks.length;
     const { task, project } = allTasks[nextIndex];
-    // Only call activateProjectView when actually switching projects
+    // Only reset view state when actually switching projects
     if (!selectedProject || selectedProject.id !== project.id) {
-      activateProjectView(project);
+      setShowEditorMode(false);
+      setShowKanban(false);
     }
+    setSelectedProject(project);
+    setShowHomeView(false);
     setActiveTask(task);
-    if ((task.metadata as any)?.multiAgent?.enabled) {
-      setActiveTaskAgent(null);
-    } else {
-      setActiveTaskAgent((task.agentId as Agent) || 'codex');
-    }
-  }, [allTasks, activeTask, activateProjectView, selectedProject]);
+    setActiveTaskAgent(getAgentForTask(task));
+    saveActiveIds(project.id, task.id);
+  }, [allTasks, activeTask, selectedProject]);
 
   const handlePrevTask = useCallback(() => {
     if (allTasks.length === 0) return;
@@ -374,17 +417,17 @@ const AppContent: React.FC = () => {
       : -1;
     const prevIndex = currentIndex <= 0 ? allTasks.length - 1 : currentIndex - 1;
     const { task, project } = allTasks[prevIndex];
-    // Only call activateProjectView when actually switching projects
+    // Only reset view state when actually switching projects
     if (!selectedProject || selectedProject.id !== project.id) {
-      activateProjectView(project);
+      setShowEditorMode(false);
+      setShowKanban(false);
     }
+    setSelectedProject(project);
+    setShowHomeView(false);
     setActiveTask(task);
-    if ((task.metadata as any)?.multiAgent?.enabled) {
-      setActiveTaskAgent(null);
-    } else {
-      setActiveTaskAgent((task.agentId as Agent) || 'codex');
-    }
-  }, [allTasks, activeTask, activateProjectView, selectedProject]);
+    setActiveTaskAgent(getAgentForTask(task));
+    saveActiveIds(project.id, task.id);
+  }, [allTasks, activeTask, selectedProject]);
 
   const handleNewTask = useCallback(() => {
     // Only open modal if a project is selected
@@ -523,34 +566,21 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
-  // Auto-collapse/expand right sidebar based on current view (no animation)
+  // Auto-collapse/expand right sidebar based on current view
   useEffect(() => {
-    if (!autoRightSidebarBehavior) return;
+    // Defer sidebar behavior until initial load completes to prevent flash
+    if (!autoRightSidebarBehavior || !isInitialLoadComplete) return;
 
-    // On home page or repo home page (no active task), collapse the sidebar
     const isHomePage = showHomeView;
     const isRepoHomePage = selectedProject !== null && activeTask === null;
-
     const shouldCollapse = isHomePage || isRepoHomePage;
-    const shouldExpand = activeTask !== null;
 
-    if (shouldCollapse || shouldExpand) {
-      // Add no-transition class to skip animation
-      const panelGroup = document.querySelector('[data-panel-group]');
-      panelGroup?.classList.add('no-transition');
-
-      if (shouldCollapse) {
-        rightSidebarSetCollapsedRef.current?.(true);
-      } else if (shouldExpand) {
-        rightSidebarSetCollapsedRef.current?.(false);
-      }
-
-      // Remove the class after a frame to allow future animations
-      requestAnimationFrame(() => {
-        panelGroup?.classList.remove('no-transition');
-      });
+    if (shouldCollapse) {
+      rightSidebarSetCollapsedRef.current?.(true);
+    } else if (activeTask !== null) {
+      rightSidebarSetCollapsedRef.current?.(false);
     }
-  }, [autoRightSidebarBehavior, showHomeView, selectedProject, activeTask]);
+  }, [autoRightSidebarBehavior, isInitialLoadComplete, showHomeView, selectedProject, activeTask]);
 
   useEffect(() => {
     const rightPanel = rightSidebarPanelRef.current;
@@ -632,9 +662,36 @@ const AppContent: React.FC = () => {
         );
         const ordered = applyProjectOrder(projectsWithTasks);
         setProjects(ordered);
+
+        // Restore active project/task from stored IDs (read synchronously at init)
+        const { projectId: storedProjectId, taskId: storedTaskId } = storedActiveIds;
+        if (storedProjectId) {
+          const project = ordered.find((p) => p.id === storedProjectId);
+          if (project) {
+            setSelectedProject(project);
+            setShowHomeView(false);
+            if (storedTaskId) {
+              const task = project.tasks?.find((t) => t.id === storedTaskId);
+              if (task) {
+                setActiveTask(task);
+                setActiveTaskAgent(getAgentForTask(task));
+              } else {
+                // Task no longer exists, clear it
+                saveActiveIds(storedProjectId, null);
+              }
+            }
+          } else {
+            // Project no longer exists, show home and clear stored state
+            setShowHomeView(true);
+            saveActiveIds(null, null);
+          }
+        }
+        setIsInitialLoadComplete(true);
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to load app data:', error as any);
+        setShowHomeView(true);
+        setIsInitialLoadComplete(true);
       }
     };
 
@@ -1271,6 +1328,7 @@ const AppContent: React.FC = () => {
         );
         setActiveTask(newTask);
         setActiveTaskAgent(null);
+        saveActiveIds(newTask.projectId, newTask.id);
 
         // Create worktrees in background, then update task with real variants
         (async () => {
@@ -1516,11 +1574,8 @@ const AppContent: React.FC = () => {
 
         // Set the active task and its agent immediately
         setActiveTask(newTask);
-        if ((newTask.metadata as any)?.multiAgent?.enabled) {
-          setActiveTaskAgent(null);
-        } else {
-          setActiveTaskAgent((newTask.agentId as Agent) || primaryAgent || 'codex');
-        }
+        setActiveTaskAgent(getAgentForTask(newTask) ?? primaryAgent ?? 'codex');
+        saveActiveIds(newTask.projectId, newTask.id);
 
         // Background: save to database (non-blocking)
         window.electronAPI
@@ -1727,6 +1782,7 @@ const AppContent: React.FC = () => {
     setActiveTask(null);
     setShowEditorMode(false);
     setShowKanban(false);
+    saveActiveIds(null, null);
   };
 
   const handleSelectProject = (project: Project) => {
@@ -1735,14 +1791,8 @@ const AppContent: React.FC = () => {
 
   const handleSelectTask = (task: Task) => {
     setActiveTask(task);
-    // Load provider from task.agentId if it exists, otherwise default to null
-    // This ensures the selected provider persists across app restarts
-    if ((task.metadata as any)?.multiAgent?.enabled) {
-      setActiveTaskAgent(null);
-    } else {
-      // Use agentId from task if available, otherwise fall back to 'codex' for backwards compatibility
-      setActiveTaskAgent((task.agentId as Agent) || 'codex');
-    }
+    setActiveTaskAgent(getAgentForTask(task));
+    saveActiveIds(task.projectId, task.id);
   };
 
   const handleStartCreateTaskFromSidebar = useCallback(
@@ -1766,6 +1816,12 @@ const AppContent: React.FC = () => {
     setSelectedProject((prev) =>
       prev && prev.id === projectId ? { ...prev, tasks: filterTasks(prev.tasks) } : prev
     );
+
+    // Clear stored task ID if this task was stored
+    const stored = getStoredActiveIds();
+    if (stored.taskId === taskId) {
+      saveActiveIds(stored.projectId, null);
+    }
 
     if (wasActive) {
       setActiveTask(null);
@@ -2139,6 +2195,7 @@ const AppContent: React.FC = () => {
         setSelectedProject(null);
         setActiveTask(null);
         setShowHomeView(true);
+        saveActiveIds(null, null);
       }
       toast({ title: 'Project deleted', description: `"${project.name}" was removed.` });
     } catch (err) {
