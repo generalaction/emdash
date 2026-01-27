@@ -1780,7 +1780,7 @@ const AppContent: React.FC = () => {
   const handleSelectTask = (task: Task) => {
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
-    saveActiveIds(selectedProject?.id ?? null, task.id);
+    saveActiveIds(task.projectId, task.id);
   };
 
   const handleStartCreateTaskFromSidebar = useCallback(
@@ -2183,6 +2183,7 @@ const AppContent: React.FC = () => {
         setSelectedProject(null);
         setActiveTask(null);
         setShowHomeView(true);
+        saveActiveIds(null, null);
       }
       toast({ title: 'Project deleted', description: `"${project.name}" was removed.` });
     } catch (err) {
