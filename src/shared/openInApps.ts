@@ -1,13 +1,3 @@
-export type OpenInIconKey =
-  | 'finder'
-  | 'cursor'
-  | 'vscode'
-  | 'terminal'
-  | 'ghostty'
-  | 'zed'
-  | 'iterm2'
-  | 'warp';
-
 export type PlatformKey = 'darwin' | 'win32' | 'linux';
 
 export type PlatformConfig = {
@@ -21,19 +11,28 @@ export type PlatformConfig = {
 type OpenInAppConfigShape = {
   id: string;
   label: string;
-  iconKey: OpenInIconKey;
-  iconPath: string;
+  iconPath: (typeof ICON_PATHS)[keyof typeof ICON_PATHS];
   alwaysAvailable?: boolean;
   autoInstall?: boolean;
   platforms: Partial<Record<PlatformKey, PlatformConfig>>;
 };
 
-export const OPEN_IN_APPS = [
+const ICON_PATHS = {
+  finder: 'finder.png',
+  cursor: 'cursorlogo.png',
+  vscode: 'vscode.png',
+  terminal: 'terminal.png',
+  warp: 'warp.svg',
+  iterm2: 'iterm2.png',
+  ghostty: 'ghostty.png',
+  zed: 'zed.png',
+} as const;
+
+export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
   {
     id: 'finder',
     label: 'Finder',
-    iconKey: 'finder',
-    iconPath: '../../assets/images/finder.png',
+    iconPath: ICON_PATHS.finder,
     alwaysAvailable: true,
     platforms: {
       darwin: { openCommands: ['open {{path}}'] },
@@ -44,8 +43,7 @@ export const OPEN_IN_APPS = [
   {
     id: 'cursor',
     label: 'Cursor',
-    iconKey: 'cursor',
-    iconPath: '../../assets/images/cursorlogo.png',
+    iconPath: ICON_PATHS.cursor,
     autoInstall: true,
     platforms: {
       darwin: {
@@ -69,8 +67,7 @@ export const OPEN_IN_APPS = [
   {
     id: 'vscode',
     label: 'VS Code',
-    iconKey: 'vscode',
-    iconPath: '../../assets/images/vscode.png',
+    iconPath: ICON_PATHS.vscode,
     autoInstall: true,
     platforms: {
       darwin: {
@@ -96,8 +93,7 @@ export const OPEN_IN_APPS = [
   {
     id: 'terminal',
     label: 'Terminal',
-    iconKey: 'terminal',
-    iconPath: '../../assets/images/terminal.png',
+    iconPath: ICON_PATHS.terminal,
     alwaysAvailable: true,
     platforms: {
       darwin: { openCommands: ['open -a Terminal {{path}}'] },
@@ -116,8 +112,7 @@ export const OPEN_IN_APPS = [
   {
     id: 'warp',
     label: 'Warp',
-    iconKey: 'warp',
-    iconPath: '../../assets/images/warp.svg',
+    iconPath: ICON_PATHS.warp,
     platforms: {
       darwin: {
         openUrls: [
@@ -131,8 +126,7 @@ export const OPEN_IN_APPS = [
   {
     id: 'iterm2',
     label: 'iTerm2',
-    iconKey: 'iterm2',
-    iconPath: '../../assets/images/iterm2.png',
+    iconPath: ICON_PATHS.iterm2,
     platforms: {
       darwin: {
         openCommands: [
@@ -148,8 +142,7 @@ export const OPEN_IN_APPS = [
   {
     id: 'ghostty',
     label: 'Ghostty',
-    iconKey: 'ghostty',
-    iconPath: '../../assets/images/ghostty.png',
+    iconPath: ICON_PATHS.ghostty,
     platforms: {
       darwin: {
         openCommands: ['open -b com.mitchellh.ghostty {{path}}', 'open -a "Ghostty" {{path}}'],
@@ -165,8 +158,7 @@ export const OPEN_IN_APPS = [
   {
     id: 'zed',
     label: 'Zed',
-    iconKey: 'zed',
-    iconPath: '../../assets/images/zed.png',
+    iconPath: ICON_PATHS.zed,
     autoInstall: true,
     platforms: {
       darwin: {
@@ -180,27 +172,12 @@ export const OPEN_IN_APPS = [
       },
     },
   },
-] as const satisfies readonly OpenInAppConfigShape[];
+] as const;
 
 export type OpenInAppId = (typeof OPEN_IN_APPS)[number]['id'];
 
-export type OpenInAppConfig = Omit<OpenInAppConfigShape, 'id'> & { id: OpenInAppId };
+export type OpenInAppConfig = OpenInAppConfigShape & { id: OpenInAppId };
 
 export function getAppById(id: string): OpenInAppConfig | undefined {
   return OPEN_IN_APPS.find((app) => app.id === id);
-}
-
-export function getAppConfigForPlatform(
-  appId: string,
-  platform: PlatformKey
-): PlatformConfig | undefined {
-  const app = getAppById(appId);
-  return app?.platforms[platform];
-}
-
-export function getAvailableAppsForPlatform(platform: PlatformKey): OpenInAppConfig[] {
-  return OPEN_IN_APPS.filter((app) => {
-    const platformConfig = (app as any).platforms[platform];
-    return platformConfig !== undefined || (app as any).alwaysAvailable;
-  });
 }

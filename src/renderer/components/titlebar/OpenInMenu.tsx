@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
+import { getAppById, OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
 
 interface OpenInMenuProps {
   path: string;
@@ -48,8 +48,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
 
       for (const app of OPEN_IN_APPS) {
         try {
-          const iconModule = await import(app.iconPath);
-          loadedIcons[app.id] = (iconModule as any).default || (iconModule as any);
+          loadedIcons[app.id] = new URL(
+            `../../../assets/images/${app.iconPath}`,
+            import.meta.url
+          ).href;
         } catch (e) {
           console.error(`Failed to load icon for ${app.id}:`, e);
         }
@@ -71,11 +73,12 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
 
   const callOpen = async (appId: OpenInAppId) => {
     // Check if app is available
+    // noinspection PointlessBooleanExpressionJS
     if (availability[appId] === false) {
       return; // Don't proceed if app is not installed
     }
 
-    const appConfig = OPEN_IN_APPS.find((a) => a.id === appId);
+    const appConfig = getAppById(appId);
     const label = appConfig?.label || appId;
 
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -152,14 +155,18 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
             {OPEN_IN_APPS.map((app) => (
               <button
                 key={app.id}
-                className={getMenuItemClasses(availability[app.id] !== false)}
+                className={getMenuItemClasses(availability[app.id])}
                 role="menuitem"
                 onClick={() => callOpen(app.id)}
-                disabled={availability[app.id] === false}
-                title={availability[app.id] === false ? 'Not installed' : undefined}
+                disabled={!availability[app.id]}
+                title={!availability[app.id] ? 'Not installed' : undefined}
               >
                 {icons[app.id] ? (
-                  <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
+                  <img
+                    src={icons[app.id]}
+                    alt={app.label}
+                    className="h-4 w-4 rounded"
+                  />
                 ) : null}
                 <span>{app.label}</span>
               </button>

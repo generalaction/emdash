@@ -4,7 +4,12 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
-import { OPEN_IN_APPS, type OpenInAppId, type PlatformKey } from '../../shared/openInApps';
+import {
+  getAppById,
+  OPEN_IN_APPS,
+  type OpenInAppId,
+  type PlatformKey,
+} from '@shared/openInApps';
 
 export function registerAppIpc() {
   ipcMain.handle('app:openExternal', async (_event, url: string) => {
@@ -33,12 +38,12 @@ export function registerAppIpc() {
       }
       try {
         const platform = process.platform as PlatformKey;
-        const appConfig = OPEN_IN_APPS.find((a) => a.id === appId);
+        const appConfig = getAppById(appId);
         if (!appConfig) {
           return { success: false, error: 'Invalid app ID' };
         }
 
-        const platformConfig = appConfig.platforms[platform];
+        const platformConfig = appConfig.platforms?.[platform];
         if (!platformConfig && !appConfig.alwaysAvailable) {
           return { success: false, error: `${appConfig.label} is not available on this platform.` };
         }
@@ -70,10 +75,9 @@ export function registerAppIpc() {
 
         if (commands.length > 0) {
           command = commands
-            .map((cmd) => {
-              const cmdWithQuotedPath = cmd.replace('{{path}}', quoted(target));
-              const cmdWithRawPath = cmd.replace('{{path_raw}}', target);
-              return cmdWithQuotedPath !== cmdWithRawPath ? cmdWithQuotedPath : cmdWithRawPath;
+            .map((cmd: string) => {
+              // Chain both replacements: first {{path}}, then {{path_raw}}
+              return cmd.replace('{{path}}', quoted(target)).replace('{{path_raw}}', target);
             })
             .join(' || ');
         }
@@ -99,7 +103,7 @@ export function registerAppIpc() {
         });
         return { success: true };
       } catch (error) {
-        const appConfig = OPEN_IN_APPS.find((a) => a.id === appId);
+        const appConfig = getAppById(appId);
         const label = appConfig?.label || appId;
         return { success: false, error: `Unable to open in ${label}` };
       }
