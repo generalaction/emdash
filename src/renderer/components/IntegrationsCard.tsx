@@ -36,7 +36,7 @@ const IntegrationsCard: React.FC = () => {
   const [linearState, setLinearState] = useState<LinearState>(
     () => cachedLinearState ?? defaultLinearState
   );
-  const { installed, authenticated, user, isLoading, login, checkStatus } = useGithubAuth();
+  const { installed, authenticated, user, isLoading, login, logout, checkStatus } = useGithubAuth();
   const [githubError, setGithubError] = useState<string | null>(null);
   // Jira state
   const [jiraSite, setJiraSite] = useState('');
@@ -264,6 +264,16 @@ const IntegrationsCard: React.FC = () => {
     }
   }, [checkStatus, login]);
 
+  const handleGithubDisconnect = useCallback(async () => {
+    setGithubError(null);
+    try {
+      await logout();
+    } catch (error) {
+      console.error('GitHub logout failed:', error);
+      setGithubError('Could not disconnect.');
+    }
+  }, [logout]);
+
   const renderStatusIndicator = useCallback(
     (label: string, tone: 'connected' | 'inactive' = 'inactive') => {
       const dotClass = tone === 'connected' ? 'bg-emerald-500' : 'bg-muted-foreground/50';
@@ -394,6 +404,7 @@ const IntegrationsCard: React.FC = () => {
             'Install & Sign in'
           )
         }
+        onDisconnect={authenticated ? () => void handleGithubDisconnect() : undefined}
       />
       {githubError ? (
         <p className="text-xs text-red-600" role="alert">
