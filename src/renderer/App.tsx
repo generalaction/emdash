@@ -337,6 +337,8 @@ const AppContent: React.FC = () => {
     setSelectedProject(project);
     setShowHomeView(false);
     setActiveTask(null);
+    setShowEditorMode(false);
+    setShowKanban(false);
     saveActiveIds(project.id, null);
 
     // Start creating a reserve worktree in the background for instant task creation
@@ -396,12 +398,17 @@ const AppContent: React.FC = () => {
       : -1;
     const nextIndex = (currentIndex + 1) % allTasks.length;
     const { task, project } = allTasks[nextIndex];
+    // Only reset view state when actually switching projects
+    if (!selectedProject || selectedProject.id !== project.id) {
+      setShowEditorMode(false);
+      setShowKanban(false);
+    }
     setSelectedProject(project);
     setShowHomeView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
-  }, [allTasks, activeTask]);
+  }, [allTasks, activeTask, selectedProject]);
 
   const handlePrevTask = useCallback(() => {
     if (allTasks.length === 0) return;
@@ -410,12 +417,17 @@ const AppContent: React.FC = () => {
       : -1;
     const prevIndex = currentIndex <= 0 ? allTasks.length - 1 : currentIndex - 1;
     const { task, project } = allTasks[prevIndex];
+    // Only reset view state when actually switching projects
+    if (!selectedProject || selectedProject.id !== project.id) {
+      setShowEditorMode(false);
+      setShowKanban(false);
+    }
     setSelectedProject(project);
     setShowHomeView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
-  }, [allTasks, activeTask]);
+  }, [allTasks, activeTask, selectedProject]);
 
   const handleNewTask = useCallback(() => {
     // Only open modal if a project is selected
@@ -1768,6 +1780,8 @@ const AppContent: React.FC = () => {
     setSelectedProject(null);
     setShowHomeView(true);
     setActiveTask(null);
+    setShowEditorMode(false);
+    setShowKanban(false);
     saveActiveIds(null, null);
   };
 
@@ -2199,8 +2213,14 @@ const AppContent: React.FC = () => {
   const [showKanban, setShowKanban] = useState<boolean>(false);
   const handleToggleKanban = useCallback(() => {
     if (!selectedProject) return;
+    setShowEditorMode(false);
     setShowKanban((v) => !v);
   }, [selectedProject]);
+
+  const handleToggleEditor = useCallback(() => {
+    setShowKanban(false);
+    setShowEditorMode((v) => !v);
+  }, []);
 
   const handleDeviceFlowSuccess = useCallback(
     async (user: any) => {
@@ -2427,7 +2447,7 @@ const AppContent: React.FC = () => {
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettings}
                 handleToggleKanban={handleToggleKanban}
-                handleToggleEditor={() => setShowEditorMode((prev) => !prev)}
+                handleToggleEditor={handleToggleEditor}
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
                 handleNewTask={handleNewTask}
@@ -2456,7 +2476,7 @@ const AppContent: React.FC = () => {
                   onToggleKanban={handleToggleKanban}
                   isKanbanOpen={Boolean(showKanban)}
                   kanbanAvailable={Boolean(selectedProject)}
-                  onToggleEditor={() => setShowEditorMode(!showEditorMode)}
+                  onToggleEditor={handleToggleEditor}
                   showEditorButton={Boolean(activeTask)}
                   isEditorOpen={showEditorMode}
                   projects={projects}
