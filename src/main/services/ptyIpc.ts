@@ -521,9 +521,12 @@ function maybeMarkProviderFinish(
   const started = providerPtyTimers.get(key);
   providerPtyTimers.delete(key);
 
+  // No valid exit code means the process was killed during cleanup, not a real completion
+  if (typeof exitCode !== 'number') return;
+
   const duration = started ? Math.max(0, Date.now() - started) : undefined;
   const wasSignaled = signal !== undefined && signal !== null;
-  const outcome = typeof exitCode === 'number' && exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
+  const outcome = exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
 
   telemetry.capture('agent_run_finish', {
     provider: parsed.providerId,
@@ -531,8 +534,8 @@ function maybeMarkProviderFinish(
     duration_ms: duration,
   });
 
-  const providerName = getProvider(parsed.providerId)?.name ?? parsed.providerId;
-  if (outcome === 'ok') {
+  if (exitCode === 0) {
+    const providerName = getProvider(parsed.providerId)?.name ?? parsed.providerId;
     showCompletionNotification(providerName);
   }
 }
