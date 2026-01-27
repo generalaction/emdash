@@ -355,14 +355,17 @@ const AppContent: React.FC = () => {
       : -1;
     const nextIndex = (currentIndex + 1) % allTasks.length;
     const { task, project } = allTasks[nextIndex];
-    activateProjectView(project);
+    // Only call activateProjectView when actually switching projects
+    if (!selectedProject || selectedProject.id !== project.id) {
+      activateProjectView(project);
+    }
     setActiveTask(task);
     if ((task.metadata as any)?.multiAgent?.enabled) {
       setActiveTaskAgent(null);
     } else {
       setActiveTaskAgent((task.agentId as Agent) || 'codex');
     }
-  }, [allTasks, activeTask, activateProjectView]);
+  }, [allTasks, activeTask, activateProjectView, selectedProject]);
 
   const handlePrevTask = useCallback(() => {
     if (allTasks.length === 0) return;
@@ -371,14 +374,17 @@ const AppContent: React.FC = () => {
       : -1;
     const prevIndex = currentIndex <= 0 ? allTasks.length - 1 : currentIndex - 1;
     const { task, project } = allTasks[prevIndex];
-    activateProjectView(project);
+    // Only call activateProjectView when actually switching projects
+    if (!selectedProject || selectedProject.id !== project.id) {
+      activateProjectView(project);
+    }
     setActiveTask(task);
     if ((task.metadata as any)?.multiAgent?.enabled) {
       setActiveTaskAgent(null);
     } else {
       setActiveTaskAgent((task.agentId as Agent) || 'codex');
     }
-  }, [allTasks, activeTask, activateProjectView]);
+  }, [allTasks, activeTask, activateProjectView, selectedProject]);
 
   const handleNewTask = useCallback(() => {
     // Only open modal if a project is selected
