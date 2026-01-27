@@ -36,6 +36,7 @@ import { useGithubAuth } from './hooks/useGithubAuth';
 import { useTheme } from './hooks/useTheme';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
+import { disposeTaskTerminals } from './lib/taskTerminalsStore';
 import {
   computeBaseRef,
   getProjectRepoKey,
@@ -1798,20 +1799,47 @@ const AppContent: React.FC = () => {
             }
           } catch {}
         } catch {}
-        try {
-          window.electronAPI.ptyKill?.(`task-${task.id}`);
-        } catch {}
-        try {
-          for (const provider of TERMINAL_PROVIDER_IDS) {
+        // Kill main agent terminals
+        // Single-agent: ${provider}-main-${task.id}
+        // Multi-agent: ${variant.worktreeId}-main
+        const variants = task.metadata?.multiAgent?.variants || [];
+        const mainSessionIds: string[] = [];
+        if (variants.length > 0) {
+          for (const v of variants) {
+            const id = `${v.worktreeId}-main`;
+            mainSessionIds.push(id);
             try {
-              window.electronAPI.ptyKill?.(`${provider}-main-${task.id}`);
+              window.electronAPI.ptyKill?.(id);
             } catch {}
           }
+        } else {
+          for (const provider of TERMINAL_PROVIDER_IDS) {
+            const id = `${provider}-main-${task.id}`;
+            mainSessionIds.push(id);
+            try {
+              window.electronAPI.ptyKill?.(id);
+            } catch {}
+          }
+        }
+
+        // Kill chat agent terminals (agents added via "+")
+        const chatSessionIds: string[] = [];
+        try {
+          const convResult = await window.electronAPI.getConversations(task.id);
+          if (convResult.success && convResult.conversations) {
+            for (const conv of convResult.conversations) {
+              if (!conv.isMain && conv.provider) {
+                const chatId = `${conv.provider}-chat-${conv.id}`;
+                chatSessionIds.push(chatId);
+                try {
+                  window.electronAPI.ptyKill?.(chatId);
+                } catch {}
+              }
+            }
+          }
         } catch {}
-        const sessionIds = [
-          `task-${task.id}`,
-          ...TERMINAL_PROVIDER_IDS.map((provider) => `${provider}-main-${task.id}`),
-        ];
+
+        const sessionIds = [...mainSessionIds, ...chatSessionIds];
 
         await Promise.allSettled(
           sessionIds.map(async (sessionId) => {
@@ -1823,6 +1851,20 @@ const AppContent: React.FC = () => {
             } catch {}
           })
         );
+
+        // Clean up task terminal panel terminals (bottom-right shell terminals)
+        // Multi-agent tasks have terminals per variant path
+        const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
+        const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
+        for (const path of pathsToClean) {
+          disposeTaskTerminals(`${task.id}::${path}`);
+          // Global terminals are shared by non-worktree tasks on the same path
+          if (task.useWorktree !== false) {
+            disposeTaskTerminals(`global::${path}`);
+          }
+        }
+        // ChatInterface uses task.id as key (single-agent tasks only)
+        disposeTaskTerminals(task.id);
 
         // Only remove worktree if the task was created with one
         // IMPORTANT: Tasks without worktrees have useWorktree === false
