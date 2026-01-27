@@ -295,6 +295,8 @@ const AppContent: React.FC = () => {
     setSelectedProject(project);
     setShowHomeView(false);
     setActiveTask(null);
+    setShowEditorMode(false);
+    setShowKanban(false);
 
     // Start creating a reserve worktree in the background for instant task creation
     if (project.gitInfo?.isGitRepo) {
@@ -1717,6 +1719,8 @@ const AppContent: React.FC = () => {
     setSelectedProject(null);
     setShowHomeView(true);
     setActiveTask(null);
+    setShowEditorMode(false);
+    setShowKanban(false);
   };
 
   const handleSelectProject = (project: Project) => {
@@ -2146,8 +2150,14 @@ const AppContent: React.FC = () => {
   const [showKanban, setShowKanban] = useState<boolean>(false);
   const handleToggleKanban = useCallback(() => {
     if (!selectedProject) return;
+    setShowEditorMode(false);
     setShowKanban((v) => !v);
   }, [selectedProject]);
+
+  const handleToggleEditor = useCallback(() => {
+    setShowKanban(false);
+    setShowEditorMode((v) => !v);
+  }, []);
 
   const handleDeviceFlowSuccess = useCallback(
     async (user: any) => {
@@ -2374,7 +2384,7 @@ const AppContent: React.FC = () => {
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettings}
                 handleToggleKanban={handleToggleKanban}
-                handleToggleEditor={() => setShowEditorMode((prev) => !prev)}
+                handleToggleEditor={handleToggleEditor}
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
                 handleNewTask={handleNewTask}
@@ -2403,7 +2413,7 @@ const AppContent: React.FC = () => {
                   onToggleKanban={handleToggleKanban}
                   isKanbanOpen={Boolean(showKanban)}
                   kanbanAvailable={Boolean(selectedProject)}
-                  onToggleEditor={() => setShowEditorMode(!showEditorMode)}
+                  onToggleEditor={handleToggleEditor}
                   showEditorButton={Boolean(activeTask)}
                   isEditorOpen={showEditorMode}
                   projects={projects}
