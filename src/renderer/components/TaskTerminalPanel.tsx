@@ -89,10 +89,10 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
           return;
         }
 
-        // Send the setup command to the terminal
+        // Send the setup command to the terminal (clear first to avoid timing artifacts)
         window.electronAPI.ptyInput({
           id: terminalId,
-          data: result.script + '\n',
+          data: 'clear && ' + result.script + '\n',
         });
       } catch (error) {
         console.error('Failed to run setup script:', error);
