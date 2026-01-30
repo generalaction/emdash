@@ -82,12 +82,6 @@ class LifecycleScriptsService {
       return;
     }
 
-    // Check if worktree path still exists
-    if (!fs.existsSync(worktreePath)) {
-      log.warn('Worktree path does not exist, skipping archive script', { worktreePath });
-      return;
-    }
-
     const env = {
       ...process.env,
       ...this.buildEnv(task, worktreePath, projectPath),
@@ -97,11 +91,17 @@ class LifecycleScriptsService {
 
     try {
       // Fire and forget - detached process that won't block
+      // Use projectPath as cwd since worktreePath may be deleted during execution
       const child = spawn('sh', ['-c', archiveScript], {
-        cwd: worktreePath,
+        cwd: projectPath,
         env,
         detached: true,
         stdio: 'ignore',
+      });
+
+      // Handle async spawn errors (e.g., sh not found on Windows)
+      child.on('error', (err) => {
+        log.error('Archive script spawn error', { taskId: task.id, error: err });
       });
 
       child.unref();
