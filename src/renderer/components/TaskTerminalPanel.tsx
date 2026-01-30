@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
 import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
@@ -61,57 +61,73 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
     return { mode: match[1] as 'task' | 'global', id: match[2] };
   };
 
+  // Stable references for setup script - avoid recreating callback on every render
+  const taskRef = useRef(task);
+  const projectPathRef = useRef(projectPath);
+  taskRef.current = task;
+  projectPathRef.current = projectPath;
+
   // Run setup script when a task terminal becomes ready (only once per terminal)
-  const handleTerminalReady = useCallback(
-    (terminalId: string) => {
-      if (!task || !projectPath) return;
+  const handleTerminalReady = useCallback((terminalId: string) => {
+    const currentTask = taskRef.current;
+    const currentProjectPath = projectPathRef.current;
+    if (!currentTask || !currentProjectPath) return;
 
-      const key = `${task.id}::${terminalId}`;
-      if (setupScriptRan.has(key)) return;
+    const key = `${currentTask.id}::${terminalId}`;
+    if (setupScriptRan.has(key)) return;
 
-      // Mark as attempted immediately to prevent race conditions
-      setupScriptRan.add(key);
+    // Mark as attempted immediately to prevent race conditions
+    setupScriptRan.add(key);
 
-      (async () => {
-        try {
-          // Check if there's a setup script configured
-          const result = await window.electronAPI.lifecycleGetSetupScript({ projectPath });
-          if (!result.success || !result.script) {
-            return;
-          }
-
-          const setupScript = result.script;
-
-          // Get environment variables for the script
-          const envResult = await window.electronAPI.lifecycleGetEnv({
-            taskId: task.id,
-            taskName: task.name,
-            taskBranch: task.branch,
-            worktreePath: task.path,
-            projectPath,
-          });
-
-          // Build the command with environment variables exported
-          let command = setupScript;
-          if (envResult.success && envResult.env) {
-            const exports = Object.entries(envResult.env)
-              .map(([k, v]) => `export ${k}="${v}"`)
-              .join('; ');
-            command = `${exports}; ${setupScript}`;
-          }
-
-          // Send the command to the terminal
-          window.electronAPI.ptyInput({
-            id: terminalId,
-            data: command + '\n',
-          });
-        } catch (error) {
-          console.error('Failed to run setup script:', error);
+    (async () => {
+      try {
+        // Check if there's a setup script configured
+        const result = await window.electronAPI.lifecycleGetSetupScript({
+          projectPath: currentProjectPath,
+        });
+        if (!result.success || !result.script) {
+          return;
         }
-      })();
-    },
-    [task, projectPath]
-  );
+
+        const setupScript = result.script;
+
+        // Get environment variables for the script
+        const envResult = await window.electronAPI.lifecycleGetEnv({
+          taskId: currentTask.id,
+          taskName: currentTask.name,
+          taskBranch: currentTask.branch,
+          worktreePath: currentTask.path,
+          projectPath: currentProjectPath,
+        });
+
+        // Build the command with environment variables exported
+        let command = setupScript;
+        if (envResult.success && envResult.env) {
+          const exports = Object.entries(envResult.env)
+            .map(([k, v]) => `export ${k}="${v}"`)
+            .join('; ');
+          command = `${exports}; ${setupScript}`;
+        }
+
+        // Send the command to the terminal
+        window.electronAPI.ptyInput({
+          id: terminalId,
+          data: command + '\n',
+        });
+      } catch (error) {
+        console.error('Failed to run setup script:', error);
+      }
+    })();
+  }, []);
+
+  // Memoize callbacks per terminal to avoid recreating on every render
+  const terminalReadyCallbacks = useMemo(() => {
+    const callbacks = new Map<string, () => void>();
+    for (const terminal of taskTerminals.terminals) {
+      callbacks.set(terminal.id, () => handleTerminalReady(terminal.id));
+    }
+    return callbacks;
+  }, [taskTerminals.terminals, handleTerminalReady]);
 
   const parsed = selectedValue ? parseValue(selectedValue) : null;
 
@@ -459,7 +475,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
                 themeOverride={themeOverride}
                 className="h-full w-full"
                 keepAlive
-                onStartSuccess={() => handleTerminalReady(terminal.id)}
+                onStartSuccess={terminalReadyCallbacks.get(terminal.id)}
               />
             </div>
           );
