@@ -19,6 +19,15 @@ import type { Agent } from '../types';
 // Track which terminals have already run their setup script (persists across remounts)
 const setupScriptRan = new Set<string>();
 
+/** Clear setup script state for a task (call when task is deleted) */
+export function clearSetupScriptState(taskId: string): void {
+  for (const key of setupScriptRan) {
+    if (key.startsWith(`${taskId}::`)) {
+      setupScriptRan.delete(key);
+    }
+  }
+}
+
 interface Task {
   id: string;
   name: string;

@@ -21,35 +21,4 @@ export function registerLifecycleIpc(): void {
       }
     }
   );
-
-  // Get environment variables for lifecycle scripts
-  ipcMain.handle(
-    'lifecycle:getEnv',
-    async (
-      _event,
-      args: {
-        taskId: string;
-        taskName: string;
-        taskBranch?: string;
-        worktreePath: string;
-        projectPath: string;
-      }
-    ) => {
-      try {
-        const env = lifecycleScriptsService.buildEnv(
-          {
-            id: args.taskId,
-            name: args.taskName,
-            branch: args.taskBranch,
-          },
-          args.worktreePath,
-          args.projectPath
-        );
-        return { success: true, env };
-      } catch (error) {
-        log.error('Failed to get lifecycle env:', error);
-        return { success: false, error: (error as Error).message };
-      }
-    }
-  );
 }

@@ -103,23 +103,6 @@ declare global {
       lifecycleGetSetupScript: (args: {
         projectPath: string;
       }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
-      lifecycleGetEnv: (args: {
-        taskId: string;
-        taskName: string;
-        taskBranch?: string;
-        worktreePath: string;
-        projectPath: string;
-      }) => Promise<{
-        success: boolean;
-        env?: {
-          EMDASH_TASK_NAME: string;
-          EMDASH_TASK_ID: string;
-          EMDASH_WORKTREE_PATH: string;
-          EMDASH_PROJECT_PATH: string;
-          EMDASH_BRANCH: string;
-        };
-        error?: string;
-      }>;
 
       openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;
       getProjectSettings: (projectId: string) => Promise<{
