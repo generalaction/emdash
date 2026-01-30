@@ -17,6 +17,8 @@ export interface AppKeyboardShortcutsProps {
   handleNextTask: () => void;
   handlePrevTask: () => void;
   handleNewTask: () => void;
+  handleNextAgent: () => void;
+  handlePrevAgent: () => void;
 }
 
 const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
@@ -31,6 +33,8 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
   handleNextTask,
   handlePrevTask,
   handleNewTask,
+  handleNextAgent,
+  handlePrevAgent,
 }) => {
   const { toggle: toggleLeftSidebar } = useSidebar();
   const { toggle: toggleRightSidebar } = useRightSidebar();
@@ -48,14 +52,8 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
     onNextProject: handleNextTask,
     onPrevProject: handlePrevTask,
     onNewTask: handleNewTask,
-    onNextAgent: () =>
-      window.dispatchEvent(
-        new CustomEvent('emdash:switch-agent', { detail: { direction: 'next' } })
-      ),
-    onPrevAgent: () =>
-      window.dispatchEvent(
-        new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } })
-      ),
+    onNextAgent: handleNextAgent,
+    onPrevAgent: handlePrevAgent,
     onCloseModal: showCommandPalette
       ? handleCloseCommandPalette
       : showSettings

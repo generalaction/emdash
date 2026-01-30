@@ -181,6 +181,41 @@ const ChatInterface: React.FC<Props> = ({
     return () => clearTimeout(timer);
   }, [task.id]);
 
+  // Listen for agent switching events from keyboard shortcuts (Cmd+Shift+J/K)
+  useEffect(() => {
+    const handleAgentSwitch = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
+      if (conversations.length <= 1) return;
+
+      const currentIndex = conversations.findIndex((c) => c.id === activeConversationId);
+      if (currentIndex === -1) return;
+
+      let newIndex: number;
+      if (customEvent.detail.direction === 'next') {
+        newIndex = (currentIndex + 1) % conversations.length;
+      } else {
+        newIndex = currentIndex <= 0 ? conversations.length - 1 : currentIndex - 1;
+      }
+
+      const newConversation = conversations[newIndex];
+      if (newConversation) {
+        await window.electronAPI.setActiveConversation({
+          taskId: task.id,
+          conversationId: newConversation.id,
+        });
+        setActiveConversationId(newConversation.id);
+        if (newConversation.provider) {
+          setAgent(newConversation.provider as Agent);
+        }
+      }
+    };
+
+    window.addEventListener('emdash:switch-agent', handleAgentSwitch);
+    return () => {
+      window.removeEventListener('emdash:switch-agent', handleAgentSwitch);
+    };
+  }, [conversations, activeConversationId, task.id]);
+
   useEffect(() => {
     const meta = agentMeta[agent];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;
