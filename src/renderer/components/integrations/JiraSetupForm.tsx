@@ -29,10 +29,7 @@ const JiraSetupForm: React.FC<Props> = ({
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-xs font-medium">
           <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-          Jira setup
-        </span>
-        <span className="text-xs text-muted-foreground">
-          Connect your Jira site using email + API token.
+          Jira
         </span>
       </div>
       <div className="mt-2 grid gap-2">
@@ -43,7 +40,7 @@ const JiraSetupForm: React.FC<Props> = ({
           className="h-8 w-full"
         />
         <Input
-          placeholder="email@example.com"
+          placeholder="Email"
           value={email}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ email: e.target.value })}
           className="h-8 w-full"
@@ -56,25 +53,11 @@ const JiraSetupForm: React.FC<Props> = ({
           className="h-8 w-full"
         />
       </div>
-      <div className="mt-2 rounded-md border border-dashed border-border/70 bg-muted/40 p-2">
-        <div className="flex items-start gap-2">
-          <Info className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <div className="text-xs leading-snug text-muted-foreground">
-            <p className="font-medium text-foreground">How to get your Jira credentials</p>
-            <ol className="mt-1 list-decimal pl-4">
-              <li>
-                Site URL: open Jira in the browser and copy the base URL (e.g.
-                https://your-domain.atlassian.net).
-              </li>
-              <li>Use your Atlassian account email address.</li>
-              <li>
-                Create an API token: id.atlassian.com/manage-profile/security/api-tokens → Create
-                API token → Copy the token here.
-              </li>
-            </ol>
-          </div>
-        </div>
-      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        <Info className="mr-1 inline h-3 w-3" aria-hidden="true" />
+        Create an API token at{' '}
+        <span className="font-medium">id.atlassian.com/manage-profile/security/api-tokens</span>
+      </p>
       {error ? (
         <p className="mt-2 text-xs text-red-600" role="alert">
           {error}

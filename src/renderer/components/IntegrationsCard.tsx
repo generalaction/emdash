@@ -484,8 +484,8 @@ const IntegrationsCard: React.FC = () => {
                   <motion.div
                     role="dialog"
                     aria-label="Jira setup"
-                    className="absolute right-0 top-full z-50 mt-2 w-[420px] max-w-[calc(100vw-3rem)] rounded-xl border border-border/60 bg-background/95 p-3 shadow-2xl ring-1 ring-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:w-[480px]"
-                    style={{ transformOrigin: 'top right' }}
+                    className="absolute left-0 top-full z-50 mt-2 w-[360px] max-w-[calc(100vw-3rem)] rounded-xl border border-border/60 bg-background/95 p-3 shadow-2xl ring-1 ring-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+                    style={{ transformOrigin: 'top left' }}
                     {...(menuMotion(!!reduceMotion) as any)}
                   >
                     <JiraSetupForm
