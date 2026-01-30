@@ -89,30 +89,10 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
           return;
         }
 
-        const setupScript = result.script;
-
-        // Get environment variables for the script
-        const envResult = await window.electronAPI.lifecycleGetEnv({
-          taskId: currentTask.id,
-          taskName: currentTask.name,
-          taskBranch: currentTask.branch,
-          worktreePath: currentTask.path,
-          projectPath: currentProjectPath,
-        });
-
-        // Build the command with environment variables exported
-        let command = setupScript;
-        if (envResult.success && envResult.env) {
-          const exports = Object.entries(envResult.env)
-            .map(([k, v]) => `export ${k}="${v}"`)
-            .join('; ');
-          command = `${exports}; ${setupScript}`;
-        }
-
-        // Send the command to the terminal
+        // Send the setup command to the terminal
         window.electronAPI.ptyInput({
           id: terminalId,
-          data: command + '\n',
+          data: result.script + '\n',
         });
       } catch (error) {
         console.error('Failed to run setup script:', error);
