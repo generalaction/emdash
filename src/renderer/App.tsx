@@ -1886,6 +1886,7 @@ const AppContent: React.FC = () => {
                 worktreeId: task.id,
                 worktreePath: task.path,
                 branch: task.branch,
+                taskName: task.name,
               })
             );
           }

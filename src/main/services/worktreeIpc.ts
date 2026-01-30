@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { worktreeService } from './WorktreeService';
 import { worktreePoolService } from './WorktreePoolService';
+import { lifecycleScriptsService } from './LifecycleScriptsService';
 
 export function registerWorktreeIpc(): void {
   // Create a new worktree
@@ -53,9 +54,23 @@ export function registerWorktreeIpc(): void {
         worktreeId: string;
         worktreePath?: string;
         branch?: string;
+        taskName?: string;
       }
     ) => {
       try {
+        // Run archive script (fire and forget) before removing worktree
+        if (args.worktreePath && args.taskName) {
+          lifecycleScriptsService.runArchive(
+            {
+              id: args.worktreeId,
+              name: args.taskName,
+              branch: args.branch,
+            },
+            args.worktreePath,
+            args.projectPath
+          );
+        }
+
         await worktreeService.removeWorktree(
           args.projectPath,
           args.worktreeId,
