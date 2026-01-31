@@ -13,6 +13,13 @@ const ModifierIcon: React.FC<{ modifier: ShortcutModifier }> = ({ modifier }) =>
   switch (modifier) {
     case 'cmd':
       return <Command className="h-3 w-3" aria-hidden="true" />;
+    case 'cmd+shift':
+      return (
+        <>
+          <Command className="h-3 w-3" aria-hidden="true" />
+          <span>⇧</span>
+        </>
+      );
     case 'ctrl':
       return <span>Ctrl</span>;
     case 'alt':

@@ -18,6 +18,7 @@ import {
   Palette,
 } from 'lucide-react';
 import { APP_SHORTCUTS } from '../hooks/useKeyboardShortcuts';
+import type { ShortcutModifier } from '../types/shortcuts';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -41,8 +42,6 @@ interface CommandPaletteProps {
   onGoHome?: () => void;
   onOpenProject?: () => void;
 }
-
-type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
 
 type CommandItem = {
   id: string;
