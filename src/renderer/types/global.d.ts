@@ -60,7 +60,6 @@ declare global {
         worktreeId: string;
         worktreePath?: string;
         branch?: string;
-        taskName?: string;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeStatus: (args: {
         worktreePath: string;
