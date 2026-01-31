@@ -25,6 +25,8 @@ const formatModifier = (modifier: ShortcutModifier | undefined): string => {
   switch (modifier) {
     case 'cmd':
       return '⌘';
+    case 'cmd+shift':
+      return '⌘⇧';
     case 'ctrl':
       return 'Ctrl';
     case 'alt':
@@ -161,10 +163,17 @@ const KeyboardSettingsCard: React.FC = () => {
 
       // Determine which modifier is pressed
       let modifier: ShortcutModifier | null = null;
-      if (event.metaKey) modifier = 'cmd';
-      else if (event.ctrlKey) modifier = 'ctrl';
-      else if (event.altKey) modifier = 'alt';
-      else if (event.shiftKey) modifier = 'shift';
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
+        modifier = 'cmd+shift';
+      } else if (event.metaKey) {
+        modifier = 'cmd';
+      } else if (event.ctrlKey) {
+        modifier = 'ctrl';
+      } else if (event.altKey) {
+        modifier = 'alt';
+      } else if (event.shiftKey) {
+        modifier = 'shift';
+      }
 
       // Ignore if only modifier key pressed (no actual key)
       const isModifierOnly = ['Meta', 'Control', 'Alt', 'Shift'].includes(event.key);

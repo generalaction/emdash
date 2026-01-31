@@ -19,7 +19,9 @@ export type ShortcutSettingsKey =
   | 'closeModal'
   | 'nextProject'
   | 'prevProject'
-  | 'newTask';
+  | 'newTask'
+  | 'nextAgent'
+  | 'prevAgent';
 
 export interface AppShortcut {
   key: string;
@@ -131,6 +133,24 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     category: 'Navigation',
     settingsKey: 'newTask',
   },
+
+  NEXT_AGENT: {
+    key: 'k',
+    modifier: 'cmd+shift',
+    label: 'Next Agent',
+    description: 'Switch to the next agent working on this task',
+    category: 'Navigation',
+    settingsKey: 'nextAgent',
+  },
+
+  PREV_AGENT: {
+    key: 'j',
+    modifier: 'cmd+shift',
+    label: 'Previous Agent',
+    description: 'Switch to the previous agent working on this task',
+    category: 'Navigation',
+    settingsKey: 'prevAgent',
+  },
 };
 
 /**
@@ -140,17 +160,29 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
  */
 
 export function formatShortcut(shortcut: ShortcutConfig): string {
-  const modifier = shortcut.modifier
-    ? shortcut.modifier === 'cmd'
-      ? '⌘'
-      : shortcut.modifier === 'option'
-        ? '⌥'
-        : shortcut.modifier === 'shift'
-          ? '⇧'
-          : shortcut.modifier === 'alt'
-            ? 'Alt'
-            : 'Ctrl'
-    : '';
+  let modifier = '';
+  if (shortcut.modifier) {
+    switch (shortcut.modifier) {
+      case 'cmd':
+        modifier = '⌘';
+        break;
+      case 'option':
+        modifier = '⌥';
+        break;
+      case 'shift':
+        modifier = '⇧';
+        break;
+      case 'alt':
+        modifier = 'Alt';
+        break;
+      case 'ctrl':
+        modifier = 'Ctrl';
+        break;
+      case 'cmd+shift':
+        modifier = '⌘⇧';
+        break;
+    }
+  }
 
   let key = shortcut.key;
   if (key === 'Escape') key = 'Esc';
@@ -196,7 +228,8 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
   switch (modifier) {
     case 'cmd':
       // On macOS require the Command key; on other platforms allow Ctrl as the Command equivalent
-      return isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey;
+      // Also ensure shift is NOT pressed (to distinguish from cmd+shift)
+      return (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) && !event.shiftKey;
     case 'ctrl':
       // Require the Control key without treating Command as equivalent
       return event.ctrlKey && !event.metaKey;
@@ -205,6 +238,9 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
       return event.altKey;
     case 'shift':
       return event.shiftKey;
+    case 'cmd+shift':
+      // Compound modifier: Command + Shift
+      return (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) && event.shiftKey;
     default:
       return false;
   }
@@ -260,6 +296,8 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       nextProject: getEffectiveConfig(APP_SHORTCUTS.NEXT_TASK, custom),
       prevProject: getEffectiveConfig(APP_SHORTCUTS.PREV_TASK, custom),
       newTask: getEffectiveConfig(APP_SHORTCUTS.NEW_TASK, custom),
+      nextAgent: getEffectiveConfig(APP_SHORTCUTS.NEXT_AGENT, custom),
+      prevAgent: getEffectiveConfig(APP_SHORTCUTS.PREV_AGENT, custom),
     };
   }, [handlers.customKeyboardSettings]);
 
@@ -328,6 +366,18 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       {
         config: effectiveShortcuts.newTask,
         handler: () => handlers.onNewTask?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.nextAgent,
+        handler: () => handlers.onNextAgent?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.prevAgent,
+        handler: () => handlers.onPrevAgent?.(),
         priority: 'global',
         requiresClosed: true,
       },
