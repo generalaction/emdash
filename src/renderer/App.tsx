@@ -436,6 +436,17 @@ const AppContent: React.FC = () => {
     }
   }, [selectedProject]);
 
+  // Agent switching handlers - dispatch custom events for ChatInterface to handle
+  const handleNextAgent = useCallback(() => {
+    if (!activeTask) return;
+    window.dispatchEvent(new CustomEvent('emdash:switch-agent', { detail: { direction: 'next' } }));
+  }, [activeTask]);
+
+  const handlePrevAgent = useCallback(() => {
+    if (!activeTask) return;
+    window.dispatchEvent(new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } }));
+  }, [activeTask]);
+
   const handleWelcomeGetStarted = useCallback(() => {
     setShowWelcomeScreen(false);
     setShowFirstLaunchModal(true);
@@ -2451,6 +2462,8 @@ const AppContent: React.FC = () => {
                 handleNextTask={handleNextTask}
                 handlePrevTask={handlePrevTask}
                 handleNewTask={handleNewTask}
+                handleNextAgent={handleNextAgent}
+                handlePrevAgent={handlePrevAgent}
               />
               <RightSidebarBridge
                 onCollapsedChange={handleRightSidebarCollapsedChange}
@@ -2572,6 +2585,8 @@ const AppContent: React.FC = () => {
                 handleGoHome={handleGoHome}
                 handleOpenProject={handleOpenProject}
                 handleOpenSettings={handleOpenSettings}
+                handleNextAgent={handleNextAgent}
+                handlePrevAgent={handlePrevAgent}
               />
               {showEditorMode && activeTask && selectedProject && (
                 <CodeEditor
