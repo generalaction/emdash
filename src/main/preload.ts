@@ -333,6 +333,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTask: (task: any) => ipcRenderer.invoke('db:saveTask', task),
   deleteProject: (projectId: string) => ipcRenderer.invoke('db:deleteProject', projectId),
   deleteTask: (taskId: string) => ipcRenderer.invoke('db:deleteTask', taskId),
+  archiveTask: (taskId: string) => ipcRenderer.invoke('db:archiveTask', taskId),
+  restoreTask: (taskId: string) => ipcRenderer.invoke('db:restoreTask', taskId),
+  getArchivedTasks: (projectId?: string) => ipcRenderer.invoke('db:getArchivedTasks', projectId),
 
   // Conversation management
   saveConversation: (conversation: any) => ipcRenderer.invoke('db:saveConversation', conversation),

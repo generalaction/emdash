@@ -157,6 +157,35 @@ export function registerDatabaseIpc() {
     }
   });
 
+  ipcMain.handle('db:archiveTask', async (_, taskId: string) => {
+    try {
+      await databaseService.archiveTask(taskId);
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to archive task:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('db:restoreTask', async (_, taskId: string) => {
+    try {
+      await databaseService.restoreTask(taskId);
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to restore task:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('db:getArchivedTasks', async (_, projectId?: string) => {
+    try {
+      return await databaseService.getArchivedTasks(projectId);
+    } catch (error) {
+      log.error('Failed to get archived tasks:', error);
+      return [];
+    }
+  });
+
   // Multi-chat support handlers
   ipcMain.handle(
     'db:createConversation',

@@ -2156,6 +2156,100 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleArchiveTask = async (targetProject: Project, task: Task): Promise<void> => {
+    const wasActive = activeTask?.id === task.id;
+
+    // Optimistically remove from UI
+    removeTaskFromState(targetProject.id, task.id, wasActive);
+
+    try {
+      const result = await window.electronAPI.archiveTask(task.id);
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Failed to archive task');
+      }
+
+      // Track task archive
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('task_archived');
+
+      toast({
+        title: 'Task archived',
+        description: task.name,
+      });
+    } catch (error) {
+      const { log } = await import('./lib/logger');
+      log.error('Failed to archive task:', error as any);
+
+      // Restore task to UI on error
+      try {
+        const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
+          )
+        );
+        setSelectedProject((prev) =>
+          prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
+        );
+
+        if (wasActive) {
+          const restored = refreshedTasks.find((t) => t.id === task.id);
+          if (restored) {
+            handleSelectTask(restored);
+          }
+        }
+      } catch (refreshError) {
+        log.error('Failed to refresh tasks after archive failure:', refreshError as any);
+      }
+
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Could not archive task.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRestoreTask = async (targetProject: Project, task: Task): Promise<void> => {
+    try {
+      const result = await window.electronAPI.restoreTask(task.id);
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Failed to restore task');
+      }
+
+      // Refresh tasks to include the restored task
+      const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
+        )
+      );
+      setSelectedProject((prev) =>
+        prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
+      );
+
+      // Track task restore
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('task_restored');
+
+      toast({
+        title: 'Task restored',
+        description: task.name,
+      });
+    } catch (error) {
+      const { log } = await import('./lib/logger');
+      log.error('Failed to restore task:', error as any);
+
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Could not restore task.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleReorderProjects = (sourceId: string, targetId: string) => {
     setProjects((prev) => {
       const list = [...prev];
@@ -2521,6 +2615,8 @@ const AppContent: React.FC = () => {
                       onCreateTaskForProject={handleStartCreateTaskFromSidebar}
                       onDeleteTask={handleDeleteTask}
                       onRenameTask={handleRenameTask}
+                      onArchiveTask={handleArchiveTask}
+                      onRestoreTask={handleRestoreTask}
                       onDeleteProject={handleDeleteProject}
                       isHomeView={showHomeView}
                     />

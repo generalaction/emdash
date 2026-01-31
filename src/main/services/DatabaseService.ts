@@ -46,6 +46,7 @@ export interface Task {
   agentId?: string | null;
   metadata?: any;
   useWorktree?: boolean;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -281,14 +282,63 @@ export class DatabaseService {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
 
+    // Filter out archived tasks by default
     const rows: TaskRow[] = projectId
       ? await db
           .select()
           .from(tasksTable)
-          .where(eq(tasksTable.projectId, projectId))
+          .where(and(eq(tasksTable.projectId, projectId), isNull(tasksTable.archivedAt)))
           .orderBy(desc(tasksTable.updatedAt))
-      : await db.select().from(tasksTable).orderBy(desc(tasksTable.updatedAt));
+      : await db
+          .select()
+          .from(tasksTable)
+          .where(isNull(tasksTable.archivedAt))
+          .orderBy(desc(tasksTable.updatedAt));
     return rows.map((row) => this.mapDrizzleTaskRow(row));
+  }
+
+  async getArchivedTasks(projectId?: string): Promise<Task[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+
+    const rows: TaskRow[] = projectId
+      ? await db
+          .select()
+          .from(tasksTable)
+          .where(
+            and(eq(tasksTable.projectId, projectId), sql`${tasksTable.archivedAt} IS NOT NULL`)
+          )
+          .orderBy(desc(tasksTable.archivedAt))
+      : await db
+          .select()
+          .from(tasksTable)
+          .where(sql`${tasksTable.archivedAt} IS NOT NULL`)
+          .orderBy(desc(tasksTable.archivedAt));
+    return rows.map((row) => this.mapDrizzleTaskRow(row));
+  }
+
+  async archiveTask(taskId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(tasksTable)
+      .set({
+        archivedAt: new Date().toISOString(),
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(tasksTable.id, taskId));
+  }
+
+  async restoreTask(taskId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(tasksTable)
+      .set({
+        archivedAt: null,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(tasksTable.id, taskId));
   }
 
   async getTaskByPath(taskPath: string): Promise<Task | null> {
@@ -757,6 +807,7 @@ export class DatabaseService {
           ? this.parseTaskMetadata(row.metadata, row.id)
           : null,
       useWorktree: row.useWorktree === 1,
+      archivedAt: row.archivedAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
