@@ -16,6 +16,7 @@ import {
   Command as CommandIcon,
   Option,
   Palette,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { APP_SHORTCUTS } from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
@@ -41,6 +42,8 @@ interface CommandPaletteProps {
   onToggleTheme?: () => void;
   onGoHome?: () => void;
   onOpenProject?: () => void;
+  onNextAgent?: () => void;
+  onPrevAgent?: () => void;
 }
 
 type CommandItem = {
@@ -69,6 +72,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onToggleTheme,
   onGoHome,
   onOpenProject,
+  onNextAgent,
+  onPrevAgent,
 }) => {
   const [search, setSearch] = useState('');
   const shouldReduceMotion = useReducedMotion();
@@ -195,6 +200,39 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       });
     }
 
+    // Agent switching commands
+    if (onNextAgent) {
+      items.push({
+        id: 'nav-next-agent',
+        label: 'Next Agent',
+        description: APP_SHORTCUTS.NEXT_AGENT.description,
+        icon: <ArrowRightLeft className="h-4 w-4" />,
+        group: 'Navigation',
+        keywords: ['agent', 'next', 'switch', 'conversation', 'chat'],
+        shortcut: {
+          key: APP_SHORTCUTS.NEXT_AGENT.key.toUpperCase(),
+          modifier: APP_SHORTCUTS.NEXT_AGENT.modifier,
+        },
+        onSelect: () => runCommand(onNextAgent),
+      });
+    }
+
+    if (onPrevAgent) {
+      items.push({
+        id: 'nav-prev-agent',
+        label: 'Previous Agent',
+        description: APP_SHORTCUTS.PREV_AGENT.description,
+        icon: <ArrowRightLeft className="h-4 w-4" />,
+        group: 'Navigation',
+        keywords: ['agent', 'previous', 'switch', 'conversation', 'chat'],
+        shortcut: {
+          key: APP_SHORTCUTS.PREV_AGENT.key.toUpperCase(),
+          modifier: APP_SHORTCUTS.PREV_AGENT.modifier,
+        },
+        onSelect: () => runCommand(onPrevAgent),
+      });
+    }
+
     // Project commands
     projects.forEach((project) => {
       if (onSelectProject) {
@@ -241,6 +279,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     onToggleLeftSidebar,
     onToggleRightSidebar,
     onToggleTheme,
+    onNextAgent,
+    onPrevAgent,
     runCommand,
   ]);
 

@@ -2585,6 +2585,8 @@ const AppContent: React.FC = () => {
                 handleGoHome={handleGoHome}
                 handleOpenProject={handleOpenProject}
                 handleOpenSettings={handleOpenSettings}
+                handleNextAgent={handleNextAgent}
+                handlePrevAgent={handlePrevAgent}
               />
               {showEditorMode && activeTask && selectedProject && (
                 <CodeEditor
