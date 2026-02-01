@@ -27,7 +27,7 @@ vi.mock('../../main/lib/logger', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { PrGenerationService } from '../../main/services/PrGenerationService';
+import { PrGenerationService } from '../../../main/services/PrGenerationService';
 
 /** Type for accessing private methods in tests - using Record to avoid intersection with private members */
 type PrGenerationServicePrivate = {

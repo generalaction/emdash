@@ -2,18 +2,18 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TerminalSnapshotPayload } from '../../types/terminalSnapshot';
+import type { TerminalSnapshotPayload } from '../../../types/terminalSnapshot';
 
 describe('TerminalSnapshotService', () => {
   let tempDir: string;
-  let service: typeof import('../../main/services/TerminalSnapshotService').terminalSnapshotService;
+  let service: typeof import('../../../main/services/TerminalSnapshotService').terminalSnapshotService;
 
   beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'terminal-snapshot-test-'));
     process.env.EMDASH_TERMINAL_SNAPSHOT_DIR = tempDir;
     vi.resetModules();
     ({ terminalSnapshotService: service } = await import(
-      '../../main/services/TerminalSnapshotService'
+      '../../../main/services/TerminalSnapshotService'
     ));
   });
 

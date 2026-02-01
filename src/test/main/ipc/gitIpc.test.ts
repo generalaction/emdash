@@ -5,7 +5,7 @@ import {
   parseGitHubOwnerFromRemoteUrl,
   parseGitHubRepoFromRemoteUrl,
   registerGitIpc,
-} from '../../main/ipc/gitIpc';
+} from '../../../main/ipc/gitIpc';
 
 const GITHUB_REMOTE_URL_CASES: Array<{
   url: string;

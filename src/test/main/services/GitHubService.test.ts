@@ -70,7 +70,7 @@ vi.mock('keytar', () => {
 });
 
 // eslint-disable-next-line import/first
-import { GitHubService } from '../../main/services/GitHubService';
+import { GitHubService } from '../../../main/services/GitHubService';
 
 describe('GitHubService.isAuthenticated', () => {
   beforeEach(() => {
