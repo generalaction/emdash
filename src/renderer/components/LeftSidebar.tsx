@@ -15,8 +15,9 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Home, ChevronRight, Plus, FolderOpen, Github, Archive, RotateCcw } from 'lucide-react';
+import { Home, ChevronRight, Plus, FolderOpen, Github, Archive, RotateCcw, Trash } from 'lucide-react';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
@@ -395,23 +396,55 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                               <div
                                                 key={archivedTask.id}
                                                 className="group/archived-task flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                                                title={archivedTask.name}
                                               >
                                                 <span className="truncate text-xs font-medium">
                                                   {archivedTask.name}
                                                 </span>
-                                                <Button
-                                                  variant="ghost"
-                                                  size="icon-sm"
-                                                  className="h-5 w-5 flex-shrink-0 opacity-0 transition-opacity group-hover/archived-task:opacity-100"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleRestoreTask(typedProject, archivedTask);
-                                                  }}
-                                                  title="Restore task"
-                                                >
-                                                  <RotateCcw className="h-3 w-3" />
-                                                </Button>
+                                                <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/archived-task:opacity-100">
+                                                  <TooltipProvider>
+                                                    <Tooltip>
+                                                      <TooltipTrigger asChild>
+                                                        <Button
+                                                          variant="ghost"
+                                                          size="icon-sm"
+                                                          className="h-5 w-5"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleRestoreTask(typedProject, archivedTask);
+                                                          }}
+                                                        >
+                                                          <RotateCcw className="h-3 w-3" />
+                                                        </Button>
+                                                      </TooltipTrigger>
+                                                      <TooltipContent side="top" className="text-xs">
+                                                        Restore Task
+                                                      </TooltipContent>
+                                                    </Tooltip>
+                                                  </TooltipProvider>
+                                                  <TooltipProvider>
+                                                    <Tooltip>
+                                                      <TooltipTrigger asChild>
+                                                        <Button
+                                                          variant="ghost"
+                                                          size="icon-sm"
+                                                          className="h-5 w-5"
+                                                          onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            if (onDeleteTask) {
+                                                              await onDeleteTask(typedProject, archivedTask);
+                                                              fetchArchivedTasks();
+                                                            }
+                                                          }}
+                                                        >
+                                                          <Trash className="h-3 w-3" />
+                                                        </Button>
+                                                      </TooltipTrigger>
+                                                      <TooltipContent side="top" className="text-xs">
+                                                        Delete Task
+                                                      </TooltipContent>
+                                                    </Tooltip>
+                                                  </TooltipProvider>
+                                                </div>
                                               </div>
                                             )
                                           )}
