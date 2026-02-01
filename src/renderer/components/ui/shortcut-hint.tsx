@@ -13,13 +13,6 @@ const ModifierIcon: React.FC<{ modifier: ShortcutModifier }> = ({ modifier }) =>
   switch (modifier) {
     case 'cmd':
       return <Command className="h-3 w-3" aria-hidden="true" />;
-    case 'cmd+shift':
-      return (
-        <>
-          <Command className="h-3 w-3" aria-hidden="true" />
-          <span>⇧</span>
-        </>
-      );
     case 'ctrl':
       return <span>Ctrl</span>;
     case 'alt':
@@ -47,9 +40,18 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
   else if (displayKey === 'Escape') displayKey = 'Esc';
   else displayKey = displayKey.toUpperCase();
 
+  // Handle compound modifiers separately
+  const modifierElements: React.ReactNode[] = [];
+  if (modifier === 'cmd+shift') {
+    modifierElements.push(<Command key="cmd" className="h-3 w-3" aria-hidden="true" />);
+    modifierElements.push(<span key="shift">⇧</span>);
+  } else if (modifier) {
+    modifierElements.push(<ModifierIcon key="mod" modifier={modifier} />);
+  }
+
   return (
     <span className={`flex items-center gap-1 text-muted-foreground ${className || ''}`}>
-      {modifier && <ModifierIcon modifier={modifier} />}
+      {modifierElements}
       <span>{displayKey}</span>
     </span>
   );

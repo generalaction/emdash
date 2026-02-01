@@ -47,11 +47,30 @@ const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) =>
   else if (displayKey === 'ArrowDown') displayKey = '↓';
   else displayKey = displayKey.toUpperCase();
 
-  return (
-    <span className="flex items-center gap-1">
-      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+  // Split compound modifiers into separate kbd elements
+  const modifierElements: React.ReactNode[] = [];
+  if (binding.modifier === 'cmd+shift') {
+    modifierElements.push(
+      <kbd key="cmd" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+        ⌘
+      </kbd>
+    );
+    modifierElements.push(
+      <kbd key="shift" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+        ⇧
+      </kbd>
+    );
+  } else if (binding.modifier) {
+    modifierElements.push(
+      <kbd key="mod" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
         {formatModifier(binding.modifier)}
       </kbd>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1">
+      {modifierElements}
       <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{displayKey}</kbd>
     </span>
   );
