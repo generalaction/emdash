@@ -203,9 +203,9 @@ export function useCreatePR() {
           })();
           const details =
             res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
-          // Offer a browser fallback if org restricts the GitHub CLI app
           const isOrgRestricted =
             typeof res?.code === 'string' && res.code === 'ORG_AUTH_APP_RESTRICTED';
+          const isHeadRefInvalid = typeof res?.code === 'string' && res.code === 'HEAD_REF_INVALID';
 
           toast({
             title: (
@@ -221,7 +221,9 @@ export function useCreatePR() {
                   '• Approve the GitHub CLI app in your org settings, or\n' +
                   '• Authenticate gh with a Personal Access Token that has repo scope, or\n' +
                   '• Create the PR in your browser.'
-                : '') +
+                : isHeadRefInvalid
+                  ? '\n\nPush your branch to origin and try again.'
+                  : '') +
               details,
             variant: 'destructive',
             action: isOrgRestricted ? (
@@ -232,7 +234,6 @@ export function useCreatePR() {
                     const { captureTelemetry } = await import('../lib/telemetryClient');
                     captureTelemetry('pr_creation_retry_browser');
                   })();
-                  // Retry using web flow
                   void createPR({
                     taskPath,
                     commitMessage,
@@ -247,6 +248,22 @@ export function useCreatePR() {
                   Open in browser
                   <ArrowUpRight className="h-3 w-3" />
                 </span>
+              </ToastAction>
+            ) : isHeadRefInvalid ? (
+              <ToastAction
+                altText="Retry"
+                onClick={() => {
+                  void createPR({
+                    taskPath,
+                    commitMessage,
+                    createBranchIfOnDefault,
+                    branchPrefix,
+                    prOptions,
+                    onSuccess,
+                  });
+                }}
+              >
+                <span className="inline-flex items-center gap-1">Retry</span>
               </ToastAction>
             ) : undefined,
           });
