@@ -1,6 +1,7 @@
 import { registerPtyIpc } from '../services/ptyIpc';
 import { registerWorktreeIpc } from '../services/worktreeIpc';
 import { registerFsIpc } from '../services/fsIpc';
+import { registerLifecycleIpc } from '../services/lifecycleIpc';
 
 import { registerAppIpc } from './appIpc';
 import { registerProjectIpc } from './projectIpc';
@@ -44,6 +45,7 @@ export function registerAllIpc() {
   registerPtyIpc();
   registerWorktreeIpc();
   registerFsIpc();
+  registerLifecycleIpc();
   registerLinearIpc();
   registerConnectionsIpc();
   registerJiraIpc();

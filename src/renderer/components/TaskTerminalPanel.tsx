@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
 import { Bot, Terminal, Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
@@ -15,6 +15,18 @@ import {
   SelectValue,
 } from './ui/select';
 import type { Agent } from '../types';
+
+// Track which terminals have already run their setup script (persists across remounts)
+const setupScriptRan = new Set<string>();
+
+/** Clear setup script state for a task (call when task is deleted) */
+export function clearSetupScriptState(taskId: string): void {
+  for (const key of setupScriptRan) {
+    if (key.startsWith(`${taskId}::`)) {
+      setupScriptRan.delete(key);
+    }
+  }
+}
 
 interface Task {
   id: string;
@@ -57,6 +69,54 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
     if (!match) return null;
     return { mode: match[1] as 'task' | 'global', id: match[2] };
   };
+
+  // Stable references for setup script - avoid recreating callback on every render
+  const taskRef = useRef(task);
+  const projectPathRef = useRef(projectPath);
+  taskRef.current = task;
+  projectPathRef.current = projectPath;
+
+  // Run setup script when a task terminal becomes ready (only once per terminal)
+  const handleTerminalReady = useCallback((terminalId: string) => {
+    const currentTask = taskRef.current;
+    const currentProjectPath = projectPathRef.current;
+    if (!currentTask || !currentProjectPath) return;
+
+    const key = `${currentTask.id}::${terminalId}`;
+    if (setupScriptRan.has(key)) return;
+
+    // Mark as attempted immediately to prevent race conditions
+    setupScriptRan.add(key);
+
+    (async () => {
+      try {
+        // Check if there's a setup script configured
+        const result = await window.electronAPI.lifecycleGetSetupScript({
+          projectPath: currentProjectPath,
+        });
+        if (!result.success || !result.script) {
+          return;
+        }
+
+        // Send the setup command to the terminal (clear first to avoid timing artifacts)
+        window.electronAPI.ptyInput({
+          id: terminalId,
+          data: 'clear && ' + result.script + '\n',
+        });
+      } catch (error) {
+        console.error('Failed to run setup script:', error);
+      }
+    })();
+  }, []);
+
+  // Memoize callbacks per terminal to avoid recreating on every render
+  const terminalReadyCallbacks = useMemo(() => {
+    const callbacks = new Map<string, () => void>();
+    for (const terminal of taskTerminals.terminals) {
+      callbacks.set(terminal.id, () => handleTerminalReady(terminal.id));
+    }
+    return callbacks;
+  }, [taskTerminals.terminals, handleTerminalReady]);
 
   const parsed = selectedValue ? parseValue(selectedValue) : null;
 
@@ -404,6 +464,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
                 themeOverride={themeOverride}
                 className="h-full w-full"
                 keepAlive
+                onStartSuccess={terminalReadyCallbacks.get(terminal.id)}
               />
             </div>
           );

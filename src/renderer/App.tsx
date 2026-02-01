@@ -37,6 +37,7 @@ import { useTheme } from './hooks/useTheme';
 import useUpdateNotifier from './hooks/useUpdateNotifier';
 import { loadPanelSizes, savePanelSizes } from './lib/persisted-layout';
 import { disposeTaskTerminals } from './lib/taskTerminalsStore';
+import { clearSetupScriptState } from './components/TaskTerminalPanel';
 import {
   computeBaseRef,
   getProjectRepoKey,
@@ -1932,6 +1933,9 @@ const AppContent: React.FC = () => {
         // ChatInterface uses task.id as key (single-agent tasks only)
         disposeTaskTerminals(task.id);
 
+        // Clear setup script state so it runs again if task is recreated
+        clearSetupScriptState(task.id);
+
         // Only remove worktree if the task was created with one
         // IMPORTANT: Tasks without worktrees have useWorktree === false
         const shouldRemoveWorktree = task.useWorktree !== false;
@@ -1952,6 +1956,7 @@ const AppContent: React.FC = () => {
                 worktreeId: task.id,
                 worktreePath: task.path,
                 branch: task.branch,
+                taskName: task.name,
               })
             );
           }

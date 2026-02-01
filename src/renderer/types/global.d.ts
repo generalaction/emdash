@@ -98,6 +98,11 @@ declare global {
         projectId: string;
       }) => Promise<{ success: boolean; error?: string }>;
 
+      // Lifecycle scripts
+      lifecycleGetSetupScript: (args: {
+        projectPath: string;
+      }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+
       openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;
       getProjectSettings: (projectId: string) => Promise<{
         success: boolean;
