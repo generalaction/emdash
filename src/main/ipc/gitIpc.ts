@@ -485,7 +485,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     ) => {
       const {
         taskPath,
-        commitMessage = 'chore: apply task changes',
+        commitMessage: providedCommitMessage,
         createBranchIfOnDefault = true,
         branchPrefix = 'orch',
       } = (args ||
@@ -500,6 +500,34 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         createBranchIfOnDefault?: boolean;
         branchPrefix?: string;
       };
+
+      // Generate commit message dynamically if not provided
+      let commitMessage = providedCommitMessage;
+      if (!commitMessage) {
+        try {
+          // Try to get the task's provider for better commit message generation
+          let providerId: string | null = null;
+          try {
+            const task = await databaseService.getTaskByPath(taskPath);
+            if (task?.agentId) {
+              providerId = task.agentId;
+              log.debug('Found task provider for commit message generation', {
+                taskPath,
+                providerId,
+              });
+            }
+          } catch {
+            // Non-fatal - continue without provider
+          }
+
+          const generated = await prGenerationService.generateCommitMessage(taskPath, providerId);
+          commitMessage = generated.message;
+          log.debug('Generated commit message:', { commitMessage });
+        } catch (error) {
+          log.warn('Failed to generate commit message, using fallback', { error });
+          commitMessage = 'chore: apply task changes';
+        }
+      }
 
       try {
         // Ensure we're in a git repo

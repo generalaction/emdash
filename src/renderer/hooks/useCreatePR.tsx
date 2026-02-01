@@ -27,7 +27,7 @@ export function useCreatePR() {
   const createPR = async (opts: CreatePROptions) => {
     const {
       taskPath,
-      commitMessage = 'chore: apply task changes',
+      commitMessage, // No default - let the backend generate dynamically based on changes
       createBranchIfOnDefault = true,
       branchPrefix = 'orch',
       prOptions,
