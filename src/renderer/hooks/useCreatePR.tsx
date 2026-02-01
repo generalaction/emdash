@@ -3,6 +3,11 @@ import { useToast } from './use-toast';
 import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
+
+type CreatePRResult =
+  | { success: false; error: string }
+  | Awaited<ReturnType<(typeof window)['electronAPI']['createPullRequest']>>;
+
 type CreatePROptions = {
   taskPath: string;
   commitMessage?: string;
@@ -37,11 +42,11 @@ export function useCreatePR() {
     setIsCreating(true);
     try {
       // Guard: ensure Electron bridge methods exist (prevents hard crashes in plain web builds)
-      const api: any = (window as any).electronAPI;
+      const api = window.electronAPI;
       if (!api?.gitCommitAndPush || !api?.createPullRequest) {
         const msg = 'PR creation is only available in the Electron app. Start via "npm run d".';
         toast({ title: 'Create PR Unavailable', description: msg, variant: 'destructive' });
-        return { success: false, error: 'Electron bridge unavailable' } as any;
+        return { success: false, error: 'Electron bridge unavailable' };
       }
 
       // Auto-generate PR title and description if not provided
@@ -94,7 +99,7 @@ export function useCreatePR() {
           description: commitRes?.error || 'Unable to push changes.',
           variant: 'destructive',
         });
-        return { success: false, error: commitRes?.error || 'Commit/push failed' } as any;
+        return { success: false, error: commitRes?.error || 'Commit/push failed' };
       }
 
       const res = await api.createPullRequest({
@@ -248,9 +253,9 @@ export function useCreatePR() {
         }
       }
 
-      return res as any;
-    } catch (err: any) {
-      const message = err?.message || String(err) || 'Unknown error';
+      return res;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err ?? 'Unknown error');
       toast({
         title: (
           <span className="inline-flex items-center gap-2">
@@ -261,7 +266,7 @@ export function useCreatePR() {
         description: message,
         variant: 'destructive',
       });
-      return { success: false, error: message } as any;
+      return { success: false, error: message };
     } finally {
       setIsCreating(false);
     }

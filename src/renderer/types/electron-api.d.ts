@@ -458,6 +458,7 @@ declare global {
         url?: string;
         output?: string;
         error?: string;
+        code?: string;
       }>;
       getPrStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
@@ -1051,6 +1052,7 @@ export interface ElectronAPI {
     url?: string;
     output?: string;
     error?: string;
+    code?: string;
   }>;
   connectToGitHub: (projectPath: string) => Promise<{
     success: boolean;

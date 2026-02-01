@@ -18,6 +18,17 @@ import { databaseService } from '../services/DatabaseService';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
+/** Error type for child_process exec failures with stdout/stderr capture */
+interface ExecError extends Error {
+  stdout?: string;
+  stderr?: string;
+}
+
+/** Response type for git:create-pr IPC handler */
+type CreatePrResponse =
+  | { success: true; url: string | null; output: string }
+  | { success: false; error: string; output?: string; code?: string };
+
 export function registerGitIpc() {
   function resolveGitBin(): string {
     // Allow override via env
@@ -360,11 +371,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const url = urlMatch ? urlMatch[0] : null;
 
         return { success: true, url, output: out };
-      } catch (error: any) {
+      } catch (error) {
         // Capture rich error info from gh/child_process
-        const errMsg = typeof error?.message === 'string' ? error.message : String(error);
-        const errStdout = typeof error?.stdout === 'string' ? error.stdout : '';
-        const errStderr = typeof error?.stderr === 'string' ? error.stderr : '';
+        const execErr = error as ExecError;
+        const errMsg = typeof execErr?.message === 'string' ? execErr.message : String(error);
+        const errStdout = typeof execErr?.stdout === 'string' ? execErr.stdout : '';
+        const errStderr = typeof execErr?.stderr === 'string' ? execErr.stderr : '';
         const combined = [errMsg, errStdout, errStderr].filter(Boolean).join('\n').trim();
 
         // Check for various error conditions
@@ -388,7 +400,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           error: combined || errMsg || 'Failed to create PR',
           output: combined,
           code,
-        } as any;
+        } as CreatePrResponse;
       }
     }
   );

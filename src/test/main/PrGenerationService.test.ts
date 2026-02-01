@@ -7,11 +7,13 @@ vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
 
+type PromisifyInput = (...args: never[]) => void;
+
 vi.mock('util', async (importOriginal) => {
   const actual = await importOriginal<typeof import('util')>();
   return {
     ...actual,
-    promisify: (fn: any) => fn,
+    promisify: (fn: PromisifyInput) => fn,
   };
 });
 
@@ -26,6 +28,28 @@ vi.mock('../../main/lib/logger', () => ({
 
 // eslint-disable-next-line import/first
 import { PrGenerationService } from '../../main/services/PrGenerationService';
+
+/** Type for accessing private methods in tests - using Record to avoid intersection with private members */
+type PrGenerationServicePrivate = {
+  generateCommitMessageFromFiles: (
+    files: string[],
+    diff: string
+  ) => { message: string; body: string };
+  parseCommitMessageResponse: (response: string) => { message: string };
+  buildCommitMessagePrompt: (stagedFiles: string[], diff: string) => string;
+};
+
+/** Type for mocked exec result */
+type ExecResult = { stdout: string; stderr: string };
+
+/** Type for mocked child process from spawn */
+type MockedChildProcess = {
+  stdout: { on: (event: string, fn: (data: Buffer) => void) => void };
+  stderr: { on: () => void };
+  stdin: { write: () => void; end: () => void };
+  on: (event: string, fn: (code: number | null, signal: NodeJS.Signals | null) => void) => void;
+  kill: () => void;
+};
 
 describe('PrGenerationService', () => {
   let service: PrGenerationService;
@@ -42,7 +66,10 @@ describe('PrGenerationService', () => {
       files: string[],
       diff: string
     ) => {
-      return (service as any).generateCommitMessageFromFiles(files, diff);
+      return (service as unknown as PrGenerationServicePrivate).generateCommitMessageFromFiles(
+        files,
+        diff
+      );
     };
 
     it('generates test commit for test files only', () => {
@@ -144,7 +171,9 @@ describe('PrGenerationService', () => {
 
   describe('parseCommitMessageResponse', () => {
     const callParseCommitMessageResponse = (service: PrGenerationService, response: string) => {
-      return (service as any).parseCommitMessageResponse(response);
+      return (service as unknown as PrGenerationServicePrivate).parseCommitMessageResponse(
+        response
+      );
     };
 
     it('parses clean commit message', () => {
@@ -234,24 +263,25 @@ describe('PrGenerationService', () => {
 
   describe('generateCommitMessage', () => {
     it('returns parsed commit message when provider CLI succeeds', async () => {
-      vi.mocked(exec).mockImplementation(((cmd: string, _opts: any) => {
+      vi.mocked(exec).mockImplementation(((cmd: string) => {
         if (cmd.includes('--name-only')) {
-          return Promise.resolve({ stdout: 'src/foo.ts\n', stderr: '' } as any);
+          return Promise.resolve({ stdout: 'src/foo.ts\n', stderr: '' } as ExecResult);
         }
         if (cmd.includes('--stat')) {
           return Promise.resolve({
             stdout: '1 file changed, 10 insertions(+), 2 deletions(-)\n',
             stderr: '',
-          } as any);
+          } as ExecResult);
         }
-        return Promise.resolve({ stdout: '', stderr: '' } as any);
-      }) as any);
+        return Promise.resolve({ stdout: '', stderr: '' } as ExecResult);
+      }) as unknown as typeof exec);
 
-      vi.mocked(execFile).mockImplementation((() => Promise.resolve(undefined as any)) as any);
+      vi.mocked(execFile).mockImplementation((() =>
+        Promise.resolve(undefined)) as unknown as typeof execFile);
 
       const expectedMessage = 'feat(auth): add login';
       vi.mocked(spawn).mockImplementation((() => {
-        const child = {
+        const child: MockedChildProcess = {
           stdout: {
             on: (_ev: string, fn: (data: Buffer) => void) => {
               fn(Buffer.from(expectedMessage + '\n', 'utf8'));
@@ -263,9 +293,9 @@ describe('PrGenerationService', () => {
             if (ev === 'exit') setImmediate(() => fn(0, null));
           },
           kill: () => {},
-        } as any;
+        };
         return child;
-      }) as any);
+      }) as unknown as typeof spawn);
 
       const result = await service.generateCommitMessage('/fake/path', 'claude');
 
@@ -279,7 +309,10 @@ describe('PrGenerationService', () => {
       stagedFiles: string[],
       diff: string
     ) => {
-      return (service as any).buildCommitMessagePrompt(stagedFiles, diff);
+      return (service as unknown as PrGenerationServicePrivate).buildCommitMessagePrompt(
+        stagedFiles,
+        diff
+      );
     };
 
     it('includes staged files in prompt', () => {
