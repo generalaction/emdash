@@ -205,6 +205,7 @@ const AppContent: React.FC = () => {
   const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
+  const restoringTaskIdsRef = useRef<Set<string>>(new Set());
 
   // Show toast on update availability and kick off a background check
   useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => setShowSettings(true) });
@@ -2156,7 +2157,11 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleArchiveTask = async (targetProject: Project, task: Task): Promise<void> => {
+  const handleArchiveTask = async (
+    targetProject: Project,
+    task: Task,
+    options?: { silent?: boolean }
+  ): Promise<void> => {
     const wasActive = activeTask?.id === task.id;
 
     // Optimistically remove from UI
@@ -2173,10 +2178,12 @@ const AppContent: React.FC = () => {
       const { captureTelemetry } = await import('./lib/telemetryClient');
       captureTelemetry('task_archived');
 
-      toast({
-        title: 'Task archived',
-        description: task.name,
-      });
+      if (!options?.silent) {
+        toast({
+          title: 'Task archived',
+          description: task.name,
+        });
+      }
     } catch (error) {
       const { log } = await import('./lib/logger');
       log.error('Failed to archive task:', error as any);
@@ -2212,6 +2219,12 @@ const AppContent: React.FC = () => {
   };
 
   const handleRestoreTask = async (targetProject: Project, task: Task): Promise<void> => {
+    if (restoringTaskIdsRef.current.has(task.id)) {
+      return;
+    }
+
+    restoringTaskIdsRef.current.add(task.id);
+
     try {
       const result = await window.electronAPI.restoreTask(task.id);
 
@@ -2247,6 +2260,8 @@ const AppContent: React.FC = () => {
         description: error instanceof Error ? error.message : 'Could not restore task.',
         variant: 'destructive',
       });
+    } finally {
+      restoringTaskIdsRef.current.delete(task.id);
     }
   };
 
