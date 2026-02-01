@@ -17,7 +17,16 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Home, ChevronRight, Plus, FolderOpen, Github, Archive, RotateCcw, Trash } from 'lucide-react';
+import {
+  Home,
+  ChevronRight,
+  Plus,
+  FolderOpen,
+  Github,
+  Archive,
+  RotateCcw,
+  Trash,
+} from 'lucide-react';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
@@ -300,159 +309,162 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                           <CollapsibleContent asChild>
                             <div className="mt-1 min-w-0">
-                                <motion.button
-                                  type="button"
-                                  whileTap={{ scale: 0.97 }}
-                                  transition={{ duration: 0.1, ease: 'easeInOut' }}
-                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (
-                                      onSelectProject &&
-                                      selectedProject?.id !== typedProject.id
-                                    ) {
-                                      onSelectProject(typedProject);
-                                    } else if (!selectedProject) {
-                                      onSelectProject?.(typedProject);
-                                    }
-                                    onCreateTaskForProject?.(typedProject);
-                                  }}
-                                  aria-label={`New Task for ${typedProject.name}`}
-                                >
-                                  <Plus
-                                    className="h-3 w-3 flex-shrink-0 text-muted-foreground"
-                                    aria-hidden
-                                  />
-                                  <span className="truncate">New Task</span>
-                                </motion.button>
-                                <div className="hidden min-w-0 space-y-0.5 sm:block">
-                                  {typedProject.tasks?.map((task) => {
-                                    const isActive = activeTask?.id === task.id;
-                                    return (
-                                      <div
-                                        key={task.id}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (
-                                            onSelectProject &&
-                                            selectedProject?.id !== typedProject.id
-                                          ) {
-                                            onSelectProject(typedProject);
-                                          }
-                                          onSelectTask && onSelectTask(task);
-                                        }}
-                                        className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
-                                          isActive ? 'bg-black/5 dark:bg-white/5' : ''
-                                        }`}
-                                        title={task.name}
-                                      >
-                                        <TaskItem
-                                          task={task}
-                                          showDelete
-                                          showDirectBadge={false}
-                                          onDelete={
-                                            onDeleteTask
-                                              ? () => onDeleteTask(typedProject, task)
-                                              : undefined
-                                          }
-                                          onRename={
-                                            // Disable rename for multi-agent tasks (variant metadata would become stale)
-                                            onRenameTask && !task.metadata?.multiAgent?.enabled
-                                              ? (newName) =>
-                                                  onRenameTask(typedProject, task, newName)
-                                              : undefined
-                                          }
-                                          onArchive={
-                                            onArchiveTask
-                                              ? () => handleArchiveTaskWithRefresh(typedProject, task)
-                                              : undefined
-                                          }
-                                        />
-                                      </div>
-                                    );
-                                  })}
+                              <motion.button
+                                type="button"
+                                whileTap={{ scale: 0.97 }}
+                                transition={{ duration: 0.1, ease: 'easeInOut' }}
+                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onSelectProject && selectedProject?.id !== typedProject.id) {
+                                    onSelectProject(typedProject);
+                                  } else if (!selectedProject) {
+                                    onSelectProject?.(typedProject);
+                                  }
+                                  onCreateTaskForProject?.(typedProject);
+                                }}
+                                aria-label={`New Task for ${typedProject.name}`}
+                              >
+                                <Plus
+                                  className="h-3 w-3 flex-shrink-0 text-muted-foreground"
+                                  aria-hidden
+                                />
+                                <span className="truncate">New Task</span>
+                              </motion.button>
+                              <div className="hidden min-w-0 space-y-0.5 sm:block">
+                                {typedProject.tasks?.map((task) => {
+                                  const isActive = activeTask?.id === task.id;
+                                  return (
+                                    <div
+                                      key={task.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (
+                                          onSelectProject &&
+                                          selectedProject?.id !== typedProject.id
+                                        ) {
+                                          onSelectProject(typedProject);
+                                        }
+                                        onSelectTask && onSelectTask(task);
+                                      }}
+                                      className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
+                                        isActive ? 'bg-black/5 dark:bg-white/5' : ''
+                                      }`}
+                                      title={task.name}
+                                    >
+                                      <TaskItem
+                                        task={task}
+                                        showDelete
+                                        showDirectBadge={false}
+                                        onDelete={
+                                          onDeleteTask
+                                            ? () => onDeleteTask(typedProject, task)
+                                            : undefined
+                                        }
+                                        onRename={
+                                          // Disable rename for multi-agent tasks (variant metadata would become stale)
+                                          onRenameTask && !task.metadata?.multiAgent?.enabled
+                                            ? (newName) => onRenameTask(typedProject, task, newName)
+                                            : undefined
+                                        }
+                                        onArchive={
+                                          onArchiveTask
+                                            ? () => handleArchiveTaskWithRefresh(typedProject, task)
+                                            : undefined
+                                        }
+                                      />
+                                    </div>
+                                  );
+                                })}
 
-                                  {/* Archived tasks section */}
-                                  {archivedTasksByProject[typedProject.id]?.length > 0 && (
-                                    <Collapsible className="mt-1">
-                                      <CollapsibleTrigger asChild>
-                                        <button
-                                          type="button"
-                                          className="group/archived flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
-                                        >
-                                          <Archive className="h-3 w-3 opacity-50" />
-                                          <span>
-                                            Archived ({archivedTasksByProject[typedProject.id].length})
-                                          </span>
-                                          <div className="ml-auto flex h-3 w-3 flex-shrink-0 items-center justify-center">
-                                            <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]/archived:rotate-90" />
-                                          </div>
-                                        </button>
-                                      </CollapsibleTrigger>
-                                      <CollapsibleContent>
-                                        <div className="ml-1.5 space-y-0.5 border-l border-border/50 pl-2">
-                                          {archivedTasksByProject[typedProject.id].map(
-                                            (archivedTask) => (
-                                              <div
-                                                key={archivedTask.id}
-                                                className="group/archived-task flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                                              >
-                                                <span className="truncate text-xs font-medium">
-                                                  {archivedTask.name}
-                                                </span>
-                                                <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/archived-task:opacity-100">
-                                                  <TooltipProvider>
-                                                    <Tooltip>
-                                                      <TooltipTrigger asChild>
-                                                        <Button
-                                                          variant="ghost"
-                                                          size="icon-sm"
-                                                          className="h-5 w-5"
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRestoreTask(typedProject, archivedTask);
-                                                          }}
-                                                        >
-                                                          <RotateCcw className="h-3 w-3" />
-                                                        </Button>
-                                                      </TooltipTrigger>
-                                                      <TooltipContent side="top" className="text-xs">
-                                                        Restore Task
-                                                      </TooltipContent>
-                                                    </Tooltip>
-                                                  </TooltipProvider>
-                                                  <TooltipProvider>
-                                                    <Tooltip>
-                                                      <TooltipTrigger asChild>
-                                                        <Button
-                                                          variant="ghost"
-                                                          size="icon-sm"
-                                                          className="h-5 w-5"
-                                                          onClick={async (e) => {
-                                                            e.stopPropagation();
-                                                            if (onDeleteTask) {
-                                                              await onDeleteTask(typedProject, archivedTask);
-                                                              fetchArchivedTasks();
-                                                            }
-                                                          }}
-                                                        >
-                                                          <Trash className="h-3 w-3" />
-                                                        </Button>
-                                                      </TooltipTrigger>
-                                                      <TooltipContent side="top" className="text-xs">
-                                                        Delete Task
-                                                      </TooltipContent>
-                                                    </Tooltip>
-                                                  </TooltipProvider>
-                                                </div>
-                                              </div>
-                                            )
-                                          )}
+                                {/* Archived tasks section */}
+                                {archivedTasksByProject[typedProject.id]?.length > 0 && (
+                                  <Collapsible className="mt-1">
+                                    <CollapsibleTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="group/archived flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
+                                      >
+                                        <Archive className="h-3 w-3 opacity-50" />
+                                        <span>
+                                          Archived ({archivedTasksByProject[typedProject.id].length}
+                                          )
+                                        </span>
+                                        <div className="ml-auto flex h-3 w-3 flex-shrink-0 items-center justify-center">
+                                          <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]/archived:rotate-90" />
                                         </div>
-                                      </CollapsibleContent>
-                                    </Collapsible>
-                                  )}
-                                </div>
+                                      </button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                      <div className="ml-1.5 space-y-0.5 border-l border-border/50 pl-2">
+                                        {archivedTasksByProject[typedProject.id].map(
+                                          (archivedTask) => (
+                                            <div
+                                              key={archivedTask.id}
+                                              className="group/archived-task flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                                            >
+                                              <span className="truncate text-xs font-medium">
+                                                {archivedTask.name}
+                                              </span>
+                                              <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/archived-task:opacity-100">
+                                                <TooltipProvider>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                      <Button
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        className="h-5 w-5"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          handleRestoreTask(
+                                                            typedProject,
+                                                            archivedTask
+                                                          );
+                                                        }}
+                                                      >
+                                                        <RotateCcw className="h-3 w-3" />
+                                                      </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top" className="text-xs">
+                                                      Restore Task
+                                                    </TooltipContent>
+                                                  </Tooltip>
+                                                </TooltipProvider>
+                                                <TooltipProvider>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                      <Button
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        className="h-5 w-5"
+                                                        onClick={async (e) => {
+                                                          e.stopPropagation();
+                                                          if (onDeleteTask) {
+                                                            await onDeleteTask(
+                                                              typedProject,
+                                                              archivedTask
+                                                            );
+                                                            fetchArchivedTasks();
+                                                          }
+                                                        }}
+                                                      >
+                                                        <Trash className="h-3 w-3" />
+                                                      </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top" className="text-xs">
+                                                      Delete Task
+                                                    </TooltipContent>
+                                                  </Tooltip>
+                                                </TooltipProvider>
+                                              </div>
+                                            </div>
+                                          )
+                                        )}
+                                      </div>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                )}
+                              </div>
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
