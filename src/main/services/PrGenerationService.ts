@@ -15,6 +15,11 @@ export interface GeneratedCommitMessage {
   message: string;
 }
 
+/** Default provider fallback order */
+const FALLBACK_PROVIDERS: ProviderId[] = ['claude', 'codex'];
+/** Default provider CLI timeout */
+const PROVIDER_CLI_TIMEOUT_MS = 30000;
+
 /**
  * Generates PR title and description using available CLI agents or fallback heuristics
  */
@@ -38,55 +43,23 @@ export class PrGenerationService {
         return this.generateFallbackContent(changedFiles);
       }
 
-      // Try the task's provider first if specified
-      if (preferredProviderId && this.isValidProviderId(preferredProviderId)) {
-        try {
-          const preferredResult = await this.generateWithProvider(
-            preferredProviderId as ProviderId,
-            taskPath,
-            diff,
-            commits
-          );
-          if (preferredResult) {
-            log.info(`Generated PR content with task provider: ${preferredProviderId}`);
-            return {
-              title: preferredResult.title,
-              description: this.normalizeMarkdown(preferredResult.description),
-            };
-          }
-        } catch (error) {
-          log.debug(`Task provider ${preferredProviderId} generation failed, trying fallbacks`, {
-            error,
-          });
-        }
-      }
+      // Build prompt for PR generation
+      const prompt = this.buildPrGenerationPrompt(diff, commits);
 
-      // Try Claude Code as fallback (preferred default)
-      try {
-        const claudeResult = await this.generateWithProvider('claude', taskPath, diff, commits);
-        if (claudeResult) {
-          log.info('Generated PR content with Claude Code');
-          return {
-            title: claudeResult.title,
-            description: this.normalizeMarkdown(claudeResult.description),
-          };
-        }
-      } catch (error) {
-        log.debug('Claude Code generation failed, trying fallback', { error });
-      }
+      // Try providers with fallback chain
+      const result = await this.tryProvidersWithFallback<GeneratedPrContent>(
+        preferredProviderId,
+        taskPath,
+        prompt,
+        (stdout) => this.parseProviderResponse(stdout),
+        'PR content'
+      );
 
-      // Try Codex as fallback
-      try {
-        const codexResult = await this.generateWithProvider('codex', taskPath, diff, commits);
-        if (codexResult) {
-          log.info('Generated PR content with Codex');
-          return {
-            title: codexResult.title,
-            description: this.normalizeMarkdown(codexResult.description),
-          };
-        }
-      } catch (error) {
-        log.debug('Codex generation failed, using heuristic fallback', { error });
+      if (result) {
+        return {
+          title: result.title,
+          description: this.normalizeMarkdown(result.description),
+        };
       }
 
       // Fallback to heuristic-based generation
@@ -114,56 +87,20 @@ export class PrGenerationService {
         return { message: 'chore: apply task changes' };
       }
 
-      // Try the task's provider first if specified
-      if (preferredProviderId && this.isValidProviderId(preferredProviderId)) {
-        try {
-          const result = await this.generateCommitMessageWithProvider(
-            preferredProviderId as ProviderId,
-            taskPath,
-            stagedFiles,
-            diff
-          );
-          if (result) {
-            log.info(`Generated commit message with task provider: ${preferredProviderId}`);
-            return result;
-          }
-        } catch (error) {
-          log.debug(`Task provider ${preferredProviderId} commit message generation failed`, {
-            error,
-          });
-        }
-      }
+      // Build prompt for commit message generation
+      const prompt = this.buildCommitMessagePrompt(stagedFiles, diff);
 
-      // Try Claude Code as fallback
-      try {
-        const claudeResult = await this.generateCommitMessageWithProvider(
-          'claude',
-          taskPath,
-          stagedFiles,
-          diff
-        );
-        if (claudeResult) {
-          log.info('Generated commit message with Claude Code');
-          return claudeResult;
-        }
-      } catch (error) {
-        log.debug('Claude Code commit message generation failed', { error });
-      }
+      // Try providers with fallback chain
+      const result = await this.tryProvidersWithFallback<GeneratedCommitMessage>(
+        preferredProviderId,
+        taskPath,
+        prompt,
+        (stdout) => this.parseCommitMessageResponse(stdout),
+        'commit message'
+      );
 
-      // Try Codex as fallback
-      try {
-        const codexResult = await this.generateCommitMessageWithProvider(
-          'codex',
-          taskPath,
-          stagedFiles,
-          diff
-        );
-        if (codexResult) {
-          log.info('Generated commit message with Codex');
-          return codexResult;
-        }
-      } catch (error) {
-        log.debug('Codex commit message generation failed', { error });
+      if (result) {
+        return result;
       }
 
       // Fall back to heuristic-based generation
@@ -176,23 +113,76 @@ export class PrGenerationService {
   }
 
   /**
-   * Generate commit message using a CLI provider
+   * Try multiple providers in sequence until one succeeds
+   * @param preferredProviderId - Optional provider to try first
+   * @param taskPath - Path to the task/repo
+   * @param prompt - The prompt to send to the provider
+   * @param parseResponse - Function to parse the provider's response
+   * @param logContext - Context string for logging (e.g., "PR content", "commit message")
    */
-  private async generateCommitMessageWithProvider(
+  private async tryProvidersWithFallback<T>(
+    preferredProviderId: string | null | undefined,
+    taskPath: string,
+    prompt: string,
+    parseResponse: (stdout: string) => T | null,
+    logContext: string
+  ): Promise<T | null> {
+    // Build provider list: preferred first, then fallbacks (avoiding duplicates)
+    const providers: ProviderId[] = [];
+
+    if (preferredProviderId && this.isValidProviderId(preferredProviderId)) {
+      providers.push(preferredProviderId);
+    }
+
+    for (const fallback of FALLBACK_PROVIDERS) {
+      if (!providers.includes(fallback)) {
+        providers.push(fallback);
+      }
+    }
+
+    // Try each provider in sequence
+    for (const providerId of providers) {
+      try {
+        const result = await this.spawnProviderCli<T>(
+          providerId,
+          taskPath,
+          prompt,
+          parseResponse,
+          logContext
+        );
+        if (result) {
+          log.info(`Generated ${logContext} with ${providerId}`);
+          return result;
+        }
+      } catch (error) {
+        log.debug(`Provider ${providerId} ${logContext} generation failed`, { error });
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Spawn a provider CLI and get a parsed response
+   * @param providerId - The provider to use
+   * @param taskPath - Path to the task/repo
+   * @param prompt - The prompt to send
+   * @param parseResponse - Function to parse the response
+   * @param logContext - Context string for logging
+   */
+  private async spawnProviderCli<T>(
     providerId: ProviderId,
     taskPath: string,
-    stagedFiles: string[],
-    diff: string
-  ): Promise<GeneratedCommitMessage | null> {
+    prompt: string,
+    parseResponse: (stdout: string) => T | null,
+    logContext: string
+  ): Promise<T | null> {
     const provider = getProvider(providerId);
-    if (!provider || !provider.cli) {
+    if (!provider?.cli) {
       return null;
     }
 
     const cliCommand = provider.cli;
-    if (!cliCommand) {
-      return null;
-    }
 
     // Check if provider CLI is available
     try {
@@ -200,18 +190,15 @@ export class PrGenerationService {
         cwd: taskPath,
       });
     } catch {
-      log.debug(`Provider ${providerId} CLI not available for commit message generation`);
+      log.debug(`Provider ${providerId} CLI not available for ${logContext} generation`);
       return null;
     }
 
-    // Build prompt for commit message generation
-    const prompt = this.buildCommitMessagePrompt(stagedFiles, diff);
-
-    return new Promise<GeneratedCommitMessage | null>((resolve) => {
-      const timeout = 30000; // 30 second timeout
+    return new Promise<T | null>((resolve) => {
       let stdout = '';
       let stderr = '';
 
+      // Build command arguments
       const args: string[] = [];
       if (provider.defaultArgs?.length) {
         args.push(...provider.defaultArgs);
@@ -220,6 +207,7 @@ export class PrGenerationService {
         args.push(provider.autoApproveFlag);
       }
 
+      // Handle prompt: some providers accept it as a flag, others via stdin
       let promptViaStdin = true;
       if (provider.initialPromptFlag !== undefined && provider.initialPromptFlag !== '') {
         args.push(provider.initialPromptFlag);
@@ -241,9 +229,9 @@ export class PrGenerationService {
         try {
           child.kill('SIGTERM');
         } catch {}
-        log.debug(`Provider ${providerId} commit message generation timed out`);
+        log.debug(`Provider ${providerId} ${logContext} generation timed out`);
         resolve(null);
-      }, timeout);
+      }, PROVIDER_CLI_TIMEOUT_MS);
 
       if (child.stdout) {
         child.stdout.on('data', (data: Buffer) => {
@@ -272,19 +260,18 @@ export class PrGenerationService {
           return;
         }
 
-        const result = this.parseCommitMessageResponse(stdout);
+        const result = parseResponse(stdout);
         if (result) {
-          log.info(`Successfully generated commit message with ${providerId}`);
           resolve(result);
         } else {
-          log.debug(`Failed to parse commit message from ${providerId}`, { stdout, stderr });
+          log.debug(`Failed to parse ${logContext} from ${providerId}`, { stdout, stderr });
           resolve(null);
         }
       });
 
       child.on('error', (error: Error) => {
         clearTimeout(timeoutId);
-        log.debug(`Failed to spawn ${providerId} for commit message`, { error });
+        log.debug(`Failed to spawn ${providerId} for ${logContext}`, { error });
         resolve(null);
       });
 
@@ -298,7 +285,7 @@ export class PrGenerationService {
         } catch (error) {
           clearTimeout(timeoutId);
           try {
-            child.kill();
+            child.kill('SIGTERM');
           } catch {}
           log.debug(`Failed to write prompt to ${providerId}`, { error });
           resolve(null);
@@ -369,9 +356,6 @@ Respond with ONLY the commit message text, nothing else. No quotes, no explanati
     // Validate it looks like a commit message (not an explanation)
     if (firstLine.length > 100) return null; // Too long, probably explanation
     if (this.looksLikeExplanation(firstLine)) return null;
-
-    // Ensure it's not empty after cleaning
-    if (firstLine.length === 0) return null;
 
     // Truncate if needed
     const finalMessage = firstLine.length > 72 ? firstLine.substring(0, 69) + '...' : firstLine;
@@ -702,161 +686,6 @@ Respond with ONLY the commit message text, nothing else. No quotes, no explanati
     }
 
     return { diff, commits, changedFiles };
-  }
-
-  /**
-   * Generate PR content using a CLI provider (Claude Code or Codex)
-   */
-  private async generateWithProvider(
-    providerId: ProviderId,
-    taskPath: string,
-    diff: string,
-    commits: string[]
-  ): Promise<GeneratedPrContent | null> {
-    const provider = getProvider(providerId);
-    if (!provider || !provider.cli) {
-      return null;
-    }
-
-    const cliCommand = provider.cli;
-    if (!cliCommand) {
-      return null;
-    }
-
-    // Check if provider CLI is available
-    try {
-      await execFileAsync(cliCommand, provider.versionArgs || ['--version'], {
-        cwd: taskPath,
-      });
-    } catch {
-      log.debug(`Provider ${providerId} CLI not available`);
-      return null;
-    }
-
-    // Build prompt for PR generation
-    const prompt = this.buildPrGenerationPrompt(diff, commits);
-
-    // Use spawn with stdin/stdout to invoke the CLI agent non-interactively
-    // This uses the user's authenticated CLI agent (no API keys needed)
-    return new Promise<GeneratedPrContent | null>((resolve) => {
-      const timeout = 30000; // 30 second timeout
-      let stdout = '';
-      let stderr = '';
-
-      // Build command arguments
-      const args: string[] = [];
-      if (provider.defaultArgs?.length) {
-        args.push(...provider.defaultArgs);
-      }
-      if (provider.autoApproveFlag) {
-        args.push(provider.autoApproveFlag);
-      }
-
-      // Handle prompt: some providers accept it as a flag, others via stdin
-      let promptViaStdin = true;
-      if (provider.initialPromptFlag !== undefined && provider.initialPromptFlag !== '') {
-        // Provider accepts prompt as command-line argument
-        args.push(provider.initialPromptFlag);
-        args.push(prompt);
-        promptViaStdin = false;
-      }
-
-      // Spawn the provider CLI
-      const child = spawn(cliCommand, args, {
-        cwd: taskPath,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          // Ensure we have a proper terminal environment
-          TERM: 'xterm-256color',
-          COLORTERM: 'truecolor',
-        },
-      });
-
-      // Set timeout
-      const timeoutId = setTimeout(() => {
-        try {
-          child.kill('SIGTERM');
-        } catch {}
-        log.debug(`Provider ${providerId} invocation timed out`);
-        resolve(null);
-      }, timeout);
-
-      // Collect stdout
-      if (child.stdout) {
-        child.stdout.on('data', (data: Buffer) => {
-          stdout += data.toString('utf8');
-        });
-      }
-
-      // Collect stderr (for debugging)
-      if (child.stderr) {
-        child.stderr.on('data', (data: Buffer) => {
-          stderr += data.toString('utf8');
-        });
-      }
-
-      // Handle process exit
-      child.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
-        clearTimeout(timeoutId);
-
-        if (code !== 0 && code !== null) {
-          log.debug(`Provider ${providerId} exited with code ${code}`, { stderr });
-          resolve(null);
-          return;
-        }
-
-        if (signal) {
-          log.debug(`Provider ${providerId} killed by signal ${signal}`);
-          resolve(null);
-          return;
-        }
-
-        // Try to parse the response
-        const result = this.parseProviderResponse(stdout);
-        if (result) {
-          log.info(`Successfully generated PR content with ${providerId}`);
-          resolve(result);
-        } else {
-          log.debug(`Failed to parse response from ${providerId}`, { stdout, stderr });
-          resolve(null);
-        }
-      });
-
-      // Handle errors
-      child.on('error', (error: Error) => {
-        clearTimeout(timeoutId);
-        log.debug(`Failed to spawn ${providerId}`, { error });
-        resolve(null);
-      });
-
-      // Send prompt via stdin if needed
-      // Claude Code and Codex accept prompts via stdin (initialPromptFlag is empty string)
-      if (promptViaStdin) {
-        try {
-          if (child.stdin) {
-            // Write the prompt
-            child.stdin.write(prompt);
-            // Add a newline to ensure the prompt is processed
-            child.stdin.write('\n');
-            // Close stdin to signal EOF - this should make the CLI process the prompt and exit
-            child.stdin.end();
-          }
-        } catch (error) {
-          clearTimeout(timeoutId);
-          try {
-            child.kill();
-          } catch {}
-          log.debug(`Failed to write prompt to ${providerId}`, { error });
-          resolve(null);
-        }
-      } else {
-        // Prompt was passed as command-line argument, just close stdin
-        if (child.stdin) {
-          child.stdin.end();
-        }
-      }
-    });
   }
 
   /**

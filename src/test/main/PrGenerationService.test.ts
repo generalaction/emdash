@@ -121,10 +121,7 @@ describe('PrGenerationService', () => {
     });
 
     it('uses scope from multiple files in same scope', () => {
-      const files = [
-        'src/components/Button/Button.tsx',
-        'src/components/Button/index.ts',
-      ];
+      const files = ['src/components/Button/Button.tsx', 'src/components/Button/index.ts'];
       const diff = '2 files changed, 10 insertions(+), 5 deletions(-)';
       const result = callGenerateCommitMessageFromFiles(service, files, diff);
 
@@ -193,10 +190,7 @@ describe('PrGenerationService', () => {
     });
 
     it('returns null for "Suggested message:" prefix', () => {
-      const result = callParseCommitMessageResponse(
-        service,
-        'Suggested message: feat: add login'
-      );
+      const result = callParseCommitMessageResponse(service, 'Suggested message: feat: add login');
 
       expect(result).toBeNull();
     });
@@ -253,8 +247,7 @@ describe('PrGenerationService', () => {
         return Promise.resolve({ stdout: '', stderr: '' } as any);
       }) as any);
 
-      vi.mocked(execFile).mockImplementation((() =>
-        Promise.resolve(undefined as any)) as any);
+      vi.mocked(execFile).mockImplementation((() => Promise.resolve(undefined as any)) as any);
 
       const expectedMessage = 'feat(auth): add login';
       vi.mocked(spawn).mockImplementation((() => {
