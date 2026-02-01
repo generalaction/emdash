@@ -2507,6 +2507,7 @@ const AppContent: React.FC = () => {
               activeTask={activeTask}
               onSelectTask={handleSelectTask}
               onDeleteTask={handleDeleteTask}
+              onArchiveTask={handleArchiveTask}
               onDeleteProject={handleDeleteProject}
               branchOptions={projectBranchOptions}
               isLoadingBranches={isLoadingBranches}
