@@ -199,7 +199,11 @@ interface ProjectMainViewProps {
     task: Task,
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
-  onArchiveTask?: (project: Project, task: Task, options?: { silent?: boolean }) => void | Promise<void>;
+  onArchiveTask?: (
+    project: Project,
+    task: Task,
+    options?: { silent?: boolean }
+  ) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   branchOptions: BranchOption[];
   isLoadingBranches: boolean;
