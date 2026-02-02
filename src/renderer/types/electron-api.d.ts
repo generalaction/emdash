@@ -363,6 +363,7 @@ declare global {
         worktreeId: string;
         worktreePath?: string;
         branch?: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeStatus: (args: {
         worktreePath: string;
@@ -404,6 +405,11 @@ declare global {
       worktreeRemoveReserve: (args: {
         projectId: string;
       }) => Promise<{ success: boolean; error?: string }>;
+
+      // Lifecycle scripts
+      lifecycleGetSetupScript: (args: {
+        projectPath: string;
+      }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
 
       // Project management
       openProject: () => Promise<{
@@ -999,6 +1005,7 @@ export interface ElectronAPI {
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeStatus: (args: {
     worktreePath: string;
@@ -1040,6 +1047,11 @@ export interface ElectronAPI {
   worktreeRemoveReserve: (args: {
     projectId: string;
   }) => Promise<{ success: boolean; error?: string }>;
+
+  // Lifecycle scripts
+  lifecycleGetSetupScript: (args: {
+    projectPath: string;
+  }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
 
   // Project management
   openProject: () => Promise<{

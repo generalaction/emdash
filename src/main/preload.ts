@@ -124,6 +124,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
+    taskName?: string;
   }) => ipcRenderer.invoke('worktree:remove', args),
   worktreeStatus: (args: { worktreePath: string }) => ipcRenderer.invoke('worktree:status', args),
   worktreeMerge: (args: { projectPath: string; worktreeId: string }) =>
@@ -145,6 +146,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }) => ipcRenderer.invoke('worktree:claimReserve', args),
   worktreeRemoveReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:removeReserve', args),
+
+  // Lifecycle scripts
+  lifecycleGetSetupScript: (args: { projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:getSetupScript', args),
 
   // Filesystem helpers
   fsList: (root: string, opts?: { includeDirs?: boolean; maxEntries?: number }) =>
@@ -515,6 +520,9 @@ export interface ElectronAPI {
   worktreeRemove: (args: {
     projectPath: string;
     worktreeId: string;
+    worktreePath?: string;
+    branch?: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeStatus: (args: {
     worktreePath: string;
@@ -527,6 +535,11 @@ export interface ElectronAPI {
     worktreeId: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeGetAll: () => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
+
+  // Lifecycle scripts
+  lifecycleGetSetupScript: (args: {
+    projectPath: string;
+  }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
 
   // Project management
   openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;
