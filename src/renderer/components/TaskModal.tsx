@@ -13,6 +13,7 @@ import { type Agent } from '../types';
 import { type AgentRun } from '../types/chat';
 import { agentMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
+import { normalizeAgentRuns } from '@shared/agentRuns';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type GitHubIssueLink } from '../types/chat';
@@ -25,30 +26,6 @@ import {
 import BranchSelect, { type BranchOption } from './BranchSelect';
 
 const DEFAULT_AGENT: Agent = 'claude';
-const MAX_AGENT_RUNS = 4;
-
-const normalizeAgentRuns = (
-  value: unknown,
-  fallbackAgent: Agent
-): AgentRun[] => {
-  const items = Array.isArray(value) ? value : [];
-  const seen = new Set<Agent>();
-  const normalized: AgentRun[] = [];
-
-  for (const item of items) {
-    const agent = (item as any)?.agent;
-    if (!isValidProviderId(agent) || seen.has(agent)) continue;
-
-    const rawRuns = Number((item as any)?.runs);
-    const rounded = Number.isFinite(rawRuns) ? Math.round(rawRuns) : 1;
-    const runs = Math.max(1, Math.min(MAX_AGENT_RUNS, rounded));
-
-    normalized.push({ agent, runs });
-    seen.add(agent);
-  }
-
-  return normalized.length ? normalized : [{ agent: fallbackAgent, runs: 1 }];
-};
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -360,6 +337,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 className="min-h-[120px] resize-none"
                 rows={5}
               />
+              {!hasInitialPromptSupport ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Selected provider does not support initial prompts
+                </p>
+              ) : null}
             </div>
           </div>
 
