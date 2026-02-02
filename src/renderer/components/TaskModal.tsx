@@ -180,7 +180,15 @@ const TaskModal: React.FC<TaskModalProps> = ({
       const agent: Agent = isValidProviderId(settingsAgent)
         ? (settingsAgent as Agent)
         : DEFAULT_AGENT;
-      const savedRuns = normalizeAgentRuns(settings?.tasks?.lastAgentRuns, agent);
+      let localRuns: unknown = null;
+      try {
+        const raw = window.localStorage.getItem('task:lastAgentRuns');
+        if (raw) localRuns = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Failed to read last agent selection from local storage:', error);
+      }
+      const sourceRuns = settings?.tasks?.lastAgentRuns ?? localRuns;
+      const savedRuns = normalizeAgentRuns(sourceRuns, agent);
       setAgentRuns(savedRuns);
 
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
