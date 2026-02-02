@@ -4,6 +4,7 @@ import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
+import { normalizeAgentRuns } from '@shared/agentRuns';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 
@@ -256,33 +257,6 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.defaultProvider = isValidProviderId(defaultProvider)
     ? defaultProvider
     : DEFAULT_SETTINGS.defaultProvider!;
-
-  const normalizeAgentRuns = (
-    value: any,
-    fallbackAgent: ProviderId
-  ): Array<{ agent: ProviderId; runs: number }> => {
-    const items = Array.isArray(value) ? value : [];
-    const seen = new Set<ProviderId>();
-    const normalized: Array<{ agent: ProviderId; runs: number }> = [];
-
-    for (const item of items) {
-      const agent = (item as any)?.agent;
-      if (!isValidProviderId(agent) || seen.has(agent)) continue;
-
-      const rawRuns = Number((item as any)?.runs);
-      const rounded = Number.isFinite(rawRuns) ? Math.round(rawRuns) : 1;
-      const runs = Math.max(1, Math.min(4, rounded));
-
-      normalized.push({ agent, runs });
-      seen.add(agent);
-    }
-
-    if (!normalized.length) {
-      normalized.push({ agent: fallbackAgent, runs: 1 });
-    }
-
-    return normalized;
-  };
 
   // Tasks
   const tasks = (input as any)?.tasks || {};
