@@ -2161,11 +2161,85 @@ const AppContent: React.FC = () => {
     targetProject: Project,
     task: Task,
     options?: { silent?: boolean }
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const wasActive = activeTask?.id === task.id;
+    const taskSnapshot = { ...task };
 
     // Optimistically remove from UI
     removeTaskFromState(targetProject.id, task.id, wasActive);
+
+    // Clean up PTY resources in background (don't await - let UI update immediately)
+    const cleanupPtyResources = async () => {
+      try {
+        // Kill main agent terminals
+        const variants = task.metadata?.multiAgent?.variants || [];
+        const mainSessionIds: string[] = [];
+        if (variants.length > 0) {
+          for (const v of variants) {
+            const id = `${v.worktreeId}-main`;
+            mainSessionIds.push(id);
+            try {
+              window.electronAPI.ptyKill?.(id);
+            } catch {}
+          }
+        } else {
+          for (const provider of TERMINAL_PROVIDER_IDS) {
+            const id = `${provider}-main-${task.id}`;
+            mainSessionIds.push(id);
+            try {
+              window.electronAPI.ptyKill?.(id);
+            } catch {}
+          }
+        }
+
+        // Kill chat agent terminals
+        const chatSessionIds: string[] = [];
+        try {
+          const convResult = await window.electronAPI.getConversations(task.id);
+          if (convResult.success && convResult.conversations) {
+            for (const conv of convResult.conversations) {
+              if (!conv.isMain && conv.provider) {
+                const chatId = `${conv.provider}-chat-${conv.id}`;
+                chatSessionIds.push(chatId);
+                try {
+                  window.electronAPI.ptyKill?.(chatId);
+                } catch {}
+              }
+            }
+          }
+        } catch {}
+
+        const sessionIds = [...mainSessionIds, ...chatSessionIds];
+
+        await Promise.allSettled(
+          sessionIds.map(async (sessionId) => {
+            try {
+              terminalSessionRegistry.dispose(sessionId);
+            } catch {}
+            try {
+              await window.electronAPI.ptyClearSnapshot({ id: sessionId });
+            } catch {}
+          })
+        );
+
+        // Clean up task terminal panel terminals
+        const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
+        const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
+        for (const path of pathsToClean) {
+          disposeTaskTerminals(`${task.id}::${path}`);
+          if (task.useWorktree !== false) {
+            disposeTaskTerminals(`global::${path}`);
+          }
+        }
+        disposeTaskTerminals(task.id);
+      } catch (err) {
+        const { log } = await import('./lib/logger');
+        log.error('Error cleaning up PTY resources during archive:', err as any);
+      }
+    };
+
+    // Start cleanup in background
+    cleanupPtyResources();
 
     try {
       const result = await window.electronAPI.archiveTask(task.id);
@@ -2184,11 +2258,14 @@ const AppContent: React.FC = () => {
           description: task.name,
         });
       }
+
+      return true;
     } catch (error) {
       const { log } = await import('./lib/logger');
       log.error('Failed to archive task:', error as any);
 
       // Restore task to UI on error
+      let restored = false;
       try {
         const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
         setProjects((prev) =>
@@ -2201,13 +2278,33 @@ const AppContent: React.FC = () => {
         );
 
         if (wasActive) {
-          const restored = refreshedTasks.find((t) => t.id === task.id);
-          if (restored) {
-            handleSelectTask(restored);
+          const restoredTask = refreshedTasks.find((t) => t.id === task.id);
+          if (restoredTask) {
+            handleSelectTask(restoredTask);
           }
         }
+        restored = true;
       } catch (refreshError) {
         log.error('Failed to refresh tasks after archive failure:', refreshError as any);
+      }
+
+      // Fallback: manually restore task if refresh failed
+      if (!restored) {
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.id === targetProject.id
+              ? { ...project, tasks: [...(project.tasks || []), taskSnapshot] }
+              : project
+          )
+        );
+        setSelectedProject((prev) =>
+          prev && prev.id === targetProject.id
+            ? { ...prev, tasks: [...(prev.tasks || []), taskSnapshot] }
+            : prev
+        );
+        if (wasActive) {
+          handleSelectTask(taskSnapshot);
+        }
       }
 
       toast({
@@ -2215,6 +2312,8 @@ const AppContent: React.FC = () => {
         description: error instanceof Error ? error.message : 'Could not archive task.',
         variant: 'destructive',
       });
+
+      return false;
     }
   };
 

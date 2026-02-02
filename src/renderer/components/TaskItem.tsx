@@ -34,7 +34,7 @@ interface TaskItemProps {
   task: Task;
   onDelete?: () => void | Promise<void | boolean>;
   onRename?: (newName: string) => void | Promise<void>;
-  onArchive?: () => void | Promise<void>;
+  onArchive?: () => void | Promise<void | boolean>;
   showDelete?: boolean;
   showDirectBadge?: boolean;
 }

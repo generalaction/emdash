@@ -53,7 +53,7 @@ function TaskRow({
   active: boolean;
   onClick: () => void;
   onDelete: () => void | Promise<void | boolean>;
-  onArchive?: () => void | Promise<void>;
+  onArchive?: () => void | Promise<void | boolean>;
   isSelectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -203,7 +203,7 @@ interface ProjectMainViewProps {
     project: Project,
     task: Task,
     options?: { silent?: boolean }
-  ) => void | Promise<void>;
+  ) => void | Promise<void | boolean>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   branchOptions: BranchOption[];
   isLoadingBranches: boolean;
@@ -357,8 +357,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     const archivedNames: string[] = [];
     for (const ws of toArchive) {
       try {
-        await onArchiveTask(project, ws, { silent: true });
-        archivedNames.push(ws.name);
+        const result = await onArchiveTask(project, ws, { silent: true });
+        // Only count as archived if returned true (or void for backwards compat)
+        if (result !== false) {
+          archivedNames.push(ws.name);
+        }
       } catch {
         // Continue archiving remaining tasks
       }

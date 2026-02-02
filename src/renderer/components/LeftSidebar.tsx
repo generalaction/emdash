@@ -53,7 +53,7 @@ interface LeftSidebarProps {
   onCreateTaskForProject?: (project: Project) => void;
   onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onRenameTask?: (project: Project, task: Task, newName: string) => void | Promise<void>;
-  onArchiveTask?: (project: Project, task: Task) => void | Promise<void>;
+  onArchiveTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onRestoreTask?: (project: Project, task: Task) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   isHomeView?: boolean;
