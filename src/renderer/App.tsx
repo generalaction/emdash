@@ -629,27 +629,29 @@ const AppContent: React.FC = () => {
     leftPanel.resize(targetLeft);
   }, [rightSidebarCollapsed]);
 
-  // Persist and apply custom project order (by id)
-  const ORDER_KEY = 'sidebarProjectOrder';
-  const applyProjectOrder = (list: Project[]) => {
-    try {
-      const raw = localStorage.getItem(ORDER_KEY);
-      if (!raw) return list;
-      const order: string[] = JSON.parse(raw);
-      const indexOf = (id: string) => {
-        const idx = order.indexOf(id);
-        return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
-      };
-      return [...list].sort((a, b) => indexOf(a.id) - indexOf(b.id));
-    } catch {
-      return list;
-    }
-  };
-  const saveProjectOrder = (list: Project[]) => {
-    try {
-      const ids = list.map((p) => p.id);
-      localStorage.setItem(ORDER_KEY, JSON.stringify(ids));
-    } catch {}
+  // Sort projects and tasks by recency (most recent activity first)
+  const sortByRecency = (list: Project[]) => {
+    // Helper to get timestamp from updatedAt string
+    const getTimestamp = (updatedAt?: string): number =>
+      updatedAt ? new Date(updatedAt).getTime() : 0;
+
+    // Helper to get max updatedAt from a project's tasks
+    const getMaxTaskUpdatedAt = (project: Project): number => {
+      if (!project.tasks || project.tasks.length === 0) {
+        return 0; // Projects without tasks go to the end
+      }
+      return Math.max(...project.tasks.map((t) => getTimestamp(t.updatedAt)));
+    };
+
+    // Sort tasks within each project by recency, then sort projects
+    return [...list]
+      .map((project) => ({
+        ...project,
+        tasks: project.tasks
+          ? [...project.tasks].sort((a, b) => getTimestamp(b.updatedAt) - getTimestamp(a.updatedAt))
+          : undefined,
+      }))
+      .sort((a, b) => getMaxTaskUpdatedAt(b) - getMaxTaskUpdatedAt(a));
   };
 
   useEffect(() => {
@@ -663,7 +665,7 @@ const AppContent: React.FC = () => {
 
         setVersion(appVersion);
         setPlatform(appPlatform);
-        const initialProjects = applyProjectOrder(projects.map((p) => withRepoKey(p, appPlatform)));
+        const initialProjects = sortByRecency(projects.map((p) => withRepoKey(p, appPlatform)));
         setProjects(initialProjects);
 
         // Refresh GH status via hook
@@ -675,7 +677,7 @@ const AppContent: React.FC = () => {
             return withRepoKey({ ...project, tasks }, appPlatform);
           })
         );
-        const ordered = applyProjectOrder(projectsWithTasks);
+        const ordered = sortByRecency(projectsWithTasks);
         setProjects(ordered);
 
         // Restore active project/task from stored IDs (read synchronously at init)
@@ -1079,12 +1081,8 @@ const AppContent: React.FC = () => {
                 title: 'Project created successfully!',
                 description: `${projectWithGithub.name} has been added to your projects.`,
               });
-              // Add to beginning of list
-              setProjects((prev) => {
-                const updated = [projectWithGithub, ...prev];
-                saveProjectOrder(updated);
-                return updated;
-              });
+              // Add new project (will be sorted by recency when rendered)
+              setProjects((prev) => [projectWithGithub, ...prev]);
               activateProjectView(projectWithGithub);
             } else {
               const { log } = await import('./lib/logger');
@@ -1115,12 +1113,8 @@ const AppContent: React.FC = () => {
                 title: 'Project created successfully!',
                 description: `${projectWithoutGithub.name} has been added to your projects.`,
               });
-              // Add to beginning of list
-              setProjects((prev) => {
-                const updated = [projectWithoutGithub, ...prev];
-                saveProjectOrder(updated);
-                return updated;
-              });
+              // Add new project (will be sorted by recency when rendered)
+              setProjects((prev) => [projectWithoutGithub, ...prev]);
               activateProjectView(projectWithoutGithub);
             }
           }
@@ -1144,12 +1138,8 @@ const AppContent: React.FC = () => {
               title: 'Project created successfully!',
               description: `${projectWithoutGithub.name} has been added to your projects.`,
             });
-            // Add to beginning of list
-            setProjects((prev) => {
-              const updated = [projectWithoutGithub, ...prev];
-              saveProjectOrder(updated);
-              return updated;
-            });
+            // Add new project (will be sorted by recency when rendered)
+            setProjects((prev) => [projectWithoutGithub, ...prev]);
             activateProjectView(projectWithoutGithub);
             setShowTaskModal(true);
           }
@@ -2415,28 +2405,15 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleReorderProjects = (sourceId: string, targetId: string) => {
-    setProjects((prev) => {
-      const list = [...prev];
-      const fromIdx = list.findIndex((p) => p.id === sourceId);
-      const toIdx = list.findIndex((p) => p.id === targetId);
-      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
-      const [moved] = list.splice(fromIdx, 1);
-      list.splice(toIdx, 0, moved);
-      saveProjectOrder(list);
-      return list;
-    });
+  const handleReorderProjects = (_sourceId: string, _targetId: string) => {
+    // No-op: projects are now sorted by recency, not custom order
   };
 
   const needsGhInstall = isGithubInitialized && !ghInstalled;
   const needsGhAuth = isGithubInitialized && ghInstalled && !isAuthenticated;
 
-  const handleReorderProjectsFull = (newOrder: Project[]) => {
-    setProjects(() => {
-      const list = [...newOrder];
-      saveProjectOrder(list);
-      return list;
-    });
+  const handleReorderProjectsFull = (_newOrder: Project[]) => {
+    // No-op: projects are now sorted by recency, not custom order
   };
 
   const handleDeleteProject = async (project: Project) => {
@@ -2768,7 +2745,7 @@ const AppContent: React.FC = () => {
                     style={{ display: showEditorMode ? 'none' : undefined }}
                   >
                     <LeftSidebar
-                      projects={projects}
+                      projects={sortByRecency(projects)}
                       archivedTasksVersion={archivedTasksVersion}
                       selectedProject={selectedProject}
                       onSelectProject={handleSelectProject}
