@@ -167,8 +167,7 @@ export class WorktreePoolService {
     projectId: string,
     projectPath: string,
     taskName: string,
-    requestedBaseRef?: string,
-    autoApprove?: boolean
+    requestedBaseRef?: string
   ): Promise<ClaimResult | null> {
     const reserve = this.reserves.get(projectId);
     if (!reserve) {
@@ -189,7 +188,7 @@ export class WorktreePoolService {
     this.reserves.delete(projectId);
 
     try {
-      const result = await this.transformReserve(reserve, taskName, requestedBaseRef, autoApprove);
+      const result = await this.transformReserve(reserve, taskName, requestedBaseRef);
 
       // Start background replenishment
       this.replenishReserve(projectId, projectPath, requestedBaseRef);
@@ -209,8 +208,7 @@ export class WorktreePoolService {
   private async transformReserve(
     reserve: ReserveWorktree,
     taskName: string,
-    requestedBaseRef?: string,
-    autoApprove?: boolean
+    requestedBaseRef?: string
   ): Promise<ClaimResult> {
     const { getAppSettings } = await import('../settings');
     const settings = getAppSettings();
@@ -259,11 +257,6 @@ export class WorktreePoolService {
       await this.preserveFiles(reserve.projectPath, newPath, patterns);
     } catch (preserveErr) {
       log.warn('WorktreePool: Failed to preserve files', { error: preserveErr });
-    }
-
-    // Setup auto-approve if enabled
-    if (autoApprove) {
-      this.ensureClaudeAutoApprove(newPath);
     }
 
     // Push branch to remote in background (non-blocking)
@@ -505,27 +498,6 @@ export class WorktreePoolService {
           } catch {}
         }
       }
-    }
-  }
-
-  /** Setup Claude auto-approve settings */
-  private ensureClaudeAutoApprove(worktreePath: string): void {
-    try {
-      const settingsDir = path.join(worktreePath, '.claude');
-      if (!fs.existsSync(settingsDir)) {
-        fs.mkdirSync(settingsDir, { recursive: true });
-      }
-      const settingsFile = path.join(settingsDir, 'settings.json');
-      let settings: any = {};
-      if (fs.existsSync(settingsFile)) {
-        try {
-          settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
-        } catch {}
-      }
-      settings.autoApprove = true;
-      fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
-    } catch (error) {
-      log.warn('WorktreePool: Failed to setup auto-approve', { error });
     }
   }
 }

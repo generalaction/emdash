@@ -117,7 +117,6 @@ export class WorktreeService {
     projectPath: string,
     taskName: string,
     projectId: string,
-    autoApprove?: boolean,
     baseRef?: string
   ): Promise<WorktreeInfo> {
     // Declare variables outside try block for access in catch block
@@ -190,11 +189,6 @@ export class WorktreeService {
         await this.preserveFilesToWorktree(projectPath, worktreePath, patterns);
       } catch (preserveErr) {
         log.warn('Failed to preserve files to worktree (continuing):', preserveErr);
-      }
-
-      // Setup Claude Code settings if auto-approve is enabled
-      if (autoApprove) {
-        this.ensureClaudeAutoApprove(worktreePath);
       }
 
       await this.logWorktreeSyncStatus(projectPath, worktreePath, fetchedBaseRef);
@@ -1110,38 +1104,6 @@ export class WorktreeService {
     }
 
     return result;
-  }
-
-  private ensureClaudeAutoApprove(worktreePath: string) {
-    try {
-      const claudeDir = path.join(worktreePath, '.claude');
-      const settingsPath = path.join(claudeDir, 'settings.json');
-
-      // Create .claude directory if it doesn't exist
-      if (!fs.existsSync(claudeDir)) {
-        fs.mkdirSync(claudeDir, { recursive: true });
-      }
-
-      // Read existing settings or create new
-      let settings: any = {};
-      if (fs.existsSync(settingsPath)) {
-        try {
-          const content = fs.readFileSync(settingsPath, 'utf8');
-          settings = JSON.parse(content);
-        } catch (err) {
-          log.warn('Failed to parse existing .claude/settings.json, will overwrite', err);
-        }
-      }
-
-      // Set defaultMode to bypassPermissions
-      settings.defaultMode = 'bypassPermissions';
-
-      // Write settings file
-      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
-      log.info(`Created .claude/settings.json with auto-approve enabled in ${worktreePath}`);
-    } catch (err) {
-      log.error('Failed to create .claude/settings.json', err);
-    }
   }
 
   private async logWorktreeSyncStatus(
