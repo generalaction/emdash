@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import ReorderList from './ReorderList';
 import { Button } from './ui/button';
@@ -15,16 +15,19 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Home, ChevronRight, Plus, FolderOpen, Github } from 'lucide-react';
+import { Home, ChevronRight, Plus, FolderOpen, Github, Archive, RotateCcw } from 'lucide-react';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import { TaskDeleteButton } from './TaskDeleteButton';
 import type { Project } from '../types/app';
 import type { Task } from '../types/chat';
 
 interface LeftSidebarProps {
   projects: Project[];
+  archivedTasksVersion?: number;
   selectedProject: Project | null;
   onSelectProject: (project: Project) => void;
   onGoHome: () => void;
@@ -43,6 +46,8 @@ interface LeftSidebarProps {
   onCreateTaskForProject?: (project: Project) => void;
   onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onRenameTask?: (project: Project, task: Task, newName: string) => void | Promise<void>;
+  onArchiveTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
+  onRestoreTask?: (project: Project, task: Task) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   isHomeView?: boolean;
 }
@@ -88,6 +93,7 @@ const MenuItemButton: React.FC<MenuItemButtonProps> = ({
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
   projects,
+  archivedTasksVersion,
   selectedProject,
   onSelectProject,
   onGoHome,
@@ -102,13 +108,65 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onCreateTaskForProject,
   onDeleteTask,
   onRenameTask,
+  onArchiveTask,
+  onRestoreTask,
   onDeleteProject,
   isHomeView,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
-  const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [archivedTasksByProject, setArchivedTasksByProject] = useState<Record<string, Task[]>>({});
 
-  const handleDeleteProject = React.useCallback(
+  // Fetch archived tasks for all projects
+  const fetchArchivedTasks = useCallback(async () => {
+    const archived: Record<string, Task[]> = {};
+    for (const project of projects) {
+      try {
+        const tasks = await window.electronAPI.getArchivedTasks(project.id);
+        if (tasks && tasks.length > 0) {
+          archived[project.id] = tasks;
+        }
+      } catch (err) {
+        console.error(`Failed to fetch archived tasks for project ${project.id}:`, err);
+      }
+    }
+    setArchivedTasksByProject(archived);
+  }, [projects]);
+
+  // Fetch when projects load or when archivedTasksVersion changes (after successful archive)
+  // We use projects.length (not projects) to avoid race conditions where optimistic
+  // task removal triggers a refetch before the database is updated
+  useEffect(() => {
+    if (projects.length > 0) {
+      fetchArchivedTasks();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects.length, archivedTasksVersion]);
+
+  // Refresh archived tasks when a task is archived or restored
+  const handleRestoreTask = useCallback(
+    async (project: Project, task: Task) => {
+      if (onRestoreTask) {
+        await onRestoreTask(project, task);
+        // Refresh archived tasks after restore
+        fetchArchivedTasks();
+      }
+    },
+    [onRestoreTask, fetchArchivedTasks]
+  );
+
+  const handleArchiveTaskWithRefresh = useCallback(
+    async (project: Project, task: Task) => {
+      if (onArchiveTask) {
+        await onArchiveTask(project, task);
+        // Refresh archived tasks after archive
+        fetchArchivedTasks();
+      }
+    },
+    [onArchiveTask, fetchArchivedTasks]
+  );
+
+  const handleDeleteProject = useCallback(
     async (project: Project) => {
       if (!onDeleteProject) {
         return;
@@ -123,7 +181,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     [onDeleteProject]
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
 
@@ -250,78 +308,152 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           </div>
 
                           <CollapsibleContent asChild>
-                            <div className="mt-1 flex min-w-0 pl-2">
-                              <div className="flex w-4 shrink-0 justify-center py-1">
-                                <div className="w-px bg-border" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <motion.button
-                                  type="button"
-                                  whileTap={{ scale: 0.97 }}
-                                  transition={{ duration: 0.1, ease: 'easeInOut' }}
-                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (
-                                      onSelectProject &&
-                                      selectedProject?.id !== typedProject.id
-                                    ) {
-                                      onSelectProject(typedProject);
-                                    } else if (!selectedProject) {
-                                      onSelectProject?.(typedProject);
-                                    }
-                                    onCreateTaskForProject?.(typedProject);
-                                  }}
-                                  aria-label={`New Task for ${typedProject.name}`}
-                                >
-                                  <Plus
-                                    className="h-3 w-3 flex-shrink-0 text-muted-foreground"
-                                    aria-hidden
-                                  />
-                                  <span className="truncate">New Task</span>
-                                </motion.button>
-                                <div className="hidden min-w-0 space-y-0.5 sm:block">
-                                  {typedProject.tasks?.map((task) => {
-                                    const isActive = activeTask?.id === task.id;
-                                    return (
-                                      <div
-                                        key={task.id}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (
-                                            onSelectProject &&
-                                            selectedProject?.id !== typedProject.id
-                                          ) {
-                                            onSelectProject(typedProject);
-                                          }
-                                          onSelectTask && onSelectTask(task);
-                                        }}
-                                        className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
-                                          isActive ? 'bg-black/5 dark:bg-white/5' : ''
-                                        }`}
-                                        title={task.name}
+                            <div className="mt-1 min-w-0">
+                              <motion.button
+                                type="button"
+                                whileTap={{ scale: 0.97 }}
+                                transition={{ duration: 0.1, ease: 'easeInOut' }}
+                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onSelectProject && selectedProject?.id !== typedProject.id) {
+                                    onSelectProject(typedProject);
+                                  } else if (!selectedProject) {
+                                    onSelectProject?.(typedProject);
+                                  }
+                                  onCreateTaskForProject?.(typedProject);
+                                }}
+                                aria-label={`New Task for ${typedProject.name}`}
+                              >
+                                <Plus
+                                  className="h-3 w-3 flex-shrink-0 text-muted-foreground"
+                                  aria-hidden
+                                />
+                                <span className="truncate">New Task</span>
+                              </motion.button>
+                              <div className="hidden min-w-0 space-y-0.5 sm:block">
+                                {typedProject.tasks?.map((task) => {
+                                  const isActive = activeTask?.id === task.id;
+                                  return (
+                                    <div
+                                      key={task.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (
+                                          onSelectProject &&
+                                          selectedProject?.id !== typedProject.id
+                                        ) {
+                                          onSelectProject(typedProject);
+                                        }
+                                        onSelectTask && onSelectTask(task);
+                                      }}
+                                      className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
+                                        isActive ? 'bg-black/5 dark:bg-white/5' : ''
+                                      }`}
+                                      title={task.name}
+                                    >
+                                      <TaskItem
+                                        task={task}
+                                        showDelete
+                                        showDirectBadge={false}
+                                        onDelete={
+                                          onDeleteTask
+                                            ? () => onDeleteTask(typedProject, task)
+                                            : undefined
+                                        }
+                                        onRename={
+                                          // Disable rename for multi-agent tasks (variant metadata would become stale)
+                                          onRenameTask && !task.metadata?.multiAgent?.enabled
+                                            ? (newName) => onRenameTask(typedProject, task, newName)
+                                            : undefined
+                                        }
+                                        onArchive={
+                                          onArchiveTask
+                                            ? () => handleArchiveTaskWithRefresh(typedProject, task)
+                                            : undefined
+                                        }
+                                      />
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Archived tasks section */}
+                                {archivedTasksByProject[typedProject.id]?.length > 0 && (
+                                  <Collapsible className="mt-1">
+                                    <CollapsibleTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="group/archived flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
                                       >
-                                        <TaskItem
-                                          task={task}
-                                          showDelete
-                                          showDirectBadge={false}
-                                          onDelete={
-                                            onDeleteTask
-                                              ? () => onDeleteTask(typedProject, task)
-                                              : undefined
-                                          }
-                                          onRename={
-                                            // Disable rename for multi-agent tasks (variant metadata would become stale)
-                                            onRenameTask && !task.metadata?.multiAgent?.enabled
-                                              ? (newName) =>
-                                                  onRenameTask(typedProject, task, newName)
-                                              : undefined
-                                          }
-                                        />
+                                        <Archive className="h-3 w-3 opacity-50" />
+                                        <span>
+                                          Archived ({archivedTasksByProject[typedProject.id].length}
+                                          )
+                                        </span>
+                                        <div className="ml-auto flex h-3 w-3 flex-shrink-0 items-center justify-center">
+                                          <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]/archived:rotate-90" />
+                                        </div>
+                                      </button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                      <div className="ml-1.5 space-y-0.5 border-l border-border/50 pl-2">
+                                        {archivedTasksByProject[typedProject.id].map(
+                                          (archivedTask) => (
+                                            <div
+                                              key={archivedTask.id}
+                                              className="group/archived-task flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                                            >
+                                              <span className="truncate text-xs font-medium">
+                                                {archivedTask.name}
+                                              </span>
+                                              <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/archived-task:opacity-100">
+                                                <TooltipProvider>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                      <Button
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        className="h-5 w-5"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          handleRestoreTask(
+                                                            typedProject,
+                                                            archivedTask
+                                                          );
+                                                        }}
+                                                      >
+                                                        <RotateCcw className="h-3 w-3" />
+                                                      </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top" className="text-xs">
+                                                      Restore Task
+                                                    </TooltipContent>
+                                                  </Tooltip>
+                                                </TooltipProvider>
+                                                <TaskDeleteButton
+                                                  taskName={archivedTask.name}
+                                                  taskId={archivedTask.id}
+                                                  taskPath={archivedTask.path}
+                                                  useWorktree={archivedTask.useWorktree !== false}
+                                                  className="h-5 w-5"
+                                                  onConfirm={async () => {
+                                                    if (onDeleteTask) {
+                                                      await onDeleteTask(
+                                                        typedProject,
+                                                        archivedTask
+                                                      );
+                                                      fetchArchivedTasks();
+                                                    }
+                                                  }}
+                                                />
+                                              </div>
+                                            </div>
+                                          )
+                                        )}
                                       </div>
-                                    );
-                                  })}
-                                </div>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                )}
                               </div>
                             </div>
                           </CollapsibleContent>
