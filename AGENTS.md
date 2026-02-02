@@ -10,7 +10,7 @@ test_commands:
   - "npm run type-check"
   - "npx vitest run"
 ports:
-  dev: 3000
+  dev: 5173
 required_env: []
 optional_env:
   - TELEMETRY_ENABLED
@@ -44,6 +44,7 @@ optional_env:
 
 **Guardrails**
 - Do work on branches or worktrees; default branch is `main`, never push directly.
+- Do push only to `origin` (cschubiner/emdash); never push to `upstream` (generalaction/emdash).
 - Do limit edits to `src/**`, `docs/**`, or config files you fully understand; keep binaries, `dist/`, and `release/` untouched.
 - Do keep secrets local; configure providers via their CLIs, not committed files.
 - Don't rewrite Drizzle migration history (`drizzle/meta`, numbered SQL) without coordinating.
@@ -55,6 +56,13 @@ optional_env:
 - `src/main/db/**` + `drizzle/` – schema migrations and SQLite access; mismatches can corrupt user data.
 - `build/` entitlements and updater config – incorrect changes break signing/auto-update.
 - Native dependencies (`sqlite3`, `node-pty`, `keytar`) – rebuilding is slow; avoid upgrading casually.
+
+**Repo Remotes & Main Branch Policy**
+- `origin` = `https://github.com/cschubiner/emdash.git` (fetch/push; default push remote).
+- `upstream` = `https://github.com/generalaction/emdash.git` (fetch-only; push URL disabled).
+- Keep local tag `main` deleted to avoid ref ambiguity; if it reappears, push main via `git push origin refs/heads/main`.
+- Pull upstream changes via `git fetch upstream` then `git rebase upstream/main` (or merge), and push the result to `origin`.
+- Dotfiles `bo()` (branch-open) now prefers `cschubiner/*` push remotes when building compare URLs.
 
 **Pre-PR Checklist**
 - [ ] Dev server runs: `npm run d` (or `npm run dev`) starts cleanly.
