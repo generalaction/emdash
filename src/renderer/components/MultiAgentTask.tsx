@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Task } from '../types/chat';
 import { type Agent } from '../types';
 import { Button } from './ui/button';
@@ -15,6 +15,10 @@ import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { Switch } from './ui/switch';
+import { Label } from './ui/label';
+
+const SPLIT_VIEW_STORAGE_KEY = 'multiAgentTask:splitView';
 
 interface Props {
   task: Task;
@@ -38,6 +42,15 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
+
+  // Split view toggle state (default: true)
+  const [splitViewEnabled, setSplitViewEnabled] = useState<boolean>(() => {
+    const stored = localStorage.getItem(SPLIT_VIEW_STORAGE_KEY);
+    return stored === null ? true : stored === 'true';
+  });
+
+  // Track focused pane in split view mode
+  const [focusedPaneIndex, setFocusedPaneIndex] = useState(0);
 
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
@@ -347,8 +360,36 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     activityStore.setTaskBusy(task.id, anyBusy);
   }, [variantBusy, task.id]);
 
-  // Ref to the active terminal
-  const activeTerminalRef = useRef<{ focus: () => void }>(null);
+  // Map-based refs for all terminal panes
+  const terminalRefsMap = useRef<Map<number, { focus: () => void }>>(new Map());
+
+  const setTerminalRef = useCallback((index: number, ref: { focus: () => void } | null) => {
+    if (ref) {
+      terminalRefsMap.current.set(index, ref);
+    } else {
+      terminalRefsMap.current.delete(index);
+    }
+  }, []);
+
+  const getFocusedTerminalRef = useCallback(() => {
+    const idx = splitViewEnabled ? focusedPaneIndex : activeTabIndex;
+    return terminalRefsMap.current.get(idx);
+  }, [splitViewEnabled, focusedPaneIndex, activeTabIndex]);
+
+  // Persist toggle preference
+  useEffect(() => {
+    localStorage.setItem(SPLIT_VIEW_STORAGE_KEY, String(splitViewEnabled));
+  }, [splitViewEnabled]);
+
+  // Sync indices when toggling modes
+  useEffect(() => {
+    if (splitViewEnabled) {
+      setFocusedPaneIndex(activeTabIndex);
+    } else {
+      setActiveTabIndex(focusedPaneIndex);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitViewEnabled]);
 
   // Re-focus terminal when the app regains focus (e.g., Cmd+Tab back)
   useEffect(() => {
@@ -362,7 +403,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
           !active || active === document.body || active === document.documentElement;
         if (!isBodyFocus) return;
         if (document.querySelector('[aria-modal="true"]')) return;
-        activeTerminalRef.current?.focus();
+        getFocusedTerminalRef()?.focus();
       }, 60);
     };
     window.addEventListener('focus', handleFocus);
@@ -372,23 +413,32 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
       document.removeEventListener('visibilitychange', handleFocus);
       if (timeout) window.clearTimeout(timeout);
     };
-  }, []);
+  }, [getFocusedTerminalRef]);
 
-  // Auto-scroll and focus when task or active tab changes
+  // Auto-scroll and focus when task or active tab/pane changes
   useEffect(() => {
-    if (variants.length > 0 && activeTabIndex >= 0 && activeTabIndex < variants.length) {
+    const currentIndex = splitViewEnabled ? focusedPaneIndex : activeTabIndex;
+    if (variants.length > 0 && currentIndex >= 0 && currentIndex < variants.length) {
       // Small delay to ensure the tab content is rendered
       const timeout = setTimeout(() => {
         scrollToBottom({ onlyIfNearTop: true });
-        // Focus the active terminal when switching tabs
-        activeTerminalRef.current?.focus();
+        // Focus the active terminal when switching tabs/panes
+        getFocusedTerminalRef()?.focus();
       }, 150);
 
       return () => clearTimeout(timeout);
     }
-  }, [task.id, activeTabIndex, variants.length, scrollToBottom]);
+  }, [
+    task.id,
+    activeTabIndex,
+    focusedPaneIndex,
+    splitViewEnabled,
+    variants.length,
+    scrollToBottom,
+    getFocusedTerminalRef,
+  ]);
 
-  // Switch active agent tab via global shortcuts (Cmd+Shift+J/K)
+  // Switch active agent tab/pane via global shortcuts (Cmd+Shift+J/K)
   useEffect(() => {
     const handleAgentSwitch = (event: Event) => {
       const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
@@ -396,20 +446,33 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
       const direction = customEvent.detail?.direction;
       if (!direction) return;
 
-      setActiveTabIndex((current) => {
-        if (variants.length <= 1) return current;
+      const getNextIndex = (current: number) => {
         if (direction === 'prev') {
           return current <= 0 ? variants.length - 1 : current - 1;
         }
         return (current + 1) % variants.length;
-      });
+      };
+
+      if (splitViewEnabled) {
+        // Split view: switch focus between panes
+        setFocusedPaneIndex((current) => {
+          const next = getNextIndex(current);
+          setTimeout(() => {
+            terminalRefsMap.current.get(next)?.focus();
+          }, 50);
+          return next;
+        });
+      } else {
+        // Tab view: switch active tab
+        setActiveTabIndex(getNextIndex);
+      }
     };
 
     window.addEventListener('emdash:switch-agent', handleAgentSwitch);
     return () => {
       window.removeEventListener('emdash:switch-agent', handleAgentSwitch);
     };
-  }, [variants.length]);
+  }, [variants.length, splitViewEnabled]);
 
   if (!multi?.enabled) {
     return (
@@ -429,67 +492,201 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     );
   }
 
+  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+
+  // Helper to render terminal pane for a variant
+  const renderTerminalPane = (v: Variant, idx: number) => (
+    <TerminalPane
+      ref={(ref) => setTerminalRef(idx, ref)}
+      id={`${v.worktreeId}-main`}
+      cwd={v.path}
+      providerId={v.agent}
+      autoApprove={
+        Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[v.agent]?.autoApproveFlag)
+      }
+      initialPrompt={
+        agentMeta[v.agent]?.initialPromptFlag !== undefined && !task.metadata?.initialInjectionSent
+          ? (initialInjection ?? undefined)
+          : undefined
+      }
+      keepAlive
+      variant={isDark ? 'dark' : 'light'}
+      themeOverride={
+        v.agent === 'mistral'
+          ? {
+              background:
+                effectiveTheme === 'dark-black' ? '#141820' : isDark ? '#202938' : '#ffffff',
+              selectionBackground: 'rgba(96, 165, 250, 0.35)',
+              selectionForeground: isDark ? '#f9fafb' : '#0f172a',
+            }
+          : effectiveTheme === 'dark-black'
+            ? {
+                background: '#000000',
+                selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                selectionForeground: '#f9fafb',
+              }
+            : undefined
+      }
+      className="h-full w-full"
+      onStartSuccess={() => {
+        // For agents WITHOUT CLI flag support, use keystroke injection
+        if (
+          initialInjection &&
+          !task.metadata?.initialInjectionSent &&
+          agentMeta[v.agent]?.initialPromptFlag === undefined
+        ) {
+          void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
+        }
+        // Mark initial injection as sent so it won't re-run on restart
+        if (initialInjection && !task.metadata?.initialInjectionSent) {
+          void window.electronAPI.saveTask({
+            ...task,
+            metadata: {
+              ...task.metadata,
+              initialInjectionSent: true,
+            },
+          });
+        }
+      }}
+    />
+  );
+
   return (
     <div className="relative flex h-full flex-col">
-      {variants.map((v, idx) => {
-        const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
-        const isActive = idx === activeTabIndex;
-        return (
-          <div
-            key={v.worktreeId}
-            className={`flex-1 overflow-hidden ${isActive ? '' : 'invisible absolute inset-0'}`}
-          >
-            <div className="flex h-full flex-col">
-              <div className="flex items-center justify-end gap-2 px-3 py-1.5">
-                <OpenInMenu path={v.path} />
+      {/* Header with toggle - rendered once outside variant loop */}
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5">
+        {variants.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Switch
+              id="split-view-toggle"
+              checked={splitViewEnabled}
+              onCheckedChange={setSplitViewEnabled}
+            />
+            <Label
+              htmlFor="split-view-toggle"
+              className="cursor-pointer text-xs text-muted-foreground"
+            >
+              Split view
+            </Label>
+          </div>
+        )}
+        {variants.length === 1 && <div />}
+        <OpenInMenu
+          path={variants[splitViewEnabled ? focusedPaneIndex : activeTabIndex]?.path || ''}
+        />
+      </div>
+
+      {/* Tab bar - only in tab mode with multiple agents */}
+      {!splitViewEnabled && variants.length > 1 && (
+        <div className="mt-2 flex items-center justify-center px-4 py-2">
+          <TooltipProvider delayDuration={250}>
+            <div className="flex items-center gap-2">
+              {variants.map((variant, tabIdx) => {
+                const asset = agentAssets[variant.agent];
+                const meta = agentMeta[variant.agent];
+                const isTabActive = tabIdx === activeTabIndex;
+                return (
+                  <Tooltip key={variant.worktreeId}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTabIndex(tabIdx)}
+                        className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all ${
+                          isTabActive
+                            ? 'border-2 border-foreground/30 bg-background text-foreground shadow-sm'
+                            : 'border border-border/50 bg-transparent text-muted-foreground hover:border-border/70 hover:bg-background/50 hover:text-foreground'
+                        }`}
+                      >
+                        {asset?.logo ? (
+                          <img
+                            src={asset.logo}
+                            alt={asset.alt || meta?.label || variant.agent}
+                            className={`h-4 w-4 shrink-0 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                          />
+                        ) : null}
+                        <span>{getVariantDisplayLabel(variant)}</span>
+                        {variantBusy[variant.worktreeId] ? (
+                          <Spinner
+                            size="sm"
+                            className={isTabActive ? 'text-foreground' : 'text-muted-foreground'}
+                          />
+                        ) : null}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{variant.name}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </TooltipProvider>
+        </div>
+      )}
+
+      {/* Content area - conditional rendering based on view mode */}
+      {splitViewEnabled ? (
+        /* SPLIT VIEW: horizontal flex layout */
+        <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto px-4 py-2">
+          {variants.map((v, idx) => {
+            const asset = agentAssets[v.agent];
+            const meta = agentMeta[v.agent];
+            const isFocused = idx === focusedPaneIndex;
+            return (
+              <div
+                key={v.worktreeId}
+                onClick={() => {
+                  setFocusedPaneIndex(idx);
+                  terminalRefsMap.current.get(idx)?.focus();
+                }}
+                className={`flex min-w-[300px] flex-1 cursor-pointer flex-col overflow-hidden rounded-md border-2 transition-colors ${
+                  isFocused ? 'border-primary/60 shadow-sm' : 'border-border/50 hover:border-border'
+                }`}
+              >
+                {/* Compact header with agent badge */}
+                <div className="flex items-center gap-2 border-b border-border/50 px-3 py-1.5">
+                  {asset?.logo ? (
+                    <img
+                      src={asset.logo}
+                      alt={asset.alt || meta?.label || v.agent}
+                      className={`h-4 w-4 shrink-0 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                    />
+                  ) : null}
+                  <span className="text-xs font-medium text-foreground">
+                    {getVariantDisplayLabel(v)}
+                  </span>
+                  {variantBusy[v.worktreeId] ? (
+                    <Spinner size="sm" className="text-muted-foreground" />
+                  ) : null}
+                </div>
+                {/* Terminal pane */}
+                <div
+                  className={`min-h-0 flex-1 overflow-hidden ${
+                    v.agent === 'mistral'
+                      ? isDark
+                        ? 'bg-[#202938]'
+                        : 'bg-white'
+                      : isDark
+                        ? 'bg-card'
+                        : 'bg-white'
+                  }`}
+                >
+                  {renderTerminalPane(v, idx)}
+                </div>
               </div>
-              <div className="mt-2 flex items-center justify-center px-4 py-2">
-                <TooltipProvider delayDuration={250}>
-                  <div className="flex items-center gap-2">
-                    {variants.map((variant, tabIdx) => {
-                      const asset = agentAssets[variant.agent];
-                      const meta = agentMeta[variant.agent];
-                      const isTabActive = tabIdx === activeTabIndex;
-                      return (
-                        <Tooltip key={variant.worktreeId}>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              onClick={() => setActiveTabIndex(tabIdx)}
-                              className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all ${
-                                isTabActive
-                                  ? 'border-2 border-foreground/30 bg-background text-foreground shadow-sm'
-                                  : 'border border-border/50 bg-transparent text-muted-foreground hover:border-border/70 hover:bg-background/50 hover:text-foreground'
-                              }`}
-                            >
-                              {asset?.logo ? (
-                                <img
-                                  src={asset.logo}
-                                  alt={asset.alt || meta?.label || variant.agent}
-                                  className={`h-4 w-4 shrink-0 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
-                                />
-                              ) : null}
-                              <span>{getVariantDisplayLabel(variant)}</span>
-                              {variantBusy[variant.worktreeId] ? (
-                                <Spinner
-                                  size="sm"
-                                  className={
-                                    isTabActive ? 'text-foreground' : 'text-muted-foreground'
-                                  }
-                                />
-                              ) : null}
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{variant.name}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    })}
-                  </div>
-                </TooltipProvider>
-              </div>
-              <div className="min-h-0 flex-1 px-6 pt-4">
+            );
+          })}
+        </div>
+      ) : (
+        /* TAB VIEW: existing single-pane layout */
+        <div className="relative min-h-0 flex-1">
+          {variants.map((v, idx) => {
+            const isActive = idx === activeTabIndex;
+            return (
+              <div
+                key={v.worktreeId}
+                className={`absolute inset-0 px-6 pt-4 ${isActive ? '' : 'invisible'}`}
+              >
                 <div
                   className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                     v.agent === 'mistral'
@@ -501,71 +698,13 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                         : 'bg-white'
                   }`}
                 >
-                  <TerminalPane
-                    ref={isActive ? activeTerminalRef : undefined}
-                    id={`${v.worktreeId}-main`}
-                    cwd={v.path}
-                    providerId={v.agent}
-                    autoApprove={
-                      Boolean(task.metadata?.autoApprove) &&
-                      Boolean(agentMeta[v.agent]?.autoApproveFlag)
-                    }
-                    initialPrompt={
-                      agentMeta[v.agent]?.initialPromptFlag !== undefined &&
-                      !task.metadata?.initialInjectionSent
-                        ? (initialInjection ?? undefined)
-                        : undefined
-                    }
-                    keepAlive
-                    variant={isDark ? 'dark' : 'light'}
-                    themeOverride={
-                      v.agent === 'mistral'
-                        ? {
-                            background:
-                              effectiveTheme === 'dark-black'
-                                ? '#141820'
-                                : isDark
-                                  ? '#202938'
-                                  : '#ffffff',
-                            selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                            selectionForeground: isDark ? '#f9fafb' : '#0f172a',
-                          }
-                        : effectiveTheme === 'dark-black'
-                          ? {
-                              background: '#000000',
-                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                              selectionForeground: '#f9fafb',
-                            }
-                          : undefined
-                    }
-                    className="h-full w-full"
-                    onStartSuccess={() => {
-                      // For agents WITHOUT CLI flag support, use keystroke injection
-                      if (
-                        initialInjection &&
-                        !task.metadata?.initialInjectionSent &&
-                        agentMeta[v.agent]?.initialPromptFlag === undefined
-                      ) {
-                        void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
-                      }
-                      // Mark initial injection as sent so it won't re-run on restart
-                      if (initialInjection && !task.metadata?.initialInjectionSent) {
-                        void window.electronAPI.saveTask({
-                          ...task,
-                          metadata: {
-                            ...task.metadata,
-                            initialInjectionSent: true,
-                          },
-                        });
-                      }
-                    }}
-                  />
+                  {renderTerminalPane(v, idx)}
                 </div>
               </div>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
 
       <div className="px-6 pb-6 pt-4">
         <div className="mx-auto max-w-4xl">
