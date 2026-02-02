@@ -835,6 +835,9 @@ declare global {
       saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
       deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      archiveTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      restoreTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      getArchivedTasks: (projectId?: string) => Promise<any[]>;
 
       // Conversation and Message operations
       saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
@@ -1298,6 +1301,9 @@ export interface ElectronAPI {
   saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  archiveTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  restoreTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  getArchivedTasks: (projectId?: string) => Promise<any[]>;
 
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
