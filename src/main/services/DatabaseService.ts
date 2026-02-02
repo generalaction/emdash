@@ -324,6 +324,7 @@ export class DatabaseService {
       .update(tasksTable)
       .set({
         archivedAt: new Date().toISOString(),
+        status: 'idle', // Reset status since PTY processes are killed on archive
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .where(eq(tasksTable.id, taskId));

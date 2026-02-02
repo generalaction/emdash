@@ -27,6 +27,7 @@ import type { Task } from '../types/chat';
 
 interface LeftSidebarProps {
   projects: Project[];
+  archivedTasksVersion?: number;
   selectedProject: Project | null;
   onSelectProject: (project: Project) => void;
   onGoHome: () => void;
@@ -92,6 +93,7 @@ const MenuItemButton: React.FC<MenuItemButtonProps> = ({
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
   projects,
+  archivedTasksVersion,
   selectedProject,
   onSelectProject,
   onGoHome,
@@ -131,9 +133,13 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     setArchivedTasksByProject(archived);
   }, [projects]);
 
+  // Fetch on mount and when archivedTasksVersion changes (after successful archive from anywhere)
+  // Note: We intentionally don't refetch when projects changes to avoid race conditions
+  // where the optimistic UI update triggers a refetch before the database is updated
   useEffect(() => {
     fetchArchivedTasks();
-  }, [fetchArchivedTasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [archivedTasksVersion]);
 
   // Refresh archived tasks when a task is archived or restored
   const handleRestoreTask = useCallback(

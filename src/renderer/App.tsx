@@ -180,6 +180,7 @@ const AppContent: React.FC = () => {
   const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
   const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [archivedTasksVersion, setArchivedTasksVersion] = useState(0);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
@@ -2252,6 +2253,9 @@ const AppContent: React.FC = () => {
       const { captureTelemetry } = await import('./lib/telemetryClient');
       captureTelemetry('task_archived');
 
+      // Signal sidebar to refresh archived tasks
+      setArchivedTasksVersion((v) => v + 1);
+
       if (!options?.silent) {
         toast({
           title: 'Task archived',
@@ -2740,6 +2744,7 @@ const AppContent: React.FC = () => {
                   >
                     <LeftSidebar
                       projects={projects}
+                      archivedTasksVersion={archivedTasksVersion}
                       selectedProject={selectedProject}
                       onSelectProject={handleSelectProject}
                       onGoHome={handleGoHome}
