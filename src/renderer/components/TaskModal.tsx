@@ -5,6 +5,7 @@ import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
+import { Textarea } from './ui/textarea';
 import { MultiAgentDropdown } from './MultiAgentDropdown';
 import { TaskAdvancedSettings } from './TaskAdvancedSettings';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
@@ -24,6 +25,30 @@ import {
 import BranchSelect, { type BranchOption } from './BranchSelect';
 
 const DEFAULT_AGENT: Agent = 'claude';
+const MAX_AGENT_RUNS = 4;
+
+const normalizeAgentRuns = (
+  value: unknown,
+  fallbackAgent: Agent
+): AgentRun[] => {
+  const items = Array.isArray(value) ? value : [];
+  const seen = new Set<Agent>();
+  const normalized: AgentRun[] = [];
+
+  for (const item of items) {
+    const agent = (item as any)?.agent;
+    if (!isValidProviderId(agent) || seen.has(agent)) continue;
+
+    const rawRuns = Number((item as any)?.runs);
+    const rounded = Number.isFinite(rawRuns) ? Math.round(rawRuns) : 1;
+    const runs = Math.max(1, Math.min(MAX_AGENT_RUNS, rounded));
+
+    normalized.push({ agent, runs });
+    seen.add(agent);
+  }
+
+  return normalized.length ? normalized : [{ agent: fallbackAgent, runs: 1 }];
+};
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -178,10 +203,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
       const agent: Agent = isValidProviderId(settingsAgent)
         ? (settingsAgent as Agent)
         : DEFAULT_AGENT;
-      setAgentRuns([{ agent, runs: 1 }]);
+      const savedRuns = normalizeAgentRuns(settings?.tasks?.lastAgentRuns, agent);
+      setAgentRuns(savedRuns);
 
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
-      setAutoApprove(autoApproveByDefault && !!agentMeta[agent]?.autoApproveFlag);
+      const supportsAutoApprove = savedRuns.every((run) => !!agentMeta[run.agent]?.autoApproveFlag);
+      setAutoApprove(autoApproveByDefault && supportsAutoApprove);
 
       // Handle auto-generate setting
       if (settings?.tasks?.autoGenerateName === false && !userHasTypedRef.current) {
@@ -195,6 +222,22 @@ const TaskModal: React.FC<TaskModalProps> = ({
       cancel = true;
     };
   }, [isOpen]);
+
+  const getInitialPromptPlaceholder = () => {
+    if (!hasInitialPromptSupport) {
+      return 'Selected provider does not support initial prompts';
+    }
+    if (selectedLinearIssue) {
+      return `e.g. Fix the attached Linear ticket ${selectedLinearIssue.identifier} — describe any constraints.`;
+    }
+    if (selectedGithubIssue) {
+      return `e.g. Fix the attached GitHub issue #${selectedGithubIssue.number} — describe any constraints.`;
+    }
+    if (selectedJiraIssue) {
+      return `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`;
+    }
+    return 'e.g. Summarize the key problems and propose a plan.';
+  };
 
   const handleNameChange = (val: string) => {
     setTaskName(val);
@@ -303,6 +346,23 @@ const TaskModal: React.FC<TaskModalProps> = ({
             <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
           </div>
 
+          <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+            <Label htmlFor="initial-prompt" className="pt-2">
+              Initial prompt
+            </Label>
+            <div className="min-w-0 flex-1">
+              <Textarea
+                id="initial-prompt"
+                value={initialPrompt}
+                onChange={(e) => setInitialPrompt(e.target.value)}
+                disabled={!hasInitialPromptSupport}
+                placeholder={getInitialPromptPlaceholder()}
+                className="min-h-[120px] resize-none"
+                rows={5}
+              />
+            </div>
+          </div>
+
           <TaskAdvancedSettings
             isOpen={isOpen}
             projectPath={projectPath}
@@ -311,8 +371,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
             autoApprove={autoApprove}
             onAutoApproveChange={setAutoApprove}
             hasAutoApproveSupport={hasAutoApproveSupport}
-            initialPrompt={initialPrompt}
-            onInitialPromptChange={setInitialPrompt}
             hasInitialPromptSupport={hasInitialPromptSupport}
             selectedLinearIssue={selectedLinearIssue}
             onLinearIssueChange={setSelectedLinearIssue}
