@@ -133,13 +133,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     setArchivedTasksByProject(archived);
   }, [projects]);
 
-  // Fetch on mount and when archivedTasksVersion changes (after successful archive from anywhere)
-  // Note: We intentionally don't refetch when projects changes to avoid race conditions
-  // where the optimistic UI update triggers a refetch before the database is updated
+  // Fetch when projects load or when archivedTasksVersion changes (after successful archive)
+  // We use projects.length (not projects) to avoid race conditions where optimistic
+  // task removal triggers a refetch before the database is updated
   useEffect(() => {
-    fetchArchivedTasks();
+    if (projects.length > 0) {
+      fetchArchivedTasks();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [archivedTasksVersion]);
+  }, [projects.length, archivedTasksVersion]);
 
   // Refresh archived tasks when a task is archived or restored
   const handleRestoreTask = useCallback(
