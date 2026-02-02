@@ -68,35 +68,51 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            toggleEditor?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            newTask?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            nextAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            prevAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
           };
           interface?: {
@@ -128,35 +144,51 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            toggleEditor?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            newTask?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            nextAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            prevAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
           };
           interface?: {
@@ -187,35 +219,51 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            toggleEditor?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            newTask?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            nextAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            prevAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
           };
           interface?: {

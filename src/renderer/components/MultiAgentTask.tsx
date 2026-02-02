@@ -364,6 +364,29 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     }
   }, [task.id, activeTabIndex, variants.length, scrollToBottom]);
 
+  // Switch active agent tab via global shortcuts (Cmd+Shift+J/K)
+  useEffect(() => {
+    const handleAgentSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
+      if (variants.length <= 1) return;
+      const direction = customEvent.detail?.direction;
+      if (!direction) return;
+
+      setActiveTabIndex((current) => {
+        if (variants.length <= 1) return current;
+        if (direction === 'prev') {
+          return current <= 0 ? variants.length - 1 : current - 1;
+        }
+        return (current + 1) % variants.length;
+      });
+    };
+
+    window.addEventListener('emdash:switch-agent', handleAgentSwitch);
+    return () => {
+      window.removeEventListener('emdash:switch-agent', handleAgentSwitch);
+    };
+  }, [variants.length]);
+
   if (!multi?.enabled) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

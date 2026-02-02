@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { ArrowBigUp, Command, RotateCcw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from '../hooks/use-toast';
@@ -25,6 +25,8 @@ const formatModifier = (modifier: ShortcutModifier | undefined): string => {
   switch (modifier) {
     case 'cmd':
       return '⌘';
+    case 'cmd+shift':
+      return '⌘⇧';
     case 'ctrl':
       return 'Ctrl';
     case 'alt':
@@ -45,12 +47,45 @@ const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) =>
   else if (displayKey === 'ArrowDown') displayKey = '↓';
   else displayKey = displayKey.toUpperCase();
 
-  return (
-    <span className="flex items-center gap-1">
-      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+  const kbdBase = 'flex h-6 min-w-6 items-center justify-center rounded bg-muted px-1.5 text-xs';
+
+  // Split compound modifiers into separate kbd elements
+  const modifierElements: React.ReactNode[] = [];
+  if (binding.modifier === 'cmd+shift') {
+    modifierElements.push(
+      <kbd key="cmd" className={kbdBase}>
+        <Command className="h-3 w-3" />
+      </kbd>
+    );
+    modifierElements.push(
+      <kbd key="shift" className={kbdBase}>
+        <ArrowBigUp className="h-3 w-3" />
+      </kbd>
+    );
+  } else if (binding.modifier === 'cmd') {
+    modifierElements.push(
+      <kbd key="cmd" className={kbdBase}>
+        <Command className="h-3 w-3" />
+      </kbd>
+    );
+  } else if (binding.modifier === 'shift') {
+    modifierElements.push(
+      <kbd key="shift" className={kbdBase}>
+        <ArrowBigUp className="h-3 w-3" />
+      </kbd>
+    );
+  } else if (binding.modifier) {
+    modifierElements.push(
+      <kbd key="mod" className={`${kbdBase} font-mono`}>
         {formatModifier(binding.modifier)}
       </kbd>
-      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{displayKey}</kbd>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1">
+      {modifierElements}
+      <kbd className={`${kbdBase} font-mono`}>{displayKey}</kbd>
     </span>
   );
 };
@@ -161,10 +196,17 @@ const KeyboardSettingsCard: React.FC = () => {
 
       // Determine which modifier is pressed
       let modifier: ShortcutModifier | null = null;
-      if (event.metaKey) modifier = 'cmd';
-      else if (event.ctrlKey) modifier = 'ctrl';
-      else if (event.altKey) modifier = 'alt';
-      else if (event.shiftKey) modifier = 'shift';
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
+        modifier = 'cmd+shift';
+      } else if (event.metaKey) {
+        modifier = 'cmd';
+      } else if (event.ctrlKey) {
+        modifier = 'ctrl';
+      } else if (event.altKey) {
+        modifier = 'alt';
+      } else if (event.shiftKey) {
+        modifier = 'shift';
+      }
 
       // Ignore if only modifier key pressed (no actual key)
       const isModifierOnly = ['Meta', 'Control', 'Alt', 'Shift'].includes(event.key);
