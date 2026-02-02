@@ -62,28 +62,6 @@ jobs:
       - name: Build app (ts + vite)
         run: npm run build
 
-      - name: Rebuild native modules (per-arch)
-        run: |
-          set -euo pipefail
-          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          ARCH_INPUT="${{ github.event.inputs.arch }}"
-          if [ -z "$ARCH_INPUT" ] || [ "$ARCH_INPUT" = "both" ]; then ARGS=(x64 arm64); else ARGS=("$ARCH_INPUT"); fi
-          echo "Rebuilding sqlite3,node-pty,keytar for Electron $ELECTRON_VERSION: ${ARGS[*]}"
-          for A in "${ARGS[@]}"; do
-            npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
-          done
-
-      - name: Rebuild native modules (per-arch)
-        run: |
-          set -euo pipefail
-          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          ARCH_INPUT="${{ github.event.inputs.arch }}"
-          if [ -z "$ARCH_INPUT" ] || [ "$ARCH_INPUT" = "both" ]; then ARGS=(x64 arm64); else ARGS=("$ARCH_INPUT"); fi
-          echo "Rebuilding sqlite3,node-pty,keytar for Electron $ELECTRON_VERSION: ${ARGS[*]}"
-          for A in "${ARGS[@]}"; do
-            npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
-          done
-
       - name: Inject PostHog config (dev build job)
         env:
           PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
@@ -109,18 +87,65 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
+          set -euo pipefail
           ARCH_INPUT="${{ github.event.inputs.arch }}"
           if [ -z "$ARCH_INPUT" ] || [ "$ARCH_INPUT" = "both" ]; then
-            FLAGS="--x64 --arm64"
+            ARCHS=(x64 arm64)
           elif [ "$ARCH_INPUT" = "arm64" ]; then
-            FLAGS="--arm64"
+            ARCHS=(arm64)
           elif [ "$ARCH_INPUT" = "x64" ]; then
-            FLAGS="--x64"
+            ARCHS=(x64)
           else
             echo "Unknown arch input: $ARCH_INPUT" && exit 1
           fi
-          echo "Building for: $FLAGS"
-          npx electron-builder --mac dmg $FLAGS --publish never --config.npmRebuild=false
+          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
+          # Build each architecture separately to ensure native modules match.
+          # Building both at once with --x64 --arm64 would use the same node_modules/
+          # for both, causing architecture mismatches (issue #706).
+          for A in "${ARCHS[@]}"; do
+            echo "=== Building for $A ==="
+            echo "Rebuilding native modules for $A (Electron $ELECTRON_VERSION)"
+            npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
+            echo "Packaging $A DMG"
+            npx electron-builder --mac dmg --$A --publish never --config.npmRebuild=false
+          done
+
+      - name: Verify native module architectures match Electron
+        run: |
+          set -euo pipefail
+          # Verify that each build has native modules matching its Electron binary architecture.
+          # This catches issues like #706 where x64 builds had arm64 native modules.
+          for APP_DIR in release/mac-*/emdash.app; do
+            [ -d "$APP_DIR" ] || continue
+            ARCH_DIR=$(basename "$(dirname "$APP_DIR")")
+            case "$ARCH_DIR" in
+              mac-arm64) EXPECTED_ARCH="arm64" ;;
+              mac-x64|mac)  EXPECTED_ARCH="x86_64" ;;
+              *) echo "Unknown arch dir: $ARCH_DIR"; continue ;;
+            esac
+            echo "=== Checking $APP_DIR (expected: $EXPECTED_ARCH) ==="
+            ELECTRON_BIN="$APP_DIR/Contents/MacOS/emdash"
+            SQLITE_NODE="$APP_DIR/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node"
+            # Check Electron binary architecture
+            ELECTRON_ARCH=$(file "$ELECTRON_BIN" | grep -o 'arm64\|x86_64' | head -1)
+            echo "Electron binary: $ELECTRON_ARCH"
+            if [ "$ELECTRON_ARCH" != "$EXPECTED_ARCH" ]; then
+              echo "::error::Electron arch mismatch: got $ELECTRON_ARCH, expected $EXPECTED_ARCH"
+              exit 1
+            fi
+            # Check sqlite3 native module architecture
+            if [ -f "$SQLITE_NODE" ]; then
+              SQLITE_ARCH=$(file "$SQLITE_NODE" | grep -o 'arm64\|x86_64' | head -1)
+              echo "sqlite3 native module: $SQLITE_ARCH"
+              if [ "$SQLITE_ARCH" != "$EXPECTED_ARCH" ]; then
+                echo "::error::sqlite3 arch mismatch: got $SQLITE_ARCH, expected $EXPECTED_ARCH"
+                exit 1
+              fi
+            else
+              echo "::warning::sqlite3 native module not found at $SQLITE_NODE"
+            fi
+          done
+          echo "All architecture checks passed"
 
       - name: Smoke test sqlite3 in packaged app (arm64)
         if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
@@ -322,6 +347,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           # Guard against legacy env vars overriding cert-import flow
           unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME
           # Force Apple ID notarization for the app build to avoid bad APPLE_API_KEY paths
@@ -331,30 +357,62 @@ jobs:
           echo "App notarization method: Apple ID (TEAM_ID=$TEAM_ID)"
           ARCH_INPUT="${{ github.event.inputs.arch }}"
           if [ -z "$ARCH_INPUT" ] || [ "$ARCH_INPUT" = "both" ]; then
-            FLAGS="--x64 --arm64"
+            ARCHS=(x64 arm64)
           elif [ "$ARCH_INPUT" = "arm64" ]; then
-            FLAGS="--arm64"
+            ARCHS=(arm64)
           elif [ "$ARCH_INPUT" = "x64" ]; then
-            FLAGS="--x64"
+            ARCHS=(x64)
           else
             echo "Unknown arch input: $ARCH_INPUT" && exit 1
           fi
-          # Rebuild native modules per-arch before packaging
           ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          for flag in $FLAGS; do
-            case "$flag" in
-              --x64)  A=x64 ;;
-              --arm64) A=arm64 ;;
-              *) continue ;;
-            esac
-            echo "electron-rebuild for $A (Electron $ELECTRON_VERSION)"
+          # Build each architecture separately to ensure native modules match.
+          # Building both at once with --x64 --arm64 would use the same node_modules/
+          # for both, causing architecture mismatches (issue #706).
+          for A in "${ARCHS[@]}"; do
+            echo "=== Building for $A ==="
+            echo "Rebuilding native modules for $A (Electron $ELECTRON_VERSION)"
             npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
+            echo "Packaging $A DMG and ZIP"
+            npx electron-builder --mac dmg zip --$A --publish never --config.npmRebuild=false
           done
-          echo "Building signed for: $FLAGS"
-          # Build signed + notarized artifacts locally but DO NOT publish yet.
-          # We will staple and validate before uploading to the GitHub Release.
-          # Build both dmg (for manual download) and zip (for auto-update)
-          npx electron-builder --mac dmg zip $FLAGS --publish never --config.npmRebuild=false
+
+      - name: Verify native module architectures match Electron
+        run: |
+          set -euo pipefail
+          # Verify that each build has native modules matching its Electron binary architecture.
+          # This catches issues like #706 where x64 builds had arm64 native modules.
+          for APP_DIR in release/mac-*/emdash.app; do
+            [ -d "$APP_DIR" ] || continue
+            ARCH_DIR=$(basename "$(dirname "$APP_DIR")")
+            case "$ARCH_DIR" in
+              mac-arm64) EXPECTED_ARCH="arm64" ;;
+              mac-x64|mac)  EXPECTED_ARCH="x86_64" ;;
+              *) echo "Unknown arch dir: $ARCH_DIR"; continue ;;
+            esac
+            echo "=== Checking $APP_DIR (expected: $EXPECTED_ARCH) ==="
+            ELECTRON_BIN="$APP_DIR/Contents/MacOS/emdash"
+            SQLITE_NODE="$APP_DIR/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node"
+            # Check Electron binary architecture
+            ELECTRON_ARCH=$(file "$ELECTRON_BIN" | grep -o 'arm64\|x86_64' | head -1)
+            echo "Electron binary: $ELECTRON_ARCH"
+            if [ "$ELECTRON_ARCH" != "$EXPECTED_ARCH" ]; then
+              echo "::error::Electron arch mismatch: got $ELECTRON_ARCH, expected $EXPECTED_ARCH"
+              exit 1
+            fi
+            # Check sqlite3 native module architecture
+            if [ -f "$SQLITE_NODE" ]; then
+              SQLITE_ARCH=$(file "$SQLITE_NODE" | grep -o 'arm64\|x86_64' | head -1)
+              echo "sqlite3 native module: $SQLITE_ARCH"
+              if [ "$SQLITE_ARCH" != "$EXPECTED_ARCH" ]; then
+                echo "::error::sqlite3 arch mismatch: got $SQLITE_ARCH, expected $EXPECTED_ARCH"
+                exit 1
+              fi
+            else
+              echo "::warning::sqlite3 native module not found at $SQLITE_NODE"
+            fi
+          done
+          echo "All architecture checks passed"
 
       - name: Smoke test sqlite3 in packaged app (arm64, signed)
         if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
