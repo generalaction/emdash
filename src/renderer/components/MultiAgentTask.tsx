@@ -35,6 +35,22 @@ type Variant = {
 };
 
 const splitViewStorageKey = (taskId: string) => `emdash:multiAgentSplitView:${taskId}`;
+const activeTabStorageKey = (taskId: string) => `emdash:multiAgentActiveTab:${taskId}`;
+
+const readActiveTabIndex = (taskId: string, variantCount: number): number => {
+  try {
+    const stored = localStorage.getItem(activeTabStorageKey(taskId));
+    if (stored !== null) {
+      const idx = parseInt(stored, 10);
+      if (!isNaN(idx) && idx >= 0 && idx < variantCount) {
+        return idx;
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return 0;
+};
 
 const readSplitViewPreference = (task: Task): boolean => {
   const fromMeta = task.metadata?.multiAgent?.splitViewEnabled;
@@ -52,20 +68,36 @@ const readSplitViewPreference = (task: Task): boolean => {
 const MultiAgentTask: React.FC<Props> = ({ task }) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const multi = task.metadata?.multiAgent;
+  const variants = (multi?.variants || []) as Variant[];
+  const [activeTabIndex, setActiveTabIndex] = useState(() =>
+    readActiveTabIndex(task.id, variants.length)
+  );
   const [splitViewEnabled, setSplitViewEnabled] = useState<boolean>(() =>
     readSplitViewPreference(task)
   );
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
-  const multi = task.metadata?.multiAgent;
-  const variants = (multi?.variants || []) as Variant[];
 
   useEffect(() => {
     setSplitViewEnabled(readSplitViewPreference(task));
   }, [task.id, task.metadata?.multiAgent?.splitViewEnabled]);
 
+  // Restore active tab when switching tasks
   useEffect(() => {
-    if (activeTabIndex >= variants.length) {
+    setActiveTabIndex(readActiveTabIndex(task.id, variants.length));
+  }, [task.id, variants.length]);
+
+  // Persist active tab when it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(activeTabStorageKey(task.id), String(activeTabIndex));
+    } catch {
+      // ignore storage errors
+    }
+  }, [task.id, activeTabIndex]);
+
+  useEffect(() => {
+    if (activeTabIndex >= variants.length && variants.length > 0) {
       setActiveTabIndex(0);
     }
   }, [activeTabIndex, variants.length]);
