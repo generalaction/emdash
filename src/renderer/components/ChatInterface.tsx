@@ -94,7 +94,7 @@ const ChatInterface: React.FC<Props> = ({
   const { formatted: commentsContext } = useTaskComments(task.id);
 
   // Auto-scroll to bottom when this task becomes active
-  useAutoScrollOnTaskSwitch(true, task.id);
+  const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
 
   // Load conversations when task changes
   useEffect(() => {
@@ -518,6 +518,15 @@ const ChatInterface: React.FC<Props> = ({
     }
     prevAgentRef.current = agent;
   }, [agent]);
+
+  // When switching agents/conversations, keep the terminal view pinned to the bottom
+  // if the user was already near the bottom.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      scrollToBottom({ onlyIfNearBottom: true });
+    }, 150);
+    return () => clearTimeout(timeout);
+  }, [agent, activeConversationId, scrollToBottom]);
 
   useEffect(() => {
     const installed = currentAgentStatus?.installed === true;

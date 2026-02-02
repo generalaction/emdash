@@ -5,10 +5,10 @@ import { useEffect, useRef, useCallback } from 'react';
  */
 type ScrollOptions = {
   /**
-   * Only scroll if the user is already near the top of the pane (avoids yanking them
+   * Only scroll if the user is already near the bottom of the pane (avoids yanking them
    * away from where they were reading).
    */
-  onlyIfNearTop?: boolean;
+  onlyIfNearBottom?: boolean;
 };
 
 export function useAutoScrollOnTaskSwitch(isActive: boolean, taskId: string | null) {
@@ -16,7 +16,7 @@ export function useAutoScrollOnTaskSwitch(isActive: boolean, taskId: string | nu
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = useCallback((options: ScrollOptions = {}) => {
-    const { onlyIfNearTop = true } = options;
+    const { onlyIfNearBottom = true } = options;
 
     // Restrict to terminal panes so we don't accidentally scroll unrelated panels.
     const selectors = [
@@ -35,10 +35,12 @@ export function useAutoScrollOnTaskSwitch(isActive: boolean, taskId: string | nu
         container.getClientRects().length > 0 &&
         container.clientHeight > 0;
       const hasScrollableContent = container.scrollHeight > container.clientHeight;
-      const nearTop = container.scrollTop <= 32;
+      const distanceFromBottom =
+        container.scrollHeight - (container.scrollTop + container.clientHeight);
+      const nearBottom = distanceFromBottom <= 32;
 
       if (!isVisible || !hasScrollableContent) return;
-      if (onlyIfNearTop && !nearTop) return;
+      if (onlyIfNearBottom && !nearBottom) return;
 
       container.scrollTo({
         top: container.scrollHeight,
@@ -69,7 +71,7 @@ export function useAutoScrollOnTaskSwitch(isActive: boolean, taskId: string | nu
 
       // Delay scroll to allow content to render
       scrollTimeoutRef.current = setTimeout(() => {
-        scrollToBottom({ onlyIfNearTop: false });
+        scrollToBottom({ onlyIfNearBottom: false });
       }, 200);
     }
 
