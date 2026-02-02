@@ -145,7 +145,8 @@ export class TerminalSessionManager {
           event.stopPropagation();
 
           // Send Ctrl+J (line feed) instead of Shift+Enter
-          this.handleTerminalInput(CTRL_J_ASCII);
+          // Pass true to skip injection handling - this is a newline insert, not a submit
+          this.handleTerminalInput(CTRL_J_ASCII, true);
           return false; // Prevent xterm from processing the Shift+Enter
         }
         return true; // Let xterm handle all other keys normally
@@ -312,7 +313,7 @@ export class TerminalSessionManager {
     };
   }
 
-  private handleTerminalInput(data: string) {
+  private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
     this.emitActivity();
     if (this.disposed) return;
 
@@ -321,18 +322,18 @@ export class TerminalSessionManager {
     const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
     if (!filtered) return;
 
-    // Track command execution when Enter is pressed
+    // Track command execution when Enter is pressed (but not for newline inserts)
     const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
-    if (isEnterPress) {
+    if (isEnterPress && !isNewlineInsert) {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
         captureTelemetry('terminal_command_executed');
       })();
     }
 
-    // Check for pending injection text when Enter is pressed
+    // Check for pending injection text when Enter is pressed (but not for newline inserts)
     const pendingText = pendingInjectionManager.getPending();
-    if (pendingText && isEnterPress) {
+    if (pendingText && isEnterPress && !isNewlineInsert) {
       // Append pending text to the existing input and keep the prior working behavior.
       const stripped = filtered.replace(/[\r\n]+$/g, '');
       const enterSequence = filtered.includes('\r') ? '\r' : '\n';
