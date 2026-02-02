@@ -445,7 +445,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     if (variants.length > 0 && activeTabIndex >= 0 && activeTabIndex < variants.length) {
       // Small delay to ensure the tab content is rendered
       const timeout = setTimeout(() => {
-        scrollToBottom({ onlyIfNearTop: true });
+        scrollToBottom({ onlyIfNearBottom: true });
         // Focus the active terminal when switching tabs
         focusVariantByIndex(activeTabIndex);
       }, 150);
