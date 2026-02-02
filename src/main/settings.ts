@@ -62,6 +62,7 @@ export interface AppSettings {
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    lastAgentRuns?: Array<{ agent: ProviderId; runs: number }>;
   };
   projects?: {
     defaultDirectory: string;
@@ -96,6 +97,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    lastAgentRuns: [{ agent: DEFAULT_PROVIDER_ID, runs: 1 }],
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
@@ -255,12 +257,43 @@ function normalizeSettings(input: AppSettings): AppSettings {
     ? defaultProvider
     : DEFAULT_SETTINGS.defaultProvider!;
 
+  const normalizeAgentRuns = (
+    value: any,
+    fallbackAgent: ProviderId
+  ): Array<{ agent: ProviderId; runs: number }> => {
+    const items = Array.isArray(value) ? value : [];
+    const seen = new Set<ProviderId>();
+    const normalized: Array<{ agent: ProviderId; runs: number }> = [];
+
+    for (const item of items) {
+      const agent = (item as any)?.agent;
+      if (!isValidProviderId(agent) || seen.has(agent)) continue;
+
+      const rawRuns = Number((item as any)?.runs);
+      const rounded = Number.isFinite(rawRuns) ? Math.round(rawRuns) : 1;
+      const runs = Math.max(1, Math.min(4, rounded));
+
+      normalized.push({ agent, runs });
+      seen.add(agent);
+    }
+
+    if (!normalized.length) {
+      normalized.push({ agent: fallbackAgent, runs: 1 });
+    }
+
+    return normalized;
+  };
+
   // Tasks
   const tasks = (input as any)?.tasks || {};
   out.tasks = {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
+    ),
+    lastAgentRuns: normalizeAgentRuns(
+      tasks?.lastAgentRuns,
+      out.defaultProvider || DEFAULT_PROVIDER_ID
     ),
   };
 

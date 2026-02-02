@@ -5,7 +5,6 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
-import { Textarea } from './ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { LinearIssueSelector } from './LinearIssueSelector';
 import { GitHubIssueSelector } from './GitHubIssueSelector';
@@ -30,9 +29,7 @@ interface TaskAdvancedSettingsProps {
   onAutoApproveChange: (value: boolean) => void;
   hasAutoApproveSupport: boolean;
 
-  // Initial prompt
-  initialPrompt: string;
-  onInitialPromptChange: (value: string) => void;
+  // Initial prompt support (used for issue selectors)
   hasInitialPromptSupport: boolean;
 
   // Linear
@@ -65,8 +62,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   autoApprove,
   onAutoApproveChange,
   hasAutoApproveSupport,
-  initialPrompt,
-  onInitialPromptChange,
   hasInitialPromptSupport,
   selectedLinearIssue,
   onLinearIssueChange,
@@ -164,22 +159,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     },
     [onJiraIssueChange, onLinearIssueChange, onGithubIssueChange]
   );
-
-  const getInitialPromptPlaceholder = () => {
-    if (!hasInitialPromptSupport) {
-      return 'Selected provider does not support initial prompts';
-    }
-    if (selectedLinearIssue) {
-      return `e.g. Fix the attached Linear ticket ${selectedLinearIssue.identifier} — describe any constraints.`;
-    }
-    if (selectedGithubIssue) {
-      return `e.g. Fix the attached GitHub issue #${selectedGithubIssue.number} — describe any constraints.`;
-    }
-    if (selectedJiraIssue) {
-      return `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`;
-    }
-    return 'e.g. Summarize the key problems and propose a plan.';
-  };
 
   return (
     <>
@@ -395,22 +374,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
               </div>
             </div>
 
-            <div className="flex items-start gap-4 p-2">
-              <Label htmlFor="initial-prompt" className="w-32 shrink-0">
-                Initial prompt
-              </Label>
-              <div className="min-w-0 flex-1">
-                <Textarea
-                  id="initial-prompt"
-                  value={initialPrompt}
-                  onChange={(e) => onInitialPromptChange(e.target.value)}
-                  disabled={!hasInitialPromptSupport}
-                  placeholder={getInitialPromptPlaceholder()}
-                  className="resize-none"
-                  rows={3}
-                />
-              </div>
-            </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
