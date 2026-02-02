@@ -352,7 +352,6 @@ declare global {
         projectPath: string;
         taskName: string;
         projectId: string;
-        autoApprove?: boolean;
         baseRef?: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
@@ -395,7 +394,6 @@ declare global {
         projectPath: string;
         taskName: string;
         baseRef?: string;
-        autoApprove?: boolean;
       }) => Promise<{
         success: boolean;
         worktree?: any;
@@ -837,6 +835,9 @@ declare global {
       saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
       deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      archiveTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      restoreTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      getArchivedTasks: (projectId?: string) => Promise<any[]>;
 
       // Conversation and Message operations
       saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
@@ -994,7 +995,6 @@ export interface ElectronAPI {
     projectPath: string;
     taskName: string;
     projectId: string;
-    autoApprove?: boolean;
     baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
@@ -1037,7 +1037,6 @@ export interface ElectronAPI {
     projectPath: string;
     taskName: string;
     baseRef?: string;
-    autoApprove?: boolean;
   }) => Promise<{
     success: boolean;
     worktree?: any;
@@ -1302,6 +1301,9 @@ export interface ElectronAPI {
   saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  archiveTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  restoreTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  getArchivedTasks: (projectId?: string) => Promise<any[]>;
 
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;

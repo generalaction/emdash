@@ -116,7 +116,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
     taskName: string;
     projectId: string;
-    autoApprove?: boolean;
+    baseRef?: string;
   }) => ipcRenderer.invoke('worktree:create', args),
   worktreeList: (args: { projectPath: string }) => ipcRenderer.invoke('worktree:list', args),
   worktreeRemove: (args: {
@@ -142,7 +142,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
     taskName: string;
     baseRef?: string;
-    autoApprove?: boolean;
   }) => ipcRenderer.invoke('worktree:claimReserve', args),
   worktreeRemoveReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:removeReserve', args),
@@ -338,6 +337,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTask: (task: any) => ipcRenderer.invoke('db:saveTask', task),
   deleteProject: (projectId: string) => ipcRenderer.invoke('db:deleteProject', projectId),
   deleteTask: (taskId: string) => ipcRenderer.invoke('db:deleteTask', taskId),
+  archiveTask: (taskId: string) => ipcRenderer.invoke('db:archiveTask', taskId),
+  restoreTask: (taskId: string) => ipcRenderer.invoke('db:restoreTask', taskId),
+  getArchivedTasks: (projectId?: string) => ipcRenderer.invoke('db:getArchivedTasks', projectId),
 
   // Conversation management
   saveConversation: (conversation: any) => ipcRenderer.invoke('db:saveConversation', conversation),
@@ -512,7 +514,7 @@ export interface ElectronAPI {
     projectPath: string;
     taskName: string;
     projectId: string;
-    autoApprove?: boolean;
+    baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
     projectPath: string;

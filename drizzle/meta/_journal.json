@@ -57,6 +57,13 @@
       "when": 1765592430359,
       "tag": "0007_add_is_main_to_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1765592430360,
+      "tag": "0008_add_archived_at_to_tasks",
+      "breakpoints": true
     }
   ]
 }

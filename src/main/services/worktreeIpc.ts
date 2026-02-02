@@ -12,7 +12,6 @@ export function registerWorktreeIpc(): void {
         projectPath: string;
         taskName: string;
         projectId: string;
-        autoApprove?: boolean;
         baseRef?: string;
       }
     ) => {
@@ -21,7 +20,6 @@ export function registerWorktreeIpc(): void {
           args.projectPath,
           args.taskName,
           args.projectId,
-          args.autoApprove,
           args.baseRef
         );
         return { success: true, worktree };
@@ -166,7 +164,6 @@ export function registerWorktreeIpc(): void {
         projectPath: string;
         taskName: string;
         baseRef?: string;
-        autoApprove?: boolean;
       }
     ) => {
       try {
@@ -174,8 +171,7 @@ export function registerWorktreeIpc(): void {
           args.projectId,
           args.projectPath,
           args.taskName,
-          args.baseRef,
-          args.autoApprove
+          args.baseRef
         );
         if (result) {
           return {
