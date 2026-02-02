@@ -62,7 +62,9 @@ optional_env:
 - `upstream` = `https://github.com/generalaction/emdash.git` (fetch-only; push URL disabled).
 - Keep local tag `main` deleted to avoid ref ambiguity; if it reappears, push main via `git push origin refs/heads/main`.
 - Pull upstream changes via `git fetch upstream` then `git rebase upstream/main` (or merge), and push the result to `origin`.
-- Dotfiles `bo()` (branch-open) now prefers `cschubiner/*` push remotes when building compare URLs.
+- PRs and compare URLs must target `cschubiner/emdash` only; never open PRs against `generalaction/emdash`.
+- Dotfiles `bo()` (branch-open) prefers `cschubiner/*` push remotes when building compare URLs.
+- `remote.pushDefault` is set to `origin` for this repo.
 
 **Pre-PR Checklist**
 - [ ] Dev server runs: `npm run d` (or `npm run dev`) starts cleanly.
