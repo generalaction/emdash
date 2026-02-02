@@ -35,7 +35,7 @@ export function createMainWindow(): BrowserWindow {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    mainWindow.loadURL('http://localhost:5173');
   } else {
     // Serve renderer over an HTTP origin in production so embeds work.
     const rendererRoot = join(__dirname, '..', '..', '..', 'renderer');
