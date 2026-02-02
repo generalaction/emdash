@@ -93,7 +93,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['gemini'],
     versionArgs: ['--version'],
     cli: 'gemini',
-    autoApproveFlag: '--yolomode',
+    autoApproveFlag: '--yolo',
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
     icon: 'gemini.png',
