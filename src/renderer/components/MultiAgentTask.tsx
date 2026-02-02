@@ -350,6 +350,30 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
   // Ref to the active terminal
   const activeTerminalRef = useRef<{ focus: () => void }>(null);
 
+  // Re-focus terminal when the app regains focus (e.g., Cmd+Tab back)
+  useEffect(() => {
+    let timeout: number | null = null;
+    const handleFocus = () => {
+      if (timeout) window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => {
+        if (!document.hasFocus()) return;
+        const active = document.activeElement;
+        const isBodyFocus =
+          !active || active === document.body || active === document.documentElement;
+        if (!isBodyFocus) return;
+        if (document.querySelector('[aria-modal="true"]')) return;
+        activeTerminalRef.current?.focus();
+      }, 60);
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (timeout) window.clearTimeout(timeout);
+    };
+  }, []);
+
   // Auto-scroll and focus when task or active tab changes
   useEffect(() => {
     if (variants.length > 0 && activeTabIndex >= 0 && activeTabIndex < variants.length) {
