@@ -1358,7 +1358,6 @@ const AppContent: React.FC = () => {
                     projectPath: selectedProject.path,
                     taskName: variantName,
                     projectId: selectedProject.id,
-                    autoApprove,
                     baseRef,
                   });
                   if (!worktreeResult?.success || !worktreeResult.worktree) {
@@ -1499,7 +1498,6 @@ const AppContent: React.FC = () => {
             projectPath: selectedProject.path,
             taskName,
             baseRef,
-            autoApprove,
           });
 
           if (claimResult.success && claimResult.worktree) {
@@ -1521,7 +1519,6 @@ const AppContent: React.FC = () => {
               projectPath: selectedProject.path,
               taskName,
               projectId: selectedProject.id,
-              autoApprove,
               baseRef,
             });
 

@@ -50,7 +50,7 @@ declare global {
         projectPath: string;
         taskName: string;
         projectId: string;
-        autoApprove?: boolean;
+        baseRef?: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
         projectPath: string;
@@ -87,7 +87,6 @@ declare global {
         projectPath: string;
         taskName: string;
         baseRef?: string;
-        autoApprove?: boolean;
       }) => Promise<{
         success: boolean;
         worktree?: any;
