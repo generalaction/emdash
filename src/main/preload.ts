@@ -116,7 +116,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
     taskName: string;
     projectId: string;
-    autoApprove?: boolean;
+    baseRef?: string;
   }) => ipcRenderer.invoke('worktree:create', args),
   worktreeList: (args: { projectPath: string }) => ipcRenderer.invoke('worktree:list', args),
   worktreeRemove: (args: {
@@ -142,7 +142,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
     taskName: string;
     baseRef?: string;
-    autoApprove?: boolean;
   }) => ipcRenderer.invoke('worktree:claimReserve', args),
   worktreeRemoveReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:removeReserve', args),
@@ -512,7 +511,7 @@ export interface ElectronAPI {
     projectPath: string;
     taskName: string;
     projectId: string;
-    autoApprove?: boolean;
+    baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
     projectPath: string;
