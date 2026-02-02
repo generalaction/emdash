@@ -19,7 +19,7 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
 
   // Intercept navigations that would leave the app
   wc.on('will-navigate', (event, url) => {
-    const isAppUrl = isDev ? url.startsWith('http://localhost:3000') : url.startsWith('file://');
+    const isAppUrl = isDev ? url.startsWith('http://localhost:5173') : url.startsWith('file://');
     if (!isAppUrl && /^https?:\/\//i.test(url)) {
       event.preventDefault();
       shell.openExternal(url);
