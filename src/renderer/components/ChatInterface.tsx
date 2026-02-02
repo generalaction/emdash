@@ -160,6 +160,38 @@ const ChatInterface: React.FC<Props> = ({
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
 
+  const focusTerminalIfIdle = useCallback(() => {
+    const active = document.activeElement;
+    const isBodyFocus = !active || active === document.body || active === document.documentElement;
+    if (!isBodyFocus) return;
+    if (document.querySelector('[aria-modal="true"]')) return;
+    const session = terminalSessionRegistry.getSession(terminalId);
+    if (session) {
+      session.focus();
+      return;
+    }
+    terminalRef.current?.focus();
+  }, [terminalId]);
+
+  // Re-focus terminal when the app regains focus (e.g., Cmd+Tab back)
+  useEffect(() => {
+    let timeout: number | null = null;
+    const handleFocus = () => {
+      if (timeout) window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => {
+        if (!document.hasFocus()) return;
+        focusTerminalIfIdle();
+      }, 60);
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (timeout) window.clearTimeout(timeout);
+    };
+  }, [focusTerminalIfIdle]);
+
   // Auto-focus terminal when switching to this task
   useEffect(() => {
     // Small delay to ensure terminal is mounted and attached
