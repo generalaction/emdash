@@ -115,6 +115,7 @@ jobs:
           set -euo pipefail
           # Verify that each build has native modules matching its Electron binary architecture.
           # This catches issues like #706 where x64 builds had arm64 native modules.
+          VERIFIED_COUNT=0
           for APP_DIR in release/mac-*/emdash.app; do
             [ -d "$APP_DIR" ] || continue
             ARCH_DIR=$(basename "$(dirname "$APP_DIR")")
@@ -144,8 +145,13 @@ jobs:
             else
               echo "::warning::sqlite3 native module not found at $SQLITE_NODE"
             fi
+            VERIFIED_COUNT=$((VERIFIED_COUNT + 1))
           done
-          echo "All architecture checks passed"
+          if [ "$VERIFIED_COUNT" -eq 0 ]; then
+            echo "::error::No app bundles found to verify"
+            exit 1
+          fi
+          echo "Verified $VERIFIED_COUNT app bundle(s)"
 
       - name: Smoke test sqlite3 in packaged app (arm64)
         if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
@@ -382,6 +388,7 @@ jobs:
           set -euo pipefail
           # Verify that each build has native modules matching its Electron binary architecture.
           # This catches issues like #706 where x64 builds had arm64 native modules.
+          VERIFIED_COUNT=0
           for APP_DIR in release/mac-*/emdash.app; do
             [ -d "$APP_DIR" ] || continue
             ARCH_DIR=$(basename "$(dirname "$APP_DIR")")
@@ -411,8 +418,13 @@ jobs:
             else
               echo "::warning::sqlite3 native module not found at $SQLITE_NODE"
             fi
+            VERIFIED_COUNT=$((VERIFIED_COUNT + 1))
           done
-          echo "All architecture checks passed"
+          if [ "$VERIFIED_COUNT" -eq 0 ]; then
+            echo "::error::No app bundles found to verify"
+            exit 1
+          fi
+          echo "Verified $VERIFIED_COUNT app bundle(s)"
 
       - name: Smoke test sqlite3 in packaged app (arm64, signed)
         if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
