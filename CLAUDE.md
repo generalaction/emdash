@@ -75,6 +75,15 @@ npm run docs:build   # Build documentation
 - **ALWAYS** use feature branches (never commit directly to `main`)
 - **ALWAYS** put temporary notes, reference files, or scratch content in `.notes/` (gitignored)
 
+## Repo Remotes & Main Branch Policy
+
+- `origin` = `https://github.com/cschubiner/emdash.git` (fetch/push; default push remote).
+- `upstream` = `https://github.com/generalaction/emdash.git` (fetch-only; push URL disabled).
+- **Never push** to `upstream`; PRs/compare URLs must target `cschubiner/emdash` only.
+- If a local tag named `main` appears, delete it to avoid ref ambiguity; push main via `git push origin refs/heads/main`.
+- Sync upstream with `git fetch upstream` then `git rebase upstream/main` (or merge), and push to `origin`.
+- `remote.pushDefault` is set to `origin` for this repo.
+
 ## Code Organization
 
 ### Main Process (`src/main/`)
