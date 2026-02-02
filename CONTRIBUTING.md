@@ -6,7 +6,7 @@ Thanks for your interest in contributing! We favor small, focused PRs and clear 
 
 Prerequisites
 
-- **Node.js 20.0.0+ (recommended: 22.20.0)** and Git
+- **Node.js 20.0.0+ (recommended: 22.20.0)**, [`nvm`](https://github.com/nvm-sh/nvm) and Git
 - Optional (recommended for end‑to‑end testing):
   - GitHub CLI (`brew install gh`; then `gh auth login`)
   - At least one supported coding agent CLI (see docs for list)
