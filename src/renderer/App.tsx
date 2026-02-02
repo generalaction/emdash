@@ -1241,6 +1241,14 @@ const AppContent: React.FC = () => {
   ) => {
     if (!selectedProject) return;
     try {
+      const persistLastAgentRuns = (runs: import('./types/chat').AgentRun[]) => {
+        window.electronAPI
+          .updateSettings({ tasks: { lastAgentRuns: runs } })
+          .catch((error) => {
+            console.error('Failed to persist last agent selection:', error);
+          });
+      };
+
       // Build basic prompt without enrichment (enrichment happens in background later)
       // This makes task creation instant - user sees the task immediately
       let preparedPrompt: string | undefined = undefined;
@@ -1334,6 +1342,7 @@ const AppContent: React.FC = () => {
         setActiveTask(newTask);
         setActiveTaskAgent(null);
         saveActiveIds(newTask.projectId, newTask.id);
+        persistLastAgentRuns(agentRuns);
 
         // Create worktrees in background, then update task with real variants
         (async () => {
@@ -1578,6 +1587,7 @@ const AppContent: React.FC = () => {
         setActiveTask(newTask);
         setActiveTaskAgent(getAgentForTask(newTask) ?? primaryAgent ?? 'codex');
         saveActiveIds(newTask.projectId, newTask.id);
+        persistLastAgentRuns(agentRuns);
 
         // Background: save to database (non-blocking)
         window.electronAPI

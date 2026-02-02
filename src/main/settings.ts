@@ -4,6 +4,7 @@ import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
+import { normalizeAgentRuns } from '@shared/agentRuns';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 
@@ -62,6 +63,7 @@ export interface AppSettings {
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    lastAgentRuns?: Array<{ agent: ProviderId; runs: number }>;
   };
   projects?: {
     defaultDirectory: string;
@@ -96,6 +98,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    lastAgentRuns: [{ agent: DEFAULT_PROVIDER_ID, runs: 1 }],
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
@@ -261,6 +264,10 @@ function normalizeSettings(input: AppSettings): AppSettings {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
+    ),
+    lastAgentRuns: normalizeAgentRuns(
+      tasks?.lastAgentRuns,
+      out.defaultProvider || DEFAULT_PROVIDER_ID
     ),
   };
 
