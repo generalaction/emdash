@@ -2332,15 +2332,39 @@ const AppContent: React.FC = () => {
       }
 
       // Refresh tasks to include the restored task
-      const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
-      setProjects((prev) =>
-        prev.map((project) =>
-          project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
-        )
-      );
-      setSelectedProject((prev) =>
-        prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
-      );
+      let refreshed = false;
+      try {
+        const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
+          )
+        );
+        setSelectedProject((prev) =>
+          prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
+        );
+        refreshed = true;
+      } catch (refreshError) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to refresh tasks after restore:', refreshError as any);
+      }
+
+      // Fallback: manually add task to active list if refresh failed
+      if (!refreshed) {
+        const restoredTask = { ...task, archivedAt: null };
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.id === targetProject.id
+              ? { ...project, tasks: [...(project.tasks || []), restoredTask] }
+              : project
+          )
+        );
+        setSelectedProject((prev) =>
+          prev && prev.id === targetProject.id
+            ? { ...prev, tasks: [...(prev.tasks || []), restoredTask] }
+            : prev
+        );
+      }
 
       // Track task restore
       const { captureTelemetry } = await import('./lib/telemetryClient');

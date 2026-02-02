@@ -17,19 +17,11 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import {
-  Home,
-  ChevronRight,
-  Plus,
-  FolderOpen,
-  Github,
-  Archive,
-  RotateCcw,
-  Trash,
-} from 'lucide-react';
+import { Home, ChevronRight, Plus, FolderOpen, Github, Archive, RotateCcw } from 'lucide-react';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import { TaskDeleteButton } from './TaskDeleteButton';
 import type { Project } from '../types/app';
 import type { Task } from '../types/chat';
 
@@ -430,32 +422,22 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                                     </TooltipContent>
                                                   </Tooltip>
                                                 </TooltipProvider>
-                                                <TooltipProvider>
-                                                  <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <Button
-                                                        variant="ghost"
-                                                        size="icon-sm"
-                                                        className="h-5 w-5"
-                                                        onClick={async (e) => {
-                                                          e.stopPropagation();
-                                                          if (onDeleteTask) {
-                                                            await onDeleteTask(
-                                                              typedProject,
-                                                              archivedTask
-                                                            );
-                                                            fetchArchivedTasks();
-                                                          }
-                                                        }}
-                                                      >
-                                                        <Trash className="h-3 w-3" />
-                                                      </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="top" className="text-xs">
-                                                      Delete Task
-                                                    </TooltipContent>
-                                                  </Tooltip>
-                                                </TooltipProvider>
+                                                <TaskDeleteButton
+                                                  taskName={archivedTask.name}
+                                                  taskId={archivedTask.id}
+                                                  taskPath={archivedTask.path}
+                                                  useWorktree={archivedTask.useWorktree !== false}
+                                                  className="h-5 w-5"
+                                                  onConfirm={async () => {
+                                                    if (onDeleteTask) {
+                                                      await onDeleteTask(
+                                                        typedProject,
+                                                        archivedTask
+                                                      );
+                                                      fetchArchivedTasks();
+                                                    }
+                                                  }}
+                                                />
                                               </div>
                                             </div>
                                           )
