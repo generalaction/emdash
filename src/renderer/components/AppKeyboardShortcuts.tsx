@@ -49,9 +49,13 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
     onPrevProject: handlePrevTask,
     onNewTask: handleNewTask,
     onNextAgent: () =>
-      window.dispatchEvent(new CustomEvent('emdash:switch-agent', { detail: { direction: 'next' } })),
+      window.dispatchEvent(
+        new CustomEvent('emdash:switch-agent', { detail: { direction: 'next' } })
+      ),
     onPrevAgent: () =>
-      window.dispatchEvent(new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } })),
+      window.dispatchEvent(
+        new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } })
+      ),
     onCloseModal: showCommandPalette
       ? handleCloseCommandPalette
       : showSettings
