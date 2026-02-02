@@ -3,8 +3,8 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
-import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
+import { Textarea } from './ui/textarea';
 import { MultiAgentDropdown } from './MultiAgentDropdown';
 import { TaskAdvancedSettings } from './TaskAdvancedSettings';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
@@ -124,6 +124,23 @@ const TaskModal: React.FC<TaskModalProps> = ({
     [normalizedExisting]
   );
 
+  // Initial prompt placeholder based on selected issue
+  const getInitialPromptPlaceholder = useCallback(() => {
+    if (!hasInitialPromptSupport) {
+      return 'Selected provider does not support initial prompts';
+    }
+    if (selectedLinearIssue) {
+      return `e.g. Fix the attached Linear ticket ${selectedLinearIssue.identifier} — describe any constraints.`;
+    }
+    if (selectedGithubIssue) {
+      return `e.g. Fix the attached GitHub issue #${selectedGithubIssue.number} — describe any constraints.`;
+    }
+    if (selectedJiraIssue) {
+      return `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`;
+    }
+    return 'e.g. Summarize the key problems and propose a plan.';
+  }, [hasInitialPromptSupport, selectedLinearIssue, selectedGithubIssue, selectedJiraIssue]);
+
   // Clear issues when provider doesn't support them
   useEffect(() => {
     if (!hasInitialPromptSupport) {
@@ -174,14 +191,43 @@ const TaskModal: React.FC<TaskModalProps> = ({
       if (cancel) return;
       const settings = res?.success ? res.settings : undefined;
 
-      const settingsAgent = settings?.defaultProvider;
-      const agent: Agent = isValidProviderId(settingsAgent)
-        ? (settingsAgent as Agent)
-        : DEFAULT_AGENT;
-      setAgentRuns([{ agent, runs: 1 }]);
+      // Try to use last saved agent runs, fall back to defaultProvider
+      const lastAgentRuns = settings?.tasks?.lastAgentRuns;
+      let loadedAgentRuns: AgentRun[];
 
+      if (Array.isArray(lastAgentRuns) && lastAgentRuns.length > 0) {
+        // Validate each entry
+        const validRuns = lastAgentRuns.filter(
+          (ar: { agent: string; runs: number }) =>
+            isValidProviderId(ar.agent) && ar.runs >= 1 && ar.runs <= 4
+        );
+        if (validRuns.length > 0) {
+          loadedAgentRuns = validRuns.map((ar) => ({
+            agent: ar.agent as Agent,
+            runs: ar.runs,
+          }));
+        } else {
+          // Fall back to defaultProvider
+          const agent: Agent = isValidProviderId(settings?.defaultProvider)
+            ? (settings.defaultProvider as Agent)
+            : DEFAULT_AGENT;
+          loadedAgentRuns = [{ agent, runs: 1 }];
+        }
+      } else {
+        // No saved runs, use defaultProvider
+        const agent: Agent = isValidProviderId(settings?.defaultProvider)
+          ? (settings.defaultProvider as Agent)
+          : DEFAULT_AGENT;
+        loadedAgentRuns = [{ agent, runs: 1 }];
+      }
+
+      setAgentRuns(loadedAgentRuns);
+
+      // Check auto-approve support for loaded agents
+      const loadedAgents = loadedAgentRuns.map((ar) => ar.agent);
+      const hasAutoApprove = loadedAgents.every((id) => !!agentMeta[id]?.autoApproveFlag);
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
-      setAutoApprove(autoApproveByDefault && !!agentMeta[agent]?.autoApproveFlag);
+      setAutoApprove(autoApproveByDefault && hasAutoApprove);
 
       // Handle auto-generate setting
       if (settings?.tasks?.autoGenerateName === false && !userHasTypedRef.current) {
@@ -229,6 +275,15 @@ const TaskModal: React.FC<TaskModalProps> = ({
     // Close modal immediately - task creation happens in background
     // The task will appear in sidebar via optimistic UI update
     onClose();
+
+    // Save agent configuration for next time (fire and forget)
+    window.electronAPI
+      .updateSettings({
+        tasks: {
+          lastAgentRuns: agentRuns.map((ar) => ({ agent: ar.agent, runs: ar.runs })),
+        },
+      })
+      .catch(console.error);
 
     // Fire and forget - don't await
     try {
@@ -303,6 +358,24 @@ const TaskModal: React.FC<TaskModalProps> = ({
             <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="initial-prompt">Initial prompt</Label>
+            <Textarea
+              id="initial-prompt"
+              value={initialPrompt}
+              onChange={(e) => setInitialPrompt(e.target.value)}
+              disabled={!hasInitialPromptSupport}
+              placeholder={getInitialPromptPlaceholder()}
+              className="resize-none"
+              rows={5}
+            />
+            {!hasInitialPromptSupport && (
+              <p className="text-xs text-muted-foreground">
+                Selected provider does not support initial prompts
+              </p>
+            )}
+          </div>
+
           <TaskAdvancedSettings
             isOpen={isOpen}
             projectPath={projectPath}
@@ -311,8 +384,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
             autoApprove={autoApprove}
             onAutoApproveChange={setAutoApprove}
             hasAutoApproveSupport={hasAutoApproveSupport}
-            initialPrompt={initialPrompt}
-            onInitialPromptChange={setInitialPrompt}
             hasInitialPromptSupport={hasInitialPromptSupport}
             selectedLinearIssue={selectedLinearIssue}
             onLinearIssueChange={setSelectedLinearIssue}

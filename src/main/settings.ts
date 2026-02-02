@@ -62,6 +62,7 @@ export interface AppSettings {
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    lastAgentRuns?: Array<{ agent: string; runs: number }>;
   };
   projects?: {
     defaultDirectory: string;
@@ -263,6 +264,25 @@ function normalizeSettings(input: AppSettings): AppSettings {
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
   };
+
+  // Validate and normalize lastAgentRuns if present
+  if (Array.isArray(tasks?.lastAgentRuns) && tasks.lastAgentRuns.length > 0) {
+    const validRuns = tasks.lastAgentRuns
+      .filter(
+        (ar: any) =>
+          ar &&
+          typeof ar === 'object' &&
+          isValidProviderId(ar.agent) &&
+          typeof ar.runs === 'number' &&
+          ar.runs >= 1 &&
+          ar.runs <= 4
+      )
+      .map((ar: any) => ({ agent: ar.agent as string, runs: ar.runs as number }));
+
+    if (validRuns.length > 0) {
+      out.tasks!.lastAgentRuns = validRuns;
+    }
+  }
 
   // Projects
   const projects = (input as any)?.projects || {};
