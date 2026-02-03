@@ -543,15 +543,10 @@ declare global {
       }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
-        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
+        app: OpenInAppId;
         path: string;
       }) => Promise<{ success: boolean; error?: string }>;
-      checkInstalledApps: () => Promise<
-        Record<
-          'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
-          boolean
-        >
-      >;
+      checkInstalledApps: () => Promise<Record<OpenInAppId, boolean>>;
       connectToGitHub: (projectPath: string) => Promise<{
         success: boolean;
         repository?: string;
@@ -1362,3 +1357,4 @@ export interface ElectronAPI {
   }>;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
+import type { OpenInAppId } from '#shared/openInApps';
