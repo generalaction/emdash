@@ -986,6 +986,7 @@ const ChatInterface: React.FC<Props> = ({
                   autoApprove={autoApproveEnabled}
                   env={undefined}
                   keepAlive={true}
+                  mapShiftEnterToCtrlJ
                   disableSnapshots={false}
                   onActivity={() => {
                     try {

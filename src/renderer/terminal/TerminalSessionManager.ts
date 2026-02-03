@@ -9,6 +9,7 @@ import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { CTRL_J_ASCII, shouldMapShiftEnterToCtrlJ } from './terminalKeybindings';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -33,6 +34,7 @@ export interface TerminalSessionOptions {
   telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
 }
@@ -134,40 +136,30 @@ export class TerminalSessionManager {
 
     this.applyTheme(options.theme);
 
+    // Map Shift+Enter to Ctrl+J for CLI agents only
+    if (options.mapShiftEnterToCtrlJ) {
+      this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+        if (shouldMapShiftEnterToCtrlJ(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+
+          // Send Ctrl+J (line feed) instead of Shift+Enter
+          // Pass true to skip injection handling - this is a newline insert, not a submit
+          this.handleTerminalInput(CTRL_J_ASCII, true);
+          return false; // Prevent xterm from processing the Shift+Enter
+        }
+        return true; // Let xterm handle all other keys normally
+      });
+    }
+
     this.metrics = new TerminalMetrics({
       maxDataWindowBytes: MAX_DATA_WINDOW_BYTES,
       telemetry: options.telemetry ?? null,
     });
 
     const inputDisposable = this.terminal.onData((data) => {
-      this.emitActivity();
-      if (!this.disposed) {
-        // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
-        // These are sent by xterm.js when focus changes but shouldn't go to the PTY
-        const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
-        if (filtered) {
-          // Track command execution when Enter is pressed
-          const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
-          if (isEnterPress) {
-            void (async () => {
-              const { captureTelemetry } = await import('../lib/telemetryClient');
-              captureTelemetry('terminal_command_executed');
-            })();
-          }
-
-          // Check for pending injection text when Enter is pressed
-          const pendingText = pendingInjectionManager.getPending();
-          if (pendingText && isEnterPress) {
-            // Append pending text to the existing input and keep the prior working behavior.
-            const stripped = filtered.replace(/[\r\n]+$/g, '');
-            const injectedData = stripped + pendingText + '\r\r';
-            window.electronAPI.ptyInput({ id: this.id, data: injectedData });
-            pendingInjectionManager.markUsed();
-          } else {
-            window.electronAPI.ptyInput({ id: this.id, data: filtered });
-          }
-        }
-      }
+      this.handleTerminalInput(data);
     });
     const resizeDisposable = this.terminal.onResize(({ cols, rows }) => {
       if (!this.disposed) {
@@ -319,6 +311,39 @@ export class TerminalSessionManager {
     return () => {
       this.exitListeners.delete(listener);
     };
+  }
+
+  private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
+    this.emitActivity();
+    if (this.disposed) return;
+
+    // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
+    // These are sent by xterm.js when focus changes but shouldn't go to the PTY
+    const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
+    if (!filtered) return;
+
+    // Track command execution when Enter is pressed (but not for newline inserts)
+    const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
+    if (isEnterPress && !isNewlineInsert) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('terminal_command_executed');
+      })();
+    }
+
+    // Check for pending injection text when Enter is pressed (but not for newline inserts)
+    const pendingText = pendingInjectionManager.getPending();
+    if (pendingText && isEnterPress && !isNewlineInsert) {
+      // Append pending text to the existing input and keep the prior working behavior.
+      const stripped = filtered.replace(/[\r\n]+$/g, '');
+      const enterSequence = filtered.includes('\r') ? '\r' : '\n';
+      const injectedData = stripped + pendingText + enterSequence + enterSequence;
+      window.electronAPI.ptyInput({ id: this.id, data: injectedData });
+      pendingInjectionManager.markUsed();
+      return;
+    }
+
+    window.electronAPI.ptyInput({ id: this.id, data: filtered });
   }
 
   private applyTheme(theme: SessionTheme) {
