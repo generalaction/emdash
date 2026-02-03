@@ -1247,11 +1247,9 @@ const AppContent: React.FC = () => {
         } catch (error) {
           console.warn('Failed to persist last agent selection locally:', error);
         }
-        window.electronAPI
-          .updateSettings({ tasks: { lastAgentRuns: runs } })
-          .catch((error) => {
-            console.error('Failed to persist last agent selection:', error);
-          });
+        window.electronAPI.updateSettings({ tasks: { lastAgentRuns: runs } }).catch((error) => {
+          console.error('Failed to persist last agent selection:', error);
+        });
       };
 
       // Build basic prompt without enrichment (enrichment happens in background later)

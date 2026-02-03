@@ -289,8 +289,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
 
   const focusActiveIfIdle = useCallback(() => {
     const active = document.activeElement;
-    const isBodyFocus =
-      !active || active === document.body || active === document.documentElement;
+    const isBodyFocus = !active || active === document.body || active === document.documentElement;
     if (!isBodyFocus) return;
     if (document.querySelector('[aria-modal="true"]')) return;
     focusVariantByIndex(activeTabIndex);
@@ -598,11 +597,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
           variant.agent === 'mistral'
             ? {
                 background:
-                  effectiveTheme === 'dark-black'
-                    ? '#141820'
-                    : isDark
-                      ? '#202938'
-                      : '#ffffff',
+                  effectiveTheme === 'dark-black' ? '#141820' : isDark ? '#202938' : '#ffffff',
                 selectionBackground: 'rgba(96, 165, 250, 0.35)',
                 selectionForeground: isDark ? '#f9fafb' : '#0f172a',
               }

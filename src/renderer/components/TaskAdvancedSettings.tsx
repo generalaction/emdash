@@ -373,7 +373,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 </div>
               </div>
             </div>
-
           </AccordionContent>
         </AccordionItem>
       </Accordion>
