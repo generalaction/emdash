@@ -162,11 +162,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
                 title={!availability[app.id] ? 'Not installed' : undefined}
               >
                 {icons[app.id] ? (
-                  <img
-                    src={icons[app.id]}
-                    alt={app.label}
-                    className="h-4 w-4 rounded"
-                  />
+                  <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
                 ) : null}
                 <span>{app.label}</span>
               </button>

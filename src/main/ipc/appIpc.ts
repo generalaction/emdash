@@ -4,12 +4,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
-import {
-  getAppById,
-  OPEN_IN_APPS,
-  type OpenInAppId,
-  type PlatformKey,
-} from '@shared/openInApps';
+import { getAppById, OPEN_IN_APPS, type OpenInAppId, type PlatformKey } from '@shared/openInApps';
 
 export function registerAppIpc() {
   ipcMain.handle('app:openExternal', async (_event, url: string) => {

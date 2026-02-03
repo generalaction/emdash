@@ -40,10 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Open a path in a specific app
-  openIn: (args: {
-    app: OpenInAppId;
-    path: string;
-  }) => ipcRenderer.invoke('app:openIn', args),
+  openIn: (args: { app: OpenInAppId; path: string }) => ipcRenderer.invoke('app:openIn', args),
 
   // Check which apps are installed
   checkInstalledApps: () =>
