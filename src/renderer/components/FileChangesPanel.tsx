@@ -40,7 +40,24 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const [prDropdownOpen, setPrDropdownOpen] = useState(false);
+  const [createAsDraft, setCreateAsDraft] = useState(() => {
+    try {
+      return localStorage.getItem('emdash:createPrAsDraft') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
+
+  const toggleDraftMode = (draft: boolean) => {
+    setCreateAsDraft(draft);
+    setPrDropdownOpen(false);
+    try {
+      localStorage.setItem('emdash:createPrAsDraft', String(draft));
+    } catch {
+      // localStorage not available
+    }
+  };
   const { fileChanges, refreshChanges } = useFileChanges(safeTaskPath);
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
@@ -314,7 +331,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     size="sm"
                     className="h-8 rounded-r-none border-r-0 px-2 text-xs"
                     disabled={isCreatingPR}
-                    title="Commit all changes and create a pull request"
+                    title={
+                      createAsDraft
+                        ? 'Commit all changes and create a draft pull request'
+                        : 'Commit all changes and create a pull request'
+                    }
                     onClick={async () => {
                       void (async () => {
                         const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -322,6 +343,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                       })();
                       await createPR({
                         taskPath: safeTaskPath,
+                        prOptions: createAsDraft ? { draft: true } : undefined,
                         onSuccess: async () => {
                           await refreshChanges();
                           try {
@@ -331,7 +353,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                       });
                     }}
                   >
-                    {isCreatingPR ? <Spinner size="sm" /> : 'Create PR'}
+                    {isCreatingPR ? <Spinner size="sm" /> : createAsDraft ? 'Draft PR' : 'Create PR'}
                   </Button>
                   <Popover open={prDropdownOpen} onOpenChange={setPrDropdownOpen}>
                     <PopoverTrigger asChild>
@@ -347,25 +369,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     <PopoverContent align="end" className="w-auto min-w-0 p-1">
                       <button
                         className="w-full whitespace-nowrap rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
-                        onClick={async () => {
-                          setPrDropdownOpen(false);
-                          void (async () => {
-                            const { captureTelemetry } = await import('../lib/telemetryClient');
-                            captureTelemetry('pr_viewed');
-                          })();
-                          await createPR({
-                            taskPath: safeTaskPath,
-                            prOptions: { draft: true },
-                            onSuccess: async () => {
-                              await refreshChanges();
-                              try {
-                                await refreshPr();
-                              } catch {}
-                            },
-                          });
-                        }}
+                        onClick={() => toggleDraftMode(!createAsDraft)}
                       >
-                        Draft PR
+                        {createAsDraft ? 'Create PR' : 'Draft PR'}
                       </button>
                     </PopoverContent>
                   </Popover>
@@ -430,7 +436,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     size="sm"
                     className="h-8 rounded-r-none border-r-0 px-2 text-xs"
                     disabled={isCreatingPR || branchStatusLoading}
-                    title="Create a pull request for the current branch"
+                    title={
+                      createAsDraft
+                        ? 'Create a draft pull request for the current branch'
+                        : 'Create a pull request for the current branch'
+                    }
                     onClick={async () => {
                       void (async () => {
                         const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -438,6 +448,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                       })();
                       await createPR({
                         taskPath: safeTaskPath,
+                        prOptions: createAsDraft ? { draft: true } : undefined,
                         onSuccess: async () => {
                           await refreshChanges();
                           try {
@@ -447,7 +458,13 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                       });
                     }}
                   >
-                    {isCreatingPR || branchStatusLoading ? <Spinner size="sm" /> : 'Create PR'}
+                    {isCreatingPR || branchStatusLoading ? (
+                      <Spinner size="sm" />
+                    ) : createAsDraft ? (
+                      'Draft PR'
+                    ) : (
+                      'Create PR'
+                    )}
                   </Button>
                   <Popover open={prDropdownOpen} onOpenChange={setPrDropdownOpen}>
                     <PopoverTrigger asChild>
@@ -463,25 +480,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     <PopoverContent align="end" className="w-auto min-w-0 p-1">
                       <button
                         className="w-full whitespace-nowrap rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
-                        onClick={async () => {
-                          setPrDropdownOpen(false);
-                          void (async () => {
-                            const { captureTelemetry } = await import('../lib/telemetryClient');
-                            captureTelemetry('pr_viewed');
-                          })();
-                          await createPR({
-                            taskPath: safeTaskPath,
-                            prOptions: { draft: true },
-                            onSuccess: async () => {
-                              await refreshChanges();
-                              try {
-                                await refreshPr();
-                              } catch {}
-                            },
-                          });
-                        }}
+                        onClick={() => toggleDraftMode(!createAsDraft)}
                       >
-                        Draft PR
+                        {createAsDraft ? 'Create PR' : 'Draft PR'}
                       </button>
                     </PopoverContent>
                   </Popover>
