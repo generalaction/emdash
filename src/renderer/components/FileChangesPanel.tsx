@@ -10,7 +10,8 @@ import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Plus, Minus, Undo2, ArrowUpRight, FileDiff } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Plus, Minus, Undo2, ArrowUpRight, FileDiff, ChevronDown } from 'lucide-react';
 import { useTaskScope } from './TaskScopeContext';
 
 interface FileChangesPanelProps {
@@ -38,7 +39,25 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
+  const [prDropdownOpen, setPrDropdownOpen] = useState(false);
+  const [createAsDraft, setCreateAsDraft] = useState(() => {
+    try {
+      return localStorage.getItem('emdash:createPrAsDraft') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
+
+  const toggleDraftMode = (draft: boolean) => {
+    setCreateAsDraft(draft);
+    setPrDropdownOpen(false);
+    try {
+      localStorage.setItem('emdash:createPrAsDraft', String(draft));
+    } catch {
+      // localStorage not available
+    }
+  };
   const { fileChanges, refreshChanges } = useFileChanges(safeTaskPath);
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
@@ -306,30 +325,57 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
                   <span className="hidden sm:inline">Changes</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 px-2 text-xs"
-                  disabled={isCreatingPR}
-                  title="Commit all changes and create a pull request"
-                  onClick={async () => {
-                    void (async () => {
-                      const { captureTelemetry } = await import('../lib/telemetryClient');
-                      captureTelemetry('pr_viewed');
-                    })();
-                    await createPR({
-                      taskPath: safeTaskPath,
-                      onSuccess: async () => {
-                        await refreshChanges();
-                        try {
-                          await refreshPr();
-                        } catch {}
-                      },
-                    });
-                  }}
-                >
-                  {isCreatingPR ? <Spinner size="sm" /> : 'Create PR'}
-                </Button>
+                <div className="flex shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-r-none border-r-0 px-2 text-xs"
+                    disabled={isCreatingPR}
+                    title={
+                      createAsDraft
+                        ? 'Commit all changes and create a draft pull request'
+                        : 'Commit all changes and create a pull request'
+                    }
+                    onClick={async () => {
+                      void (async () => {
+                        const { captureTelemetry } = await import('../lib/telemetryClient');
+                        captureTelemetry('pr_viewed');
+                      })();
+                      await createPR({
+                        taskPath: safeTaskPath,
+                        prOptions: createAsDraft ? { draft: true } : undefined,
+                        onSuccess: async () => {
+                          await refreshChanges();
+                          try {
+                            await refreshPr();
+                          } catch {}
+                        },
+                      });
+                    }}
+                  >
+                    {isCreatingPR ? <Spinner size="sm" /> : createAsDraft ? 'Draft PR' : 'Create PR'}
+                  </Button>
+                  <Popover open={prDropdownOpen} onOpenChange={setPrDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-l-none px-1.5"
+                        disabled={isCreatingPR}
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
+                      <button
+                        className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                        onClick={() => toggleDraftMode(!createAsDraft)}
+                      >
+                        {createAsDraft ? 'Create PR' : 'Draft PR'}
+                      </button>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
 
@@ -384,30 +430,63 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <ArrowUpRight className="size-3" />
                 </button>
               ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2 text-xs"
-                  disabled={isCreatingPR || branchStatusLoading}
-                  title="Create a pull request for the current branch"
-                  onClick={async () => {
-                    void (async () => {
-                      const { captureTelemetry } = await import('../lib/telemetryClient');
-                      captureTelemetry('pr_viewed');
-                    })();
-                    await createPR({
-                      taskPath: safeTaskPath,
-                      onSuccess: async () => {
-                        await refreshChanges();
-                        try {
-                          await refreshPr();
-                        } catch {}
-                      },
-                    });
-                  }}
-                >
-                  {isCreatingPR || branchStatusLoading ? <Spinner size="sm" /> : 'Create PR'}
-                </Button>
+                <div className="flex">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-r-none border-r-0 px-2 text-xs"
+                    disabled={isCreatingPR || branchStatusLoading}
+                    title={
+                      createAsDraft
+                        ? 'Create a draft pull request for the current branch'
+                        : 'Create a pull request for the current branch'
+                    }
+                    onClick={async () => {
+                      void (async () => {
+                        const { captureTelemetry } = await import('../lib/telemetryClient');
+                        captureTelemetry('pr_viewed');
+                      })();
+                      await createPR({
+                        taskPath: safeTaskPath,
+                        prOptions: createAsDraft ? { draft: true } : undefined,
+                        onSuccess: async () => {
+                          await refreshChanges();
+                          try {
+                            await refreshPr();
+                          } catch {}
+                        },
+                      });
+                    }}
+                  >
+                    {isCreatingPR || branchStatusLoading ? (
+                      <Spinner size="sm" />
+                    ) : createAsDraft ? (
+                      'Draft PR'
+                    ) : (
+                      'Create PR'
+                    )}
+                  </Button>
+                  <Popover open={prDropdownOpen} onOpenChange={setPrDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-l-none px-1.5"
+                        disabled={isCreatingPR || branchStatusLoading}
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
+                      <button
+                        className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                        onClick={() => toggleDraftMode(!createAsDraft)}
+                      >
+                        {createAsDraft ? 'Create PR' : 'Draft PR'}
+                      </button>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               ) : (
                 <span className="text-xs text-muted-foreground">No PR for this branch</span>
               )}
