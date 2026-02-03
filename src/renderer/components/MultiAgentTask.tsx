@@ -35,6 +35,7 @@ type Variant = {
 };
 
 const splitViewStorageKey = (taskId: string) => `emdash:multiAgentSplitView:${taskId}`;
+const activeVariantStorageKey = (taskId: string) => `emdash:multiAgentActiveVariant:${taskId}`;
 
 const readSplitViewPreference = (task: Task): boolean => {
   const fromMeta = task.metadata?.multiAgent?.splitViewEnabled;
@@ -49,26 +50,91 @@ const readSplitViewPreference = (task: Task): boolean => {
   return true;
 };
 
+const readActiveVariantId = (task: Task): string | null => {
+  const fromMeta = task.metadata?.multiAgent?.activeVariantId;
+  if (typeof fromMeta === 'string' && fromMeta.trim()) return fromMeta.trim();
+  try {
+    const stored = localStorage.getItem(activeVariantStorageKey(task.id));
+    if (stored && stored.trim()) return stored.trim();
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+};
+
+const resolveActiveTabIndex = (task: Task, variants: Variant[]): number => {
+  if (!variants.length) return 0;
+  const activeId = readActiveVariantId(task);
+  if (activeId) {
+    const idx = variants.findIndex(
+      (variant) => variant.worktreeId === activeId || variant.id === activeId
+    );
+    if (idx >= 0) return idx;
+  }
+  return 0;
+};
+
 const MultiAgentTask: React.FC<Props> = ({ task }) => {
   const { effectiveTheme } = useTheme();
+  const multi = task.metadata?.multiAgent;
+  const variants = (multi?.variants || []) as Variant[];
   const [prompt, setPrompt] = useState('');
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [activeTabIndex, setActiveTabIndex] = useState(() =>
+    resolveActiveTabIndex(task, variants)
+  );
   const [splitViewEnabled, setSplitViewEnabled] = useState<boolean>(() =>
     readSplitViewPreference(task)
   );
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
-  const multi = task.metadata?.multiAgent;
-  const variants = (multi?.variants || []) as Variant[];
 
   useEffect(() => {
     setSplitViewEnabled(readSplitViewPreference(task));
   }, [task.id, task.metadata?.multiAgent?.splitViewEnabled]);
 
   useEffect(() => {
+    if (!variants.length) return;
+    const nextIndex = resolveActiveTabIndex(task, variants);
+    setActiveTabIndex((current) => (current === nextIndex ? current : nextIndex));
+  }, [task.id, task.metadata?.multiAgent?.activeVariantId, variants]);
+
+  useEffect(() => {
     if (activeTabIndex >= variants.length) {
       setActiveTabIndex(0);
     }
   }, [activeTabIndex, variants.length]);
+
+  const persistActiveVariant = useCallback(
+    (variant: Variant) => {
+      const id = variant.worktreeId || variant.id;
+      if (!id) return;
+      try {
+        localStorage.setItem(activeVariantStorageKey(task.id), id);
+      } catch {
+        // ignore storage errors
+      }
+      if (!multi?.enabled) return;
+      const currentId = task.metadata?.multiAgent?.activeVariantId;
+      if (currentId === id) return;
+      const nextMetadata = {
+        ...(task.metadata || {}),
+        multiAgent: {
+          ...(multi || { enabled: true, variants: [] }),
+          activeVariantId: id,
+        },
+      };
+      void window.electronAPI.saveTask({
+        ...task,
+        metadata: nextMetadata,
+      });
+    },
+    [task, multi]
+  );
+
+  useEffect(() => {
+    const variant = variants[activeTabIndex];
+    if (!variant) return;
+    persistActiveVariant(variant);
+  }, [activeTabIndex, variants, persistActiveVariant]);
 
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
