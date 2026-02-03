@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Checkbox } from './ui/checkbox';
 import { Spinner } from './ui/spinner';
 import { useToast } from '../hooks/use-toast';
 import { useCreatePR } from '../hooks/useCreatePR';
@@ -38,6 +39,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
+  const [createAsDraft, setCreateAsDraft] = useState(false);
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
   const { fileChanges, refreshChanges } = useFileChanges(safeTaskPath);
   const { toast } = useToast();
@@ -306,12 +308,30 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
                   <span className="hidden sm:inline">Changes</span>
                 </Button>
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="draft-pr-checkbox-changes"
+                    checked={createAsDraft}
+                    onCheckedChange={(checked) => setCreateAsDraft(checked === true)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <label
+                    htmlFor="draft-pr-checkbox-changes"
+                    className="cursor-pointer text-xs text-muted-foreground"
+                  >
+                    Draft
+                  </label>
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-8 shrink-0 px-2 text-xs"
                   disabled={isCreatingPR}
-                  title="Commit all changes and create a pull request"
+                  title={
+                    createAsDraft
+                      ? 'Commit all changes and create a draft pull request'
+                      : 'Commit all changes and create a pull request'
+                  }
                   onClick={async () => {
                     void (async () => {
                       const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -319,6 +339,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     })();
                     await createPR({
                       taskPath: safeTaskPath,
+                      prOptions: { draft: createAsDraft },
                       onSuccess: async () => {
                         await refreshChanges();
                         try {
@@ -384,30 +405,51 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <ArrowUpRight className="size-3" />
                 </button>
               ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2 text-xs"
-                  disabled={isCreatingPR || branchStatusLoading}
-                  title="Create a pull request for the current branch"
-                  onClick={async () => {
-                    void (async () => {
-                      const { captureTelemetry } = await import('../lib/telemetryClient');
-                      captureTelemetry('pr_viewed');
-                    })();
-                    await createPR({
-                      taskPath: safeTaskPath,
-                      onSuccess: async () => {
-                        await refreshChanges();
-                        try {
-                          await refreshPr();
-                        } catch {}
-                      },
-                    });
-                  }}
-                >
-                  {isCreatingPR || branchStatusLoading ? <Spinner size="sm" /> : 'Create PR'}
-                </Button>
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      id="draft-pr-checkbox-branch"
+                      checked={createAsDraft}
+                      onCheckedChange={(checked) => setCreateAsDraft(checked === true)}
+                      className="h-3.5 w-3.5"
+                    />
+                    <label
+                      htmlFor="draft-pr-checkbox-branch"
+                      className="cursor-pointer text-xs text-muted-foreground"
+                    >
+                      Draft
+                    </label>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    disabled={isCreatingPR || branchStatusLoading}
+                    title={
+                      createAsDraft
+                        ? 'Create a draft pull request for the current branch'
+                        : 'Create a pull request for the current branch'
+                    }
+                    onClick={async () => {
+                      void (async () => {
+                        const { captureTelemetry } = await import('../lib/telemetryClient');
+                        captureTelemetry('pr_viewed');
+                      })();
+                      await createPR({
+                        taskPath: safeTaskPath,
+                        prOptions: { draft: createAsDraft },
+                        onSuccess: async () => {
+                          await refreshChanges();
+                          try {
+                            await refreshPr();
+                          } catch {}
+                        },
+                      });
+                    }}
+                  >
+                    {isCreatingPR || branchStatusLoading ? <Spinner size="sm" /> : 'Create PR'}
+                  </Button>
+                </>
               ) : (
                 <span className="text-xs text-muted-foreground">No PR for this branch</span>
               )}
