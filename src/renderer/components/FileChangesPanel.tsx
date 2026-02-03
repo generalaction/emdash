@@ -366,9 +366,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                         <ChevronDown className="h-3.5 w-3.5" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent align="end" className="w-auto min-w-0 p-1">
+                    <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
                       <button
-                        className="w-full whitespace-nowrap rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
+                        className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
                         onClick={() => toggleDraftMode(!createAsDraft)}
                       >
                         {createAsDraft ? 'Create PR' : 'Draft PR'}
@@ -477,9 +477,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                         <ChevronDown className="h-3.5 w-3.5" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent align="end" className="w-auto min-w-0 p-1">
+                    <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
                       <button
-                        className="w-full whitespace-nowrap rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
+                        className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
                         onClick={() => toggleDraftMode(!createAsDraft)}
                       >
                         {createAsDraft ? 'Create PR' : 'Draft PR'}
