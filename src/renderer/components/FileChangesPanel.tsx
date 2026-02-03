@@ -14,6 +14,71 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Plus, Minus, Undo2, ArrowUpRight, FileDiff, ChevronDown } from 'lucide-react';
 import { useTaskScope } from './TaskScopeContext';
 
+type PrMode = 'create' | 'draft' | 'merge';
+
+const PR_MODE_LABELS: Record<PrMode, string> = {
+  create: 'Create PR',
+  draft: 'Draft PR',
+  merge: 'Merge Main',
+};
+
+interface PrActionButtonProps {
+  mode: PrMode;
+  onModeChange: (mode: PrMode) => void;
+  onExecute: () => Promise<void>;
+  isLoading: boolean;
+  dropdownOpen: boolean;
+  onDropdownChange: (open: boolean) => void;
+}
+
+function PrActionButton({
+  mode,
+  onModeChange,
+  onExecute,
+  isLoading,
+  dropdownOpen,
+  onDropdownChange,
+}: PrActionButtonProps) {
+  return (
+    <div className="flex min-w-0">
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 min-w-0 truncate rounded-r-none border-r-0 px-2 text-xs"
+        disabled={isLoading}
+        onClick={onExecute}
+      >
+        {isLoading ? <Spinner size="sm" /> : PR_MODE_LABELS[mode]}
+      </Button>
+      <Popover open={dropdownOpen} onOpenChange={onDropdownChange}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-l-none px-1.5"
+            disabled={isLoading}
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
+          {(['create', 'draft', 'merge'] as PrMode[])
+            .filter((m) => m !== mode)
+            .map((m) => (
+              <button
+                key={m}
+                className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                onClick={() => onModeChange(m)}
+              >
+                {PR_MODE_LABELS[m]}
+              </button>
+            ))}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 interface FileChangesPanelProps {
   taskId?: string;
   taskPath?: string;
@@ -39,25 +104,32 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isMergingToMain, setIsMergingToMain] = useState(false);
   const [prDropdownOpen, setPrDropdownOpen] = useState(false);
-  const [createAsDraft, setCreateAsDraft] = useState(() => {
+  const [prMode, setPrMode] = useState<PrMode>(() => {
     try {
-      return localStorage.getItem('emdash:createPrAsDraft') === 'true';
+      const stored = localStorage.getItem('emdash:prMode');
+      if (stored === 'draft' || stored === 'merge') return stored;
+      // Migrate from old boolean key
+      if (localStorage.getItem('emdash:createPrAsDraft') === 'true') return 'draft';
+      return 'create';
     } catch {
-      return false;
+      // localStorage not available in some environments
+      return 'create';
     }
   });
   const { isCreating: isCreatingPR, createPR } = useCreatePR();
 
-  const toggleDraftMode = (draft: boolean) => {
-    setCreateAsDraft(draft);
+  const selectPrMode = (mode: PrMode) => {
+    setPrMode(mode);
     setPrDropdownOpen(false);
     try {
-      localStorage.setItem('emdash:createPrAsDraft', String(draft));
+      localStorage.setItem('emdash:prMode', mode);
     } catch {
       // localStorage not available
     }
   };
+
   const { fileChanges, refreshChanges } = useFileChanges(safeTaskPath);
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
@@ -80,6 +152,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           setBranchAhead(res?.success ? (res?.ahead ?? 0) : 0);
         }
       } catch {
+        // Network or IPC error - default to 0
         if (!cancelled) setBranchAhead(0);
       } finally {
         if (!cancelled) setBranchStatusLoading(false);
@@ -93,7 +166,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   }, [safeTaskPath, hasChanges]);
 
   const handleStageFile = async (filePath: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent opening diff modal
+    event.stopPropagation();
     setStagingFiles((prev) => new Set(prev).add(filePath));
 
     try {
@@ -127,7 +200,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   };
 
   const handleUnstageFile = async (filePath: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent opening diff modal
+    event.stopPropagation();
     setUnstagingFiles((prev) => new Set(prev).add(filePath));
 
     try {
@@ -162,7 +235,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   };
 
   const handleRevertFile = async (filePath: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent opening diff modal
+    event.stopPropagation();
     setRevertingFiles((prev) => new Set(prev).add(filePath));
 
     try {
@@ -235,11 +308,13 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           title: 'Committed and Pushed',
           description: `Changes committed with message: "${commitMessage.trim()}"`,
         });
-        setCommitMessage(''); // Clear the input
+        setCommitMessage('');
         await refreshChanges();
         try {
           await refreshPr();
-        } catch {}
+        } catch {
+          // PR refresh is best-effort
+        }
         // Proactively load branch status so the Create PR button appears immediately
         try {
           setBranchStatusLoading(true);
@@ -268,6 +343,63 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
+  const handleMergeToMain = async () => {
+    setIsMergingToMain(true);
+    setPrDropdownOpen(false);
+    try {
+      const result = await window.electronAPI.mergeToMain({ taskPath: safeTaskPath });
+      if (result.success) {
+        toast({
+          title: 'Merged to Main',
+          description: 'Changes have been merged to main and branch deleted.',
+        });
+        await refreshChanges();
+        try {
+          await refreshPr();
+        } catch {
+          // PR refresh is best-effort
+        }
+      } else {
+        toast({
+          title: 'Merge Failed',
+          description: result.error || 'Failed to merge to main.',
+          variant: 'destructive',
+        });
+      }
+    } catch (_error) {
+      toast({
+        title: 'Merge Failed',
+        description: 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsMergingToMain(false);
+    }
+  };
+
+  const handlePrAction = async () => {
+    if (prMode === 'merge') {
+      await handleMergeToMain();
+    } else {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('pr_viewed');
+      })();
+      await createPR({
+        taskPath: safeTaskPath,
+        prOptions: prMode === 'draft' ? { draft: true } : undefined,
+        onSuccess: async () => {
+          await refreshChanges();
+          try {
+            await refreshPr();
+          } catch {
+            // PR refresh is best-effort
+          }
+        },
+      });
+    }
+  };
+
   const renderPath = (p: string) => {
     const last = p.lastIndexOf('/');
     const dir = last >= 0 ? p.slice(0, last + 1) : '';
@@ -292,6 +424,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     return null;
   }
 
+  const isActionLoading = isCreatingPR || isMergingToMain;
+
   return (
     <div className={`flex h-full flex-col bg-card shadow-sm ${className}`}>
       <div className="bg-muted px-3 py-2">
@@ -314,7 +448,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   </span>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -325,57 +459,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
                   <span className="hidden sm:inline">Changes</span>
                 </Button>
-                <div className="flex shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-r-none border-r-0 px-2 text-xs"
-                    disabled={isCreatingPR}
-                    title={
-                      createAsDraft
-                        ? 'Commit all changes and create a draft pull request'
-                        : 'Commit all changes and create a pull request'
-                    }
-                    onClick={async () => {
-                      void (async () => {
-                        const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('pr_viewed');
-                      })();
-                      await createPR({
-                        taskPath: safeTaskPath,
-                        prOptions: createAsDraft ? { draft: true } : undefined,
-                        onSuccess: async () => {
-                          await refreshChanges();
-                          try {
-                            await refreshPr();
-                          } catch {}
-                        },
-                      });
-                    }}
-                  >
-                    {isCreatingPR ? <Spinner size="sm" /> : createAsDraft ? 'Draft PR' : 'Create PR'}
-                  </Button>
-                  <Popover open={prDropdownOpen} onOpenChange={setPrDropdownOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 rounded-l-none px-1.5"
-                        disabled={isCreatingPR}
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
-                      <button
-                        className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
-                        onClick={() => toggleDraftMode(!createAsDraft)}
-                      >
-                        {createAsDraft ? 'Create PR' : 'Draft PR'}
-                      </button>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <PrActionButton
+                  mode={prMode}
+                  onModeChange={selectPrMode}
+                  onExecute={handlePrAction}
+                  isLoading={isActionLoading}
+                  dropdownOpen={prDropdownOpen}
+                  onDropdownChange={setPrDropdownOpen}
+                />
               </div>
             </div>
 
@@ -430,63 +521,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <ArrowUpRight className="size-3" />
                 </button>
               ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
-                <div className="flex">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-r-none border-r-0 px-2 text-xs"
-                    disabled={isCreatingPR || branchStatusLoading}
-                    title={
-                      createAsDraft
-                        ? 'Create a draft pull request for the current branch'
-                        : 'Create a pull request for the current branch'
-                    }
-                    onClick={async () => {
-                      void (async () => {
-                        const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('pr_viewed');
-                      })();
-                      await createPR({
-                        taskPath: safeTaskPath,
-                        prOptions: createAsDraft ? { draft: true } : undefined,
-                        onSuccess: async () => {
-                          await refreshChanges();
-                          try {
-                            await refreshPr();
-                          } catch {}
-                        },
-                      });
-                    }}
-                  >
-                    {isCreatingPR || branchStatusLoading ? (
-                      <Spinner size="sm" />
-                    ) : createAsDraft ? (
-                      'Draft PR'
-                    ) : (
-                      'Create PR'
-                    )}
-                  </Button>
-                  <Popover open={prDropdownOpen} onOpenChange={setPrDropdownOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 rounded-l-none px-1.5"
-                        disabled={isCreatingPR || branchStatusLoading}
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
-                      <button
-                        className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
-                        onClick={() => toggleDraftMode(!createAsDraft)}
-                      >
-                        {createAsDraft ? 'Create PR' : 'Draft PR'}
-                      </button>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <PrActionButton
+                  mode={prMode}
+                  onModeChange={selectPrMode}
+                  onExecute={handlePrAction}
+                  isLoading={isActionLoading || branchStatusLoading}
+                  dropdownOpen={prDropdownOpen}
+                  onDropdownChange={setPrDropdownOpen}
+                />
               ) : (
                 <span className="text-xs text-muted-foreground">No PR for this branch</span>
               )}

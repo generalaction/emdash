@@ -505,6 +505,12 @@ declare global {
         output?: string;
         error?: string;
       }>;
+      mergeToMain: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        output?: string;
+        prUrl?: string;
+        error?: string;
+      }>;
       getPrStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         pr?: {
@@ -1092,6 +1098,12 @@ export interface ElectronAPI {
     success: boolean;
     url?: string;
     output?: string;
+    error?: string;
+  }>;
+  mergeToMain: (args: { taskPath: string }) => Promise<{
+    success: boolean;
+    output?: string;
+    prUrl?: string;
     error?: string;
   }>;
   connectToGitHub: (projectPath: string) => Promise<{

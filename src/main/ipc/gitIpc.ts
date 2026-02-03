@@ -782,6 +782,161 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     }
   );
 
+  // Git: Merge current branch to main via GitHub (create PR + merge immediately)
+  ipcMain.handle(
+    'git:merge-to-main',
+    async (
+      _,
+      args: {
+        taskPath: string;
+      }
+    ) => {
+      const { taskPath } = args || ({} as { taskPath: string });
+      try {
+        const outputs: string[] = [];
+
+        // Stage and commit any pending changes
+        try {
+          const { stdout: statusOut } = await execAsync(
+            'git status --porcelain --untracked-files=all',
+            { cwd: taskPath }
+          );
+          if (statusOut && statusOut.trim().length > 0) {
+            await execAsync('git add -A', { cwd: taskPath });
+            const commitMsg = 'chore: prepare for merge to main';
+            try {
+              await execAsync(`git commit -m ${JSON.stringify(commitMsg)}`, { cwd: taskPath });
+              outputs.push('Committed pending changes');
+            } catch (commitErr) {
+              const msg = commitErr as string;
+              if (!/nothing to commit/i.test(msg)) throw commitErr;
+            }
+          }
+        } catch (stageErr) {
+          log.warn('Failed to stage/commit changes before merge:', stageErr as string);
+        }
+
+        // Push the branch
+        try {
+          await execAsync('git push', { cwd: taskPath });
+          outputs.push('Pushed branch');
+        } catch (pushErr) {
+          try {
+            const { stdout: branchOut } = await execAsync('git rev-parse --abbrev-ref HEAD', {
+              cwd: taskPath,
+            });
+            const branch = branchOut.trim();
+            await execAsync(`git push --set-upstream origin ${JSON.stringify(branch)}`, {
+              cwd: taskPath,
+            });
+            outputs.push(`Pushed branch with upstream`);
+          } catch (pushErr2) {
+            log.error('Failed to push branch:', pushErr2 as string);
+            return {
+              success: false,
+              error: 'Failed to push branch. Please check your Git remotes and authentication.',
+            };
+          }
+        }
+
+        // Determine default branch
+        let defaultBranch = 'main';
+        try {
+          const { stdout } = await execAsync(
+            'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
+            { cwd: taskPath }
+          );
+          const db = (stdout || '').trim();
+          if (db) defaultBranch = db;
+        } catch {}
+
+        // Get current branch
+        let currentBranch = '';
+        try {
+          const { stdout } = await execAsync('git branch --show-current', { cwd: taskPath });
+          currentBranch = (stdout || '').trim();
+        } catch {}
+
+        // Check if already on default branch
+        if (currentBranch === defaultBranch) {
+          return {
+            success: false,
+            error: `Already on ${defaultBranch}. Create a feature branch first.`,
+          };
+        }
+
+        // Check if there are commits ahead of main
+        try {
+          const { stdout: aheadOut } = await execAsync(
+            `git rev-list --count origin/${JSON.stringify(defaultBranch)}..HEAD`,
+            { cwd: taskPath }
+          );
+          const aheadCount = parseInt((aheadOut || '0').trim(), 10) || 0;
+          if (aheadCount <= 0) {
+            return {
+              success: false,
+              error: `No commits ahead of ${defaultBranch}. Nothing to merge.`,
+            };
+          }
+        } catch {}
+
+        // Create PR with --fill to auto-fill title/body from commits
+        let prUrl = '';
+        try {
+          const { stdout: prOut } = await execAsync(
+            `gh pr create --fill --base ${JSON.stringify(defaultBranch)}`,
+            { cwd: taskPath }
+          );
+          const urlMatch = (prOut || '').match(/https?:\/\/\S+/);
+          prUrl = urlMatch ? urlMatch[0] : '';
+          outputs.push(`Created PR: ${prUrl}`);
+        } catch (prErr) {
+          const err = prErr as { stderr?: string; message?: string };
+          const errMsg = err?.stderr || err?.message || String(prErr);
+          // Check if PR already exists
+          if (/already exists|already has.*pull request/i.test(errMsg)) {
+            outputs.push('PR already exists, proceeding to merge');
+          } else {
+            log.error('Failed to create PR:', errMsg);
+            return {
+              success: false,
+              error: `Failed to create PR: ${errMsg}`,
+            };
+          }
+        }
+
+        // Merge the PR immediately
+        try {
+          const { stdout: mergeOut, stderr: mergeErr } = await execAsync(
+            'gh pr merge --merge --delete-branch',
+            { cwd: taskPath }
+          );
+          outputs.push('Merged to main and deleted branch');
+          const out = [...outputs, (mergeOut || '').trim(), (mergeErr || '').trim()]
+            .filter(Boolean)
+            .join('\n');
+          return { success: true, output: out, prUrl };
+        } catch (mergeErr) {
+          const err = mergeErr as { stderr?: string; message?: string };
+          const errMsg = err?.stderr || err?.message || String(mergeErr);
+          log.error('Failed to merge PR:', errMsg);
+          return {
+            success: false,
+            error: `PR created but merge failed: ${errMsg}`,
+            prUrl,
+          };
+        }
+      } catch (error) {
+        const err = error as { message?: string };
+        log.error('Failed to merge to main:', error);
+        return {
+          success: false,
+          error: err?.message || String(error),
+        };
+      }
+    }
+  );
+
   // Git: Rename branch (local and optionally remote)
   ipcMain.handle(
     'git:rename-branch',
