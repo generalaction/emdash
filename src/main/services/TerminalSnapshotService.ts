@@ -9,6 +9,23 @@ interface StoredSnapshot extends TerminalSnapshotPayload {
   bytes: number;
 }
 
+/**
+ * Sanitize a string for safe JSON serialization by replacing lone surrogates.
+ *
+ * Terminal data from xterm.js can contain arbitrary bytes, including unpaired
+ * Unicode surrogates (U+D800-U+DFFF). These are invalid in JSON and cause
+ * "Bad Unicode escape" errors when parsed. This function replaces lone
+ * surrogates with the Unicode replacement character (U+FFFD).
+ */
+function sanitizeForJson(str: string): string {
+  // High surrogates (D800-DBFF) not followed by low surrogates (DC00-DFFF)
+  // and low surrogates not preceded by high surrogates are invalid in JSON.
+  return str.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    '\uFFFD'
+  );
+}
+
 const MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 
@@ -114,7 +131,13 @@ class TerminalSnapshotService {
         return { ok: false, error: 'Unsupported snapshot version' };
       }
 
-      const json = JSON.stringify(payload);
+      // Sanitize terminal data to remove lone surrogates before JSON serialization
+      const sanitizedPayload: TerminalSnapshotPayload = {
+        ...payload,
+        data: sanitizeForJson(payload.data),
+      };
+
+      const json = JSON.stringify(sanitizedPayload);
       const bytes = Buffer.byteLength(json, 'utf8');
       if (bytes > MAX_SNAPSHOT_BYTES) {
         return { ok: false, error: 'Snapshot size exceeds per-task limit' };

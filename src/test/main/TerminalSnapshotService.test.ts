@@ -71,4 +71,32 @@ describe('TerminalSnapshotService', () => {
     const loaded = await service.getSnapshot('temp');
     expect(loaded).toBeNull();
   });
+
+  it('handles data with lone surrogates without JSON parse errors', async () => {
+    // Lone surrogates (U+D800-U+DFFF not in valid pairs) cause "Bad Unicode escape"
+    // errors when JSON.parse encounters them. This tests that the service sanitizes them.
+    const loneHighSurrogate = '\uD800'; // High surrogate without low surrogate
+    const loneLowSurrogate = '\uDC00'; // Low surrogate without high surrogate
+    const validPair = '\uD83D\uDE00'; // Valid surrogate pair (emoji)
+
+    const payload: TerminalSnapshotPayload = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      cols: 80,
+      rows: 24,
+      data: `before${loneHighSurrogate}middle${loneLowSurrogate}after${validPair}end`,
+    };
+
+    // Save should succeed despite lone surrogates
+    const saveResult = await service.saveSnapshot('surrogate-test', payload);
+    expect(saveResult.ok).toBe(true);
+
+    // Load should succeed and return sanitized data
+    const loaded = await service.getSnapshot('surrogate-test');
+    expect(loaded).not.toBeNull();
+    // Lone surrogates should be replaced with U+FFFD (replacement character)
+    expect(loaded?.data).toBe('before\uFFFDmiddle\uFFFDafter\uD83D\uDE00end');
+    // Valid surrogate pair should be preserved
+    expect(loaded?.data).toContain('\uD83D\uDE00');
+  });
 });
