@@ -62,6 +62,7 @@ async function readSnapshotFile(filePath: string): Promise<StoredSnapshot | null
       error,
       bytes: Buffer.byteLength(raw, 'utf8'),
     });
+    await removeFile(filePath);
     return null;
   }
 }
@@ -73,6 +74,25 @@ async function removeFile(filePath: string): Promise<void> {
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
       log.warn('terminalSnapshotService: failed to delete snapshot', { filePath, error });
     }
+  }
+}
+
+async function atomicWriteFile(filePath: string, contents: string): Promise<void> {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const tmpPath = path.join(dir, `.${base}.${process.pid}.${Date.now()}.tmp`);
+  await fs.promises.writeFile(tmpPath, contents, 'utf8');
+  try {
+    await fs.promises.rename(tmpPath, filePath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === 'EEXIST' || code === 'EPERM') {
+      await fs.promises.rm(filePath, { force: true });
+      await fs.promises.rename(tmpPath, filePath);
+      return;
+    }
+    await fs.promises.rm(tmpPath, { force: true });
+    throw error;
   }
 }
 
@@ -121,7 +141,7 @@ class TerminalSnapshotService {
       }
 
       await ensureDir();
-      await fs.promises.writeFile(snapshotPath(id), json, 'utf8');
+      await atomicWriteFile(snapshotPath(id), json);
       await this.pruneIfNeeded(id);
       return { ok: true };
     } catch (error) {
