@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getCachedGitStatus } from './gitStatusCache';
 
 const execFileAsync = promisify(execFile);
 
@@ -13,7 +14,73 @@ export type GitChange = {
   isStaged: boolean;
 };
 
+type DiffStat = {
+  additions: number;
+  deletions: number;
+};
+
+const normalizeRenamePath = (rawPath: string): string => {
+  const trimmed = rawPath.trim();
+  if (!trimmed) return trimmed;
+
+  if (trimmed.includes('->')) {
+    const parts = trimmed.split('->');
+    return parts[parts.length - 1].trim();
+  }
+
+  if (trimmed.includes('=>')) {
+    const braceStart = trimmed.indexOf('{');
+    const braceEnd = trimmed.lastIndexOf('}');
+    if (braceStart !== -1 && braceEnd !== -1 && braceEnd > braceStart) {
+      const before = trimmed.slice(0, braceStart);
+      const after = trimmed.slice(braceEnd + 1);
+      const inside = trimmed.slice(braceStart + 1, braceEnd);
+      const parts = inside.split('=>');
+      const next = parts[parts.length - 1].trim();
+      return `${before}${next}${after}`.trim();
+    }
+    const parts = trimmed.split('=>');
+    return parts[parts.length - 1].trim();
+  }
+
+  return trimmed;
+};
+
+const parseNumstatMap = (stdout: string): Map<string, DiffStat> => {
+  const map = new Map<string, DiffStat>();
+  const lines = stdout
+    .split('\n')
+    .map((l) => l.replace(/\r$/, ''))
+    .filter((l) => l.trim().length > 0);
+
+  for (const line of lines) {
+    const parts = line.split('\t');
+    if (parts.length < 3) continue;
+    const addStr = parts[0];
+    const delStr = parts[1];
+    const rawPath = parts.slice(2).join('\t');
+    const filePath = normalizeRenamePath(rawPath);
+    if (!filePath) continue;
+
+    const additions = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
+    const deletions = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
+    const current = map.get(filePath);
+    if (current) {
+      current.additions += additions;
+      current.deletions += deletions;
+    } else {
+      map.set(filePath, { additions, deletions });
+    }
+  }
+
+  return map;
+};
+
 export async function getStatus(taskPath: string): Promise<GitChange[]> {
+  return getCachedGitStatus(taskPath, () => computeStatus(taskPath));
+}
+
+async function computeStatus(taskPath: string): Promise<GitChange[]> {
   try {
     await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
       cwd: taskPath,
@@ -31,6 +98,23 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
   );
 
   if (!statusOutput.trim()) return [];
+
+  let stagedMap = new Map<string, DiffStat>();
+  let unstagedMap = new Map<string, DiffStat>();
+
+  try {
+    const { stdout } = await execFileAsync('git', ['diff', '--numstat', '--cached', '--'], {
+      cwd: taskPath,
+    });
+    stagedMap = parseNumstatMap(stdout || '');
+  } catch {}
+
+  try {
+    const { stdout } = await execFileAsync('git', ['diff', '--numstat', '--'], {
+      cwd: taskPath,
+    });
+    unstagedMap = parseNumstatMap(stdout || '');
+  } catch {}
 
   const changes: GitChange[] = [];
   const statusLines = statusOutput
@@ -55,40 +139,10 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
     // Check if file is staged (first character of status code indicates staged changes)
     const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
 
-    let additions = 0;
-    let deletions = 0;
-
-    const sumNumstat = (stdout: string) => {
-      const lines = stdout
-        .trim()
-        .split('\n')
-        .filter((l) => l.trim().length > 0);
-      for (const l of lines) {
-        const p = l.split('\t');
-        if (p.length >= 2) {
-          const addStr = p[0];
-          const delStr = p[1];
-          const a = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
-          const d = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
-          additions += a;
-          deletions += d;
-        }
-      }
-    };
-
-    try {
-      const staged = await execFileAsync('git', ['diff', '--numstat', '--cached', '--', filePath], {
-        cwd: taskPath,
-      });
-      if (staged.stdout && staged.stdout.trim()) sumNumstat(staged.stdout);
-    } catch {}
-
-    try {
-      const unstaged = await execFileAsync('git', ['diff', '--numstat', '--', filePath], {
-        cwd: taskPath,
-      });
-      if (unstaged.stdout && unstaged.stdout.trim()) sumNumstat(unstaged.stdout);
-    } catch {}
+    const staged = stagedMap.get(filePath);
+    const unstaged = unstagedMap.get(filePath);
+    let additions = (staged?.additions || 0) + (unstaged?.additions || 0);
+    let deletions = (staged?.deletions || 0) + (unstaged?.deletions || 0);
 
     if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
       const absPath = path.join(taskPath, filePath);

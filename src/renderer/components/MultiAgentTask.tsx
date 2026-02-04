@@ -79,9 +79,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
   const [prompt, setPrompt] = useState('');
-  const [activeTabIndex, setActiveTabIndex] = useState(() =>
-    resolveActiveTabIndex(task, variants)
-  );
+  const [activeTabIndex, setActiveTabIndex] = useState(() => resolveActiveTabIndex(task, variants));
   const [splitViewEnabled, setSplitViewEnabled] = useState<boolean>(() =>
     readSplitViewPreference(task)
   );
