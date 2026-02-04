@@ -918,14 +918,14 @@ const ChatInterface: React.FC<Props> = ({
             >
               {/* Wait for conversations to load to ensure stable terminalId */}
               {conversationsLoaded && (
-                  <TerminalPane
-                    ref={terminalRef}
-                    id={terminalId}
-                    cwd={terminalCwd}
-                    providerId={agent}
-                    autoApprove={autoApproveEnabled}
-                    env={taskEnv}
-                    keepAlive={true}
+                <TerminalPane
+                  ref={terminalRef}
+                  id={terminalId}
+                  cwd={terminalCwd}
+                  providerId={agent}
+                  autoApprove={autoApproveEnabled}
+                  env={taskEnv}
+                  keepAlive={true}
                   disableSnapshots={false}
                   onActivity={() => {
                     try {

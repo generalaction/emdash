@@ -68,13 +68,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         const v = task?.metadata?.multiAgent?.variants || [];
         if (Array.isArray(v))
           return v
-          .map((x: any) => ({
-            agent: x?.agent as Agent,
-            name: x?.name,
-            path: x?.path,
-            worktreeId: x?.worktreeId,
-          }))
-          .filter((x) => x?.path);
+            .map((x: any) => ({
+              agent: x?.agent as Agent,
+              name: x?.name,
+              path: x?.path,
+              worktreeId: x?.worktreeId,
+            }))
+            .filter((x) => x?.path);
       } catch {}
       return [];
     })();

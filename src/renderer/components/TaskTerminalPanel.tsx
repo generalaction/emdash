@@ -476,15 +476,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
               )}
             >
-                <TerminalPane
-                  id={terminal.id}
-                  cwd={terminal.cwd || task?.path}
-                  env={taskEnv}
-                  variant={
-                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                  }
-                  themeOverride={themeOverride}
-                  className="h-full w-full"
+              <TerminalPane
+                id={terminal.id}
+                cwd={terminal.cwd || task?.path}
+                env={taskEnv}
+                variant={
+                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+                }
+                themeOverride={themeOverride}
+                className="h-full w-full"
                 keepAlive
                 onStartSuccess={terminalReadyCallbacks.get(terminal.id)}
               />
