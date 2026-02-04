@@ -145,7 +145,7 @@ const KanbanBoard: React.FC<{
       }
     };
     check();
-    const id = window.setInterval(check, 10000);
+    const id = window.setInterval(check, 30000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
