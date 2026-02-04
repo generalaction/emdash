@@ -19,13 +19,21 @@ export interface WorktreeInfo {
 export class WorktreeService {
   private worktrees = new Map<string, WorktreeInfo>();
 
+  private async cleanupWorktreeDirectory(pathToRemove: string): Promise<void> {
+    try {
+      await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+    } catch (error) {
+      console.warn("Failed to cleanup worktree directory:", error);
+    }
+  }
+
   /**
    * Create a new Git worktree for an agent workspace
    */
   async createWorktree(
     projectPath: string,
     workspaceName: string,
-    projectId: string
+    projectId: string,
   ): Promise<WorktreeInfo> {
     try {
       // Generate unique branch name with more randomness
@@ -35,7 +43,7 @@ export class WorktreeService {
       const worktreePath = path.join(
         projectPath,
         "..",
-        `worktrees/${workspaceName}-${timestamp}`
+        `worktrees/${workspaceName}-${timestamp}`,
       );
 
       console.log(`Creating worktree: ${branchName} -> ${worktreePath}`);
@@ -54,7 +62,7 @@ export class WorktreeService {
       // Create the worktree
       const { stdout, stderr } = await execAsync(
         `git worktree add -b "${branchName}" "${worktreePath}"`,
-        { cwd: projectPath }
+        { cwd: projectPath },
       );
 
       console.log("Git worktree stdout:", stdout);
@@ -76,25 +84,31 @@ export class WorktreeService {
 
       // Ensure codex logs are ignored in this worktree
       try {
-        const gitMeta = path.join(worktreePath, '.git')
-        let gitDir = gitMeta
+        const gitMeta = path.join(worktreePath, ".git");
+        let gitDir = gitMeta;
         if (fs.existsSync(gitMeta) && fs.statSync(gitMeta).isFile()) {
           try {
-            const content = fs.readFileSync(gitMeta, 'utf8')
-            const m = content.match(/gitdir:\s*(.*)\s*$/i)
+            const content = fs.readFileSync(gitMeta, "utf8");
+            const m = content.match(/gitdir:\s*(.*)\s*$/i);
             if (m && m[1]) {
-              gitDir = path.resolve(worktreePath, m[1].trim())
+              gitDir = path.resolve(worktreePath, m[1].trim());
             }
           } catch {}
         }
-        const excludePath = path.join(gitDir, 'info', 'exclude')
+        const excludePath = path.join(gitDir, "info", "exclude");
         try {
-          const dir = path.dirname(excludePath)
-          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-          let current = ''
-          try { current = fs.readFileSync(excludePath, 'utf8') } catch {}
-          if (!current.includes('codex-stream.log')) {
-            fs.appendFileSync(excludePath, (current.endsWith('\n') || current === '' ? '' : '\n') + 'codex-stream.log\n')
+          const dir = path.dirname(excludePath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          let current = "";
+          try {
+            current = fs.readFileSync(excludePath, "utf8");
+          } catch {}
+          if (!current.includes("codex-stream.log")) {
+            fs.appendFileSync(
+              excludePath,
+              (current.endsWith("\n") || current === "" ? "" : "\n") +
+                "codex-stream.log\n",
+            );
           }
         } catch {}
       } catch {}
@@ -115,12 +129,17 @@ export class WorktreeService {
 
       // Push the new branch to origin and set upstream so PRs work out of the box
       try {
-        await execAsync(`git push --set-upstream origin ${JSON.stringify(branchName)}`, {
-          cwd: worktreePath,
-        });
-        console.log(`Pushed branch ${branchName} to origin with upstream tracking`);
+        await execAsync(
+          `git push --set-upstream origin ${JSON.stringify(branchName)}`,
+          {
+            cwd: worktreePath,
+          },
+        );
+        console.log(
+          `Pushed branch ${branchName} to origin with upstream tracking`,
+        );
       } catch (pushErr) {
-        console.warn('Initial push of worktree branch failed:', pushErr);
+        console.warn("Initial push of worktree branch failed:", pushErr);
         // Don't fail worktree creation if push fails - user can push manually later
       }
 
@@ -180,7 +199,7 @@ export class WorktreeService {
     projectPath: string,
     worktreeId: string,
     worktreePath?: string,
-    branch?: string
+    branch?: string,
   ): Promise<void> {
     try {
       let worktree = this.worktrees.get(worktreeId);
@@ -198,19 +217,25 @@ export class WorktreeService {
           cwd: projectPath,
         });
       } catch (gitError) {
-        console.warn("git worktree remove failed, attempting filesystem cleanup", gitError);
+        console.warn(
+          "git worktree remove failed, attempting filesystem cleanup",
+          gitError,
+        );
       }
 
       // Ensure directory is removed even if git command failed
-      if (fs.existsSync(pathToRemove)) {
-        await fs.promises.rm(pathToRemove, { recursive: true, force: true });
-      }
+      void this.cleanupWorktreeDirectory(pathToRemove);
 
       if (branchToDelete) {
         try {
-          await execAsync(`git branch -D ${branchToDelete}`, { cwd: projectPath });
+          await execAsync(`git branch -D ${branchToDelete}`, {
+            cwd: projectPath,
+          });
         } catch (branchError) {
-          console.warn(`Failed to delete branch ${branchToDelete}:`, branchError);
+          console.warn(
+            `Failed to delete branch ${branchToDelete}:`,
+            branchError,
+          );
         }
       }
 
@@ -293,7 +318,7 @@ export class WorktreeService {
    */
   async mergeWorktreeChanges(
     projectPath: string,
-    worktreeId: string
+    worktreeId: string,
   ): Promise<void> {
     try {
       const worktree = this.worktrees.get(worktreeId);
