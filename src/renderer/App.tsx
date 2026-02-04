@@ -2808,6 +2808,7 @@ const AppContent: React.FC = () => {
                     <RightSidebar
                       task={activeTask}
                       projectPath={selectedProject?.path || null}
+                      projectDefaultBranch={projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
                     />

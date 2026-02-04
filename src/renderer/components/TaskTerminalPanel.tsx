@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from './ui/select';
 import type { Agent } from '../types';
+import { getTaskEnvVars } from '@shared/task/envVars';
 
 // Track which terminals have already run their setup script (persists across remounts)
 const setupScriptRan = new Set<string>();
@@ -41,9 +42,16 @@ interface Props {
   agent?: Agent;
   className?: string;
   projectPath?: string;
+  defaultBranch?: string;
 }
 
-const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, projectPath }) => {
+const TaskTerminalPanelComponent: React.FC<Props> = ({
+  task,
+  agent,
+  className,
+  projectPath,
+  defaultBranch,
+}) => {
   const { effectiveTheme } = useTheme();
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
@@ -75,6 +83,16 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
   const projectPathRef = useRef(projectPath);
   taskRef.current = task;
   projectPathRef.current = projectPath;
+  const taskEnv = useMemo(() => {
+    if (!task || !task.path || !projectPath) return undefined;
+    return getTaskEnvVars({
+      taskId: task.id,
+      taskName: task.name,
+      taskPath: task.path,
+      projectPath,
+      defaultBranch,
+    });
+  }, [task, projectPath, defaultBranch]);
 
   // Run setup script when a task terminal becomes ready (only once per terminal)
   const handleTerminalReady = useCallback((terminalId: string) => {
@@ -455,14 +473,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
                 isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
               )}
             >
-              <TerminalPane
-                id={terminal.id}
-                cwd={terminal.cwd || task?.path}
-                variant={
-                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                }
-                themeOverride={themeOverride}
-                className="h-full w-full"
+                <TerminalPane
+                  id={terminal.id}
+                  cwd={terminal.cwd || task?.path}
+                  env={taskEnv}
+                  variant={
+                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+                  }
+                  themeOverride={themeOverride}
+                  className="h-full w-full"
                 keepAlive
                 onStartSuccess={terminalReadyCallbacks.get(terminal.id)}
               />
