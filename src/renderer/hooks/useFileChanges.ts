@@ -129,9 +129,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   const clearIdleHandle = useCallback(() => {
     if (idleHandleRef.current === null) return;
     if (idleHandleModeRef.current === 'idle') {
-      const cancelIdle = (window as any).cancelIdleCallback as
-        | ((id: number) => void)
-        | undefined;
+      const cancelIdle = (window as any).cancelIdleCallback as ((id: number) => void) | undefined;
       cancelIdle?.(idleHandleRef.current);
     } else {
       clearTimeout(idleHandleRef.current);
