@@ -4,6 +4,39 @@ import { databaseService } from '../services/DatabaseService';
 import fs from 'fs';
 import path from 'path';
 
+async function cleanupSessionDirectory(taskPath: string, conversationId: string): Promise<void> {
+  try {
+    const sessionDir = path.join(taskPath, '.emdash-sessions', conversationId);
+
+    try {
+      await fs.promises.stat(sessionDir);
+    } catch {
+      return;
+    }
+
+    try {
+      await fs.promises.rm(sessionDir, { recursive: true, force: true });
+      log.info('Cleaned up session directory:', sessionDir);
+    } catch (error) {
+      log.warn('Failed to remove session directory:', error);
+      return;
+    }
+
+    const parentDir = path.join(taskPath, '.emdash-sessions');
+    try {
+      const entries = await fs.promises.readdir(parentDir);
+      if (entries.length === 0) {
+        await fs.promises.rmdir(parentDir);
+        log.info('Removed empty .emdash-sessions directory');
+      }
+    } catch {
+      // Parent directory removal is optional
+    }
+  } catch (error) {
+    log.warn('Failed to cleanup session directory:', error);
+  }
+}
+
 export function registerDatabaseIpc() {
   ipcMain.handle('db:getProjects', async () => {
     try {
@@ -117,27 +150,7 @@ export function registerDatabaseIpc() {
     'db:cleanupSessionDirectory',
     async (_, args: { taskPath: string; conversationId: string }) => {
       try {
-        const sessionDir = path.join(args.taskPath, '.emdash-sessions', args.conversationId);
-
-        // Check if directory exists before trying to remove it
-        if (fs.existsSync(sessionDir)) {
-          // Remove the directory and its contents
-          fs.rmSync(sessionDir, { recursive: true, force: true });
-          log.info('Cleaned up session directory:', sessionDir);
-
-          // Also try to remove the parent .emdash-sessions if it's empty
-          const parentDir = path.join(args.taskPath, '.emdash-sessions');
-          try {
-            const entries = fs.readdirSync(parentDir);
-            if (entries.length === 0) {
-              fs.rmdirSync(parentDir);
-              log.info('Removed empty .emdash-sessions directory');
-            }
-          } catch (err) {
-            // Parent directory removal is optional
-          }
-        }
-
+        void cleanupSessionDirectory(args.taskPath, args.conversationId);
         return { success: true };
       } catch (error) {
         log.warn('Failed to cleanup session directory:', error);
