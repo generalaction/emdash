@@ -95,7 +95,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       defaultBranch,
       portSeed,
     });
-  }, [task, projectPath, defaultBranch, portSeed]);
+  }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
 
   // Run setup script when a task terminal becomes ready (only once per terminal)
   const handleTerminalReady = useCallback((terminalId: string) => {

@@ -418,6 +418,7 @@ export function registerPtyIpc(): void {
             rows,
             autoApprove,
             initialPrompt,
+            env,
             skipResume: !resume,
           });
           usedFallback = true;

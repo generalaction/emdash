@@ -42,17 +42,25 @@ const MultiAgentTask: React.FC<Props> = ({ task, projectPath, defaultBranch }) =
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
 
-  const getVariantEnv = (variant: Variant) => {
-    if (!projectPath) return undefined;
-    return getTaskEnvVars({
-      taskId: task.id,
-      taskName: variant.name || task.name,
-      taskPath: variant.path,
-      projectPath,
-      defaultBranch: defaultBranch || undefined,
-      portSeed: variant.worktreeId || variant.path,
-    });
-  };
+  const variantEnvs = useMemo(() => {
+    if (!projectPath) return new Map<string, Record<string, string>>();
+    const envMap = new Map<string, Record<string, string>>();
+    for (const variant of variants) {
+      const key = variant.worktreeId || variant.path;
+      envMap.set(
+        key,
+        getTaskEnvVars({
+          taskId: task.id,
+          taskName: variant.name || task.name,
+          taskPath: variant.path,
+          projectPath,
+          defaultBranch: defaultBranch || undefined,
+          portSeed: key,
+        })
+      );
+    }
+    return envMap;
+  }, [variants, task.id, task.name, projectPath, defaultBranch]);
 
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
@@ -497,7 +505,7 @@ const MultiAgentTask: React.FC<Props> = ({ task, projectPath, defaultBranch }) =
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     providerId={v.agent}
-                    env={getVariantEnv(v)}
+                    env={variantEnvs.get(v.worktreeId || v.path)}
                     autoApprove={
                       Boolean(task.metadata?.autoApprove) &&
                       Boolean(agentMeta[v.agent]?.autoApproveFlag)
