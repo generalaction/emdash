@@ -70,9 +70,7 @@ export class WorktreeService {
     const normalizedProjectPath = path.resolve(projectPath);
 
     if (normalizedPathToRemove === normalizedProjectPath) {
-      log.error(
-        `CRITICAL: Prevented filesystem removal of main repository! Path: ${pathToRemove}`
-      );
+      log.error(`CRITICAL: Prevented filesystem removal of main repository! Path: ${pathToRemove}`);
       return;
     }
 
