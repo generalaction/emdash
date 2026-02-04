@@ -8,6 +8,59 @@ import * as path from "path";
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
+const MAX_UNTRACKED_LINECOUNT_BYTES = 512 * 1024;
+const MAX_UNTRACKED_DIFF_BYTES = 512 * 1024;
+
+async function countFileNewlinesCapped(
+  filePath: string,
+  maxBytes: number,
+): Promise<number | null> {
+  let stat: fs.Stats;
+  try {
+    stat = await fs.promises.stat(filePath);
+  } catch {
+    return null;
+  }
+
+  if (!stat.isFile() || stat.size > maxBytes) {
+    return null;
+  }
+
+  return await new Promise<number | null>((resolve) => {
+    let count = 0;
+    const stream = fs.createReadStream(filePath);
+    stream.on("data", (chunk: Buffer) => {
+      for (let i = 0; i < chunk.length; i++) {
+        if (chunk[i] === 0x0a) count++;
+      }
+    });
+    stream.on("error", () => resolve(null));
+    stream.on("end", () => resolve(count));
+  });
+}
+
+async function readFileTextCapped(
+  filePath: string,
+  maxBytes: number,
+): Promise<string | null> {
+  let stat: fs.Stats;
+  try {
+    stat = await fs.promises.stat(filePath);
+  } catch {
+    return null;
+  }
+
+  if (!stat.isFile() || stat.size > maxBytes) {
+    return null;
+  }
+
+  try {
+    return await fs.promises.readFile(filePath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
 export function setupCodexIpc() {
   // Check if Codex is installed
   ipcMain.handle("codex:check-installation", async () => {
@@ -35,7 +88,7 @@ export function setupCodexIpc() {
           error: error instanceof Error ? error.message : "Unknown error",
         };
       }
-    }
+    },
   );
 
   // Send a message to Codex
@@ -51,15 +104,24 @@ export function setupCodexIpc() {
           error: error instanceof Error ? error.message : "Unknown error",
         };
       }
-    }
+    },
   );
 
   // Send a message to Codex with streaming
   ipcMain.handle(
     "codex:send-message-stream",
-    async (event, workspaceId: string, message: string, conversationId?: string) => {
+    async (
+      event,
+      workspaceId: string,
+      message: string,
+      conversationId?: string,
+    ) => {
       try {
-        await codexService.sendMessageStream(workspaceId, message, conversationId);
+        await codexService.sendMessageStream(
+          workspaceId,
+          message,
+          conversationId,
+        );
         return { success: true };
       } catch (error) {
         return {
@@ -67,31 +129,37 @@ export function setupCodexIpc() {
           error: error instanceof Error ? error.message : "Unknown error",
         };
       }
-    }
+    },
   );
 
   // Get current streaming tail for a workspace (if running)
   ipcMain.handle(
-    'codex:get-stream-tail',
+    "codex:get-stream-tail",
     async (_event, workspaceId: string) => {
       try {
-        const info = codexService.getStreamInfo(workspaceId)
-        return { success: true, ...info }
+        const info = codexService.getStreamInfo(workspaceId);
+        return { success: true, ...info };
       } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
       }
-    }
-  )
+    },
+  );
 
-  ipcMain.handle('codex:stop-stream', async (event, workspaceId: string) => {
+  ipcMain.handle("codex:stop-stream", async (event, workspaceId: string) => {
     try {
-      console.log('[codex:stop-stream] request received', workspaceId);
+      console.log("[codex:stop-stream] request received", workspaceId);
       const stopped = await codexService.stopMessageStream(workspaceId);
-      console.log('[codex:stop-stream] result', { workspaceId, stopped });
+      console.log("[codex:stop-stream] result", { workspaceId, stopped });
       return { success: stopped, stopped };
     } catch (error) {
-      console.error('[codex:stop-stream] failed', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      console.error("[codex:stop-stream] failed", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
   });
 
@@ -108,7 +176,7 @@ export function setupCodexIpc() {
           error: error instanceof Error ? error.message : "Unknown error",
         };
       }
-    }
+    },
   );
 
   // Get all agents
@@ -193,17 +261,17 @@ export function setupCodexIpc() {
     "git:get-file-diff",
     async (event, args: { workspacePath: string; filePath: string }) => {
       try {
-        const { workspacePath, filePath } = args
-        const diff = await getFileDiff(workspacePath, filePath)
-        return { success: true, diff }
+        const { workspacePath, filePath } = args;
+        const diff = await getFileDiff(workspacePath, filePath);
+        return { success: true, diff };
       } catch (error) {
         return {
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
-        }
+        };
       }
-    }
-  )
+    },
+  );
 
   console.log("✅ Codex IPC handlers registered");
 }
@@ -233,7 +301,7 @@ async function getGitStatus(workspacePath: string): Promise<
     const { stdout: statusOutput } = await execFileAsync(
       "git",
       ["status", "--porcelain"],
-      { cwd: workspacePath }
+      { cwd: workspacePath },
     );
 
     if (!statusOutput.trim()) {
@@ -275,7 +343,7 @@ async function getGitStatus(workspacePath: string): Promise<
       }
 
       // Ignore internal log files that should never be surfaced
-      if (filePath.endsWith('codex-stream.log')) {
+      if (filePath.endsWith("codex-stream.log")) {
         continue;
       }
 
@@ -307,7 +375,7 @@ async function getGitStatus(workspacePath: string): Promise<
         const staged = await execFileAsync(
           "git",
           ["diff", "--numstat", "--cached", "--", filePath],
-          { cwd: workspacePath }
+          { cwd: workspacePath },
         );
         if (staged.stdout && staged.stdout.trim()) {
           sumNumstat(staged.stdout);
@@ -321,7 +389,7 @@ async function getGitStatus(workspacePath: string): Promise<
         const unstaged = await execFileAsync(
           "git",
           ["diff", "--numstat", "--", filePath],
-          { cwd: workspacePath }
+          { cwd: workspacePath },
         );
         if (unstaged.stdout && unstaged.stdout.trim()) {
           sumNumstat(unstaged.stdout);
@@ -334,21 +402,12 @@ async function getGitStatus(workspacePath: string): Promise<
       // Only attempt for existing regular files; skip directories or missing paths.
       if (additions === 0 && deletions === 0 && statusCode.includes("?")) {
         const absPath = path.join(workspacePath, filePath);
-        try {
-          const stat = fs.existsSync(absPath) ? fs.statSync(absPath) : undefined;
-          if (stat && stat.isFile()) {
-            try {
-              const buf = fs.readFileSync(absPath);
-              let count = 0;
-              for (let i = 0; i < buf.length; i++) if (buf[i] === 0x0a) count++;
-              additions = count;
-            } catch {
-              // Ignore errors (binary or unreadable), keep additions at 0
-            }
-          }
-          // If path doesn't exist or is not a file, silently skip
-        } catch {
-          // No-op: path issues; skip counting
+        const count = await countFileNewlinesCapped(
+          absPath,
+          MAX_UNTRACKED_LINECOUNT_BYTES,
+        );
+        if (typeof count === "number") {
+          additions = count;
         }
       }
 
@@ -367,98 +426,146 @@ async function getGitStatus(workspacePath: string): Promise<
 // Get per-file diff (HEAD vs working tree) for a specific file
 export async function getFileDiff(
   workspacePath: string,
-  filePath: string
+  filePath: string,
 ): Promise<{
-  lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>
+  lines: Array<{
+    left?: string;
+    right?: string;
+    type: "context" | "add" | "del";
+  }>;
 }> {
   // Use unified diff from HEAD to working tree to include staged + unstaged
   try {
     const { stdout } = await execFileAsync(
-      'git',
-      ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
-      { cwd: workspacePath }
-    )
-    const linesRaw = stdout.split("\n")
-    const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = []
+      "git",
+      ["diff", "--no-color", "--unified=2000", "HEAD", "--", filePath],
+      { cwd: workspacePath },
+    );
+    const linesRaw = stdout.split("\n");
+    const result: Array<{
+      left?: string;
+      right?: string;
+      type: "context" | "add" | "del";
+    }> = [];
 
     // Parse unified diff: skip headers (diff --, index, ---/+++), parse hunks @@
     for (const line of linesRaw) {
-      if (!line) continue
-      if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('@@')) {
-        continue
+      if (!line) continue;
+      if (
+        line.startsWith("diff ") ||
+        line.startsWith("index ") ||
+        line.startsWith("--- ") ||
+        line.startsWith("+++ ") ||
+        line.startsWith("@@")
+      ) {
+        continue;
       }
-      const prefix = line[0]
-      const content = line.slice(1)
-      if (prefix === ' ') {
-        result.push({ left: content, right: content, type: 'context' })
-      } else if (prefix === '-') {
-        result.push({ left: content, type: 'del' })
-      } else if (prefix === '+') {
-        result.push({ right: content, type: 'add' })
+      const prefix = line[0];
+      const content = line.slice(1);
+      if (prefix === " ") {
+        result.push({ left: content, right: content, type: "context" });
+      } else if (prefix === "-") {
+        result.push({ left: content, type: "del" });
+      } else if (prefix === "+") {
+        result.push({ right: content, type: "add" });
       } else {
         // Fallback treat as context
-        result.push({ left: line, right: line, type: 'context' })
+        result.push({ left: line, right: line, type: "context" });
       }
     }
 
     // If parsing yielded no content (e.g., brand-new file or edge case), fall back gracefully
     if (result.length === 0) {
       try {
-        const abs = path.join(workspacePath, filePath)
-        if (fs.existsSync(abs)) {
-          const content = fs.readFileSync(abs, 'utf8')
-          return { lines: content.split('\n').map((l: string) => ({ right: l, type: 'add' as const })) }
-        } else {
-          // File missing in working tree: try to show previous content from HEAD as deletions
-          try {
-            const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], { cwd: workspacePath })
-            return { lines: prev.split('\n').map((l: string) => ({ left: l, type: 'del' as const })) }
-          } catch {
-            return { lines: [] }
-          }
+        const abs = path.join(workspacePath, filePath);
+        const content = await readFileTextCapped(abs, MAX_UNTRACKED_DIFF_BYTES);
+        if (content !== null) {
+          return {
+            lines: content
+              .split("\n")
+              .map((l: string) => ({ right: l, type: "add" as const })),
+          };
+        }
+        // File missing in working tree: try to show previous content from HEAD as deletions
+        try {
+          const { stdout: prev } = await execFileAsync(
+            "git",
+            ["show", `HEAD:${filePath}`],
+            { cwd: workspacePath },
+          );
+          return {
+            lines: prev
+              .split("\n")
+              .map((l: string) => ({ left: l, type: "del" as const })),
+          };
+        } catch {
+          return { lines: [] };
         }
       } catch {
         // ignore and return empty
       }
     }
 
-    return { lines: result }
+    return { lines: result };
   } catch (error) {
     // If the file is untracked, show full content as additions (best-effort)
+    const abs = path.join(workspacePath, filePath);
+    const content = await readFileTextCapped(abs, MAX_UNTRACKED_DIFF_BYTES);
+    if (content !== null) {
+      const lines = content.split("\n");
+      return { lines: lines.map((l) => ({ right: l, type: "add" as const })) };
+    }
+    // Deleted file or inaccessible: try diff cached vs HEAD
     try {
-      const abs = path.join(workspacePath, filePath)
-      const content = fs.readFileSync(abs, 'utf8')
-      const lines = content.split('\n')
-      return { lines: lines.map((l) => ({ right: l, type: 'add' as const })) }
-    } catch (e) {
-      // Deleted file or inaccessible: try diff cached vs HEAD
-      try {
-        const { stdout } = await execFileAsync('git', ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath], { cwd: workspacePath })
-        const linesRaw = stdout.split('\n')
-        const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = []
-        for (const line of linesRaw) {
-          if (!line) continue
-          if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('@@')) continue
-          const prefix = line[0]
-          const content = line.slice(1)
-          if (prefix === ' ') result.push({ left: content, right: content, type: 'context' })
-          else if (prefix === '-') result.push({ left: content, type: 'del' })
-          else if (prefix === '+') result.push({ right: content, type: 'add' })
-          else result.push({ left: line, right: line, type: 'context' })
-        }
-        if (result.length === 0) {
-          // As a last resort, try to show HEAD content as deletions
-          try {
-            const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], { cwd: workspacePath })
-            return { lines: prev.split('\n').map((l: string) => ({ left: l, type: 'del' as const })) }
-          } catch {
-            return { lines: [] }
-          }
-        }
-        return { lines: result }
-      } catch {
-        return { lines: [] }
+      const { stdout } = await execFileAsync(
+        "git",
+        ["diff", "--no-color", "--unified=2000", "HEAD", "--", filePath],
+        { cwd: workspacePath },
+      );
+      const linesRaw = stdout.split("\n");
+      const result: Array<{
+        left?: string;
+        right?: string;
+        type: "context" | "add" | "del";
+      }> = [];
+      for (const line of linesRaw) {
+        if (!line) continue;
+        if (
+          line.startsWith("diff ") ||
+          line.startsWith("index ") ||
+          line.startsWith("--- ") ||
+          line.startsWith("+++ ") ||
+          line.startsWith("@@")
+        )
+          continue;
+        const prefix = line[0];
+        const content = line.slice(1);
+        if (prefix === " ")
+          result.push({ left: content, right: content, type: "context" });
+        else if (prefix === "-") result.push({ left: content, type: "del" });
+        else if (prefix === "+") result.push({ right: content, type: "add" });
+        else result.push({ left: line, right: line, type: "context" });
       }
+      if (result.length === 0) {
+        // As a last resort, try to show HEAD content as deletions
+        try {
+          const { stdout: prev } = await execFileAsync(
+            "git",
+            ["show", `HEAD:${filePath}`],
+            { cwd: workspacePath },
+          );
+          return {
+            lines: prev
+              .split("\n")
+              .map((l: string) => ({ left: l, type: "del" as const })),
+          };
+        } catch {
+          return { lines: [] };
+        }
+      }
+      return { lines: result };
+    } catch {
+      return { lines: [] };
     }
   }
 }
