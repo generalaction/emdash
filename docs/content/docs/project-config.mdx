@@ -81,6 +81,26 @@ When a task terminal starts, Emdash injects convenience environment variables yo
 }
 ```
 
+### Example: docker-compose override with task ports
+
+```yaml
+services:
+  db:
+    ports:
+      - "${EMDASH_PORT:-5432}:5432"
+  app:
+    environment:
+      - DATABASE_PORT=${EMDASH_PORT:-5432}
+```
+
+### Example: Port offsets (app + db + redis)
+
+```
+APP_PORT=$EMDASH_PORT
+DB_PORT=$((EMDASH_PORT + 1))
+REDIS_PORT=$((EMDASH_PORT + 2))
+```
+
 ### Examples
 
 Install dependencies:
