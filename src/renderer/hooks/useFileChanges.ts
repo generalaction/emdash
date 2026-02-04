@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToFileChanges } from '@/lib/fileChangeEvents';
 
 export interface FileChange {
@@ -10,85 +10,81 @@ export interface FileChange {
   diff?: string;
 }
 
-export function useFileChanges(taskPath: string) {
+interface UseFileChangesOptions {
+  isActive?: boolean;
+  idleIntervalMs?: number;
+}
+
+export function useFileChanges(taskPath?: string, options: UseFileChangesOptions = {}) {
   const [fileChanges, setFileChanges] = useState<FileChange[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDocumentVisible, setIsDocumentVisible] = useState(() => {
+    if (typeof document === 'undefined') return true;
+    return document.visibilityState === 'visible';
+  });
+  const [isWindowFocused, setIsWindowFocused] = useState(() => {
+    if (typeof document === 'undefined') return true;
+    return document.hasFocus();
+  });
+
+  const { isActive = true, idleIntervalMs = 60000 } = options;
+  const taskPathRef = useRef(taskPath);
+  const inFlightRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const shouldPollRef = useRef(false);
+  const idleHandleRef = useRef<number | null>(null);
+  const idleHandleModeRef = useRef<'idle' | 'timeout' | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    const fetchFileChanges = async (isInitialLoad = false) => {
-      if (!taskPath) return;
-
-      if (isInitialLoad) {
-        setIsLoading(true);
-        setError(null);
-      }
-
-      try {
-        // Call main process to get git status
-        const result = await window.electronAPI.getGitStatus(taskPath);
-
-        if (result?.success && result.changes && result.changes.length > 0) {
-          const changes: FileChange[] = result.changes
-            .map(
-              (change: {
-                path: string;
-                status: string;
-                additions: number;
-                deletions: number;
-                isStaged: boolean;
-                diff?: string;
-              }) => ({
-                path: change.path,
-                status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
-                additions: change.additions || 0,
-                deletions: change.deletions || 0,
-                isStaged: change.isStaged || false,
-                diff: change.diff,
-              })
-            )
-            .filter((c) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md');
-          setFileChanges(changes);
-        } else {
-          setFileChanges([]);
-        }
-      } catch (err) {
-        console.error('Failed to fetch file changes:', err);
-        if (isInitialLoad) {
-          setError('Failed to load file changes');
-        }
-        // No changes on error - set empty array
-        setFileChanges([]);
-      } finally {
-        if (isInitialLoad) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    // Initial load with loading state
-    fetchFileChanges(true);
-
-    const interval = setInterval(() => fetchFileChanges(false), 5000);
-
-    // Listen for file change events and refresh immediately
-    const unsubscribe = subscribeToFileChanges((event) => {
-      // Only refresh if the event is for our task path
-      if (event.detail.taskPath === taskPath) {
-        fetchFileChanges(false);
-      }
-    });
-
+    mountedRef.current = true;
     return () => {
-      clearInterval(interval);
-      unsubscribe();
+      mountedRef.current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    taskPathRef.current = taskPath;
+    hasLoadedRef.current = false;
   }, [taskPath]);
 
-  const refreshChanges = async () => {
-    setIsLoading(true);
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+    const handleVisibility = () => {
+      setIsDocumentVisible(document.visibilityState === 'visible');
+    };
+    const handleFocus = () => setIsWindowFocused(true);
+    const handleBlur = () => setIsWindowFocused(false);
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  const fetchFileChanges = useCallback(async (isInitialLoad = false) => {
+    const currentPath = taskPathRef.current;
+    if (!currentPath || inFlightRef.current) return;
+
+    inFlightRef.current = true;
+    if (isInitialLoad && mountedRef.current) {
+      setIsLoading(true);
+      setError(null);
+    }
+
     try {
-      const result = await window.electronAPI.getGitStatus(taskPath);
+      // Call main process to get git status
+      const result = await window.electronAPI.getGitStatus(currentPath);
+
+      if (!mountedRef.current) return;
+
       if (result?.success && result.changes && result.changes.length > 0) {
         const changes: FileChange[] = result.changes
           .map(
@@ -114,11 +110,95 @@ export function useFileChanges(taskPath: string) {
         setFileChanges([]);
       }
     } catch (err) {
-      console.error('Failed to refresh file changes:', err);
+      if (!mountedRef.current) return;
+      console.error('Failed to fetch file changes:', err);
+      if (isInitialLoad) {
+        setError('Failed to load file changes');
+      }
+      // No changes on error - set empty array
       setFileChanges([]);
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current && isInitialLoad) {
+        setIsLoading(false);
+      }
+      hasLoadedRef.current = true;
+      inFlightRef.current = false;
     }
+  }, []);
+
+  const clearIdleHandle = useCallback(() => {
+    if (idleHandleRef.current === null) return;
+    if (idleHandleModeRef.current === 'idle') {
+      const cancelIdle = (window as any).cancelIdleCallback as
+        | ((id: number) => void)
+        | undefined;
+      cancelIdle?.(idleHandleRef.current);
+    } else {
+      clearTimeout(idleHandleRef.current);
+    }
+    idleHandleRef.current = null;
+    idleHandleModeRef.current = null;
+  }, []);
+
+  const scheduleIdleRefresh = useCallback(() => {
+    if (!shouldPollRef.current) return;
+    clearIdleHandle();
+
+    const run = () => {
+      if (!shouldPollRef.current) return;
+      void fetchFileChanges(false);
+      scheduleIdleRefresh();
+    };
+
+    const requestIdle = (window as any).requestIdleCallback as
+      | ((cb: () => void, options?: { timeout: number }) => number)
+      | undefined;
+
+    if (requestIdle) {
+      idleHandleModeRef.current = 'idle';
+      idleHandleRef.current = requestIdle(run, { timeout: idleIntervalMs });
+    } else {
+      idleHandleModeRef.current = 'timeout';
+      idleHandleRef.current = window.setTimeout(run, idleIntervalMs);
+    }
+  }, [clearIdleHandle, fetchFileChanges, idleIntervalMs]);
+
+  const shouldPoll = Boolean(taskPath) && isActive && isDocumentVisible && isWindowFocused;
+
+  useEffect(() => {
+    shouldPollRef.current = shouldPoll;
+  }, [shouldPoll]);
+
+  useEffect(() => {
+    if (!taskPath || !shouldPoll) {
+      clearIdleHandle();
+      return;
+    }
+
+    void fetchFileChanges(!hasLoadedRef.current);
+    scheduleIdleRefresh();
+
+    return () => {
+      clearIdleHandle();
+    };
+  }, [taskPath, shouldPoll, fetchFileChanges, scheduleIdleRefresh, clearIdleHandle]);
+
+  useEffect(() => {
+    if (!taskPath) return undefined;
+
+    const unsubscribe = subscribeToFileChanges((event) => {
+      if (event.detail.taskPath === taskPath && shouldPollRef.current) {
+        void fetchFileChanges(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [taskPath, fetchFileChanges]);
+
+  const refreshChanges = async () => {
+    await fetchFileChanges(true);
   };
 
   return {
