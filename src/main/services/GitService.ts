@@ -13,6 +13,9 @@ export type GitChange = {
   isStaged: boolean;
 };
 
+// Status line counts are best-effort. For untracked files we avoid synchronous
+// file reads and may leave additions/deletions at 0 when unknown so status
+// calls stay fast; the UI should treat 0/0 for `?` as "unknown" counts.
 export async function getStatus(taskPath: string): Promise<GitChange[]> {
   try {
     await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
@@ -38,6 +41,8 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
     .map((l) => l.replace(/\r$/, ''))
     .filter((l) => l.length > 0);
 
+  const nullPath = process.platform === 'win32' ? 'NUL' : '/dev/null';
+
   for (const line of statusLines) {
     const statusCode = line.substring(0, 2);
     let filePath = line.substring(3);
@@ -54,6 +59,7 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
 
     // Check if file is staged (first character of status code indicates staged changes)
     const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
+    const isUntracked = statusCode.includes('?');
 
     let additions = 0;
     let deletions = 0;
@@ -90,16 +96,17 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
       if (unstaged.stdout && unstaged.stdout.trim()) sumNumstat(unstaged.stdout);
     } catch {}
 
-    if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
-      const absPath = path.join(taskPath, filePath);
+    // Untracked files: avoid manual line counting on the main thread. We use a best-effort
+    // `git diff --numstat --no-index` to estimate counts; if it fails, leave counts at 0 so
+    // the UI treats them as unknown rather than blocking status calls.
+    if (additions === 0 && deletions === 0 && isUntracked) {
       try {
-        const stat = fs.existsSync(absPath) ? fs.statSync(absPath) : undefined;
-        if (stat && stat.isFile()) {
-          const buf = fs.readFileSync(absPath);
-          let count = 0;
-          for (let i = 0; i < buf.length; i++) if (buf[i] === 0x0a) count++;
-          additions = count;
-        }
+        const { stdout } = await execFileAsync(
+          'git',
+          ['diff', '--numstat', '--no-index', '--', nullPath, filePath],
+          { cwd: taskPath }
+        );
+        if (stdout && stdout.trim()) sumNumstat(stdout);
       } catch {}
     }
 
