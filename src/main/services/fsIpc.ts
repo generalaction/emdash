@@ -1,6 +1,7 @@
 import { ipcMain, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Worker } from 'worker_threads';
 
 const DEFAULT_EMDASH_CONFIG = `{
   "preservePatterns": [
@@ -18,6 +19,7 @@ type ListArgs = {
   root: string;
   includeDirs?: boolean;
   maxEntries?: number;
+  timeBudgetMs?: number;
 };
 
 type Item = {
@@ -25,18 +27,33 @@ type Item = {
   type: 'file' | 'dir';
 };
 
-const DEFAULT_IGNORES = new Set([
-  '.git',
-  'node_modules',
-  'dist',
-  'build',
-  'out',
-  '.next',
-  '.nuxt',
-  '.cache',
-  'coverage',
-  '.DS_Store',
-]);
+type ListWorkerResponse =
+  | {
+      taskId: number;
+      ok: true;
+      items: Item[];
+      truncated: boolean;
+      reason?: 'maxEntries' | 'timeBudget';
+      durationMs: number;
+    }
+  | {
+      taskId: number;
+      ok: false;
+      error: string;
+    };
+
+type ListWorkerState = {
+  worker: Worker;
+  requestId: number;
+  canceled: boolean;
+};
+
+const listWorkersBySender = new Map<number, ListWorkerState>();
+const DEFAULT_TIME_BUDGET_MS = 2000;
+const MIN_TIME_BUDGET_MS = 250;
+const MAX_TIME_BUDGET_MS = 10000;
+const MAX_FILES_TO_SEARCH = 10000;
+const DEFAULT_BATCH_SIZE = 250;
 
 // Centralized configuration/constants for attachments
 const ALLOWED_IMAGE_EXTENSIONS = new Set<string>([
@@ -58,48 +75,6 @@ function safeStat(p: string): fs.Stats | null {
   }
 }
 
-function listFiles(root: string, includeDirs: boolean, maxEntries: number): Item[] {
-  const items: Item[] = [];
-  const stack: string[] = ['.'];
-
-  while (stack.length > 0) {
-    const rel = stack.pop() as string;
-    const abs = path.join(root, rel);
-
-    const stat = safeStat(abs);
-    if (!stat) continue;
-
-    if (stat.isDirectory()) {
-      const name = path.basename(abs);
-      if (rel !== '.' && DEFAULT_IGNORES.has(name)) continue;
-
-      if (rel !== '.' && includeDirs) {
-        items.push({ path: rel, type: 'dir' });
-        if (items.length >= maxEntries) break;
-      }
-
-      let entries: string[] = [];
-      try {
-        entries = fs.readdirSync(abs);
-      } catch {
-        continue;
-      }
-
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const entry = entries[i];
-        if (DEFAULT_IGNORES.has(entry)) continue;
-        const nextRel = rel === '.' ? entry : path.join(rel, entry);
-        stack.push(nextRel);
-      }
-    } else if (stat.isFile()) {
-      items.push({ path: rel, type: 'file' });
-      if (items.length >= maxEntries) break;
-    }
-  }
-
-  return items;
-}
-
 export function registerFsIpc(): void {
   function emitPlanEvent(payload: any) {
     try {
@@ -115,12 +90,84 @@ export function registerFsIpc(): void {
     try {
       const root = args.root;
       const includeDirs = args.includeDirs ?? true;
-      const maxEntries = Math.min(Math.max(args.maxEntries ?? 5000, 100), 20000);
+      const maxEntries = Math.min(Math.max(args.maxEntries ?? 5000, 100), MAX_FILES_TO_SEARCH);
+      const timeBudgetMs = Math.min(
+        Math.max(args.timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS, MIN_TIME_BUDGET_MS),
+        MAX_TIME_BUDGET_MS
+      );
       if (!root || !fs.existsSync(root)) {
         return { success: false, error: 'Invalid root path' };
       }
-      const items = listFiles(root, includeDirs, maxEntries);
-      return { success: true, items };
+
+      const senderId = _event.sender.id;
+      const prev = listWorkersBySender.get(senderId);
+      if (prev) {
+        prev.canceled = true;
+        prev.worker.terminate().catch(() => {});
+      }
+
+      const requestId = (prev?.requestId ?? 0) + 1;
+      const workerPath = path.join(__dirname, '..', 'workers', 'fsListWorker.js');
+      const worker = new Worker(workerPath);
+      const state: ListWorkerState = { worker, requestId, canceled: false };
+      listWorkersBySender.set(senderId, state);
+
+      const result = await new Promise<ListWorkerResponse>((resolve, reject) => {
+        const cleanup = () => {
+          worker.removeAllListeners('message');
+          worker.removeAllListeners('error');
+          worker.removeAllListeners('exit');
+        };
+
+        worker.once('message', (message) => {
+          cleanup();
+          worker.terminate().catch(() => {});
+          resolve(message as ListWorkerResponse);
+        });
+        worker.once('error', (error) => {
+          cleanup();
+          reject(error);
+        });
+        worker.once('exit', (code) => {
+          cleanup();
+          if (state.canceled) {
+            resolve({ taskId: requestId, ok: false, error: 'Canceled' });
+            return;
+          }
+          if (code !== 0) {
+            reject(new Error(`fs:list worker exited with code ${code}`));
+          }
+        });
+
+        worker.postMessage({
+          taskId: requestId,
+          root,
+          includeDirs,
+          maxEntries,
+          timeBudgetMs,
+          batchSize: DEFAULT_BATCH_SIZE,
+        });
+      });
+
+      const latest = listWorkersBySender.get(senderId);
+      if (!latest || latest.requestId !== requestId || state.canceled) {
+        return { success: true, canceled: true };
+      }
+
+      listWorkersBySender.delete(senderId);
+
+      if (!result.ok) {
+        if (result.error === 'Canceled') return { success: true, canceled: true };
+        return { success: false, error: result.error };
+      }
+
+      return {
+        success: true,
+        items: result.items,
+        truncated: result.truncated,
+        reason: result.reason,
+        durationMs: result.durationMs,
+      };
     } catch (error) {
       console.error('fs:list failed:', error);
       return { success: false, error: 'Failed to list files' };

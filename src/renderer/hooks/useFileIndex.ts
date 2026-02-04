@@ -22,6 +22,9 @@ export function useFileIndex(rootPath: string | undefined) {
           includeDirs: true,
           maxEntries: 5000,
         });
+        if (res.canceled) {
+          return;
+        }
         if (res.success && res.items) {
           setItems(res.items);
           setLoadedFor(rootPath);
@@ -45,6 +48,9 @@ export function useFileIndex(rootPath: string | undefined) {
         includeDirs: true,
         maxEntries: 5000,
       });
+      if (res.canceled) {
+        return;
+      }
       if (res.success && res.items) {
         setItems(res.items);
         setLoadedFor(rootPath);
