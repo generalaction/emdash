@@ -77,10 +77,10 @@ export function useTaskChanges(taskPath: string, taskId: string) {
   useEffect(() => {
     void fetchChanges(true);
 
-    // Poll for changes every 10 seconds without loading state
+    // Poll for changes every 20 seconds without loading state
     const interval = setInterval(() => {
       void fetchChanges(false);
-    }, 10000);
+    }, 20000);
     return () => clearInterval(interval);
   }, [fetchChanges]);
 
