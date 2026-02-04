@@ -70,8 +70,8 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
   useEffect(() => {
     fetchChanges(true); 
     
-    // Poll for changes every 10 seconds without loading state
-    const interval = setInterval(() => fetchChanges(false), 10000);
+    // Poll for changes every 15 seconds without loading state
+    const interval = setInterval(() => fetchChanges(false), 15000);
     return () => clearInterval(interval);
   }, [workspacePath, workspaceId]);
 

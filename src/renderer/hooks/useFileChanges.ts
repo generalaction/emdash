@@ -55,7 +55,7 @@ export function useFileChanges(workspacePath: string) {
     // Initial load with loading state
     fetchFileChanges(true);
     
-    const interval = setInterval(() => fetchFileChanges(false), 5000);
+    const interval = setInterval(() => fetchFileChanges(false), 15000);
     
     return () => clearInterval(interval);
   }, [workspacePath]);
