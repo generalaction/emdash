@@ -62,16 +62,22 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   }, []);
 
   // Detect multi-agent variants in task metadata
-  const variants: Array<{ agent: Agent; name: string; path: string }> = (() => {
-    try {
-      const v = task?.metadata?.multiAgent?.variants || [];
-      if (Array.isArray(v))
-        return v
-          .map((x: any) => ({ agent: x?.agent as Agent, name: x?.name, path: x?.path }))
+  const variants: Array<{ agent: Agent; name: string; path: string; worktreeId?: string }> =
+    (() => {
+      try {
+        const v = task?.metadata?.multiAgent?.variants || [];
+        if (Array.isArray(v))
+          return v
+          .map((x: any) => ({
+            agent: x?.agent as Agent,
+            name: x?.name,
+            path: x?.path,
+            worktreeId: x?.worktreeId,
+          }))
           .filter((x) => x?.path);
-    } catch {}
-    return [];
-  })();
+      } catch {}
+      return [];
+    })();
 
   // Helper to generate display label with instance number if needed
   const getVariantDisplayLabel = (variant: { agent: Agent; name: string }): string => {
@@ -196,6 +202,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                               agent={v.agent}
                               projectPath={projectPath || task?.path}
                               defaultBranch={projectDefaultBranch || undefined}
+                              portSeed={v.worktreeId}
                               className="min-h-[200px]"
                             />
                           </TaskScopeProvider>
@@ -224,6 +231,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                         agent={v.agent}
                         projectPath={projectPath || task?.path}
                         defaultBranch={projectDefaultBranch || undefined}
+                        portSeed={v.worktreeId}
                         className="min-h-0 flex-1"
                       />
                     </>

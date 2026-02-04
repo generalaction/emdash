@@ -43,6 +43,7 @@ interface Props {
   className?: string;
   projectPath?: string;
   defaultBranch?: string;
+  portSeed?: string;
 }
 
 const TaskTerminalPanelComponent: React.FC<Props> = ({
@@ -51,6 +52,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   className,
   projectPath,
   defaultBranch,
+  portSeed,
 }) => {
   const { effectiveTheme } = useTheme();
   // Use path in the key to differentiate multi-agent variants that share the same task.id
@@ -91,8 +93,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       taskPath: task.path,
       projectPath,
       defaultBranch,
+      portSeed,
     });
-  }, [task, projectPath, defaultBranch]);
+  }, [task, projectPath, defaultBranch, portSeed]);
 
   // Run setup script when a task terminal becomes ready (only once per terminal)
   const handleTerminalReady = useCallback((terminalId: string) => {

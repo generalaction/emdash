@@ -15,11 +15,14 @@ import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { getTaskEnvVars } from '@shared/task/envVars';
 
 interface Props {
   task: Task;
   projectName: string;
   projectId: string;
+  projectPath?: string | null;
+  defaultBranch?: string | null;
 }
 
 type Variant = {
@@ -31,13 +34,25 @@ type Variant = {
   worktreeId: string;
 };
 
-const MultiAgentTask: React.FC<Props> = ({ task }) => {
+const MultiAgentTask: React.FC<Props> = ({ task, projectPath, defaultBranch }) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
+
+  const getVariantEnv = (variant: Variant) => {
+    if (!projectPath) return undefined;
+    return getTaskEnvVars({
+      taskId: task.id,
+      taskName: variant.name || task.name,
+      taskPath: variant.path,
+      projectPath,
+      defaultBranch: defaultBranch || undefined,
+      portSeed: variant.worktreeId || variant.path,
+    });
+  };
 
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
@@ -482,6 +497,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     providerId={v.agent}
+                    env={getVariantEnv(v)}
                     autoApprove={
                       Boolean(task.metadata?.autoApprove) &&
                       Boolean(agentMeta[v.agent]?.autoApproveFlag)
