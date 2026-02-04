@@ -27,18 +27,9 @@ interface PrActionButtonProps {
   onModeChange: (mode: PrMode) => void;
   onExecute: () => Promise<void>;
   isLoading: boolean;
-  dropdownOpen: boolean;
-  onDropdownChange: (open: boolean) => void;
 }
 
-function PrActionButton({
-  mode,
-  onModeChange,
-  onExecute,
-  isLoading,
-  dropdownOpen,
-  onDropdownChange,
-}: PrActionButtonProps) {
+function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionButtonProps) {
   return (
     <div className="flex min-w-0">
       <Button
@@ -50,7 +41,7 @@ function PrActionButton({
       >
         {isLoading ? <Spinner size="sm" /> : PR_MODE_LABELS[mode]}
       </Button>
-      <Popover open={dropdownOpen} onOpenChange={onDropdownChange}>
+      <Popover>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -105,7 +96,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMergingToMain, setIsMergingToMain] = useState(false);
-  const [prDropdownOpen, setPrDropdownOpen] = useState(false);
   const [prMode, setPrMode] = useState<PrMode>(() => {
     try {
       const stored = localStorage.getItem('emdash:prMode');
@@ -122,7 +112,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
 
   const selectPrMode = (mode: PrMode) => {
     setPrMode(mode);
-    setPrDropdownOpen(false);
     try {
       localStorage.setItem('emdash:prMode', mode);
     } catch {
@@ -345,7 +334,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
 
   const handleMergeToMain = async () => {
     setIsMergingToMain(true);
-    setPrDropdownOpen(false);
     try {
       const result = await window.electronAPI.mergeToMain({ taskPath: safeTaskPath });
       if (result.success) {
@@ -464,8 +452,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
                   isLoading={isActionLoading}
-                  dropdownOpen={prDropdownOpen}
-                  onDropdownChange={setPrDropdownOpen}
                 />
               </div>
             </div>
@@ -526,8 +512,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
                   isLoading={isActionLoading || branchStatusLoading}
-                  dropdownOpen={prDropdownOpen}
-                  onDropdownChange={setPrDropdownOpen}
                 />
               ) : (
                 <span className="text-xs text-muted-foreground">No PR for this branch</span>
