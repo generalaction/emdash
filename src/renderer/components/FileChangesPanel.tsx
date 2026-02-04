@@ -11,6 +11,7 @@ import { usePrStatus } from '../hooks/usePrStatus';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Close as PopoverClose } from '@radix-ui/react-popover';
 import { Plus, Minus, Undo2, ArrowUpRight, FileDiff, ChevronDown } from 'lucide-react';
 import { useTaskScope } from './TaskScopeContext';
 
@@ -56,13 +57,14 @@ function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionBu
           {(['create', 'draft', 'merge'] as PrMode[])
             .filter((m) => m !== mode)
             .map((m) => (
-              <button
-                key={m}
-                className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
-                onClick={() => onModeChange(m)}
-              >
-                {PR_MODE_LABELS[m]}
-              </button>
+              <PopoverClose key={m} asChild>
+                <button
+                  className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                  onClick={() => onModeChange(m)}
+                >
+                  {PR_MODE_LABELS[m]}
+                </button>
+              </PopoverClose>
             ))}
         </PopoverContent>
       </Popover>
