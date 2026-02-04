@@ -341,7 +341,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       if (result.success) {
         toast({
           title: 'Merged to Main',
-          description: 'Changes have been merged to main and branch deleted.',
+          description: 'Changes have been merged to main.',
         });
         await refreshChanges();
         try {

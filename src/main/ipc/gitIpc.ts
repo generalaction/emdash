@@ -857,9 +857,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // PR already exists - continue to merge
       }
 
-      // Merge and delete branch
+      // Merge PR (branch cleanup happens when workspace is deleted)
       try {
-        await execAsync('gh pr merge --merge --delete-branch', { cwd: taskPath });
+        await execAsync('gh pr merge --merge', { cwd: taskPath });
         return { success: true, prUrl };
       } catch (e) {
         const errMsg = (e as { stderr?: string })?.stderr || String(e);
