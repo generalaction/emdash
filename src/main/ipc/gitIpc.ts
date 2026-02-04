@@ -14,6 +14,7 @@ import {
 } from '../services/GitService';
 import { prGenerationService } from '../services/PrGenerationService';
 import { databaseService } from '../services/DatabaseService';
+import { getDefaultBranchCached } from '../services/defaultBranchCache';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -511,25 +512,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         });
         const currentBranch = (currentBranchOut || '').trim();
 
-        // Determine default branch via gh, fallback to main/master
-        let defaultBranch = 'main';
-        try {
-          const { stdout } = await execAsync(
-            'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
-            { cwd: taskPath }
-          );
-          const db = (stdout || '').trim();
-          if (db) defaultBranch = db;
-        } catch {
-          try {
-            const { stdout } = await execAsync(
-              'git remote show origin | sed -n "/HEAD branch/s/.*: //p"',
-              { cwd: taskPath }
-            );
-            const db2 = (stdout || '').trim();
-            if (db2) defaultBranch = db2;
-          } catch {}
-        }
+        const defaultBranch = await getDefaultBranchCached(taskPath);
 
         // Optionally create a new branch if on default
         let activeBranch = currentBranch;
