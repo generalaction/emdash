@@ -1,12 +1,70 @@
 import { app, ipcMain, shell } from 'electron';
 import { exec } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
 import { getAppById, OPEN_IN_APPS, type OpenInAppId, type PlatformKey } from '@shared/openInApps';
 
+let cachedAppVersion: string | null = null;
+let cachedAppVersionPromise: Promise<string> | null = null;
+
+const resolveAppVersion = async (): Promise<string> => {
+  try {
+    // In development, we need to look for package.json in the project root
+    const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+
+    const possiblePaths = isDev
+      ? [
+          join(__dirname, '../../../../package.json'), // from dist/main/main/ipc in dev
+          join(__dirname, '../../../package.json'), // alternative dev path
+          join(process.cwd(), 'package.json'), // current working directory
+        ]
+      : [
+          join(__dirname, '../../package.json'), // from dist/main/ipc in production
+          join(app.getAppPath(), 'package.json'), // production build
+        ];
+
+    for (const packageJsonPath of possiblePaths) {
+      try {
+        const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+        if (packageJson.name === 'emdash' && packageJson.version) {
+          return packageJson.version;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    // In dev, never use app.getVersion() as it returns Electron version
+    if (isDev) {
+      return '0.3.46';
+    }
+
+    return app.getVersion();
+  } catch {
+    return '0.3.46'; // Safe fallback
+  }
+};
+
+const getCachedAppVersion = (): Promise<string> => {
+  if (cachedAppVersion) {
+    return Promise.resolve(cachedAppVersion);
+  }
+
+  if (!cachedAppVersionPromise) {
+    cachedAppVersionPromise = resolveAppVersion().then((version) => {
+      cachedAppVersion = version;
+      return version;
+    });
+  }
+
+  return cachedAppVersionPromise;
+};
+
 export function registerAppIpc() {
+  void getCachedAppVersion();
+
   ipcMain.handle('app:openExternal', async (_event, url: string) => {
     try {
       if (!url || typeof url !== 'string') throw new Error('Invalid URL');
@@ -194,43 +252,7 @@ export function registerAppIpc() {
   });
 
   // App metadata
-  ipcMain.handle('app:getAppVersion', () => {
-    try {
-      // In development, we need to look for package.json in the project root
-      const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-
-      const possiblePaths = isDev
-        ? [
-            join(__dirname, '../../../../package.json'), // from dist/main/main/ipc in dev
-            join(__dirname, '../../../package.json'), // alternative dev path
-            join(process.cwd(), 'package.json'), // current working directory
-          ]
-        : [
-            join(__dirname, '../../package.json'), // from dist/main/ipc in production
-            join(app.getAppPath(), 'package.json'), // production build
-          ];
-
-      for (const packageJsonPath of possiblePaths) {
-        try {
-          const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-          if (packageJson.name === 'emdash' && packageJson.version) {
-            return packageJson.version;
-          }
-        } catch {
-          continue;
-        }
-      }
-
-      // In dev, never use app.getVersion() as it returns Electron version
-      if (isDev) {
-        return '0.3.46';
-      }
-
-      return app.getVersion();
-    } catch {
-      return '0.3.46'; // Safe fallback
-    }
-  });
+  ipcMain.handle('app:getAppVersion', () => getCachedAppVersion());
   ipcMain.handle('app:getElectronVersion', () => process.versions.electron);
   ipcMain.handle('app:getPlatform', () => process.platform);
 }
