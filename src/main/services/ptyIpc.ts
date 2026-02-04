@@ -363,23 +363,24 @@ export function registerPtyIpc(): void {
     'pty:startDirect',
     async (
       event,
-      args: {
-        id: string;
-        providerId: string;
-        cwd: string;
-        cols?: number;
-        rows?: number;
-        autoApprove?: boolean;
-        initialPrompt?: string;
-        resume?: boolean;
-      }
-    ) => {
+        args: {
+          id: string;
+          providerId: string;
+          cwd: string;
+          cols?: number;
+          rows?: number;
+          autoApprove?: boolean;
+          initialPrompt?: string;
+          env?: Record<string, string>;
+          resume?: boolean;
+        }
+      ) => {
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
 
       try {
-        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, resume } = args;
+        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, env, resume } = args;
         const existing = getPty(id);
 
         if (existing) {
@@ -396,6 +397,7 @@ export function registerPtyIpc(): void {
           rows,
           autoApprove,
           initialPrompt,
+          env,
           resume,
         });
 

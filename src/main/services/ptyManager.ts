@@ -75,6 +75,7 @@ export function startDirectPty(options: {
   rows?: number;
   autoApprove?: boolean;
   initialPrompt?: string;
+  env?: Record<string, string>;
   resume?: boolean;
 }): IPty | null {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
@@ -89,6 +90,7 @@ export function startDirectPty(options: {
     rows = 32,
     autoApprove,
     initialPrompt,
+    env,
     resume,
   } = options;
 
@@ -148,6 +150,15 @@ export function startDirectPty(options: {
   for (const key of AGENT_ENV_VARS) {
     if (process.env[key]) {
       useEnv[key] = process.env[key];
+    }
+  }
+
+  if (env) {
+    for (const [key, value] of Object.entries(env)) {
+      if (!key.startsWith('EMDASH_')) continue;
+      if (typeof value === 'string') {
+        useEnv[key] = value;
+      }
     }
   }
 

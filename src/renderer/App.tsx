@@ -2645,11 +2645,15 @@ const AppContent: React.FC = () => {
                 task={activeTask}
                 projectName={selectedProject.name}
                 projectId={selectedProject.id}
+                projectPath={selectedProject.path}
+                defaultBranch={projectDefaultBranch}
               />
             ) : (
               <ChatInterface
                 task={activeTask}
                 projectName={selectedProject.name}
+                projectPath={selectedProject.path}
+                defaultBranch={projectDefaultBranch}
                 className="min-h-0 flex-1"
                 initialAgent={activeTaskAgent || undefined}
               />
