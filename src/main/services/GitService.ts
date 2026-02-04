@@ -7,10 +7,7 @@ const execFileAsync = promisify(execFile);
 const MAX_UNTRACKED_LINECOUNT_BYTES = 512 * 1024;
 const MAX_UNTRACKED_DIFF_BYTES = 512 * 1024;
 
-async function countFileNewlinesCapped(
-  filePath: string,
-  maxBytes: number
-): Promise<number | null> {
+async function countFileNewlinesCapped(filePath: string, maxBytes: number): Promise<number | null> {
   let stat: fs.Stats;
   try {
     stat = await fs.promises.stat(filePath);
@@ -272,8 +269,7 @@ export async function getFileDiff(
         { cwd: taskPath }
       );
       const linesRaw = stdout.split('\n');
-      const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> =
-        [];
+      const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = [];
       for (const line of linesRaw) {
         if (!line) continue;
         if (
