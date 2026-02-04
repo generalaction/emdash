@@ -14,6 +14,7 @@ export function useFileChanges(taskPath: string) {
   const [fileChanges, setFileChanges] = useState<FileChange[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshIntervalMs = 20000;
 
   useEffect(() => {
     const fetchFileChanges = async (isInitialLoad = false) => {
@@ -69,7 +70,7 @@ export function useFileChanges(taskPath: string) {
     // Initial load with loading state
     fetchFileChanges(true);
 
-    const interval = setInterval(() => fetchFileChanges(false), 5000);
+    const interval = setInterval(() => fetchFileChanges(false), refreshIntervalMs);
 
     // Listen for file change events and refresh immediately
     const unsubscribe = subscribeToFileChanges((event) => {
