@@ -804,7 +804,10 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // gh not available or not a GitHub repo - fall back to 'main'
       }
 
-      // Validate: not on default branch
+      // Validate: on a valid feature branch
+      if (!currentBranch) {
+        return { success: false, error: 'Not on a branch (detached HEAD state).' };
+      }
       if (currentBranch === defaultBranch) {
         return {
           success: false,

@@ -99,7 +99,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [prMode, setPrMode] = useState<PrMode>(() => {
     try {
       const stored = localStorage.getItem('emdash:prMode');
-      if (stored === 'draft' || stored === 'merge') return stored;
+      if (stored === 'create' || stored === 'draft' || stored === 'merge') return stored;
       // Migrate from old boolean key
       if (localStorage.getItem('emdash:createPrAsDraft') === 'true') return 'draft';
       return 'create';
