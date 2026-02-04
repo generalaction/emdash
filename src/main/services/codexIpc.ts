@@ -1,5 +1,5 @@
-import { ipcMain } from "electron";
-import { codexService, CodexAgent } from "./CodexService";
+import { BrowserWindow, ipcMain } from "electron";
+import { codexService } from "./CodexService";
 import { exec, execFile } from "child_process";
 import * as fs from "fs";
 import { promisify } from "util";
@@ -10,6 +10,67 @@ const execFileAsync = promisify(execFile);
 
 const MAX_UNTRACKED_LINECOUNT_BYTES = 512 * 1024;
 const MAX_UNTRACKED_DIFF_BYTES = 512 * 1024;
+
+const GIT_STATUS_DEBOUNCE_MS = 500;
+
+type GitStatusWatchEntry = {
+  watcher: fs.FSWatcher;
+  refCount: number;
+  debounceTimer?: NodeJS.Timeout;
+};
+
+const gitStatusWatchers = new Map<string, GitStatusWatchEntry>();
+
+const broadcastGitStatusChange = (workspacePath: string) => {
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach((window) => {
+    window.webContents.send("git:status-changed", { workspacePath });
+  });
+};
+
+const ensureGitStatusWatcher = (workspacePath: string) => {
+  const existing = gitStatusWatchers.get(workspacePath);
+  if (existing) {
+    existing.refCount += 1;
+    return { success: true as const };
+  }
+  if (!fs.existsSync(workspacePath)) {
+    return { success: false as const, error: "Workspace path does not exist" };
+  }
+  try {
+    const watcher = fs.watch(workspacePath, { recursive: true }, () => {
+      const entry = gitStatusWatchers.get(workspacePath);
+      if (!entry) return;
+      if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+      entry.debounceTimer = setTimeout(() => {
+        broadcastGitStatusChange(workspacePath);
+      }, GIT_STATUS_DEBOUNCE_MS);
+    });
+    watcher.on("error", (error) => {
+      console.warn("[git:watch-status] watcher error", error);
+    });
+    gitStatusWatchers.set(workspacePath, { watcher, refCount: 1 });
+    return { success: true as const };
+  } catch (error) {
+    return {
+      success: false as const,
+      error:
+        error instanceof Error ? error.message : "Failed to watch workspace",
+    };
+  }
+};
+
+const releaseGitStatusWatcher = (workspacePath: string) => {
+  const entry = gitStatusWatchers.get(workspacePath);
+  if (!entry) return { success: true as const };
+  entry.refCount -= 1;
+  if (entry.refCount <= 0) {
+    if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+    entry.watcher.close();
+    gitStatusWatchers.delete(workspacePath);
+  }
+  return { success: true as const };
+};
 
 async function countFileNewlinesCapped(
   filePath: string,
@@ -255,6 +316,23 @@ export function setupCodexIpc() {
       };
     }
   });
+
+  ipcMain.handle("git:watch-status", async (_event, workspacePath: string) => {
+    if (!workspacePath) {
+      return { success: false, error: "workspace-unavailable" };
+    }
+    return ensureGitStatusWatcher(workspacePath);
+  });
+
+  ipcMain.handle(
+    "git:unwatch-status",
+    async (_event, workspacePath: string) => {
+      if (!workspacePath) {
+        return { success: false, error: "workspace-unavailable" };
+      }
+      return releaseGitStatusWatcher(workspacePath);
+    },
+  );
 
   // Get per-file diff
   ipcMain.handle(

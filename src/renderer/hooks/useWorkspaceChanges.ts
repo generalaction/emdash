@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getCachedGitStatus } from "../lib/gitStatusCache";
+import { useDocumentVisibility } from "./useDocumentVisibility";
 
 export interface WorkspaceChange {
   path: string;
@@ -17,7 +19,10 @@ export interface WorkspaceChanges {
   error?: string;
 }
 
-export function useWorkspaceChanges(workspacePath: string, workspaceId: string) {
+export function useWorkspaceChanges(
+  workspacePath: string,
+  workspaceId: string,
+) {
   const [changes, setChanges] = useState<WorkspaceChanges>({
     workspaceId,
     changes: [],
@@ -25,55 +30,103 @@ export function useWorkspaceChanges(workspacePath: string, workspaceId: string) 
     totalDeletions: 0,
     isLoading: true,
   });
+  const isVisible = useDocumentVisibility();
+  const pendingRefreshRef = useRef(false);
 
-  const fetchChanges = async (isInitialLoad = false) => {
-    try {
-      if (isInitialLoad) {
-        setChanges(prev => ({ ...prev, isLoading: true, error: undefined }));
+  const fetchChanges = useCallback(
+    async (options?: { showLoading?: boolean; force?: boolean }) => {
+      if (!workspacePath) return;
+      if (!isVisible) {
+        pendingRefreshRef.current = true;
+        return;
       }
-      
-      const result = await window.electronAPI.getGitStatus(workspacePath);
-      
-      if (result.success && result.changes) {
-        const totalAdditions = result.changes.reduce((sum, change) => sum + change.additions, 0);
-        const totalDeletions = result.changes.reduce((sum, change) => sum + change.deletions, 0);
-        
-        setChanges({
-          workspaceId,
-          changes: result.changes,
-          totalAdditions,
-          totalDeletions,
-          isLoading: false,
-        });
-      } else {
+
+      const showLoading = options?.showLoading ?? false;
+      const force = options?.force ?? false;
+
+      if (showLoading) {
+        setChanges((prev) => ({ ...prev, isLoading: true, error: undefined }));
+      }
+
+      try {
+        const result = await getCachedGitStatus(workspacePath, { force });
+        if (result.success && result.changes) {
+          const totalAdditions = result.changes.reduce(
+            (sum, change) => sum + change.additions,
+            0,
+          );
+          const totalDeletions = result.changes.reduce(
+            (sum, change) => sum + change.deletions,
+            0,
+          );
+
+          setChanges({
+            workspaceId,
+            changes: result.changes,
+            totalAdditions,
+            totalDeletions,
+            isLoading: false,
+          });
+        } else {
+          setChanges({
+            workspaceId,
+            changes: [],
+            totalAdditions: 0,
+            totalDeletions: 0,
+            isLoading: false,
+            error: result.error || "Failed to fetch changes",
+          });
+        }
+      } catch (error) {
         setChanges({
           workspaceId,
           changes: [],
           totalAdditions: 0,
           totalDeletions: 0,
           isLoading: false,
-          error: result.error || 'Failed to fetch changes',
+          error: error instanceof Error ? error.message : "Unknown error",
         });
       }
-    } catch (error) {
-      setChanges({
-        workspaceId,
-        changes: [],
-        totalAdditions: 0,
-        totalDeletions: 0,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  };
+    },
+    [workspacePath, workspaceId, isVisible],
+  );
 
   useEffect(() => {
-    fetchChanges(true); 
-    
-    // Poll for changes every 10 seconds without loading state
-    const interval = setInterval(() => fetchChanges(false), 10000);
-    return () => clearInterval(interval);
-  }, [workspacePath, workspaceId]);
+    fetchChanges({ showLoading: true });
+  }, [fetchChanges]);
+
+  useEffect(() => {
+    if (!workspacePath) return;
+    const api = window.electronAPI;
+    let off: (() => void) | undefined;
+
+    const watchPromise = api.watchGitStatus
+      ? api.watchGitStatus(workspacePath)
+      : Promise.resolve({ success: false });
+
+    watchPromise
+      .catch(() => {})
+      .finally(() => {
+        if (!api.onGitStatusChanged) return;
+        off = api.onGitStatusChanged((event) => {
+          if (event?.workspacePath !== workspacePath) return;
+          fetchChanges({ force: true });
+        });
+      });
+
+    return () => {
+      off?.();
+      if (api.unwatchGitStatus) {
+        api.unwatchGitStatus(workspacePath).catch(() => {});
+      }
+    };
+  }, [workspacePath, fetchChanges]);
+
+  useEffect(() => {
+    if (!isVisible || !pendingRefreshRef.current) return;
+    pendingRefreshRef.current = false;
+    fetchChanges({ force: true });
+  }, [isVisible, fetchChanges]);
 
   return {
     ...changes,

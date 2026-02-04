@@ -20,8 +20,8 @@ const Line: React.FC<{ text?: string; type: DiffLine["type"] }> = ({
     type === "add"
       ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200"
       : type === "del"
-      ? "bg-rose-50 dark:bg-rose-900/30 text-rose-800 dark:text-rose-200"
-      : "bg-transparent text-gray-700 dark:text-gray-300";
+        ? "bg-rose-50 dark:bg-rose-900/30 text-rose-800 dark:text-rose-200"
+        : "bg-transparent text-gray-700 dark:text-gray-300";
   return (
     <div
       className={`px-3 py-0.5 whitespace-pre-wrap break-words font-mono text-[12px] leading-5 ${cls}`}
@@ -39,9 +39,11 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   initialFile,
 }) => {
   const [selected, setSelected] = useState<string | undefined>(
-    initialFile || files[0]?.path
+    initialFile || files[0]?.path,
   );
-  const { lines, loading } = useFileDiff(workspacePath, selected);
+  const { lines, loading } = useFileDiff(workspacePath, selected, {
+    enabled: open,
+  });
   const shouldReduceMotion = useReducedMotion();
 
   const grouped = useMemo(() => {
