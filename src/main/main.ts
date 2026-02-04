@@ -1,241 +1,123 @@
-// Load .env FIRST before any imports that might use it
-// Use explicit path to ensure .env is loaded from project root
-try {
-  const path = require('path');
-  const envPath = path.join(__dirname, '..', '..', '.env');
-  require('dotenv').config({ path: envPath });
-} catch (error) {
-  // dotenv is optional - no error if .env doesn't exist
-}
+import { execFile } from "child_process";
+import { app, nativeImage } from "electron";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
+import { createMainWindow } from "./app/window";
+import { registerAppLifecycle } from "./app/lifecycle";
+import { registerAllIpc } from "./ipc";
+import { databaseService } from "./services/DatabaseService";
 
-import { app } from 'electron';
-// Ensure PATH matches the user's shell when launched from Finder (macOS)
-// so Homebrew/NPM global binaries like `gh` and `codex` are found.
-try {
-  // Lazy import to avoid bundler complaints if not present on other platforms
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const fixPath = require('fix-path');
-  if (typeof fixPath === 'function') fixPath();
-} catch {
-  // no-op if fix-path isn't available at runtime
-}
+const LOGIN_SHELL_PATH_TIMEOUT_MS = 2500;
 
-if (process.platform === 'darwin') {
-  const extras = ['/opt/homebrew/bin', '/usr/local/bin', '/opt/homebrew/sbin', '/usr/local/sbin'];
-  const cur = process.env.PATH || '';
-  const parts = cur.split(':').filter(Boolean);
-  for (const p of extras) {
-    if (!parts.includes(p)) parts.unshift(p);
+const refreshPathFromLoginShell = () => {
+  if (process.platform !== "darwin") {
+    return;
   }
-  process.env.PATH = parts.join(':');
 
-  // As a last resort, ask the user's login shell for PATH and merge it in.
-  try {
-    const { execSync } = require('child_process');
-    const shell = process.env.SHELL || '/bin/zsh';
-    const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, { encoding: 'utf8' });
-    if (loginPath) {
-      const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
-      process.env.PATH = Array.from(merged).join(':');
-    }
-  } catch {}
-}
+  const shell = process.env.SHELL || "/bin/zsh";
+  let timedOut = false;
+  let timeout: NodeJS.Timeout | undefined;
 
-if (process.platform === 'linux') {
-  try {
-    const os = require('os');
-    const path = require('path');
-    const homeDir = os.homedir();
-    const extras = [
-      path.join(homeDir, '.nvm/versions/node', process.version, 'bin'),
-      path.join(homeDir, '.npm-global/bin'),
-      path.join(homeDir, '.local/bin'),
-      '/usr/local/bin',
-    ];
-    const cur = process.env.PATH || '';
-    const parts = cur.split(':').filter(Boolean);
-    for (const p of extras) {
-      if (!parts.includes(p)) parts.unshift(p);
-    }
-    process.env.PATH = parts.join(':');
-
-    try {
-      const { execSync } = require('child_process');
-      const shell = process.env.SHELL || '/bin/bash';
-      const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, {
-        encoding: 'utf8',
-      });
-      if (loginPath) {
-        const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
-        process.env.PATH = Array.from(merged).join(':');
+  const child = execFile(
+    shell,
+    ["-lc", 'printf "%s" "$PATH"'],
+    (error, stdout) => {
+      if (timeout) {
+        clearTimeout(timeout);
       }
-    } catch {}
-  } catch {}
-}
+      if (timedOut) {
+        return;
+      }
+      if (error) {
+        console.warn("Login shell PATH lookup failed:", error.message || error);
+        return;
+      }
 
-if (process.platform === 'win32') {
-  // Ensure npm global binaries are in PATH for Windows
-  const npmPath = require('path').join(process.env.APPDATA || '', 'npm');
-  const cur = process.env.PATH || '';
-  const parts = cur.split(';').filter(Boolean);
-  if (npmPath && !parts.includes(npmPath)) {
-    parts.unshift(npmPath);
-    process.env.PATH = parts.join(';');
-  }
-}
-import { createMainWindow } from './app/window';
-import { registerAppLifecycle } from './app/lifecycle';
-import { registerAllIpc } from './ipc';
-import { databaseService } from './services/DatabaseService';
-import { connectionsService } from './services/ConnectionsService';
-import { autoUpdateService } from './services/AutoUpdateService';
-import { worktreePoolService } from './services/WorktreePoolService';
-import * as telemetry from './telemetry';
-import { errorTracking } from './errorTracking';
-import { join } from 'path';
-
-// Set app name for macOS dock and menu bar
-app.setName('Emdash');
-
-// Set dock icon on macOS in development mode
-if (process.platform === 'darwin' && !app.isPackaged) {
-  const iconPath = join(
-    __dirname,
-    '..',
-    '..',
-    '..',
-    'src',
-    'assets',
-    'images',
-    'emdash',
-    'icon-dock.png'
+      const nextPath = stdout.trim();
+      if (nextPath.length > 0) {
+        process.env.PATH = nextPath;
+      }
+    },
   );
-  try {
-    app.dock.setIcon(iconPath);
-  } catch (err) {
-    console.warn('Failed to set dock icon:', err);
-  }
-}
+
+  timeout = setTimeout(() => {
+    child.kill("SIGKILL");
+    timedOut = true;
+    console.warn("Login shell PATH lookup timed out");
+  }, LOGIN_SHELL_PATH_TIMEOUT_MS);
+};
 
 // App bootstrap
 app.whenReady().then(async () => {
-  // Initialize database
-  let dbInitOk = false;
-  let dbInitErrorType: string | undefined;
-  try {
-    await databaseService.initialize();
-    dbInitOk = true;
-  } catch (error) {
-    const err = error as unknown;
-    const asObj = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
-    const code = asObj && typeof asObj.code === 'string' ? asObj.code : undefined;
-    const name = asObj && typeof asObj.name === 'string' ? asObj.name : undefined;
-    dbInitErrorType = code || name || 'unknown';
-    console.error('Failed to initialize database:', error);
+  if (process.platform === "darwin") {
+    const iconPath = app.isPackaged
+      ? join(process.resourcesPath, "emdash.icns")
+      : join(
+          __dirname,
+          "..",
+          "..",
+          "src",
+          "assets",
+          "images",
+          "emdash",
+          "emdash.icns",
+        );
 
-    if (err instanceof Error && err.message.includes('migrations folder')) {
-      const { dialog } = require('electron');
-      dialog.showErrorBox(
-        'Database Initialization Failed',
-        'Unable to initialize the application database.\n\n' +
-          'This may be due to:\n' +
-          '• Running from Downloads or DMG (move to Applications)\n' +
-          '• Homebrew installation issues (try direct download)\n' +
-          '• Incomplete installation\n\n' +
-          'Please try:\n' +
-          '1. Move Emdash to Applications folder\n' +
-          '2. Download directly from GitHub releases\n' +
-          '3. Check console for detailed error information'
+    let dockIcon: Electron.NativeImage | undefined;
+
+    if (existsSync(iconPath)) {
+      dockIcon = nativeImage.createFromPath(iconPath);
+
+      if (dockIcon.isEmpty()) {
+        try {
+          dockIcon = nativeImage.createFromBuffer(readFileSync(iconPath));
+        } catch {
+          dockIcon = undefined;
+        }
+      }
+    }
+
+    if (!dockIcon || dockIcon.isEmpty()) {
+      const fallbackIconPath = join(
+        __dirname,
+        "..",
+        "..",
+        "src",
+        "assets",
+        "images",
+        "emdash",
+        "emdash_dev.png",
       );
+      if (existsSync(fallbackIconPath)) {
+        const fallbackIcon = nativeImage.createFromPath(fallbackIconPath);
+        if (!fallbackIcon.isEmpty()) {
+          dockIcon = fallbackIcon;
+        }
+      }
+    }
+
+    if (dockIcon && !dockIcon.isEmpty()) {
+      app.dock.setIcon(dockIcon);
     }
   }
 
-  // Initialize telemetry (privacy-first, with optional GitHub username)
-  await telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
-
-  // Initialize error tracking
-  await errorTracking.init();
-
+  // Initialize database
   try {
-    const summary = databaseService.getLastMigrationSummary();
-    const toBucket = (n: number) => (n === 0 ? '0' : n === 1 ? '1' : n <= 3 ? '2-3' : '>3');
-    telemetry.capture('db_setup', {
-      outcome: dbInitOk ? 'success' : 'failure',
-      ...(dbInitOk
-        ? {
-            applied_migrations: summary?.appliedCount ?? 0,
-            applied_migrations_bucket: toBucket(summary?.appliedCount ?? 0),
-            recovered: summary?.recovered === true,
-          }
-        : {
-            error_type: dbInitErrorType ?? 'unknown',
-          }),
-    });
-  } catch {
-    // telemetry must never crash the app
-  }
-
-  // Best-effort: capture a coarse snapshot of project/task counts (no names/paths)
-  try {
-    const [projects, tasks] = await Promise.all([
-      databaseService.getProjects(),
-      databaseService.getTasks(),
-    ]);
-    const projectCount = projects.length;
-    const taskCount = tasks.length;
-    const toBucket = (n: number) =>
-      n === 0 ? '0' : n <= 2 ? '1-2' : n <= 5 ? '3-5' : n <= 10 ? '6-10' : '>10';
-    telemetry.capture('task_snapshot', {
-      project_count: projectCount,
-      project_count_bucket: toBucket(projectCount),
-      task_count: taskCount,
-      task_count_bucket: toBucket(taskCount),
-    } as any);
-  } catch {
-    // ignore errors — telemetry is best-effort only
+    await databaseService.initialize();
+    console.log("Database initialized successfully");
+  } catch (error) {
+    console.error("Failed to initialize database:", error);
   }
 
   // Register IPC handlers
   registerAllIpc();
 
-  // Clean up any orphaned reserve worktrees from previous sessions
-  worktreePoolService.cleanupOrphanedReserves().catch((error) => {
-    console.warn('Failed to cleanup orphaned reserves:', error);
-  });
-
-  // Warm provider installation cache
-  try {
-    await connectionsService.initProviderStatusCache();
-  } catch {
-    // best-effort; ignore failures
-  }
-
   // Create main window
   createMainWindow();
 
-  // Initialize auto-update service after window is created
-  try {
-    await autoUpdateService.initialize();
-  } catch (error) {
-    if (app.isPackaged) {
-      console.error('Failed to initialize auto-update service:', error);
-    }
-  }
+  // Async PATH refresh to avoid blocking the UI thread.
+  setImmediate(refreshPathFromLoginShell);
 });
 
 // App lifecycle handlers
 registerAppLifecycle();
-
-// Graceful shutdown telemetry event
-app.on('before-quit', () => {
-  // Session summary with duration (no identifiers)
-  telemetry.capture('app_session');
-  telemetry.capture('app_closed');
-  telemetry.shutdown();
-
-  // Cleanup auto-update service
-  autoUpdateService.shutdown();
-
-  // Cleanup reserve worktrees (fire and forget - don't block quit)
-  worktreePoolService.cleanup().catch(() => {});
-});

@@ -144,17 +144,12 @@ async function computeStatus(taskPath: string): Promise<GitChange[]> {
     let additions = (staged?.additions || 0) + (unstaged?.additions || 0);
     let deletions = (staged?.deletions || 0) + (unstaged?.deletions || 0);
 
-    if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
-      const absPath = path.join(taskPath, filePath);
-      try {
-        const stat = fs.existsSync(absPath) ? fs.statSync(absPath) : undefined;
-        if (stat && stat.isFile()) {
-          const buf = fs.readFileSync(absPath);
-          let count = 0;
-          for (let i = 0; i < buf.length; i++) if (buf[i] === 0x0a) count++;
-          additions = count;
-        }
-      } catch {}
+    const isUntracked = statusCode.includes('?');
+    // Tradeoff: for untracked files we skip per-line counting to keep status fast.
+    // UI should treat additions/deletions for "??" as best-effort and possibly 0.
+    if (isUntracked) {
+      additions = additions || 0;
+      deletions = deletions || 0;
     }
 
     changes.push({ path: filePath, status, additions, deletions, isStaged });
