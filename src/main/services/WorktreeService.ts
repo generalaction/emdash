@@ -61,6 +61,60 @@ interface EmdashConfig {
 export class WorktreeService {
   private worktrees = new Map<string, WorktreeInfo>();
 
+  private async cleanupWorktreeDirectory(pathToRemove: string, projectPath: string): Promise<void> {
+    if (!fs.existsSync(pathToRemove)) {
+      return;
+    }
+
+    const normalizedPathToRemove = path.resolve(pathToRemove);
+    const normalizedProjectPath = path.resolve(projectPath);
+
+    if (normalizedPathToRemove === normalizedProjectPath) {
+      log.error(
+        `CRITICAL: Prevented filesystem removal of main repository! Path: ${pathToRemove}`
+      );
+      return;
+    }
+
+    const isLikelyWorktree =
+      pathToRemove.includes('/worktrees/') ||
+      pathToRemove.includes('\\worktrees\\') ||
+      pathToRemove.includes('/.conductor/') ||
+      pathToRemove.includes('\\.conductor\\') ||
+      pathToRemove.includes('/.cursor/worktrees/') ||
+      pathToRemove.includes('\\.cursor\\worktrees\\');
+
+    if (!isLikelyWorktree) {
+      log.warn(
+        `Path doesn't appear to be a worktree directory, skipping filesystem removal: ${pathToRemove}`
+      );
+      return;
+    }
+
+    try {
+      await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+    } catch (rmErr: any) {
+      if (rmErr && (rmErr.code === 'EACCES' || rmErr.code === 'EPERM')) {
+        try {
+          if (process.platform === 'win32') {
+            await execFileAsync('cmd', ['/c', 'attrib', '-R', '/S', '/D', pathToRemove + '\\*']);
+          } else {
+            await execFileAsync('chmod', ['-R', 'u+w', pathToRemove]);
+          }
+        } catch (permErr) {
+          log.warn('Failed to adjust permissions for worktree cleanup:', permErr);
+        }
+        try {
+          await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+        } catch (retryErr) {
+          log.warn('Failed to cleanup worktree directory after permission fix:', retryErr);
+        }
+      } else {
+        log.warn('Failed to cleanup worktree directory:', rmErr);
+      }
+    }
+  }
+
   /**
    * Read .emdash.json config from project root
    */
@@ -430,65 +484,7 @@ export class WorktreeService {
       }
 
       // Ensure directory is removed even if git command failed
-      if (fs.existsSync(pathToRemove)) {
-        // SAFETY: Double-check we're not removing the main repo before filesystem operations
-        const normalizedPathToRemove = path.resolve(pathToRemove);
-        const normalizedProjectPath = path.resolve(projectPath);
-
-        if (normalizedPathToRemove === normalizedProjectPath) {
-          log.error(
-            `CRITICAL: Prevented filesystem removal of main repository! Path: ${pathToRemove}`
-          );
-          throw new Error('Cannot remove main repository directory');
-        }
-
-        // Additional safety: Check if this path is within the worktrees directory
-        // Worktrees should typically be in a ../worktrees/ directory or similar
-        const isLikelyWorktree =
-          pathToRemove.includes('/worktrees/') ||
-          pathToRemove.includes('\\worktrees\\') ||
-          pathToRemove.includes('/.conductor/') ||
-          pathToRemove.includes('\\.conductor\\') ||
-          pathToRemove.includes('/.cursor/worktrees/') ||
-          pathToRemove.includes('\\.cursor\\worktrees\\');
-
-        if (!isLikelyWorktree) {
-          log.warn(
-            `Path doesn't appear to be a worktree directory, skipping filesystem removal: ${pathToRemove}`
-          );
-          return;
-        }
-
-        try {
-          await fs.promises.rm(pathToRemove, { recursive: true, force: true });
-        } catch (rmErr: any) {
-          // Handle permission issues by making files writable, then retry
-          if (rmErr && (rmErr.code === 'EACCES' || rmErr.code === 'EPERM')) {
-            try {
-              if (process.platform === 'win32') {
-                // Remove read-only attribute recursively on Windows
-                await execFileAsync('cmd', [
-                  '/c',
-                  'attrib',
-                  '-R',
-                  '/S',
-                  '/D',
-                  pathToRemove + '\\*',
-                ]);
-              } else {
-                // Make everything writable on POSIX
-                await execFileAsync('chmod', ['-R', 'u+w', pathToRemove]);
-              }
-            } catch (permErr) {
-              console.warn('Failed to adjust permissions for worktree cleanup:', permErr);
-            }
-            // Retry removal once after permissions adjusted
-            await fs.promises.rm(pathToRemove, { recursive: true, force: true });
-          } else {
-            throw rmErr;
-          }
-        }
-      }
+      void this.cleanupWorktreeDirectory(pathToRemove, projectPath);
 
       if (branchToDelete) {
         const tryDeleteBranch = async () =>
