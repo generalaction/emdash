@@ -18,6 +18,42 @@ import { databaseService } from '../services/DatabaseService';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
+/** Error type for child_process exec failures with stdout/stderr capture */
+interface ExecError extends Error {
+  stdout?: string;
+  stderr?: string;
+}
+
+/** Parse GitHub owner from a remote URL (origin). Returns null if not a GitHub URL. */
+export function parseGitHubOwnerFromRemoteUrl(url: string): string | null {
+  const parsed = parseGitHubRepoFromRemoteUrl(url);
+  return parsed?.owner ?? null;
+}
+
+/** Parse GitHub owner and nameWithOwner from a remote URL. Returns null if not a GitHub URL. */
+export function parseGitHubRepoFromRemoteUrl(
+  url: string
+): { owner: string; nameWithOwner: string } | null {
+  const m =
+    url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?$/i) ||
+    url.match(/([^/:]+)[:/]([^/]+)\/([^/.]+)(?:\.git)?$/i);
+  if (!m) return null;
+  const fromSecondRegex = m[3] !== undefined;
+  const owner = fromSecondRegex
+    ? m[2]
+    : m[1].includes('github.com')
+      ? (m[1].split('github.com').pop() ?? m[1])
+      : m[1];
+  const repo = fromSecondRegex ? m[3] : m[2];
+  const nameWithOwner = `${owner}/${repo}`.replace(/^\/*/, '');
+  return { owner, nameWithOwner };
+}
+
+/** Response type for git:create-pr IPC handler */
+type CreatePrResponse =
+  | { success: true; url: string | null; output: string }
+  | { success: false; error: string; output?: string; code?: string };
+
 export function registerGitIpc() {
   function resolveGitBin(): string {
     // Allow override via env
@@ -224,31 +260,46 @@ export function registerGitIpc() {
           }
         }
 
-        // Resolve repo owner/name (prefer gh, fallback to parsing origin url)
+        // Resolve origin URL once for repo fallback and for --head (push remote owner)
+        let originUrl = '';
+        try {
+          const { stdout: urlOut } = await execAsync('git remote get-url origin', {
+            cwd: taskPath,
+          });
+          originUrl = (urlOut || '').trim();
+        } catch {}
+
+        const originParsed = originUrl ? parseGitHubRepoFromRemoteUrl(originUrl) : null;
+        const originOwner = originUrl ? parseGitHubOwnerFromRemoteUrl(originUrl) : null;
+
+        // Resolve repo for --repo: prefer gh (with fork → parent for PR target), fallback to origin URL
         let repoNameWithOwner = '';
+        let repoForPR = '';
         try {
           const { stdout: repoOut } = await execAsync(
-            'gh repo view --json nameWithOwner -q .nameWithOwner',
+            'gh repo view --json nameWithOwner,isFork,parent -q .',
             { cwd: taskPath }
           );
-          repoNameWithOwner = (repoOut || '').trim();
+          const repoJson = (repoOut || '').trim();
+          if (repoJson) {
+            const data = JSON.parse(repoJson) as {
+              nameWithOwner?: string;
+              isFork?: boolean;
+              parent?: { nameWithOwner?: string } | null;
+            };
+            repoNameWithOwner = data.nameWithOwner ?? '';
+            const isFork = data.isFork === true && data.parent?.nameWithOwner;
+            repoForPR = isFork
+              ? (data.parent!.nameWithOwner ?? repoNameWithOwner)
+              : repoNameWithOwner;
+          }
         } catch {
-          try {
-            const { stdout: urlOut } = await execAsync('git remote get-url origin', {
-              cwd: taskPath,
-            });
-            const url = (urlOut || '').trim();
-            // Handle both SSH and HTTPS forms
-            const m =
-              url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?$/i) ||
-              url.match(/([^/:]+)[:/]([^/]+)\/([^/.]+)(?:\.git)?$/i);
-            if (m) {
-              const owner = m[1].includes('github.com') ? m[1].split('github.com').pop() : m[1];
-              const repo = m[2] || m[3];
-              repoNameWithOwner = `${owner}/${repo}`.replace(/^\/*/, '');
-            }
-          } catch {}
+          if (originParsed) {
+            repoNameWithOwner = originParsed.nameWithOwner;
+            repoForPR = originParsed.nameWithOwner;
+          }
         }
+        if (!repoForPR) repoForPR = repoNameWithOwner;
 
         // Determine current branch and default base branch (fallback to main)
         let currentBranch = '';
@@ -296,7 +347,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         // Build gh pr create command with explicit repo/base/head for reliability
         const flags: string[] = [];
-        if (repoNameWithOwner) flags.push(`--repo ${JSON.stringify(repoNameWithOwner)}`);
+        if (repoForPR) flags.push(`--repo ${JSON.stringify(repoForPR)}`);
         if (title) flags.push(`--title ${JSON.stringify(title)}`);
 
         // Use temp file for body to properly handle newlines and multiline content
@@ -323,10 +374,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         if (head) {
           flags.push(`--head ${JSON.stringify(head)}`);
         } else if (currentBranch) {
-          // Prefer owner:branch form when repo is known; otherwise branch name
-          const headRef = repoNameWithOwner
-            ? `${repoNameWithOwner.split('/')[0]}:${currentBranch}`
-            : currentBranch;
+          const headRef =
+            originOwner !== null
+              ? `${originOwner}:${currentBranch}`
+              : repoNameWithOwner
+                ? `${repoNameWithOwner.split('/')[0]}:${currentBranch}`
+                : currentBranch;
           flags.push(`--head ${JSON.stringify(headRef)}`);
         }
         if (draft) flags.push('--draft');
@@ -360,35 +413,44 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const url = urlMatch ? urlMatch[0] : null;
 
         return { success: true, url, output: out };
-      } catch (error: any) {
+      } catch (error) {
         // Capture rich error info from gh/child_process
-        const errMsg = typeof error?.message === 'string' ? error.message : String(error);
-        const errStdout = typeof error?.stdout === 'string' ? error.stdout : '';
-        const errStderr = typeof error?.stderr === 'string' ? error.stderr : '';
+        const execErr = error as ExecError;
+        const errMsg = typeof execErr?.message === 'string' ? execErr.message : String(error);
+        const errStdout = typeof execErr?.stdout === 'string' ? execErr.stdout : '';
+        const errStderr = typeof execErr?.stderr === 'string' ? execErr.stderr : '';
         const combined = [errMsg, errStdout, errStderr].filter(Boolean).join('\n').trim();
 
         // Check for various error conditions
         const restrictionRe =
           /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i;
         const prExistsRe = /already exists|already has.*pull request|pull request for branch/i;
+        const headRefInvalidRe =
+          /head sha can't be blank|no commits between|head ref must be a branch/i;
 
         let code: string | undefined;
+        let errorMessage = combined || errMsg || 'Failed to create PR';
         if (restrictionRe.test(combined)) {
           code = 'ORG_AUTH_APP_RESTRICTED';
           log.warn('GitHub org restrictions detected during PR creation');
         } else if (prExistsRe.test(combined)) {
           code = 'PR_ALREADY_EXISTS';
           log.info('PR already exists for branch - push was successful');
+        } else if (headRefInvalidRe.test(combined)) {
+          code = 'HEAD_REF_INVALID';
+          errorMessage =
+            'GitHub could not find the branch for this PR. Ensure the branch was pushed to origin and that origin is the intended remote (fork or upstream).';
+          log.warn('PR create failed: head ref invalid or no commits', { combined });
         } else {
           log.error('Failed to create PR:', combined || error);
         }
 
         return {
           success: false,
-          error: combined || errMsg || 'Failed to create PR',
+          error: errorMessage,
           output: combined,
           code,
-        } as any;
+        } as CreatePrResponse;
       }
     }
   );
@@ -485,7 +547,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     ) => {
       const {
         taskPath,
-        commitMessage = 'chore: apply task changes',
+        commitMessage: providedCommitMessage,
         createBranchIfOnDefault = true,
         branchPrefix = 'orch',
       } = (args ||
@@ -500,6 +562,34 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         createBranchIfOnDefault?: boolean;
         branchPrefix?: string;
       };
+
+      // Generate commit message dynamically if not provided
+      let commitMessage = providedCommitMessage;
+      if (!commitMessage) {
+        try {
+          // Try to get the task's provider for better commit message generation
+          let providerId: string | null = null;
+          try {
+            const task = await databaseService.getTaskByPath(taskPath);
+            if (task?.agentId) {
+              providerId = task.agentId;
+              log.debug('Found task provider for commit message generation', {
+                taskPath,
+                providerId,
+              });
+            }
+          } catch {
+            // Non-fatal - continue without provider
+          }
+
+          const generated = await prGenerationService.generateCommitMessage(taskPath, providerId);
+          commitMessage = generated.message;
+          log.debug('Generated commit message:', { commitMessage });
+        } catch (error) {
+          log.warn('Failed to generate commit message, using fallback', { error });
+          commitMessage = 'chore: apply task changes';
+        }
+      }
 
       try {
         // Ensure we're in a git repo

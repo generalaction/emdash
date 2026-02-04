@@ -45,7 +45,9 @@ describe('WorktreeService', () => {
     let tempDir: string;
     let sourceDir: string;
     let destDir: string;
-    let service: Awaited<typeof import('../../main/services/WorktreeService')>['worktreeService'];
+    let service: Awaited<
+      typeof import('../../../main/services/WorktreeService')
+    >['worktreeService'];
 
     beforeEach(async () => {
       // Create temp directories
@@ -71,7 +73,7 @@ describe('WorktreeService', () => {
 
       // Reset modules and import fresh
       vi.resetModules();
-      const mod = await import('../../main/services/WorktreeService');
+      const mod = await import('../../../main/services/WorktreeService');
       service = mod.worktreeService;
     });
 
