@@ -96,7 +96,7 @@ Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your 
 
 # Contributing
 
-Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/f2fv7YxuR2) to discuss.
+Contributions welcome! Please open issues and PRs against the canonical repo, `cschubiner/emdash`. See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/f2fv7YxuR2) to discuss.
 
 # FAQ
 
@@ -190,4 +190,3 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 
 [![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
 [![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)
-
