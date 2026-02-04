@@ -183,6 +183,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
   getGitStatus: (taskPath: string) => ipcRenderer.invoke('git:get-status', taskPath),
+  watchGitStatus: (taskPath: string) => ipcRenderer.invoke('git:watch-status', taskPath),
+  unwatchGitStatus: (taskPath: string) => ipcRenderer.invoke('git:unwatch-status', taskPath),
+  onGitStatusChanged: (listener: (data: { taskPath: string }) => void) => {
+    const channel = 'git:status-changed';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { taskPath: string }) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   getFileDiff: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:get-file-diff', args),
   stageFile: (args: { taskPath: string; filePath: string }) =>
@@ -565,6 +573,9 @@ export interface ElectronAPI {
     }>;
     error?: string;
   }>;
+  watchGitStatus: (taskPath: string) => Promise<{ success: boolean; error?: string }>;
+  unwatchGitStatus: (taskPath: string) => Promise<{ success: boolean; error?: string }>;
+  onGitStatusChanged: (listener: (data: { taskPath: string }) => void) => () => void;
   getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
     success: boolean;
     diff?: { lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> };

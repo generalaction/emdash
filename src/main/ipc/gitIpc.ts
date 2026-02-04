@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { exec, execFile } from 'child_process';
 import fs from 'node:fs';
@@ -17,6 +17,70 @@ import { databaseService } from '../services/DatabaseService';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
+
+const GIT_STATUS_DEBOUNCE_MS = 500;
+const supportsRecursiveWatch = process.platform === 'darwin' || process.platform === 'win32';
+
+type GitStatusWatchEntry = {
+  watcher: fs.FSWatcher;
+  refCount: number;
+  debounceTimer?: NodeJS.Timeout;
+};
+
+const gitStatusWatchers = new Map<string, GitStatusWatchEntry>();
+
+const broadcastGitStatusChange = (taskPath: string) => {
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach((window) => {
+    window.webContents.send('git:status-changed', { taskPath });
+  });
+};
+
+const ensureGitStatusWatcher = (taskPath: string) => {
+  if (!supportsRecursiveWatch) {
+    return { success: false as const, error: 'recursive-watch-unsupported' };
+  }
+  if (!taskPath || !fs.existsSync(taskPath)) {
+    return { success: false as const, error: 'workspace-unavailable' };
+  }
+  const existing = gitStatusWatchers.get(taskPath);
+  if (existing) {
+    existing.refCount += 1;
+    return { success: true as const };
+  }
+  try {
+    const watcher = fs.watch(taskPath, { recursive: true }, () => {
+      const entry = gitStatusWatchers.get(taskPath);
+      if (!entry) return;
+      if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+      entry.debounceTimer = setTimeout(() => {
+        broadcastGitStatusChange(taskPath);
+      }, GIT_STATUS_DEBOUNCE_MS);
+    });
+    watcher.on('error', (error) => {
+      log.warn('[git:watch-status] watcher error', error);
+    });
+    gitStatusWatchers.set(taskPath, { watcher, refCount: 1 });
+    return { success: true as const };
+  } catch (error) {
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : 'Failed to watch workspace',
+    };
+  }
+};
+
+const releaseGitStatusWatcher = (taskPath: string) => {
+  const entry = gitStatusWatchers.get(taskPath);
+  if (!entry) return { success: true as const };
+  entry.refCount -= 1;
+  if (entry.refCount <= 0) {
+    if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+    entry.watcher.close();
+    gitStatusWatchers.delete(taskPath);
+  }
+  return { success: true as const };
+};
 
 export function registerGitIpc() {
   function resolveGitBin(): string {
@@ -37,6 +101,15 @@ export function registerGitIpc() {
     return 'git';
   }
   const GIT = resolveGitBin();
+
+  ipcMain.handle('git:watch-status', async (_, taskPath: string) => {
+    return ensureGitStatusWatcher(taskPath);
+  });
+
+  ipcMain.handle('git:unwatch-status', async (_, taskPath: string) => {
+    return releaseGitStatusWatcher(taskPath);
+  });
+
   // Git: Status (moved from Codex IPC)
   ipcMain.handle('git:get-status', async (_, taskPath: string) => {
     try {

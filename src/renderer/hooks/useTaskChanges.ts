@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getCachedGitStatus } from '@/lib/gitStatusCache';
 
 export interface TaskChange {
   path: string;
@@ -115,7 +116,7 @@ export function useTaskChanges(
         }
 
         const requestPath = currentPath;
-        const result = await window.electronAPI.getGitStatus(requestPath);
+        const result = await getCachedGitStatus(requestPath, { force: options?.force });
 
         if (!mountedRef.current) return;
 
@@ -126,7 +127,7 @@ export function useTaskChanges(
 
         if (result?.success && result.changes) {
           const filtered = result.changes.filter(
-            (c: { path: string }) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md'
+            (c) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md'
           );
           const totalAdditions = filtered.reduce((sum, change) => sum + (change.additions || 0), 0);
           const totalDeletions = filtered.reduce((sum, change) => sum + (change.deletions || 0), 0);
@@ -234,6 +235,48 @@ export function useTaskChanges(
       clearIdleHandle();
     };
   }, [taskPath, shouldPoll, fetchChanges, scheduleIdleRefresh, clearIdleHandle]);
+
+  useEffect(() => {
+    if (!taskPath) return;
+    const api = window.electronAPI;
+    let off: (() => void) | undefined;
+    let watchId: string | undefined;
+    let disposed = false;
+
+    const watchPromise = api.watchGitStatus
+      ? api.watchGitStatus(taskPath)
+      : Promise.resolve({ success: false });
+
+    watchPromise
+      .then((res: { success?: boolean; watchId?: string }) => {
+        if (disposed) {
+          if (res?.success && res.watchId && api.unwatchGitStatus) {
+            api.unwatchGitStatus(taskPath, res.watchId).catch(() => {});
+          }
+          return;
+        }
+        if (!res?.success) {
+          return;
+        }
+        watchId = res.watchId;
+        if (api.onGitStatusChanged) {
+          off = api.onGitStatusChanged((event) => {
+            if (event?.taskPath !== taskPath) return;
+            if (!shouldPollRef.current) return;
+            void fetchChanges(false, { force: true });
+          });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      disposed = true;
+      off?.();
+      if (api.unwatchGitStatus && watchId) {
+        api.unwatchGitStatus(taskPath, watchId).catch(() => {});
+      }
+    };
+  }, [taskPath, fetchChanges]);
 
   return {
     ...changes,

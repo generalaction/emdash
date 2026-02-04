@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToFileChanges } from '@/lib/fileChangeEvents';
+import { getCachedGitStatus } from '@/lib/gitStatusCache';
 
 export interface FileChange {
   path: string;
@@ -103,8 +104,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
       const requestPath = currentPath;
 
       try {
-        // Call main process to get git status
-        const result = await window.electronAPI.getGitStatus(requestPath);
+        const result = await getCachedGitStatus(requestPath, { force: options?.force });
 
         if (!mountedRef.current) return;
 
@@ -115,23 +115,14 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
 
         if (result?.success && result.changes && result.changes.length > 0) {
           const changes: FileChange[] = result.changes
-            .map(
-              (change: {
-                path: string;
-                status: string;
-                additions: number;
-                deletions: number;
-                isStaged: boolean;
-                diff?: string;
-              }) => ({
-                path: change.path,
-                status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
-                additions: change.additions || 0,
-                deletions: change.deletions || 0,
-                isStaged: change.isStaged || false,
-                diff: change.diff,
-              })
-            )
+            .map((change) => ({
+              path: change.path,
+              status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
+              additions: change.additions || 0,
+              deletions: change.deletions || 0,
+              isStaged: change.isStaged || false,
+              diff: change.diff,
+            }))
             .filter((c) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md');
           setFileChanges(changes);
         } else {
@@ -147,7 +138,6 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
         if (isInitialLoad) {
           setError('Failed to load file changes');
         }
-        // No changes on error - set empty array
         setFileChanges([]);
       } finally {
         const isCurrentPath = requestPath === taskPathRef.current;
@@ -230,12 +220,54 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
 
     const unsubscribe = subscribeToFileChanges((event) => {
       if (event.detail.taskPath === taskPath && shouldPollRef.current) {
-        void fetchFileChanges(false);
+        void fetchFileChanges(false, { force: true });
       }
     });
 
     return () => {
       unsubscribe();
+    };
+  }, [taskPath, fetchFileChanges]);
+
+  useEffect(() => {
+    if (!taskPath) return;
+    const api = window.electronAPI;
+    let off: (() => void) | undefined;
+    let watchId: string | undefined;
+    let disposed = false;
+
+    const watchPromise = api.watchGitStatus
+      ? api.watchGitStatus(taskPath)
+      : Promise.resolve({ success: false });
+
+    watchPromise
+      .then((res: { success?: boolean; watchId?: string }) => {
+        if (disposed) {
+          if (res?.success && res.watchId && api.unwatchGitStatus) {
+            api.unwatchGitStatus(taskPath, res.watchId).catch(() => {});
+          }
+          return;
+        }
+        if (!res?.success) {
+          return;
+        }
+        watchId = res.watchId;
+        if (api.onGitStatusChanged) {
+          off = api.onGitStatusChanged((event) => {
+            if (event?.taskPath !== taskPath) return;
+            if (!shouldPollRef.current) return;
+            void fetchFileChanges(false, { force: true });
+          });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      disposed = true;
+      off?.();
+      if (api.unwatchGitStatus && watchId) {
+        api.unwatchGitStatus(taskPath, watchId).catch(() => {});
+      }
     };
   }, [taskPath, fetchFileChanges]);
 
