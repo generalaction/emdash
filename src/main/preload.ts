@@ -147,8 +147,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fsList: (
     root: string,
     opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
-  ) =>
-    ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
+  ) => ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
   fsRead: (root: string, relPath: string, maxBytes?: number) =>
     ipcRenderer.invoke('fs:read', { root, relPath, maxBytes }),
   fsReadImage: (root: string, relPath: string) =>
