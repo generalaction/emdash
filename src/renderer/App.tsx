@@ -585,6 +585,43 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
+  // Listen for auto-cleaned tasks (PR merge watcher)
+  useEffect(() => {
+    const off = window.electronAPI.onTaskAutoCleaned?.(
+      (data: { taskId: string; projectId: string; action: string }) => {
+        // Refresh tasks for the affected project
+        window.electronAPI.getTasks(data.projectId).then((refreshedTasks) => {
+          setProjects((prev) =>
+            prev.map((project) =>
+              project.id === data.projectId ? { ...project, tasks: refreshedTasks } : project
+            )
+          );
+          setSelectedProject((prev) =>
+            prev && prev.id === data.projectId ? { ...prev, tasks: refreshedTasks } : prev
+          );
+        });
+
+        // Bump archived tasks version so sidebar refreshes
+        if (data.action === 'archive') {
+          setArchivedTasksVersion((v) => v + 1);
+        }
+
+        // If the currently active task was cleaned, deselect it
+        if (activeTask?.id === data.taskId) {
+          setActiveTask(null);
+        }
+
+        toast({
+          title: data.action === 'archive' ? 'Task auto-archived' : 'Task auto-deleted',
+          description: `PR was merged`,
+        });
+      }
+    );
+    return () => {
+      off?.();
+    };
+  }, [activeTask?.id, toast]);
+
   // Auto-collapse/expand right sidebar based on current view
   useEffect(() => {
     // Defer sidebar behavior until initial load completes to prevent flash

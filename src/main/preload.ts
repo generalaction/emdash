@@ -454,6 +454,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Lightweight TCP probe for localhost ports to avoid noisy fetches
   netProbePorts: (host: string, ports: number[], timeoutMs?: number) =>
     ipcRenderer.invoke('net:probePorts', host, ports, timeoutMs),
+
+  // Task auto-cleanup events (PR merge watcher)
+  onTaskAutoCleaned: (
+    listener: (data: { taskId: string; projectId: string; action: string }) => void
+  ) => {
+    const channel = 'task:auto-cleaned';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { taskId: string; projectId: string; action: string }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 });
 
 // Type definitions for the exposed API

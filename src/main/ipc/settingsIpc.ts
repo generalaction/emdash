@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { AppSettings, getAppSettings, updateAppSettings } from '../settings';
+import { prMergeWatcherService } from '../services/PrMergeWatcherService';
 
 export function registerSettingsIpc() {
   ipcMain.handle('settings:get', async () => {
@@ -14,6 +15,10 @@ export function registerSettingsIpc() {
   ipcMain.handle('settings:update', async (_, partial: Partial<AppSettings>) => {
     try {
       const settings = updateAppSettings(partial || {});
+      // Notify the PR merge watcher if tasks settings changed
+      if (partial?.tasks?.autoCleanupOnPrMerge !== undefined) {
+        prMergeWatcherService.onSettingsChanged();
+      }
       return { success: true, settings };
     } catch (error) {
       return { success: false, error: (error as Error).message };

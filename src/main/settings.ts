@@ -62,6 +62,7 @@ export interface AppSettings {
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    autoCleanupOnPrMerge: 'off' | 'archive' | 'delete';
   };
   projects?: {
     defaultDirectory: string;
@@ -96,6 +97,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    autoCleanupOnPrMerge: 'off',
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
@@ -257,11 +259,16 @@ function normalizeSettings(input: AppSettings): AppSettings {
 
   // Tasks
   const tasks = (input as any)?.tasks || {};
+  const rawCleanup = tasks?.autoCleanupOnPrMerge;
+  const validCleanupValues: Array<'off' | 'archive' | 'delete'> = ['off', 'archive', 'delete'];
   out.tasks = {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
+    autoCleanupOnPrMerge: validCleanupValues.includes(rawCleanup)
+      ? rawCleanup
+      : DEFAULT_SETTINGS.tasks!.autoCleanupOnPrMerge,
   };
 
   // Projects
