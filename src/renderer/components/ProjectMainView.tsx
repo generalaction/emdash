@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { GitBranch, Plus, Loader2, ArrowUpRight, Folder, AlertCircle, Archive } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -237,6 +237,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [isArchiving, setIsArchiving] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
+  const hasPreloadedConfigRef = useRef(false);
 
   const tasksInProject = project.tasks ?? [];
   const selectedCount = selectedIds.size;
@@ -522,6 +523,15 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     [baseBranch, project.id, project.gitInfo, onBaseBranchChangeCallback, toast]
   );
 
+  const preloadProjectConfig = useCallback(() => {
+    if (hasPreloadedConfigRef.current) return;
+    hasPreloadedConfigRef.current = true;
+    void window.electronAPI.getProjectConfig(project.path).catch(() => {
+      // Allow retry on next user intent if preload fails.
+      hasPreloadedConfigRef.current = false;
+    });
+  }, [project.path]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
@@ -569,7 +579,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   isSavingBaseBranch={isSavingBaseBranch}
                   onBaseBranchChange={handleBaseBranchChange}
                   projectPath={project.path}
-                  onEditConfig={() => setShowConfigEditor(true)}
+                  onEditConfig={() => {
+                    preloadProjectConfig();
+                    setShowConfigEditor(true);
+                  }}
+                  onPreloadConfig={preloadProjectConfig}
                 />
               </header>
               <Separator className="my-2" />

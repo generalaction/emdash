@@ -363,6 +363,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
         language={getMonacoLanguageId(activeFile.path)}
         value={activeFile.content}
         onChange={onEditorChange}
+        beforeMount={defineMonacoThemes}
         onMount={onEditorMount}
         theme={getMonacoTheme(effectiveTheme)}
         options={DEFAULT_EDITOR_OPTIONS}

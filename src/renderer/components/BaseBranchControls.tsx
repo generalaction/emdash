@@ -9,6 +9,7 @@ interface BaseBranchControlsProps {
   onBaseBranchChange: (value: string) => void;
   projectPath?: string;
   onEditConfig?: () => void;
+  onPreloadConfig?: () => void;
 }
 
 const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
@@ -19,6 +20,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   onBaseBranchChange,
   projectPath,
   onEditConfig,
+  onPreloadConfig,
 }) => {
   const placeholder = isLoadingBranches
     ? 'Loading...'
@@ -49,6 +51,8 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
               type="button"
               className="text-muted-foreground underline hover:text-foreground"
               onClick={onEditConfig}
+              onMouseEnter={onPreloadConfig}
+              onFocus={onPreloadConfig}
             >
               Edit config
             </button>

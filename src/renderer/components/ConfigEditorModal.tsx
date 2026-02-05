@@ -27,8 +27,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
 
   const hasChanges = content !== originalContent;
 
-  const handleEditorMount = useCallback((_editor: any, monaco: Monaco) => {
-    // Register custom themes when editor mounts
+  const handleEditorBeforeMount = useCallback((monaco: Monaco) => {
+    // Register themes before editor creation so custom-dark/custom-black apply immediately.
     defineMonacoThemes(monaco);
   }, []);
 
@@ -133,7 +133,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 language="json"
                 value={content}
                 onChange={(value) => setContent(value || '')}
-                onMount={handleEditorMount}
+                beforeMount={handleEditorBeforeMount}
                 theme={getMonacoTheme(effectiveTheme)}
                 options={{
                   minimap: { enabled: false },
