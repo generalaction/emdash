@@ -172,10 +172,6 @@ export class TerminalSessionManager {
     );
 
     void this.initializeTerminal();
-    // Only start snapshot timer if snapshots are enabled (main chats only)
-    if (!this.options.disableSnapshots) {
-      this.startSnapshotTimer();
-    }
   }
 
   attach(container: HTMLElement) {
@@ -218,6 +214,11 @@ export class TerminalSessionManager {
         }
       });
     });
+
+    // Only start snapshot timer if snapshots are enabled (main chats only)
+    if (!this.options.disableSnapshots) {
+      this.startSnapshotTimer();
+    }
   }
 
   detach() {
@@ -228,6 +229,7 @@ export class TerminalSessionManager {
       this.resizeObserver = null;
       ensureTerminalHost().appendChild(this.container);
       this.attachedContainer = null;
+      this.stopSnapshotTimer();
       // Only capture snapshot on detach if snapshots are enabled
       if (!this.options.disableSnapshots) {
         void this.captureSnapshot('detach');
