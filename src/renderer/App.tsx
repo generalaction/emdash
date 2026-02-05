@@ -20,7 +20,7 @@ import { NewProjectModal } from './components/NewProjectModal';
 import ProjectMainView from './components/ProjectMainView';
 import RightSidebar from './components/RightSidebar';
 import CodeEditor from './components/FileExplorer/CodeEditor';
-import SettingsModal from './components/SettingsModal';
+import SettingsModal, { type SettingsTab } from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
 import { pickDefaultBranch } from './components/BranchSelect';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -203,6 +203,7 @@ const AppContent: React.FC = () => {
   // Track whether initial restore has completed to defer sidebar auto-behavior
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
   const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
@@ -210,8 +211,13 @@ const AppContent: React.FC = () => {
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
 
+  const openSettings = useCallback((tab: SettingsTab = 'general') => {
+    setSettingsInitialTab(tab);
+    setShowSettings(true);
+  }, []);
+
   // Show toast on update availability and kick off a background check
-  useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => setShowSettings(true) });
+  useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => openSettings('general') });
 
   const defaultPanelLayout = React.useMemo(() => {
     const stored = loadPanelSizes(PANEL_LAYOUT_STORAGE_KEY, DEFAULT_PANEL_LAYOUT);
@@ -365,12 +371,21 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleToggleSettings = useCallback(() => {
-    setShowSettings((prev) => !prev);
+    setShowSettings((prev) => {
+      if (!prev) {
+        setSettingsInitialTab('general');
+      }
+      return !prev;
+    });
   }, []);
 
   const handleOpenSettings = useCallback(() => {
-    setShowSettings(true);
-  }, []);
+    openSettings('general');
+  }, [openSettings]);
+
+  const handleOpenKeyboardShortcuts = useCallback(() => {
+    openSettings('interface');
+  }, [openSettings]);
 
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
@@ -2819,7 +2834,11 @@ const AppContent: React.FC = () => {
                   </ResizablePanel>
                 </ResizablePanelGroup>
               </div>
-              <SettingsModal isOpen={showSettings} onClose={handleCloseSettings} />
+              <SettingsModal
+                isOpen={showSettings}
+                onClose={handleCloseSettings}
+                initialTab={settingsInitialTab}
+              />
               <CommandPaletteWrapper
                 isOpen={showCommandPalette}
                 onClose={handleCloseCommandPalette}
@@ -2829,6 +2848,7 @@ const AppContent: React.FC = () => {
                 handleGoHome={handleGoHome}
                 handleOpenProject={handleOpenProject}
                 handleOpenSettings={handleOpenSettings}
+                handleOpenKeyboardShortcuts={handleOpenKeyboardShortcuts}
               />
               {showEditorMode && activeTask && selectedProject && (
                 <CodeEditor
