@@ -1251,7 +1251,8 @@ const AppContent: React.FC = () => {
     linkedJiraIssue: JiraIssueSummary | null = null,
     autoApprove?: boolean,
     useWorktree: boolean = true,
-    baseRef?: string
+    baseRef?: string,
+    startInPlanMode?: boolean
   ) => {
     if (!selectedProject) return;
     try {
@@ -1275,13 +1276,19 @@ const AppContent: React.FC = () => {
         preparedPrompt = parts.join('\n');
       }
       const taskMetadata: TaskMetadata | null =
-        linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
+        linkedLinearIssue ||
+        linkedJiraIssue ||
+        linkedGithubIssue ||
+        preparedPrompt ||
+        autoApprove ||
+        startInPlanMode
           ? {
               linearIssue: linkedLinearIssue ?? null,
               jiraIssue: linkedJiraIssue ?? null,
               githubIssue: linkedGithubIssue ?? null,
               initialPrompt: preparedPrompt ?? null,
               autoApprove: autoApprove ?? null,
+              startInPlanMode: startInPlanMode ?? null,
             }
           : null;
 

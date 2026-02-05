@@ -734,13 +734,30 @@ const ChatInterface: React.FC<Props> = ({
     return null;
   }, [isTerminal, task.metadata, commentsContext]);
 
-  // Only use keystroke injection for agents WITHOUT CLI flag support
-  // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead
+  // When plan mode is active, we use stdin injection instead of CLI args
+  // so we can prepend the /plan command before the prompt
+  const planModeActive =
+    Boolean(task.metadata?.startInPlanMode) && Boolean(agentMeta[agent]?.planActivate);
+
+  // Build the stdin prompt: prepend /plan when plan mode is active
+  const stdinPrompt = useMemo(() => {
+    const planCmd = agentMeta[agent]?.planActivate;
+    if (planModeActive && planCmd) {
+      return initialInjection ? `${planCmd}\n${initialInjection}` : planCmd;
+    }
+    return initialInjection;
+  }, [planModeActive, initialInjection, agent]);
+
+  // Use keystroke injection when:
+  // 1. Agent has no CLI flag support (original behavior), OR
+  // 2. Plan mode is active (we need stdin to prepend /plan)
   useInitialPromptInjection({
     taskId: task.id,
     providerId: agent,
-    prompt: initialInjection,
-    enabled: isTerminal && agentMeta[agent]?.initialPromptFlag === undefined,
+    prompt: stdinPrompt,
+    enabled:
+      isTerminal &&
+      (agentMeta[agent]?.initialPromptFlag === undefined || planModeActive),
   });
 
   // Ensure an agent is stored for this task so fallbacks can subscribe immediately
@@ -992,7 +1009,8 @@ const ChatInterface: React.FC<Props> = ({
                   }
                   initialPrompt={
                     agentMeta[agent]?.initialPromptFlag !== undefined &&
-                    !task.metadata?.initialInjectionSent
+                    !task.metadata?.initialInjectionSent &&
+                    !planModeActive
                       ? (initialInjection ?? undefined)
                       : undefined
                   }

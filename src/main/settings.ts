@@ -62,6 +62,7 @@ export interface AppSettings {
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    startInPlanModeByDefault: boolean;
   };
   projects?: {
     defaultDirectory: string;
@@ -96,6 +97,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    startInPlanModeByDefault: true,
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
@@ -261,6 +263,9 @@ function normalizeSettings(input: AppSettings): AppSettings {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
+    ),
+    startInPlanModeByDefault: Boolean(
+      tasks?.startInPlanModeByDefault ?? DEFAULT_SETTINGS.tasks!.startInPlanModeByDefault
     ),
   };
 
