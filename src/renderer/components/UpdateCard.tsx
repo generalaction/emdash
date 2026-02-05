@@ -144,7 +144,7 @@ export function UpdateCard(): JSX.Element {
         return (
           <p className="flex items-center gap-1 text-xs text-green-600 dark:text-green-500">
             <CheckCircle2 className="h-3 w-3" />
-            Update ready to install
+            Update ready. Restart Emdash to use the new version.
           </p>
         );
 
