@@ -97,7 +97,7 @@ export function registerFsIpc(): void {
         worker.once('message', (message) => {
           cleanup();
           worker.terminate().catch(() => {});
-          resolve(message as ListWorkerResponse);
+          resolve(message as FsListWorkerResponse);
         });
         worker.once('error', (error) => {
           cleanup();
