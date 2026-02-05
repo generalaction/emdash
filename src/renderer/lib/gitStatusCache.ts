@@ -16,7 +16,9 @@ export type GitStatusResult = {
 const CACHE_TTL_MS = 30000;
 
 const cache = new Map<string, { timestamp: number; result: GitStatusResult }>();
-const inFlight = new Map<string, Promise<GitStatusResult>>();
+const inFlight = new Map<string, { id: number; promise: Promise<GitStatusResult> }>();
+const latestRequestId = new Map<string, number>();
+let requestCounter = 0;
 
 export async function getCachedGitStatus(
   taskPath: string,
@@ -34,8 +36,10 @@ export async function getCachedGitStatus(
   }
 
   const existing = inFlight.get(taskPath);
-  if (existing) return existing;
+  if (!force && existing) return existing.promise;
 
+  const requestId = (requestCounter += 1);
+  latestRequestId.set(taskPath, requestId);
   const promise = (async () => {
     try {
       const res = await window.electronAPI.getGitStatus(taskPath);
@@ -43,20 +47,27 @@ export async function getCachedGitStatus(
         success: false,
         error: 'Failed to load git status',
       };
-      cache.set(taskPath, { timestamp: Date.now(), result });
+      if (latestRequestId.get(taskPath) === requestId) {
+        cache.set(taskPath, { timestamp: Date.now(), result });
+      }
       return result;
     } catch (error) {
       const result = {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to load git status',
       };
-      cache.set(taskPath, { timestamp: Date.now(), result });
+      if (latestRequestId.get(taskPath) === requestId) {
+        cache.set(taskPath, { timestamp: Date.now(), result });
+      }
       return result;
     } finally {
-      inFlight.delete(taskPath);
+      const current = inFlight.get(taskPath);
+      if (current?.id === requestId) {
+        inFlight.delete(taskPath);
+      }
     }
   })();
 
-  inFlight.set(taskPath, promise);
+  inFlight.set(taskPath, { id: requestId, promise });
   return promise;
 }
