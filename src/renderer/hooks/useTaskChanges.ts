@@ -269,6 +269,8 @@ export function useTaskChanges(
             }
             void fetchChanges(false, { force: true });
           });
+        } else {
+          startPolling();
         }
       })
       .catch(() => {});
