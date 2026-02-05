@@ -602,11 +602,15 @@ declare global {
       // Filesystem helpers
       fsList: (
         root: string,
-        opts?: { includeDirs?: boolean; maxEntries?: number }
+        opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
       ) => Promise<{
         success: boolean;
         items?: Array<{ path: string; type: 'file' | 'dir' }>;
         error?: string;
+        canceled?: boolean;
+        truncated?: boolean;
+        reason?: string;
+        durationMs?: number;
       }>;
       fsRead: (
         root: string,
@@ -1160,11 +1164,15 @@ export interface ElectronAPI {
   // Filesystem
   fsList: (
     root: string,
-    opts?: { includeDirs?: boolean; maxEntries?: number }
+    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
   ) => Promise<{
     success: boolean;
     items?: Array<{ path: string; type: 'file' | 'dir' }>;
     error?: string;
+    canceled?: boolean;
+    truncated?: boolean;
+    reason?: string;
+    durationMs?: number;
   }>;
   fsRead: (
     root: string,

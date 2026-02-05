@@ -145,8 +145,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('lifecycle:getSetupScript', args),
 
   // Filesystem helpers
-  fsList: (root: string, opts?: { includeDirs?: boolean; maxEntries?: number }) =>
-    ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
+  fsList: (
+    root: string,
+    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
+  ) => ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
   fsRead: (root: string, relPath: string, maxBytes?: number) =>
     ipcRenderer.invoke('fs:read', { root, relPath, maxBytes }),
   fsReadImage: (root: string, relPath: string) =>
@@ -591,11 +593,15 @@ export interface ElectronAPI {
   // Filesystem helpers
   fsList: (
     root: string,
-    opts?: { includeDirs?: boolean; maxEntries?: number }
+    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
   ) => Promise<{
     success: boolean;
     items?: Array<{ path: string; type: 'file' | 'dir' }>;
     error?: string;
+    canceled?: boolean;
+    truncated?: boolean;
+    reason?: string;
+    durationMs?: number;
   }>;
   fsRead: (
     root: string,
