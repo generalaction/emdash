@@ -33,7 +33,11 @@ const gitStatusWatchers = new Map<string, GitStatusWatchEntry>();
 const broadcastGitStatusChange = (taskPath: string, error?: string) => {
   const windows = BrowserWindow.getAllWindows();
   windows.forEach((window) => {
-    window.webContents.send('git:status-changed', { taskPath, error });
+    try {
+      window.webContents.send('git:status-changed', { taskPath, error });
+    } catch (err) {
+      log.debug('[git:watch-status] failed to send status change', err);
+    }
   });
 };
 
