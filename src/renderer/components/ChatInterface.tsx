@@ -956,7 +956,7 @@ const ChatInterface: React.FC<Props> = ({
                   onStartSuccess={() => {
                     setCliStartFailed(false);
                     // Mark initial injection as sent so it won't re-run on restart
-                    if (initialInjection && !task.metadata?.initialInjectionSent) {
+                    if ((initialInjection || planModeActive) && !task.metadata?.initialInjectionSent) {
                       void window.electronAPI.saveTask({
                         ...task,
                         metadata: {
