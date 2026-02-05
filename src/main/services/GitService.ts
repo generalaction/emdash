@@ -59,9 +59,6 @@ export type GitChange = {
   isStaged: boolean;
 };
 
-// Status line counts are best-effort. For untracked files we use capped async reads and
-// may leave additions/deletions at 0 when unknown so status calls stay fast; the UI
-// should treat 0/0 for `?` as "unknown" counts.
 export async function getStatus(taskPath: string): Promise<GitChange[]> {
   try {
     await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
@@ -103,8 +100,6 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
 
     // Check if file is staged (first character of status code indicates staged changes)
     const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
-    const isUntracked = statusCode.includes('?');
-
     let additions = 0;
     let deletions = 0;
 
@@ -140,7 +135,7 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
       if (unstaged.stdout && unstaged.stdout.trim()) sumNumstat(unstaged.stdout);
     } catch {}
 
-    if (additions === 0 && deletions === 0 && isUntracked) {
+    if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
       const absPath = path.join(taskPath, filePath);
       const count = await countFileNewlinesCapped(absPath, MAX_UNTRACKED_LINECOUNT_BYTES);
       if (typeof count === 'number') {
