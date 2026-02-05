@@ -452,7 +452,9 @@ declare global {
       }>;
       watchGitStatus: (taskPath: string) => Promise<{ success: boolean; error?: string }>;
       unwatchGitStatus: (taskPath: string) => Promise<{ success: boolean; error?: string }>;
-      onGitStatusChanged: (listener: (data: { taskPath: string }) => void) => () => void;
+      onGitStatusChanged: (
+        listener: (data: { taskPath: string; error?: string }) => void
+      ) => () => void;
       getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         diff?: {

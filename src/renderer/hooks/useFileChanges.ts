@@ -256,6 +256,10 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
           off = api.onGitStatusChanged((event) => {
             if (event?.taskPath !== taskPath) return;
             if (!shouldPollRef.current) return;
+            if (event?.error === 'watcher-error') {
+              void fetchFileChanges(false, { force: true });
+              return;
+            }
             void fetchFileChanges(false, { force: true });
           });
         }

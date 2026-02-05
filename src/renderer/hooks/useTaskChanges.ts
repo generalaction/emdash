@@ -263,6 +263,10 @@ export function useTaskChanges(
           off = api.onGitStatusChanged((event) => {
             if (event?.taskPath !== taskPath) return;
             if (!shouldPollRef.current) return;
+            if (event?.error === 'watcher-error') {
+              void fetchChanges(false, { force: true });
+              return;
+            }
             void fetchChanges(false, { force: true });
           });
         }

@@ -29,10 +29,10 @@ type GitStatusWatchEntry = {
 
 const gitStatusWatchers = new Map<string, GitStatusWatchEntry>();
 
-const broadcastGitStatusChange = (taskPath: string) => {
+const broadcastGitStatusChange = (taskPath: string, error?: string) => {
   const windows = BrowserWindow.getAllWindows();
   windows.forEach((window) => {
-    window.webContents.send('git:status-changed', { taskPath });
+    window.webContents.send('git:status-changed', { taskPath, error });
   });
 };
 
@@ -59,6 +59,13 @@ const ensureGitStatusWatcher = (taskPath: string) => {
     });
     watcher.on('error', (error) => {
       log.warn('[git:watch-status] watcher error', error);
+      const entry = gitStatusWatchers.get(taskPath);
+      if (entry?.debounceTimer) clearTimeout(entry.debounceTimer);
+      try {
+        entry?.watcher.close();
+      } catch {}
+      gitStatusWatchers.delete(taskPath);
+      broadcastGitStatusChange(taskPath, 'watcher-error');
     });
     gitStatusWatchers.set(taskPath, { watcher, refCount: 1 });
     return { success: true as const };
