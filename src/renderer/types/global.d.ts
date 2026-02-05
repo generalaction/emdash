@@ -154,6 +154,21 @@ declare global {
         }>;
         error?: string;
       }>;
+      watchGitStatus: (taskPath: string) => Promise<{
+        success: boolean;
+        watchId?: string;
+        error?: string;
+      }>;
+      unwatchGitStatus: (
+        taskPath: string,
+        watchId?: string
+      ) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      onGitStatusChanged: (
+        listener: (data: { taskPath: string; error?: string }) => void
+      ) => () => void;
       listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;

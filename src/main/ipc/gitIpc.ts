@@ -1,6 +1,7 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { exec, execFile } from 'child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -17,6 +18,84 @@ import { databaseService } from '../services/DatabaseService';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
+
+const GIT_STATUS_DEBOUNCE_MS = 500;
+const supportsRecursiveWatch = process.platform === 'darwin' || process.platform === 'win32';
+
+type GitStatusWatchEntry = {
+  watcher: fs.FSWatcher;
+  watchIds: Set<string>;
+  debounceTimer?: NodeJS.Timeout;
+};
+
+const gitStatusWatchers = new Map<string, GitStatusWatchEntry>();
+
+const broadcastGitStatusChange = (taskPath: string, error?: string) => {
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach((window) => {
+    try {
+      window.webContents.send('git:status-changed', { taskPath, error });
+    } catch (err) {
+      log.debug('[git:watch-status] failed to send status change', err);
+    }
+  });
+};
+
+const ensureGitStatusWatcher = (taskPath: string) => {
+  if (!supportsRecursiveWatch) {
+    return { success: false as const, error: 'recursive-watch-unsupported' };
+  }
+  if (!taskPath || !fs.existsSync(taskPath)) {
+    return { success: false as const, error: 'workspace-unavailable' };
+  }
+  const existing = gitStatusWatchers.get(taskPath);
+  const watchId = randomUUID();
+  if (existing) {
+    existing.watchIds.add(watchId);
+    return { success: true as const, watchId };
+  }
+  try {
+    const watcher = fs.watch(taskPath, { recursive: true }, () => {
+      const entry = gitStatusWatchers.get(taskPath);
+      if (!entry) return;
+      if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+      entry.debounceTimer = setTimeout(() => {
+        broadcastGitStatusChange(taskPath);
+      }, GIT_STATUS_DEBOUNCE_MS);
+    });
+    watcher.on('error', (error) => {
+      log.warn('[git:watch-status] watcher error', error);
+      const entry = gitStatusWatchers.get(taskPath);
+      if (entry?.debounceTimer) clearTimeout(entry.debounceTimer);
+      try {
+        entry?.watcher.close();
+      } catch {}
+      gitStatusWatchers.delete(taskPath);
+      broadcastGitStatusChange(taskPath, 'watcher-error');
+    });
+    gitStatusWatchers.set(taskPath, { watcher, watchIds: new Set([watchId]) });
+    return { success: true as const, watchId };
+  } catch (error) {
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : 'Failed to watch workspace',
+    };
+  }
+};
+
+const releaseGitStatusWatcher = (taskPath: string, watchId?: string) => {
+  const entry = gitStatusWatchers.get(taskPath);
+  if (!entry) return { success: true as const };
+  if (watchId) {
+    entry.watchIds.delete(watchId);
+  }
+  if (entry.watchIds.size <= 0) {
+    if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+    entry.watcher.close();
+    gitStatusWatchers.delete(taskPath);
+  }
+  return { success: true as const };
+};
 
 export function registerGitIpc() {
   function resolveGitBin(): string {
@@ -37,6 +116,15 @@ export function registerGitIpc() {
     return 'git';
   }
   const GIT = resolveGitBin();
+
+  ipcMain.handle('git:watch-status', async (_, taskPath: string) => {
+    return ensureGitStatusWatcher(taskPath);
+  });
+
+  ipcMain.handle('git:unwatch-status', async (_, taskPath: string, watchId?: string) => {
+    return releaseGitStatusWatcher(taskPath, watchId);
+  });
+
   // Git: Status (moved from Codex IPC)
   ipcMain.handle('git:get-status', async (_, taskPath: string) => {
     try {
