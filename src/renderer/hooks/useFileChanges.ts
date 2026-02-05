@@ -262,8 +262,6 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
             }
             void fetchFileChanges(false, { force: true });
           });
-        } else {
-          startPolling();
         }
       })
       .catch(() => {});
