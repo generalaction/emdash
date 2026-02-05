@@ -389,6 +389,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     setSelectedIds(new Set());
   }, [project.id]);
 
+  // Reset config preload guard when switching projects.
+  useEffect(() => {
+    hasPreloadedConfigRef.current = false;
+  }, [project.path]);
+
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
   }, [project.id, project.gitInfo.baseRef]);
