@@ -6,44 +6,55 @@ import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
 import { getAppById, OPEN_IN_APPS, type OpenInAppId, type PlatformKey } from '@shared/openInApps';
 
+const UNKNOWN_VERSION = 'unknown';
+
 let cachedAppVersion: string | null = null;
 let cachedAppVersionPromise: Promise<string> | null = null;
 
-const resolveAppVersion = async (): Promise<string> => {
+const readPackageVersion = async (packageJsonPath: string): Promise<string | null> => {
   try {
-    // In development, we need to look for package.json in the project root
-    const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-
-    const possiblePaths = isDev
-      ? [
-          join(__dirname, '../../../../package.json'), // from dist/main/main/ipc in dev
-          join(__dirname, '../../../package.json'), // alternative dev path
-          join(process.cwd(), 'package.json'), // current working directory
-        ]
-      : [
-          join(__dirname, '../../package.json'), // from dist/main/ipc in production
-          join(app.getAppPath(), 'package.json'), // production build
-        ];
-
-    for (const packageJsonPath of possiblePaths) {
-      try {
-        const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-        if (packageJson.name === 'emdash' && packageJson.version) {
-          return packageJson.version;
-        }
-      } catch {
-        continue;
-      }
+    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+    if (packageJson.name === 'emdash' && packageJson.version) {
+      return packageJson.version;
     }
-
-    // In dev, never use app.getVersion() as it returns Electron version
-    if (isDev) {
-      return '0.3.46';
-    }
-
-    return app.getVersion();
   } catch {
-    return '0.3.46'; // Safe fallback
+    // Ignore missing or malformed package.json; try the next path.
+  }
+  return null;
+};
+
+const resolveAppVersion = async (): Promise<string> => {
+  // In development, we need to look for package.json in the project root.
+  const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+
+  const possiblePaths = isDev
+    ? [
+        join(__dirname, '../../../../package.json'), // from dist/main/main/ipc in dev
+        join(__dirname, '../../../package.json'), // alternative dev path
+        join(process.cwd(), 'package.json'), // current working directory
+      ]
+    : [
+        join(__dirname, '../../package.json'), // from dist/main/ipc in production
+        join(app.getAppPath(), 'package.json'), // production build
+      ];
+
+  for (const packageJsonPath of possiblePaths) {
+    const version = await readPackageVersion(packageJsonPath);
+    if (version) {
+      return version;
+    }
+  }
+
+  // In dev, never use app.getVersion() as it returns Electron version.
+  if (isDev) {
+    return UNKNOWN_VERSION;
+  }
+
+  try {
+    return app.getVersion();
+  } catch (error) {
+    void error;
+    return UNKNOWN_VERSION;
   }
 };
 
@@ -53,10 +64,11 @@ const getCachedAppVersion = (): Promise<string> => {
   }
 
   if (!cachedAppVersionPromise) {
-    cachedAppVersionPromise = resolveAppVersion().then((version) => {
-      cachedAppVersion = version;
-      return version;
-    });
+    cachedAppVersionPromise = resolveAppVersion()
+      .then((version) => {
+        cachedAppVersion = version;
+        return version;
+      });
   }
 
   return cachedAppVersionPromise;
