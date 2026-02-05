@@ -124,7 +124,7 @@ export function useTaskChanges(
           return;
         }
 
-        if (result.success && result.changes) {
+        if (result?.success && result.changes) {
           const filtered = result.changes.filter(
             (c: { path: string }) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md'
           );
@@ -145,7 +145,7 @@ export function useTaskChanges(
             totalAdditions: 0,
             totalDeletions: 0,
             isLoading: false,
-            error: result.error || 'Failed to fetch changes',
+            error: result?.error || 'Failed to fetch changes',
           });
         }
       } catch (error) {
