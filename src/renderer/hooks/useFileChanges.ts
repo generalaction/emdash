@@ -36,6 +36,8 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   const idleHandleRef = useRef<number | null>(null);
   const idleHandleModeRef = useRef<'idle' | 'timeout' | null>(null);
   const mountedRef = useRef(true);
+  const pendingRefreshRef = useRef(false);
+  const pendingInitialLoadRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -69,62 +71,104 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
     };
   }, []);
 
-  const fetchFileChanges = useCallback(async (isInitialLoad = false) => {
-    const currentPath = taskPathRef.current;
-    if (!currentPath || inFlightRef.current) return;
-
-    inFlightRef.current = true;
-    if (isInitialLoad && mountedRef.current) {
-      setIsLoading(true);
-      setError(null);
-    }
-
-    try {
-      // Call main process to get git status
-      const result = await window.electronAPI.getGitStatus(currentPath);
-
-      if (!mountedRef.current) return;
-
-      if (result?.success && result.changes && result.changes.length > 0) {
-        const changes: FileChange[] = result.changes
-          .map(
-            (change: {
-              path: string;
-              status: string;
-              additions: number;
-              deletions: number;
-              isStaged: boolean;
-              diff?: string;
-            }) => ({
-              path: change.path,
-              status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
-              additions: change.additions || 0,
-              deletions: change.deletions || 0,
-              isStaged: change.isStaged || false,
-              diff: change.diff,
-            })
-          )
-          .filter((c) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md');
-        setFileChanges(changes);
-      } else {
-        setFileChanges([]);
+  const queueRefresh = useCallback((shouldSetLoading: boolean) => {
+    pendingRefreshRef.current = true;
+    if (shouldSetLoading) {
+      pendingInitialLoadRef.current = true;
+      if (mountedRef.current) {
+        setIsLoading(true);
+        setError(null);
       }
-    } catch (err) {
-      if (!mountedRef.current) return;
-      console.error('Failed to fetch file changes:', err);
-      if (isInitialLoad) {
-        setError('Failed to load file changes');
-      }
-      // No changes on error - set empty array
-      setFileChanges([]);
-    } finally {
-      if (mountedRef.current && isInitialLoad) {
-        setIsLoading(false);
-      }
-      hasLoadedRef.current = true;
-      inFlightRef.current = false;
     }
   }, []);
+
+  const fetchFileChanges = useCallback(
+    async (isInitialLoad = false, options?: { force?: boolean }) => {
+      const currentPath = taskPathRef.current;
+      if (!currentPath) return;
+
+      if (inFlightRef.current) {
+        if (options?.force) {
+          queueRefresh(isInitialLoad);
+        }
+        return;
+      }
+
+      inFlightRef.current = true;
+      if (isInitialLoad && mountedRef.current) {
+        setIsLoading(true);
+        setError(null);
+      }
+
+      const requestPath = currentPath;
+
+      try {
+        // Call main process to get git status
+        const result = await window.electronAPI.getGitStatus(requestPath);
+
+        if (!mountedRef.current) return;
+
+        if (requestPath !== taskPathRef.current) {
+          queueRefresh(true);
+          return;
+        }
+
+        if (result?.success && result.changes && result.changes.length > 0) {
+          const changes: FileChange[] = result.changes
+            .map(
+              (change: {
+                path: string;
+                status: string;
+                additions: number;
+                deletions: number;
+                isStaged: boolean;
+                diff?: string;
+              }) => ({
+                path: change.path,
+                status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
+                additions: change.additions || 0,
+                deletions: change.deletions || 0,
+                isStaged: change.isStaged || false,
+                diff: change.diff,
+              })
+            )
+            .filter((c) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md');
+          setFileChanges(changes);
+        } else {
+          setFileChanges([]);
+        }
+      } catch (err) {
+        if (!mountedRef.current) return;
+        if (requestPath !== taskPathRef.current) {
+          queueRefresh(true);
+          return;
+        }
+        console.error('Failed to fetch file changes:', err);
+        if (isInitialLoad) {
+          setError('Failed to load file changes');
+        }
+        // No changes on error - set empty array
+        setFileChanges([]);
+      } finally {
+        const isCurrentPath = requestPath === taskPathRef.current;
+        if (mountedRef.current && isInitialLoad && !pendingInitialLoadRef.current) {
+          setIsLoading(false);
+        }
+        if (isCurrentPath) {
+          hasLoadedRef.current = true;
+        }
+        inFlightRef.current = false;
+
+        if (pendingRefreshRef.current) {
+          const nextInitialLoad = pendingInitialLoadRef.current;
+          pendingRefreshRef.current = false;
+          pendingInitialLoadRef.current = false;
+          void fetchFileChanges(nextInitialLoad, { force: true });
+        }
+      }
+    },
+    [queueRefresh]
+  );
 
   const clearIdleHandle = useCallback(() => {
     if (idleHandleRef.current === null) return;
@@ -196,7 +240,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   }, [taskPath, fetchFileChanges]);
 
   const refreshChanges = async () => {
-    await fetchFileChanges(true);
+    await fetchFileChanges(true, { force: true });
   };
 
   return {

@@ -51,6 +51,8 @@ export function useTaskChanges(
   const idleHandleRef = useRef<number | null>(null);
   const idleHandleModeRef = useRef<'idle' | 'timeout' | null>(null);
   const mountedRef = useRef(true);
+  const pendingRefreshRef = useRef(false);
+  const pendingInitialLoadRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -84,10 +86,27 @@ export function useTaskChanges(
     };
   }, []);
 
+  const queueRefresh = useCallback((shouldSetLoading: boolean) => {
+    pendingRefreshRef.current = true;
+    if (shouldSetLoading) {
+      pendingInitialLoadRef.current = true;
+      if (mountedRef.current) {
+        setChanges((prev) => ({ ...prev, isLoading: true, error: undefined }));
+      }
+    }
+  }, []);
+
   const fetchChanges = useCallback(
-    async (isInitialLoad = false) => {
+    async (isInitialLoad = false, options?: { force?: boolean }) => {
       const currentPath = taskPathRef.current;
-      if (!currentPath || inFlightRef.current) return;
+      if (!currentPath) return;
+
+      if (inFlightRef.current) {
+        if (options?.force) {
+          queueRefresh(isInitialLoad);
+        }
+        return;
+      }
 
       inFlightRef.current = true;
       try {
@@ -95,9 +114,15 @@ export function useTaskChanges(
           setChanges((prev) => ({ ...prev, isLoading: true, error: undefined }));
         }
 
-        const result = await window.electronAPI.getGitStatus(currentPath);
+        const requestPath = currentPath;
+        const result = await window.electronAPI.getGitStatus(requestPath);
 
         if (!mountedRef.current) return;
+
+        if (requestPath !== taskPathRef.current) {
+          queueRefresh(true);
+          return;
+        }
 
         if (result.success && result.changes) {
           const filtered = result.changes.filter(
@@ -125,6 +150,10 @@ export function useTaskChanges(
         }
       } catch (error) {
         if (!mountedRef.current) return;
+        if (currentPath !== taskPathRef.current) {
+          queueRefresh(true);
+          return;
+        }
         setChanges({
           taskId,
           changes: [],
@@ -134,11 +163,21 @@ export function useTaskChanges(
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       } finally {
-        hasLoadedRef.current = true;
+        const isCurrentPath = currentPath === taskPathRef.current;
+        if (isCurrentPath) {
+          hasLoadedRef.current = true;
+        }
         inFlightRef.current = false;
+
+        if (pendingRefreshRef.current) {
+          const nextInitialLoad = pendingInitialLoadRef.current;
+          pendingRefreshRef.current = false;
+          pendingInitialLoadRef.current = false;
+          void fetchChanges(nextInitialLoad, { force: true });
+        }
       }
     },
-    [taskId]
+    [taskId, queueRefresh]
   );
 
   const clearIdleHandle = useCallback(() => {
