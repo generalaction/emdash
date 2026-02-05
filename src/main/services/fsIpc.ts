@@ -2,6 +2,7 @@ import { ipcMain, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
+import { FsListWorkerResponse } from '../types/fsListWorker';
 
 const DEFAULT_EMDASH_CONFIG = `{
   "preservePatterns": [
@@ -21,26 +22,6 @@ type ListArgs = {
   maxEntries?: number;
   timeBudgetMs?: number;
 };
-
-type Item = {
-  path: string;
-  type: 'file' | 'dir';
-};
-
-type ListWorkerResponse =
-  | {
-      taskId: number;
-      ok: true;
-      items: Item[];
-      truncated: boolean;
-      reason?: 'maxEntries' | 'timeBudget';
-      durationMs: number;
-    }
-  | {
-      taskId: number;
-      ok: false;
-      error: string;
-    };
 
 type ListWorkerState = {
   worker: Worker;
@@ -112,7 +93,7 @@ export function registerFsIpc(): void {
       const state: ListWorkerState = { worker, requestId, canceled: false };
       listWorkersBySender.set(senderId, state);
 
-      const result = await new Promise<ListWorkerResponse>((resolve, reject) => {
+      const result = await new Promise<FsListWorkerResponse>((resolve, reject) => {
         const cleanup = () => {
           worker.removeAllListeners('message');
           worker.removeAllListeners('error');
@@ -134,9 +115,15 @@ export function registerFsIpc(): void {
             resolve({ taskId: requestId, ok: false, error: 'Canceled' });
             return;
           }
-          if (code !== 0) {
-            reject(new Error(`fs:list worker exited with code ${code}`));
+          if (code === 0) {
+            resolve({
+              taskId: requestId,
+              ok: false,
+              error: 'Worker exited before responding',
+            });
+            return;
           }
+          reject(new Error(`fs:list worker exited with code ${code}`));
         });
 
         worker.postMessage({

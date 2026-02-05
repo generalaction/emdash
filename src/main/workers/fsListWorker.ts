@@ -1,11 +1,7 @@
 import { parentPort } from 'worker_threads';
 import * as fs from 'fs';
 import * as path from 'path';
-
-type Item = {
-  path: string;
-  type: 'file' | 'dir';
-};
+import { FsListItem, FsListWorkerResponse } from '../types/fsListWorker';
 
 type ListWorkerRequest = {
   taskId: number;
@@ -15,21 +11,6 @@ type ListWorkerRequest = {
   timeBudgetMs: number;
   batchSize: number;
 };
-
-type ListWorkerResponse =
-  | {
-      taskId: number;
-      ok: true;
-      items: Item[];
-      truncated: boolean;
-      reason?: 'maxEntries' | 'timeBudget';
-      durationMs: number;
-    }
-  | {
-      taskId: number;
-      ok: false;
-      error: string;
-    };
 
 const DEFAULT_IGNORES = new Set([
   '.git',
@@ -54,8 +35,8 @@ function safeStat(p: string): fs.Stats | null {
 
 const yieldImmediate = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-async function listFiles(request: ListWorkerRequest): Promise<ListWorkerResponse> {
-  const items: Item[] = [];
+async function listFiles(request: ListWorkerRequest): Promise<FsListWorkerResponse> {
+  const items: FsListItem[] = [];
   const stack: string[] = ['.'];
   const start = Date.now();
   const deadline = start + request.timeBudgetMs;
