@@ -21,6 +21,8 @@ import { databaseService } from './DatabaseService';
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
 const providerPtyTimers = new Map<string, number>();
+// Map PTY IDs to provider IDs for multi-agent tracking
+const ptyProviderMap = new Map<string, ProviderId>();
 // Track WebContents that have a 'destroyed' listener to avoid duplicates
 const wcDestroyedListeners = new Set<number>();
 
@@ -246,11 +248,11 @@ export function registerPtyIpc(): void {
           });
         }
 
-        if (!existing) {
-          maybeMarkProviderStart(id);
-        }
+        // Track agent start even when reusing PTY (happens after shell respawn)
+        // This ensures subsequent agent runs in the same task are tracked
+        maybeMarkProviderStart(id);
 
-        // Signal that PTY is ready so renderer may inject initial prompt safely
+        // Signal that PTY is ready
         try {
           const windows = BrowserWindow.getAllWindows();
           windows.forEach((w) => {
@@ -292,6 +294,24 @@ export function registerPtyIpc(): void {
   ipcMain.on('pty:input', (_event, args: { id: string; data: string }) => {
     try {
       writePty(args.id, args.data);
+
+      // Track prompts sent to agents (Enter key = likely a prompt/command)
+      const hasEnter = args.data.includes('\r') || args.data.includes('\n');
+      if (hasEnter) {
+        // Try to get provider from our mapping
+        let providerId = ptyProviderMap.get(args.id);
+
+        if (!providerId) {
+          const parsed = parseProviderPty(args.id);
+          providerId = parsed?.providerId;
+        }
+
+        if (providerId) {
+          telemetry.capture('agent_prompt_sent', {
+            provider: providerId,
+          });
+        }
+      }
     } catch (e) {
       log.error('pty:input error', { id: args.id, error: e });
     }
@@ -386,6 +406,8 @@ export function registerPtyIpc(): void {
         if (existing) {
           const wc = event.sender;
           owners.set(id, wc);
+          // Still track agent start even when reusing PTY (happens after shell respawn)
+          maybeMarkProviderStart(id, providerId as ProviderId);
           return { ok: true, reused: true };
         }
 
@@ -464,7 +486,7 @@ export function registerPtyIpc(): void {
           });
         }
 
-        maybeMarkProviderStart(id);
+        maybeMarkProviderStart(id, providerId as ProviderId);
 
         try {
           const windows = BrowserWindow.getAllWindows();
@@ -504,7 +526,28 @@ function providerRunKey(providerId: ProviderId, taskId: string) {
   return `${providerId}:${taskId}`;
 }
 
-function maybeMarkProviderStart(id: string) {
+function maybeMarkProviderStart(id: string, providerId?: ProviderId) {
+  // First check if we have a direct provider ID (for multi-agent mode)
+  if (providerId && PROVIDER_IDS.includes(providerId)) {
+    ptyProviderMap.set(id, providerId);
+    const key = `${providerId}:${id}`;
+    if (providerPtyTimers.has(key)) return;
+    providerPtyTimers.set(key, Date.now());
+    telemetry.capture('agent_run_start', { provider: providerId });
+    return;
+  }
+
+  // Check if we have a stored mapping (for subsequent calls)
+  const storedProvider = ptyProviderMap.get(id);
+  if (storedProvider) {
+    const key = `${storedProvider}:${id}`;
+    if (providerPtyTimers.has(key)) return;
+    providerPtyTimers.set(key, Date.now());
+    telemetry.capture('agent_run_start', { provider: storedProvider });
+    return;
+  }
+
+  // Fall back to parsing the ID (single-agent mode)
   const parsed = parseProviderPty(id);
   if (!parsed) return;
   const key = providerRunKey(parsed.providerId, parsed.taskId);
@@ -518,11 +561,27 @@ function maybeMarkProviderFinish(
   exitCode: number | null | undefined,
   signal: number | undefined
 ) {
-  const parsed = parseProviderPty(id);
-  if (!parsed) return;
-  const key = providerRunKey(parsed.providerId, parsed.taskId);
+  let providerId: ProviderId | undefined;
+  let key: string;
+
+  // First check if we have a stored mapping (multi-agent mode)
+  const storedProvider = ptyProviderMap.get(id);
+  if (storedProvider) {
+    providerId = storedProvider;
+    key = `${storedProvider}:${id}`;
+  } else {
+    // Fall back to parsing the ID (single-agent mode)
+    const parsed = parseProviderPty(id);
+    if (!parsed) return;
+    providerId = parsed.providerId;
+    key = providerRunKey(parsed.providerId, parsed.taskId);
+  }
+
   const started = providerPtyTimers.get(key);
   providerPtyTimers.delete(key);
+
+  // Clean up the provider mapping
+  ptyProviderMap.delete(id);
 
   // No valid exit code means the process was killed during cleanup, not a real completion
   if (typeof exitCode !== 'number') return;
@@ -532,13 +591,13 @@ function maybeMarkProviderFinish(
   const outcome = exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
 
   telemetry.capture('agent_run_finish', {
-    provider: parsed.providerId,
+    provider: providerId,
     outcome,
     duration_ms: duration,
   });
 
   if (exitCode === 0) {
-    const providerName = getProvider(parsed.providerId)?.name ?? parsed.providerId;
+    const providerName = getProvider(providerId)?.name ?? providerId;
     showCompletionNotification(providerName);
   }
 }

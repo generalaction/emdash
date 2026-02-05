@@ -103,6 +103,7 @@ type TelemetryEvent =
   // Agent usage (provider-level only)
   | 'agent_run_start'
   | 'agent_run_finish'
+  | 'agent_prompt_sent'
   // DB setup (privacy-safe)
   | 'db_setup'
   // Daily active user tracking
@@ -246,6 +247,7 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     'project_count_bucket',
     'date',
     'timezone',
+    'scope',
   ]);
 
   if (props) {
