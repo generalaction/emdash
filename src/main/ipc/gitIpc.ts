@@ -10,6 +10,7 @@ import {
   getStatus as gitGetStatus,
   getFileDiff as gitGetFileDiff,
   stageFile as gitStageFile,
+  stageAllFiles as gitStageAllFiles,
   unstageFile as gitUnstageFile,
   revertFile as gitRevertFile,
 } from '../services/GitService';
@@ -154,6 +155,19 @@ export function registerGitIpc() {
       return { success: true };
     } catch (error) {
       log.error('Failed to stage file:', { filePath: args.filePath, error });
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Git: Stage all files
+  ipcMain.handle('git:stage-all-files', async (_, args: { taskPath: string }) => {
+    try {
+      log.info('Staging all files:', { taskPath: args.taskPath });
+      await gitStageAllFiles(args.taskPath);
+      log.info('All files staged successfully');
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to stage all files:', { taskPath: args.taskPath, error });
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });

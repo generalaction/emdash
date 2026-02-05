@@ -480,6 +480,10 @@ declare global {
         success: boolean;
         error?: string;
       }>;
+      stageAllFiles: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
       unstageFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         error?: string;
