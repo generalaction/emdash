@@ -27,6 +27,17 @@ declare global {
         initialPrompt?: string;
         skipResume?: boolean;
       }) => Promise<{ ok: boolean; error?: string }>;
+      ptyStartDirect: (opts: {
+        id: string;
+        providerId: string;
+        cwd: string;
+        cols?: number;
+        rows?: number;
+        autoApprove?: boolean;
+        initialPrompt?: string;
+        env?: Record<string, string>;
+        resume?: boolean;
+      }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows: number }) => void;
       ptyKill: (id: string) => void;

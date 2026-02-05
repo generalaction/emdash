@@ -23,12 +23,14 @@ export interface RightSidebarTask {
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   task: RightSidebarTask | null;
   projectPath?: string | null;
+  projectDefaultBranch?: string | null;
   forceBorder?: boolean;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
   task,
   projectPath,
+  projectDefaultBranch,
   className,
   forceBorder = false,
   ...rest
@@ -60,16 +62,22 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   }, []);
 
   // Detect multi-agent variants in task metadata
-  const variants: Array<{ agent: Agent; name: string; path: string }> = (() => {
-    try {
-      const v = task?.metadata?.multiAgent?.variants || [];
-      if (Array.isArray(v))
-        return v
-          .map((x: any) => ({ agent: x?.agent as Agent, name: x?.name, path: x?.path }))
-          .filter((x) => x?.path);
-    } catch {}
-    return [];
-  })();
+  const variants: Array<{ agent: Agent; name: string; path: string; worktreeId?: string }> =
+    (() => {
+      try {
+        const v = task?.metadata?.multiAgent?.variants || [];
+        if (Array.isArray(v))
+          return v
+            .map((x: any) => ({
+              agent: x?.agent as Agent,
+              name: x?.name,
+              path: x?.path,
+              worktreeId: x?.worktreeId,
+            }))
+            .filter((x) => x?.path);
+      } catch {}
+      return [];
+    })();
 
   // Helper to generate display label with instance number if needed
   const getVariantDisplayLabel = (variant: { agent: Agent; name: string }): string => {
@@ -193,6 +201,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                               }}
                               agent={v.agent}
                               projectPath={projectPath || task?.path}
+                              defaultBranch={projectDefaultBranch || undefined}
+                              portSeed={v.worktreeId}
                               className="min-h-[200px]"
                             />
                           </TaskScopeProvider>
@@ -220,6 +230,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                         task={derived}
                         agent={v.agent}
                         projectPath={projectPath || task?.path}
+                        defaultBranch={projectDefaultBranch || undefined}
+                        portSeed={v.worktreeId}
                         className="min-h-0 flex-1"
                       />
                     </>
@@ -232,6 +244,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     task={task}
                     agent={task.agentId as Agent}
                     projectPath={projectPath || task?.path}
+                    defaultBranch={projectDefaultBranch || undefined}
                     className="min-h-0 flex-1"
                   />
                 </>
@@ -251,6 +264,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     task={null}
                     agent={undefined}
                     projectPath={projectPath || undefined}
+                    defaultBranch={projectDefaultBranch || undefined}
                     className="h-1/2 min-h-0"
                   />
                 </>

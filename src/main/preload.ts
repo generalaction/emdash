@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     autoApprove?: boolean;
     initialPrompt?: string;
     clickTime?: number;
+    env?: Record<string, string>;
     resume?: boolean;
   }) => ipcRenderer.invoke('pty:startDirect', opts),
 

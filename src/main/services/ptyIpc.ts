@@ -371,6 +371,7 @@ export function registerPtyIpc(): void {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        env?: Record<string, string>;
         resume?: boolean;
       }
     ) => {
@@ -379,7 +380,7 @@ export function registerPtyIpc(): void {
       }
 
       try {
-        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, resume } = args;
+        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, env, resume } = args;
         const existing = getPty(id);
 
         if (existing) {
@@ -396,6 +397,7 @@ export function registerPtyIpc(): void {
           rows,
           autoApprove,
           initialPrompt,
+          env,
           resume,
         });
 
@@ -416,6 +418,7 @@ export function registerPtyIpc(): void {
             rows,
             autoApprove,
             initialPrompt,
+            env,
             skipResume: !resume,
           });
           usedFallback = true;

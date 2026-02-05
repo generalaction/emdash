@@ -19,6 +19,7 @@ import { CreateChatModal } from './CreateChatModal';
 import { DeleteChatModal } from './DeleteChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
+import { getTaskEnvVars } from '@shared/task/envVars';
 
 declare const window: Window & {
   electronAPI: {
@@ -29,6 +30,8 @@ declare const window: Window & {
 interface Props {
   task: Task;
   projectName: string;
+  projectPath?: string | null;
+  defaultBranch?: string | null;
   className?: string;
   initialAgent?: Agent;
 }
@@ -36,6 +39,8 @@ interface Props {
 const ChatInterface: React.FC<Props> = ({
   task,
   projectName: _projectName,
+  projectPath,
+  defaultBranch,
   className,
   initialAgent,
 }) => {
@@ -79,6 +84,17 @@ const ChatInterface: React.FC<Props> = ({
   const terminalCwd = useMemo(() => {
     return task.path;
   }, [task.path]);
+
+  const taskEnv = useMemo(() => {
+    if (!projectPath) return undefined;
+    return getTaskEnvVars({
+      taskId: task.id,
+      taskName: task.name,
+      taskPath: task.path,
+      projectPath,
+      defaultBranch: defaultBranch || undefined,
+    });
+  }, [task.id, task.name, task.path, projectPath, defaultBranch]);
 
   const installedAgents = useMemo(
     () =>
@@ -908,7 +924,7 @@ const ChatInterface: React.FC<Props> = ({
                   cwd={terminalCwd}
                   providerId={agent}
                   autoApprove={autoApproveEnabled}
-                  env={undefined}
+                  env={taskEnv}
                   keepAlive={true}
                   mapShiftEnterToCtrlJ
                   disableSnapshots={false}

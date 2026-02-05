@@ -569,6 +569,7 @@ export class TerminalSessionManager {
             rows: initialSize.rows,
             autoApprove,
             initialPrompt,
+            env,
             resume: hasExistingSession,
           })
         : window.electronAPI.ptyStart({

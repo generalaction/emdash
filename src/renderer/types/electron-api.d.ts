@@ -293,6 +293,7 @@ declare global {
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        env?: Record<string, string>;
         resume?: boolean;
       }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
@@ -969,6 +970,7 @@ export interface ElectronAPI {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
+    env?: Record<string, string>;
     resume?: boolean;
   }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
