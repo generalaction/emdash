@@ -257,7 +257,7 @@ export function registerFsIpc(): void {
   const SEARCH_PREVIEW_CONTEXT_LENGTH = 30;
   const DEFAULT_MAX_SEARCH_RESULTS = 100; // Increased back for better coverage
   const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB max file size
-  const MAX_FILES_TO_SEARCH = 5000; // Increased to search more files
+  const MAX_SEARCH_FILES = 5000; // Increased to search more files
   const BINARY_CHECK_BYTES = 512; // Check first 512 bytes for binary content (faster)
 
   // Extended ignore patterns for performance
@@ -420,7 +420,7 @@ export function registerFsIpc(): void {
 
         // Optimized async file search
         const searchInFile = async (filePath: string): Promise<void> => {
-          if (totalMatches >= maxResults || filesSearched >= MAX_FILES_TO_SEARCH) return;
+          if (totalMatches >= maxResults || filesSearched >= MAX_SEARCH_FILES) return;
 
           try {
             filesSearched++;
@@ -485,13 +485,13 @@ export function registerFsIpc(): void {
 
         // Collect files first, then search in parallel
         const collectFiles = async (dirPath: string, files: string[] = []): Promise<string[]> => {
-          if (files.length >= MAX_FILES_TO_SEARCH) return files;
+          if (files.length >= MAX_SEARCH_FILES) return files;
 
           try {
             const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
 
             for (const entry of entries) {
-              if (files.length >= MAX_FILES_TO_SEARCH) break;
+              if (files.length >= MAX_SEARCH_FILES) break;
 
               const fullPath = path.join(dirPath, entry.name);
 
