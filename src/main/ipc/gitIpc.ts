@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { exec, execFile } from 'child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -23,7 +24,7 @@ const supportsRecursiveWatch = process.platform === 'darwin' || process.platform
 
 type GitStatusWatchEntry = {
   watcher: fs.FSWatcher;
-  refCount: number;
+  watchIds: Set<string>;
   debounceTimer?: NodeJS.Timeout;
 };
 
@@ -44,9 +45,10 @@ const ensureGitStatusWatcher = (taskPath: string) => {
     return { success: false as const, error: 'workspace-unavailable' };
   }
   const existing = gitStatusWatchers.get(taskPath);
+  const watchId = randomUUID();
   if (existing) {
-    existing.refCount += 1;
-    return { success: true as const };
+    existing.watchIds.add(watchId);
+    return { success: true as const, watchId };
   }
   try {
     const watcher = fs.watch(taskPath, { recursive: true }, () => {
@@ -67,8 +69,8 @@ const ensureGitStatusWatcher = (taskPath: string) => {
       gitStatusWatchers.delete(taskPath);
       broadcastGitStatusChange(taskPath, 'watcher-error');
     });
-    gitStatusWatchers.set(taskPath, { watcher, refCount: 1 });
-    return { success: true as const };
+    gitStatusWatchers.set(taskPath, { watcher, watchIds: new Set([watchId]) });
+    return { success: true as const, watchId };
   } catch (error) {
     return {
       success: false as const,
@@ -77,11 +79,13 @@ const ensureGitStatusWatcher = (taskPath: string) => {
   }
 };
 
-const releaseGitStatusWatcher = (taskPath: string) => {
+const releaseGitStatusWatcher = (taskPath: string, watchId?: string) => {
   const entry = gitStatusWatchers.get(taskPath);
   if (!entry) return { success: true as const };
-  entry.refCount -= 1;
-  if (entry.refCount <= 0) {
+  if (watchId) {
+    entry.watchIds.delete(watchId);
+  }
+  if (entry.watchIds.size <= 0) {
     if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
     entry.watcher.close();
     gitStatusWatchers.delete(taskPath);
@@ -113,8 +117,8 @@ export function registerGitIpc() {
     return ensureGitStatusWatcher(taskPath);
   });
 
-  ipcMain.handle('git:unwatch-status', async (_, taskPath: string) => {
-    return releaseGitStatusWatcher(taskPath);
+  ipcMain.handle('git:unwatch-status', async (_, taskPath: string, watchId?: string) => {
+    return releaseGitStatusWatcher(taskPath, watchId);
   });
 
   // Git: Status (moved from Codex IPC)
