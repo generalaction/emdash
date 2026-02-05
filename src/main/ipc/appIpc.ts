@@ -64,11 +64,10 @@ const getCachedAppVersion = (): Promise<string> => {
   }
 
   if (!cachedAppVersionPromise) {
-    cachedAppVersionPromise = resolveAppVersion()
-      .then((version) => {
-        cachedAppVersion = version;
-        return version;
-      });
+    cachedAppVersionPromise = resolveAppVersion().then((version) => {
+      cachedAppVersion = version;
+      return version;
+    });
   }
 
   return cachedAppVersionPromise;
