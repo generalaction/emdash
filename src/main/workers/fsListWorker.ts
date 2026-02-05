@@ -2,6 +2,8 @@ import { parentPort } from 'worker_threads';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FsListItem, FsListWorkerResponse } from '../types/fsListWorker';
+import { DEFAULT_IGNORES } from '../utils/fsIgnores';
+import { safeStat } from '../utils/safeStat';
 
 type ListWorkerRequest = {
   taskId: number;
@@ -11,27 +13,6 @@ type ListWorkerRequest = {
   timeBudgetMs: number;
   batchSize: number;
 };
-
-const DEFAULT_IGNORES = new Set([
-  '.git',
-  'node_modules',
-  'dist',
-  'build',
-  'out',
-  '.next',
-  '.nuxt',
-  '.cache',
-  'coverage',
-  '.DS_Store',
-]);
-
-function safeStat(p: string): fs.Stats | null {
-  try {
-    return fs.statSync(p);
-  } catch {
-    return null;
-  }
-}
 
 const yieldImmediate = () => new Promise<void>((resolve) => setImmediate(resolve));
 

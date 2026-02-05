@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
 import { FsListWorkerResponse } from '../types/fsListWorker';
+import { DEFAULT_IGNORES } from '../utils/fsIgnores';
+import { safeStat } from '../utils/safeStat';
 
 const DEFAULT_EMDASH_CONFIG = `{
   "preservePatterns": [
@@ -47,14 +49,6 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set<string>([
   '.svg',
 ]);
 const DEFAULT_ATTACHMENTS_SUBDIR = 'attachments' as const;
-
-function safeStat(p: string): fs.Stats | null {
-  try {
-    return fs.statSync(p);
-  } catch {
-    return null;
-  }
-}
 
 export function registerFsIpc(): void {
   function emitPlanEvent(payload: any) {
