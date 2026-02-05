@@ -75,9 +75,10 @@ const mapAgentStatusesToCli = (
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'general' | 'interface' | 'repository' | 'connections' | 'mcp';
+export type SettingsTab = 'general' | 'interface' | 'repository' | 'connections' | 'mcp';
 
 interface SettingsSection {
   title: string;
@@ -88,7 +89,7 @@ interface SettingsSection {
 
 const ORDERED_TABS: SettingsTab[] = ['general', 'interface', 'repository', 'mcp', 'connections'];
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const [cliError, setCliError] = useState<string | null>(null);
@@ -97,9 +98,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      setActiveTab('general');
+      setActiveTab(initialTab ?? 'general');
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab]);
 
   useEffect(() => {
     if (isOpen) {

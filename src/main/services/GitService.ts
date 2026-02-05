@@ -22,9 +22,10 @@ async function countFileNewlinesCapped(filePath: string, maxBytes: number): Prom
   return await new Promise<number | null>((resolve) => {
     let count = 0;
     const stream = fs.createReadStream(filePath);
-    stream.on('data', (chunk: Buffer) => {
-      for (let i = 0; i < chunk.length; i++) {
-        if (chunk[i] === 0x0a) count++;
+    stream.on('data', (chunk: string | Buffer) => {
+      const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      for (let i = 0; i < buffer.length; i++) {
+        if (buffer[i] === 0x0a) count++;
       }
     });
     stream.on('error', () => resolve(null));
