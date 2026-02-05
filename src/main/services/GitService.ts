@@ -87,8 +87,6 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
     .map((l) => l.replace(/\r$/, ''))
     .filter((l) => l.length > 0);
 
-  const nullPath = process.platform === 'win32' ? 'NUL' : '/dev/null';
-
   for (const line of statusLines) {
     const statusCode = line.substring(0, 2);
     let filePath = line.substring(3);
