@@ -126,6 +126,13 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         aria-haspopup
       >
         <span>Open in</span>
+        {icons[OPEN_IN_APPS[0]?.id] && (
+          <img
+            src={icons[OPEN_IN_APPS[0].id]}
+            alt={OPEN_IN_APPS[0].label}
+            className="h-4 w-4 rounded"
+          />
+        )}
         <ChevronDown
           className={`h-3 w-3 opacity-50 transition-transform duration-200 ${
             open ? 'rotate-180' : ''
