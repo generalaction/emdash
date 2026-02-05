@@ -100,7 +100,6 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
 
     // Check if file is staged (first character of status code indicates staged changes)
     const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
-
     let additions = 0;
     let deletions = 0;
 
