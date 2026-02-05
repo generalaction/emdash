@@ -7,13 +7,13 @@ export function useFileIndex(rootPath: string | undefined) {
   const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const loadRequestedRef = useRef(false);
+  const loadRequestedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!rootPath) return;
     // Only load once per rootPath (lazy); can be reloaded manually
-    if (loadedFor === rootPath || loadRequestedRef.current) return;
-    loadRequestedRef.current = true;
+    if (loadedFor === rootPath || loadRequestedRef.current === rootPath) return;
+    loadRequestedRef.current = rootPath;
     setLoading(true);
     setError(null);
     (async () => {
@@ -23,6 +23,9 @@ export function useFileIndex(rootPath: string | undefined) {
           maxEntries: 5000,
         });
         if (res.canceled) {
+          if (loadRequestedRef.current === rootPath) {
+            loadRequestedRef.current = null;
+          }
           return;
         }
         if (res.success && res.items) {
