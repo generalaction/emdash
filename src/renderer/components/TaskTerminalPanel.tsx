@@ -100,41 +100,44 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const firstTaskTerminalId = taskTerminals.terminals[0]?.id;
 
   // Run setup script when a task terminal becomes ready (only once per task/worktree)
-  const handleTerminalReady = useCallback((terminalId: string) => {
-    const currentTask = taskRef.current;
-    const currentProjectPath = projectPathRef.current;
-    if (!currentTask || !currentProjectPath) return;
+  const handleTerminalReady = useCallback(
+    (terminalId: string) => {
+      const currentTask = taskRef.current;
+      const currentProjectPath = projectPathRef.current;
+      if (!currentTask || !currentProjectPath) return;
 
-    // Only the primary task terminal is allowed to trigger automatic setup.
-    // Additional terminals in the same worktree should open immediately.
-    if (terminalId !== firstTaskTerminalId) return;
+      // Only the primary task terminal is allowed to trigger automatic setup.
+      // Additional terminals in the same worktree should open immediately.
+      if (terminalId !== firstTaskTerminalId) return;
 
-    const key = `${currentTask.id}::${currentTask.path}`;
-    if (setupScriptRan.has(key)) return;
+      const key = `${currentTask.id}::${currentTask.path}`;
+      if (setupScriptRan.has(key)) return;
 
-    // Mark as attempted immediately to prevent race conditions
-    setupScriptRan.add(key);
+      // Mark as attempted immediately to prevent race conditions
+      setupScriptRan.add(key);
 
-    (async () => {
-      try {
-        // Check if there's a setup script configured
-        const result = await window.electronAPI.lifecycleGetSetupScript({
-          projectPath: currentProjectPath,
-        });
-        if (!result.success || !result.script) {
-          return;
+      (async () => {
+        try {
+          // Check if there's a setup script configured
+          const result = await window.electronAPI.lifecycleGetSetupScript({
+            projectPath: currentProjectPath,
+          });
+          if (!result.success || !result.script) {
+            return;
+          }
+
+          // Send the setup command to the terminal (clear first to avoid timing artifacts)
+          window.electronAPI.ptyInput({
+            id: terminalId,
+            data: 'clear && ' + result.script + '\n',
+          });
+        } catch (error) {
+          console.error('Failed to run setup script:', error);
         }
-
-        // Send the setup command to the terminal (clear first to avoid timing artifacts)
-        window.electronAPI.ptyInput({
-          id: terminalId,
-          data: 'clear && ' + result.script + '\n',
-        });
-      } catch (error) {
-        console.error('Failed to run setup script:', error);
-      }
-    })();
-  }, [firstTaskTerminalId]);
+      })();
+    },
+    [firstTaskTerminalId]
+  );
 
   // Memoize callbacks per terminal to avoid recreating on every render
   const terminalReadyCallbacks = useMemo(() => {
