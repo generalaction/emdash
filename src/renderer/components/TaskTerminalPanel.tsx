@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Terminal, Plus, X } from 'lucide-react';
+import { Bot, Terminal, Plus, X, Play, Square } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
@@ -224,6 +224,68 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   // Total terminal count for close button visibility
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
+  const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'succeeded' | 'failed'>('idle');
+  const [runActionBusy, setRunActionBusy] = useState(false);
+
+  useEffect(() => {
+    if (!task) {
+      setRunStatus('idle');
+      return;
+    }
+    let cancelled = false;
+    const hydrate = async () => {
+      try {
+        const res = await window.electronAPI.lifecycleGetState({ taskId: task.id });
+        if (cancelled || !res?.success || !res.state?.run?.status) return;
+        setRunStatus(res.state.run.status);
+      } catch {}
+    };
+    void hydrate();
+    const off = window.electronAPI.onLifecycleEvent((evt: any) => {
+      if (!evt || evt.taskId !== task.id || evt.phase !== 'run') return;
+      if (evt.status === 'starting') setRunStatus('running');
+      if (evt.status === 'error') setRunStatus('failed');
+      if (evt.status === 'exit') setRunStatus('idle');
+    });
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }, [task?.id]);
+
+  const handleRunStart = useCallback(async () => {
+    if (!task || !projectPath) return;
+    setRunActionBusy(true);
+    try {
+      const res = await window.electronAPI.lifecycleRunStart({
+        taskId: task.id,
+        taskPath: task.path,
+        projectPath,
+      });
+      if (!res.success) {
+        console.error('Failed to start run phase:', res.error);
+      }
+    } catch (error) {
+      console.error('Failed to start run phase:', error);
+    } finally {
+      setRunActionBusy(false);
+    }
+  }, [task?.id, task?.path, projectPath]);
+
+  const handleRunStop = useCallback(async () => {
+    if (!task) return;
+    setRunActionBusy(true);
+    try {
+      const res = await window.electronAPI.lifecycleRunStop({ taskId: task.id });
+      if (!res.success) {
+        console.error('Failed to stop run phase:', res.error);
+      }
+    } catch (error) {
+      console.error('Failed to stop run phase:', error);
+    } finally {
+      setRunActionBusy(false);
+    }
+  }, [task?.id]);
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -430,6 +492,38 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             )}
           </SelectContent>
         </Select>
+        {task && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {runStatus === 'running' ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleRunStop}
+                    disabled={runActionBusy}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Square className="h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleRunStart}
+                    disabled={runActionBusy || !projectPath}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs">{runStatus === 'running' ? 'Stop run script' : 'Start run script'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {(() => {
           // Can only delete if current group has more than 1 terminal
           const canDelete =
