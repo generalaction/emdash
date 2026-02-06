@@ -95,6 +95,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
   const [unstagingFiles, setUnstagingFiles] = useState<Set<string>>(new Set());
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
+  const [isStagingAll, setIsStagingAll] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMergingToMain, setIsMergingToMain] = useState(false);
@@ -187,6 +188,34 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         newSet.delete(filePath);
         return newSet;
       });
+    }
+  };
+
+  const handleStageAllFiles = async () => {
+    setIsStagingAll(true);
+
+    try {
+      const result = await window.electronAPI.stageAllFiles({
+        taskPath: safeTaskPath,
+      });
+
+      if (result.success) {
+        await refreshChanges();
+      } else {
+        toast({
+          title: 'Stage All Failed',
+          description: result.error || 'Failed to stage all files.',
+          variant: 'destructive',
+        });
+      }
+    } catch (_error) {
+      toast({
+        title: 'Stage All Failed',
+        description: 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsStagingAll(false);
     }
   };
 
@@ -439,6 +468,25 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 )}
               </div>
               <div className="flex min-w-0 items-center gap-2">
+                {fileChanges.some((f) => !f.isStaged) && fileChanges.some((f) => f.isStaged) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 px-2 text-xs"
+                    title="Stage all files for commit"
+                    onClick={handleStageAllFiles}
+                    disabled={isStagingAll}
+                  >
+                    {isStagingAll ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
+                        <span className="hidden sm:inline">Stage All</span>
+                      </>
+                    )}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
