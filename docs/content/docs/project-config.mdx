@@ -156,25 +156,6 @@ REDIS_PORT=$((EMDASH_PORT + 2))
 }
 ```
 
-## How to test lifecycle scripts
-
-1. Put scripts in `<project-root>/.emdash.json`.
-2. Start Emdash in dev mode (`npm run dev` or `npm run d`).
-3. Create a fresh task/worktree.
-4. Open that task terminal once to trigger `setup`.
-5. Click Play in terminal header to start `run`.
-6. Archive the task to trigger `teardown`.
-7. Optional: verify lifecycle events in DevTools:
-
-```js
-const off = window.electronAPI.onLifecycleEvent((e) => console.log('LIFECYCLE', e));
-```
-
-Expected lifecycle statuses are:
-
-- `setup`: `starting` -> `line` -> `done`
-- `run`: `starting` -> `line` -> `exit` (when stopped)
-- `teardown`: `starting` -> `line` -> `done`
 
 ## Editing the config
 
