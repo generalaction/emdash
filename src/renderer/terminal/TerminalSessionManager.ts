@@ -13,6 +13,7 @@ import { CTRL_J_ASCII, shouldMapShiftEnterToCtrlJ } from './terminalKeybindings'
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
+const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -69,6 +70,8 @@ export class TerminalSessionManager {
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
+  private customFontFamily = '';
+  private themeFontFamily = '';
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -100,20 +103,19 @@ export class TerminalSessionManager {
       scrollOnUserInput: false,
     });
 
-    const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
-    const applyFont = (customFont?: string) => {
-      const trimmed = customFont?.trim();
-      this.terminal.options.fontFamily = trimmed ? `${trimmed}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
+    const updateCustomFont = (customFont?: string) => {
+      this.customFontFamily = customFont?.trim() ?? '';
+      this.applyEffectiveFont();
     };
 
     window.electronAPI.getSettings().then((result) => {
-      applyFont(result?.settings?.terminal?.fontFamily);
+      updateCustomFont(result?.settings?.terminal?.fontFamily);
     });
 
     const handleFontChange = (e: Event) => {
       const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
-      applyFont(detail?.fontFamily);
-      this.fitAddon.fit();
+      updateCustomFont(detail?.fontFamily);
+      this.fitPreservingViewport();
     };
     window.addEventListener('terminal-font-changed', handleFontChange);
     this.disposables.push(() =>
@@ -410,12 +412,16 @@ export class TerminalSessionManager {
     this.terminal.options.theme = { ...base, ...colorTheme };
 
     // Apply font settings separately
-    if (fontFamily) {
-      this.terminal.options.fontFamily = fontFamily;
-    }
+    this.themeFontFamily = typeof fontFamily === 'string' ? fontFamily.trim() : '';
+    this.applyEffectiveFont();
     if (fontSize) {
       this.terminal.options.fontSize = fontSize;
     }
+  }
+
+  private applyEffectiveFont() {
+    const selected = this.customFontFamily || this.themeFontFamily;
+    this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
   }
 
   /**
