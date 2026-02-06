@@ -228,7 +228,14 @@ const AppContent: React.FC = () => {
         }
       );
     },
-    [projectMgmt.selectedProject, projectMgmt.setProjects, projectMgmt.setSelectedProject, taskMgmt.setActiveTask, taskMgmt.setActiveTaskAgent, toast]
+    [
+      projectMgmt.selectedProject,
+      projectMgmt.setProjects,
+      projectMgmt.setSelectedProject,
+      taskMgmt.setActiveTask,
+      taskMgmt.setActiveTaskAgent,
+      toast,
+    ]
   );
 
   const { selectedProject } = projectMgmt;

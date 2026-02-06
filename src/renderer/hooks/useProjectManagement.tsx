@@ -545,7 +545,15 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         });
       }
     },
-    [projects, isAuthenticated, activateProjectView, platform, toast, saveProjectOrder, setShowTaskModal]
+    [
+      projects,
+      isAuthenticated,
+      activateProjectView,
+      platform,
+      toast,
+      saveProjectOrder,
+      setShowTaskModal,
+    ]
   );
 
   const handleReorderProjects = (sourceId: string, targetId: string) => {

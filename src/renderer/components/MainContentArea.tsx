@@ -18,8 +18,16 @@ interface MainContentAreaProps {
   isLoadingBranches: boolean;
   setProjectDefaultBranch: (branch: string) => void;
   handleSelectTask: (task: Task) => void;
-  handleDeleteTask: (project: Project, task: Task, options?: { silent?: boolean }) => Promise<boolean>;
-  handleArchiveTask: (project: Project, task: Task, options?: { silent?: boolean }) => Promise<boolean>;
+  handleDeleteTask: (
+    project: Project,
+    task: Task,
+    options?: { silent?: boolean }
+  ) => Promise<boolean>;
+  handleArchiveTask: (
+    project: Project,
+    task: Task,
+    options?: { silent?: boolean }
+  ) => Promise<boolean>;
   handleDeleteProject: (project: Project) => Promise<void>;
   handleOpenProject: () => void;
   handleNewProjectClick: () => void;

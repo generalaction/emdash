@@ -40,7 +40,14 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
     useWorktree,
     baseRef,
   } = params;
-  const { selectedProject, setProjects, setSelectedProject, setActiveTask, setActiveTaskAgent, toast } = callbacks;
+  const {
+    selectedProject,
+    setProjects,
+    setSelectedProject,
+    setActiveTask,
+    setActiveTaskAgent,
+    toast,
+  } = callbacks;
 
   try {
     // Build basic prompt without enrichment (enrichment happens in background later)
@@ -423,9 +430,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
         if (hasIssueContext) {
           try {
             // Get or create default conversation only once
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(
-              newTask.id
-            );
+            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
             if (convoResult?.success && convoResult.conversation?.id) {
               conversationId = convoResult.conversation.id;
             }
@@ -574,8 +579,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
     callbacks.toast({
       title: 'Error',
       description:
-        (error as Error)?.message ||
-        'Failed to create task. Please check the console for details.',
+        (error as Error)?.message || 'Failed to create task. Please check the console for details.',
     });
   }
 }

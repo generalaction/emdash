@@ -76,9 +76,7 @@ export function useAppInitialization(
         ]);
 
         setPlatform(appPlatform);
-        const initialProjects = applyProjectOrder(
-          projects.map((p) => withRepoKey(p, appPlatform))
-        );
+        const initialProjects = applyProjectOrder(projects.map((p) => withRepoKey(p, appPlatform)));
         onProjectsLoaded(initialProjects);
 
         checkGithubStatus();
