@@ -468,17 +468,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 )}
               </div>
               <div className="flex min-w-0 items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 px-2 text-xs"
-                  title="View all changes in a single scrollable view"
-                  onClick={() => setShowAllChangesModal(true)}
-                >
-                  <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Changes</span>
-                </Button>
-                {fileChanges.some((f) => !f.isStaged) && (
+                {fileChanges.some((f) => !f.isStaged) && fileChanges.some((f) => f.isStaged) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -497,6 +487,16 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     )}
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 px-2 text-xs"
+                  title="View all changes in a single scrollable view"
+                  onClick={() => setShowAllChangesModal(true)}
+                >
+                  <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Changes</span>
+                </Button>
                 <PrActionButton
                   mode={prMode}
                   onModeChange={selectPrMode}
