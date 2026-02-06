@@ -221,6 +221,18 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   // Get current active terminal info
   const activeTerminalId = parsed?.id ?? null;
 
+  // Get display info for the selected terminal
+  const selectedTerminalInfo = useMemo(() => {
+    if (!parsed) return null;
+    const terminals = parsed.mode === 'task' ? taskTerminals.terminals : globalTerminals.terminals;
+    const terminal = terminals.find((t) => t.id === parsed.id);
+    if (!terminal) return null;
+    return {
+      title: terminal.title,
+      scope: parsed.mode === 'task' ? 'Worktree' : 'Global',
+    };
+  }, [parsed, taskTerminals.terminals, globalTerminals.terminals]);
+
   // Total terminal count for close button visibility
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
 
@@ -351,8 +363,17 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         <Select value={selectedValue ?? undefined} onValueChange={handleSelectChange}>
           <SelectTrigger className="h-7 min-w-0 flex-1 border-none bg-transparent px-2 text-xs shadow-none">
             <Terminal className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-            <SelectValue placeholder="Select terminal" />
+            {selectedTerminalInfo ? (
+              <span className="min-w-0 truncate">{selectedTerminalInfo.title}</span>
+            ) : (
+              <SelectValue placeholder="Select terminal" />
+            )}
           </SelectTrigger>
+          {selectedTerminalInfo && (
+            <span className="shrink-0 rounded bg-zinc-500/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
+              {selectedTerminalInfo.scope}
+            </span>
+          )}
           <SelectContent>
             {task && (
               <SelectGroup>
