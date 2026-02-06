@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
+import { LIFECYCLE_EVENT_CHANNEL } from '../shared/lifecycle';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -145,6 +146,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Lifecycle scripts
   lifecycleGetScript: (args: { projectPath: string; phase: 'setup' | 'run' | 'teardown' }) =>
     ipcRenderer.invoke('lifecycle:getScript', args),
+  lifecycleSetup: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:setup', args),
+  lifecycleRunStart: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:run:start', args),
+  lifecycleRunStop: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:run:stop', args),
+  lifecycleTeardown: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:teardown', args),
+  lifecycleGetState: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getState', args),
+  onLifecycleEvent: (listener: (data: any) => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(LIFECYCLE_EVENT_CHANNEL, wrapped);
+    return () => ipcRenderer.removeListener(LIFECYCLE_EVENT_CHANNEL, wrapped);
+  },
 
   // Filesystem helpers
   fsList: (
@@ -556,6 +570,54 @@ export interface ElectronAPI {
     projectPath: string;
     phase: 'setup' | 'run' | 'teardown';
   }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+  lifecycleSetup: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStart: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStop: (args: {
+    taskId: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleTeardown: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleGetState: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    state?: {
+      taskId: string;
+      setup: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+      run: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+        pid?: number | null;
+      };
+      teardown: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+    };
+    error?: string;
+  }>;
+  onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management
   openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;

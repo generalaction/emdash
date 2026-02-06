@@ -91,19 +91,19 @@ Out of scope for MVP:
 
 ### TODOs
 
-- [ ] Add `src/main/services/TaskLifecycleService.ts`.
-- [ ] Implement:
-  - [ ] `runSetup(taskId, taskPath, projectPath)`
-  - [ ] `startRun(taskId, taskPath, projectPath)`
-  - [ ] `stopRun(taskId)`
-  - [ ] `runTeardown(taskId, taskPath, projectPath)`
-  - [ ] `getState(taskId)`
-- [ ] Use `spawn(..., { shell: true, cwd, env })`.
-- [ ] Keep in-memory maps for:
-  - [ ] active run process by taskId
-  - [ ] setup in-flight / completed markers
-  - [ ] last phase results
-- [ ] Emit structured events for `starting|line|done|error|exit`.
+- [x] Add `src/main/services/TaskLifecycleService.ts`.
+- [x] Implement:
+  - [x] `runSetup(taskId, taskPath, projectPath)`
+  - [x] `startRun(taskId, taskPath, projectPath)`
+  - [x] `stopRun(taskId)`
+  - [x] `runTeardown(taskId, taskPath, projectPath)`
+  - [x] `getState(taskId)`
+- [x] Use `spawn(..., { shell: true, cwd, env })`.
+- [x] Keep in-memory maps for:
+  - [x] active run process by taskId
+  - [x] setup in-flight / completed markers
+  - [x] last phase results
+- [x] Emit structured events for `starting|line|done|error|exit`.
 
 ### Acceptance
 
@@ -118,15 +118,15 @@ Out of scope for MVP:
 
 ### TODOs
 
-- [ ] Expand `src/main/services/lifecycleIpc.ts` with:
-  - [ ] `lifecycle:setup`
-  - [ ] `lifecycle:run:start`
-  - [ ] `lifecycle:run:stop`
-  - [ ] `lifecycle:teardown`
-  - [ ] `lifecycle:getState`
-  - [ ] `lifecycle:events:subscribe` (if needed) or broadcast channel
-- [ ] Wire IPC registration in main bootstrap if needed.
-- [ ] Extend preload API and renderer type declarations.
+- [x] Expand `src/main/services/lifecycleIpc.ts` with:
+  - [x] `lifecycle:setup`
+  - [x] `lifecycle:run:start`
+  - [x] `lifecycle:run:stop`
+  - [x] `lifecycle:teardown`
+  - [x] `lifecycle:getState`
+  - [x] `lifecycle:events:subscribe` (if needed) or broadcast channel
+- [x] Wire IPC registration in main bootstrap if needed.
+- [x] Extend preload API and renderer type declarations.
 
 ### Acceptance
 

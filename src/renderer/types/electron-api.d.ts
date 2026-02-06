@@ -422,6 +422,54 @@ declare global {
         projectPath: string;
         phase: 'setup' | 'run' | 'teardown';
       }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+      lifecycleSetup: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleRunStart: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleRunStop: (args: {
+        taskId: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleTeardown: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleGetState: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        state?: {
+          taskId: string;
+          setup: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+          };
+          run: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+            pid?: number | null;
+          };
+          teardown: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+          };
+        };
+        error?: string;
+      }>;
+      onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
       // Project management
       openProject: () => Promise<{
@@ -1094,6 +1142,54 @@ export interface ElectronAPI {
     projectPath: string;
     phase: 'setup' | 'run' | 'teardown';
   }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+  lifecycleSetup: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStart: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStop: (args: {
+    taskId: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleTeardown: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleGetState: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    state?: {
+      taskId: string;
+      setup: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+      run: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+        pid?: number | null;
+      };
+      teardown: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+    };
+    error?: string;
+  }>;
+  onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management
   openProject: () => Promise<{
