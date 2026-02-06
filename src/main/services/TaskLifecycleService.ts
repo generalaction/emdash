@@ -32,6 +32,32 @@ class TaskLifecycleService extends EventEmitter {
     return new Date().toISOString();
   }
 
+  private inflightKey(taskId: string, taskPath: string): string {
+    return `${taskId}::${taskPath}`;
+  }
+
+  private killProcessTree(proc: ChildProcess, signal: NodeJS.Signals): void {
+    const pid = proc.pid;
+    if (!pid) return;
+
+    if (process.platform === 'win32') {
+      const args = ['/PID', String(pid), '/T'];
+      if (signal === 'SIGKILL') {
+        args.push('/F');
+      }
+      const killer = spawn('taskkill', args, { stdio: 'ignore' });
+      killer.unref();
+      return;
+    }
+
+    try {
+      // Detached shell commands run as their own process group.
+      process.kill(-pid, signal);
+    } catch {
+      proc.kill(signal);
+    }
+  }
+
   private async resolveDefaultBranch(projectPath: string): Promise<string> {
     try {
       const { stdout } = await execFileAsync(
@@ -140,6 +166,7 @@ class TaskLifecycleService extends EventEmitter {
             cwd: taskPath,
             shell: true,
             env,
+            detached: true,
           });
           const onData = (buf: Buffer) => {
             const line = buf.toString();
@@ -189,13 +216,14 @@ class TaskLifecycleService extends EventEmitter {
   }
 
   async runSetup(taskId: string, taskPath: string, projectPath: string): Promise<LifecycleResult> {
-    if (this.setupInflight.has(taskId)) {
-      return this.setupInflight.get(taskId)!;
+    const key = this.inflightKey(taskId, taskPath);
+    if (this.setupInflight.has(key)) {
+      return this.setupInflight.get(key)!;
     }
     const run = this.runFinite(taskId, taskPath, projectPath, 'setup').finally(() => {
-      this.setupInflight.delete(taskId);
+      this.setupInflight.delete(key);
     });
-    this.setupInflight.set(taskId, run);
+    this.setupInflight.set(key, run);
     return run;
   }
 
@@ -225,6 +253,7 @@ class TaskLifecycleService extends EventEmitter {
         cwd: taskPath,
         shell: true,
         env,
+        detached: true,
       });
       this.runProcesses.set(taskId, child);
       state.run.pid = child.pid ?? null;
@@ -283,7 +312,12 @@ class TaskLifecycleService extends EventEmitter {
 
     this.stopIntents.add(taskId);
     try {
-      proc.kill();
+      this.killProcessTree(proc, 'SIGTERM');
+      setTimeout(() => {
+        const current = this.runProcesses.get(taskId);
+        if (!current || current !== proc) return;
+        this.killProcessTree(proc, 'SIGKILL');
+      }, 8_000);
       return { ok: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -304,8 +338,9 @@ class TaskLifecycleService extends EventEmitter {
     taskPath: string,
     projectPath: string
   ): Promise<LifecycleResult> {
-    if (this.teardownInflight.has(taskId)) {
-      return this.teardownInflight.get(taskId)!;
+    const key = this.inflightKey(taskId, taskPath);
+    if (this.teardownInflight.has(key)) {
+      return this.teardownInflight.get(key)!;
     }
     // Ensure a managed run process is stopped before teardown starts.
     const existingRun = this.runProcesses.get(taskId);
@@ -329,9 +364,9 @@ class TaskLifecycleService extends EventEmitter {
       });
     }
     const run = this.runFinite(taskId, taskPath, projectPath, 'teardown').finally(() => {
-      this.teardownInflight.delete(taskId);
+      this.teardownInflight.delete(key);
     });
-    this.teardownInflight.set(taskId, run);
+    this.teardownInflight.set(key, run);
     return run;
   }
 
