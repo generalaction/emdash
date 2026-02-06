@@ -337,6 +337,14 @@ declare global {
         error?: string;
       }>;
       // Database methods
+      getDbDebugInfo: () => Promise<{
+        success: boolean;
+        appName?: string;
+        userDataPath?: string;
+        dbPath?: string;
+        dbExists?: boolean;
+        error?: string;
+      }>;
       getProjects: () => Promise<any[]>;
       saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
       getTasks: (projectId?: string) => Promise<any[]>;

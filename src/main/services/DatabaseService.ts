@@ -130,6 +130,10 @@ export class DatabaseService {
     });
   }
 
+  getDatabasePath(): string {
+    return this.dbPath;
+  }
+
   getLastMigrationSummary(): MigrationSummary | null {
     return this.lastMigrationSummary;
   }
