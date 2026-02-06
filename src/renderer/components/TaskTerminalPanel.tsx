@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Terminal, Plus, Play, Square, Trash2 } from 'lucide-react';
+import { Bot, Terminal, Plus, Play, Square, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
@@ -553,7 +553,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     className="ml-auto text-muted-foreground hover:text-destructive"
                     disabled={!activeTerminalId || !canDelete}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <X className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
