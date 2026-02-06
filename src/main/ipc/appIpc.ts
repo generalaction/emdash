@@ -10,6 +10,87 @@ const UNKNOWN_VERSION = 'unknown';
 
 let cachedAppVersion: string | null = null;
 let cachedAppVersionPromise: Promise<string> | null = null;
+const FONT_CACHE_TTL_MS = 5 * 60 * 1000;
+let cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
+
+const execCommand = (
+  command: string,
+  opts?: { maxBuffer?: number; timeout?: number }
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    exec(
+      command,
+      { maxBuffer: opts?.maxBuffer ?? 8 * 1024 * 1024, timeout: opts?.timeout ?? 30000 },
+      (error, stdout) => {
+        if (error) return reject(error);
+        resolve(stdout ?? '');
+      }
+    );
+  });
+};
+
+const dedupeAndSortFonts = (fonts: string[]): string[] => {
+  const unique = Array.from(new Set(fonts.map((font) => font.trim()).filter(Boolean)));
+  return unique.sort((a, b) => a.localeCompare(b));
+};
+
+const listInstalledFontsMac = async (): Promise<string[]> => {
+  const stdout = await execCommand('system_profiler SPFontsDataType -json', {
+    maxBuffer: 24 * 1024 * 1024,
+    timeout: 60000,
+  });
+  const parsed = JSON.parse(stdout) as {
+    SPFontsDataType?: Array<{
+      typefaces?: Array<{ family?: string; fullname?: string }>;
+      _name?: string;
+    }>;
+  };
+  const fonts: string[] = [];
+  for (const item of parsed.SPFontsDataType ?? []) {
+    for (const typeface of item.typefaces ?? []) {
+      if (typeface.family) fonts.push(typeface.family);
+    }
+  }
+  return dedupeAndSortFonts(fonts);
+};
+
+const listInstalledFontsLinux = async (): Promise<string[]> => {
+  const stdout = await execCommand('fc-list : family', { timeout: 30000 });
+  const fonts = stdout
+    .split('\n')
+    .flatMap((line) => line.split(','))
+    .map((font) => font.trim())
+    .filter(Boolean);
+  return dedupeAndSortFonts(fonts);
+};
+
+const listInstalledFontsWindows = async (): Promise<string[]> => {
+  const script =
+    "$fonts = Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts';" +
+    "$props = $fonts.PSObject.Properties | Where-Object { $_.Name -notlike 'PS*' };" +
+    "$props | ForEach-Object { ($_.Name -replace '\\s*\\(.*\\)$','').Trim() }";
+  const stdout = await execCommand(`powershell -NoProfile -Command "${script}"`, {
+    timeout: 30000,
+  });
+  const fonts = stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return dedupeAndSortFonts(fonts);
+};
+
+const listInstalledFonts = async (): Promise<string[]> => {
+  switch (process.platform) {
+    case 'darwin':
+      return listInstalledFontsMac();
+    case 'linux':
+      return listInstalledFontsLinux();
+    case 'win32':
+      return listInstalledFontsWindows();
+    default:
+      return [];
+  }
+};
 
 const readPackageVersion = async (packageJsonPath: string): Promise<string | null> => {
   try {
@@ -260,6 +341,31 @@ export function registerAppIpc() {
     }
 
     return availability;
+  });
+
+  ipcMain.handle('app:listInstalledFonts', async (_event, args?: { refresh?: boolean }) => {
+    const refresh = Boolean(args?.refresh);
+    const now = Date.now();
+    if (
+      !refresh &&
+      cachedInstalledFonts &&
+      now - cachedInstalledFonts.fetchedAt < FONT_CACHE_TTL_MS
+    ) {
+      return { success: true, fonts: cachedInstalledFonts.fonts, cached: true };
+    }
+
+    try {
+      const fonts = await listInstalledFonts();
+      cachedInstalledFonts = { fonts, fetchedAt: now };
+      return { success: true, fonts, cached: false };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        fonts: cachedInstalledFonts?.fonts ?? [],
+        cached: Boolean(cachedInstalledFonts),
+      };
+    }
   });
 
   // App metadata

@@ -30,6 +30,9 @@ declare global {
       getAppVersion: () => Promise<string>;
       getElectronVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
+      listInstalledFonts: (args?: {
+        refresh?: boolean;
+      }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;
       // Updater
       checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -118,6 +121,9 @@ declare global {
           interface?: {
             autoRightSidebarBehavior?: boolean;
           };
+          terminal?: {
+            fontFamily: string;
+          };
         };
         error?: string;
       }>;
@@ -194,6 +200,9 @@ declare global {
           interface?: {
             autoRightSidebarBehavior?: boolean;
           };
+          terminal?: {
+            fontFamily?: string;
+          };
         }>
       ) => Promise<{
         success: boolean;
@@ -268,6 +277,9 @@ declare global {
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+          };
+          terminal?: {
+            fontFamily: string;
           };
         };
         error?: string;
@@ -960,6 +972,9 @@ export interface ElectronAPI {
   // App info
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
+  listInstalledFonts: (args?: {
+    refresh?: boolean;
+  }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
