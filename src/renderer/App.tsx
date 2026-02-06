@@ -377,7 +377,7 @@ const AppContent: React.FC = () => {
                   <ResizablePanel
                     ref={rightSidebarPanelRef}
                     className="sidebar-panel sidebar-panel--right"
-                    defaultSize={0}
+                    defaultSize={rightSidebarDefaultWidth}
                     minSize={RIGHT_SIDEBAR_MIN_SIZE}
                     maxSize={RIGHT_SIDEBAR_MAX_SIZE}
                     collapsedSize={0}

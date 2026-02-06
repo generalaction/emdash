@@ -63,14 +63,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const globalTerminals = useTaskTerminals(globalKey, projectPath, { defaultCwd: projectPath });
 
   // Combined selection state: "task::id" or "global::id"
-  const [selectedValue, setSelectedValue] = useState<string | null>(() => {
+  const [selectedValue, setSelectedValue] = useState<string>(() => {
     if (task && taskTerminals.activeTerminalId) {
       return `task::${taskTerminals.activeTerminalId}`;
     }
     if (globalTerminals.activeTerminalId) {
       return `global::${globalTerminals.activeTerminalId}`;
     }
-    return null;
+    return '';
   });
 
   // Parse the selected value to get mode and terminal ID
@@ -184,7 +184,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           } else if (taskTerminals.terminals.length > 0) {
             setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
           } else {
-            setSelectedValue(null);
+            setSelectedValue('');
           }
         }
       }
@@ -408,7 +408,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   return (
     <div className={cn('flex h-full flex-col bg-card', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
-        <Select value={selectedValue ?? undefined} onValueChange={handleSelectChange}>
+        <Select value={selectedValue} onValueChange={handleSelectChange}>
           <SelectTrigger className="h-7 min-w-0 flex-1 border-none bg-transparent px-2 text-xs shadow-none">
             <Terminal className="mr-1.5 h-3.5 w-3.5 shrink-0" />
             {selectedTerminalInfo ? (
