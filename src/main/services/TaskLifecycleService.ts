@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { spawn, type ChildProcess } from 'node:child_process';
+import path from 'node:path';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import {
   type LifecycleEvent,
@@ -7,6 +8,7 @@ import {
   type LifecyclePhaseState,
   type TaskLifecycleState,
 } from '@shared/lifecycle';
+import { getTaskEnvVars } from '@shared/task/envVars';
 import { log } from '../lib/logger';
 
 type LifecycleResult = {
@@ -24,6 +26,23 @@ class TaskLifecycleService extends EventEmitter {
 
   private nowIso(): string {
     return new Date().toISOString();
+  }
+
+  private buildLifecycleEnv(
+    taskId: string,
+    taskPath: string,
+    projectPath: string
+  ): NodeJS.ProcessEnv {
+    const taskName = path.basename(taskPath) || taskId;
+    const taskEnv = getTaskEnvVars({
+      taskId,
+      taskName,
+      taskPath,
+      projectPath,
+      defaultBranch: 'main',
+      portSeed: taskPath || taskId,
+    });
+    return { ...process.env, ...taskEnv };
   }
 
   private createPhaseState(): LifecyclePhaseState {
@@ -87,7 +106,7 @@ class TaskLifecycleService extends EventEmitter {
         const child = spawn(script, {
           cwd: taskPath,
           shell: true,
-          env: { ...process.env },
+          env: this.buildLifecycleEnv(taskId, taskPath, projectPath),
         });
         const onData = (buf: Buffer) => {
           const line = buf.toString();
@@ -170,7 +189,7 @@ class TaskLifecycleService extends EventEmitter {
       const child = spawn(script, {
         cwd: taskPath,
         shell: true,
-        env: { ...process.env },
+        env: this.buildLifecycleEnv(taskId, taskPath, projectPath),
       });
       this.runProcesses.set(taskId, child);
       state.run.pid = child.pid ?? null;
@@ -254,7 +273,26 @@ class TaskLifecycleService extends EventEmitter {
       return this.teardownInflight.get(taskId)!;
     }
     // Ensure a managed run process is stopped before teardown starts.
-    this.stopRun(taskId);
+    const existingRun = this.runProcesses.get(taskId);
+    if (existingRun) {
+      this.stopRun(taskId);
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+        const timer = setTimeout(() => {
+          log.warn('Timed out waiting for run process to exit before teardown', { taskId });
+          finish();
+        }, 10_000);
+        existingRun.once('exit', () => {
+          clearTimeout(timer);
+          finish();
+        });
+      });
+    }
     const run = this.runFinite(taskId, taskPath, projectPath, 'teardown').finally(() => {
       this.teardownInflight.delete(taskId);
     });
