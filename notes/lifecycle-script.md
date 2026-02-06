@@ -175,10 +175,10 @@ Out of scope for MVP:
 
 ### TODOs
 
-- [ ] Integrate `lifecycle:teardown` into delete/archive flow in `src/renderer/App.tsx`.
-- [ ] Add timeout handling to prevent stuck delete/archive UX.
-- [ ] Initial policy: teardown errors warn/log and continue delete/archive.
-- [ ] Ensure run process is stopped before/after teardown as needed.
+- [x] Integrate `lifecycle:teardown` into delete/archive flow in `src/renderer/App.tsx`.
+- [x] Add timeout handling to prevent stuck delete/archive UX.
+- [x] Initial policy: teardown errors warn/log and continue delete/archive.
+- [x] Ensure run process is stopped before/after teardown as needed.
 
 ### Acceptance
 
