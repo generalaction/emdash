@@ -457,6 +457,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Lightweight TCP probe for localhost ports to avoid noisy fetches
   netProbePorts: (host: string, ports: number[], timeoutMs?: number) =>
     ipcRenderer.invoke('net:probePorts', host, ports, timeoutMs),
+
+  // Ollama LLM integration
+  ollamaGenerateTaskName: (context: {
+    initialPrompt: string | null;
+    userMessages: string[];
+    currentName: string;
+  }) => ipcRenderer.invoke('ollama:generateTaskName', context),
 });
 
 // Type definitions for the exposed API

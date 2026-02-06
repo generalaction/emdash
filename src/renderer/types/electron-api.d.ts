@@ -64,6 +64,8 @@ declare global {
           tasks?: {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
+            autoRenameWithLLM?: boolean;
+            llmRenameModel?: string;
           };
           projects?: {
             defaultDirectory: string;
@@ -145,6 +147,8 @@ declare global {
           tasks?: {
             autoGenerateName?: boolean;
             autoApproveByDefault?: boolean;
+            autoRenameWithLLM?: boolean;
+            llmRenameModel?: string;
           };
           projects?: {
             defaultDirectory?: string;
@@ -225,6 +229,8 @@ declare global {
           tasks?: {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
+            autoRenameWithLLM?: boolean;
+            llmRenameModel?: string;
           };
           projects?: {
             defaultDirectory: string;
@@ -969,6 +975,13 @@ declare global {
         comments?: LineComment[];
         error?: string;
       }>;
+
+      // Ollama LLM integration
+      ollamaGenerateTaskName: (context: {
+        initialPrompt: string | null;
+        userMessages: string[];
+        currentName: string;
+      }) => Promise<{ success: boolean; name: string | null }>;
     };
   }
 }
@@ -1417,6 +1430,13 @@ export interface ElectronAPI {
     comments?: LineComment[];
     error?: string;
   }>;
+
+  // Ollama LLM integration
+  ollamaGenerateTaskName: (context: {
+    initialPrompt: string | null;
+    userMessages: string[];
+    currentName: string;
+  }) => Promise<{ success: boolean; name: string | null }>;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';

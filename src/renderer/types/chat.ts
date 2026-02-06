@@ -42,6 +42,8 @@ export interface TaskMetadata {
     }>;
     selectedAgent?: ProviderId | null;
   } | null;
+  /** Set to true after the task has been renamed by a local LLM */
+  llmRenamed?: boolean | null;
 }
 
 export interface Task {

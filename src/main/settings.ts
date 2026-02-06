@@ -64,6 +64,8 @@ export interface AppSettings {
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    autoRenameWithLLM?: boolean;
+    llmRenameModel?: string;
   };
   projects?: {
     defaultDirectory: string;
@@ -101,6 +103,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    autoRenameWithLLM: false,
+    llmRenameModel: 'llama3.2:1b',
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
@@ -272,6 +276,10 @@ function normalizeSettings(input: AppSettings): AppSettings {
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
+    autoRenameWithLLM: Boolean(
+      tasks?.autoRenameWithLLM ?? DEFAULT_SETTINGS.tasks!.autoRenameWithLLM
+    ),
+    llmRenameModel: String(tasks?.llmRenameModel ?? DEFAULT_SETTINGS.tasks!.llmRenameModel).trim() || DEFAULT_SETTINGS.tasks!.llmRenameModel,
   };
 
   // Projects

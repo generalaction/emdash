@@ -50,6 +50,7 @@ const KanbanBoard: React.FC<{
   React.useEffect(() => {
     const offs: Array<() => void> = [];
     const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    const renameTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const wsList = project.tasks || [];
     for (const ws of wsList) {
       // Watch PTY output to capture terminal-based providers as activity
@@ -60,8 +61,59 @@ const KanbanBoard: React.FC<{
       const off = subscribeDerivedStatus(ws.id, (derived) => {
         if (derived !== 'busy') return;
         setStatusMap((prev) => {
-          if (prev[ws.id] === 'in-progress') return prev;
-          setStatus(ws.id, 'in-progress');
+          const wasAlreadyInProgress = prev[ws.id] === 'in-progress';
+          if (!wasAlreadyInProgress) {
+            setStatus(ws.id, 'in-progress');
+            // Schedule LLM rename 60s after entering in-progress
+            if (!renameTimers.has(ws.id) && !ws.metadata?.llmRenamed) {
+              const t = setTimeout(async () => {
+                renameTimers.delete(ws.id);
+                try {
+                  const settingsRes = await window.electronAPI.getSettings();
+                  if (!settingsRes.success || !settingsRes.settings?.tasks?.autoRenameWithLLM) return;
+
+                  // Gather context
+                  const initialPrompt = ws.metadata?.initialPrompt ?? null;
+                  const userMessages: string[] = [];
+                  try {
+                    const convRes = await window.electronAPI.getConversations(ws.id);
+                    if (convRes.success && convRes.conversations?.length) {
+                      const msgRes = await window.electronAPI.getMessages(convRes.conversations[0].id);
+                      if (msgRes.success && msgRes.messages) {
+                        for (const msg of msgRes.messages) {
+                          if (msg.role === 'user' && typeof msg.content === 'string') {
+                            userMessages.push(msg.content);
+                            if (userMessages.length >= 2) break;
+                          }
+                        }
+                      }
+                    }
+                  } catch {}
+
+                  if (!initialPrompt && userMessages.length === 0) return;
+
+                  const result = await window.electronAPI.ollamaGenerateTaskName({
+                    initialPrompt,
+                    userMessages,
+                    currentName: ws.name,
+                  });
+                  if (result.success && result.name) {
+                    await window.electronAPI.saveTask({
+                      ...ws,
+                      name: result.name,
+                      metadata: { ...ws.metadata, llmRenamed: true },
+                    });
+                    // Trigger re-render by touching statusMap
+                    setStatusMap((p) => ({ ...p }));
+                  }
+                } catch {
+                  // Silently ignore rename failures
+                }
+              }, 60_000);
+              renameTimers.set(ws.id, t as any);
+            }
+          }
+          if (wasAlreadyInProgress) return prev;
           return { ...prev, [ws.id]: 'in-progress' };
         });
       });
@@ -116,7 +168,11 @@ const KanbanBoard: React.FC<{
         if (offExit) offs.push(offExit);
       } catch {}
     }
-    return () => offs.forEach((f) => f());
+    return () => {
+      offs.forEach((f) => f());
+      for (const t of renameTimers.values()) clearTimeout(t);
+      renameTimers.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, project.tasks?.length]);
 
