@@ -297,7 +297,7 @@ export function registerPtyIpc(): void {
 
       // Track prompts sent to agents (not shell terminals)
       // Only count Enter key presses for known agent PTYs
-      if ((args.data === '\r' || args.data === '\n')) {
+      if (args.data === '\r' || args.data === '\n') {
         // Check if this PTY is associated with an agent
         const providerId = ptyProviderMap.get(args.id) || parseProviderPty(args.id)?.providerId;
 
