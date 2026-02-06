@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { spawn, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import {
   type LifecycleEvent,
@@ -10,6 +11,9 @@ import {
 } from '@shared/lifecycle';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { log } from '../lib/logger';
+import { execFile } from 'node:child_process';
+
+const execFileAsync = promisify(execFile);
 
 type LifecycleResult = {
   ok: boolean;
@@ -28,18 +32,45 @@ class TaskLifecycleService extends EventEmitter {
     return new Date().toISOString();
   }
 
-  private buildLifecycleEnv(
+  private async resolveDefaultBranch(projectPath: string): Promise<string> {
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+        { cwd: projectPath }
+      );
+      const ref = stdout.trim();
+      if (ref) {
+        return ref.replace(/^origin\//, '');
+      }
+    } catch {}
+
+    try {
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: projectPath,
+      });
+      const branch = stdout.trim();
+      if (branch && branch !== 'HEAD') {
+        return branch;
+      }
+    } catch {}
+
+    return 'main';
+  }
+
+  private async buildLifecycleEnv(
     taskId: string,
     taskPath: string,
     projectPath: string
-  ): NodeJS.ProcessEnv {
+  ): Promise<NodeJS.ProcessEnv> {
+    const defaultBranch = await this.resolveDefaultBranch(projectPath);
     const taskName = path.basename(taskPath) || taskId;
     const taskEnv = getTaskEnvVars({
       taskId,
       taskName,
       taskPath,
       projectPath,
-      defaultBranch: 'main',
+      defaultBranch,
       portSeed: taskPath || taskId,
     });
     return { ...process.env, ...taskEnv };
@@ -101,21 +132,49 @@ class TaskLifecycleService extends EventEmitter {
     };
     this.emitLifecycleEvent(taskId, phase, 'starting');
 
-    return new Promise<LifecycleResult>((resolve) => {
-      try {
-        const child = spawn(script, {
-          cwd: taskPath,
-          shell: true,
-          env: this.buildLifecycleEnv(taskId, taskPath, projectPath),
-        });
-        const onData = (buf: Buffer) => {
-          const line = buf.toString();
-          this.emitLifecycleEvent(taskId, phase, 'line', { line });
-        };
-        child.stdout?.on('data', onData);
-        child.stderr?.on('data', onData);
-        child.on('error', (error) => {
-          const message = error?.message || String(error);
+    return (async () => {
+      const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath);
+      return await new Promise<LifecycleResult>((resolve) => {
+        try {
+          const child = spawn(script, {
+            cwd: taskPath,
+            shell: true,
+            env,
+          });
+          const onData = (buf: Buffer) => {
+            const line = buf.toString();
+            this.emitLifecycleEvent(taskId, phase, 'line', { line });
+          };
+          child.stdout?.on('data', onData);
+          child.stderr?.on('data', onData);
+          child.on('error', (error) => {
+            const message = error?.message || String(error);
+            state[phase] = {
+              ...state[phase],
+              status: 'failed',
+              finishedAt: this.nowIso(),
+              error: message,
+            };
+            this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
+            resolve({ ok: false, error: message });
+          });
+          child.on('exit', (code) => {
+            const ok = code === 0;
+            state[phase] = {
+              ...state[phase],
+              status: ok ? 'succeeded' : 'failed',
+              finishedAt: this.nowIso(),
+              exitCode: code,
+              error: ok ? null : `Exited with code ${String(code)}`,
+            };
+            this.emitLifecycleEvent(taskId, phase, ok ? 'done' : 'error', {
+              exitCode: code,
+              ...(ok ? {} : { error: `Exited with code ${String(code)}` }),
+            });
+            resolve(ok ? { ok: true } : { ok: false, error: `Exited with code ${String(code)}` });
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
           state[phase] = {
             ...state[phase],
             status: 'failed',
@@ -124,34 +183,9 @@ class TaskLifecycleService extends EventEmitter {
           };
           this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
           resolve({ ok: false, error: message });
-        });
-        child.on('exit', (code) => {
-          const ok = code === 0;
-          state[phase] = {
-            ...state[phase],
-            status: ok ? 'succeeded' : 'failed',
-            finishedAt: this.nowIso(),
-            exitCode: code,
-            error: ok ? null : `Exited with code ${String(code)}`,
-          };
-          this.emitLifecycleEvent(taskId, phase, ok ? 'done' : 'error', {
-            exitCode: code,
-            ...(ok ? {} : { error: `Exited with code ${String(code)}` }),
-          });
-          resolve(ok ? { ok: true } : { ok: false, error: `Exited with code ${String(code)}` });
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        state[phase] = {
-          ...state[phase],
-          status: 'failed',
-          finishedAt: this.nowIso(),
-          error: message,
-        };
-        this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
-        resolve({ ok: false, error: message });
-      }
-    });
+        }
+      });
+    })();
   }
 
   async runSetup(taskId: string, taskPath: string, projectPath: string): Promise<LifecycleResult> {
@@ -186,10 +220,11 @@ class TaskLifecycleService extends EventEmitter {
     this.emitLifecycleEvent(taskId, 'run', 'starting');
 
     try {
+      const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath);
       const child = spawn(script, {
         cwd: taskPath,
         shell: true,
-        env: this.buildLifecycleEnv(taskId, taskPath, projectPath),
+        env,
       });
       this.runProcesses.set(taskId, child);
       state.run.pid = child.pid ?? null;
