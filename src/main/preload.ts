@@ -4,6 +4,25 @@ import type { OpenInAppId } from '../shared/openInApps';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
+const GIT_STATUS_CHANGED_CHANNEL = 'git:status-changed';
+
+const gitStatusChangedListeners = new Set<(data: { taskPath: string; error?: string }) => void>();
+let gitStatusBridgeAttached = false;
+
+function attachGitStatusBridgeOnce() {
+  if (gitStatusBridgeAttached) return;
+  gitStatusBridgeAttached = true;
+  ipcRenderer.on(
+    GIT_STATUS_CHANGED_CHANNEL,
+    (_: Electron.IpcRendererEvent, data: { taskPath: string; error?: string }) => {
+      for (const listener of gitStatusChangedListeners) {
+        try {
+          listener(data);
+        } catch {}
+      }
+    }
+  );
+}
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -205,11 +224,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   unwatchGitStatus: (taskPath: string, watchId?: string) =>
     ipcRenderer.invoke('git:unwatch-status', taskPath, watchId),
   onGitStatusChanged: (listener: (data: { taskPath: string; error?: string }) => void) => {
-    const channel = 'git:status-changed';
-    const wrapped = (_: Electron.IpcRendererEvent, data: { taskPath: string; error?: string }) =>
-      listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
+    attachGitStatusBridgeOnce();
+    gitStatusChangedListeners.add(listener);
+    return () => {
+      gitStatusChangedListeners.delete(listener);
+    };
   },
   getFileDiff: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:get-file-diff', args),
