@@ -145,7 +145,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     return {
       title: terminal.title,
       scope: parsed.mode === 'task' ? 'Worktree' : 'Global',
-      isWorktree: parsed.mode === 'task',
     };
   }, [parsed, taskTerminals.terminals, globalTerminals.terminals]);
 
@@ -278,27 +277,18 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
         <Select value={selectedValue ?? undefined} onValueChange={handleSelectChange}>
           <SelectTrigger className="h-7 min-w-0 flex-1 border-none bg-transparent px-2 text-xs shadow-none">
-            <Terminal className="h-3.5 w-3.5 shrink-0" />
+            <Terminal className="mr-1.5 h-3.5 w-3.5 shrink-0" />
             {selectedTerminalInfo ? (
-              <>
-                <span
-                  className={cn(
-                    'ml-1 mr-3 shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide',
-                    selectedTerminalInfo.isWorktree
-                      ? 'bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400'
-                      : 'bg-zinc-500/15 text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400'
-                  )}
-                >
-                  {selectedTerminalInfo.scope}
-                </span>
-                <span className="min-w-0 truncate">{selectedTerminalInfo.title}</span>
-              </>
+              <span className="min-w-0 truncate">{selectedTerminalInfo.title}</span>
             ) : (
-              <span className="ml-1.5">
-                <SelectValue placeholder="Select terminal" />
-              </span>
+              <SelectValue placeholder="Select terminal" />
             )}
           </SelectTrigger>
+          {selectedTerminalInfo && (
+            <span className="shrink-0 rounded bg-zinc-500/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
+              {selectedTerminalInfo.scope}
+            </span>
+          )}
           <SelectContent>
             {task && (
               <SelectGroup>
