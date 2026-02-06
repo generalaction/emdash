@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { log } from '../lib/logger';
-import type { LifecycleScriptConfig } from '@shared/lifecycle';
+import type { LifecyclePhase, LifecycleScriptConfig } from '@shared/lifecycle';
 
 export interface EmdashConfig {
   preservePatterns?: string[];
@@ -31,11 +31,27 @@ class LifecycleScriptsService {
   }
 
   /**
-   * Get the setup script command if configured
+   * Get all configured lifecycle scripts for a project.
+   */
+  getScripts(projectPath: string): LifecycleScriptConfig | null {
+    const config = this.readConfig(projectPath);
+    return config?.scripts ?? null;
+  }
+
+  /**
+   * Get a specific lifecycle script command if configured.
+   */
+  getScript(projectPath: string, phase: LifecyclePhase): string | null {
+    const scripts = this.getScripts(projectPath);
+    const script = scripts?.[phase];
+    return typeof script === 'string' && script.trim().length > 0 ? script.trim() : null;
+  }
+
+  /**
+   * Compatibility wrapper for existing setup-only call sites.
    */
   getSetupScript(projectPath: string): string | null {
-    const config = this.readConfig(projectPath);
-    return config?.scripts?.setup || null;
+    return this.getScript(projectPath, 'setup');
   }
 }
 

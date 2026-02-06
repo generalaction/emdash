@@ -74,9 +74,9 @@ Out of scope for MVP:
 ### TODOs
 
 - [x] Extend `EmdashScripts` and `EmdashConfig` in `src/main/services/LifecycleScriptsService.ts`.
-- [ ] Add `getScripts(projectPath)` and `getScript(projectPath, phase)`.
-- [ ] Keep existing setup getter temporarily for compatibility, mark for cleanup.
-- [ ] Update default config template (optional for MVP, recommended).
+- [x] Add `getScripts(projectPath)` and `getScript(projectPath, phase)`.
+- [x] Keep existing setup getter temporarily for compatibility, mark for cleanup.
+- [x] Update default config template (optional for MVP, recommended).
 
 ### Acceptance
 
