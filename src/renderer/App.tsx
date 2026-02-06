@@ -240,6 +240,9 @@ const AppContent: React.FC = () => {
 
   const { selectedProject } = projectMgmt;
   const { activeTask, activeTaskAgent } = taskMgmt;
+  const activeTaskProjectPath = activeTask?.projectId
+    ? projectMgmt.projects.find((p) => p.id === activeTask.projectId)?.path || null
+    : null;
 
   return (
     <BrowserProvider>
@@ -377,7 +380,7 @@ const AppContent: React.FC = () => {
                   <ResizablePanel
                     ref={rightSidebarPanelRef}
                     className="sidebar-panel sidebar-panel--right"
-                    defaultSize={rightSidebarDefaultWidth}
+                    defaultSize={defaultPanelLayout[2]}
                     minSize={RIGHT_SIDEBAR_MIN_SIZE}
                     maxSize={RIGHT_SIDEBAR_MAX_SIZE}
                     collapsedSize={0}
@@ -386,7 +389,7 @@ const AppContent: React.FC = () => {
                   >
                     <RightSidebar
                       task={activeTask}
-                      projectPath={selectedProject?.path || null}
+                      projectPath={selectedProject?.path || activeTaskProjectPath}
                       projectDefaultBranch={projectMgmt.projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}

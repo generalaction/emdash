@@ -9,6 +9,8 @@ import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink } from '../types/chat';
 
+const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
+
 const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIssueLink> => {
   const linked = new Map<number, GitHubIssueLink>();
   if (!tasks?.length) return linked;
@@ -159,6 +161,73 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     }
   };
 
+  const runLifecycleTeardownBestEffort = async (
+    targetProject: Project,
+    task: Task,
+    action: 'archive' | 'delete',
+    options?: { silent?: boolean }
+  ): Promise<void> => {
+    const continueLabel = action === 'archive' ? 'archiving' : 'deletion';
+
+    try {
+      await window.electronAPI.lifecycleRunStop({ taskId: task.id });
+    } catch {}
+
+    try {
+      const teardownPromise = window.electronAPI.lifecycleTeardown({
+        taskId: task.id,
+        taskPath: task.path,
+        projectPath: targetProject.path,
+      });
+      const timeoutPromise = new Promise<'timeout'>((resolve) => {
+        window.setTimeout(() => resolve('timeout'), LIFECYCLE_TEARDOWN_TIMEOUT_MS);
+      });
+      const result = await Promise.race([teardownPromise, timeoutPromise]);
+
+      if (result === 'timeout') {
+        const { log } = await import('../lib/logger');
+        log.warn(
+          `Lifecycle teardown timed out for task "${task.name}" after ${LIFECYCLE_TEARDOWN_TIMEOUT_MS}ms; continuing ${continueLabel}.`
+        );
+        if (!options?.silent) {
+          toast({
+            title: 'Teardown timed out',
+            description: `Continuing ${continueLabel} for "${task.name}".`,
+          });
+        }
+        return;
+      }
+
+      if (!result?.success && !result?.skipped) {
+        const message = result?.error || 'Teardown script failed';
+        const { log } = await import('../lib/logger');
+        log.warn(
+          `Lifecycle teardown failed for task "${task.name}"; continuing ${continueLabel}.`,
+          message
+        );
+        if (!options?.silent) {
+          toast({
+            title: 'Teardown failed',
+            description: `Continuing ${continueLabel}: ${message}`,
+          });
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const { log } = await import('../lib/logger');
+      log.warn(
+        `Lifecycle teardown errored for task "${task.name}"; continuing ${continueLabel}.`,
+        message
+      );
+      if (!options?.silent) {
+        toast({
+          title: 'Teardown error',
+          description: `Continuing ${continueLabel}: ${message}`,
+        });
+      }
+    }
+  };
+
   const handleDeleteTask = async (
     targetProject: Project,
     task: Task,
@@ -179,6 +248,8 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
     const runDeletion = async (): Promise<boolean> => {
       try {
+        await runLifecycleTeardownBestEffort(targetProject, task, 'delete', options);
+
         try {
           // Clear initial prompt sent flags (legacy and per-provider) if present
           const { initialPromptSentKey } = await import('../lib/keys');
@@ -579,6 +650,8 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
       // Start cleanup in background
       cleanupPtyResources();
+
+      await runLifecycleTeardownBestEffort(targetProject, task, 'archive', options);
 
       try {
         const result = await window.electronAPI.archiveTask(task.id);
