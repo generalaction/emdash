@@ -90,6 +90,7 @@ import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
+import { prMergeWatcherService } from './services/PrMergeWatcherService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
@@ -210,6 +211,9 @@ app.whenReady().then(async () => {
     // best-effort; ignore failures
   }
 
+  // Start PR merge watcher (polls for merged PRs to auto-archive/delete tasks)
+  prMergeWatcherService.start();
+
   // Create main window
   createMainWindow();
 
@@ -235,6 +239,9 @@ app.on('before-quit', () => {
 
   // Cleanup auto-update service
   autoUpdateService.shutdown();
+
+  // Stop PR merge watcher
+  prMergeWatcherService.stop();
 
   // Cleanup reserve worktrees (fire and forget - don't block quit)
   worktreePoolService.cleanup().catch(() => {});

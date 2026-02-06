@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Switch } from './ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+
+type CleanupMode = 'off' | 'archive' | 'delete';
 
 const TaskSettingsCard: React.FC = () => {
   const [autoGenerateName, setAutoGenerateName] = useState(true);
   const [autoApproveByDefault, setAutoApproveByDefault] = useState(false);
+  const [autoCleanupOnPrMerge, setAutoCleanupOnPrMerge] = useState<CleanupMode>('off');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +22,7 @@ const TaskSettingsCard: React.FC = () => {
         if (result.success) {
           setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? true);
           setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? false);
+          setAutoCleanupOnPrMerge(result.settings?.tasks?.autoCleanupOnPrMerge ?? 'off');
         } else {
           setError(result.error || 'Failed to load settings.');
         }
@@ -47,6 +52,7 @@ const TaskSettingsCard: React.FC = () => {
       }
       setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? next);
       setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? autoApproveByDefault);
+      setAutoCleanupOnPrMerge(result.settings?.tasks?.autoCleanupOnPrMerge ?? autoCleanupOnPrMerge);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update settings.';
       setAutoGenerateName(previous);
@@ -70,9 +76,34 @@ const TaskSettingsCard: React.FC = () => {
       }
       setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? autoGenerateName);
       setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? next);
+      setAutoCleanupOnPrMerge(result.settings?.tasks?.autoCleanupOnPrMerge ?? autoCleanupOnPrMerge);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update settings.';
       setAutoApproveByDefault(previous);
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateAutoCleanupOnPrMerge = async (next: CleanupMode) => {
+    const previous = autoCleanupOnPrMerge;
+    setAutoCleanupOnPrMerge(next);
+    setError(null);
+    setSaving(true);
+    try {
+      const result = await window.electronAPI.updateSettings({
+        tasks: { autoCleanupOnPrMerge: next },
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update settings.');
+      }
+      setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? autoGenerateName);
+      setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? autoApproveByDefault);
+      setAutoCleanupOnPrMerge(result.settings?.tasks?.autoCleanupOnPrMerge ?? next);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update settings.';
+      setAutoCleanupOnPrMerge(previous);
       setError(message);
     } finally {
       setSaving(false);
@@ -116,6 +147,28 @@ const TaskSettingsCard: React.FC = () => {
             onCheckedChange={updateAutoApproveByDefault}
           />
         </label>
+        <div className="flex items-center justify-between gap-2">
+          <div className="space-y-1">
+            <div className="text-sm">Auto-cleanup on PR merge</div>
+            <div className="text-xs text-muted-foreground">
+              Automatically archive or delete tasks when their PR is merged.
+            </div>
+          </div>
+          <Select
+            value={autoCleanupOnPrMerge}
+            onValueChange={(v) => updateAutoCleanupOnPrMerge(v as CleanupMode)}
+            disabled={loading || saving}
+          >
+            <SelectTrigger className="w-[110px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">Off</SelectItem>
+              <SelectItem value="archive">Archive</SelectItem>
+              <SelectItem value="delete">Delete</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
     </div>

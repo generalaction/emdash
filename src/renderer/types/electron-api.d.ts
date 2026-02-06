@@ -64,6 +64,7 @@ declare global {
           tasks?: {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
+            autoCleanupOnPrMerge: 'off' | 'archive' | 'delete';
           };
           projects?: {
             defaultDirectory: string;
@@ -143,6 +144,7 @@ declare global {
           tasks?: {
             autoGenerateName?: boolean;
             autoApproveByDefault?: boolean;
+            autoCleanupOnPrMerge?: 'off' | 'archive' | 'delete';
           };
           projects?: {
             defaultDirectory?: string;
@@ -221,6 +223,7 @@ declare global {
           tasks?: {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
+            autoCleanupOnPrMerge: 'off' | 'archive' | 'delete';
           };
           projects?: {
             defaultDirectory: string;
@@ -963,6 +966,11 @@ declare global {
         comments?: LineComment[];
         error?: string;
       }>;
+
+      // Task auto-cleanup events (PR merge watcher)
+      onTaskAutoCleaned: (
+        listener: (data: { taskId: string; projectId: string; action: string }) => void
+      ) => () => void;
     };
   }
 }
@@ -1411,6 +1419,11 @@ export interface ElectronAPI {
     comments?: LineComment[];
     error?: string;
   }>;
+
+  // Task auto-cleanup events (PR merge watcher)
+  onTaskAutoCleaned: (
+    listener: (data: { taskId: string; projectId: string; action: string }) => void
+  ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';
