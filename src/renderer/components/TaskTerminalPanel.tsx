@@ -119,8 +119,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       (async () => {
         try {
           // Check if there's a setup script configured
-          const result = await window.electronAPI.lifecycleGetSetupScript({
+          const result = await window.electronAPI.lifecycleGetScript({
             projectPath: currentProjectPath,
+            phase: 'setup',
           });
           if (!result.success || !result.script) {
             return;

@@ -109,8 +109,9 @@ declare global {
       }) => Promise<{ success: boolean; error?: string }>;
 
       // Lifecycle scripts
-      lifecycleGetSetupScript: (args: {
+      lifecycleGetScript: (args: {
         projectPath: string;
+        phase: 'setup' | 'run' | 'teardown';
       }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
 
       openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;

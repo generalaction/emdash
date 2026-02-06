@@ -418,8 +418,9 @@ declare global {
       }) => Promise<{ success: boolean; error?: string }>;
 
       // Lifecycle scripts
-      lifecycleGetSetupScript: (args: {
+      lifecycleGetScript: (args: {
         projectPath: string;
+        phase: 'setup' | 'run' | 'teardown';
       }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
 
       // Project management
@@ -1089,8 +1090,9 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean; error?: string }>;
 
   // Lifecycle scripts
-  lifecycleGetSetupScript: (args: {
+  lifecycleGetScript: (args: {
     projectPath: string;
+    phase: 'setup' | 'run' | 'teardown';
   }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
 
   // Project management

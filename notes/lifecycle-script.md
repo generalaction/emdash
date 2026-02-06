@@ -74,8 +74,8 @@ Out of scope for MVP:
 ### TODOs
 
 - [x] Extend `EmdashScripts` and `EmdashConfig` in `src/main/services/LifecycleScriptsService.ts`.
-- [x] Add `getScripts(projectPath)` and `getScript(projectPath, phase)`.
-- [x] Keep existing setup getter temporarily for compatibility, mark for cleanup.
+- [x] Add `getScript(projectPath, phase)`.
+- [x] Remove setup-only getter/API surface (`getSetupScript`, `lifecycle:getSetupScript`).
 - [x] Update default config template (optional for MVP, recommended).
 
 ### Acceptance
@@ -119,7 +119,6 @@ Out of scope for MVP:
 ### TODOs
 
 - [ ] Expand `src/main/services/lifecycleIpc.ts` with:
-  - [ ] `lifecycle:getScripts`
   - [ ] `lifecycle:setup`
   - [ ] `lifecycle:run:start`
   - [ ] `lifecycle:run:stop`
@@ -142,7 +141,7 @@ Out of scope for MVP:
 ### TODOs
 
 - [ ] Update `src/renderer/components/TaskTerminalPanel.tsx` setup flow.
-- [ ] Replace `lifecycleGetSetupScript + ptyInput` with `lifecycle:setup`.
+- [ ] Replace `lifecycleGetScript(phase=setup) + ptyInput` with `lifecycle:setup`.
 - [ ] Keep one-time-per-task/worktree behavior in renderer for MVP trigger timing.
 - [ ] Keep clear logging for setup failures.
 

@@ -31,27 +31,13 @@ class LifecycleScriptsService {
   }
 
   /**
-   * Get all configured lifecycle scripts for a project.
-   */
-  getScripts(projectPath: string): LifecycleScriptConfig | null {
-    const config = this.readConfig(projectPath);
-    return config?.scripts ?? null;
-  }
-
-  /**
    * Get a specific lifecycle script command if configured.
    */
   getScript(projectPath: string, phase: LifecyclePhase): string | null {
-    const scripts = this.getScripts(projectPath);
+    const config = this.readConfig(projectPath);
+    const scripts = config?.scripts;
     const script = scripts?.[phase];
     return typeof script === 'string' && script.trim().length > 0 ? script.trim() : null;
-  }
-
-  /**
-   * Compatibility wrapper for existing setup-only call sites.
-   */
-  getSetupScript(projectPath: string): string | null {
-    return this.getScript(projectPath, 'setup');
   }
 }
 

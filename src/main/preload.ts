@@ -143,8 +143,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('worktree:removeReserve', args),
 
   // Lifecycle scripts
-  lifecycleGetSetupScript: (args: { projectPath: string }) =>
-    ipcRenderer.invoke('lifecycle:getSetupScript', args),
+  lifecycleGetScript: (args: { projectPath: string; phase: 'setup' | 'run' | 'teardown' }) =>
+    ipcRenderer.invoke('lifecycle:getScript', args),
 
   // Filesystem helpers
   fsList: (
@@ -552,8 +552,9 @@ export interface ElectronAPI {
   worktreeGetAll: () => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
 
   // Lifecycle scripts
-  lifecycleGetSetupScript: (args: {
+  lifecycleGetScript: (args: {
     projectPath: string;
+    phase: 'setup' | 'run' | 'teardown';
   }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
 
   // Project management
