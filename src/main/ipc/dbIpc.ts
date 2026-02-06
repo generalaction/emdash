@@ -1,27 +1,10 @@
-import { app, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { databaseService } from '../services/DatabaseService';
 import fs from 'fs';
 import path from 'path';
 
 export function registerDatabaseIpc() {
-  ipcMain.handle('db:getDebugInfo', async () => {
-    try {
-      const dbPath = databaseService.getDatabasePath();
-      const userDataPath = app.getPath('userData');
-      return {
-        success: true,
-        appName: app.getName(),
-        userDataPath,
-        dbPath,
-        dbExists: fs.existsSync(dbPath),
-      };
-    } catch (error) {
-      log.error('Failed to get DB debug info:', error);
-      return { success: false, error: (error as Error).message };
-    }
-  });
-
   ipcMain.handle('db:getProjects', async () => {
     try {
       return await databaseService.getProjects();

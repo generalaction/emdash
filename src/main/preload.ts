@@ -357,7 +357,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   // Database methods
-  getDbDebugInfo: () => ipcRenderer.invoke('db:getDebugInfo'),
   getProjects: () => ipcRenderer.invoke('db:getProjects'),
   saveProject: (project: any) => ipcRenderer.invoke('db:saveProject', project),
   getTasks: (projectId?: string) => ipcRenderer.invoke('db:getTasks', projectId),
@@ -771,14 +770,6 @@ export interface ElectronAPI {
   githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
 
   // Database methods
-  getDbDebugInfo: () => Promise<{
-    success: boolean;
-    appName?: string;
-    userDataPath?: string;
-    dbPath?: string;
-    dbExists?: boolean;
-    error?: string;
-  }>;
   getProjects: () => Promise<any[]>;
   saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
   getTasks: (projectId?: string) => Promise<any[]>;
