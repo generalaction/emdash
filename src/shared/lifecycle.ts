@@ -43,4 +43,3 @@ export interface LifecycleEvent {
   exitCode?: number | null;
   timestamp: string;
 }
-

@@ -40,7 +40,11 @@ export function registerLifecycleIpc(): void {
       }
     ) => {
       try {
-        const result = await taskLifecycleService.runSetup(args.taskId, args.taskPath, args.projectPath);
+        const result = await taskLifecycleService.runSetup(
+          args.taskId,
+          args.taskPath,
+          args.projectPath
+        );
         return { success: result.ok, ...result };
       } catch (error) {
         log.error('Failed to run setup lifecycle phase:', error);
@@ -60,7 +64,11 @@ export function registerLifecycleIpc(): void {
       }
     ) => {
       try {
-        const result = await taskLifecycleService.startRun(args.taskId, args.taskPath, args.projectPath);
+        const result = await taskLifecycleService.startRun(
+          args.taskId,
+          args.taskPath,
+          args.projectPath
+        );
         return { success: result.ok, ...result };
       } catch (error) {
         log.error('Failed to start run lifecycle phase:', error);

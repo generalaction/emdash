@@ -98,35 +98,32 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
 
   // Run setup script when a task terminal becomes ready (only once per task/worktree)
-  const handleTerminalReady = useCallback(
-    (terminalId: string) => {
-      const currentTask = taskRef.current;
-      const currentProjectPath = projectPathRef.current;
-      if (!currentTask || !currentProjectPath) return;
+  const handleTerminalReady = useCallback((terminalId: string) => {
+    const currentTask = taskRef.current;
+    const currentProjectPath = projectPathRef.current;
+    if (!currentTask || !currentProjectPath) return;
 
-      const key = `${currentTask.id}::${currentTask.path}`;
-      if (setupScriptRan.has(key)) return;
+    const key = `${currentTask.id}::${currentTask.path}`;
+    if (setupScriptRan.has(key)) return;
 
-      // Mark as attempted immediately to prevent race conditions
-      setupScriptRan.add(key);
+    // Mark as attempted immediately to prevent race conditions
+    setupScriptRan.add(key);
 
-      (async () => {
-        try {
-          const result = await window.electronAPI.lifecycleSetup({
-            taskId: currentTask.id,
-            taskPath: currentTask.path,
-            projectPath: currentProjectPath,
-          });
-          if (!result.success) {
-            console.error('Setup lifecycle phase failed:', result.error);
-          }
-        } catch (error) {
-          console.error('Failed to run setup script:', error);
+    (async () => {
+      try {
+        const result = await window.electronAPI.lifecycleSetup({
+          taskId: currentTask.id,
+          taskPath: currentTask.path,
+          projectPath: currentProjectPath,
+        });
+        if (!result.success) {
+          console.error('Setup lifecycle phase failed:', result.error);
         }
-      })();
-    },
-    []
-  );
+      } catch (error) {
+        console.error('Failed to run setup script:', error);
+      }
+    })();
+  }, []);
 
   // Memoize callbacks per terminal to avoid recreating on every render
   const terminalReadyCallbacks = useMemo(() => {
@@ -519,7 +516,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 )}
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p className="text-xs">{runStatus === 'running' ? 'Stop run script' : 'Start run script'}</p>
+                <p className="text-xs">
+                  {runStatus === 'running' ? 'Stop run script' : 'Start run script'}
+                </p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
