@@ -18,7 +18,7 @@ const DEFAULTS: TerminalSettings = {
   fontFamily: '',
 };
 
-const FALLBACK_FONTS = [
+const POPULAR_FONTS = [
   'Menlo',
   'SF Mono',
   'JetBrains Mono',
@@ -49,20 +49,46 @@ const TerminalSettingsCard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
 
-  const fontOptions = useMemo<FontOption[]>(() => {
-    const sourceFonts = installedFonts && installedFonts.length ? installedFonts : FALLBACK_FONTS;
+  const popularOptions = useMemo<FontOption[]>(() => {
     return [
-      { id: 'default', label: 'Default (Menlo)', fontValue: '' },
-      ...dedupeAndSort(sourceFonts).map((font) => ({ id: toOptionId(font), label: font, fontValue: font })),
+      { id: 'popular-default', label: 'Default (Menlo)', fontValue: '' },
+      ...POPULAR_FONTS.map((font) => ({
+        id: `popular-${toOptionId(font)}`,
+        label: font,
+        fontValue: font,
+      })),
     ];
+  }, []);
+
+  const installedOptions = useMemo<FontOption[]>(() => {
+    const sourceFonts = dedupeAndSort(installedFonts ?? []);
+    return sourceFonts
+      .filter(
+        (font) =>
+          !POPULAR_FONTS.some((popular) => popular.toLowerCase() === font.toLowerCase()) &&
+          font.toLowerCase() !== 'menlo'
+      )
+      .map((font) => ({
+        id: `installed-${toOptionId(font)}`,
+        label: font,
+        fontValue: font,
+      }));
   }, [installedFonts]);
+
+  const allOptions = useMemo<FontOption[]>(() => {
+    const byValue = new Map<string, FontOption>();
+    for (const option of [...popularOptions, ...installedOptions]) {
+      byValue.set(option.fontValue.toLowerCase(), option);
+    }
+    return Array.from(byValue.values());
+  }, [installedOptions, popularOptions]);
 
   const findPreset = useCallback(
     (font: string) => {
       const normalized = font.trim().toLowerCase();
-      return fontOptions.find((option) => option.fontValue.toLowerCase() === normalized) ?? null;
+      return allOptions.find((option) => option.fontValue.toLowerCase() === normalized) ?? null;
     },
-    [fontOptions]
+    [allOptions]
   );
 
   const loadInstalledFonts = useCallback(async () => {
@@ -138,13 +164,23 @@ const TerminalSettingsCard: React.FC = () => {
   );
 
   const selectedPreset = findPreset(settings.fontFamily);
-  const pickerLabel = selectedPreset?.label ?? 'Default (Menlo)';
+  const pickerLabel = settings.fontFamily.trim()
+    ? selectedPreset?.label ?? `Custom: ${settings.fontFamily.trim()}`
+    : 'Default (Menlo)';
 
-  const filteredOptions = useMemo(() => {
+  const filteredPopularOptions = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return fontOptions;
-    return fontOptions.filter((option) => option.label.toLowerCase().includes(query));
-  }, [fontOptions, search]);
+    if (!query) return popularOptions;
+    return popularOptions.filter((option) => option.label.toLowerCase().includes(query));
+  }, [popularOptions, search]);
+
+  const filteredInstalledOptions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return installedOptions;
+    return installedOptions.filter((option) => option.label.toLowerCase().includes(query));
+  }, [installedOptions, search]);
+
+  const hasAnyResults = filteredPopularOptions.length > 0 || filteredInstalledOptions.length > 0;
 
   return (
     <div className="grid gap-2">
@@ -165,16 +201,57 @@ const TerminalSettingsCard: React.FC = () => {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search installed fonts"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                const typed = search.trim();
+                if (!typed) return;
+                setSearch('');
+                setPickerOpen(false);
+                void applyFont(typed);
+              }}
+              placeholder="Search or type custom font"
               aria-label="Search font options"
               className="h-8"
             />
             <div className="max-h-56 overflow-auto">
+              {filteredPopularOptions.length > 0 ? (
+                <>
+                  <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Popular
+                  </div>
+                  {filteredPopularOptions.map((option) => {
+                    const selected = selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                        onClick={() => {
+                          setSearch('');
+                          setPickerOpen(false);
+                          void applyFont(option.fontValue);
+                        }}
+                      >
+                        <span>{option.label}</span>
+                        {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
+                      </button>
+                    );
+                  })}
+                </>
+              ) : null}
+
+              {filteredInstalledOptions.length > 0 || loadingFonts ? (
+                <div className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Installed Fonts
+                </div>
+              ) : null}
+
               {loadingFonts ? (
                 <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading installed fonts...</div>
               ) : null}
-              {filteredOptions.map((option) => {
-                const selected = selectedPreset?.id === option.id;
+
+              {filteredInstalledOptions.map((option) => {
+                const selected = selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
                 return (
                   <button
                     key={option.id}
@@ -191,7 +268,8 @@ const TerminalSettingsCard: React.FC = () => {
                   </button>
                 );
               })}
-              {!loadingFonts && !filteredOptions.length ? (
+
+              {!loadingFonts && !hasAnyResults ? (
                 <div className="px-2 py-1.5 text-sm text-muted-foreground">No fonts found.</div>
               ) : null}
             </div>
