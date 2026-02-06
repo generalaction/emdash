@@ -97,18 +97,12 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     });
   }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
 
-  const firstTaskTerminalId = taskTerminals.terminals[0]?.id;
-
   // Run setup script when a task terminal becomes ready (only once per task/worktree)
   const handleTerminalReady = useCallback(
     (terminalId: string) => {
       const currentTask = taskRef.current;
       const currentProjectPath = projectPathRef.current;
       if (!currentTask || !currentProjectPath) return;
-
-      // Only the primary task terminal is allowed to trigger automatic setup.
-      // Additional terminals in the same worktree should open immediately.
-      if (terminalId !== firstTaskTerminalId) return;
 
       const key = `${currentTask.id}::${currentTask.path}`;
       if (setupScriptRan.has(key)) return;
@@ -131,7 +125,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         }
       })();
     },
-    [firstTaskTerminalId]
+    []
   );
 
   // Memoize callbacks per terminal to avoid recreating on every render
