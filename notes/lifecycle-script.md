@@ -157,10 +157,10 @@ Out of scope for MVP:
 
 ### TODOs
 
-- [x] In `src/main/services/hostPreviewService.ts`, start lifecycle run if configured.
-- [x] Keep existing autodetect fallback (`dev/start/serve/preview`) when no `scripts.run`.
-- [x] Ensure `hostPreviewStop/StopAll` stops lifecycle-managed run for task.
-- [x] Ensure process reuse behavior remains correct when switching worktrees.
+- [ ] In `src/main/services/hostPreviewService.ts`, start lifecycle run if configured.
+- [ ] Keep existing autodetect fallback (`dev/start/serve/preview`) when no `scripts.run`.
+- [ ] Ensure `hostPreviewStop/StopAll` stops lifecycle-managed run for task.
+- [ ] Ensure process reuse behavior remains correct when switching worktrees.
 
 ### Acceptance
 

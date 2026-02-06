@@ -4,8 +4,6 @@ import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import { log } from '../lib/logger';
-import { lifecycleScriptsService } from './LifecycleScriptsService';
-import { taskLifecycleService } from './TaskLifecycleService';
 
 export type HostPreviewEvent = {
   type: 'url' | 'setup' | 'exit';
@@ -41,108 +39,6 @@ function normalizeUrl(u: string): string {
 class HostPreviewService extends EventEmitter {
   private procs = new Map<string, ChildProcessWithoutNullStreams>();
   private procCwds = new Map<string, string>(); // Track cwd for each taskId
-  private lifecycleRunTasks = new Set<string>();
-  private lifecycleRunCwds = new Map<string, string>();
-  private lifecycleUrlEmitted = new Set<string>();
-  private lifecycleProbeIntervals = new Map<string, NodeJS.Timeout>();
-
-  constructor() {
-    super();
-    taskLifecycleService.onEvent((evt) => {
-      if (!this.lifecycleRunTasks.has(evt.taskId)) return;
-      if (evt.phase !== 'run') return;
-
-      if (evt.status === 'line' && evt.line) {
-        // Mirror run output into preview logs.
-        this.emit('event', {
-          type: 'setup',
-          taskId: evt.taskId,
-          status: 'line',
-          line: evt.line,
-        } as HostPreviewEvent);
-
-        const url = normalizeUrl(evt.line);
-        if (url && !this.lifecycleUrlEmitted.has(evt.taskId)) {
-          this.lifecycleUrlEmitted.add(evt.taskId);
-          this.emit('event', { type: 'url', taskId: evt.taskId, url } as HostPreviewEvent);
-          this.clearLifecycleProbe(evt.taskId);
-        }
-      }
-
-      if (evt.status === 'error') {
-        this.emit('event', {
-          type: 'setup',
-          taskId: evt.taskId,
-          status: 'error',
-          line: evt.error || 'run phase failed',
-        } as HostPreviewEvent);
-      }
-
-      if (evt.status === 'exit') {
-        this.clearLifecycleProbe(evt.taskId);
-        this.lifecycleRunTasks.delete(evt.taskId);
-        this.lifecycleRunCwds.delete(evt.taskId);
-        this.lifecycleUrlEmitted.delete(evt.taskId);
-        this.emit('event', { type: 'exit', taskId: evt.taskId } as HostPreviewEvent);
-      }
-    });
-  }
-
-  private clearLifecycleProbe(taskId: string): void {
-    const timer = this.lifecycleProbeIntervals.get(taskId);
-    if (timer) {
-      clearInterval(timer);
-      this.lifecycleProbeIntervals.delete(taskId);
-    }
-  }
-
-  private async probePort(host: string, port: number, timeoutMs = 350): Promise<boolean> {
-    return await new Promise<boolean>((resolve) => {
-      const socket = net.createConnection({ host, port });
-      const done = (ok: boolean) => {
-        try {
-          socket.destroy();
-        } catch {}
-        resolve(ok);
-      };
-      const timeout = setTimeout(() => done(false), timeoutMs);
-      socket.once('connect', () => {
-        clearTimeout(timeout);
-        done(true);
-      });
-      socket.once('error', () => {
-        clearTimeout(timeout);
-        done(false);
-      });
-    });
-  }
-
-  private startLifecycleProbe(taskId: string): void {
-    this.clearLifecycleProbe(taskId);
-    this.lifecycleUrlEmitted.delete(taskId);
-
-    const ports = [5173, 3000, 3001, 5174, 8080, 4200, 5500, 7000];
-    const timer = setInterval(() => {
-      if (this.lifecycleUrlEmitted.has(taskId)) return;
-      void (async () => {
-        for (const p of ports) {
-          const ok = await this.probePort('localhost', p);
-          if (!ok) continue;
-          if (!this.lifecycleUrlEmitted.has(taskId)) {
-            this.lifecycleUrlEmitted.add(taskId);
-            this.emit('event', {
-              type: 'url',
-              taskId,
-              url: `http://localhost:${p}`,
-            } as HostPreviewEvent);
-          }
-          this.clearLifecycleProbe(taskId);
-          return;
-        }
-      })();
-    }, 900);
-    this.lifecycleProbeIntervals.set(taskId, timer);
-  }
 
   async setup(taskId: string, taskPath: string): Promise<{ ok: boolean; error?: string }> {
     const cwd = path.resolve(taskPath);
@@ -240,7 +136,6 @@ class HostPreviewService extends EventEmitter {
     // Check if process already exists for this taskId
     const existingProc = this.procs.get(taskId);
     const existingCwd = this.procCwds.get(taskId);
-    const lifecycleExistingCwd = this.lifecycleRunCwds.get(taskId);
 
     // If process exists, verify it's running from the correct directory
     if (existingProc) {
@@ -273,41 +168,6 @@ class HostPreviewService extends EventEmitter {
         this.procs.delete(taskId);
         this.procCwds.delete(taskId);
       }
-    }
-
-    // If a lifecycle-managed run exists on a different cwd, stop it before continuing.
-    if (this.lifecycleRunTasks.has(taskId) && lifecycleExistingCwd) {
-      if (path.resolve(lifecycleExistingCwd) !== cwd) {
-        taskLifecycleService.stopRun(taskId);
-        this.lifecycleRunTasks.delete(taskId);
-        this.lifecycleRunCwds.delete(taskId);
-        this.lifecycleUrlEmitted.delete(taskId);
-        this.clearLifecycleProbe(taskId);
-      }
-    }
-
-    const scriptConfigPath = (opts?.parentProjectPath || '').trim() || cwd;
-    const configuredRunScript = opts?.script
-      ? null
-      : lifecycleScriptsService.getScript(scriptConfigPath, 'run');
-    if (configuredRunScript) {
-      this.lifecycleRunTasks.add(taskId);
-      this.lifecycleRunCwds.set(taskId, cwd);
-      this.emit('event', {
-        type: 'setup',
-        taskId,
-        status: 'line',
-        line: `Using configured lifecycle run script from ${scriptConfigPath}\n`,
-      } as HostPreviewEvent);
-      const result = await taskLifecycleService.startRun(taskId, cwd, scriptConfigPath);
-      if (!result.ok) {
-        this.lifecycleRunTasks.delete(taskId);
-        this.lifecycleRunCwds.delete(taskId);
-        this.clearLifecycleProbe(taskId);
-        return { ok: false, error: result.error || 'failed to start lifecycle run phase' };
-      }
-      this.startLifecycleProbe(taskId);
-      return { ok: true };
     }
 
     const pm = detectPackageManager(cwd);
@@ -596,13 +456,6 @@ class HostPreviewService extends EventEmitter {
   }
 
   stop(taskId: string): { ok: boolean } {
-    if (this.lifecycleRunTasks.has(taskId)) {
-      taskLifecycleService.stopRun(taskId);
-      this.lifecycleRunTasks.delete(taskId);
-      this.lifecycleRunCwds.delete(taskId);
-      this.lifecycleUrlEmitted.delete(taskId);
-      this.clearLifecycleProbe(taskId);
-    }
     const p = this.procs.get(taskId);
     if (!p) return { ok: true };
     try {
@@ -616,17 +469,6 @@ class HostPreviewService extends EventEmitter {
   stopAll(exceptId?: string | null): { ok: boolean; stopped: string[] } {
     const stopped: string[] = [];
     const except = (exceptId || '').trim();
-
-    for (const id of Array.from(this.lifecycleRunTasks.values())) {
-      if (except && id === except) continue;
-      taskLifecycleService.stopRun(id);
-      this.lifecycleRunTasks.delete(id);
-      this.lifecycleRunCwds.delete(id);
-      this.lifecycleUrlEmitted.delete(id);
-      this.clearLifecycleProbe(id);
-      stopped.push(id);
-    }
-
     for (const [id, proc] of this.procs.entries()) {
       if (except && id === except) continue;
       try {
