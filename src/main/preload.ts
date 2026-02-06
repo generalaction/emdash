@@ -9,7 +9,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:getAppVersion'),
   getElectronVersion: () => ipcRenderer.invoke('app:getElectronVersion'),
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
-  listInstalledFonts: (args?: { refresh?: boolean }) => ipcRenderer.invoke('app:listInstalledFonts', args),
+  listInstalledFonts: (args?: { refresh?: boolean }) =>
+    ipcRenderer.invoke('app:listInstalledFonts', args),
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),

@@ -18,21 +18,19 @@ const execCommand = (
   opts?: { maxBuffer?: number; timeout?: number }
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
-    exec(command, { maxBuffer: opts?.maxBuffer ?? 8 * 1024 * 1024, timeout: opts?.timeout ?? 30000 }, (error, stdout) => {
-      if (error) return reject(error);
-      resolve(stdout ?? '');
-    });
+    exec(
+      command,
+      { maxBuffer: opts?.maxBuffer ?? 8 * 1024 * 1024, timeout: opts?.timeout ?? 30000 },
+      (error, stdout) => {
+        if (error) return reject(error);
+        resolve(stdout ?? '');
+      }
+    );
   });
 };
 
 const dedupeAndSortFonts = (fonts: string[]): string[] => {
-  const unique = Array.from(
-    new Set(
-      fonts
-        .map((font) => font.trim())
-        .filter(Boolean)
-    )
-  );
+  const unique = Array.from(new Set(fonts.map((font) => font.trim()).filter(Boolean)));
   return unique.sort((a, b) => a.localeCompare(b));
 };
 
@@ -71,7 +69,9 @@ const listInstalledFontsWindows = async (): Promise<string[]> => {
     "$fonts = Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts';" +
     "$props = $fonts.PSObject.Properties | Where-Object { $_.Name -notlike 'PS*' };" +
     "$props | ForEach-Object { ($_.Name -replace '\\s*\\(.*\\)$','').Trim() }";
-  const stdout = await execCommand(`powershell -NoProfile -Command "${script}"`, { timeout: 30000 });
+  const stdout = await execCommand(`powershell -NoProfile -Command "${script}"`, {
+    timeout: 30000,
+  });
   const fonts = stdout
     .split('\n')
     .map((line) => line.trim())
@@ -346,7 +346,11 @@ export function registerAppIpc() {
   ipcMain.handle('app:listInstalledFonts', async (_event, args?: { refresh?: boolean }) => {
     const refresh = Boolean(args?.refresh);
     const now = Date.now();
-    if (!refresh && cachedInstalledFonts && now - cachedInstalledFonts.fetchedAt < FONT_CACHE_TTL_MS) {
+    if (
+      !refresh &&
+      cachedInstalledFonts &&
+      now - cachedInstalledFonts.fetchedAt < FONT_CACHE_TTL_MS
+    ) {
       return { success: true, fonts: cachedInstalledFonts.fonts, cached: true };
     }
 

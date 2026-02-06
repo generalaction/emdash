@@ -165,7 +165,7 @@ const TerminalSettingsCard: React.FC = () => {
 
   const selectedPreset = findPreset(settings.fontFamily);
   const pickerLabel = settings.fontFamily.trim()
-    ? selectedPreset?.label ?? `Custom: ${settings.fontFamily.trim()}`
+    ? (selectedPreset?.label ?? `Custom: ${settings.fontFamily.trim()}`)
     : 'Default (Menlo)';
 
   const filteredPopularOptions = useMemo(() => {
@@ -220,7 +220,8 @@ const TerminalSettingsCard: React.FC = () => {
                     Popular
                   </div>
                   {filteredPopularOptions.map((option) => {
-                    const selected = selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
+                    const selected =
+                      selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
                     return (
                       <button
                         key={option.id}
@@ -247,11 +248,14 @@ const TerminalSettingsCard: React.FC = () => {
               ) : null}
 
               {loadingFonts ? (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading installed fonts...</div>
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                  Loading installed fonts...
+                </div>
               ) : null}
 
               {filteredInstalledOptions.map((option) => {
-                const selected = selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
+                const selected =
+                  selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
                 return (
                   <button
                     key={option.id}
