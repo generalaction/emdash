@@ -295,18 +295,14 @@ export function registerPtyIpc(): void {
     try {
       writePty(args.id, args.data);
 
-      // Track prompts sent to agents (Enter key = likely a prompt/command)
-      const hasEnter = args.data.includes('\r') || args.data.includes('\n');
-      if (hasEnter) {
-        // Try to get provider from our mapping
-        let providerId = ptyProviderMap.get(args.id);
-
-        if (!providerId) {
-          const parsed = parseProviderPty(args.id);
-          providerId = parsed?.providerId;
-        }
+      // Track prompts sent to agents (not shell terminals)
+      // Only count Enter key presses for known agent PTYs
+      if ((args.data === '\r' || args.data === '\n')) {
+        // Check if this PTY is associated with an agent
+        const providerId = ptyProviderMap.get(args.id) || parseProviderPty(args.id)?.providerId;
 
         if (providerId) {
+          // This is an agent terminal, track the prompt
           telemetry.capture('agent_prompt_sent', {
             provider: providerId,
           });
