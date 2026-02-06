@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
-import { LIFECYCLE_EVENT_CHANNEL } from '../shared/lifecycle';
+
+// Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
+const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
