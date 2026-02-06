@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Terminal, Plus, X, Play, Square } from 'lucide-react';
+import { Bot, Terminal, Plus, Play, Square, Trash2 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
@@ -553,12 +553,12 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     className="ml-auto text-muted-foreground hover:text-destructive"
                     disabled={!activeTerminalId || !canDelete}
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p className="text-xs">
-                    {canDelete ? 'Close terminal' : 'Cannot close last terminal'}
+                    {canDelete ? 'Close terminal tab' : 'Cannot close last terminal'}
                   </p>
                 </TooltipContent>
               </Tooltip>
