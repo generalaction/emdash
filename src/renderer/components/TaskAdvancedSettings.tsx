@@ -30,6 +30,11 @@ interface TaskAdvancedSettingsProps {
   onAutoApproveChange: (value: boolean) => void;
   hasAutoApproveSupport: boolean;
 
+  // Plan mode
+  startInPlanMode: boolean;
+  onStartInPlanModeChange: (value: boolean) => void;
+  hasPlanModeSupport: boolean;
+
   // Initial prompt
   initialPrompt: string;
   onInitialPromptChange: (value: string) => void;
@@ -65,6 +70,9 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   autoApprove,
   onAutoApproveChange,
   hasAutoApproveSupport,
+  startInPlanMode,
+  onStartInPlanModeChange,
+  hasPlanModeSupport,
   initialPrompt,
   onInitialPromptChange,
   hasInitialPromptSupport,
@@ -273,6 +281,24 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                           <ExternalLink className="h-3 w-3" aria-hidden="true" />
                         </a>
                       </div>
+                    </label>
+                  </div>
+                </div>
+              ) : null}
+
+              {hasPlanModeSupport ? (
+                <div className="flex items-center gap-4">
+                  <Label className="w-32 shrink-0">Plan mode</Label>
+                  <div className="min-w-0 flex-1">
+                    <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
+                      <Checkbox
+                        checked={startInPlanMode}
+                        onCheckedChange={(checked) => onStartInPlanModeChange(checked === true)}
+                        className="mt-[1px]"
+                      />
+                      <span className="text-muted-foreground">
+                        Agent plans before making changes
+                      </span>
                     </label>
                   </div>
                 </div>

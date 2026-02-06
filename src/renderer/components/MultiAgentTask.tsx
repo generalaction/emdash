@@ -512,7 +512,11 @@ const MultiAgentTask: React.FC<Props> = ({ task, projectPath, defaultBranch }) =
                     }
                     initialPrompt={
                       agentMeta[v.agent]?.initialPromptFlag !== undefined &&
-                      !task.metadata?.initialInjectionSent
+                      !task.metadata?.initialInjectionSent &&
+                      !(
+                        Boolean(task.metadata?.startInPlanMode) &&
+                        Boolean(agentMeta[v.agent]?.planActivate)
+                      )
                         ? (initialInjection ?? undefined)
                         : undefined
                     }
@@ -541,16 +545,34 @@ const MultiAgentTask: React.FC<Props> = ({ task, projectPath, defaultBranch }) =
                     }
                     className="h-full w-full"
                     onStartSuccess={() => {
-                      // For agents WITHOUT CLI flag support, use keystroke injection
+                      const variantPlanMode =
+                        Boolean(task.metadata?.startInPlanMode) &&
+                        Boolean(agentMeta[v.agent]?.planActivate);
+                      const planCmd = agentMeta[v.agent]?.planActivate;
+
+                      // For agents WITHOUT CLI flag support OR when plan mode is active,
+                      // use keystroke injection
                       if (
-                        initialInjection &&
                         !task.metadata?.initialInjectionSent &&
-                        agentMeta[v.agent]?.initialPromptFlag === undefined
+                        (agentMeta[v.agent]?.initialPromptFlag === undefined || variantPlanMode)
                       ) {
-                        void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
+                        let stdinText: string | null = null;
+                        if (variantPlanMode && planCmd) {
+                          stdinText = initialInjection
+                            ? `${planCmd}\n${initialInjection}`
+                            : planCmd;
+                        } else if (initialInjection) {
+                          stdinText = initialInjection;
+                        }
+                        if (stdinText) {
+                          void injectPrompt(`${v.worktreeId}-main`, v.agent, stdinText);
+                        }
                       }
                       // Mark initial injection as sent so it won't re-run on restart
-                      if (initialInjection && !task.metadata?.initialInjectionSent) {
+                      if (
+                        (initialInjection || variantPlanMode) &&
+                        !task.metadata?.initialInjectionSent
+                      ) {
                         void window.electronAPI.saveTask({
                           ...task,
                           metadata: {

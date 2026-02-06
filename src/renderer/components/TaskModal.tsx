@@ -37,7 +37,8 @@ interface TaskModalProps {
     linkedJiraIssue?: JiraIssueSummary | null,
     autoApprove?: boolean,
     useWorktree?: boolean,
-    baseRef?: string
+    baseRef?: string,
+    startInPlanMode?: boolean
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -73,6 +74,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [selectedGithubIssue, setSelectedGithubIssue] = useState<GitHubIssueSummary | null>(null);
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [startInPlanMode, setStartInPlanMode] = useState(true);
   const [useWorktree, setUseWorktree] = useState(true);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
@@ -102,6 +104,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   // Computed values
   const activeAgents = useMemo(() => agentRuns.map((ar) => ar.agent), [agentRuns]);
   const hasAutoApproveSupport = activeAgents.every((id) => !!agentMeta[id]?.autoApproveFlag);
+  const hasPlanModeSupport = activeAgents.every((id) => !!agentMeta[id]?.planActivate);
   const hasInitialPromptSupport = activeAgents.every(
     (id) => agentMeta[id]?.initialPromptFlag !== undefined
   );
@@ -139,6 +142,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
     if (!hasAutoApproveSupport && autoApprove) setAutoApprove(false);
   }, [hasAutoApproveSupport, autoApprove]);
 
+  // Clear plan mode if not supported
+  useEffect(() => {
+    if (!hasPlanModeSupport && startInPlanMode) setStartInPlanMode(false);
+  }, [hasPlanModeSupport, startInPlanMode]);
+
   // Reset form and load settings when modal opens
   useEffect(() => {
     if (!isOpen) return;
@@ -154,6 +162,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     setSelectedGithubIssue(null);
     setSelectedJiraIssue(null);
     setAutoApprove(false);
+    setStartInPlanMode(true);
     setUseWorktree(true);
     userHasTypedRef.current = false;
     autoNameInitializedRef.current = false;
@@ -182,6 +191,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
       setAutoApprove(autoApproveByDefault && !!agentMeta[agent]?.autoApproveFlag);
+
+      const planModeByDefault = settings?.tasks?.startInPlanModeByDefault ?? true;
+      setStartInPlanMode(planModeByDefault && !!agentMeta[agent]?.planActivate);
 
       // Handle auto-generate setting
       if (settings?.tasks?.autoGenerateName === false && !userHasTypedRef.current) {
@@ -241,7 +253,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
         selectedJiraIssue,
         hasAutoApproveSupport ? autoApprove : false,
         useWorktree,
-        selectedBranch
+        selectedBranch,
+        hasPlanModeSupport ? startInPlanMode : false
       );
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -311,6 +324,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
             autoApprove={autoApprove}
             onAutoApproveChange={setAutoApprove}
             hasAutoApproveSupport={hasAutoApproveSupport}
+            startInPlanMode={startInPlanMode}
+            onStartInPlanModeChange={setStartInPlanMode}
+            hasPlanModeSupport={hasPlanModeSupport}
             initialPrompt={initialPrompt}
             onInitialPromptChange={setInitialPrompt}
             hasInitialPromptSupport={hasInitialPromptSupport}

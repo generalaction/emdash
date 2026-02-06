@@ -5,6 +5,7 @@ import { Switch } from './ui/switch';
 const TaskSettingsCard: React.FC = () => {
   const [autoGenerateName, setAutoGenerateName] = useState(true);
   const [autoApproveByDefault, setAutoApproveByDefault] = useState(false);
+  const [startInPlanModeByDefault, setStartInPlanModeByDefault] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +19,7 @@ const TaskSettingsCard: React.FC = () => {
         if (result.success) {
           setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? true);
           setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? false);
+          setStartInPlanModeByDefault(result.settings?.tasks?.startInPlanModeByDefault ?? true);
         } else {
           setError(result.error || 'Failed to load settings.');
         }
@@ -47,6 +49,9 @@ const TaskSettingsCard: React.FC = () => {
       }
       setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? next);
       setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? autoApproveByDefault);
+      setStartInPlanModeByDefault(
+        result.settings?.tasks?.startInPlanModeByDefault ?? startInPlanModeByDefault
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update settings.';
       setAutoGenerateName(previous);
@@ -70,9 +75,36 @@ const TaskSettingsCard: React.FC = () => {
       }
       setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? autoGenerateName);
       setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? next);
+      setStartInPlanModeByDefault(
+        result.settings?.tasks?.startInPlanModeByDefault ?? startInPlanModeByDefault
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update settings.';
       setAutoApproveByDefault(previous);
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateStartInPlanModeByDefault = async (next: boolean) => {
+    const previous = startInPlanModeByDefault;
+    setStartInPlanModeByDefault(next);
+    setError(null);
+    setSaving(true);
+    try {
+      const result = await window.electronAPI.updateSettings({
+        tasks: { startInPlanModeByDefault: next },
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update settings.');
+      }
+      setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? autoGenerateName);
+      setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? autoApproveByDefault);
+      setStartInPlanModeByDefault(result.settings?.tasks?.startInPlanModeByDefault ?? next);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update settings.';
+      setStartInPlanModeByDefault(previous);
       setError(message);
     } finally {
       setSaving(false);
@@ -114,6 +146,23 @@ const TaskSettingsCard: React.FC = () => {
             checked={autoApproveByDefault}
             disabled={loading || saving}
             onCheckedChange={updateAutoApproveByDefault}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-2">
+          <div className="space-y-1">
+            <div className="text-sm">Start in Plan mode by default in new tasks</div>
+            <div className="text-xs text-muted-foreground">
+              Agent plans before making changes.
+              <br />
+              <span className="text-[11px] text-muted-foreground/70">
+                Supported by: Claude Code
+              </span>
+            </div>
+          </div>
+          <Switch
+            checked={startInPlanModeByDefault}
+            disabled={loading || saving}
+            onCheckedChange={updateStartInPlanModeByDefault}
           />
         </label>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}

@@ -21,6 +21,7 @@ export interface TaskMetadata {
   jiraIssue?: JiraIssueSummary | null;
   initialPrompt?: string | null;
   autoApprove?: boolean | null;
+  startInPlanMode?: boolean | null;
   /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
   initialInjectionSent?: boolean | null;
   // When present, this task is a multi-agent task orchestrating multiple worktrees
