@@ -238,6 +238,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
   const hasPreloadedConfigRef = useRef(false);
+  const currentProjectPathRef = useRef(project.path);
 
   const tasksInProject = project.tasks ?? [];
   const selectedCount = selectedIds.size;
@@ -391,6 +392,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
   // Reset config preload guard when switching projects.
   useEffect(() => {
+    currentProjectPathRef.current = project.path;
     hasPreloadedConfigRef.current = false;
   }, [project.path]);
 
@@ -531,9 +533,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const preloadProjectConfig = useCallback(() => {
     if (hasPreloadedConfigRef.current) return;
     hasPreloadedConfigRef.current = true;
-    void window.electronAPI.getProjectConfig(project.path).catch(() => {
+    const requestedProjectPath = project.path;
+    void window.electronAPI.getProjectConfig(requestedProjectPath).catch(() => {
       // Allow retry on next user intent if preload fails.
-      hasPreloadedConfigRef.current = false;
+      if (currentProjectPathRef.current === requestedProjectPath) {
+        hasPreloadedConfigRef.current = false;
+      }
     });
   }, [project.path]);
 
