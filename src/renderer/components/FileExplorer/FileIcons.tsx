@@ -407,7 +407,11 @@ export const FileIcon = memo<FileIconProps>(
       if (name.startsWith('dockerfile')) {
         iconConfig = { icon: SiDocker, color: 'text-blue-500', label: 'Docker file' };
       } else if (name.startsWith('.env')) {
-        iconConfig = { icon: VscSettingsGear, color: 'text-yellow-600', label: 'Environment file' };
+        iconConfig = {
+          icon: VscSettingsGear,
+          color: 'text-amber-700 dark:text-amber-300',
+          label: 'Environment file',
+        };
       } else if (ext && EXTENSION_ICONS[ext]) {
         iconConfig = EXTENSION_ICONS[ext];
       } else if (name.includes('.test.') || name.includes('.spec.')) {
