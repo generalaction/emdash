@@ -15,7 +15,7 @@ export function useUpdater() {
   const [state, setState] = useState<UpdateState>({ status: 'idle' });
 
   useEffect(() => {
-    const off = window.electronAPI.onUpdateEvent?.((evt) => {
+    const off = window.electronAPI?.onUpdateEvent?.((evt) => {
       switch (evt.type) {
         case 'checking':
           setState({ status: 'checking' });
@@ -51,7 +51,11 @@ export function useUpdater() {
 
   const check = useCallback(async () => {
     setState({ status: 'checking' });
-    const res: any = await window.electronAPI.checkForUpdates();
+    const res: any = await window.electronAPI?.checkForUpdates?.();
+    if (!res) {
+      setState({ status: 'error', message: 'Update API unavailable' });
+      return { success: false, error: 'Update API unavailable' };
+    }
     if (!res.success) {
       const hint = res?.devDisabled
         ? 'Updates are disabled in development.'
@@ -63,7 +67,11 @@ export function useUpdater() {
 
   const download = useCallback(async () => {
     // Don't change state to downloading immediately - wait for backend confirmation
-    const res: any = await window.electronAPI.downloadUpdate();
+    const res: any = await window.electronAPI?.downloadUpdate?.();
+    if (!res) {
+      setState({ status: 'error', message: 'Update API unavailable' });
+      return { success: false, error: 'Update API unavailable' };
+    }
     if (!res.success) {
       const hint = res?.devDisabled
         ? 'Cannot download updates in development unless EMDASH_DEV_UPDATES=true is set.'
@@ -74,11 +82,11 @@ export function useUpdater() {
   }, []);
 
   const install = useCallback(async () => {
-    return window.electronAPI.quitAndInstallUpdate();
+    return window.electronAPI?.quitAndInstallUpdate?.();
   }, []);
 
   const openLatest = useCallback(async () => {
-    return window.electronAPI.openLatestDownload();
+    return window.electronAPI?.openLatestDownload?.();
   }, []);
 
   const progressLabel = useMemo(() => {
