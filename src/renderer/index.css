@@ -1,13 +1,22 @@
 @import '@xterm/xterm/css/xterm.css';
 
-/* Hide xterm viewport scrollbars in embedded terminals */
+/* Thin scrollbar for xterm terminals */
 .xterm .xterm-viewport {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(127, 127, 127, 0.3) transparent;
 }
 .xterm .xterm-viewport::-webkit-scrollbar {
-  width: 0 !important; /* Chrome/Safari */
-  height: 0 !important;
+  width: 6px;
+}
+.xterm .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(127, 127, 127, 0.3);
+  border-radius: 3px;
+}
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(127, 127, 127, 0.5);
 }
 
 @tailwind base;

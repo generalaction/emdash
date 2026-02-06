@@ -37,6 +37,8 @@ export interface KeyboardSettings {
 
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
+  showReviewBadge?: boolean;
+  showGitRepoInSidebar?: boolean;
 }
 
 export interface AppSettings {
@@ -119,6 +121,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   interface: {
     autoRightSidebarBehavior: false,
+    showReviewBadge: true,
+    showGitRepoInSidebar: true,
   },
   terminal: {
     fontFamily: '',
@@ -329,6 +333,10 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.interface = {
     autoRightSidebarBehavior: Boolean(
       iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
+    ),
+    showReviewBadge: Boolean(iface?.showReviewBadge ?? DEFAULT_SETTINGS.interface!.showReviewBadge),
+    showGitRepoInSidebar: Boolean(
+      iface?.showGitRepoInSidebar ?? DEFAULT_SETTINGS.interface!.showGitRepoInSidebar
     ),
   };
 

@@ -22,10 +22,29 @@ const KanbanBoard: React.FC<{
   onCreateTask?: () => void;
 }> = ({ project, onOpenTask, onCreateTask }) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
+  const [showReviewBadge, setShowReviewBadge] = React.useState(true);
 
   React.useEffect(() => {
     setStatusMap(getAll());
   }, [project.id]);
+
+  // Load review badge setting and listen for changes
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const result = await (window as any).electronAPI?.getSettings?.();
+        if (result?.success && result.settings) {
+          setShowReviewBadge(Boolean(result.settings.interface?.showReviewBadge ?? true));
+        }
+      } catch {}
+    })();
+    const handler = (e: Event) => {
+      const { enabled } = (e as CustomEvent<{ enabled: boolean }>).detail;
+      setShowReviewBadge(enabled);
+    };
+    window.addEventListener('showReviewBadgeChanged', handler);
+    return () => window.removeEventListener('showReviewBadgeChanged', handler);
+  }, []);
 
   // Auto-promote to in-progress when derived status reports busy.
   React.useEffect(() => {
@@ -316,7 +335,7 @@ const KanbanBoard: React.FC<{
           ) : (
             <>
               {byStatus[s].map((ws) => (
-                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenTask} />
+                <KanbanCard key={ws.id} ws={ws} onOpen={onOpenTask} status={s} showReviewBadge={showReviewBadge} />
               ))}
               {s === 'todo' && onCreateTask ? (
                 <Button

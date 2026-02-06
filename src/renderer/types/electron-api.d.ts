@@ -120,6 +120,8 @@ declare global {
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            showReviewBadge?: boolean;
+            showGitRepoInSidebar?: boolean;
           };
           terminal?: {
             fontFamily: string;
@@ -199,6 +201,8 @@ declare global {
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            showReviewBadge?: boolean;
+            showGitRepoInSidebar?: boolean;
           };
           terminal?: {
             fontFamily?: string;
@@ -277,6 +281,8 @@ declare global {
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            showReviewBadge?: boolean;
+            showGitRepoInSidebar?: boolean;
           };
           terminal?: {
             fontFamily: string;
