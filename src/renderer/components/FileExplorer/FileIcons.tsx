@@ -74,38 +74,86 @@ const SPECIAL_FILES: Record<string, { icon: React.ElementType; color: string; la
   'docker-compose.yml': { icon: SiDocker, color: 'text-blue-500', label: 'Docker compose file' },
   'docker-compose.yaml': { icon: SiDocker, color: 'text-blue-500', label: 'Docker compose file' },
   '.dockerignore': { icon: SiDocker, color: 'text-blue-400', label: 'Docker ignore file' },
-  '.env': { icon: VscSettingsGear, color: 'text-yellow-600', label: 'Environment variables file' },
+  '.env': {
+    icon: VscSettingsGear,
+    color: 'text-amber-700 dark:text-amber-300',
+    label: 'Environment variables file',
+  },
   '.env.local': {
     icon: VscSettingsGear,
-    color: 'text-yellow-600',
+    color: 'text-amber-700 dark:text-amber-300',
     label: 'Local environment file',
   },
   '.env.production': {
     icon: VscSettingsGear,
-    color: 'text-yellow-600',
+    color: 'text-amber-700 dark:text-amber-300',
     label: 'Production environment file',
   },
   '.env.development': {
     icon: VscSettingsGear,
-    color: 'text-yellow-600',
+    color: 'text-amber-700 dark:text-amber-300',
     label: 'Development environment file',
   },
-  '.eslintrc': { icon: SiEslint, color: 'text-purple-600', label: 'ESLint config' },
-  '.eslintrc.js': { icon: SiEslint, color: 'text-purple-600', label: 'ESLint config' },
-  '.eslintrc.json': { icon: SiEslint, color: 'text-purple-600', label: 'ESLint config' },
-  '.prettierrc': { icon: SiPrettier, color: 'text-pink-500', label: 'Prettier config' },
-  '.prettierrc.js': { icon: SiPrettier, color: 'text-pink-500', label: 'Prettier config' },
-  '.prettierrc.json': { icon: SiPrettier, color: 'text-pink-500', label: 'Prettier config' },
-  'vite.config.js': { icon: SiVite, color: 'text-purple-500', label: 'Vite config' },
-  'vite.config.ts': { icon: SiVite, color: 'text-purple-500', label: 'Vite config' },
-  'webpack.config.js': { icon: SiWebpack, color: 'text-blue-600', label: 'Webpack config' },
+  '.eslintrc': {
+    icon: SiEslint,
+    color: 'text-violet-600 dark:text-violet-400',
+    label: 'ESLint config',
+  },
+  '.eslintrc.js': {
+    icon: SiEslint,
+    color: 'text-violet-600 dark:text-violet-400',
+    label: 'ESLint config',
+  },
+  '.eslintrc.json': {
+    icon: SiEslint,
+    color: 'text-violet-600 dark:text-violet-400',
+    label: 'ESLint config',
+  },
+  '.prettierrc': {
+    icon: SiPrettier,
+    color: 'text-pink-600 dark:text-pink-400',
+    label: 'Prettier config',
+  },
+  '.prettierrc.js': {
+    icon: SiPrettier,
+    color: 'text-pink-600 dark:text-pink-400',
+    label: 'Prettier config',
+  },
+  '.prettierrc.json': {
+    icon: SiPrettier,
+    color: 'text-pink-600 dark:text-pink-400',
+    label: 'Prettier config',
+  },
+  'vite.config.js': {
+    icon: SiVite,
+    color: 'text-violet-600 dark:text-violet-400',
+    label: 'Vite config',
+  },
+  'vite.config.ts': {
+    icon: SiVite,
+    color: 'text-violet-600 dark:text-violet-400',
+    label: 'Vite config',
+  },
+  'webpack.config.js': {
+    icon: SiWebpack,
+    color: 'text-blue-700 dark:text-blue-400',
+    label: 'Webpack config',
+  },
   'rollup.config.js': { icon: VscFileCode, color: 'text-red-600', label: 'Rollup config' },
   'babel.config.js': { icon: SiBabel, color: 'text-yellow-500', label: 'Babel config' },
   '.babelrc': { icon: SiBabel, color: 'text-yellow-500', label: 'Babel config' },
   'jest.config.js': { icon: SiJest, color: 'text-red-600', label: 'Jest config' },
   'cypress.config.js': { icon: SiCypress, color: 'text-green-600', label: 'Cypress config' },
-  'tailwind.config.js': { icon: SiTailwindcss, color: 'text-cyan-500', label: 'Tailwind config' },
-  'postcss.config.js': { icon: VscFileCode, color: 'text-orange-600', label: 'PostCSS config' },
+  'tailwind.config.js': {
+    icon: SiTailwindcss,
+    color: 'text-cyan-600 dark:text-cyan-400',
+    label: 'Tailwind config',
+  },
+  'postcss.config.js': {
+    icon: VscFileCode,
+    color: 'text-orange-700 dark:text-orange-400',
+    label: 'PostCSS config',
+  },
   'next.config.js': {
     icon: SiNextdotjs,
     color: 'text-gray-800 dark:text-white',
@@ -143,15 +191,23 @@ const EXTENSION_ICONS: Record<string, { icon: React.ElementType; color: string; 
   svelte: { icon: SiSvelte, color: 'text-orange-600', label: 'Svelte file' },
 
   // Data
-  json: { icon: VscJson, color: 'text-yellow-600', label: 'JSON file' },
-  jsonc: { icon: VscJson, color: 'text-yellow-600', label: 'JSON with comments' },
-  json5: { icon: VscJson, color: 'text-yellow-600', label: 'JSON5 file' },
+  json: { icon: VscJson, color: 'text-amber-700 dark:text-amber-300', label: 'JSON file' },
+  jsonc: {
+    icon: VscJson,
+    color: 'text-amber-700 dark:text-amber-300',
+    label: 'JSON with comments',
+  },
+  json5: { icon: VscJson, color: 'text-amber-700 dark:text-amber-300', label: 'JSON5 file' },
   xml: { icon: VscFileCode, color: 'text-orange-500', label: 'XML file' },
-  yaml: { icon: VscFileCode, color: 'text-red-600', label: 'YAML file' },
-  yml: { icon: VscFileCode, color: 'text-red-600', label: 'YAML file' },
-  toml: { icon: VscFileCode, color: 'text-gray-600', label: 'TOML file' },
-  ini: { icon: VscSettingsGear, color: 'text-gray-600', label: 'INI file' },
-  env: { icon: VscSettingsGear, color: 'text-yellow-600', label: 'Environment file' },
+  yaml: { icon: VscFileCode, color: 'text-rose-700 dark:text-rose-400', label: 'YAML file' },
+  yml: { icon: VscFileCode, color: 'text-rose-700 dark:text-rose-400', label: 'YAML file' },
+  toml: { icon: VscFileCode, color: 'text-slate-600 dark:text-slate-300', label: 'TOML file' },
+  ini: { icon: VscSettingsGear, color: 'text-slate-600 dark:text-slate-300', label: 'INI file' },
+  env: {
+    icon: VscSettingsGear,
+    color: 'text-amber-700 dark:text-amber-300',
+    label: 'Environment file',
+  },
   graphql: { icon: SiGraphql, color: 'text-pink-600', label: 'GraphQL file' },
   gql: { icon: SiGraphql, color: 'text-pink-600', label: 'GraphQL file' },
 
@@ -351,7 +407,11 @@ export const FileIcon = memo<FileIconProps>(
       if (name.startsWith('dockerfile')) {
         iconConfig = { icon: SiDocker, color: 'text-blue-500', label: 'Docker file' };
       } else if (name.startsWith('.env')) {
-        iconConfig = { icon: VscSettingsGear, color: 'text-yellow-600', label: 'Environment file' };
+        iconConfig = {
+          icon: VscSettingsGear,
+          color: 'text-amber-700 dark:text-amber-300',
+          label: 'Environment file',
+        };
       } else if (ext && EXTENSION_ICONS[ext]) {
         iconConfig = EXTENSION_ICONS[ext];
       } else if (name.includes('.test.') || name.includes('.spec.')) {

@@ -4,17 +4,16 @@
  */
 
 import type { Monaco } from '@monaco-editor/react';
-import * as monaco from 'monaco-editor';
 
-// Track if themes have been registered
-let themesRegistered = false;
+// Track registration per Monaco instance. Some views initialize Monaco independently.
+const registeredMonacoInstances = new WeakSet<object>();
 
 /**
  * Define custom themes for Monaco editor
  * This function is idempotent - calling it multiple times is safe
  */
 export function defineMonacoThemes(monaco: Monaco): void {
-  if (themesRegistered) return;
+  if (registeredMonacoInstances.has(monaco as object)) return;
 
   // Dark theme matching app's dark mode
   monaco.editor.defineTheme('custom-dark', {
@@ -58,7 +57,7 @@ export function defineMonacoThemes(monaco: Monaco): void {
     },
   });
 
-  themesRegistered = true;
+  registeredMonacoInstances.add(monaco as object);
 }
 
 /**
