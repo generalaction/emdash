@@ -17,7 +17,7 @@ import {
 import type { Agent } from '../types';
 import { getTaskEnvVars } from '@shared/task/envVars';
 
-// Track which terminals have already run their setup script (persists across remounts)
+// Track which worktrees have already run their setup script (persists across remounts)
 const setupScriptRan = new Set<string>();
 
 /** Clear setup script state for a task (call when task is deleted) */
@@ -97,13 +97,19 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     });
   }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
 
-  // Run setup script when a task terminal becomes ready (only once per terminal)
+  const firstTaskTerminalId = taskTerminals.terminals[0]?.id;
+
+  // Run setup script when a task terminal becomes ready (only once per task/worktree)
   const handleTerminalReady = useCallback((terminalId: string) => {
     const currentTask = taskRef.current;
     const currentProjectPath = projectPathRef.current;
     if (!currentTask || !currentProjectPath) return;
 
-    const key = `${currentTask.id}::${terminalId}`;
+    // Only the primary task terminal is allowed to trigger automatic setup.
+    // Additional terminals in the same worktree should open immediately.
+    if (terminalId !== firstTaskTerminalId) return;
+
+    const key = `${currentTask.id}::${currentTask.path}`;
     if (setupScriptRan.has(key)) return;
 
     // Mark as attempted immediately to prevent race conditions
@@ -128,7 +134,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         console.error('Failed to run setup script:', error);
       }
     })();
-  }, []);
+  }, [firstTaskTerminalId]);
 
   // Memoize callbacks per terminal to avoid recreating on every render
   const terminalReadyCallbacks = useMemo(() => {
