@@ -1,14 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { log } from '../lib/logger';
-
-export interface EmdashScripts {
-  setup?: string;
-}
+import type { LifecycleScriptConfig } from '@shared/lifecycle';
 
 export interface EmdashConfig {
   preservePatterns?: string[];
-  scripts?: EmdashScripts;
+  scripts?: LifecycleScriptConfig;
 }
 
 /**
