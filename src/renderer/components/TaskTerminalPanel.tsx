@@ -118,20 +118,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
       (async () => {
         try {
-          // Check if there's a setup script configured
-          const result = await window.electronAPI.lifecycleGetScript({
+          const result = await window.electronAPI.lifecycleSetup({
+            taskId: currentTask.id,
+            taskPath: currentTask.path,
             projectPath: currentProjectPath,
-            phase: 'setup',
           });
-          if (!result.success || !result.script) {
-            return;
+          if (!result.success) {
+            console.error('Setup lifecycle phase failed:', result.error);
           }
-
-          // Send the setup command to the terminal (clear first to avoid timing artifacts)
-          window.electronAPI.ptyInput({
-            id: terminalId,
-            data: 'clear && ' + result.script + '\n',
-          });
         } catch (error) {
           console.error('Failed to run setup script:', error);
         }

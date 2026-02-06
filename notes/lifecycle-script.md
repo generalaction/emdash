@@ -140,10 +140,10 @@ Out of scope for MVP:
 
 ### TODOs
 
-- [ ] Update `src/renderer/components/TaskTerminalPanel.tsx` setup flow.
-- [ ] Replace `lifecycleGetScript(phase=setup) + ptyInput` with `lifecycle:setup`.
-- [ ] Keep one-time-per-task/worktree behavior in renderer for MVP trigger timing.
-- [ ] Keep clear logging for setup failures.
+- [x] Update `src/renderer/components/TaskTerminalPanel.tsx` setup flow.
+- [x] Replace `lifecycleGetScript(phase=setup) + ptyInput` with `lifecycle:setup`.
+- [x] Keep one-time-per-task/worktree behavior in renderer for MVP trigger timing.
+- [x] Keep clear logging for setup failures.
 
 ### Acceptance
 
