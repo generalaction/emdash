@@ -28,6 +28,28 @@ export interface CreateTaskCallbacks {
   toast: (opts: any) => void;
 }
 
+async function runSetupOnCreate(
+  taskId: string,
+  taskPath: string,
+  projectPath: string,
+  taskName: string
+): Promise<void> {
+  try {
+    const result = await window.electronAPI.lifecycleSetup({
+      taskId,
+      taskPath,
+      projectPath,
+    });
+    if (!result?.success && !result?.skipped) {
+      const { log } = await import('./logger');
+      log.warn(`Setup script failed for task "${taskName}"`, result?.error);
+    }
+  } catch (error) {
+    const { log } = await import('./logger');
+    log.warn(`Setup script error for task "${taskName}"`, error as any);
+  }
+}
+
 export async function createTask(params: CreateTaskParams, callbacks: CreateTaskCallbacks) {
   const {
     taskName,
@@ -267,6 +289,16 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
               : null
           );
           setActiveTask((current) => (current?.id === groupId ? finalTask : current));
+
+          // Run setup once per created variant worktree.
+          for (const variant of variants) {
+            void runSetupOnCreate(
+              variant.worktreeId,
+              variant.path,
+              selectedProject.path,
+              variant.name
+            );
+          }
         } catch (error) {
           const { log } = await import('./logger');
           log.error('Failed to create multi-agent worktrees:', error as Error);
@@ -387,6 +419,9 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
       setActiveTask(newTask);
       setActiveTaskAgent(getAgentForTask(newTask) ?? primaryAgent ?? 'codex');
       saveActiveIds(newTask.projectId, newTask.id);
+
+      // Run setup after task creation (non-blocking).
+      void runSetupOnCreate(newTask.id, newTask.path, selectedProject.path, newTask.name);
 
       // Background: save to database (non-blocking)
       window.electronAPI

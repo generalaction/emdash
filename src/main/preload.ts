@@ -2,6 +2,28 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
 
+// Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
+const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
+const GIT_STATUS_CHANGED_CHANNEL = 'git:status-changed';
+
+const gitStatusChangedListeners = new Set<(data: { taskPath: string; error?: string }) => void>();
+let gitStatusBridgeAttached = false;
+
+function attachGitStatusBridgeOnce() {
+  if (gitStatusBridgeAttached) return;
+  gitStatusBridgeAttached = true;
+  ipcRenderer.on(
+    GIT_STATUS_CHANGED_CHANNEL,
+    (_: Electron.IpcRendererEvent, data: { taskPath: string; error?: string }) => {
+      for (const listener of gitStatusChangedListeners) {
+        try {
+          listener(data);
+        } catch {}
+      }
+    }
+  );
+}
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -143,8 +165,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('worktree:removeReserve', args),
 
   // Lifecycle scripts
-  lifecycleGetSetupScript: (args: { projectPath: string }) =>
-    ipcRenderer.invoke('lifecycle:getSetupScript', args),
+  lifecycleGetScript: (args: { projectPath: string; phase: 'setup' | 'run' | 'teardown' }) =>
+    ipcRenderer.invoke('lifecycle:getScript', args),
+  lifecycleSetup: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:setup', args),
+  lifecycleRunStart: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:run:start', args),
+  lifecycleRunStop: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:run:stop', args),
+  lifecycleTeardown: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:teardown', args),
+  lifecycleGetState: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getState', args),
+  lifecycleClearTask: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:clearTask', args),
+  onLifecycleEvent: (listener: (data: any) => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(LIFECYCLE_EVENT_CHANNEL, wrapped);
+    return () => ipcRenderer.removeListener(LIFECYCLE_EVENT_CHANNEL, wrapped);
+  },
 
   // Filesystem helpers
   fsList: (
@@ -189,11 +225,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   unwatchGitStatus: (taskPath: string, watchId?: string) =>
     ipcRenderer.invoke('git:unwatch-status', taskPath, watchId),
   onGitStatusChanged: (listener: (data: { taskPath: string; error?: string }) => void) => {
-    const channel = 'git:status-changed';
-    const wrapped = (_: Electron.IpcRendererEvent, data: { taskPath: string; error?: string }) =>
-      listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
+    attachGitStatusBridgeOnce();
+    gitStatusChangedListeners.add(listener);
+    return () => {
+      gitStatusChangedListeners.delete(listener);
+    };
   },
   getFileDiff: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:get-file-diff', args),
@@ -555,9 +591,59 @@ export interface ElectronAPI {
   worktreeGetAll: () => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
 
   // Lifecycle scripts
-  lifecycleGetSetupScript: (args: {
+  lifecycleGetScript: (args: {
     projectPath: string;
+    phase: 'setup' | 'run' | 'teardown';
   }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+  lifecycleSetup: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStart: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStop: (args: {
+    taskId: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleTeardown: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleGetState: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    state?: {
+      taskId: string;
+      setup: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+      run: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+        pid?: number | null;
+      };
+      teardown: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+    };
+    error?: string;
+  }>;
+  lifecycleClearTask: (args: { taskId: string }) => Promise<{ success: boolean; error?: string }>;
+  onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management
   openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;

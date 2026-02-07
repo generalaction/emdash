@@ -3,11 +3,55 @@ import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
 import { saveActiveIds, getStoredActiveIds } from '../constants/layout';
 import { getAgentForTask } from '../lib/getAgentForTask';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
-import { clearSetupScriptState } from '../components/TaskTerminalPanel';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink } from '../types/chat';
+
+const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
+type LifecycleTarget = { taskId: string; taskPath: string; label: string };
+
+const getLifecycleTaskIds = (task: Task): string[] => {
+  const ids = new Set<string>([task.id]);
+  const variants = task.metadata?.multiAgent?.variants || [];
+  for (const variant of variants) {
+    if (variant?.worktreeId) {
+      ids.add(variant.worktreeId);
+    }
+  }
+  return [...ids];
+};
+
+const getLifecycleTargets = (task: Task): LifecycleTarget[] => {
+  const variants = task.metadata?.multiAgent?.variants || [];
+  if (variants.length > 0) {
+    const validVariantTargets = variants
+      .filter((variant) => variant?.worktreeId && variant?.path)
+      .map((variant) => ({
+        taskId: variant.worktreeId,
+        taskPath: variant.path,
+        label: variant.name || variant.worktreeId,
+      }));
+    if (validVariantTargets.length > 0) {
+      return validVariantTargets;
+    }
+  }
+
+  return [{ taskId: task.id, taskPath: task.path, label: task.name }];
+};
+
+const runSetupForTask = async (task: Task, projectPath: string): Promise<void> => {
+  const targets = getLifecycleTargets(task);
+  await Promise.allSettled(
+    targets.map((target) =>
+      window.electronAPI.lifecycleSetup({
+        taskId: target.taskId,
+        taskPath: target.taskPath,
+        projectPath,
+      })
+    )
+  );
+};
 
 const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIssueLink> => {
   const linked = new Map<number, GitHubIssueLink>();
@@ -159,6 +203,62 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     }
   };
 
+  const runLifecycleTeardownBestEffort = async (
+    targetProject: Project,
+    task: Task,
+    action: 'archive' | 'delete',
+    options?: { silent?: boolean }
+  ): Promise<void> => {
+    const continueLabel = action === 'archive' ? 'archiving' : 'deletion';
+    const lifecycleTargets = getLifecycleTargets(task);
+    const issues: string[] = [];
+
+    await Promise.allSettled(
+      lifecycleTargets.map((target) =>
+        window.electronAPI.lifecycleRunStop({ taskId: target.taskId })
+      )
+    );
+
+    for (const target of lifecycleTargets) {
+      try {
+        const teardownPromise = window.electronAPI.lifecycleTeardown({
+          taskId: target.taskId,
+          taskPath: target.taskPath,
+          projectPath: targetProject.path,
+        });
+        const timeoutPromise = new Promise<'timeout'>((resolve) => {
+          window.setTimeout(() => resolve('timeout'), LIFECYCLE_TEARDOWN_TIMEOUT_MS);
+        });
+        const result = await Promise.race([teardownPromise, timeoutPromise]);
+
+        if (result === 'timeout') {
+          issues.push(`${target.label}: timeout`);
+          continue;
+        }
+        if (!result?.success && !result?.skipped) {
+          issues.push(`${target.label}: ${result?.error || 'teardown script failed'}`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        issues.push(`${target.label}: ${message}`);
+      }
+    }
+
+    if (issues.length > 0) {
+      const { log } = await import('../lib/logger');
+      log.warn(
+        `Lifecycle teardown issues for "${task.name}"; continuing ${continueLabel}.`,
+        issues.join(' | ')
+      );
+      if (!options?.silent) {
+        toast({
+          title: 'Teardown issues',
+          description: `Continuing ${continueLabel} (${issues.length} issue${issues.length === 1 ? '' : 's'}).`,
+        });
+      }
+    }
+  };
+
   const handleDeleteTask = async (
     targetProject: Project,
     task: Task,
@@ -179,6 +279,8 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
     const runDeletion = async (): Promise<boolean> => {
       try {
+        await runLifecycleTeardownBestEffort(targetProject, task, 'delete', options);
+
         try {
           // Clear initial prompt sent flags (legacy and per-provider) if present
           const { initialPromptSentKey } = await import('../lib/keys');
@@ -262,9 +364,6 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         // ChatInterface uses task.id as key (single-agent tasks only)
         disposeTaskTerminals(task.id);
 
-        // Clear setup script state so it runs again if task is recreated
-        clearSetupScriptState(task.id);
-
         // Only remove worktree if the task was created with one
         // IMPORTANT: Tasks without worktrees have useWorktree === false
         const shouldRemoveWorktree = task.useWorktree !== false;
@@ -313,6 +412,12 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
               ? deleteResult.value?.error || 'Failed to delete task'
               : deleteResult.reason?.message || String(deleteResult.reason);
           throw new Error(errorMsg);
+        }
+
+        for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
+          try {
+            await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          } catch {}
         }
 
         // Track task deletion
@@ -580,11 +685,19 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
       // Start cleanup in background
       cleanupPtyResources();
 
+      await runLifecycleTeardownBestEffort(targetProject, task, 'archive', options);
+
       try {
         const result = await window.electronAPI.archiveTask(task.id);
 
         if (!result?.success) {
           throw new Error(result?.error || 'Failed to archive task');
+        }
+
+        for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
+          try {
+            await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          } catch {}
         }
 
         // Track task archive
@@ -678,6 +791,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
       // Refresh tasks to include the restored task
       let refreshed = false;
+      let restoredTaskForSetup: Task | null = null;
       try {
         const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
         setProjects((prev) =>
@@ -688,6 +802,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         setSelectedProject((prev) =>
           prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
         );
+        restoredTaskForSetup = refreshedTasks.find((t) => t.id === task.id) || null;
         refreshed = true;
       } catch (refreshError) {
         const { log } = await import('../lib/logger');
@@ -709,6 +824,13 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
             ? { ...prev, tasks: [restoredTask, ...(prev.tasks || [])] }
             : prev
         );
+        restoredTaskForSetup = restoredTask;
+      }
+
+      if (restoredTaskForSetup) {
+        try {
+          await runSetupForTask(restoredTaskForSetup, targetProject.path);
+        } catch {}
       }
 
       // Track task restore

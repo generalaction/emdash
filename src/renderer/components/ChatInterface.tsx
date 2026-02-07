@@ -830,16 +830,25 @@ const ChatInterface: React.FC<Props> = ({
                             )}
                           </span>
                           {conversations.length > 1 && (
-                            <button
+                            <span
+                              role="button"
+                              tabIndex={0}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleCloseChat(conv.id);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleCloseChat(conv.id);
+                                }
                               }}
                               className="ml-1 rounded hover:bg-background/20"
                               title="Close chat"
                             >
                               <X className="h-3 w-3" />
-                            </button>
+                            </span>
                           )}
                         </button>
                       );

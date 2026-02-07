@@ -44,23 +44,40 @@ Emdash looks for gitignored files in your main project that match your preserve 
 
 This means you can safely modify environment files in a worktree without worrying about them being reset when you create new tasks.
 
-## Setup scripts
+## Lifecycle scripts
 
-You can run a command automatically when a new task is created. This is useful for installing dependencies, starting dev servers, or any other initialization your project needs.
+You can define scripts for three lifecycle phases in `.emdash.json`:
+
+- `setup`: one-time initialization for a task/worktree (for example dependency install)
+- `run`: long-lived process you start/stop from the task terminal header Play/Stop control
+- `teardown`: cleanup when a task is archived or deleted
 
 ```json
 {
   "scripts": {
-    "setup": "npm install && npm run dev"
+    "setup": "npm i",
+    "run": "npm run dev",
+    "teardown": "echo teardown-ok"
   }
 }
 ```
 
-The setup script runs in the task's terminal as soon as the worktree is ready. It runs in parallel with the agent starting, so the agent can begin working while your dev server spins up.
+### Lifecycle behavior
+
+- `setup` runs once when the task terminal is first initialized for that task/worktree.
+- `run` starts when you click Play in the terminal header.
+- `run` stops when you click Stop in the terminal header.
+- `teardown` runs before archive/delete (best effort; archive/delete continues if teardown fails or times out).
+
+### Important
+
+- Scripts are read from the project root config: `<project-root>/.emdash.json`.
+- If a phase script is missing, that phase is skipped.
+- Lifecycle logs/events are emitted from the main process; they are not typed into the terminal input.
 
 ## Task env vars
 
-When a task terminal starts, Emdash injects convenience environment variables you can use inside setup scripts and other terminal commands.
+When lifecycle scripts run, Emdash provides convenience environment variables.
 
 | Variable                | Purpose                          |
 | ----------------------- | -------------------------------- |
@@ -71,12 +88,14 @@ When a task terminal starts, Emdash injects convenience environment variables yo
 | `EMDASH_DEFAULT_BRANCH` | Default branch name (e.g., main) |
 | `EMDASH_PORT`           | Base port for a 10-port range    |
 
-### Example: Port-aware setup script
+### Example: Port-aware run script
 
 ```json
 {
   "scripts": {
-    "setup": "export PORT=$EMDASH_PORT && export DB_PORT=$((EMDASH_PORT + 1)) && export COMPOSE_PROJECT_NAME=$EMDASH_TASK_NAME && docker-compose up -d && npm run dev"
+    "setup": "npm i",
+    "run": "export PORT=$EMDASH_PORT && export DB_PORT=$((EMDASH_PORT + 1)) && export COMPOSE_PROJECT_NAME=$EMDASH_TASK_NAME && npm run dev",
+    "teardown": "docker compose down --remove-orphans || true"
   }
 }
 ```
@@ -101,34 +120,38 @@ DB_PORT=$((EMDASH_PORT + 1))
 REDIS_PORT=$((EMDASH_PORT + 2))
 ```
 
-### Examples
-
-Install dependencies:
+### Example: npm app (recommended split)
 
 ```json
 {
   "scripts": {
-    "setup": "npm install"
+    "setup": "npm i",
+    "run": "npm run dev",
+    "teardown": "echo teardown-ok"
   }
 }
 ```
 
-Install and start dev server:
+### Example: Docker compose app
 
 ```json
 {
   "scripts": {
-    "setup": "npm install && npm run dev"
+    "setup": "docker compose up -d db redis",
+    "run": "docker compose up app",
+    "teardown": "docker compose down --remove-orphans"
   }
 }
 ```
 
-Python project with virtual environment:
+### Example: Python project
 
 ```json
 {
   "scripts": {
-    "setup": "python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+    "setup": "python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt",
+    "run": ". .venv/bin/activate && uvicorn app:app --reload",
+    "teardown": "echo teardown-ok"
   }
 }
 ```

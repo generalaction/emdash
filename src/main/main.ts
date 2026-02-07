@@ -90,6 +90,7 @@ import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
+import { taskLifecycleService } from './services/TaskLifecycleService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
@@ -252,6 +253,8 @@ app.on('before-quit', () => {
 
   // Cleanup auto-update service
   autoUpdateService.shutdown();
+  // Stop any lifecycle run scripts so they do not outlive the app process.
+  taskLifecycleService.shutdown();
 
   // Cleanup reserve worktrees (fire and forget - don't block quit)
   worktreePoolService.cleanup().catch(() => {});
