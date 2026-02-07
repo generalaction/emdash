@@ -266,6 +266,8 @@ class TaskLifecycleService extends EventEmitter {
       child.stderr?.on('data', onData);
       child.on('error', (error) => {
         if (this.runProcesses.get(taskId) !== child) return;
+        this.runProcesses.delete(taskId);
+        this.stopIntents.delete(taskId);
         const message = error?.message || String(error);
         const cur = this.ensureState(taskId);
         cur.run = {
