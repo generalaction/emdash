@@ -242,7 +242,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       if (!evt || evt.taskId !== task.id || evt.phase !== 'run') return;
       if (evt.status === 'starting') setRunStatus('running');
       if (evt.status === 'error') setRunStatus('failed');
-      if (evt.status === 'exit') setRunStatus('idle');
+      if (evt.status === 'exit') {
+        if (evt.exitCode === 0) setRunStatus('succeeded');
+        else if (typeof evt.exitCode === 'number') setRunStatus('failed');
+        else setRunStatus('idle');
+      }
     });
     return () => {
       cancelled = true;

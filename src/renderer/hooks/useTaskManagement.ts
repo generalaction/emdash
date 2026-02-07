@@ -660,6 +660,9 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           throw new Error(result?.error || 'Failed to archive task');
         }
 
+        // Clear setup script state so setup runs again if this task is restored.
+        clearSetupScriptState(task.id);
+
         // Track task archive
         const { captureTelemetry } = await import('../lib/telemetryClient');
         captureTelemetry('task_archived');
