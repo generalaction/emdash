@@ -161,6 +161,13 @@ class TaskLifecycleService extends EventEmitter {
 
     return new Promise<LifecycleResult>((resolve) => {
       void (async () => {
+        let settled = false;
+        const finish = (result: LifecycleResult, nextState: LifecyclePhaseState): void => {
+          if (settled) return;
+          settled = true;
+          state[phase] = nextState;
+          resolve(result);
+        };
         try {
           const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath);
           const child = spawn(script, {
@@ -177,40 +184,43 @@ class TaskLifecycleService extends EventEmitter {
           child.stderr?.on('data', onData);
           child.on('error', (error) => {
             const message = error?.message || String(error);
-            state[phase] = {
-              ...state[phase],
-              status: 'failed',
-              finishedAt: this.nowIso(),
-              error: message,
-            };
             this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
-            resolve({ ok: false, error: message });
+            finish(
+              { ok: false, error: message },
+              {
+                ...state[phase],
+                status: 'failed',
+                finishedAt: this.nowIso(),
+                error: message,
+              }
+            );
           });
           child.on('exit', (code) => {
             const ok = code === 0;
-            state[phase] = {
+            this.emitLifecycleEvent(taskId, phase, ok ? 'done' : 'error', {
+              exitCode: code,
+              ...(ok ? {} : { error: `Exited with code ${String(code)}` }),
+            });
+            finish(ok ? { ok: true } : { ok: false, error: `Exited with code ${String(code)}` }, {
               ...state[phase],
               status: ok ? 'succeeded' : 'failed',
               finishedAt: this.nowIso(),
               exitCode: code,
               error: ok ? null : `Exited with code ${String(code)}`,
-            };
-            this.emitLifecycleEvent(taskId, phase, ok ? 'done' : 'error', {
-              exitCode: code,
-              ...(ok ? {} : { error: `Exited with code ${String(code)}` }),
             });
-            resolve(ok ? { ok: true } : { ok: false, error: `Exited with code ${String(code)}` });
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          state[phase] = {
-            ...state[phase],
-            status: 'failed',
-            finishedAt: this.nowIso(),
-            error: message,
-          };
           this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
-          resolve({ ok: false, error: message });
+          finish(
+            { ok: false, error: message },
+            {
+              ...state[phase],
+              status: 'failed',
+              finishedAt: this.nowIso(),
+              error: message,
+            }
+          );
         }
       })();
     });

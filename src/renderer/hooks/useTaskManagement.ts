@@ -9,6 +9,7 @@ import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink } from '../types/chat';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
+type LifecycleTarget = { taskId: string; taskPath: string; label: string };
 
 const getLifecycleTaskIds = (task: Task): string[] => {
   const ids = new Set<string>([task.id]);
@@ -19,6 +20,21 @@ const getLifecycleTaskIds = (task: Task): string[] => {
     }
   }
   return [...ids];
+};
+
+const getLifecycleTargets = (task: Task): LifecycleTarget[] => {
+  const variants = task.metadata?.multiAgent?.variants || [];
+  if (variants.length > 0) {
+    return variants
+      .filter((variant) => variant?.worktreeId && variant?.path)
+      .map((variant) => ({
+        taskId: variant.worktreeId,
+        taskPath: variant.path,
+        label: variant.name || variant.worktreeId,
+      }));
+  }
+
+  return [{ taskId: task.id, taskPath: task.path, label: task.name }];
 };
 
 const runSetupForTask = async (task: Task, projectPath: string): Promise<void> => {
@@ -200,61 +216,50 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     options?: { silent?: boolean }
   ): Promise<void> => {
     const continueLabel = action === 'archive' ? 'archiving' : 'deletion';
+    const lifecycleTargets = getLifecycleTargets(task);
+    const issues: string[] = [];
 
-    try {
-      await window.electronAPI.lifecycleRunStop({ taskId: task.id });
-    } catch {}
+    await Promise.allSettled(
+      lifecycleTargets.map((target) =>
+        window.electronAPI.lifecycleRunStop({ taskId: target.taskId })
+      )
+    );
 
-    try {
-      const teardownPromise = window.electronAPI.lifecycleTeardown({
-        taskId: task.id,
-        taskPath: task.path,
-        projectPath: targetProject.path,
-      });
-      const timeoutPromise = new Promise<'timeout'>((resolve) => {
-        window.setTimeout(() => resolve('timeout'), LIFECYCLE_TEARDOWN_TIMEOUT_MS);
-      });
-      const result = await Promise.race([teardownPromise, timeoutPromise]);
+    for (const target of lifecycleTargets) {
+      try {
+        const teardownPromise = window.electronAPI.lifecycleTeardown({
+          taskId: target.taskId,
+          taskPath: target.taskPath,
+          projectPath: targetProject.path,
+        });
+        const timeoutPromise = new Promise<'timeout'>((resolve) => {
+          window.setTimeout(() => resolve('timeout'), LIFECYCLE_TEARDOWN_TIMEOUT_MS);
+        });
+        const result = await Promise.race([teardownPromise, timeoutPromise]);
 
-      if (result === 'timeout') {
-        const { log } = await import('../lib/logger');
-        log.warn(
-          `Lifecycle teardown timed out for task "${task.name}" after ${LIFECYCLE_TEARDOWN_TIMEOUT_MS}ms; continuing ${continueLabel}.`
-        );
-        if (!options?.silent) {
-          toast({
-            title: 'Teardown timed out',
-            description: `Continuing ${continueLabel} for "${task.name}".`,
-          });
+        if (result === 'timeout') {
+          issues.push(`${target.label}: timeout`);
+          continue;
         }
-        return;
-      }
-
-      if (!result?.success && !result?.skipped) {
-        const message = result?.error || 'Teardown script failed';
-        const { log } = await import('../lib/logger');
-        log.warn(
-          `Lifecycle teardown failed for task "${task.name}"; continuing ${continueLabel}.`,
-          message
-        );
-        if (!options?.silent) {
-          toast({
-            title: 'Teardown failed',
-            description: `Continuing ${continueLabel}: ${message}`,
-          });
+        if (!result?.success && !result?.skipped) {
+          issues.push(`${target.label}: ${result?.error || 'teardown script failed'}`);
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        issues.push(`${target.label}: ${message}`);
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    }
+
+    if (issues.length > 0) {
       const { log } = await import('../lib/logger');
       log.warn(
-        `Lifecycle teardown errored for task "${task.name}"; continuing ${continueLabel}.`,
-        message
+        `Lifecycle teardown issues for "${task.name}"; continuing ${continueLabel}.`,
+        issues.join(' | ')
       );
       if (!options?.silent) {
         toast({
-          title: 'Teardown error',
-          description: `Continuing ${continueLabel}: ${message}`,
+          title: 'Teardown issues',
+          description: `Continuing ${continueLabel} (${issues.length} issue${issues.length === 1 ? '' : 's'}).`,
         });
       }
     }

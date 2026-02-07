@@ -251,4 +251,33 @@ describe('TaskLifecycleService', () => {
     expect(serviceAny.states.has(taskId)).toBe(false);
     expect(serviceAny.runProcesses.has(taskId)).toBe(false);
   });
+
+  it('keeps setup failed when child emits error and exit', async () => {
+    vi.resetModules();
+
+    const child = createChild(2501);
+    spawnMock.mockReturnValue(child);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'setup') return 'npm i';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-8';
+    const taskPath = '/tmp/wt-8';
+    const projectPath = '/tmp/project';
+
+    const setupPromise = taskLifecycleService.runSetup(taskId, taskPath, projectPath);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    child.emit('error', new Error('spawn failed'));
+    child.emit('exit', 0);
+
+    const setupResult = await setupPromise;
+    const state = taskLifecycleService.getState(taskId);
+
+    expect(setupResult.ok).toBe(false);
+    expect(state.setup.status).toBe('failed');
+    expect(state.setup.error).toBe('spawn failed');
+  });
 });
