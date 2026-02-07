@@ -469,6 +469,7 @@ declare global {
         };
         error?: string;
       }>;
+      lifecycleClearTask: (args: { taskId: string }) => Promise<{ success: boolean; error?: string }>;
       onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
       // Project management
@@ -1189,6 +1190,7 @@ export interface ElectronAPI {
     };
     error?: string;
   }>;
+  lifecycleClearTask: (args: { taskId: string }) => Promise<{ success: boolean; error?: string }>;
   onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management

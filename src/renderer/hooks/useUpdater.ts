@@ -11,6 +11,15 @@ export type UpdateState =
   | { status: 'downloaded' }
   | { status: 'error'; message: string };
 
+export const UPDATE_API_UNAVAILABLE_ERROR = 'Update API unavailable' as const;
+
+export function updaterUnavailableResult(
+  setState: (state: UpdateState) => void
+): { success: false; error: typeof UPDATE_API_UNAVAILABLE_ERROR } {
+  setState({ status: 'error', message: UPDATE_API_UNAVAILABLE_ERROR });
+  return { success: false, error: UPDATE_API_UNAVAILABLE_ERROR };
+}
+
 export function useUpdater() {
   const [state, setState] = useState<UpdateState>({ status: 'idle' });
 
@@ -53,8 +62,7 @@ export function useUpdater() {
     setState({ status: 'checking' });
     const res: any = await window.electronAPI?.checkForUpdates?.();
     if (!res) {
-      setState({ status: 'error', message: 'Update API unavailable' });
-      return { success: false, error: 'Update API unavailable' };
+      return updaterUnavailableResult(setState);
     }
     if (!res.success) {
       const hint = res?.devDisabled
@@ -69,8 +77,7 @@ export function useUpdater() {
     // Don't change state to downloading immediately - wait for backend confirmation
     const res: any = await window.electronAPI?.downloadUpdate?.();
     if (!res) {
-      setState({ status: 'error', message: 'Update API unavailable' });
-      return { success: false, error: 'Update API unavailable' };
+      return updaterUnavailableResult(setState);
     }
     if (!res.success) {
       const hint = res?.devDisabled
@@ -82,11 +89,19 @@ export function useUpdater() {
   }, []);
 
   const install = useCallback(async () => {
-    return window.electronAPI?.quitAndInstallUpdate?.();
+    const res: any = await window.electronAPI?.quitAndInstallUpdate?.();
+    if (!res) {
+      return updaterUnavailableResult(setState);
+    }
+    return res;
   }, []);
 
   const openLatest = useCallback(async () => {
-    return window.electronAPI?.openLatestDownload?.();
+    const res: any = await window.electronAPI?.openLatestDownload?.();
+    if (!res) {
+      return updaterUnavailableResult(setState);
+    }
+    return res;
   }, []);
 
   const progressLabel = useMemo(() => {

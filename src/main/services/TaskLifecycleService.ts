@@ -399,6 +399,32 @@ class TaskLifecycleService extends EventEmitter {
     return this.ensureState(taskId);
   }
 
+  clearTask(taskId: string): void {
+    this.states.delete(taskId);
+    this.stopIntents.delete(taskId);
+    this.runStartInflight.delete(taskId);
+
+    const prefix = `${taskId}::`;
+    for (const key of this.setupInflight.keys()) {
+      if (key.startsWith(prefix)) {
+        this.setupInflight.delete(key);
+      }
+    }
+    for (const key of this.teardownInflight.keys()) {
+      if (key.startsWith(prefix)) {
+        this.teardownInflight.delete(key);
+      }
+    }
+
+    const proc = this.runProcesses.get(taskId);
+    if (proc) {
+      try {
+        this.killProcessTree(proc, 'SIGTERM');
+      } catch {}
+      this.runProcesses.delete(taskId);
+    }
+  }
+
   onEvent(listener: (evt: LifecycleEvent) => void): () => void {
     this.on('event', listener);
     return () => this.off('event', listener);

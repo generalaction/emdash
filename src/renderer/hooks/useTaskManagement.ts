@@ -386,6 +386,10 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           throw new Error(errorMsg);
         }
 
+        try {
+          await window.electronAPI.lifecycleClearTask({ taskId: task.id });
+        } catch {}
+
         // Track task deletion
         const { captureTelemetry } = await import('../lib/telemetryClient');
         captureTelemetry('task_deleted');
@@ -662,6 +666,9 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
         // Clear setup script state so setup runs again if this task is restored.
         clearSetupScriptState(task.id);
+        try {
+          await window.electronAPI.lifecycleClearTask({ taskId: task.id });
+        } catch {}
 
         // Track task archive
         const { captureTelemetry } = await import('../lib/telemetryClient');

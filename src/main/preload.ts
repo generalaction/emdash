@@ -175,6 +175,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   lifecycleTeardown: (args: { taskId: string; taskPath: string; projectPath: string }) =>
     ipcRenderer.invoke('lifecycle:teardown', args),
   lifecycleGetState: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getState', args),
+  lifecycleClearTask: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:clearTask', args),
   onLifecycleEvent: (listener: (data: any) => void) => {
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
     ipcRenderer.on(LIFECYCLE_EVENT_CHANNEL, wrapped);
@@ -638,6 +639,7 @@ export interface ElectronAPI {
     };
     error?: string;
   }>;
+  lifecycleClearTask: (args: { taskId: string }) => Promise<{ success: boolean; error?: string }>;
   onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management

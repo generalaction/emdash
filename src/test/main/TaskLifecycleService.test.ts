@@ -222,4 +222,33 @@ describe('TaskLifecycleService', () => {
     expect(retry.ok).toBe(true);
     expect(spawnMock).toHaveBeenCalledTimes(2);
   });
+
+  it('clearTask removes accumulated lifecycle state entries', async () => {
+    vi.resetModules();
+
+    const child = createChild(2401);
+    spawnMock.mockReturnValue(child);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'run') return 'npm run dev';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const serviceAny = taskLifecycleService as any;
+
+    const taskId = 'wt-7';
+    const taskPath = '/tmp/wt-7';
+    const projectPath = '/tmp/project';
+
+    taskLifecycleService.getState(taskId);
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+
+    expect(serviceAny.states.has(taskId)).toBe(true);
+    expect(serviceAny.runProcesses.has(taskId)).toBe(true);
+
+    taskLifecycleService.clearTask(taskId);
+
+    expect(serviceAny.states.has(taskId)).toBe(false);
+    expect(serviceAny.runProcesses.has(taskId)).toBe(false);
+  });
 });

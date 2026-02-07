@@ -121,6 +121,16 @@ export function registerLifecycleIpc(): void {
     }
   });
 
+  ipcMain.handle('lifecycle:clearTask', async (_event, args: { taskId: string }) => {
+    try {
+      taskLifecycleService.clearTask(args.taskId);
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to clear lifecycle state for task:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
   const forward = (evt: any) => {
     const all = BrowserWindow.getAllWindows();
     for (const win of all) {
