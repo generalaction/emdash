@@ -159,10 +159,10 @@ class TaskLifecycleService extends EventEmitter {
     };
     this.emitLifecycleEvent(taskId, phase, 'starting');
 
-    return (async () => {
-      const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath);
-      return await new Promise<LifecycleResult>((resolve) => {
+    return new Promise<LifecycleResult>((resolve) => {
+      void (async () => {
         try {
+          const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath);
           const child = spawn(script, {
             cwd: taskPath,
             shell: true,
@@ -212,8 +212,8 @@ class TaskLifecycleService extends EventEmitter {
           this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
           resolve({ ok: false, error: message });
         }
-      });
-    })();
+      })();
+    });
   }
 
   async runSetup(taskId: string, taskPath: string, projectPath: string): Promise<LifecycleResult> {

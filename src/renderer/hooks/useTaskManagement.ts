@@ -3,7 +3,6 @@ import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
 import { saveActiveIds, getStoredActiveIds } from '../constants/layout';
 import { getAgentForTask } from '../lib/getAgentForTask';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
-import { clearSetupScriptState } from '../components/TaskTerminalPanel';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
@@ -333,9 +332,6 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         // ChatInterface uses task.id as key (single-agent tasks only)
         disposeTaskTerminals(task.id);
 
-        // Clear setup script state so it runs again if task is recreated
-        clearSetupScriptState(task.id);
-
         // Only remove worktree if the task was created with one
         // IMPORTANT: Tasks without worktrees have useWorktree === false
         const shouldRemoveWorktree = task.useWorktree !== false;
@@ -664,8 +660,6 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           throw new Error(result?.error || 'Failed to archive task');
         }
 
-        // Clear setup script state so setup runs again if this task is restored.
-        clearSetupScriptState(task.id);
         try {
           await window.electronAPI.lifecycleClearTask({ taskId: task.id });
         } catch {}
