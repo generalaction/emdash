@@ -265,6 +265,7 @@ class TaskLifecycleService extends EventEmitter {
       child.stdout?.on('data', onData);
       child.stderr?.on('data', onData);
       child.on('error', (error) => {
+        if (this.runProcesses.get(taskId) !== child) return;
         const message = error?.message || String(error);
         const cur = this.ensureState(taskId);
         cur.run = {
@@ -276,6 +277,7 @@ class TaskLifecycleService extends EventEmitter {
         this.emitLifecycleEvent(taskId, 'run', 'error', { error: message });
       });
       child.on('exit', (code) => {
+        if (this.runProcesses.get(taskId) !== child) return;
         this.runProcesses.delete(taskId);
         const wasStopped = this.stopIntents.has(taskId);
         this.stopIntents.delete(taskId);
@@ -342,28 +344,30 @@ class TaskLifecycleService extends EventEmitter {
     if (this.teardownInflight.has(key)) {
       return this.teardownInflight.get(key)!;
     }
-    // Ensure a managed run process is stopped before teardown starts.
-    const existingRun = this.runProcesses.get(taskId);
-    if (existingRun) {
-      this.stopRun(taskId);
-      await new Promise<void>((resolve) => {
-        let done = false;
-        const finish = () => {
-          if (done) return;
-          done = true;
-          resolve();
-        };
-        const timer = setTimeout(() => {
-          log.warn('Timed out waiting for run process to exit before teardown', { taskId });
-          finish();
-        }, 10_000);
-        existingRun.once('exit', () => {
-          clearTimeout(timer);
-          finish();
+    const run = (async () => {
+      // Ensure a managed run process is stopped before teardown starts.
+      const existingRun = this.runProcesses.get(taskId);
+      if (existingRun) {
+        this.stopRun(taskId);
+        await new Promise<void>((resolve) => {
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            resolve();
+          };
+          const timer = setTimeout(() => {
+            log.warn('Timed out waiting for run process to exit before teardown', { taskId });
+            finish();
+          }, 10_000);
+          existingRun.once('exit', () => {
+            clearTimeout(timer);
+            finish();
+          });
         });
-      });
-    }
-    const run = this.runFinite(taskId, taskPath, projectPath, 'teardown').finally(() => {
+      }
+      return this.runFinite(taskId, taskPath, projectPath, 'teardown');
+    })().finally(() => {
       this.teardownInflight.delete(key);
     });
     this.teardownInflight.set(key, run);
