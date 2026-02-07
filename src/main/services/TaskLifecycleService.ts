@@ -24,6 +24,7 @@ type LifecycleResult = {
 class TaskLifecycleService extends EventEmitter {
   private states = new Map<string, TaskLifecycleState>();
   private runProcesses = new Map<string, ChildProcess>();
+  private finiteProcesses = new Map<string, Set<ChildProcess>>();
   private runStartInflight = new Map<string, Promise<LifecycleResult>>();
   private setupInflight = new Map<string, Promise<LifecycleResult>>();
   private teardownInflight = new Map<string, Promise<LifecycleResult>>();
@@ -57,6 +58,20 @@ class TaskLifecycleService extends EventEmitter {
     } catch {
       proc.kill(signal);
     }
+  }
+
+  private trackFiniteProcess(taskId: string, proc: ChildProcess): () => void {
+    const set = this.finiteProcesses.get(taskId) ?? new Set<ChildProcess>();
+    set.add(proc);
+    this.finiteProcesses.set(taskId, set);
+    return () => {
+      const current = this.finiteProcesses.get(taskId);
+      if (!current) return;
+      current.delete(proc);
+      if (current.size === 0) {
+        this.finiteProcesses.delete(taskId);
+      }
+    };
   }
 
   private async resolveDefaultBranch(projectPath: string): Promise<string> {
@@ -176,6 +191,7 @@ class TaskLifecycleService extends EventEmitter {
             env,
             detached: true,
           });
+          const untrackFinite = this.trackFiniteProcess(taskId, child);
           const onData = (buf: Buffer) => {
             const line = buf.toString();
             this.emitLifecycleEvent(taskId, phase, 'line', { line });
@@ -183,6 +199,7 @@ class TaskLifecycleService extends EventEmitter {
           child.stdout?.on('data', onData);
           child.stderr?.on('data', onData);
           child.on('error', (error) => {
+            untrackFinite();
             const message = error?.message || String(error);
             this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
             finish(
@@ -196,6 +213,7 @@ class TaskLifecycleService extends EventEmitter {
             );
           });
           child.on('exit', (code) => {
+            untrackFinite();
             const ok = code === 0;
             this.emitLifecycleEvent(taskId, phase, ok ? 'done' : 'error', {
               exitCode: code,
@@ -453,6 +471,16 @@ class TaskLifecycleService extends EventEmitter {
       } catch {}
       this.runProcesses.delete(taskId);
     }
+
+    const finite = this.finiteProcesses.get(taskId);
+    if (finite) {
+      for (const child of finite) {
+        try {
+          this.killProcessTree(child, 'SIGTERM');
+        } catch {}
+      }
+      this.finiteProcesses.delete(taskId);
+    }
   }
 
   shutdown(): void {
@@ -462,7 +490,15 @@ class TaskLifecycleService extends EventEmitter {
         this.killProcessTree(proc, 'SIGTERM');
       } catch {}
     }
+    for (const procs of this.finiteProcesses.values()) {
+      for (const proc of procs) {
+        try {
+          this.killProcessTree(proc, 'SIGTERM');
+        } catch {}
+      }
+    }
     this.runProcesses.clear();
+    this.finiteProcesses.clear();
     this.runStartInflight.clear();
     this.setupInflight.clear();
     this.teardownInflight.clear();

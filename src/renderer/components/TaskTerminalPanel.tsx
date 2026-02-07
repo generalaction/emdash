@@ -140,7 +140,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         if (evt.status === 'starting') {
           setLifecycleLogs((prev) => ({
             ...prev,
-            [phase]: [...prev[phase], `$ ${phase} started`].slice(-300),
+            [phase]: [...prev[phase], `$ ${phase} started\n`].slice(-300),
           }));
         } else if (evt.status === 'line' && typeof evt.line === 'string') {
           setLifecycleLogs((prev) => ({

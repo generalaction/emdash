@@ -280,4 +280,30 @@ describe('TaskLifecycleService', () => {
     expect(state.setup.status).toBe('failed');
     expect(state.setup.error).toBe('spawn failed');
   });
+
+  it('clearTask stops in-flight setup/teardown processes', async () => {
+    vi.resetModules();
+
+    const setupChild = createChild(2601);
+    spawnMock.mockReturnValue(setupChild);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'setup') return 'npm i';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const serviceAny = taskLifecycleService as any;
+
+    const taskId = 'wt-9';
+    const taskPath = '/tmp/wt-9';
+    const projectPath = '/tmp/project';
+
+    void taskLifecycleService.runSetup(taskId, taskPath, projectPath);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(serviceAny.finiteProcesses.has(taskId)).toBe(true);
+    taskLifecycleService.clearTask(taskId);
+    expect(setupChild.killed).toBe(true);
+    expect(serviceAny.finiteProcesses.has(taskId)).toBe(false);
+  });
 });
