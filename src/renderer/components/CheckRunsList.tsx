@@ -10,7 +10,7 @@ function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
     case 'fail':
       return <XCircle className="h-3.5 w-3.5 text-red-500" />;
     case 'pending':
-      return <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />;
+      return <span className="inline-block h-3.5 w-3.5 rounded-full bg-amber-500" />;
     case 'skipping':
     case 'cancel':
       return <MinusCircle className="h-3.5 w-3.5 text-muted-foreground/60" />;
