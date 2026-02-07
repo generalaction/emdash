@@ -44,6 +44,9 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
+      - name: Setup pnpm
+        run: corepack enable && corepack prepare pnpm@10.28.2 --activate
+
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
         with:
@@ -182,6 +185,9 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
+      - name: Setup pnpm
+        run: corepack enable && corepack prepare pnpm@10.28.2 --activate
+
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
         with:
@@ -277,6 +283,9 @@ jobs:
         with:
           node-version: '22'
           cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: corepack enable && corepack prepare pnpm@10.28.2 --activate
 
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
