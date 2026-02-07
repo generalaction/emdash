@@ -246,6 +246,20 @@ class TaskLifecycleService extends EventEmitter {
     taskPath: string,
     projectPath: string
   ): Promise<LifecycleResult> {
+    const setupScript = lifecycleScriptsService.getScript(projectPath, 'setup');
+    if (setupScript) {
+      const setupStatus = this.ensureState(taskId).setup.status;
+      if (setupStatus === 'running') {
+        return { ok: false, error: 'Setup is still running' };
+      }
+      if (setupStatus === 'failed') {
+        return { ok: false, error: 'Setup failed. Fix setup before starting run' };
+      }
+      if (setupStatus !== 'succeeded') {
+        return { ok: false, error: 'Setup has not completed yet' };
+      }
+    }
+
     const script = lifecycleScriptsService.getScript(projectPath, 'run');
     if (!script) return { ok: true, skipped: true };
 
@@ -366,6 +380,12 @@ class TaskLifecycleService extends EventEmitter {
       return this.teardownInflight.get(key)!;
     }
     const run = (async () => {
+      // Serialize teardown behind setup for this task/worktree key.
+      const setupRun = this.setupInflight.get(key);
+      if (setupRun) {
+        await setupRun.catch(() => {});
+      }
+
       // Ensure a managed run process is stopped before teardown starts.
       const existingRun = this.runProcesses.get(taskId);
       if (existingRun) {

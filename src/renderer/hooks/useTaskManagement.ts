@@ -21,6 +21,28 @@ const getLifecycleTaskIds = (task: Task): string[] => {
   return [...ids];
 };
 
+const runSetupForTask = async (task: Task, projectPath: string): Promise<void> => {
+  const variants = task.metadata?.multiAgent?.variants || [];
+  if (variants.length > 0) {
+    await Promise.allSettled(
+      variants.map((variant) =>
+        window.electronAPI.lifecycleSetup({
+          taskId: variant.worktreeId,
+          taskPath: variant.path,
+          projectPath,
+        })
+      )
+    );
+    return;
+  }
+
+  await window.electronAPI.lifecycleSetup({
+    taskId: task.id,
+    taskPath: task.path,
+    projectPath,
+  });
+};
+
 const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIssueLink> => {
   const linked = new Map<number, GitHubIssueLink>();
   if (!tasks?.length) return linked;
@@ -770,6 +792,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
       // Refresh tasks to include the restored task
       let refreshed = false;
+      let restoredTaskForSetup: Task | null = null;
       try {
         const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
         setProjects((prev) =>
@@ -780,6 +803,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         setSelectedProject((prev) =>
           prev && prev.id === targetProject.id ? { ...prev, tasks: refreshedTasks } : prev
         );
+        restoredTaskForSetup = refreshedTasks.find((t) => t.id === task.id) || null;
         refreshed = true;
       } catch (refreshError) {
         const { log } = await import('../lib/logger');
@@ -801,6 +825,13 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
             ? { ...prev, tasks: [restoredTask, ...(prev.tasks || [])] }
             : prev
         );
+        restoredTaskForSetup = restoredTask;
+      }
+
+      if (restoredTaskForSetup) {
+        try {
+          await runSetupForTask(restoredTaskForSetup, targetProject.path);
+        } catch {}
       }
 
       // Track task restore

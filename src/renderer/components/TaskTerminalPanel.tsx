@@ -168,11 +168,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   // Total terminal count for close button visibility
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
   const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'succeeded' | 'failed'>('idle');
+  const [setupStatus, setSetupStatus] = useState<'idle' | 'running' | 'succeeded' | 'failed'>(
+    'idle'
+  );
   const [runActionBusy, setRunActionBusy] = useState(false);
 
   useEffect(() => {
     // Reset immediately on task switch so we don't show stale run state from previous task.
     setRunStatus('idle');
+    setSetupStatus('idle');
     setRunActionBusy(false);
     if (!task) {
       return;
@@ -181,13 +185,21 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const hydrate = async () => {
       try {
         const res = await window.electronAPI.lifecycleGetState({ taskId: task.id });
-        if (cancelled || !res?.success || !res.state?.run?.status) return;
-        setRunStatus(res.state.run.status);
+        if (cancelled || !res?.success || !res.state) return;
+        if (res.state.run?.status) setRunStatus(res.state.run.status);
+        if (res.state.setup?.status) setSetupStatus(res.state.setup.status);
       } catch {}
     };
     void hydrate();
     const off = window.electronAPI.onLifecycleEvent((evt: any) => {
-      if (!evt || evt.taskId !== task.id || evt.phase !== 'run') return;
+      if (!evt || evt.taskId !== task.id) return;
+      if (evt.phase === 'setup') {
+        if (evt.status === 'starting') setSetupStatus('running');
+        if (evt.status === 'done') setSetupStatus('succeeded');
+        if (evt.status === 'error') setSetupStatus('failed');
+        return;
+      }
+      if (evt.phase !== 'run') return;
       if (evt.status === 'starting') setRunStatus('running');
       if (evt.status === 'error') setRunStatus('failed');
       if (evt.status === 'exit') {
@@ -213,6 +225,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       off?.();
     };
   }, [task?.id]);
+
+  const canStartRun =
+    !!task &&
+    !!projectPath &&
+    !runActionBusy &&
+    runStatus !== 'running' &&
+    setupStatus !== 'running' &&
+    setupStatus !== 'failed';
 
   const handleRunStart = useCallback(async () => {
     if (!task || !projectPath) return;
@@ -472,7 +492,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     variant="ghost"
                     size="icon-sm"
                     onClick={handleRunStart}
-                    disabled={runActionBusy || !projectPath}
+                    disabled={!canStartRun}
                     className="text-muted-foreground hover:text-foreground"
                   >
                     <Play className="h-3.5 w-3.5" />
@@ -481,7 +501,13 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 <p className="text-xs">
-                  {runStatus === 'running' ? 'Stop run script' : 'Start run script'}
+                  {runStatus === 'running'
+                    ? 'Stop run script'
+                    : setupStatus === 'running'
+                      ? 'Setup is still running'
+                      : setupStatus === 'failed'
+                        ? 'Setup failed'
+                        : 'Start run script'}
                 </p>
               </TooltipContent>
             </Tooltip>
