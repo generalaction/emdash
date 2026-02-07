@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import BrowserPane from './components/BrowserPane';
 import { CloneFromUrlModal } from './components/CloneFromUrlModal';
@@ -50,6 +50,8 @@ import {
   RIGHT_SIDEBAR_MAX_SIZE,
   MAIN_PANEL_MIN_SIZE,
 } from './constants/layout';
+
+const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
 
 const RightSidebarBridge: React.FC<{
   onCollapsedChange: (collapsed: boolean) => void;
@@ -191,6 +193,29 @@ const AppContent: React.FC = () => {
 
   // Auto-refresh PR status
   useAutoPrRefresh(taskMgmt.activeTask?.path);
+
+  // --- Pinned tasks (localStorage) ---
+  const [pinnedTaskIds, setPinnedTaskIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(PINNED_TASKS_KEY);
+      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const handlePinTask = useCallback((task: { id: string }) => {
+    setPinnedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(task.id)) {
+        next.delete(task.id);
+      } else {
+        next.add(task.id);
+      }
+      localStorage.setItem(PINNED_TASKS_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
 
   // --- Task creation wrapper ---
   const handleCreateTask = useCallback(
@@ -334,6 +359,8 @@ const AppContent: React.FC = () => {
                       onArchiveTask={taskMgmt.handleArchiveTask}
                       onRestoreTask={taskMgmt.handleRestoreTask}
                       onDeleteProject={projectMgmt.handleDeleteProject}
+                      pinnedTaskIds={pinnedTaskIds}
+                      onPinTask={handlePinTask}
                       isHomeView={projectMgmt.showHomeView}
                     />
                   </ResizablePanel>
