@@ -25,38 +25,32 @@ const getLifecycleTaskIds = (task: Task): string[] => {
 const getLifecycleTargets = (task: Task): LifecycleTarget[] => {
   const variants = task.metadata?.multiAgent?.variants || [];
   if (variants.length > 0) {
-    return variants
+    const validVariantTargets = variants
       .filter((variant) => variant?.worktreeId && variant?.path)
       .map((variant) => ({
         taskId: variant.worktreeId,
         taskPath: variant.path,
         label: variant.name || variant.worktreeId,
       }));
+    if (validVariantTargets.length > 0) {
+      return validVariantTargets;
+    }
   }
 
   return [{ taskId: task.id, taskPath: task.path, label: task.name }];
 };
 
 const runSetupForTask = async (task: Task, projectPath: string): Promise<void> => {
-  const variants = task.metadata?.multiAgent?.variants || [];
-  if (variants.length > 0) {
-    await Promise.allSettled(
-      variants.map((variant) =>
-        window.electronAPI.lifecycleSetup({
-          taskId: variant.worktreeId,
-          taskPath: variant.path,
-          projectPath,
-        })
-      )
-    );
-    return;
-  }
-
-  await window.electronAPI.lifecycleSetup({
-    taskId: task.id,
-    taskPath: task.path,
-    projectPath,
-  });
+  const targets = getLifecycleTargets(task);
+  await Promise.allSettled(
+    targets.map((target) =>
+      window.electronAPI.lifecycleSetup({
+        taskId: target.taskId,
+        taskPath: target.taskPath,
+        projectPath,
+      })
+    )
+  );
 };
 
 const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIssueLink> => {
