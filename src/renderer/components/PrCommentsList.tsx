@@ -28,14 +28,25 @@ function ReviewBadge({ state }: { state?: PrComment['reviewState'] }) {
 
 const markdownComponents = {
   pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
-    <pre {...props} className="my-1.5 overflow-x-auto rounded bg-muted/50 p-2 text-[11px] leading-relaxed" />
+    <pre
+      {...props}
+      className="my-1.5 overflow-x-auto rounded bg-muted/50 p-2 text-[11px] leading-relaxed"
+    />
   ),
   code: ({ className, children, ...rest }: React.HTMLAttributes<HTMLElement>) => {
     const isBlock = className?.startsWith('language-');
     if (isBlock) {
-      return <code className="text-[11px]" {...rest}>{children}</code>;
+      return (
+        <code className="text-[11px]" {...rest}>
+          {children}
+        </code>
+      );
     }
-    return <code className="rounded bg-muted/50 px-1 py-0.5 text-[11px]" {...rest}>{children}</code>;
+    return (
+      <code className="rounded bg-muted/50 px-1 py-0.5 text-[11px]" {...rest}>
+        {children}
+      </code>
+    );
   },
   table: (props: React.HTMLAttributes<HTMLTableElement>) => (
     <div className="my-1.5 overflow-x-auto">
@@ -75,9 +86,7 @@ function CommentItem({ comment }: { comment: PrComment }) {
           alt=""
           className="h-5 w-5 shrink-0 rounded-full"
         />
-        <span className="truncate text-sm font-medium text-foreground">
-          {comment.author.login}
-        </span>
+        <span className="truncate text-sm font-medium text-foreground">{comment.author.login}</span>
         <span className="shrink-0 text-xs text-muted-foreground">
           {formatRelativeTime(comment.createdAt)}
         </span>
