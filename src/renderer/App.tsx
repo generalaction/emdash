@@ -217,6 +217,20 @@ const AppContent: React.FC = () => {
     });
   }, []);
 
+  const handleDeleteTaskAndUnpin: typeof taskMgmt.handleDeleteTask = useCallback(
+    async (project, task, options) => {
+      setPinnedTaskIds((prev) => {
+        if (!prev.has(task.id)) return prev;
+        const next = new Set(prev);
+        next.delete(task.id);
+        localStorage.setItem(PINNED_TASKS_KEY, JSON.stringify([...next]));
+        return next;
+      });
+      return taskMgmt.handleDeleteTask(project, task, options);
+    },
+    [taskMgmt.handleDeleteTask]
+  );
+
   // --- Task creation wrapper ---
   const handleCreateTask = useCallback(
     async (
@@ -354,7 +368,7 @@ const AppContent: React.FC = () => {
                       onReorderProjectsFull={projectMgmt.handleReorderProjectsFull}
                       onSidebarContextChange={handleSidebarContextChange}
                       onCreateTaskForProject={taskMgmt.handleStartCreateTaskFromSidebar}
-                      onDeleteTask={taskMgmt.handleDeleteTask}
+                      onDeleteTask={handleDeleteTaskAndUnpin}
                       onRenameTask={taskMgmt.handleRenameTask}
                       onArchiveTask={taskMgmt.handleArchiveTask}
                       onRestoreTask={taskMgmt.handleRestoreTask}
