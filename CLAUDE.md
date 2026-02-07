@@ -20,45 +20,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Frontend**: React 18, TypeScript 5.3, Vite 5, Tailwind CSS 3
 - **Backend**: Node.js, TypeScript, Drizzle ORM, SQLite3
 - **Editor**: Monaco Editor 0.55, **Terminal**: xterm.js + node-pty 1.0
-- **Native Modules**: node-pty, sqlite3, keytar (require `npm run rebuild` after updates)
+- **Native Modules**: node-pty, sqlite3, keytar (require `pnpm run rebuild` after updates)
 - **UI**: Radix UI primitives, lucide-react icons
 
 ## Development Commands
 
 ```bash
 # Quick start (installs deps, rebuilds natives, starts dev)
-npm run d
+pnpm run d
 
 # Development (runs main + renderer concurrently)
-npm run dev
-npm run dev:main     # Electron main process only (tsc + electron)
-npm run dev:renderer # Vite dev server only (port 3000)
+pnpm run dev
+pnpm run dev:main     # Electron main process only (tsc + electron)
+pnpm run dev:renderer # Vite dev server only (port 3000)
 
 # Quality checks (run before committing)
-npm run type-check   # TypeScript type checking (uses tsconfig.json — renderer/shared/types)
-npm run lint         # ESLint
-npm run format       # Format with Prettier
+pnpm run type-check   # TypeScript type checking (uses tsconfig.json — renderer/shared/types)
+pnpm run lint         # ESLint
+pnpm run format       # Format with Prettier
 
 # Testing
-npx vitest run                                         # Run all tests
-npx vitest run src/test/main/WorktreeService.test.ts   # Run specific test
+pnpm exec vitest run                                         # Run all tests
+pnpm exec vitest run src/test/main/WorktreeService.test.ts   # Run specific test
 
 # Native modules
-npm run rebuild      # Rebuild native modules for Electron
-npm run reset        # Clean install (removes node_modules, reinstalls)
+pnpm run rebuild      # Rebuild native modules for Electron
+pnpm run reset        # Clean install (removes node_modules, reinstalls)
 
 # Building & Packaging
-npm run build        # Build main + renderer
-npm run package:mac  # macOS .dmg (arm64)
-npm run package:linux # Linux AppImage/deb (x64)
-npm run package:win  # Windows nsis/portable (x64)
+pnpm run build        # Build main + renderer
+pnpm run package:mac  # macOS .dmg (arm64)
+pnpm run package:linux # Linux AppImage/deb (x64)
+pnpm run package:win  # Windows nsis/portable (x64)
 ```
 
 ## Critical Rules
 
 - **NEVER modify** `drizzle/meta/` or numbered migration files — always use `drizzle-kit generate`
 - **NEVER modify** `build/` entitlements or updater config without review
-- **ALWAYS** run `npm run type-check` and `npm run lint` before committing
+- **ALWAYS** run `pnpm run type-check` and `pnpm run lint` before committing
 - **ALWAYS** use feature branches (never commit directly to `main`)
 - Put temporary notes or scratch content in `.notes/` (gitignored)
 
@@ -172,8 +172,8 @@ export const exampleService = new ExampleService();
 
 ## Database & Migrations
 
-- Modify schema in `src/main/db/schema.ts`, then `npx drizzle-kit generate`
-- Browse DB: `npx drizzle-kit studio`
+- Modify schema in `src/main/db/schema.ts`, then `pnpm exec drizzle-kit generate`
+- Browse DB: `pnpm exec drizzle-kit studio`
 - **NEVER** manually edit files in `drizzle/meta/` or numbered SQL migrations
 
 ## Environment Variables
@@ -189,15 +189,15 @@ All optional:
 ## Hot Reload
 
 - **Renderer changes**: Hot-reload via Vite
-- **Main process changes**: Require Electron restart (Ctrl+C → `npm run dev`)
-- **Native modules**: Require `npm run rebuild`
+- **Main process changes**: Require Electron restart (Ctrl+C → `pnpm run dev`)
+- **Native modules**: Require `pnpm run rebuild`
 
 ## Common Pitfalls
 
 1. **PTY resize after exit**: PTYs must be cleaned up on exit. Use `removePty()` in exit handlers.
 2. **Worktree path resolution**: Always resolve paths from `WorktreeService`, not manually.
 3. **IPC type safety**: Define all new IPC methods in `electron-api.d.ts`.
-4. **Native module issues**: After updating node-pty/sqlite3/keytar, run `npm run rebuild`. Last resort: `npm run reset`.
+4. **Native module issues**: After updating node-pty/sqlite3/keytar, run `pnpm run rebuild`. Last resort: `pnpm run reset`.
 5. **Monaco disposal**: Editor instances must be disposed to prevent memory leaks.
 6. **CLI not found in agent**: If agents can't find `gh`, `codex`, etc., the PATH setup in `main.ts` may need updating for the platform.
 
@@ -210,8 +210,8 @@ All optional:
 
 ## Pre-PR Checklist
 
-- [ ] Dev server runs: `npm run d` starts cleanly
-- [ ] Checks pass: `npm run lint`, `npm run type-check`, `npx vitest run`
+- [ ] Dev server runs: `pnpm run d` starts cleanly
+- [ ] Checks pass: `pnpm run lint`, `pnpm run type-check`, `pnpm exec vitest run`
 - [ ] No stray build artifacts or secrets committed
 - [ ] Schema or config changes documented
 

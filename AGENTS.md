@@ -1,14 +1,14 @@
 ---
 default_branch: main
-package_manager: npm
+package_manager: pnpm
 node_version: "22.20.0"
-start_command: "npm run d"
-dev_command: "npm run dev"
-build_command: "npm run build"
+start_command: "pnpm run d"
+dev_command: "pnpm run dev"
+build_command: "pnpm run build"
 test_commands:
-  - "npm run lint"
-  - "npm run type-check"
-  - "npx vitest run"
+  - "pnpm run lint"
+  - "pnpm run type-check"
+  - "pnpm exec vitest run"
 ports:
   dev: 3000
 required_env: []
@@ -22,18 +22,18 @@ optional_env:
 
 **Quickstart**
 1. `nvm use` (installs Node 22.20.0 if missing) or install Node 22.x manually.
-2. `npm run d` to install dependencies, rebuild native modules, and launch Electron + Vite.
-3. If `npm run d` fails mid-stream, rerun `npm install`, then `npm run dev` (main + renderer).
+2. `pnpm run d` to install dependencies, rebuild native modules, and launch Electron + Vite.
+3. If `pnpm run d` fails mid-stream, rerun `pnpm install`, then `pnpm run dev` (main + renderer).
 
 **Testing**
-1. Run `npm run lint`.
-2. Run `npm run type-check`.
-3. Run `npx vitest run` (tests live under `src/**/*.test.ts`).
+1. Run `pnpm run lint`.
+2. Run `pnpm run type-check`.
+3. Run `pnpm exec vitest run` (tests live under `src/**/*.test.ts`).
 
 **Build & Package**
-1. `npm run build` to compile the Electron main and Vite renderer.
-2. Platform-specific installers: `npm run package:mac|linux|win` (artifacts in `release/`).
-3. If native modules misbehave, `npm run rebuild`; use `npm run reset` as a last resort.
+1. `pnpm run build` to compile the Electron main and Vite renderer.
+2. Platform-specific installers: `pnpm run package:mac|linux|win` (artifacts in `release/`).
+3. If native modules misbehave, `pnpm run rebuild`; use `pnpm run reset` as a last resort.
 
 **Repo Map**
 - `src/main/` – Electron main process, IPC, database access, CLI orchestration.
@@ -57,7 +57,7 @@ optional_env:
 - Native dependencies (`sqlite3`, `node-pty`, `keytar`) – rebuilding is slow; avoid upgrading casually.
 
 **Pre-PR Checklist**
-- [ ] Dev server runs: `npm run d` (or `npm run dev`) starts cleanly.
-- [ ] Tests and checks pass: `npm run lint`, `npm run type-check`, `npx vitest run`.
+- [ ] Dev server runs: `pnpm run d` (or `pnpm run dev`) starts cleanly.
+- [ ] Tests and checks pass: `pnpm run lint`, `pnpm run type-check`, `pnpm exec vitest run`.
 - [ ] No stray build artifacts or secrets committed.
 - [ ] Documented any schema or config changes impacting users.
