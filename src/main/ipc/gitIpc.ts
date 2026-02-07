@@ -599,8 +599,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           if (sha) {
             const { stdout: apiOut } = await execFileAsync(
               'gh',
-              ['api', `repos/{owner}/{repo}/commits/${sha}/check-runs`, '--jq',
-                '.check_runs | map({name: .name, html_url: .html_url}) | .[]'],
+              [
+                'api',
+                `repos/{owner}/{repo}/commits/${sha}/check-runs`,
+                '--jq',
+                '.check_runs | map({name: .name, html_url: .html_url}) | .[]',
+              ],
               { cwd: taskPath }
             );
             const urlMap = new Map<string, string>();
@@ -664,8 +668,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
               const { stdout: commentsApi } = await execFileAsync(
                 'gh',
-                ['api', `repos/{owner}/{repo}/issues/${data.number}/comments`,
-                  '--jq', '.[] | {login: .user.login, avatar_url: .user.avatar_url}'],
+                [
+                  'api',
+                  `repos/{owner}/{repo}/issues/${data.number}/comments`,
+                  '--jq',
+                  '.[] | {login: .user.login, avatar_url: .user.avatar_url}',
+                ],
                 { cwd: taskPath }
               );
               const setAvatar = (login: string, url: string) => {
@@ -684,8 +692,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
               const { stdout: reviewsApi } = await execFileAsync(
                 'gh',
-                ['api', `repos/{owner}/{repo}/pulls/${data.number}/reviews`,
-                  '--jq', '.[] | {login: .user.login, avatar_url: .user.avatar_url}'],
+                [
+                  'api',
+                  `repos/{owner}/{repo}/pulls/${data.number}/reviews`,
+                  '--jq',
+                  '.[] | {login: .user.login, avatar_url: .user.avatar_url}',
+                ],
                 { cwd: taskPath }
               );
               for (const line of reviewsApi.trim().split('\n')) {
