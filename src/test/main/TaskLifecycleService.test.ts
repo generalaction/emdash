@@ -113,4 +113,113 @@ describe('TaskLifecycleService', () => {
     expect(state.run.status).toBe('failed');
     expect(state.run.error).toBe('Exited with code 143');
   });
+
+  it('ignores stale child exit and keeps latest run process tracked', async () => {
+    vi.resetModules();
+
+    const first = createChild(2001);
+    const second = createChild(2002);
+    spawnMock.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-3';
+    const taskPath = '/tmp/wt-3';
+    const projectPath = '/tmp/project';
+
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+    taskLifecycleService.stopRun(taskId);
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+
+    // Old process exits after new process started; should be ignored.
+    first.emit('exit', 143);
+
+    const afterStaleExit = taskLifecycleService.getState(taskId);
+    expect(afterStaleExit.run.status).toBe('running');
+    expect(afterStaleExit.run.pid).toBe(2002);
+  });
+
+  it('ignores stale child error and keeps latest run process state', async () => {
+    vi.resetModules();
+
+    const first = createChild(2101);
+    const second = createChild(2102);
+    spawnMock.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-4';
+    const taskPath = '/tmp/wt-4';
+    const projectPath = '/tmp/project';
+
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+    taskLifecycleService.stopRun(taskId);
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+
+    // Old process emits error after new process started; should be ignored.
+    first.emit('error', new Error('stale child error'));
+
+    const state = taskLifecycleService.getState(taskId);
+    expect(state.run.status).toBe('running');
+    expect(state.run.pid).toBe(2102);
+    expect(state.run.error).toBeNull();
+  });
+
+  it('dedupes concurrent runTeardown calls per task and path', async () => {
+    vi.resetModules();
+
+    const runChild = createChild(2201);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'run') return 'npm run dev';
+      if (phase === 'teardown') return 'echo teardown';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const serviceAny = taskLifecycleService as any;
+    const runFiniteSpy = vi
+      .spyOn(serviceAny, 'runFinite')
+      .mockResolvedValue({ ok: true, skipped: false });
+
+    const taskId = 'wt-5';
+    const taskPath = '/tmp/wt-5';
+    const projectPath = '/tmp/project';
+
+    serviceAny.runProcesses.set(taskId, runChild);
+
+    const teardownA = taskLifecycleService.runTeardown(taskId, taskPath, projectPath);
+    const teardownB = taskLifecycleService.runTeardown(taskId, taskPath, projectPath);
+
+    // Unblock teardown wait-for-exit of run process.
+    runChild.emit('exit', 143);
+
+    const [ra, rb] = await Promise.all([teardownA, teardownB]);
+
+    expect(ra.ok).toBe(true);
+    expect(rb.ok).toBe(true);
+    expect(runFiniteSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears stale run process after spawn error so retry can start', async () => {
+    vi.resetModules();
+
+    const broken = createChild(2301);
+    const good = createChild(2302);
+    spawnMock.mockReturnValueOnce(broken).mockReturnValueOnce(good);
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-6';
+    const taskPath = '/tmp/wt-6';
+    const projectPath = '/tmp/project';
+
+    const firstStart = await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+    expect(firstStart.ok).toBe(true);
+
+    broken.emit('error', new Error('spawn failed'));
+
+    const retry = await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+    expect(retry.ok).toBe(true);
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+  });
 });
