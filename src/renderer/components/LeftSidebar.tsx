@@ -49,6 +49,8 @@ interface LeftSidebarProps {
   onArchiveTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onRestoreTask?: (project: Project, task: Task) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
+  pinnedTaskIds?: Set<string>;
+  onPinTask?: (task: Task) => void;
   isHomeView?: boolean;
 }
 
@@ -111,6 +113,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onArchiveTask,
   onRestoreTask,
   onDeleteProject,
+  pinnedTaskIds,
+  onPinTask,
   isHomeView,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
@@ -332,50 +336,61 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 <span className="truncate">New Task</span>
                               </motion.button>
                               <div className="hidden min-w-0 space-y-0.5 sm:block">
-                                {typedProject.tasks?.map((task) => {
-                                  const isActive = activeTask?.id === task.id;
-                                  return (
-                                    <div
-                                      key={task.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (
-                                          onSelectProject &&
-                                          selectedProject?.id !== typedProject.id
-                                        ) {
-                                          onSelectProject(typedProject);
-                                        }
-                                        onSelectTask && onSelectTask(task);
-                                      }}
-                                      className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
-                                        isActive ? 'bg-black/5 dark:bg-white/5' : ''
-                                      }`}
-                                      title={task.name}
-                                    >
-                                      <TaskItem
-                                        task={task}
-                                        showDelete
-                                        showDirectBadge={false}
-                                        onDelete={
-                                          onDeleteTask
-                                            ? () => onDeleteTask(typedProject, task)
-                                            : undefined
-                                        }
-                                        onRename={
-                                          // Disable rename for multi-agent tasks (variant metadata would become stale)
-                                          onRenameTask && !task.metadata?.multiAgent?.enabled
-                                            ? (newName) => onRenameTask(typedProject, task, newName)
-                                            : undefined
-                                        }
-                                        onArchive={
-                                          onArchiveTask
-                                            ? () => handleArchiveTaskWithRefresh(typedProject, task)
-                                            : undefined
-                                        }
-                                      />
-                                    </div>
-                                  );
-                                })}
+                                {typedProject.tasks
+                                  ?.slice()
+                                  .sort((a, b) => {
+                                    const aPinned = pinnedTaskIds?.has(a.id) ? 1 : 0;
+                                    const bPinned = pinnedTaskIds?.has(b.id) ? 1 : 0;
+                                    return bPinned - aPinned;
+                                  })
+                                  .map((task) => {
+                                    const isActive = activeTask?.id === task.id;
+                                    return (
+                                      <div
+                                        key={task.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (
+                                            onSelectProject &&
+                                            selectedProject?.id !== typedProject.id
+                                          ) {
+                                            onSelectProject(typedProject);
+                                          }
+                                          onSelectTask && onSelectTask(task);
+                                        }}
+                                        className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
+                                          isActive ? 'bg-black/5 dark:bg-white/5' : ''
+                                        }`}
+                                        title={task.name}
+                                      >
+                                        <TaskItem
+                                          task={task}
+                                          showDelete
+                                          showDirectBadge={false}
+                                          isPinned={pinnedTaskIds?.has(task.id)}
+                                          onPin={onPinTask ? () => onPinTask(task) : undefined}
+                                          onDelete={
+                                            onDeleteTask
+                                              ? () => onDeleteTask(typedProject, task)
+                                              : undefined
+                                          }
+                                          onRename={
+                                            // Disable rename for multi-agent tasks (variant metadata would become stale)
+                                            onRenameTask && !task.metadata?.multiAgent?.enabled
+                                              ? (newName) =>
+                                                  onRenameTask(typedProject, task, newName)
+                                              : undefined
+                                          }
+                                          onArchive={
+                                            onArchiveTask
+                                              ? () =>
+                                                  handleArchiveTaskWithRefresh(typedProject, task)
+                                              : undefined
+                                          }
+                                        />
+                                      </div>
+                                    );
+                                  })}
 
                                 {/* Archived tasks section */}
                                 {archivedTasksByProject[typedProject.id]?.length > 0 && (
