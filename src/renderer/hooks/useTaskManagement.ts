@@ -10,6 +10,17 @@ import type { GitHubIssueLink } from '../types/chat';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 
+const getLifecycleTaskIds = (task: Task): string[] => {
+  const ids = new Set<string>([task.id]);
+  const variants = task.metadata?.multiAgent?.variants || [];
+  for (const variant of variants) {
+    if (variant?.worktreeId) {
+      ids.add(variant.worktreeId);
+    }
+  }
+  return [...ids];
+};
+
 const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIssueLink> => {
   const linked = new Map<number, GitHubIssueLink>();
   if (!tasks?.length) return linked;
@@ -382,9 +393,11 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           throw new Error(errorMsg);
         }
 
-        try {
-          await window.electronAPI.lifecycleClearTask({ taskId: task.id });
-        } catch {}
+        for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
+          try {
+            await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          } catch {}
+        }
 
         // Track task deletion
         const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -660,9 +673,11 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           throw new Error(result?.error || 'Failed to archive task');
         }
 
-        try {
-          await window.electronAPI.lifecycleClearTask({ taskId: task.id });
-        } catch {}
+        for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
+          try {
+            await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          } catch {}
+        }
 
         // Track task archive
         const { captureTelemetry } = await import('../lib/telemetryClient');
