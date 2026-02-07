@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
 import { Bot, Plus, Play, Square, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
@@ -16,6 +16,7 @@ import {
 } from './ui/select';
 import type { Agent } from '../types';
 import { getTaskEnvVars } from '@shared/task/envVars';
+import { shouldDisablePlay } from '../lib/lifecycleUi';
 
 interface Task {
   id: string;
@@ -70,6 +71,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const [setupStatus, setSetupStatus] = useState<LifecyclePhaseStatus>('idle');
   const [teardownStatus, setTeardownStatus] = useState<LifecyclePhaseStatus>('idle');
   const [runActionBusy, setRunActionBusy] = useState(false);
+  const activeTaskIdRef = useRef<string | null>(task?.id ?? null);
   const [lifecycleLogs, setLifecycleLogs] = useState<LifecycleLogs>({
     setup: [],
     run: [],
@@ -98,12 +100,18 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     });
   }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
 
+  useEffect(() => {
+    activeTaskIdRef.current = task?.id ?? null;
+  }, [task?.id]);
+
   const refreshLifecycleState = useCallback(async () => {
-    if (!task) return;
+    const taskId = task?.id;
+    if (!taskId) return;
     const api = window.electronAPI as any;
     if (typeof api?.lifecycleGetState !== 'function') return;
     try {
-      const res = await api.lifecycleGetState({ taskId: task.id });
+      const res = await api.lifecycleGetState({ taskId });
+      if (activeTaskIdRef.current !== taskId) return;
       if (!res?.success || !res.state) return;
       if (res.state.run?.status) setRunStatus(res.state.run.status);
       if (res.state.setup?.status) setSetupStatus(res.state.setup.status);
@@ -560,11 +568,12 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     variant="ghost"
                     size="icon-sm"
                     onClick={handlePlay}
-                    disabled={
-                      runActionBusy ||
-                      !projectPath ||
-                      (selectedLifecycle === 'run' ? !canStartRun : false)
-                    }
+                    disabled={shouldDisablePlay({
+                      runActionBusy,
+                      hasProjectPath: !!projectPath,
+                      isRunSelection,
+                      canStartRun,
+                    })}
                     className="text-muted-foreground hover:text-foreground"
                   >
                     <Play className="h-3.5 w-3.5" />
