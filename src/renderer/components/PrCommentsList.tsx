@@ -26,9 +26,49 @@ function ReviewBadge({ state }: { state?: PrComment['reviewState'] }) {
   }
 }
 
+const markdownComponents = {
+  pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
+    <pre {...props} className="my-1.5 overflow-x-auto rounded bg-muted/50 p-2 text-[11px] leading-relaxed" />
+  ),
+  code: ({ className, children, ...rest }: React.HTMLAttributes<HTMLElement>) => {
+    const isBlock = className?.startsWith('language-');
+    if (isBlock) {
+      return <code className="text-[11px]" {...rest}>{children}</code>;
+    }
+    return <code className="rounded bg-muted/50 px-1 py-0.5 text-[11px]" {...rest}>{children}</code>;
+  },
+  table: (props: React.HTMLAttributes<HTMLTableElement>) => (
+    <div className="my-1.5 overflow-x-auto">
+      <table {...props} className="w-full text-[11px]" />
+    </div>
+  ),
+  th: (props: React.HTMLAttributes<HTMLTableCellElement>) => (
+    <th {...props} className="border border-border/50 px-2 py-1 text-left font-medium" />
+  ),
+  td: (props: React.HTMLAttributes<HTMLTableCellElement>) => (
+    <td {...props} className="border border-border/50 px-2 py-1" />
+  ),
+  img: ({ alt, ...rest }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+    <img alt={alt || ''} {...rest} className="max-w-full" />
+  ),
+  a: ({ href, children, ...rest }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a
+      {...rest}
+      href={href}
+      className="text-blue-500 hover:underline"
+      onClick={(e) => {
+        e.preventDefault();
+        if (href) window.electronAPI?.openExternal?.(href);
+      }}
+    >
+      {children}
+    </a>
+  ),
+};
+
 function CommentItem({ comment }: { comment: PrComment }) {
   return (
-    <div className="px-4 py-3">
+    <div className="min-w-0 px-4 py-3">
       <div className="flex items-center gap-2">
         <img
           src={comment.author.avatarUrl || `https://github.com/${comment.author.login}.png?size=40`}
@@ -44,8 +84,12 @@ function CommentItem({ comment }: { comment: PrComment }) {
         {comment.type === 'review' && <ReviewBadge state={comment.reviewState} />}
       </div>
       {comment.body && (
-        <div className="mt-1.5 pl-7 text-xs leading-relaxed text-muted-foreground prose-sm prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+        <div className="mt-1.5 min-w-0 overflow-hidden pl-7 text-xs leading-relaxed text-muted-foreground">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={markdownComponents}
+          >
             {comment.body}
           </ReactMarkdown>
         </div>
@@ -68,7 +112,7 @@ export function PrCommentsList({ status, isLoading, hasPr }: PrCommentsListProps
   if (!status || status.comments.length === 0) return null;
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center gap-1.5 px-4 py-1.5">
         <span className="text-sm font-medium text-foreground">Comments</span>
       </div>

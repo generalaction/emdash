@@ -21,7 +21,7 @@ function CheckRunItem({ check }: { check: CheckRun }) {
   const duration = formatCheckDuration(check.startedAt, check.completedAt);
 
   return (
-    <div className="flex items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-b-0">
+    <div className="flex items-center gap-2 px-4 py-2.5">
       <span className="shrink-0">
         <BucketIcon bucket={check.bucket} />
       </span>
