@@ -561,6 +561,40 @@ declare global {
         } | null;
         error?: string;
       }>;
+      getCheckRuns: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        checks?: Array<{
+          name: string;
+          state: string;
+          bucket: 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
+          description?: string;
+          link?: string;
+          workflow?: string;
+          event?: string;
+          startedAt?: string;
+          completedAt?: string;
+        }> | null;
+        error?: string;
+        code?: string;
+      }>;
+      getPrComments: (args: { taskPath: string; prNumber?: number }) => Promise<{
+        success: boolean;
+        comments?: Array<{
+          id: string;
+          author: { login: string; avatarUrl?: string };
+          body: string;
+          createdAt: string;
+        }>;
+        reviews?: Array<{
+          id: string;
+          author: { login: string; avatarUrl?: string };
+          body: string;
+          submittedAt: string;
+          state: string;
+        }>;
+        error?: string;
+        code?: string;
+      }>;
       getBranchStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         branch?: string;

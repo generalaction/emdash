@@ -573,6 +573,70 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     }
   });
 
+  // Git: Get CI/CD check runs for current branch via GitHub CLI
+  ipcMain.handle('git:get-check-runs', async (_, args: { taskPath: string }) => {
+    const { taskPath } = args || ({} as { taskPath: string });
+    try {
+      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+
+      const fields = 'bucket,completedAt,description,event,link,name,startedAt,state,workflow';
+      try {
+        const { stdout } = await execFileAsync('gh', ['pr', 'checks', '--json', fields], {
+          cwd: taskPath,
+        });
+        const json = (stdout || '').trim();
+        const checks = json ? JSON.parse(json) : [];
+
+        return { success: true, checks };
+      } catch (err) {
+        const msg = String(err as string);
+        if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
+          return { success: true, checks: null };
+        }
+        if (/not installed|command not found/i.test(msg)) {
+          return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
+        }
+        return { success: false, error: msg || 'Failed to query check runs' };
+      }
+    } catch (error) {
+      return { success: false, error: error as string };
+    }
+  });
+
+  // Git: Get PR comments and reviews via GitHub CLI
+  ipcMain.handle(
+    'git:get-pr-comments',
+    async (_, args: { taskPath: string; prNumber?: number }) => {
+      const { taskPath, prNumber } = args || ({} as { taskPath: string; prNumber?: number });
+      try {
+        await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+
+        try {
+          const ghArgs = ['pr', 'view'];
+          if (prNumber) ghArgs.push(String(prNumber));
+          ghArgs.push('--json', 'comments,reviews');
+
+          const { stdout } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+          const json = (stdout || '').trim();
+          const data = json ? JSON.parse(json) : { comments: [], reviews: [] };
+
+          return { success: true, comments: data.comments || [], reviews: data.reviews || [] };
+        } catch (err) {
+          const msg = String(err as string);
+          if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
+            return { success: true, comments: [], reviews: [] };
+          }
+          if (/not installed|command not found/i.test(msg)) {
+            return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
+          }
+          return { success: false, error: msg || 'Failed to query PR comments' };
+        }
+      } catch (error) {
+        return { success: false, error: error as string };
+      }
+    }
+  );
+
   // Git: Commit all changes and push current branch (create feature branch if on default)
   ipcMain.handle(
     'git:commit-and-push',
