@@ -1,9 +1,6 @@
 import { CheckCircle2, XCircle } from 'lucide-react';
 import type { PrCommentsStatus, PrComment } from '../lib/prCommentsStatus';
 import { formatRelativeTime } from '../lib/prCommentsStatus';
-import ReactMarkdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';
 
 function ReviewBadge({ state }: { state?: PrComment['reviewState'] }) {
   switch (state) {
@@ -26,83 +23,40 @@ function ReviewBadge({ state }: { state?: PrComment['reviewState'] }) {
   }
 }
 
-const markdownComponents = {
-  pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
-    <pre
-      {...props}
-      className="my-1.5 overflow-x-auto rounded bg-muted/50 p-2 text-[11px] leading-relaxed"
-    />
-  ),
-  code: ({ className, children, ...rest }: React.HTMLAttributes<HTMLElement>) => {
-    const isBlock = className?.startsWith('language-');
-    if (isBlock) {
-      return (
-        <code className="text-[11px]" {...rest}>
-          {children}
-        </code>
-      );
-    }
-    return (
-      <code className="rounded bg-muted/50 px-1 py-0.5 text-[11px]" {...rest}>
-        {children}
-      </code>
-    );
-  },
-  table: (props: React.HTMLAttributes<HTMLTableElement>) => (
-    <div className="my-1.5 overflow-x-auto">
-      <table {...props} className="w-full text-[11px]" />
-    </div>
-  ),
-  th: (props: React.HTMLAttributes<HTMLTableCellElement>) => (
-    <th {...props} className="border border-border/50 px-2 py-1 text-left font-medium" />
-  ),
-  td: (props: React.HTMLAttributes<HTMLTableCellElement>) => (
-    <td {...props} className="border border-border/50 px-2 py-1" />
-  ),
-  img: ({ alt, ...rest }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-    <img alt={alt || ''} {...rest} className="max-w-full" />
-  ),
-  a: ({ href, children, ...rest }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a
-      {...rest}
-      href={href}
-      className="text-blue-500 hover:underline"
-      onClick={(e) => {
-        e.preventDefault();
-        if (href) window.electronAPI?.openExternal?.(href);
-      }}
-    >
-      {children}
-    </a>
-  ),
-};
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, '') // code blocks
+    .replace(/`[^`]*`/g, '') // inline code
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1') // links/images
+    .replace(/<[^>]+>/g, '') // HTML tags
+    .replace(/[#*_~>|]/g, '') // markdown symbols
+    .replace(/\|[^\n]*\|/g, '') // table rows
+    .replace(/:-+/g, '') // table separators
+    .replace(/\n{2,}/g, ' ') // collapse newlines
+    .replace(/\s+/g, ' ') // collapse whitespace
+    .trim();
+}
 
 function CommentItem({ comment }: { comment: PrComment }) {
+  const preview = comment.body ? stripMarkdown(comment.body) : '';
+
   return (
-    <div className="min-w-0 px-4 py-3">
+    <div className="min-w-0 px-4 py-2.5">
       <div className="flex items-center gap-2">
         <img
           src={comment.author.avatarUrl || `https://github.com/${comment.author.login}.png?size=40`}
           alt=""
           className="h-5 w-5 shrink-0 rounded-full"
         />
-        <span className="truncate text-sm font-medium text-foreground">{comment.author.login}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">
+        <span className="shrink-0 text-sm font-medium text-foreground">{comment.author.login}</span>
+        {preview && (
+          <span className="min-w-0 truncate text-xs text-muted-foreground">{preview}</span>
+        )}
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
           {formatRelativeTime(comment.createdAt)}
         </span>
         {comment.type === 'review' && <ReviewBadge state={comment.reviewState} />}
       </div>
-      {comment.body && (
-        <div className="mt-1.5 min-w-0 overflow-hidden pl-7 text-xs leading-relaxed text-muted-foreground">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
-            components={markdownComponents}
-          >
-            {comment.body}
-          </ReactMarkdown>
-        </div>
-      )}
     </div>
   );
 }
