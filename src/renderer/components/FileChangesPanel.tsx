@@ -673,7 +673,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             hasPr={!!pr}
             hideSummary={!hasChanges}
           />
-          <PrCommentsList status={prCommentsStatus} isLoading={prCommentsLoading} hasPr={!!pr} />
+          <PrCommentsList status={prCommentsStatus} isLoading={prCommentsLoading} hasPr={!!pr} prUrl={pr?.url} />
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">

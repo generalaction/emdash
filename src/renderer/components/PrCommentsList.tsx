@@ -37,11 +37,14 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-function CommentItem({ comment }: { comment: PrComment }) {
+function CommentItem({ comment, prUrl }: { comment: PrComment; prUrl?: string }) {
   const preview = comment.body ? stripMarkdown(comment.body) : '';
 
   return (
-    <div className="min-w-0 px-4 py-2.5">
+    <div
+      className="min-w-0 cursor-pointer px-4 py-2.5 transition-colors hover:bg-muted/50"
+      onClick={() => prUrl && window.electronAPI?.openExternal?.(prUrl)}
+    >
       <div className="flex items-center gap-2">
         <img
           src={comment.author.avatarUrl || `https://github.com/${comment.author.login}.png?size=40`}
@@ -65,9 +68,10 @@ interface PrCommentsListProps {
   status: PrCommentsStatus | null;
   isLoading: boolean;
   hasPr: boolean;
+  prUrl?: string;
 }
 
-export function PrCommentsList({ status, isLoading, hasPr }: PrCommentsListProps) {
+export function PrCommentsList({ status, isLoading, hasPr, prUrl }: PrCommentsListProps) {
   if (!hasPr) return null;
 
   if (isLoading && !status) return null;
@@ -80,7 +84,7 @@ export function PrCommentsList({ status, isLoading, hasPr }: PrCommentsListProps
         <span className="text-sm font-medium text-foreground">Comments</span>
       </div>
       {status.comments.map((comment) => (
-        <CommentItem key={`${comment.type}-${comment.id}`} comment={comment} />
+        <CommentItem key={`${comment.type}-${comment.id}`} comment={comment} prUrl={prUrl} />
       ))}
     </div>
   );
