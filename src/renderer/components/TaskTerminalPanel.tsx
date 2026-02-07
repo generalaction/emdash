@@ -225,8 +225,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const [runActionBusy, setRunActionBusy] = useState(false);
 
   useEffect(() => {
+    // Reset immediately on task switch so we don't show stale run state from previous task.
+    setRunStatus('idle');
     if (!task) {
-      setRunStatus('idle');
       return;
     }
     let cancelled = false;
