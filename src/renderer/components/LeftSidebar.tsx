@@ -116,6 +116,25 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [archivedTasksByProject, setArchivedTasksByProject] = useState<Record<string, Task[]>>({});
+  const [showGitRepo, setShowGitRepo] = useState(true);
+
+  // Load git repo display setting and listen for changes
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await (window as any).electronAPI?.getSettings?.();
+        if (result?.success && result.settings) {
+          setShowGitRepo(Boolean(result.settings.interface?.showGitRepoInSidebar ?? true));
+        }
+      } catch {}
+    })();
+    const handler = (e: Event) => {
+      const { enabled } = (e as CustomEvent<{ enabled: boolean }>).detail;
+      setShowGitRepo(enabled);
+    };
+    window.addEventListener('showGitRepoInSidebarChanged', handler);
+    return () => window.removeEventListener('showGitRepoInSidebarChanged', handler);
+  }, []);
 
   // Fetch archived tasks for all projects
   const fetchArchivedTasks = useCallback(async () => {
@@ -275,7 +294,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             >
                               <span className="block w-full truncate">{typedProject.name}</span>
                               <span className="hidden w-full truncate text-xs text-muted-foreground sm:block">
-                                {typedProject.githubInfo?.repository || typedProject.path}
+                                {(showGitRepo && typedProject.githubInfo?.repository) || typedProject.path}
                               </span>
                             </motion.button>
                             <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5">

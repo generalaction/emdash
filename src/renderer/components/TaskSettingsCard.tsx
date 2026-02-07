@@ -1,13 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Switch } from './ui/switch';
+import { Input } from './ui/input';
 
 const TaskSettingsCard: React.FC = () => {
   const [autoGenerateName, setAutoGenerateName] = useState(true);
   const [autoApproveByDefault, setAutoApproveByDefault] = useState(false);
+  const [autoRenameWithLLM, setAutoRenameWithLLM] = useState(false);
+  const [llmRenameModel, setLlmRenameModel] = useState('llama3.2:1b');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const modelDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     let cancelled = false;
@@ -18,6 +22,8 @@ const TaskSettingsCard: React.FC = () => {
         if (result.success) {
           setAutoGenerateName(result.settings?.tasks?.autoGenerateName ?? true);
           setAutoApproveByDefault(result.settings?.tasks?.autoApproveByDefault ?? false);
+          setAutoRenameWithLLM(result.settings?.tasks?.autoRenameWithLLM ?? false);
+          setLlmRenameModel(result.settings?.tasks?.llmRenameModel ?? 'llama3.2:1b');
         } else {
           setError(result.error || 'Failed to load settings.');
         }
@@ -79,6 +85,50 @@ const TaskSettingsCard: React.FC = () => {
     }
   };
 
+  const updateAutoRenameWithLLM = async (next: boolean) => {
+    const previous = autoRenameWithLLM;
+    setAutoRenameWithLLM(next);
+    setError(null);
+    setSaving(true);
+    try {
+      const result = await window.electronAPI.updateSettings({
+        tasks: { autoRenameWithLLM: next },
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update settings.');
+      }
+      setAutoRenameWithLLM(result.settings?.tasks?.autoRenameWithLLM ?? next);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update settings.';
+      setAutoRenameWithLLM(previous);
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateLlmRenameModel = (value: string) => {
+    setLlmRenameModel(value);
+    if (modelDebounceRef.current) clearTimeout(modelDebounceRef.current);
+    modelDebounceRef.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        const result = await window.electronAPI.updateSettings({
+          tasks: { llmRenameModel: value },
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update settings.');
+        }
+        setLlmRenameModel(result.settings?.tasks?.llmRenameModel ?? value);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to update settings.';
+        setError(message);
+      } finally {
+        setSaving(false);
+      }
+    }, 500);
+  };
+
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
       <div className="space-y-3">
@@ -116,6 +166,35 @@ const TaskSettingsCard: React.FC = () => {
             onCheckedChange={updateAutoApproveByDefault}
           />
         </label>
+        <label className="flex items-center justify-between gap-2">
+          <div className="space-y-1">
+            <div className="text-sm">Auto-rename with local LLM (Ollama)</div>
+            <div className="text-xs text-muted-foreground">
+              Renames tasks ~60s after they start using a local Ollama model.
+              <br />
+              <span className="text-[11px] text-muted-foreground/70">
+                Requires Ollama running at localhost:11434
+              </span>
+            </div>
+          </div>
+          <Switch
+            checked={autoRenameWithLLM}
+            disabled={loading || saving}
+            onCheckedChange={updateAutoRenameWithLLM}
+          />
+        </label>
+        {autoRenameWithLLM ? (
+          <div className="ml-1 space-y-1">
+            <label className="text-xs text-muted-foreground">Ollama model</label>
+            <Input
+              value={llmRenameModel}
+              onChange={(e) => updateLlmRenameModel(e.target.value)}
+              disabled={loading || saving}
+              placeholder="llama3.2:1b"
+              className="h-8 text-xs"
+            />
+          </div>
+        ) : null}
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
     </div>

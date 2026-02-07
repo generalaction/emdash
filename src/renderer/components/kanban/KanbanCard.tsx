@@ -5,6 +5,8 @@ import { agentMeta, type UiAgent } from '../../providers/meta';
 import { activityStore } from '../../lib/activityStore';
 import AgentTooltip from './AgentTooltip';
 import { Spinner } from '../ui/spinner';
+import { Eye } from 'lucide-react';
+import type { KanbanStatus } from '../../lib/kanbanStore';
 
 function resolveAgent(taskId: string): UiAgent | null {
   try {
@@ -21,7 +23,9 @@ const KanbanCard: React.FC<{
   ws: Task;
   onOpen?: (ws: Task) => void;
   draggable?: boolean;
-}> = ({ ws, onOpen, draggable = true }) => {
+  status?: KanbanStatus;
+  showReviewBadge?: boolean;
+}> = ({ ws, onOpen, draggable = true, status, showReviewBadge = true }) => {
   const SHOW_AGENT_LOGOS = false;
   // Resolve single-agent from legacy localStorage (single-agent tasks)
   const agent = resolveAgent(ws.id);
@@ -67,7 +71,15 @@ const KanbanCard: React.FC<{
         <div className="flex w-full items-center justify-between gap-2 overflow-hidden">
           <div className="min-w-0">
             <div className="truncate text-sm font-medium text-foreground">{ws.name}</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">{ws.branch}</div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="truncate">{ws.branch}</span>
+              {status === 'done' && showReviewBadge && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                  <Eye className="h-3 w-3" />
+                  Review
+                </span>
+              )}
+            </div>
           </div>
 
           {agents.length > 0 && (SHOW_AGENT_LOGOS || busy) ? (

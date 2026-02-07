@@ -1,0 +1,6 @@
+{
+  "preservePatterns": [".env", ".env.local", ".envrc", ".claude/**"],
+  "scripts": {
+    "setup": "ln -sfn \"$EMDASH_ROOT_PATH/node_modules\" node_modules"
+  }
+}

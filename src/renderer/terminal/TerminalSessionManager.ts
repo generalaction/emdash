@@ -101,6 +101,9 @@ export class TerminalSessionManager {
       letterSpacing: 0,
       allowProposedApi: true,
       scrollOnUserInput: false,
+      scrollSensitivity: 3,
+      fastScrollModifier: 'shift',
+      fastScrollSensitivity: 10,
     });
 
     const updateCustomFont = (customFont?: string) => {
