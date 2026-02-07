@@ -324,6 +324,7 @@ class TaskLifecycleService extends EventEmitter {
       }, 8_000);
       return { ok: true };
     } catch (error) {
+      this.stopIntents.delete(taskId);
       const message = error instanceof Error ? error.message : String(error);
       const cur = this.ensureState(taskId);
       cur.run = {

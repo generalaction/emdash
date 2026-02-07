@@ -98,7 +98,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
 
   // Run setup script when a task terminal becomes ready (only once per task/worktree)
-  const handleTerminalReady = useCallback((terminalId: string) => {
+  const handleTerminalReady = useCallback(() => {
     const currentTask = taskRef.current;
     const currentProjectPath = projectPathRef.current;
     if (!currentTask || !currentProjectPath) return;
@@ -129,7 +129,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const terminalReadyCallbacks = useMemo(() => {
     const callbacks = new Map<string, () => void>();
     for (const terminal of taskTerminals.terminals) {
-      callbacks.set(terminal.id, () => handleTerminalReady(terminal.id));
+      callbacks.set(terminal.id, () => handleTerminalReady());
     }
     return callbacks;
   }, [taskTerminals.terminals, handleTerminalReady]);
@@ -227,6 +227,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   useEffect(() => {
     // Reset immediately on task switch so we don't show stale run state from previous task.
     setRunStatus('idle');
+    setRunActionBusy(false);
     if (!task) {
       return;
     }
