@@ -561,6 +561,22 @@ declare global {
         } | null;
         error?: string;
       }>;
+      getCheckRuns: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        checks?: Array<{
+          name: string;
+          state: string;
+          bucket: 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
+          description?: string;
+          link?: string;
+          workflow?: string;
+          event?: string;
+          startedAt?: string;
+          completedAt?: string;
+        }> | null;
+        error?: string;
+        code?: string;
+      }>;
       getBranchStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         branch?: string;
