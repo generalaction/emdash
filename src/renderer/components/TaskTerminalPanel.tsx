@@ -37,6 +37,7 @@ interface Props {
 type LifecyclePhaseStatus = 'idle' | 'running' | 'succeeded' | 'failed';
 type SelectedMode = 'task' | 'global' | 'lifecycle';
 type LifecyclePhase = 'setup' | 'run' | 'teardown';
+type LifecycleLogs = Record<LifecyclePhase, string[]>;
 
 const TaskTerminalPanelComponent: React.FC<Props> = ({
   task,
@@ -69,6 +70,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const [setupStatus, setSetupStatus] = useState<LifecyclePhaseStatus>('idle');
   const [teardownStatus, setTeardownStatus] = useState<LifecyclePhaseStatus>('idle');
   const [runActionBusy, setRunActionBusy] = useState(false);
+  const [lifecycleLogs, setLifecycleLogs] = useState<LifecycleLogs>({
+    setup: [],
+    run: [],
+    teardown: [],
+  });
 
   const parseValue = (value: string): { mode: SelectedMode; id: string } | null => {
     const match = value.match(/^(task|global|lifecycle)::(.+)$/);
@@ -110,6 +116,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     setSetupStatus('idle');
     setTeardownStatus('idle');
     setRunActionBusy(false);
+    setLifecycleLogs({ setup: [], run: [], teardown: [] });
     if (!task) return;
 
     const api = window.electronAPI as any;
@@ -125,6 +132,46 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
     const off = api.onLifecycleEvent((evt: any) => {
       if (!evt || evt.taskId !== task.id) return;
+      const phase =
+        evt.phase === 'setup' || evt.phase === 'run' || evt.phase === 'teardown'
+          ? (evt.phase as LifecyclePhase)
+          : null;
+      if (phase) {
+        if (evt.status === 'starting') {
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            [phase]: [...prev[phase], `$ ${phase} started`].slice(-300),
+          }));
+        } else if (evt.status === 'line' && typeof evt.line === 'string') {
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            [phase]: [...prev[phase], evt.line].slice(-300),
+          }));
+        } else if (evt.status === 'done') {
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            [phase]: [...prev[phase], `$ ${phase} finished (exit ${evt.exitCode ?? 0})\n`].slice(
+              -300
+            ),
+          }));
+        } else if (evt.status === 'error') {
+          const detail = typeof evt.error === 'string' ? `: ${evt.error}` : '';
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            [phase]: [
+              ...prev[phase],
+              `$ ${phase} failed (exit ${evt.exitCode ?? 'unknown'})${detail}\n`,
+            ].slice(-300),
+          }));
+        } else if (phase === 'run' && evt.status === 'exit') {
+          const code = evt.exitCode === null ? 'signal' : evt.exitCode;
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            run: [...prev.run, `$ run exited (${code})\n`].slice(-300),
+          }));
+        }
+      }
+
       if (evt.phase === 'setup') {
         if (evt.status === 'starting') setSetupStatus('running');
         if (evt.status === 'done') setSetupStatus('succeeded');
@@ -588,14 +635,17 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       </div>
 
       {selectedLifecycle ? (
-        <div className="flex h-full flex-1 items-center justify-center text-xs text-muted-foreground">
-          <p>
+        <div className="flex h-full flex-1 flex-col overflow-hidden">
+          <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
             {selectedLifecycle === 'setup'
               ? `Setup status: ${setupStatus}`
               : selectedLifecycle === 'teardown'
                 ? `Teardown status: ${teardownStatus}`
                 : `Run status: ${runStatus}`}
-          </p>
+          </div>
+          <pre className="h-full overflow-auto p-3 text-xs leading-relaxed text-foreground">
+            {lifecycleLogs[selectedLifecycle].join('') || 'No lifecycle output yet.'}
+          </pre>
         </div>
       ) : (
         <div
