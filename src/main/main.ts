@@ -8,7 +8,7 @@ try {
   // dotenv is optional - no error if .env doesn't exist
 }
 
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
 try {
@@ -96,6 +96,23 @@ import { join } from 'path';
 
 // Set app name for macOS dock and menu bar
 app.setName('Emdash');
+
+// Prevent multiple instances (e.g. user clicks icon while auto-updater is restarting)
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+  // Must also exit the process; app.quit() alone still runs the rest of this module
+  // before the event loop drains, which would register unnecessary listeners and timers.
+  process.exit(0);
+}
+
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+});
 
 // Set dock icon on macOS in development mode
 if (process.platform === 'darwin' && !app.isPackaged) {
