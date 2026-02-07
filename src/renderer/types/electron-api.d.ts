@@ -577,6 +577,24 @@ declare global {
         error?: string;
         code?: string;
       }>;
+      getPrComments: (args: { taskPath: string; prNumber?: number }) => Promise<{
+        success: boolean;
+        comments?: Array<{
+          id: string;
+          author: { login: string; avatarUrl?: string };
+          body: string;
+          createdAt: string;
+        }>;
+        reviews?: Array<{
+          id: string;
+          author: { login: string; avatarUrl?: string };
+          body: string;
+          submittedAt: string;
+          state: string;
+        }>;
+        error?: string;
+        code?: string;
+      }>;
       getBranchStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         branch?: string;

@@ -86,7 +86,7 @@ export function ChecksPanel({ status, isLoading, hasPr, hideSummary }: ChecksPan
   const { summary } = status;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       {!hideSummary && (
         <div className="flex items-center gap-2 border-b border-border px-4 py-2">
           <div className="flex items-center gap-1.5 text-xs">

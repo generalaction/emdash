@@ -10,7 +10,9 @@ import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useCheckRuns } from '../hooks/useCheckRuns';
 import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
+import { usePrComments } from '../hooks/usePrComments';
 import { ChecksPanel } from './CheckRunsList';
+import { PrCommentsList } from './PrCommentsList';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -163,6 +165,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   // from useCheckRuns is enough for the tab badge indicators.
   const checksTabActive = activeTab === 'checks' && !!pr;
   useAutoCheckRunsRefresh(checksTabActive ? safeTaskPath : undefined, checkRunsStatus);
+  const { status: prCommentsStatus, isLoading: prCommentsLoading } = usePrComments(
+    pr ? safeTaskPath : undefined,
+    pr?.number
+  );
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
 
@@ -635,38 +641,42 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           </TabButton>
         </div>
       )}
-      {pr && !hasChanges && (
-        <div className="flex items-center justify-center gap-1.5 border-b border-border px-3 py-1.5">
-          <span className="text-sm font-medium text-foreground">Checks</span>
-          {checkRunsStatus?.summary && (
-            <div className="flex items-center gap-2 text-sm">
-              {checkRunsStatus.summary.passed > 0 && (
-                <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                  {checkRunsStatus.summary.passed} passed
-                </span>
-              )}
-              {checkRunsStatus.summary.failed > 0 && (
-                <span className="font-medium text-red-600 dark:text-red-400">
-                  {checkRunsStatus.summary.failed} failed
-                </span>
-              )}
-              {checkRunsStatus.summary.pending > 0 && (
-                <span className="font-medium text-amber-600 dark:text-amber-400">
-                  {checkRunsStatus.summary.pending} pending
-                </span>
+      {activeTab === 'checks' && pr ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {!hasChanges && (
+            <div className="flex items-center gap-1.5 px-4 py-1.5">
+              <span className="text-sm font-medium text-foreground">Checks</span>
+              {checkRunsStatus?.summary && (
+                <div className="flex items-center gap-2 text-sm">
+                  {checkRunsStatus.summary.passed > 0 && (
+                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                      {checkRunsStatus.summary.passed} passed
+                    </span>
+                  )}
+                  {checkRunsStatus.summary.failed > 0 && (
+                    <span className="font-medium text-red-600 dark:text-red-400">
+                      {checkRunsStatus.summary.failed} failed
+                    </span>
+                  )}
+                  {checkRunsStatus.summary.pending > 0 && (
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                      {checkRunsStatus.summary.pending} pending
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {activeTab === 'checks' && pr ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
           <ChecksPanel
             status={checkRunsStatus}
             isLoading={checkRunsLoading}
             hasPr={!!pr}
             hideSummary={!hasChanges}
+          />
+          <PrCommentsList
+            status={prCommentsStatus}
+            isLoading={prCommentsLoading}
+            hasPr={!!pr}
           />
         </div>
       ) : (

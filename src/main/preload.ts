@@ -225,6 +225,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mergeToMain: (args: { taskPath: string }) => ipcRenderer.invoke('git:merge-to-main', args),
   getPrStatus: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
   getCheckRuns: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-check-runs', args),
+  getPrComments: (args: { taskPath: string; prNumber?: number }) =>
+    ipcRenderer.invoke('git:get-pr-comments', args),
   getBranchStatus: (args: { taskPath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
   renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) =>
