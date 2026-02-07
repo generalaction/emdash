@@ -587,6 +587,43 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const json = (stdout || '').trim();
         const checks = json ? JSON.parse(json) : [];
 
+        // Fetch html_url from the GitHub API instead, which always points to the
+        // actual check run page on GitHub.
+        try {
+          const { stdout: shaOut } = await execFileAsync(
+            'gh',
+            ['pr', 'view', '--json', 'headRefOid', '--jq', '.headRefOid'],
+            { cwd: taskPath }
+          );
+          const sha = shaOut.trim();
+          if (sha) {
+            const { stdout: apiOut } = await execFileAsync(
+              'gh',
+              [
+                'api',
+                `repos/{owner}/{repo}/commits/${sha}/check-runs`,
+                '--jq',
+                '.check_runs | map({name: .name, html_url: .html_url}) | .[]',
+              ],
+              { cwd: taskPath }
+            );
+            const urlMap = new Map<string, string>();
+            for (const line of apiOut.trim().split('\n')) {
+              if (!line) continue;
+              try {
+                const entry = JSON.parse(line);
+                if (entry.name && entry.html_url) urlMap.set(entry.name, entry.html_url);
+              } catch {}
+            }
+            for (const check of checks) {
+              const htmlUrl = urlMap.get(check.name);
+              if (htmlUrl) check.link = htmlUrl;
+            }
+          }
+        } catch {
+          // Fall back to original link values if API call fails
+        }
+
         return { success: true, checks };
       } catch (err) {
         const msg = String(err as string);
@@ -614,13 +651,75 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         try {
           const ghArgs = ['pr', 'view'];
           if (prNumber) ghArgs.push(String(prNumber));
-          ghArgs.push('--json', 'comments,reviews');
+          ghArgs.push('--json', 'comments,reviews,number');
 
           const { stdout } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
           const json = (stdout || '').trim();
-          const data = json ? JSON.parse(json) : { comments: [], reviews: [] };
+          const data = json ? JSON.parse(json) : { comments: [], reviews: [], number: 0 };
 
-          return { success: true, comments: data.comments || [], reviews: data.reviews || [] };
+          const comments = data.comments || [];
+          const reviews = data.reviews || [];
+
+          // gh pr view doesn't return avatarUrl for authors.
+          // Fetch from the REST API which includes avatar_url (works for GitHub Apps too).
+          if (data.number) {
+            try {
+              const avatarMap = new Map<string, string>();
+
+              const { stdout: commentsApi } = await execFileAsync(
+                'gh',
+                [
+                  'api',
+                  `repos/{owner}/{repo}/issues/${data.number}/comments`,
+                  '--jq',
+                  '.[] | {login: .user.login, avatar_url: .user.avatar_url}',
+                ],
+                { cwd: taskPath }
+              );
+              const setAvatar = (login: string, url: string) => {
+                avatarMap.set(login, url);
+                // REST API returns "app[bot]" while gh CLI returns "app" — store both
+                if (login.endsWith('[bot]')) avatarMap.set(login.replace(/\[bot]$/, ''), url);
+              };
+
+              for (const line of commentsApi.trim().split('\n')) {
+                if (!line) continue;
+                try {
+                  const entry = JSON.parse(line);
+                  if (entry.login && entry.avatar_url) setAvatar(entry.login, entry.avatar_url);
+                } catch {}
+              }
+
+              const { stdout: reviewsApi } = await execFileAsync(
+                'gh',
+                [
+                  'api',
+                  `repos/{owner}/{repo}/pulls/${data.number}/reviews`,
+                  '--jq',
+                  '.[] | {login: .user.login, avatar_url: .user.avatar_url}',
+                ],
+                { cwd: taskPath }
+              );
+              for (const line of reviewsApi.trim().split('\n')) {
+                if (!line) continue;
+                try {
+                  const entry = JSON.parse(line);
+                  if (entry.login && entry.avatar_url) setAvatar(entry.login, entry.avatar_url);
+                } catch {}
+              }
+
+              for (const c of [...comments, ...reviews]) {
+                if (c.author?.login) {
+                  const avatarUrl = avatarMap.get(c.author.login);
+                  if (avatarUrl) c.author.avatarUrl = avatarUrl;
+                }
+              }
+            } catch {
+              // Fall back to no avatar URLs — renderer will use GitHub fallback
+            }
+          }
+
+          return { success: true, comments, reviews };
         } catch (err) {
           const msg = String(err as string);
           if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {

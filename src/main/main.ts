@@ -98,13 +98,17 @@ import { join } from 'path';
 // Set app name for macOS dock and menu bar
 app.setName('Emdash');
 
-// Prevent multiple instances (e.g. user clicks icon while auto-updater is restarting)
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-  // Must also exit the process; app.quit() alone still runs the rest of this module
-  // before the event loop drains, which would register unnecessary listeners and timers.
-  process.exit(0);
+// Prevent multiple instances in production (e.g. user clicks icon while auto-updater is restarting).
+// Skip in dev so dev server can run alongside the packaged app.
+const isDev = !app.isPackaged || process.argv.includes('--dev');
+if (!isDev) {
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    // Must also exit the process; app.quit() alone still runs the rest of this module
+    // before the event loop drains, which would register unnecessary listeners and timers.
+    process.exit(0);
+  }
 }
 
 app.on('second-instance', () => {
