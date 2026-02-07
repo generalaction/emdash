@@ -245,9 +245,21 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       if (evt.status === 'starting') setRunStatus('running');
       if (evt.status === 'error') setRunStatus('failed');
       if (evt.status === 'exit') {
-        if (evt.exitCode === 0) setRunStatus('succeeded');
-        else if (typeof evt.exitCode === 'number') setRunStatus('failed');
-        else setRunStatus('idle');
+        void (async () => {
+          try {
+            const res = await window.electronAPI.lifecycleGetState({ taskId: task.id });
+            if (cancelled || !res?.success) return;
+            const status = res.state?.run?.status;
+            if (status) {
+              setRunStatus(status);
+              return;
+            }
+          } catch {}
+          if (cancelled) return;
+          if (evt.exitCode === 0) setRunStatus('succeeded');
+          else if (typeof evt.exitCode === 'number') setRunStatus('failed');
+          else setRunStatus('idle');
+        })();
       }
     });
     return () => {

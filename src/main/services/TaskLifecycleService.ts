@@ -24,6 +24,7 @@ type LifecycleResult = {
 class TaskLifecycleService extends EventEmitter {
   private states = new Map<string, TaskLifecycleState>();
   private runProcesses = new Map<string, ChildProcess>();
+  private runStartInflight = new Map<string, Promise<LifecycleResult>>();
   private setupInflight = new Map<string, Promise<LifecycleResult>>();
   private teardownInflight = new Map<string, Promise<LifecycleResult>>();
   private stopIntents = new Set<string>();
@@ -228,6 +229,23 @@ class TaskLifecycleService extends EventEmitter {
   }
 
   async startRun(taskId: string, taskPath: string, projectPath: string): Promise<LifecycleResult> {
+    const inflight = this.runStartInflight.get(taskId);
+    if (inflight) return inflight;
+
+    const run = this.startRunInternal(taskId, taskPath, projectPath).finally(() => {
+      if (this.runStartInflight.get(taskId) === run) {
+        this.runStartInflight.delete(taskId);
+      }
+    });
+    this.runStartInflight.set(taskId, run);
+    return run;
+  }
+
+  private async startRunInternal(
+    taskId: string,
+    taskPath: string,
+    projectPath: string
+  ): Promise<LifecycleResult> {
     const script = lifecycleScriptsService.getScript(projectPath, 'run');
     if (!script) return { ok: true, skipped: true };
 
