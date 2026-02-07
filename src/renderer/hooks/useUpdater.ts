@@ -13,9 +13,10 @@ export type UpdateState =
 
 export const UPDATE_API_UNAVAILABLE_ERROR = 'Update API unavailable' as const;
 
-export function updaterUnavailableResult(
-  setState: (state: UpdateState) => void
-): { success: false; error: typeof UPDATE_API_UNAVAILABLE_ERROR } {
+export function updaterUnavailableResult(setState: (state: UpdateState) => void): {
+  success: false;
+  error: typeof UPDATE_API_UNAVAILABLE_ERROR;
+} {
   setState({ status: 'error', message: UPDATE_API_UNAVAILABLE_ERROR });
   return { success: false, error: UPDATE_API_UNAVAILABLE_ERROR };
 }
