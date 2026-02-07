@@ -662,7 +662,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
 
       {activeTab === 'checks' && pr ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <ChecksPanel status={checkRunsStatus} isLoading={checkRunsLoading} hasPr={!!pr} hideSummary={!hasChanges} />
+          <ChecksPanel
+            status={checkRunsStatus}
+            isLoading={checkRunsLoading}
+            hasPr={!!pr}
+            hideSummary={!hasChanges}
+          />
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">

@@ -579,8 +579,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     try {
       await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
 
-      const fields =
-        'bucket,completedAt,description,event,link,name,startedAt,state,workflow';
+      const fields = 'bucket,completedAt,description,event,link,name,startedAt,state,workflow';
       try {
         const { stdout } = await execFileAsync('gh', ['pr', 'checks', '--json', fields], {
           cwd: taskPath,

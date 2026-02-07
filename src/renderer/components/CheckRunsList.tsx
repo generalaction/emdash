@@ -22,7 +22,9 @@ function CheckRunItem({ check }: { check: CheckRun }) {
 
   return (
     <div className="flex items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-b-0">
-      <span className="shrink-0"><BucketIcon bucket={check.bucket} /></span>
+      <span className="shrink-0">
+        <BucketIcon bucket={check.bucket} />
+      </span>
       <img src={githubIcon} alt="" className="h-3.5 w-3.5 shrink-0 dark:invert" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm text-foreground">{check.name}</div>

@@ -69,10 +69,7 @@ export function buildCheckRunsStatus(checks: CheckRun[]): CheckRunsStatus {
   };
 }
 
-export function formatCheckDuration(
-  startedAt?: string,
-  completedAt?: string
-): string | null {
+export function formatCheckDuration(startedAt?: string, completedAt?: string): string | null {
   if (!startedAt || !completedAt) return null;
   const start = new Date(startedAt).getTime();
   const end = new Date(completedAt).getTime();
