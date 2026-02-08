@@ -158,6 +158,12 @@ importers:
       react-window:
         specifier: ^2.2.4
         version: 2.2.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      rehype-raw:
+        specifier: ^7.0.0
+        version: 7.0.0
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
       sqlite3:
         specifier: ^5.1.7
         version: 5.1.7
