@@ -22,16 +22,16 @@ cd emdash
 nvm use
 
 # Quick start: install dependencies and run dev server
-npm run d
+pnpm run d
 
 # Or run separately:
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 
 # Type checking, lint, build
- npm run type-check
- npm run lint
- npm run build
+ pnpm run type-check
+ pnpm run lint
+ pnpm run build
 ```
 
 Tip: During development, the renderer hot‑reloads. Changes to the Electron main process (files in `src/main`) require a restart of the dev app.
@@ -61,10 +61,10 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 3. Run checks locally
 
 ```
-npm run format      # Format code with Prettier (required)
-npm run type-check  # TypeScript type checking
-npm run lint        # ESLint
-npm run build       # Build both main and renderer
+pnpm run format      # Format code with Prettier (required)
+pnpm run type-check  # TypeScript type checking
+pnpm run lint        # ESLint
+pnpm run build       # Build both main and renderer
 ```
 
 4. Commit using Conventional Commits
@@ -91,9 +91,9 @@ feat(docs): add changelog tab with GitHub releases integration
 
 TypeScript + ESLint + Prettier
 
-- Run `npm run format` before committing to ensure consistent formatting.
-- Keep code type‑safe. Run `npm run type-check` before pushing.
-- Run `npm run lint` and address warnings where reasonable.
+- Run `pnpm run format` before committing to ensure consistent formatting.
+- Keep code type‑safe. Run `pnpm run type-check` before pushing.
+- Run `pnpm run lint` and address warnings where reasonable.
 
 Electron main (Node side)
 
@@ -133,22 +133,22 @@ Local DB (SQLite)
 
 ## Release Process (maintainers)
 
-Use npm's built-in versioning to ensure consistency:
+Use pnpm's built-in versioning to ensure consistency:
 
 ```bash
 # For bug fixes (0.2.9 → 0.2.10)
-npm version patch
+pnpm version patch
 
 # For new features (0.2.9 → 0.3.0)
-npm version minor
+pnpm version minor
 
 # For breaking changes (0.2.9 → 1.0.0)
-npm version major
+pnpm version major
 ```
 
 This automatically:
 
-1. Updates `package.json` and `package-lock.json`
+1. Updates `package.json` and `pnpm-lock.yaml`
 2. Creates a git commit with the version number (e.g., `"0.2.10"`)
 3. Creates a git tag (e.g., `v0.2.10`)
 
@@ -165,6 +165,6 @@ Two GitHub Actions workflows trigger on version tags:
 4. Creates a GitHub Release with DMG artifacts for arm64 and x64
 
 **Linux/Nix Build** (`.github/workflows/nix-build.yml`):
-1. Computes the correct `npmDepsHash` from `package-lock.json`
+1. Computes the correct dependency hash from `pnpm-lock.yaml`
 2. Builds the x86_64-linux package via Nix flake
 3. Pushes build artifacts to Cachix

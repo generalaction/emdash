@@ -38,11 +38,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
@@ -57,10 +62,10 @@ jobs:
       - name: Install dependencies (strict lockfile)
         env:
           npm_config_python: ${{ env.python }}
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build app (ts + vite)
-        run: npm run build
+        run: pnpm run build
 
       - name: Inject PostHog config (dev build job)
         env:
@@ -105,9 +110,9 @@ jobs:
           for A in "${ARCHS[@]}"; do
             echo "=== Building for $A ==="
             echo "Rebuilding native modules for $A (Electron $ELECTRON_VERSION)"
-            npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
+            npm_config_build_from_source=true pnpm exec @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
             echo "Packaging $A DMG"
-            npx electron-builder --mac dmg --$A --publish never --config.npmRebuild=false
+            pnpm exec electron-builder --mac dmg --$A --publish never --config.npmRebuild=false
           done
 
       - name: Verify native module architectures match Electron
@@ -176,11 +181,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
@@ -201,12 +211,11 @@ jobs:
         env:
           npm_config_python: ${{ env.python }}
         run: |
-          # Avoid using a mac-generated lockfile on Linux; it omits linux-only optional deps (e.g., rollup native)
-          rm -f package-lock.json
-          npm install
+          # pnpm lockfiles are cross-platform; keep lockfile strict for reproducible builds
+          pnpm install --frozen-lockfile
 
       - name: Build app (ts + vite)
-        run: npm run build
+        run: pnpm run build
 
       - name: Inject PostHog config
         env:
@@ -230,7 +239,7 @@ jobs:
           echo "Wrote dist/main/appConfig.json"
 
       - name: Build Linux packages (AppImage and .deb)
-        run: npm run package:linux
+        run: pnpm run package:linux
 
       - name: Upload Linux packages to GitHub Release
         env:
@@ -273,11 +282,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Setup Python 3.11 for node-gyp
         uses: actions/setup-python@v5
@@ -292,7 +306,7 @@ jobs:
       - name: Install dependencies (strict lockfile)
         env:
           npm_config_python: ${{ env.python }}
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Import Apple signing certificate
         uses: apple-actions/import-codesign-certs@v2
@@ -301,7 +315,7 @@ jobs:
           p12-password: ${{ secrets.CERTIFICATE_PASSWORD }}
 
       - name: Build app (ts + vite)
-        run: npm run build
+        run: pnpm run build
 
       - name: Inject PostHog config (release job)
         env:
@@ -378,9 +392,9 @@ jobs:
           for A in "${ARCHS[@]}"; do
             echo "=== Building for $A ==="
             echo "Rebuilding native modules for $A (Electron $ELECTRON_VERSION)"
-            npm_config_build_from_source=true npx @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
+            npm_config_build_from_source=true pnpm exec @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
             echo "Packaging $A DMG and ZIP"
-            npx electron-builder --mac dmg zip --$A --publish never --config.npmRebuild=false
+            pnpm exec electron-builder --mac dmg zip --$A --publish never --config.npmRebuild=false
           done
 
       - name: Verify native module architectures match Electron
