@@ -61,7 +61,7 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
         <CopyMarkdownButton markdownUrl={page.url === '/' ? '/index.md' : `${page.url}.md`} />
       </div>
       <DocsBody>
-        <MDX components={{ ...defaultMdxComponents }} />
+        <MDX components={defaultMdxComponents} />
       </DocsBody>
       {lastModified && <LastUpdated date={lastModified} />}
     </DocsPage>
