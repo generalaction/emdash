@@ -379,6 +379,8 @@ const AppContent: React.FC = () => {
                       pinnedTaskIds={pinnedTaskIds}
                       onPinTask={handlePinTask}
                       isHomeView={projectMgmt.showHomeView}
+                      onGoToSkills={projectMgmt.handleGoToSkills}
+                      isSkillsView={projectMgmt.showSkillsView}
                     />
                   </ResizablePanel>
                   <ResizableHandle
@@ -398,6 +400,7 @@ const AppContent: React.FC = () => {
                         activeTaskAgent={activeTaskAgent}
                         showKanban={showKanban}
                         showHomeView={projectMgmt.showHomeView}
+                        showSkillsView={projectMgmt.showSkillsView}
                         projectDefaultBranch={projectMgmt.projectDefaultBranch}
                         projectBranchOptions={projectMgmt.projectBranchOptions}
                         isLoadingBranches={projectMgmt.isLoadingBranches}

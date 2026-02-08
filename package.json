@@ -6,10 +6,10 @@
   "scripts": {
     "d": "npm install && npm run dev",
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
-    "dev:main": "tsc -p tsconfig.main.json && mkdir -p dist/main && cp src/main/appConfig.json dist/main/appConfig.json && electron dist/main/main/entry.js --dev",
+    "dev:main": "tsc -p tsconfig.main.json && mkdir -p dist/main && cp src/main/appConfig.json dist/main/appConfig.json && mkdir -p dist/main/main/services/skills && cp src/main/services/skills/bundled-catalog.json dist/main/main/services/skills/bundled-catalog.json && electron dist/main/main/entry.js --dev",
     "dev:renderer": "vite",
     "build": "npm run build:main && npm run build:renderer",
-    "build:main": "tsc -p tsconfig.main.json && mkdir -p dist/main && cp src/main/appConfig.json dist/main/appConfig.json",
+    "build:main": "tsc -p tsconfig.main.json && mkdir -p dist/main && cp src/main/appConfig.json dist/main/appConfig.json && mkdir -p dist/main/main/services/skills && cp src/main/services/skills/bundled-catalog.json dist/main/main/services/skills/bundled-catalog.json",
     "build:renderer": "vite build",
     "package": "npm run build && electron-builder",
     "package:mac": "npm run build && electron-builder --mac",

@@ -496,6 +496,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Lightweight TCP probe for localhost ports to avoid noisy fetches
   netProbePorts: (host: string, ports: number[], timeoutMs?: number) =>
     ipcRenderer.invoke('net:probePorts', host, ports, timeoutMs),
+
+  // Skills management
+  skillsGetCatalog: () => ipcRenderer.invoke('skills:getCatalog'),
+  skillsRefreshCatalog: () => ipcRenderer.invoke('skills:refreshCatalog'),
+  skillsInstall: (args: { skillId: string }) => ipcRenderer.invoke('skills:install', args),
+  skillsUninstall: (args: { skillId: string }) => ipcRenderer.invoke('skills:uninstall', args),
+  skillsGetDetail: (args: { skillId: string }) => ipcRenderer.invoke('skills:getDetail', args),
+  skillsGetDetectedAgents: () => ipcRenderer.invoke('skills:getDetectedAgents'),
+  skillsCreate: (args: { name: string; description: string }) =>
+    ipcRenderer.invoke('skills:create', args),
 });
 
 // Type definitions for the exposed API
