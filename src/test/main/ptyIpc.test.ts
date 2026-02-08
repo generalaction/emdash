@@ -79,18 +79,18 @@ vi.mock('electron', () => {
       }),
     },
     BrowserWindow: {
-      getAllWindows: (...args: any[]) => getAllWindowsMock(...args),
+      getAllWindows: getAllWindowsMock,
     },
     Notification: MockNotification,
   };
 });
 
 vi.mock('../../main/services/ptyManager', () => ({
-  startPty: (...args: any[]) => startPtyMock(...args),
+  startPty: startPtyMock,
   writePty: vi.fn(),
   resizePty: vi.fn(),
-  killPty: (...args: any[]) => killPtyMock(...args),
-  getPty: (...args: any[]) => getPtyMock(...args),
+  killPty: killPtyMock,
+  getPty: getPtyMock,
   startDirectPty: vi.fn(),
   setOnDirectCliExit: vi.fn(),
 }));
@@ -111,7 +111,7 @@ vi.mock('../../main/settings', () => ({
 }));
 
 vi.mock('../../main/telemetry', () => ({
-  capture: (...args: any[]) => telemetryCaptureMock(...args),
+  capture: telemetryCaptureMock,
 }));
 
 vi.mock('../../shared/providers/registry', () => ({
