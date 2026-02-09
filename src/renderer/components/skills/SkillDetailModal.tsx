@@ -19,7 +19,7 @@ const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
         <img
           src={skill.iconUrl}
           alt=""
-          className={`h-10 w-10 rounded-lg object-contain${isMonochrome !== false ? 'dark:invert' : ''}`}
+          className={`h-10 w-10 rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
         />
       </div>
     );
