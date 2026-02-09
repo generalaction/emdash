@@ -165,7 +165,8 @@ const SkillsView: React.FC = () => {
             >
               Agent Skills
             </a>{' '}
-            standard.
+            standard. If you want to use skills from another skills library, feel free to let
+            us know through the feedback modal.
           </p>
         </div>
 
