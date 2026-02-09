@@ -19,6 +19,8 @@ import Context7SettingsCard from './Context7SettingsCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
+import ReviewBadgeSettingsCard from './ReviewBadgeSettingsCard';
+import SidebarDisplaySettingsCard from './SidebarDisplaySettingsCard';
 import { CliAgentStatus } from '../types/connections';
 import { Separator } from './ui/separator';
 
@@ -225,6 +227,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialT
           { title: 'Right sidebar', render: () => <RightSidebarSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
           { title: 'Terminal font', render: () => <TerminalSettingsCard /> },
+          { title: 'Kanban board', render: () => <ReviewBadgeSettingsCard /> },
+          { title: 'Project sidebar', render: () => <SidebarDisplaySettingsCard /> },
         ],
       },
       repository: {

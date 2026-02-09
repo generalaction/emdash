@@ -37,6 +37,8 @@ export interface KeyboardSettings {
 
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
+  showReviewBadge?: boolean;
+  showGitRepoInSidebar?: boolean;
 }
 
 export interface AppSettings {
@@ -62,6 +64,8 @@ export interface AppSettings {
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    autoRenameWithLLM?: boolean;
+    llmRenameModel?: string;
   };
   projects?: {
     defaultDirectory: string;
@@ -99,6 +103,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    autoRenameWithLLM: false,
+    llmRenameModel: 'llama3.2:1b',
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
@@ -119,6 +125,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   interface: {
     autoRightSidebarBehavior: false,
+    showReviewBadge: true,
+    showGitRepoInSidebar: true,
   },
   terminal: {
     fontFamily: '',
@@ -268,6 +276,10 @@ function normalizeSettings(input: AppSettings): AppSettings {
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
+    autoRenameWithLLM: Boolean(
+      tasks?.autoRenameWithLLM ?? DEFAULT_SETTINGS.tasks!.autoRenameWithLLM
+    ),
+    llmRenameModel: String(tasks?.llmRenameModel ?? DEFAULT_SETTINGS.tasks!.llmRenameModel).trim() || DEFAULT_SETTINGS.tasks!.llmRenameModel,
   };
 
   // Projects
@@ -329,6 +341,10 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.interface = {
     autoRightSidebarBehavior: Boolean(
       iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
+    ),
+    showReviewBadge: Boolean(iface?.showReviewBadge ?? DEFAULT_SETTINGS.interface!.showReviewBadge),
+    showGitRepoInSidebar: Boolean(
+      iface?.showGitRepoInSidebar ?? DEFAULT_SETTINGS.interface!.showGitRepoInSidebar
     ),
   };
 
