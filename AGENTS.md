@@ -52,7 +52,7 @@ optional_env:
 
 **Skills System**
 
-Emdash implements the open [Agent Skills](https://agentskills.org) standard — a cross-agent specification for reusable skill packages. The standard defines skills as directories containing a `SKILL.md` file with YAML frontmatter, adopted by Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Roo Code, Mistral Vibe, and others. Emdash builds on this standard to provide a unified management layer across all compatible agents.
+Emdash implements the open [Agent Skills](https://agentskills.io) standard — a cross-agent specification for reusable skill packages. The standard defines skills as directories containing a `SKILL.md` file with YAML frontmatter, adopted by Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Roo Code, Mistral Vibe, and others. Emdash builds on this standard to provide a unified management layer across all compatible agents.
 
 *The Problem:* Every agent stores skills in its own directory — Claude Code uses `~/.claude/commands/`, Codex uses `~/.codex/skills/`, Cursor uses `~/.cursor/skills/`, etc. Two separate catalogs exist (OpenAI `openai/skills` repo, Anthropic `anthropics/skills` repo). Without a unified layer, you'd manually install the same skill into each agent's config directory.
 
@@ -71,7 +71,7 @@ Emdash implements the open [Agent Skills](https://agentskills.org) standard — 
 1. **One install, every agent.** Install a skill once from the Emdash catalog → it's immediately available in Claude Code, Codex, Cursor, Gemini, OpenCode, Roo Code, and Mistral Vibe via symlinks into each agent's native directory.
 2. **Aggregated discovery.** Browse skills from both the OpenAI and Anthropic catalogs in one place, with icons, descriptions, and example prompts. No switching between GitHub repos.
 3. **Full-machine awareness.** Emdash scans all 10+ known skill directories on your machine — if you installed a skill directly into Cursor or through another tool, Emdash discovers it and shows it in your inventory.
-4. **Open standard, no lock-in.** Everything is based on the [Agent Skills](https://agentskills.org) open spec — a SKILL.md file with YAML frontmatter in a named directory. No proprietary format. Skills are portable plain text that any compatible agent can read.
+4. **Open standard, no lock-in.** Everything is based on the [Agent Skills](https://agentskills.io) open spec — a SKILL.md file with YAML frontmatter in a named directory. No proprietary format. Skills are portable plain text that any compatible agent can read.
 
 **Risky Areas**
 - `src/main/services/CodexService.ts` – manages long-lived child processes and log streaming; race conditions or unhandled exits can kill agent runs.
