@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { CatalogSkill, CatalogIndex } from '@shared/skills/types';
+import { useToast } from '@/hooks/use-toast';
 
 export function useSkills() {
+  const { toast } = useToast();
   const [catalog, setCatalog] = useState<CatalogIndex | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -63,17 +65,19 @@ export function useSkills() {
               skills: prev.skills.map((s) => (s.id === skillId ? { ...s, installed: false } : s)),
             };
           });
+          toast({ title: 'Install failed', description: result.error || 'Could not install skill', variant: 'destructive' });
         } else {
-          // Reload to get fresh state
+          toast({ title: 'Skill installed', description: `${skillId} is now available across your agents` });
           await loadCatalog();
         }
         return result.success;
       } catch {
+        toast({ title: 'Install failed', description: 'An unexpected error occurred', variant: 'destructive' });
         await loadCatalog();
         return false;
       }
     },
-    [loadCatalog]
+    [loadCatalog, toast]
   );
 
   const uninstall = useCallback(
@@ -92,15 +96,19 @@ export function useSkills() {
       try {
         const result = await window.electronAPI.skillsUninstall({ skillId });
         if (!result.success) {
+          toast({ title: 'Uninstall failed', description: result.error || 'Could not uninstall skill', variant: 'destructive' });
           await loadCatalog();
+        } else {
+          toast({ title: 'Skill removed', description: `${skillId} has been uninstalled` });
         }
         return result.success;
       } catch {
+        toast({ title: 'Uninstall failed', description: 'An unexpected error occurred', variant: 'destructive' });
         await loadCatalog();
         return false;
       }
     },
-    [loadCatalog]
+    [loadCatalog, toast]
   );
 
   const openDetail = useCallback(async (skill: CatalogSkill) => {

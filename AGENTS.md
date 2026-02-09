@@ -50,6 +50,29 @@ optional_env:
 - Don't modify telemetry defaults or updater logic unless the change is intentional and reviewed.
 - Don't run commands that mutate global environments (package installs, git pushes) from agent scripts.
 
+**Skills System**
+
+Emdash implements the open [Agent Skills](https://agentskills.org) standard — a cross-agent specification for reusable skill packages. The standard defines skills as directories containing a `SKILL.md` file with YAML frontmatter, adopted by Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Roo Code, Mistral Vibe, and others. Emdash builds on this standard to provide a unified management layer across all compatible agents.
+
+*The Problem:* Every agent stores skills in its own directory — Claude Code uses `~/.claude/commands/`, Codex uses `~/.codex/skills/`, Cursor uses `~/.cursor/skills/`, etc. Two separate catalogs exist (OpenAI `openai/skills` repo, Anthropic `anthropics/skills` repo). Without a unified layer, you'd manually install the same skill into each agent's config directory.
+
+*How it works:*
+- **Agent Skills standard:** Every skill is a `SKILL.md` file with YAML frontmatter (name, description) + markdown instructions, per the open spec. This is the format all compatible agents understand.
+- **Central storage:** All skills live in `~/.agentskills/{skill-name}/`. Emdash metadata in `~/.agentskills/.emdash/`.
+- **Agent sync via symlinks:** On install, Emdash symlinks from central storage into each detected agent's native directory (`~/.claude/commands/{skill}/`, `~/.codex/skills/{skill}/`, etc.). Each agent sees the skill in its own native format.
+- **Aggregated catalog:** Emdash fetches skills from OpenAI's repo (with icons from `openai.yaml`), Anthropic's repo (descriptions from `SKILL.md` frontmatter), and local user-created skills — deduplicates by ID and merges into one browsable catalog.
+- **One-click install/uninstall:** Downloads `SKILL.md` from GitHub, saves to `~/.agentskills/`, creates symlinks to all agents. Uninstall removes directory + symlinks.
+
+*Key files:* `src/shared/skills/` (types, validation, agent targets), `src/main/services/SkillsService.ts` (core logic), `src/main/ipc/skillsIpc.ts` (IPC handlers), `src/renderer/components/skills/` (UI), `src/main/services/skills/bundled-catalog.json` (offline fallback).
+
+*Usage:* Install a skill in the Emdash Skills view, then invoke it in the agent — e.g. `/skill-name` in Claude Code.
+
+*Value:* Emdash is the first tool to implement the Agent Skills standard as a cross-agent management layer:
+1. **One install, every agent.** Install a skill once from the Emdash catalog → it's immediately available in Claude Code, Codex, Cursor, Gemini, OpenCode, Roo Code, and Mistral Vibe via symlinks into each agent's native directory.
+2. **Aggregated discovery.** Browse skills from both the OpenAI and Anthropic catalogs in one place, with icons, descriptions, and example prompts. No switching between GitHub repos.
+3. **Full-machine awareness.** Emdash scans all 10+ known skill directories on your machine — if you installed a skill directly into Cursor or through another tool, Emdash discovers it and shows it in your inventory.
+4. **Open standard, no lock-in.** Everything is based on the [Agent Skills](https://agentskills.org) open spec — a SKILL.md file with YAML frontmatter in a named directory. No proprietary format. Skills are portable plain text that any compatible agent can read.
+
 **Risky Areas**
 - `src/main/services/CodexService.ts` – manages long-lived child processes and log streaming; race conditions or unhandled exits can kill agent runs.
 - `src/main/db/**` + `drizzle/` – schema migrations and SQLite access; mismatches can corrupt user data.

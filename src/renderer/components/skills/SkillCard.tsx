@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil } from 'lucide-react';
 import type { CatalogSkill } from '@shared/skills/types';
+import { useIsMonochrome } from '../../hooks/useIsMonochrome';
 
 interface SkillCardProps {
   skill: CatalogSkill;
@@ -12,6 +13,7 @@ interface SkillCardProps {
 const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
   const [imgError, setImgError] = useState(false);
   const letter = skill.displayName.charAt(0).toUpperCase();
+  const isMonochrome = useIsMonochrome(skill.iconUrl);
 
   if (skill.iconUrl && !imgError) {
     return (
@@ -19,7 +21,7 @@ const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
         <img
           src={skill.iconUrl}
           alt=""
-          className="h-10 w-10 rounded-lg object-contain"
+          className={`h-10 w-10 rounded-lg object-contain${isMonochrome !== false ? ' dark:invert' : ''}`}
           onError={() => setImgError(true)}
           loading="lazy"
         />
@@ -27,11 +29,9 @@ const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
     );
   }
 
-  const bgColor = skill.brandColor || (skill.source === 'openai' ? '#10a37f' : '#d4a574');
   return (
     <div
-      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl text-base font-semibold text-white"
-      style={{ backgroundColor: bgColor }}
+      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-base font-semibold text-foreground/60 dark:text-white"
     >
       {letter}
     </div>

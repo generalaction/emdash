@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as https from 'https';
 import { log } from '../lib/logger';
 import { parseFrontmatter, isValidSkillName, generateSkillMd } from '@shared/skills/validation';
-import { agentTargets } from '@shared/skills/agentTargets';
+import { agentTargets, skillScanPaths } from '@shared/skills/agentTargets';
 import type { CatalogSkill, CatalogIndex, DetectedAgent } from '@shared/skills/types';
 
 const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');
@@ -80,13 +80,21 @@ export class SkillsService {
         this.fetchAnthropicCatalog(),
       ]);
 
-      const skills: CatalogSkill[] = [];
+      const allSkills: CatalogSkill[] = [];
       if (openaiSkills.status === 'fulfilled') {
-        skills.push(...openaiSkills.value);
+        allSkills.push(...openaiSkills.value);
       }
       if (anthropicSkills.status === 'fulfilled') {
-        skills.push(...anthropicSkills.value);
+        allSkills.push(...anthropicSkills.value);
       }
+
+      // Deduplicate by id — first occurrence wins
+      const seen = new Set<string>();
+      const skills = allSkills.filter((s) => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      });
 
       // If both failed, fall back to bundled
       if (skills.length === 0) {
@@ -111,29 +119,55 @@ export class SkillsService {
 
   async getInstalledSkills(): Promise<CatalogSkill[]> {
     await this.initialize();
-    const entries = await fs.promises.readdir(SKILLS_ROOT, { withFileTypes: true });
+    const seen = new Set<string>();
     const skills: CatalogSkill[] = [];
 
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      const skillDir = path.join(SKILLS_ROOT, entry.name);
-      const skillMdPath = path.join(skillDir, 'SKILL.md');
+    // Scan all known skill directories (central + agent-specific)
+    const dirsToScan = [SKILLS_ROOT, ...skillScanPaths];
 
+    for (const dir of dirsToScan) {
+      let entries: fs.Dirent[];
       try {
-        const content = await fs.promises.readFile(skillMdPath, 'utf-8');
-        const { frontmatter } = parseFrontmatter(content);
-        skills.push({
-          id: entry.name,
-          displayName: frontmatter.name || entry.name,
-          description: frontmatter.description || '',
-          source: 'local',
-          frontmatter,
-          installed: true,
-          localPath: skillDir,
-          skillMdContent: content,
-        });
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
       } catch {
-        // Skip dirs without SKILL.md
+        continue; // Directory doesn't exist
+      }
+
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+        if (seen.has(entry.name)) continue; // Already found this skill
+
+        let skillDir = path.join(dir, entry.name);
+
+        // Resolve symlinks to get the real path
+        try {
+          const stat = await fs.promises.lstat(skillDir);
+          if (stat.isSymbolicLink()) {
+            skillDir = await fs.promises.realpath(skillDir);
+          }
+        } catch (err) {
+          log.warn(`Skipping skill "${entry.name}" in ${dir}: failed to resolve path`, err);
+          continue;
+        }
+
+        const skillMdPath = path.join(skillDir, 'SKILL.md');
+        try {
+          const content = await fs.promises.readFile(skillMdPath, 'utf-8');
+          const { frontmatter } = parseFrontmatter(content);
+          seen.add(entry.name);
+          skills.push({
+            id: entry.name,
+            displayName: frontmatter.name || entry.name,
+            description: frontmatter.description || '',
+            source: 'local',
+            frontmatter,
+            installed: true,
+            localPath: skillDir,
+            skillMdContent: content,
+          });
+        } catch {
+          // No SKILL.md — not a valid skill directory, skip silently
+        }
       }
     }
 
@@ -364,7 +398,15 @@ export class SkillsService {
     const installed = await this.getInstalledSkills();
     const installedMap = new Map(installed.map((s) => [s.id, s]));
 
-    const mergedSkills = catalog.skills.map((skill) => {
+    // Deduplicate catalog skills by id (first occurrence wins)
+    const seen = new Set<string>();
+    const dedupedSkills = catalog.skills.filter((s) => {
+      if (seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
+
+    const mergedSkills = dedupedSkills.map((skill) => {
       const local = installedMap.get(skill.id);
       if (local) {
         installedMap.delete(skill.id);

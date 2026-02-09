@@ -135,10 +135,34 @@ const SkillsView: React.FC = () => {
           </Button>
         </div>
 
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Skills from the{' '}
+            <a
+              href="https://github.com/openai/skills"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+            >
+              OpenAI
+            </a>{' '}
+            and{' '}
+            <a
+              href="https://github.com/anthropics/skills"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+            >
+              Anthropic
+            </a>{' '}
+            catalogs. Install a skill to make it available across all your coding agents.
+          </p>
+        </div>
+
         {/* Installed section */}
         {installedSkills.length > 0 && (
           <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
               Installed
             </h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -152,30 +176,8 @@ const SkillsView: React.FC = () => {
         {/* Recommended section */}
         {recommendedSkills.length > 0 && (
           <div className="mb-6">
-            <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Skills from the{' '}
-                <a
-                  href="https://github.com/openai/skills"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-                >
-                  OpenAI
-                </a>{' '}
-                and{' '}
-                <a
-                  href="https://github.com/anthropics/skills"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-                >
-                  Anthropic
-                </a>{' '}
-                catalogs. Install a skill to make it available across all your coding agents.
-              </p>
-            </div>
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            
+            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
               Recommended
             </h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
