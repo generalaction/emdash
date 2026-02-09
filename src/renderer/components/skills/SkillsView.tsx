@@ -176,7 +176,6 @@ const SkillsView: React.FC = () => {
         {/* Recommended section */}
         {recommendedSkills.length > 0 && (
           <div className="mb-6">
-            
             <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
               Recommended
             </h2>

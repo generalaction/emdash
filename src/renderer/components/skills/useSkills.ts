@@ -65,14 +65,25 @@ export function useSkills() {
               skills: prev.skills.map((s) => (s.id === skillId ? { ...s, installed: false } : s)),
             };
           });
-          toast({ title: 'Install failed', description: result.error || 'Could not install skill', variant: 'destructive' });
+          toast({
+            title: 'Install failed',
+            description: result.error || 'Could not install skill',
+            variant: 'destructive',
+          });
         } else {
-          toast({ title: 'Skill installed', description: `${skillId} is now available across your agents` });
+          toast({
+            title: 'Skill installed',
+            description: `${skillId} is now available across your agents`,
+          });
           await loadCatalog();
         }
         return result.success;
       } catch {
-        toast({ title: 'Install failed', description: 'An unexpected error occurred', variant: 'destructive' });
+        toast({
+          title: 'Install failed',
+          description: 'An unexpected error occurred',
+          variant: 'destructive',
+        });
         await loadCatalog();
         return false;
       }
@@ -96,14 +107,22 @@ export function useSkills() {
       try {
         const result = await window.electronAPI.skillsUninstall({ skillId });
         if (!result.success) {
-          toast({ title: 'Uninstall failed', description: result.error || 'Could not uninstall skill', variant: 'destructive' });
+          toast({
+            title: 'Uninstall failed',
+            description: result.error || 'Could not uninstall skill',
+            variant: 'destructive',
+          });
           await loadCatalog();
         } else {
           toast({ title: 'Skill removed', description: `${skillId} has been uninstalled` });
         }
         return result.success;
       } catch {
-        toast({ title: 'Uninstall failed', description: 'An unexpected error occurred', variant: 'destructive' });
+        toast({
+          title: 'Uninstall failed',
+          description: 'An unexpected error occurred',
+          variant: 'destructive',
+        });
         await loadCatalog();
         return false;
       }
