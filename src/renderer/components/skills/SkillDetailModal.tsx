@@ -19,7 +19,7 @@ const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
         <img
           src={skill.iconUrl}
           alt=""
-          className={`h-10 w-10 rounded-lg object-contain${isMonochrome !== false ? 'dark:invert' : ''}`}
+          className={`h-10 w-10 rounded-lg object-contain${isMonochrome !== false ? ' dark:invert' : ''}`}
         />
       </div>
     );
@@ -101,9 +101,8 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
           </div>
         </DialogHeader>
 
-        {/* Source badge */}
         {skill.source !== 'local' && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <img
               src={
                 skill.source === 'openai'
@@ -111,7 +110,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
                   : 'https://github.com/anthropics.png'
               }
               alt=""
-              className="h-3.5 w-3.5 rounded-full"
+              className="h-5 w-5 rounded-sm"
             />
             <span>From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library</span>
           </div>
@@ -119,7 +118,6 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
 
         <Separator />
 
-        {/* Default prompt */}
         {skill.defaultPrompt && (
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
@@ -129,7 +127,6 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
           </div>
         )}
 
-        {/* SKILL.md body */}
         {body && (
           <div className="max-h-60 overflow-y-auto rounded-md bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
             <Markdown

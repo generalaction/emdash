@@ -155,11 +155,10 @@ const SkillsView: React.FC = () => {
             >
               Anthropic
             </a>{' '}
-            catalogs. Install a skill to make it available across all your coding agents.
+            catalogs. Install a skill to make it available across all your coding agents. If you want to use skills from another skills library, feel free to let us know in the feedback.  
           </p>
         </div>
 
-        {/* Installed section */}
         {installedSkills.length > 0 && (
           <div className="mb-6">
             <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
@@ -173,7 +172,6 @@ const SkillsView: React.FC = () => {
           </div>
         )}
 
-        {/* Recommended section */}
         {recommendedSkills.length > 0 && (
           <div className="mb-6">
             <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
@@ -187,7 +185,6 @@ const SkillsView: React.FC = () => {
           </div>
         )}
 
-        {/* Empty state */}
         {installedSkills.length === 0 && recommendedSkills.length === 0 && (
           <div className="py-12 text-center">
             <p className="text-sm text-muted-foreground">
@@ -197,7 +194,6 @@ const SkillsView: React.FC = () => {
         )}
       </div>
 
-      {/* Detail modal */}
       <SkillDetailModal
         skill={selectedSkill}
         isOpen={showDetailModal}
@@ -207,7 +203,6 @@ const SkillsView: React.FC = () => {
         onOpenTerminal={handleOpenTerminal}
       />
 
-      {/* Create skill modal */}
       <Dialog
         open={showCreateModal}
         onOpenChange={(open) => !open && !isCreating && setShowCreateModal(false)}
