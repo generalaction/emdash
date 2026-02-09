@@ -45,8 +45,8 @@ export const agentConfig: Record<Agent, AgentInfo> = {
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
   continue: { name: 'Continue', logo: continueLogo, alt: 'Continue CLI' },
   codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
-  // Without initial prompt support
   amp: { name: 'Amp', logo: ampLogo, alt: 'Amp Code' },
+  // Without initial prompt support
   copilot: { name: 'Copilot', logo: copilotLogo, alt: 'GitHub Copilot CLI', invertInDark: true },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
