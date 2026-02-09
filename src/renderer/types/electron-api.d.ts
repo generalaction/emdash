@@ -326,7 +326,9 @@ declare global {
         id: string,
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
-      onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      onPtyStarted: (listener: (data: { id: string; taskId: string | null }) => void) => () => void;
+      onPtyExited: (listener: (data: { id: string; taskId: string | null }) => void) => () => void;
+      ptyList: () => Promise<Array<{ id: string; taskId: string | null }>>;
       terminalGetTheme: () => Promise<{
         ok: boolean;
         config?: {
@@ -1115,7 +1117,9 @@ export interface ElectronAPI {
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void
   ) => () => void;
-  onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+  onPtyStarted: (listener: (data: { id: string; taskId?: string | null }) => void) => () => void;
+  onPtyExited: (listener: (data: { id: string; taskId: string | null }) => void) => () => void;
+  ptyList: () => Promise<Array<{ id: string; taskId: string | null }>>;
 
   // Worktree management
   worktreeCreate: (args: {

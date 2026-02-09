@@ -7,6 +7,7 @@ import {
   getPty,
   startDirectPty,
   setOnDirectCliExit,
+  listPtyIds,
 } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -49,6 +50,25 @@ function safeSendToOwner(id: string, channel: string, payload: unknown): boolean
   }
 }
 
+/** Broadcast an IPC message to all open BrowserWindows. */
+function broadcastToAll(channel: string, payload: unknown): void {
+  try {
+    for (const w of BrowserWindow.getAllWindows()) {
+      try {
+        if (!w.webContents.isDestroyed()) w.webContents.send(channel, payload);
+      } catch {}
+    }
+  } catch (err) {
+    log.error('ptyIpc: broadcastToAll failed', { channel, error: err });
+  }
+}
+
+/** Extract taskId from a main-terminal PTY ID, or null. */
+export function getPtyTaskId(id: string): string | null {
+  const m = /^[a-z0-9_-]+-main-(.+)$/.exec(id);
+  return m ? m[1] : null;
+}
+
 export function registerPtyIpc(): void {
   // When a direct-spawned CLI exits, spawn a shell so user can continue working
   setOnDirectCliExit(async (id: string, cwd: string) => {
@@ -66,6 +86,7 @@ export function registerPtyIpc(): void {
 
       if (!proc) {
         log.warn('ptyIpc: Failed to spawn shell after CLI exit', { id });
+        broadcastToAll('pty:exited', { id, taskId: getPtyTaskId(id) });
         killPty(id); // Clean up dead PTY record
         return;
       }
@@ -79,6 +100,7 @@ export function registerPtyIpc(): void {
 
         proc.onExit(({ exitCode, signal }) => {
           safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+          broadcastToAll('pty:exited', { id, taskId: getPtyTaskId(id) });
           owners.delete(id);
           listeners.delete(id);
         });
@@ -86,9 +108,7 @@ export function registerPtyIpc(): void {
       }
 
       // Notify renderer that shell is ready (reuse pty:started so existing listener handles it)
-      if (!wc.isDestroyed()) {
-        wc.send('pty:started', { id });
-      }
+      broadcastToAll('pty:started', { id, taskId: getPtyTaskId(id) });
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
       killPty(id); // Clean up dead PTY record
@@ -225,6 +245,7 @@ export function registerPtyIpc(): void {
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            broadcastToAll('pty:exited', { id, taskId: getPtyTaskId(id) });
             maybeMarkProviderFinish(
               id,
               exitCode,
@@ -248,6 +269,7 @@ export function registerPtyIpc(): void {
             for (const [ptyId, owner] of owners.entries()) {
               if (owner === wc) {
                 try {
+                  broadcastToAll('pty:exited', { id: ptyId, taskId: getPtyTaskId(ptyId) });
                   maybeMarkProviderFinish(
                     ptyId,
                     null,
@@ -268,16 +290,7 @@ export function registerPtyIpc(): void {
         maybeMarkProviderStart(id);
 
         // Signal that PTY is ready
-        try {
-          const windows = BrowserWindow.getAllWindows();
-          windows.forEach((w) => {
-            try {
-              if (!w.webContents.isDestroyed()) {
-                w.webContents.send('pty:started', { id });
-              }
-            } catch {}
-          });
-        } catch {}
+        broadcastToAll('pty:started', { id, taskId: getPtyTaskId(id) });
 
         return { ok: true };
       } catch (err: any) {
@@ -388,6 +401,11 @@ export function registerPtyIpc(): void {
     }
   });
 
+  // List active PTY IDs with their associated task IDs (for renderer seeding)
+  ipcMain.handle('pty:list', () => {
+    return listPtyIds().map((id) => ({ id, taskId: getPtyTaskId(id) }));
+  });
+
   // Start a PTY by spawning CLI directly (no shell wrapper)
   // This is faster but falls back to shell-based spawn if CLI path unknown
   ipcMain.handle(
@@ -419,6 +437,7 @@ export function registerPtyIpc(): void {
           owners.set(id, wc);
           // Still track agent start even when reusing PTY (happens after shell respawn)
           maybeMarkProviderStart(id, providerId as ProviderId);
+          broadcastToAll('pty:started', { id, taskId: getPtyTaskId(id) });
           return { ok: true, reused: true };
         }
 
@@ -467,6 +486,11 @@ export function registerPtyIpc(): void {
 
           proc.onExit(({ exitCode, signal }) => {
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            // For direct spawn the CLI exits but a shell respawn follows — the PTY stays alive.
+            // Only broadcast pty:exited for fallback (shell-based) spawns where the PTY truly ends.
+            if (usedFallback) {
+              broadcastToAll('pty:exited', { id, taskId: getPtyTaskId(id) });
+            }
             maybeMarkProviderFinish(
               id,
               exitCode,
@@ -492,6 +516,7 @@ export function registerPtyIpc(): void {
             for (const [ptyId, owner] of owners.entries()) {
               if (owner === wc) {
                 try {
+                  broadcastToAll('pty:exited', { id: ptyId, taskId: getPtyTaskId(ptyId) });
                   maybeMarkProviderFinish(
                     ptyId,
                     null,
@@ -509,10 +534,7 @@ export function registerPtyIpc(): void {
 
         maybeMarkProviderStart(id, providerId as ProviderId);
 
-        try {
-          const windows = BrowserWindow.getAllWindows();
-          windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
-        } catch {}
+        broadcastToAll('pty:started', { id, taskId: getPtyTaskId(id) });
 
         return { ok: true };
       } catch (err: any) {
