@@ -155,9 +155,17 @@ const SkillsView: React.FC = () => {
             >
               Anthropic
             </a>{' '}
-            catalogs. Install a skill to make it available across all your coding agents. If you
-            want to use skills from another skills library, feel free to let us know in the
-            feedback.
+            catalogs. Install a skill to make it available across all your coding agents. Skills
+            follow the open{' '}
+            <a
+              href="https://agentskills.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+            >
+              Agent Skills
+            </a>{' '}
+            standard.
           </p>
         </div>
 
