@@ -14,6 +14,7 @@ type OpenInAppConfigShape = {
   iconPath: (typeof ICON_PATHS)[keyof typeof ICON_PATHS];
   alwaysAvailable?: boolean;
   autoInstall?: boolean;
+  supportsRemote?: boolean;
   platforms: Partial<Record<PlatformKey, PlatformConfig>>;
 };
 
@@ -45,6 +46,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     label: 'Cursor',
     iconPath: ICON_PATHS.cursor,
     autoInstall: true,
+    supportsRemote: true,
     platforms: {
       darwin: {
         openCommands: [
@@ -69,6 +71,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     label: 'VS Code',
     iconPath: ICON_PATHS.vscode,
     autoInstall: true,
+    supportsRemote: true,
     platforms: {
       darwin: {
         openCommands: [
@@ -95,6 +98,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     label: 'Terminal',
     iconPath: ICON_PATHS.terminal,
     alwaysAvailable: true,
+    supportsRemote: true,
     platforms: {
       darwin: { openCommands: ['open -a Terminal {{path}}'] },
       win32: {
@@ -113,6 +117,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     id: 'warp',
     label: 'Warp',
     iconPath: ICON_PATHS.warp,
+    supportsRemote: true,
     platforms: {
       darwin: {
         openUrls: [
@@ -127,6 +132,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     id: 'iterm2',
     label: 'iTerm2',
     iconPath: ICON_PATHS.iterm2,
+    supportsRemote: true,
     platforms: {
       darwin: {
         openCommands: [
@@ -143,6 +149,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     id: 'ghostty',
     label: 'Ghostty',
     iconPath: ICON_PATHS.ghostty,
+    supportsRemote: true,
     platforms: {
       darwin: {
         openCommands: ['open -b com.mitchellh.ghostty {{path}}', 'open -a "Ghostty" {{path}}'],

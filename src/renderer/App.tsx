@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { FolderOpen, Github, Plus } from 'lucide-react';
+import { FolderOpen, Github, Plus, Server } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import emdashLogo from '../assets/images/emdash/emdash_logo.svg';
@@ -8,6 +8,7 @@ import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import BrowserPane from './components/BrowserPane';
 import ChatInterface from './components/ChatInterface';
 import { CloneFromUrlModal } from './components/CloneFromUrlModal';
+import { AddRemoteProjectModal } from './components/ssh/AddRemoteProjectModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import FirstLaunchModal from './components/FirstLaunchModal';
@@ -193,6 +194,7 @@ const AppContent: React.FC = () => {
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
+  const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
   // Read stored active IDs synchronously to prevent flash on reload
   const storedActiveIds = useMemo(() => getStoredActiveIds(), []);
   const hasPendingRestore = storedActiveIds.projectId !== null;
@@ -909,6 +911,10 @@ const AppContent: React.FC = () => {
     setShowCloneModal(true);
   };
 
+  const handleAddRemoteProjectClick = useCallback(() => {
+    setShowRemoteProjectModal(true);
+  }, []);
+
   const handleCloneSuccess = useCallback(
     async (projectPath: string) => {
       const { captureTelemetry } = await import('./lib/telemetryClient');
@@ -1169,6 +1175,70 @@ const AppContent: React.FC = () => {
       }
     },
     [projects, isAuthenticated, activateProjectView, platform, toast]
+  );
+
+  // Handler for remote project creation
+  const handleRemoteProjectSuccess = useCallback(
+    async (remoteProject: {
+      id: string;
+      name: string;
+      path: string;
+      host: string;
+      connectionId: string;
+    }) => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('remote_project_created');
+
+      try {
+        // Create project object for remote project
+        const project: Project = {
+          id: remoteProject.id,
+          name: remoteProject.name,
+          path: remoteProject.path,
+          repoKey: `${remoteProject.host}:${remoteProject.path}`,
+          gitInfo: {
+            isGitRepo: true,
+          },
+          tasks: [],
+          // Mark as remote project
+          isRemote: true,
+          sshConnectionId: remoteProject.connectionId,
+          remotePath: remoteProject.path,
+        } as Project;
+
+        const saveResult = await window.electronAPI.saveProject(project);
+        if (saveResult.success) {
+          captureTelemetry('project_create_success');
+          captureTelemetry('project_added_success', { source: 'remote' });
+          toast({
+            title: 'Remote project added successfully!',
+            description: `${project.name} on ${remoteProject.host} has been added to your projects.`,
+          });
+          // Add to beginning of list
+          setProjects((prev) => {
+            const updated = [project, ...prev];
+            saveProjectOrder(updated);
+            return updated;
+          });
+          activateProjectView(project);
+        } else {
+          toast({
+            title: 'Failed to save remote project',
+            description: saveResult.error || 'Unknown error occurred',
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to save remote project:', error);
+        toast({
+          title: 'Failed to add remote project',
+          description: 'An error occurred while saving the project.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [activateProjectView, toast, saveProjectOrder]
   );
 
   const handleGithubConnect = async () => {
@@ -1442,6 +1512,8 @@ const AppContent: React.FC = () => {
                     .worktreeRemove({
                       projectPath: selectedProject.path,
                       worktreeId: variant.worktreeId,
+                      worktreePath: variant.path,
+                      branch: variant.branch,
                     })
                     .catch(() => {});
                 }
@@ -1482,6 +1554,8 @@ const AppContent: React.FC = () => {
                   .worktreeRemove({
                     projectPath: selectedProject.path,
                     worktreeId: variant.worktreeId,
+                    worktreePath: variant.path,
+                    branch: variant.branch,
                   })
                   .catch(() => {});
               }
@@ -2550,6 +2624,36 @@ const AppContent: React.FC = () => {
     [selectedProject?.tasks]
   );
 
+  const derivedRemoteConnectionId = useMemo((): string | null => {
+    if (!selectedProject) return null;
+    if (selectedProject.sshConnectionId) return selectedProject.sshConnectionId;
+    const alias = selectedProject.name;
+    if (typeof alias !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(alias)) return null;
+
+    // Back-compat for remote projects created before remote fields were persisted.
+    // Heuristic: on macOS/Windows, a /home/... project path is almost certainly remote.
+    const p = selectedProject.path || '';
+    const looksRemoteByPath =
+      platform === 'darwin'
+        ? p.startsWith('/home/')
+        : platform === 'win32'
+          ? p.startsWith('/home/')
+          : false;
+
+    if (selectedProject.isRemote || looksRemoteByPath) {
+      return `ssh-config:${encodeURIComponent(alias)}`;
+    }
+    return null;
+  }, [selectedProject, platform]);
+
+  const derivedRemotePath = useMemo((): string | null => {
+    if (!selectedProject) return null;
+    if (selectedProject.remotePath) return selectedProject.remotePath;
+    // If we derived a connection id, treat project.path as the remote path.
+    if (derivedRemoteConnectionId) return selectedProject.path;
+    return selectedProject.isRemote ? selectedProject.path : null;
+  }, [selectedProject, derivedRemoteConnectionId]);
+
   const renderMainContent = () => {
     if (selectedProject && showKanban) {
       return (
@@ -2603,7 +2707,7 @@ const AppContent: React.FC = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-2">
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.1, ease: 'easeInOut' }}
@@ -2645,6 +2749,24 @@ const AppContent: React.FC = () => {
                   <h3 className="truncate text-xs font-semibold">Clone from GitHub</h3>
                 </div>
               </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1, ease: 'easeInOut' }}
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('./lib/telemetryClient');
+                    captureTelemetry('project_add_remote_clicked');
+                  })();
+                  handleAddRemoteProjectClick();
+                }}
+                className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Server className="mb-5 h-5 w-5 text-foreground opacity-70" />
+                <div className="w-full min-w-0 text-left">
+                  <h3 className="truncate text-xs font-semibold">Add Remote Project</h3>
+                </div>
+              </motion.button>
             </div>
           </div>
         </div>
@@ -2661,6 +2783,8 @@ const AppContent: React.FC = () => {
                 projectName={selectedProject.name}
                 projectId={selectedProject.id}
                 projectPath={selectedProject.path}
+                projectRemoteConnectionId={derivedRemoteConnectionId}
+                projectRemotePath={derivedRemotePath}
                 defaultBranch={projectDefaultBranch}
               />
             ) : (
@@ -2668,6 +2792,8 @@ const AppContent: React.FC = () => {
                 task={activeTask}
                 projectName={selectedProject.name}
                 projectPath={selectedProject.path}
+                projectRemoteConnectionId={derivedRemoteConnectionId}
+                projectRemotePath={derivedRemotePath}
                 defaultBranch={projectDefaultBranch}
                 className="min-h-0 flex-1"
                 initialAgent={activeTaskAgent || undefined}
@@ -2731,7 +2857,11 @@ const AppContent: React.FC = () => {
                   currentPath={
                     activeTask?.metadata?.multiAgent?.enabled
                       ? null
-                      : activeTask?.path || selectedProject?.path || null
+                      : activeTask?.path ||
+                        (selectedProject?.isRemote
+                          ? selectedProject?.remotePath
+                          : selectedProject?.path) ||
+                        null
                   }
                   defaultPreviewUrl={
                     null // Previously: getContainerRunState(activeTask.id)?.previewUrl - Removed: Docker feature
@@ -2782,6 +2912,7 @@ const AppContent: React.FC = () => {
                       onOpenProject={handleOpenProject}
                       onNewProject={handleNewProjectClick}
                       onCloneProject={handleCloneProjectClick}
+                      onAddRemoteProject={handleAddRemoteProjectClick}
                       onSelectTask={handleSelectTask}
                       activeTask={activeTask || undefined}
                       onReorderProjects={handleReorderProjects}
@@ -2827,6 +2958,8 @@ const AppContent: React.FC = () => {
                     <RightSidebar
                       task={activeTask}
                       projectPath={selectedProject?.path || null}
+                      projectRemoteConnectionId={derivedRemoteConnectionId}
+                      projectRemotePath={derivedRemotePath}
                       projectDefaultBranch={projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
@@ -2880,6 +3013,11 @@ const AppContent: React.FC = () => {
                 isOpen={showCloneModal}
                 onClose={() => setShowCloneModal(false)}
                 onSuccess={handleCloneSuccess}
+              />
+              <AddRemoteProjectModal
+                isOpen={showRemoteProjectModal}
+                onClose={() => setShowRemoteProjectModal(false)}
+                onSuccess={handleRemoteProjectSuccess}
               />
               {showWelcomeScreen && <WelcomeScreen onGetStarted={handleWelcomeGetStarted} />}
               <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />

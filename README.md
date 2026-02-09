@@ -29,6 +29,10 @@
 
 Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (supports 15+ CLI agents, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; Hand off Linear, GitHub, or Jira tickets to an agent and review diffs side-by-side.
 
+**Develop on remote servers via SSH**
+
+Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development.
+
 <div align="center" style="margin:24px 0;">
 
 [Installation](#installation) • [Integrations](#integrations) • [Contributing](#contributing) • [FAQ](#faq)
@@ -186,6 +190,25 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > - **Local DB:** to store your app state in SQLite on your machine.
 >
 > Emdash itself does **not** send your code or chats to any servers. Third‑party CLIs may transmit data per their policies.
+</details>
+
+
+<details>
+<summary><b>Can I work with remote projects over SSH?</b></summary>
+
+> **Yes!** Emdash supports remote development via SSH.
+>
+> **Setup:**
+> 1. Go to **Settings → SSH Connections** and add your server details
+> 2. Choose authentication: SSH agent (recommended), private key, or password
+> 3. Add a remote project and specify the path on the server
+>
+> **Requirements:**
+> - SSH access to the remote server
+> - Git installed on the remote server
+> - For agent auth: SSH agent running with your key loaded (`ssh-add -l`)
+>
+> See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions and [docs/ssh-architecture.md](./docs/ssh-architecture.md) for technical details.
 </details>
 
 [![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)

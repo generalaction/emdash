@@ -1,6 +1,72 @@
 import { ipcMain } from 'electron';
 import { worktreeService } from './WorktreeService';
 import { worktreePoolService } from './WorktreePoolService';
+import { databaseService, type Project } from './DatabaseService';
+import { getDrizzleClient } from '../db/drizzleClient';
+import { projects as projectsTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
+import crypto from 'crypto';
+import { RemoteGitService } from './RemoteGitService';
+import { sshService } from '../ipc/sshIpc';
+import { log } from '../lib/logger';
+
+const remoteGitService = new RemoteGitService(sshService);
+
+function stableIdFromRemotePath(worktreePath: string): string {
+  const h = crypto.createHash('sha1').update(worktreePath).digest('hex').slice(0, 12);
+  return `wt-${h}`;
+}
+
+function quoteShellArg(arg: string): string {
+  // POSIX-safe single-quote escaping.
+  return `'${arg.replace(/'/g, "'\"'\"'")}'`;
+}
+
+async function resolveProjectByIdOrPath(args: {
+  projectId?: string;
+  projectPath?: string;
+}): Promise<Project | null> {
+  if (args.projectId) {
+    return databaseService.getProjectById(args.projectId);
+  }
+  if (args.projectPath) {
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(eq(projectsTable.path, args.projectPath))
+      .limit(1);
+    if (rows.length > 0) {
+      return databaseService.getProjectById(rows[0].id);
+    }
+  }
+  return null;
+}
+
+function isRemoteProject(
+  project: Project | null
+): project is Project & { sshConnectionId: string; remotePath: string } {
+  return !!(
+    project &&
+    project.isRemote &&
+    typeof project.sshConnectionId === 'string' &&
+    project.sshConnectionId.length > 0 &&
+    typeof project.remotePath === 'string' &&
+    project.remotePath.length > 0
+  );
+}
+
+async function resolveRemoteProjectForWorktreePath(
+  worktreePath: string
+): Promise<(Project & { sshConnectionId: string; remotePath: string }) | null> {
+  const all = await databaseService.getProjects();
+  // Pick the longest matching remotePath prefix.
+  const candidates = all
+    .filter((p) => isRemoteProject(p))
+    .filter((p) => worktreePath.startsWith(p.remotePath.replace(/\/+$/g, '') + '/'))
+    .sort((a, b) => b.remotePath.length - a.remotePath.length);
+  return candidates[0] ?? null;
+}
 
 export function registerWorktreeIpc(): void {
   // Create a new worktree
@@ -16,6 +82,35 @@ export function registerWorktreeIpc(): void {
       }
     ) => {
       try {
+        const project = await resolveProjectByIdOrPath({
+          projectId: args.projectId,
+          projectPath: args.projectPath,
+        });
+
+        if (isRemoteProject(project)) {
+          const baseRef = args.baseRef ?? project.gitInfo.baseRef;
+          log.info('worktree:create (remote)', {
+            projectId: project.id,
+            remotePath: project.remotePath,
+          });
+          const remote = await remoteGitService.createWorktree(
+            project.sshConnectionId,
+            project.remotePath,
+            args.taskName,
+            baseRef
+          );
+          const worktree = {
+            id: stableIdFromRemotePath(remote.path),
+            name: args.taskName,
+            branch: remote.branch,
+            path: remote.path,
+            projectId: project.id,
+            status: 'active' as const,
+            createdAt: new Date().toISOString(),
+          };
+          return { success: true, worktree };
+        }
+
         const worktree = await worktreeService.createWorktree(
           args.projectPath,
           args.taskName,
@@ -33,6 +128,27 @@ export function registerWorktreeIpc(): void {
   // List worktrees for a project
   ipcMain.handle('worktree:list', async (event, args: { projectPath: string }) => {
     try {
+      const project = await resolveProjectByIdOrPath({ projectPath: args.projectPath });
+      if (isRemoteProject(project)) {
+        const remoteWorktrees = await remoteGitService.listWorktrees(
+          project.sshConnectionId,
+          project.remotePath
+        );
+        const worktrees = remoteWorktrees.map((wt) => {
+          const name = wt.path.split('/').filter(Boolean).pop() || wt.path;
+          return {
+            id: stableIdFromRemotePath(wt.path),
+            name,
+            branch: wt.branch,
+            path: wt.path,
+            projectId: project.id,
+            status: 'active' as const,
+            createdAt: new Date().toISOString(),
+          };
+        });
+        return { success: true, worktrees };
+      }
+
       const worktrees = await worktreeService.listWorktrees(args.projectPath);
       return { success: true, worktrees };
     } catch (error) {
@@ -54,6 +170,42 @@ export function registerWorktreeIpc(): void {
       }
     ) => {
       try {
+        const project = await resolveProjectByIdOrPath({ projectPath: args.projectPath });
+        if (isRemoteProject(project)) {
+          const pathToRemove = args.worktreePath;
+          if (!pathToRemove) {
+            throw new Error('worktreePath is required for remote worktree removal');
+          }
+          log.info('worktree:remove (remote)', {
+            projectId: project.id,
+            remotePath: project.remotePath,
+            worktreePath: pathToRemove,
+          });
+          await remoteGitService.removeWorktree(
+            project.sshConnectionId,
+            project.remotePath,
+            pathToRemove
+          );
+          // Best-effort prune to clear stale metadata.
+          try {
+            await sshService.executeCommand(
+              project.sshConnectionId,
+              'git worktree prune --verbose',
+              project.remotePath
+            );
+          } catch {}
+          if (args.branch) {
+            try {
+              await sshService.executeCommand(
+                project.sshConnectionId,
+                `git branch -D ${quoteShellArg(args.branch)}`,
+                project.remotePath
+              );
+            } catch {}
+          }
+          return { success: true };
+        }
+
         await worktreeService.removeWorktree(
           args.projectPath,
           args.worktreeId,
@@ -71,6 +223,15 @@ export function registerWorktreeIpc(): void {
   // Get worktree status
   ipcMain.handle('worktree:status', async (event, args: { worktreePath: string }) => {
     try {
+      const remoteProject = await resolveRemoteProjectForWorktreePath(args.worktreePath);
+      if (remoteProject) {
+        const status = await remoteGitService.getWorktreeStatus(
+          remoteProject.sshConnectionId,
+          args.worktreePath
+        );
+        return { success: true, status };
+      }
+
       const status = await worktreeService.getWorktreeStatus(args.worktreePath);
       return { success: true, status };
     } catch (error) {
@@ -90,6 +251,10 @@ export function registerWorktreeIpc(): void {
       }
     ) => {
       try {
+        const project = await resolveProjectByIdOrPath({ projectPath: args.projectPath });
+        if (isRemoteProject(project)) {
+          return { success: false, error: 'Remote worktree merge is not supported yet' };
+        }
         await worktreeService.mergeWorktreeChanges(args.projectPath, args.worktreeId);
         return { success: true };
       } catch (error) {
@@ -133,6 +298,14 @@ export function registerWorktreeIpc(): void {
       }
     ) => {
       try {
+        const project = await resolveProjectByIdOrPath({
+          projectId: args.projectId,
+          projectPath: args.projectPath,
+        });
+        if (isRemoteProject(project)) {
+          // Remote worktree pooling is not supported (avoid local mkdir on remote paths).
+          return { success: true };
+        }
         // Fire and forget - don't await, just start the process
         worktreePoolService.ensureReserve(args.projectId, args.projectPath, args.baseRef);
         return { success: true };
@@ -146,6 +319,10 @@ export function registerWorktreeIpc(): void {
   // Check if a reserve is available for a project
   ipcMain.handle('worktree:hasReserve', async (event, args: { projectId: string }) => {
     try {
+      const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
+      if (isRemoteProject(project)) {
+        return { success: true, hasReserve: false };
+      }
       const hasReserve = worktreePoolService.hasReserve(args.projectId);
       return { success: true, hasReserve };
     } catch (error) {
@@ -167,6 +344,13 @@ export function registerWorktreeIpc(): void {
       }
     ) => {
       try {
+        const project = await resolveProjectByIdOrPath({
+          projectId: args.projectId,
+          projectPath: args.projectPath,
+        });
+        if (isRemoteProject(project)) {
+          return { success: false, error: 'Remote worktree pooling is not supported yet' };
+        }
         const result = await worktreePoolService.claimReserve(
           args.projectId,
           args.projectPath,
@@ -191,6 +375,10 @@ export function registerWorktreeIpc(): void {
   // Remove reserve for a project (cleanup)
   ipcMain.handle('worktree:removeReserve', async (event, args: { projectId: string }) => {
     try {
+      const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
+      if (isRemoteProject(project)) {
+        return { success: true };
+      }
       await worktreePoolService.removeReserve(args.projectId);
       return { success: true };
     } catch (error) {

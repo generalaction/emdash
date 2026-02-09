@@ -31,6 +31,8 @@ interface Props {
   task: Task;
   projectName: string;
   projectPath?: string | null;
+  projectRemoteConnectionId?: string | null;
+  projectRemotePath?: string | null;
   defaultBranch?: string | null;
   className?: string;
   initialAgent?: Agent;
@@ -40,6 +42,8 @@ const ChatInterface: React.FC<Props> = ({
   task,
   projectName: _projectName,
   projectPath,
+  projectRemoteConnectionId,
+  projectRemotePath: _projectRemotePath,
   defaultBranch,
   className,
   initialAgent,
@@ -922,6 +926,11 @@ const ChatInterface: React.FC<Props> = ({
                   ref={terminalRef}
                   id={terminalId}
                   cwd={terminalCwd}
+                  remote={
+                    projectRemoteConnectionId
+                      ? { connectionId: projectRemoteConnectionId }
+                      : undefined
+                  }
                   providerId={agent}
                   autoApprove={autoApproveEnabled}
                   env={taskEnv}

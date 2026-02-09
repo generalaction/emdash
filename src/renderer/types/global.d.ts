@@ -19,6 +19,7 @@ declare global {
       ptyStart: (opts: {
         id: string;
         cwd?: string;
+        remote?: { connectionId: string };
         shell?: string;
         env?: Record<string, string>;
         cols?: number;
@@ -31,6 +32,7 @@ declare global {
         id: string;
         providerId: string;
         cwd: string;
+        remote?: { connectionId: string };
         cols?: number;
         rows?: number;
         autoApprove?: boolean;

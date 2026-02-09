@@ -9,6 +9,7 @@ try {
 }
 
 import { app } from 'electron';
+import { initializeShellEnvironment } from './utils/shellEnv';
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
 try {
@@ -83,6 +84,16 @@ if (process.platform === 'win32') {
     process.env.PATH = parts.join(';');
   }
 }
+
+// Detect SSH_AUTH_SOCK from user's shell environment
+// This is necessary because GUI-launched apps don't inherit shell env vars
+try {
+  initializeShellEnvironment();
+} catch (error) {
+  // Silent fail - SSH agent auth will fail if user tries to use it
+  console.log('[main] Failed to initialize shell environment:', error);
+}
+
 import { createMainWindow } from './app/window';
 import { registerAppLifecycle } from './app/lifecycle';
 import { registerAllIpc } from './ipc';

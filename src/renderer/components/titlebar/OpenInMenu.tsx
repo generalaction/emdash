@@ -8,6 +8,8 @@ import { getAppById, OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
 interface OpenInMenuProps {
   path: string;
   align?: 'left' | 'right';
+  isRemote?: boolean;
+  sshConnectionId?: string | null;
 }
 
 const menuItemBase =
@@ -20,7 +22,12 @@ const getMenuItemClasses = (isAvailable: boolean) => {
   return `${menuItemBase} cursor-pointer hover:bg-accent hover:text-accent-foreground`;
 };
 
-const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
+const OpenInMenu: React.FC<OpenInMenuProps> = ({
+  path,
+  align = 'right',
+  isRemote = false,
+  sshConnectionId = null,
+}) => {
   const [open, setOpen] = React.useState(false);
   const [availability, setAvailability] = React.useState<Record<string, boolean>>({});
   const [icons, setIcons] = React.useState<Partial<Record<OpenInAppId, string>>>({});
@@ -85,7 +92,12 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
       captureTelemetry('toolbar_open_in_selected', { app: appId });
     });
     try {
-      const res = await (window as any).electronAPI?.openIn?.({ app: appId, path });
+      const res = await (window as any).electronAPI?.openIn?.({
+        app: appId,
+        path,
+        isRemote,
+        sshConnectionId,
+      });
       if (!res?.success) {
         toast({
           title: `Open in ${label} failed`,
@@ -102,6 +114,15 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
     }
     setOpen(false);
   };
+
+  // Filter apps based on remote support
+  const availableApps = React.useMemo(() => {
+    if (isRemote) {
+      // For remote projects, only show apps that support remote SSH
+      return OPEN_IN_APPS.filter((app) => app.supportsRemote);
+    }
+    return OPEN_IN_APPS;
+  }, [isRemote]);
 
   return (
     <div ref={containerRef} className="relative">
@@ -126,10 +147,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         aria-haspopup
       >
         <span>Open in</span>
-        {icons[OPEN_IN_APPS[0]?.id] && (
+        {icons[availableApps[0]?.id] && (
           <img
-            src={icons[OPEN_IN_APPS[0].id]}
-            alt={OPEN_IN_APPS[0].label}
+            src={icons[availableApps[0].id]}
+            alt={availableApps[0].label}
             className="h-4 w-4 rounded"
           />
         )}
@@ -159,7 +180,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {OPEN_IN_APPS.map((app) => (
+            {availableApps.map((app) => (
               <button
                 key={app.id}
                 className={getMenuItemClasses(availability[app.id])}

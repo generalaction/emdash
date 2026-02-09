@@ -5,6 +5,7 @@ import { join } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
 import { getAppById, OPEN_IN_APPS, type OpenInAppId, type PlatformKey } from '@shared/openInApps';
+import { databaseService } from '../services/DatabaseService';
 
 const UNKNOWN_VERSION = 'unknown';
 
@@ -93,10 +94,15 @@ export function registerAppIpc() {
       args: {
         app: OpenInAppId;
         path: string;
+        isRemote?: boolean;
+        sshConnectionId?: string | null;
       }
     ) => {
       const target = args?.path;
       const appId = args?.app;
+      const isRemote = args?.isRemote || false;
+      const sshConnectionId = args?.sshConnectionId;
+
       if (!target || typeof target !== 'string' || !appId) {
         return { success: false, error: 'Invalid arguments' };
       }
@@ -110,6 +116,87 @@ export function registerAppIpc() {
         const platformConfig = appConfig.platforms?.[platform];
         if (!platformConfig && !appConfig.alwaysAvailable) {
           return { success: false, error: `${appConfig.label} is not available on this platform.` };
+        }
+
+        // Handle remote SSH connections for supported editors and terminals
+        if (isRemote && sshConnectionId) {
+          try {
+            const connection = await databaseService.getSshConnection(sshConnectionId);
+            if (!connection) {
+              return { success: false, error: 'SSH connection not found' };
+            }
+
+            // Construct remote SSH URL or command based on the app
+            if (appId === 'vscode') {
+              // VS Code Remote SSH URL format: vscode://vscode-remote/ssh-remote+hostname/path
+              const remoteUrl = `vscode://vscode-remote/ssh-remote+${connection.host}${target}`;
+              await shell.openExternal(remoteUrl);
+              return { success: true };
+            } else if (appId === 'cursor') {
+              // Cursor uses its own URL scheme for remote SSH
+              const remoteUrl = `cursor://vscode-remote/ssh-remote+${connection.host}${target}`;
+              await shell.openExternal(remoteUrl);
+              return { success: true };
+            } else if (appId === 'terminal' && platform === 'darwin') {
+              // macOS Terminal.app - execute SSH command
+              const sshCommand = `ssh ${connection.username}@${connection.host} -p ${connection.port} -t "cd ${target} && exec \\$SHELL"`;
+              // Properly escape for AppleScript
+              const escapedCommand = sshCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+              const terminalCommand = `osascript -e 'tell application "Terminal" to do script "${escapedCommand}"' -e 'tell application "Terminal" to activate'`;
+
+              await new Promise<void>((resolve, reject) => {
+                exec(terminalCommand, (err) => {
+                  if (err) return reject(err);
+                  resolve();
+                });
+              });
+              return { success: true };
+            } else if (appId === 'iterm2' && platform === 'darwin') {
+              // iTerm2 - execute SSH command
+              const sshCommand = `ssh ${connection.username}@${connection.host} -p ${connection.port} -t "cd ${target} && exec \\$SHELL"`;
+              const escapedCommand = sshCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+              const terminalCommand = `osascript -e 'tell application "iTerm" to create window with default profile command "${escapedCommand}"'`;
+
+              await new Promise<void>((resolve, reject) => {
+                exec(terminalCommand, (err) => {
+                  if (err) return reject(err);
+                  resolve();
+                });
+              });
+              return { success: true };
+            } else if (appId === 'warp' && platform === 'darwin') {
+              // Warp - use URL scheme with SSH command
+              const sshCommand = `ssh ${connection.username}@${connection.host} -p ${connection.port} -t "cd ${target} && exec \\$SHELL"`;
+              await shell.openExternal(
+                `warp://action/new_window?cmd=${encodeURIComponent(sshCommand)}`
+              );
+              return { success: true };
+            } else if (appId === 'ghostty') {
+              // Ghostty - execute SSH command directly
+              const sshCommand = `ssh ${connection.username}@${connection.host} -p ${connection.port} -t "cd ${target} && exec \\$SHELL"`;
+              const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
+              const terminalCommand = `ghostty -e ${quoted(sshCommand)}`;
+
+              await new Promise<void>((resolve, reject) => {
+                exec(terminalCommand, (err) => {
+                  if (err) return reject(err);
+                  resolve();
+                });
+              });
+              return { success: true };
+            } else if (appConfig.supportsRemote) {
+              // App claims to support remote but we don't have a handler
+              return {
+                success: false,
+                error: `Remote SSH not yet implemented for ${appConfig.label}`,
+              };
+            }
+          } catch (error) {
+            return {
+              success: false,
+              error: `Failed to open remote connection: ${error instanceof Error ? error.message : String(error)}`,
+            };
+          }
         }
 
         const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;

@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptyStart: (opts: {
     id: string;
     cwd?: string;
+    remote?: { connectionId: string };
     shell?: string;
     env?: Record<string, string>;
     cols?: number;
@@ -67,6 +68,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     id: string;
     providerId: string;
     cwd: string;
+    remote?: { connectionId: string };
     cols?: number;
     rows?: number;
     autoApprove?: boolean;
@@ -454,6 +456,85 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Lightweight TCP probe for localhost ports to avoid noisy fetches
   netProbePorts: (host: string, ports: number[], timeoutMs?: number) =>
     ipcRenderer.invoke('net:probePorts', host, ports, timeoutMs),
+
+  // SSH operations (unwrap { success, ... } IPC responses)
+  sshTestConnection: (config: any) => ipcRenderer.invoke('ssh:testConnection', config),
+  sshSaveConnection: async (config: any) => {
+    const res = await ipcRenderer.invoke('ssh:saveConnection', config);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'Failed to save SSH connection');
+    }
+    return (res as any).connection;
+  },
+  sshGetConnections: async () => {
+    const res = await ipcRenderer.invoke('ssh:getConnections');
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'Failed to load SSH connections');
+    }
+    return (res as any).connections || [];
+  },
+  sshDeleteConnection: async (id: string) => {
+    const res = await ipcRenderer.invoke('ssh:deleteConnection', id);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'Failed to delete SSH connection');
+    }
+  },
+  sshConnect: async (arg: any) => {
+    const res = await ipcRenderer.invoke('ssh:connect', arg);
+    if (res && typeof res === 'object' && 'success' in res) {
+      if (!res.success) {
+        throw new Error((res as any).error || 'SSH connect failed');
+      }
+      return (res as any).connectionId as string;
+    }
+    return res as string;
+  },
+  sshDisconnect: async (connectionId: string) => {
+    const res = await ipcRenderer.invoke('ssh:disconnect', connectionId);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH disconnect failed');
+    }
+  },
+  sshExecuteCommand: async (connectionId: string, command: string, cwd?: string) => {
+    const res = await ipcRenderer.invoke('ssh:executeCommand', connectionId, command, cwd);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH command failed');
+    }
+    return {
+      stdout: (res as any).stdout || '',
+      stderr: (res as any).stderr || '',
+      exitCode: (res as any).exitCode ?? -1,
+    };
+  },
+  sshListFiles: async (connectionId: string, path: string) => {
+    const res = await ipcRenderer.invoke('ssh:listFiles', connectionId, path);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH list files failed');
+    }
+    return (res as any).files || [];
+  },
+  sshReadFile: async (connectionId: string, path: string) => {
+    const res = await ipcRenderer.invoke('ssh:readFile', connectionId, path);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH read file failed');
+    }
+    return (res as any).content || '';
+  },
+  sshWriteFile: async (connectionId: string, path: string, content: string) => {
+    const res = await ipcRenderer.invoke('ssh:writeFile', connectionId, path, content);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH write file failed');
+    }
+  },
+  sshGetState: async (connectionId: string) => {
+    const res = await ipcRenderer.invoke('ssh:getState', connectionId);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH get state failed');
+    }
+    return (res as any).state;
+  },
+  sshGetConfig: () => ipcRenderer.invoke('ssh:getSshConfig'),
+  sshGetSshConfigHost: (hostAlias: string) => ipcRenderer.invoke('ssh:getSshConfigHost', hostAlias),
 });
 
 // Type definitions for the exposed API
@@ -787,6 +868,30 @@ export interface ElectronAPI {
     ports: number[],
     timeoutMs?: number
   ) => Promise<{ reachable: number[] }>;
+
+  // SSH operations
+  sshTestConnection: (
+    config: any
+  ) => Promise<{ success: boolean; latency?: number; error?: string }>;
+  sshSaveConnection: (config: any) => Promise<any>;
+  sshGetConnections: () => Promise<any[]>;
+  sshDeleteConnection: (id: string) => Promise<void>;
+  sshConnect: (arg: any) => Promise<string>;
+  sshDisconnect: (connectionId: string) => Promise<void>;
+  sshExecuteCommand: (
+    connectionId: string,
+    command: string,
+    cwd?: string
+  ) => Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+  }>;
+  sshListFiles: (connectionId: string, path: string) => Promise<any[]>;
+  sshReadFile: (connectionId: string, path: string) => Promise<string>;
+  sshWriteFile: (connectionId: string, path: string, content: string) => Promise<void>;
+  sshGetState: (connectionId: string) => Promise<any>;
+  sshGetConfig: () => Promise<{ success: boolean; hosts?: any[]; error?: string }>;
 }
 
 declare global {

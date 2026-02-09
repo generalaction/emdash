@@ -55,6 +55,11 @@ optional_env:
 - `src/main/db/**` + `drizzle/` – schema migrations and SQLite access; mismatches can corrupt user data.
 - `build/` entitlements and updater config – incorrect changes break signing/auto-update.
 - Native dependencies (`sqlite3`, `node-pty`, `keytar`) – rebuilding is slow; avoid upgrading casually.
+- **SSH Services** (`src/main/services/ssh/**`) – security-critical code handling remote connections and credentials:
+  - `SshService.ts` – manages SSH connections, command execution, and SFTP; connection leaks can exhaust resources.
+  - `SshCredentialService.ts` – uses `keytar` for secure credential storage; failures here lock users out of remote servers.
+  - `SshHostKeyService.ts` – host key verification prevents MITM attacks; incorrect changes compromise security.
+  - Shell command injection vulnerabilities must be prevented via proper argument escaping in `escapeShellArg()`.
 
 **Pre-PR Checklist**
 - [ ] Dev server runs: `npm run d` (or `npm run dev`) starts cleanly.

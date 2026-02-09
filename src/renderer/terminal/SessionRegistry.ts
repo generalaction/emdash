@@ -10,6 +10,9 @@ interface AttachOptions {
   taskId: string;
   container: HTMLElement;
   cwd?: string;
+  remote?: {
+    connectionId: string;
+  };
   providerId?: string; // If set, uses direct CLI spawn
   shell?: string; // Used for shell-based spawn when providerId not set
   env?: Record<string, string>;
@@ -60,6 +63,7 @@ class SessionRegistry {
     const sessionOptions: TerminalSessionOptions = {
       taskId: options.taskId,
       cwd: options.cwd,
+      remote: options.remote,
       providerId: options.providerId,
       shell: options.shell,
       env: options.env,

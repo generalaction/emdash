@@ -277,6 +277,7 @@ declare global {
       ptyStart: (opts: {
         id: string;
         cwd?: string;
+        remote?: { connectionId: string };
         shell?: string;
         env?: Record<string, string>;
         cols?: number;
@@ -289,6 +290,7 @@ declare global {
         id: string;
         providerId: string;
         cwd: string;
+        remote?: { connectionId: string };
         cols?: number;
         rows?: number;
         autoApprove?: boolean;
@@ -945,6 +947,110 @@ declare global {
       lineCommentsGetUnsent: (taskId: string) => Promise<{
         success: boolean;
         comments?: LineComment[];
+        error?: string;
+      }>;
+
+      // SSH operations
+      sshTestConnection: (config: {
+        id?: string;
+        name: string;
+        host: string;
+        port: number;
+        username: string;
+        authType: 'password' | 'key' | 'agent';
+        privateKeyPath?: string;
+        useAgent?: boolean;
+        password?: string;
+        passphrase?: string;
+      }) => Promise<{ success: boolean; error?: string; latency?: number }>;
+      sshSaveConnection: (config: {
+        id?: string;
+        name: string;
+        host: string;
+        port: number;
+        username: string;
+        authType: 'password' | 'key' | 'agent';
+        privateKeyPath?: string;
+        useAgent?: boolean;
+        password?: string;
+        passphrase?: string;
+      }) => Promise<{
+        id: string;
+        name: string;
+        host: string;
+        port: number;
+        username: string;
+        authType: 'password' | 'key' | 'agent';
+        privateKeyPath?: string;
+        useAgent?: boolean;
+      }>;
+      sshGetConnections: () => Promise<
+        Array<{
+          id: string;
+          name: string;
+          host: string;
+          port: number;
+          username: string;
+          authType: 'password' | 'key' | 'agent';
+          privateKeyPath?: string;
+          useAgent?: boolean;
+        }>
+      >;
+      sshDeleteConnection: (id: string) => Promise<void>;
+      sshConnect: (
+        arg:
+          | string
+          | {
+              id?: string;
+              name: string;
+              host: string;
+              port: number;
+              username: string;
+              authType: 'password' | 'key' | 'agent';
+              privateKeyPath?: string;
+              useAgent?: boolean;
+              password?: string;
+              passphrase?: string;
+            }
+      ) => Promise<string>;
+      sshDisconnect: (connectionId: string) => Promise<void>;
+      sshExecuteCommand: (
+        connectionId: string,
+        command: string,
+        cwd?: string
+      ) => Promise<{
+        stdout: string;
+        stderr: string;
+        exitCode: number;
+      }>;
+      sshListFiles: (
+        connectionId: string,
+        path: string
+      ) => Promise<
+        Array<{
+          path: string;
+          name: string;
+          type: 'file' | 'directory' | 'symlink';
+          size: number;
+          modifiedAt: Date;
+          permissions?: string;
+        }>
+      >;
+      sshReadFile: (connectionId: string, path: string) => Promise<string>;
+      sshWriteFile: (connectionId: string, path: string, content: string) => Promise<void>;
+      sshGetState: (
+        connectionId: string
+      ) => Promise<'connecting' | 'connected' | 'disconnected' | 'error'>;
+      sshGetConfig: () => Promise<{ success: boolean; hosts?: any[]; error?: string }>;
+      sshGetSshConfigHost: (hostAlias: string) => Promise<{
+        success: boolean;
+        host?: {
+          host: string;
+          hostname?: string;
+          user?: string;
+          port?: number;
+          identityFile?: string;
+        };
         error?: string;
       }>;
     };

@@ -45,7 +45,7 @@ export function useCreatePR() {
       }
 
       // Auto-generate PR title and description if not provided
-      let finalPrOptions = { ...(prOptions || {}) };
+      const finalPrOptions = { ...(prOptions || {}) };
 
       if (!finalPrOptions.title || !finalPrOptions.body) {
         try {

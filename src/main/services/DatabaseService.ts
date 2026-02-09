@@ -10,18 +10,25 @@ import {
   conversations as conversationsTable,
   messages as messagesTable,
   lineComments as lineCommentsTable,
+  sshConnections as sshConnectionsTable,
   type ProjectRow,
   type TaskRow,
   type ConversationRow,
   type MessageRow,
   type LineCommentRow,
   type LineCommentInsert,
+  type SshConnectionRow,
+  type SshConnectionInsert,
 } from '../db/schema';
 
 export interface Project {
   id: string;
   name: string;
   path: string;
+  // Remote project fields (optional for backward compatibility)
+  isRemote?: boolean;
+  sshConnectionId?: string | null;
+  remotePath?: string | null;
   gitInfo: {
     isGitRepo: boolean;
     remote?: string;
@@ -158,6 +165,9 @@ export class DatabaseService {
         baseRef: baseRef ?? null,
         githubRepository,
         githubConnected,
+        sshConnectionId: project.sshConnectionId ?? null,
+        isRemote: project.isRemote ? 1 : 0,
+        remotePath: project.remotePath ?? null,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
@@ -169,6 +179,9 @@ export class DatabaseService {
           baseRef: baseRef ?? null,
           githubRepository,
           githubConnected,
+          sshConnectionId: project.sshConnectionId ?? null,
+          isRemote: project.isRemote ? 1 : 0,
+          remotePath: project.remotePath ?? null,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
@@ -718,6 +731,75 @@ export class DatabaseService {
     return rows;
   }
 
+  // SSH connection management methods
+  async saveSshConnection(
+    connection: Omit<SshConnectionInsert, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+  ): Promise<SshConnectionRow> {
+    if (this.disabled) {
+      throw new Error('Database is disabled');
+    }
+    const { db } = await getDrizzleClient();
+
+    const id = connection.id ?? `ssh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+
+    const result = await db
+      .insert(sshConnectionsTable)
+      .values({
+        ...connection,
+        id,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: sshConnectionsTable.id,
+        set: {
+          name: connection.name,
+          host: connection.host,
+          port: connection.port,
+          username: connection.username,
+          authType: connection.authType,
+          privateKeyPath: connection.privateKeyPath ?? null,
+          useAgent: connection.useAgent,
+          updatedAt: now,
+        },
+      })
+      .returning();
+
+    return result[0];
+  }
+
+  async getSshConnections(): Promise<SshConnectionRow[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+    return db.select().from(sshConnectionsTable).orderBy(sshConnectionsTable.name);
+  }
+
+  async getSshConnection(id: string): Promise<SshConnectionRow | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(sshConnectionsTable)
+      .where(eq(sshConnectionsTable.id, id))
+      .limit(1);
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  async deleteSshConnection(id: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+
+    // First update any projects using this connection
+    await db
+      .update(projectsTable)
+      .set({ sshConnectionId: null, isRemote: 0 })
+      .where(eq(projectsTable.sshConnectionId, id));
+
+    // Then delete the connection
+    await db.delete(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
+  }
+
   private computeBaseRef(
     preferred?: string | null,
     remote?: string | null,
@@ -777,6 +859,9 @@ export class DatabaseService {
       id: row.id,
       name: row.name,
       path: row.path,
+      isRemote: row.isRemote === 1,
+      sshConnectionId: row.sshConnectionId ?? null,
+      remotePath: row.remotePath ?? null,
       gitInfo: {
         isGitRepo: !!(row.gitRemote || row.gitBranch),
         remote: row.gitRemote ?? undefined,

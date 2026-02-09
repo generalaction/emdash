@@ -136,6 +136,22 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         setBranchAhead(null);
         return;
       }
+
+      // Skip branch status check for remote paths (SSH projects)
+      // Remote paths typically look like /home/user/... or /root/... which don't exist locally
+      const isLikelyRemotePath =
+        safeTaskPath.startsWith('/home/') ||
+        safeTaskPath.startsWith('/root/') ||
+        (!safeTaskPath.startsWith('/Users/') &&
+          !safeTaskPath.startsWith('/Volumes/') &&
+          !safeTaskPath.startsWith('C:\\') &&
+          !safeTaskPath.match(/^[A-Z]:\\/));
+
+      if (isLikelyRemotePath) {
+        setBranchAhead(null);
+        return;
+      }
+
       setBranchStatusLoading(true);
       try {
         const res = await window.electronAPI.getBranchStatus({ taskPath: safeTaskPath });
@@ -307,14 +323,25 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           // PR refresh is best-effort
         }
         // Proactively load branch status so the Create PR button appears immediately
-        try {
-          setBranchStatusLoading(true);
-          const bs = await window.electronAPI.getBranchStatus({ taskPath: safeTaskPath });
-          setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
-        } catch {
-          setBranchAhead(0);
-        } finally {
-          setBranchStatusLoading(false);
+        // Skip for remote paths (SSH projects)
+        const isLikelyRemotePath =
+          safeTaskPath.startsWith('/home/') ||
+          safeTaskPath.startsWith('/root/') ||
+          (!safeTaskPath.startsWith('/Users/') &&
+            !safeTaskPath.startsWith('/Volumes/') &&
+            !safeTaskPath.startsWith('C:\\') &&
+            !safeTaskPath.match(/^[A-Z]:\\/));
+
+        if (!isLikelyRemotePath) {
+          try {
+            setBranchStatusLoading(true);
+            const bs = await window.electronAPI.getBranchStatus({ taskPath: safeTaskPath });
+            setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
+          } catch {
+            setBranchAhead(0);
+          } finally {
+            setBranchStatusLoading(false);
+          }
         }
       } else {
         toast({
