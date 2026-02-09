@@ -11,8 +11,14 @@ const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');
 const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');
 const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 
-function httpsGet(url: string): Promise<string> {
+const MAX_REDIRECTS = 5;
+
+function httpsGet(url: string, redirectCount = 0): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (redirectCount > MAX_REDIRECTS) {
+      reject(new Error(`Too many redirects (>${MAX_REDIRECTS}) for ${url}`));
+      return;
+    }
     const req = https.get(
       url,
       { headers: { 'User-Agent': 'emdash-skills', Accept: 'application/vnd.github.v3+json' } },
@@ -20,7 +26,7 @@ function httpsGet(url: string): Promise<string> {
         if (res.statusCode === 301 || res.statusCode === 302) {
           const location = res.headers.location;
           if (location) {
-            httpsGet(location).then(resolve, reject);
+            httpsGet(location, redirectCount + 1).then(resolve, reject);
             return;
           }
         }
@@ -134,17 +140,18 @@ export class SkillsService {
       }
 
       for (const entry of entries) {
-        if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+        if (entry.name.startsWith('.')) continue;
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
         if (seen.has(entry.name)) continue; // Already found this skill
 
         let skillDir = path.join(dir, entry.name);
 
-        // Resolve symlinks to get the real path
+        // Resolve symlinks to get the real path and verify it's a directory
         try {
-          const stat = await fs.promises.lstat(skillDir);
-          if (stat.isSymbolicLink()) {
-            skillDir = await fs.promises.realpath(skillDir);
-          }
+          const realPath = await fs.promises.realpath(skillDir);
+          const stat = await fs.promises.stat(realPath);
+          if (!stat.isDirectory()) continue;
+          skillDir = realPath;
         } catch (err) {
           log.warn(`Skipping skill "${entry.name}" in ${dir}: failed to resolve path`, err);
           continue;
@@ -231,34 +238,45 @@ export class SkillsService {
     if (skill.installed) throw new Error(`Skill "${skillId}" is already installed`);
 
     const skillDir = path.join(SKILLS_ROOT, skillId);
-    await fs.promises.mkdir(skillDir, { recursive: true });
-
-    // Try to download the real SKILL.md from GitHub; fall back to generated stub
-    let content: string;
+    const tmpDir = `${skillDir}.tmp-${Date.now()}`;
     try {
-      const mdUrl = this.getSkillMdUrl(skill);
-      if (mdUrl) {
-        content = await httpsGet(mdUrl);
-      } else {
+      await fs.promises.mkdir(tmpDir, { recursive: true });
+
+      // Try to download the real SKILL.md from GitHub; fall back to generated stub
+      let content: string;
+      try {
+        const mdUrl = this.getSkillMdUrl(skill);
+        if (mdUrl) {
+          content = await httpsGet(mdUrl);
+        } else {
+          content = generateSkillMd(skill.displayName, skill.description);
+        }
+      } catch {
         content = generateSkillMd(skill.displayName, skill.description);
       }
-    } catch {
-      content = generateSkillMd(skill.displayName, skill.description);
+      await fs.promises.writeFile(path.join(tmpDir, 'SKILL.md'), content);
+
+      // Atomic move: rename tmp dir to final location
+      await fs.promises.rename(tmpDir, skillDir);
+
+      // Sync to agents
+      await this.syncToAgents(skillId);
+
+      // Invalidate cache
+      this.catalogCache = null;
+
+      return {
+        ...skill,
+        installed: true,
+        localPath: skillDir,
+        skillMdContent: content,
+      };
+    } catch (error) {
+      // Clean up partial install
+      await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      await fs.promises.rm(skillDir, { recursive: true, force: true }).catch(() => {});
+      throw error;
     }
-    await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), content);
-
-    // Sync to agents
-    await this.syncToAgents(skillId);
-
-    // Invalidate cache
-    this.catalogCache = null;
-
-    return {
-      ...skill,
-      installed: true,
-      localPath: skillDir,
-      skillMdContent: content,
-    };
   }
 
   async uninstallSkill(skillId: string): Promise<void> {
@@ -340,8 +358,12 @@ export class SkillsService {
         }
 
         await fs.promises.symlink(skillDir, targetDir, 'junction');
-      } catch {
-        // Agent not installed or sync failed — skip silently
+      } catch (err) {
+        // Agent not installed — expected; log unexpected failures
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT') {
+          log.warn(`Failed to sync skill "${skillId}" to ${target.name}:`, err);
+        }
       }
     }
   }
