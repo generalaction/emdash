@@ -633,7 +633,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           <TabButton active={activeTab === 'checks'} onClick={() => setActiveTab('checks')}>
             Checks
             {checkRunsStatus && !checkRunsStatus.allComplete && (
-              <Loader2 className="ml-1.5 inline h-3 w-3 animate-spin text-amber-500" />
+              <Loader2 className="ml-1.5 inline h-3 w-3 animate-spin text-foreground" />
             )}
             {checkRunsStatus?.hasFailures && checkRunsStatus.allComplete && (
               <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
