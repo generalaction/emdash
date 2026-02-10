@@ -4,7 +4,6 @@ import BrowserPane from './components/BrowserPane';
 import { CloneFromUrlModal } from './components/CloneFromUrlModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
-import FirstLaunchModal from './components/FirstLaunchModal';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { GithubDeviceFlowModal } from './components/GithubDeviceFlowModal';
 import LeftSidebar from './components/LeftSidebar';
@@ -88,7 +87,6 @@ const AppContent: React.FC = () => {
     settingsInitialTab,
     showCommandPalette,
     showWelcomeScreen,
-    showFirstLaunchModal,
     showTaskModal,
     showNewProjectModal,
     showCloneModal,
@@ -110,7 +108,6 @@ const AppContent: React.FC = () => {
     handleToggleKanban,
     handleToggleEditor,
     handleWelcomeGetStarted,
-    markFirstLaunchSeen,
   } = modals;
 
   // --- App initialization (version, platform, loadAppData) ---
@@ -489,7 +486,6 @@ const AppContent: React.FC = () => {
                 onSuccess={projectMgmt.handleCloneSuccess}
               />
               {showWelcomeScreen && <WelcomeScreen onGetStarted={handleWelcomeGetStarted} />}
-              <FirstLaunchModal open={showFirstLaunchModal} onClose={markFirstLaunchSeen} />
               <GithubDeviceFlowModal
                 open={showDeviceFlowModal}
                 onClose={github.handleDeviceFlowClose}
@@ -501,11 +497,7 @@ const AppContent: React.FC = () => {
                 taskId={activeTask?.id || null}
                 taskPath={activeTask?.path || null}
                 overlayActive={
-                  showSettings ||
-                  showCommandPalette ||
-                  showTaskModal ||
-                  showWelcomeScreen ||
-                  showFirstLaunchModal
+                  showSettings || showCommandPalette || showTaskModal || showWelcomeScreen
                 }
               />
             </RightSidebarProvider>
