@@ -75,7 +75,12 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
       captureTelemetry('toolbar_open_in_selected', { app: appId });
     });
     try {
-      const res = await window.electronAPI?.openIn?.({ app: appId, path, isRemote, sshConnectionId });
+      const res = await window.electronAPI?.openIn?.({
+        app: appId,
+        path,
+        isRemote,
+        sshConnectionId,
+      });
       if (!res?.success) {
         toast({
           title: `Open in ${label} failed`,

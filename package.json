@@ -223,6 +223,11 @@
     "npmRebuild": false
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["sqlite3", "node-pty", "keytar", "electron"]
+    "onlyBuiltDependencies": [
+      "sqlite3",
+      "node-pty",
+      "keytar",
+      "electron"
+    ]
   }
 }

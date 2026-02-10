@@ -79,14 +79,7 @@ function isPathSafe(remotePath: string): boolean {
   }
 
   // Block access to sensitive system directories and hidden dotfiles
-  const restrictedPrefixes = [
-    '/etc/',
-    '/proc/',
-    '/sys/',
-    '/dev/',
-    '/boot/',
-    '/root/',
-  ];
+  const restrictedPrefixes = ['/etc/', '/proc/', '/sys/', '/dev/', '/boot/', '/root/'];
   for (const prefix of restrictedPrefixes) {
     if (normalized.startsWith(prefix) || normalized === prefix.slice(0, -1)) {
       return false;
@@ -112,7 +105,10 @@ export function registerSshIpc() {
       await sshService.connect(config);
       monitor.updateState(connectionId, 'connected');
     } catch (err: any) {
-      console.error(`[sshIpc] Reconnect attempt ${attempt} failed for ${connectionId}:`, err.message);
+      console.error(
+        `[sshIpc] Reconnect attempt ${attempt} failed for ${connectionId}:`,
+        err.message
+      );
       monitor.updateState(connectionId, 'error', err.message);
     }
   });

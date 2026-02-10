@@ -86,9 +86,7 @@ export class RemotePtyService extends EventEmitter {
           }
           return true;
         });
-        const envVars = envEntries
-          .map(([k, v]) => `export ${k}=${quoteShellArg(v)}`)
-          .join(' && ');
+        const envVars = envEntries.map(([k, v]) => `export ${k}=${quoteShellArg(v)}`).join(' && ');
 
         const cdCommand = options.cwd ? `cd ${quoteShellArg(options.cwd)}` : '';
         const autoApproveFlag = options.autoApprove ? ' --full-auto' : '';
@@ -96,7 +94,11 @@ export class RemotePtyService extends EventEmitter {
         // Validate shell against allowlist (HIGH #5)
         const shellBinary = options.shell.split(/\s+/)[0];
         if (!ALLOWED_SHELLS.has(shellBinary)) {
-          reject(new Error(`Shell not allowed: ${shellBinary}. Allowed: ${[...ALLOWED_SHELLS].join(', ')}`));
+          reject(
+            new Error(
+              `Shell not allowed: ${shellBinary}. Allowed: ${[...ALLOWED_SHELLS].join(', ')}`
+            )
+          );
           return;
         }
 
