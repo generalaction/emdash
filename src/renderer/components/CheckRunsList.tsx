@@ -2,6 +2,7 @@ import { CheckCircle2, XCircle, Loader2, MinusCircle, ExternalLink } from 'lucid
 import githubIcon from '../../assets/images/github.png';
 import type { CheckRunsStatus, CheckRun, CheckRunBucket } from '../lib/checkRunStatus';
 import { formatCheckDuration } from '../lib/checkRunStatus';
+import { Badge } from './ui/badge';
 
 function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {
@@ -88,32 +89,25 @@ export function ChecksPanel({ status, isLoading, hasPr, hideSummary }: ChecksPan
   return (
     <div className="flex flex-col">
       {!hideSummary && (
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-          <div className="flex items-center gap-1.5 text-xs">
-            {summary.passed > 0 && (
-              <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                {summary.passed} passed
-              </span>
-            )}
-            {summary.failed > 0 && (
-              <>
-                {summary.passed > 0 && <span className="text-muted-foreground">/</span>}
-                <span className="font-medium text-red-600 dark:text-red-400">
-                  {summary.failed} failed
-                </span>
-              </>
-            )}
-            {summary.pending > 0 && (
-              <>
-                {(summary.passed > 0 || summary.failed > 0) && (
-                  <span className="text-muted-foreground">/</span>
-                )}
-                <span className="font-medium text-amber-600 dark:text-amber-400">
-                  {summary.pending} pending
-                </span>
-              </>
-            )}
-          </div>
+        <div className="flex items-center gap-1.5 border-b border-border px-4 py-2">
+          {summary.passed > 0 && (
+            <Badge variant="outline">
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+              {summary.passed} passed
+            </Badge>
+          )}
+          {summary.failed > 0 && (
+            <Badge variant="outline">
+              <XCircle className="h-3 w-3 text-red-500" />
+              {summary.failed} failed
+            </Badge>
+          )}
+          {summary.pending > 0 && (
+            <Badge variant="outline">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {summary.pending} pending
+            </Badge>
+          )}
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-y-auto">

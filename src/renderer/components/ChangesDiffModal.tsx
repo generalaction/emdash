@@ -636,7 +636,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
             className="flex h-[82vh] w-[92vw] transform-gpu overflow-hidden rounded-xl border border-border bg-white shadow-2xl will-change-transform dark:border-border dark:bg-card"
           >
             <div className="w-72 overflow-y-auto border-r border-border bg-muted dark:border-border dark:bg-muted/40">
-              <div className="px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
+              <div className="px-3 py-2 text-xs tracking-wide text-muted-foreground">
                 Changed Files
               </div>
               {files.map((f) => (

@@ -49,6 +49,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   const hasPendingRestore = storedActiveIds.projectId !== null;
   // Start with showHomeView=false if we have a pending restore to prevent flash
   const [showHomeView, setShowHomeView] = useState<boolean>(!hasPendingRestore);
+  const [showSkillsView, setShowSkillsView] = useState(false);
   const [projectBranchOptions, setProjectBranchOptions] = useState<
     Array<{ value: string; label: string }>
   >([]);
@@ -62,6 +63,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     })();
     setSelectedProject(project);
     setShowHomeView(false);
+    setShowSkillsView(false);
     setActiveTask(null);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -85,6 +87,17 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   const handleGoHome = () => {
     setSelectedProject(null);
     setShowHomeView(true);
+    setShowSkillsView(false);
+    setActiveTask(null);
+    setShowEditorMode(false);
+    setShowKanban(false);
+    saveActiveIds(null, null);
+  };
+
+  const handleGoToSkills = () => {
+    setSelectedProject(null);
+    setShowHomeView(false);
+    setShowSkillsView(true);
     setActiveTask(null);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -660,6 +673,9 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     setSelectedProject,
     showHomeView,
     setShowHomeView,
+    showSkillsView,
+    setShowSkillsView,
+    handleGoToSkills,
     projectBranchOptions,
     projectDefaultBranch,
     setProjectDefaultBranch,

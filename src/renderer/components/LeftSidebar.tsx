@@ -17,7 +17,16 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Home, ChevronRight, Plus, FolderOpen, Github, Archive, RotateCcw } from 'lucide-react';
+import {
+  Home,
+  ChevronRight,
+  Plus,
+  FolderOpen,
+  Github,
+  Archive,
+  RotateCcw,
+  Puzzle,
+} from 'lucide-react';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
@@ -52,6 +61,8 @@ interface LeftSidebarProps {
   pinnedTaskIds?: Set<string>;
   onPinTask?: (task: Task) => void;
   isHomeView?: boolean;
+  onGoToSkills?: () => void;
+  isSkillsView?: boolean;
 }
 
 interface MenuItemButtonProps {
@@ -116,6 +127,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   pinnedTaskIds,
   onPinTask,
   isHomeView,
+  onGoToSkills,
+  isSkillsView,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
@@ -210,6 +223,24 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </Button>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            {onGoToSkills && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  className={`min-w-0 ${isSkillsView ? 'bg-black/5 dark:bg-white/5' : ''}`}
+                >
+                  <Button
+                    variant="ghost"
+                    onClick={onGoToSkills}
+                    aria-label="Skills"
+                    className="w-full justify-start"
+                  >
+                    <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                    <span className="hidden text-sm font-medium sm:inline">Skills</span>
+                  </Button>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>

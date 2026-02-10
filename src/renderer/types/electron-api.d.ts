@@ -1049,6 +1049,42 @@ declare global {
         comments?: LineComment[];
         error?: string;
       }>;
+
+      // Skills management
+      skillsGetCatalog: () => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogIndex;
+        error?: string;
+      }>;
+      skillsRefreshCatalog: () => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogIndex;
+        error?: string;
+      }>;
+      skillsInstall: (args: { skillId: string }) => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogSkill;
+        error?: string;
+      }>;
+      skillsUninstall: (args: { skillId: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      skillsGetDetail: (args: { skillId: string }) => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogSkill;
+        error?: string;
+      }>;
+      skillsGetDetectedAgents: () => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').DetectedAgent[];
+        error?: string;
+      }>;
+      skillsCreate: (args: { name: string; description: string }) => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogSkill;
+        error?: string;
+      }>;
     };
   }
 }
@@ -1545,6 +1581,42 @@ export interface ElectronAPI {
   lineCommentsGetUnsent: (taskId: string) => Promise<{
     success: boolean;
     comments?: LineComment[];
+    error?: string;
+  }>;
+
+  // Skills management
+  skillsGetCatalog: () => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogIndex;
+    error?: string;
+  }>;
+  skillsRefreshCatalog: () => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogIndex;
+    error?: string;
+  }>;
+  skillsInstall: (args: { skillId: string }) => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogSkill;
+    error?: string;
+  }>;
+  skillsUninstall: (args: { skillId: string }) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  skillsGetDetail: (args: { skillId: string }) => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogSkill;
+    error?: string;
+  }>;
+  skillsGetDetectedAgents: () => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').DetectedAgent[];
+    error?: string;
+  }>;
+  skillsCreate: (args: { name: string; description: string }) => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogSkill;
     error?: string;
   }>;
 }

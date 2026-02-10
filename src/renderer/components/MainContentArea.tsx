@@ -4,6 +4,7 @@ import KanbanBoard from './kanban/KanbanBoard';
 import MultiAgentTask from './MultiAgentTask';
 import ProjectMainView from './ProjectMainView';
 import HomeView from './HomeView';
+import SkillsView from './skills/SkillsView';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 
@@ -13,6 +14,7 @@ interface MainContentAreaProps {
   activeTaskAgent: Agent | null;
   showKanban: boolean;
   showHomeView: boolean;
+  showSkillsView: boolean;
   projectDefaultBranch: string;
   projectBranchOptions: Array<{ value: string; label: string }>;
   isLoadingBranches: boolean;
@@ -42,6 +44,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   activeTaskAgent,
   showKanban,
   showHomeView,
+  showSkillsView,
   projectDefaultBranch,
   projectBranchOptions,
   isLoadingBranches,
@@ -69,6 +72,10 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
         />
       </div>
     );
+  }
+
+  if (showSkillsView) {
+    return <SkillsView />;
   }
 
   if (showHomeView) {
