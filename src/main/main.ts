@@ -73,6 +73,13 @@ if (process.platform === 'linux') {
   } catch {}
 }
 
+// Enable automatic Wayland/X11 detection on Linux.
+// Uses native Wayland when available, falls back to X11 (XWayland) otherwise.
+// Must be called before app.whenReady().
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+}
+
 if (process.platform === 'win32') {
   // Ensure npm global binaries are in PATH for Windows
   const npmPath = require('path').join(process.env.APPDATA || '', 'npm');
