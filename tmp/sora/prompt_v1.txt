@@ -1,0 +1,13 @@
+Use case: product teaser for the Stagehand desktop app
+Primary request: cinematic desktop shot of a coding assistant workspace with a terminal, issue tracker pane, and live logs
+Scene/background: modern studio desk at dusk, ultra-clean setup, soft haze in background
+Subject: laptop screen running a coding workflow UI with split panes
+Action: cursor selects an issue, terminal command runs, then a green check appears in the status rail
+Camera: slow left-to-right slider move, medium close-up, subtle parallax from foreground keyboard
+Lighting/mood: soft key light from screen, warm practical lamp fill, focused and premium mood
+Color palette: slate, graphite, cyan accents, warm amber highlights
+Style/format: high-end live-action product ad look, realistic materials, shallow depth of field
+Timing/beats: beat 1 establish screen, beat 2 command executes, beat 3 success state appears
+Audio: low ambient studio hum with one soft confirmation chime at success beat
+Constraints: no brand logos, no copyrighted UI, no real people, no faces
+Avoid: flicker, illegible UI text, jitter, warped hands or humans

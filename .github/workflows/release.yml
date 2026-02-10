@@ -110,7 +110,7 @@ jobs:
           for A in "${ARCHS[@]}"; do
             echo "=== Building for $A ==="
             echo "Rebuilding native modules for $A (Electron $ELECTRON_VERSION)"
-            npm_config_build_from_source=true pnpm exec @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
+            npm_config_build_from_source=true pnpm exec electron-rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
             echo "Packaging $A DMG"
             pnpm exec electron-builder --mac dmg --$A --publish never --config.npmRebuild=false
           done
@@ -392,7 +392,7 @@ jobs:
           for A in "${ARCHS[@]}"; do
             echo "=== Building for $A ==="
             echo "Rebuilding native modules for $A (Electron $ELECTRON_VERSION)"
-            npm_config_build_from_source=true pnpm exec @electron/rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
+            npm_config_build_from_source=true pnpm exec electron-rebuild -f -a "$A" -v "$ELECTRON_VERSION" -w sqlite3,node-pty,keytar
             echo "Packaging $A DMG and ZIP"
             pnpm exec electron-builder --mac dmg zip --$A --publish never --config.npmRebuild=false
           done
