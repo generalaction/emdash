@@ -61,7 +61,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: 'claude',
     name: 'Claude Code',
     docUrl: 'https://docs.anthropic.com/claude/docs/claude-code',
-    installCommand: 'npm install -g @anthropic-ai/claude-code',
+    installCommand: 'curl -fsSL https://claude.ai/install.sh | bash',
     commands: ['claude'],
     versionArgs: ['--version'],
     cli: 'claude',

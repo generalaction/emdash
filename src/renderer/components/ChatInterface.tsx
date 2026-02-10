@@ -475,7 +475,7 @@ const ChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false;
-    let missingCheckRequested = false;
+    let refreshCheckRequested = false;
     const api: any = (window as any).electronAPI;
 
     const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
@@ -486,11 +486,22 @@ const ChatInterface: React.FC<Props> = ({
       setIsAgentInstalled(installed);
     };
 
-    const maybeRefreshMissing = async (statuses?: Record<string, any> | undefined | null) => {
-      if (cancelled || missingCheckRequested) return;
+    const maybeRefreshAgentStatus = async (statuses?: Record<string, any> | undefined | null) => {
+      if (cancelled || refreshCheckRequested) return;
       if (!api?.getProviderStatuses) return;
-      if (statuses && statuses[agent]) return;
-      missingCheckRequested = true;
+
+      const status = statuses?.[agent];
+      const hasEntry = Boolean(status);
+      const isInstalled = status?.installed === true;
+      const lastChecked =
+        typeof status?.lastChecked === 'number' && Number.isFinite(status.lastChecked)
+          ? status.lastChecked
+          : 0;
+      const isStale = !lastChecked || Date.now() - lastChecked > 5 * 60 * 1000;
+
+      if (hasEntry && isInstalled && !isStale) return;
+
+      refreshCheckRequested = true;
       try {
         const refreshed = await api.getProviderStatuses({ refresh: true, providers: [agent] });
         if (cancelled) return;
@@ -512,7 +523,7 @@ const ChatInterface: React.FC<Props> = ({
         if (cancelled) return;
         if (res?.success) {
           applyStatuses(res.statuses ?? {});
-          void maybeRefreshMissing(res.statuses);
+          void maybeRefreshAgentStatus(res.statuses);
         } else {
           setIsAgentInstalled(false);
         }
@@ -541,44 +552,6 @@ const ChatInterface: React.FC<Props> = ({
       off?.();
     };
   }, [agent, task.id]);
-
-  // If we don't even have a cached status entry for the current agent, pessimistically
-  // show the install banner and kick off a background refresh to populate it.
-  useEffect(() => {
-    const api: any = (window as any).electronAPI;
-    if (!api?.getProviderStatuses) {
-      setIsAgentInstalled(false);
-      return;
-    }
-    if (currentAgentStatus) {
-      return;
-    }
-
-    let cancelled = false;
-    setIsAgentInstalled(false);
-
-    (async () => {
-      try {
-        const res = await api.getProviderStatuses({ refresh: true, providers: [agent] });
-        if (cancelled) return;
-        if (res?.success) {
-          const statuses = res.statuses ?? {};
-          setAgentStatuses(statuses);
-          const installed = statuses?.[agent]?.installed === true;
-          setIsAgentInstalled(installed);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setIsAgentInstalled(false);
-        }
-        console.error('Agent status refresh (missing entry) failed', error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [agent, currentAgentStatus]);
 
   // When switching agents, ensure other streams are stopped
   useEffect(() => {

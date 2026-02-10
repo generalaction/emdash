@@ -66,7 +66,7 @@ Emdash currently supports twenty CLI providers and we are adding new providers r
 | [Amp](https://ampcode.com/manual) | ✅ Supported | `npm install -g @sourcegraph/amp@latest` |
 | [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | `npm install -g @augmentcode/auggie` |
 | [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | `npm install -g @charmland/crush` |
-| [Claude Code](https://www.npmjs.com/package/%40anthropic-ai/claude-code) | ✅ Supported | `npm install -g @anthropic-ai/claude-code` |
+| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | `curl -fsSL https://claude.ai/install.sh \| bash` |
 | [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | `npm install -g cline` |
 | [Codebuff](https://www.codebuff.com/docs/help/getting-started) | ✅ Supported | `npm install -g codebuff` |
 | [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | `npm install -g @openai/codex` |
@@ -190,4 +190,3 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 
 [![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
 [![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)
-
