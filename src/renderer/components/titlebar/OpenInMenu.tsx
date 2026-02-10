@@ -22,7 +22,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const { toast } = useToast();
   const { icons, installedApps } = useOpenInApps();
 
-  // Fetch default app setting on mount
+  // Fetch default app setting on mount and listen for changes
   React.useEffect(() => {
     const fetchDefaultApp = async () => {
       try {
@@ -38,6 +38,17 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
       }
     };
     void fetchDefaultApp();
+
+    // Listen for changes from settings
+    const handleChange = (e: CustomEvent<OpenInAppId>) => {
+      if (isValidOpenInAppId(e.detail)) {
+        setDefaultApp(e.detail);
+      }
+    };
+    window.addEventListener('defaultOpenInAppChanged', handleChange as EventListener);
+    return () => {
+      window.removeEventListener('defaultOpenInAppChanged', handleChange as EventListener);
+    };
   }, []);
 
   React.useEffect(() => {

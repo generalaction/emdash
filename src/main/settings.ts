@@ -125,7 +125,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   terminal: {
     fontFamily: '',
   },
-  defaultOpenInApp: 'cursor',
+  defaultOpenInApp: 'terminal',
 };
 
 function getSettingsPath(): string {

@@ -3,7 +3,7 @@ import { isValidOpenInAppId, OPEN_IN_APPS, type OpenInAppId } from '@shared/open
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useOpenInApps } from '../hooks/useOpenInApps';
 
-const DEFAULT_APP: OpenInAppId = 'cursor';
+const DEFAULT_APP: OpenInAppId = 'terminal';
 
 const DefaultOpenInSettingsCard: React.FC = () => {
   const [defaultApp, setDefaultApp] = useState<OpenInAppId>(DEFAULT_APP);
@@ -31,6 +31,8 @@ const DefaultOpenInSettingsCard: React.FC = () => {
   const save = useCallback(async (app: OpenInAppId) => {
     setDefaultApp(app);
     await window.electronAPI.updateSettings({ defaultOpenInApp: app });
+    // Notify other components of the change
+    window.dispatchEvent(new CustomEvent('defaultOpenInAppChanged', { detail: app }));
   }, []);
 
   // Sort apps: installed first, then uninstalled
