@@ -1,5 +1,6 @@
 import { SshService } from './ssh/SshService';
 import { ExecResult } from '../../shared/ssh/types';
+import { quoteShellArg } from '../utils/shellEscape';
 
 export interface WorktreeInfo {
   path: string;
@@ -20,11 +21,6 @@ export interface GitStatus {
 
 export class RemoteGitService {
   constructor(private sshService: SshService) {}
-
-  private quoteShellArg(arg: string): string {
-    // POSIX-safe single-quote escaping.
-    return `'${arg.replace(/'/g, "'\"'\"'")}'`;
-  }
 
   private normalizeRemotePath(p: string): string {
     // Remote paths should use forward slashes.
@@ -82,7 +78,7 @@ export class RemoteGitService {
     for (const branch of commonBranches) {
       const checkResult = await this.sshService.executeCommand(
         connectionId,
-        `git rev-parse --verify ${branch} 2>/dev/null`,
+        `git rev-parse --verify ${quoteShellArg(branch)} 2>/dev/null`,
         normalizedProjectPath
       );
       if (checkResult.exitCode === 0) {
@@ -126,7 +122,7 @@ export class RemoteGitService {
       // Always verify the provided branch exists, regardless of what it is
       const verifyResult = await this.sshService.executeCommand(
         connectionId,
-        `git rev-parse --verify ${this.quoteShellArg(base)} 2>/dev/null`,
+        `git rev-parse --verify ${quoteShellArg(base)} 2>/dev/null`,
         normalizedProjectPath
       );
 
@@ -142,7 +138,7 @@ export class RemoteGitService {
 
     const result = await this.sshService.executeCommand(
       connectionId,
-      `git worktree add ${this.quoteShellArg(relWorktreePath)} -b ${this.quoteShellArg(worktreeName)} ${this.quoteShellArg(
+      `git worktree add ${quoteShellArg(relWorktreePath)} -b ${quoteShellArg(worktreeName)} ${quoteShellArg(
         base
       )}`,
       normalizedProjectPath
@@ -168,7 +164,7 @@ export class RemoteGitService {
     const normalizedWorktreePath = this.normalizeRemotePath(worktreePath);
     const result = await this.sshService.executeCommand(
       connectionId,
-      `git worktree remove ${this.quoteShellArg(normalizedWorktreePath)} --force`,
+      `git worktree remove ${quoteShellArg(normalizedWorktreePath)} --force`,
       normalizedProjectPath
     );
 
@@ -286,11 +282,11 @@ export class RemoteGitService {
     let command = 'git commit';
 
     if (files && files.length > 0) {
-      const fileList = files.map((f) => this.quoteShellArg(f)).join(' ');
+      const fileList = files.map((f) => quoteShellArg(f)).join(' ');
       command = `git add ${fileList} && ${command}`;
     }
 
-    command += ` -m ${this.quoteShellArg(message)}`;
+    command += ` -m ${quoteShellArg(message)}`;
 
     return this.sshService.executeCommand(
       connectionId,

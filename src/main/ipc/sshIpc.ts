@@ -53,33 +53,49 @@ function mapRowToConfig(row: {
 }
 
 /**
- * Validates that a remote path is safe to access
- * Prevents path traversal attacks and access to sensitive system files
+ * Validates that a remote path is safe to access.
+ *
+ * Uses a two-layer approach:
+ *   1. Reject any path containing traversal sequences (even after normalization).
+ *   2. Reject paths that resolve into known-sensitive directories.
+ *
+ * The path is resolved against '/' so that relative tricks like
+ * "foo/../../etc/shadow" are caught.
  */
 function isPathSafe(remotePath: string): boolean {
-  // Normalize the path to detect traversal attempts
-  const normalized = remotePath.replace(/\/+/g, '/');
-
-  // Block path traversal attempts
-  if (normalized.includes('../') || normalized.includes('/..')) {
+  // Must be an absolute path
+  if (!remotePath.startsWith('/')) {
     return false;
   }
 
-  // Block access to sensitive system directories
-  const restrictedPaths = [
+  // Normalize repeated slashes
+  const normalized = remotePath.replace(/\/+/g, '/');
+
+  // Reject any occurrence of '..' as a path component
+  // This catches ../  /..  and trailing /..
+  const segments = normalized.split('/');
+  if (segments.some((s) => s === '..')) {
+    return false;
+  }
+
+  // Block access to sensitive system directories and hidden dotfiles
+  const restrictedPrefixes = [
     '/etc/',
-    '/root/.ssh/',
-    '/home/.ssh/', // Block .ssh in any home directory
-    '/.ssh/', // Block .ssh at any level
     '/proc/',
     '/sys/',
     '/dev/',
+    '/boot/',
+    '/root/',
   ];
-
-  for (const restricted of restrictedPaths) {
-    if (normalized.startsWith(restricted) || normalized.includes(restricted)) {
+  for (const prefix of restrictedPrefixes) {
+    if (normalized.startsWith(prefix) || normalized === prefix.slice(0, -1)) {
       return false;
     }
+  }
+
+  // Block .ssh directories anywhere in the path
+  if (segments.some((s) => s === '.ssh')) {
+    return false;
   }
 
   return true;
@@ -89,6 +105,17 @@ function isPathSafe(remotePath: string): boolean {
  * Register all SSH IPC handlers
  */
 export function registerSshIpc() {
+  // Wire up reconnect handler so the monitor's reconnect event actually reconnects (HIGH #9)
+  monitor.on('reconnect', async (connectionId: string, config: SshConfig, attempt: number) => {
+    try {
+      console.log(`[sshIpc] Reconnecting ${connectionId} (attempt ${attempt})...`);
+      await sshService.connect(config);
+      monitor.updateState(connectionId, 'connected');
+    } catch (err: any) {
+      console.error(`[sshIpc] Reconnect attempt ${attempt} failed for ${connectionId}:`, err.message);
+      monitor.updateState(connectionId, 'error', err.message);
+    }
+  });
   // Test connection
   ipcMain.handle(
     SSH_IPC_CHANNELS.TEST_CONNECTION,
@@ -275,9 +302,19 @@ export function registerSshIpc() {
     SSH_IPC_CHANNELS.DELETE_CONNECTION,
     async (_, id: string): Promise<{ success: boolean; error?: string }> => {
       try {
+        // Disconnect active connection first to avoid orphaned sessions (HIGH #8)
+        if (sshService.isConnected(id)) {
+          try {
+            await sshService.disconnect(id);
+            monitor.stopMonitoring(id);
+          } catch {
+            // Best-effort: continue with deletion even if disconnect fails
+          }
+        }
+
         const { db } = await getDrizzleClient();
 
-        // Delete credentials first
+        // Delete credentials
         await credentialService.deleteAllCredentials(id);
 
         // Delete from database

@@ -14,7 +14,12 @@ const DEFAULT_EMDASH_CONFIG = `{
     ".env.*.local",
     ".envrc",
     "docker-compose.override.yml"
-  ]
+  ],
+  "scripts": {
+    "setup": "",
+    "run": "",
+    "teardown": ""
+  }
 }
 `;
 

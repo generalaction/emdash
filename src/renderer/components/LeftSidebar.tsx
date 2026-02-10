@@ -27,6 +27,7 @@ import {
   RotateCcw,
   Globe,
   Server,
+  Puzzle,
 } from 'lucide-react';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
@@ -63,7 +64,11 @@ interface LeftSidebarProps {
   onArchiveTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onRestoreTask?: (project: Project, task: Task) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
+  pinnedTaskIds?: Set<string>;
+  onPinTask?: (task: Task) => void;
   isHomeView?: boolean;
+  onGoToSkills?: () => void;
+  isSkillsView?: boolean;
 }
 
 interface MenuItemButtonProps {
@@ -163,7 +168,11 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onArchiveTask,
   onRestoreTask,
   onDeleteProject,
+  pinnedTaskIds,
+  onPinTask,
   isHomeView,
+  onGoToSkills,
+  isSkillsView,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
@@ -258,6 +267,24 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </Button>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            {onGoToSkills && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  className={`min-w-0 ${isSkillsView ? 'bg-black/5 dark:bg-white/5' : ''}`}
+                >
+                  <Button
+                    variant="ghost"
+                    onClick={onGoToSkills}
+                    aria-label="Skills"
+                    className="w-full justify-start"
+                  >
+                    <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                    <span className="hidden text-sm font-medium sm:inline">Skills</span>
+                  </Button>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
@@ -392,50 +419,61 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 <span className="truncate">New Task</span>
                               </motion.button>
                               <div className="hidden min-w-0 space-y-0.5 sm:block">
-                                {typedProject.tasks?.map((task) => {
-                                  const isActive = activeTask?.id === task.id;
-                                  return (
-                                    <div
-                                      key={task.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (
-                                          onSelectProject &&
-                                          selectedProject?.id !== typedProject.id
-                                        ) {
-                                          onSelectProject(typedProject);
-                                        }
-                                        onSelectTask && onSelectTask(task);
-                                      }}
-                                      className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
-                                        isActive ? 'bg-black/5 dark:bg-white/5' : ''
-                                      }`}
-                                      title={task.name}
-                                    >
-                                      <TaskItem
-                                        task={task}
-                                        showDelete
-                                        showDirectBadge={false}
-                                        onDelete={
-                                          onDeleteTask
-                                            ? () => onDeleteTask(typedProject, task)
-                                            : undefined
-                                        }
-                                        onRename={
-                                          // Disable rename for multi-agent tasks (variant metadata would become stale)
-                                          onRenameTask && !task.metadata?.multiAgent?.enabled
-                                            ? (newName) => onRenameTask(typedProject, task, newName)
-                                            : undefined
-                                        }
-                                        onArchive={
-                                          onArchiveTask
-                                            ? () => handleArchiveTaskWithRefresh(typedProject, task)
-                                            : undefined
-                                        }
-                                      />
-                                    </div>
-                                  );
-                                })}
+                                {typedProject.tasks
+                                  ?.slice()
+                                  .sort((a, b) => {
+                                    const aPinned = pinnedTaskIds?.has(a.id) ? 1 : 0;
+                                    const bPinned = pinnedTaskIds?.has(b.id) ? 1 : 0;
+                                    return bPinned - aPinned;
+                                  })
+                                  .map((task) => {
+                                    const isActive = activeTask?.id === task.id;
+                                    return (
+                                      <div
+                                        key={task.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (
+                                            onSelectProject &&
+                                            selectedProject?.id !== typedProject.id
+                                          ) {
+                                            onSelectProject(typedProject);
+                                          }
+                                          onSelectTask && onSelectTask(task);
+                                        }}
+                                        className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
+                                          isActive ? 'bg-black/5 dark:bg-white/5' : ''
+                                        }`}
+                                        title={task.name}
+                                      >
+                                        <TaskItem
+                                          task={task}
+                                          showDelete
+                                          showDirectBadge={false}
+                                          isPinned={pinnedTaskIds?.has(task.id)}
+                                          onPin={onPinTask ? () => onPinTask(task) : undefined}
+                                          onDelete={
+                                            onDeleteTask
+                                              ? () => onDeleteTask(typedProject, task)
+                                              : undefined
+                                          }
+                                          onRename={
+                                            // Disable rename for multi-agent tasks (variant metadata would become stale)
+                                            onRenameTask && !task.metadata?.multiAgent?.enabled
+                                              ? (newName) =>
+                                                  onRenameTask(typedProject, task, newName)
+                                              : undefined
+                                          }
+                                          onArchive={
+                                            onArchiveTask
+                                              ? () =>
+                                                  handleArchiveTaskWithRefresh(typedProject, task)
+                                              : undefined
+                                          }
+                                        />
+                                      </div>
+                                    );
+                                  })}
 
                                 {/* Archived tasks section */}
                                 {archivedTasksByProject[typedProject.id]?.length > 0 && (

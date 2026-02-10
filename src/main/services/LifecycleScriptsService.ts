@@ -1,14 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { log } from '../lib/logger';
-
-export interface EmdashScripts {
-  setup?: string;
-}
+import type { LifecyclePhase, LifecycleScriptConfig } from '@shared/lifecycle';
 
 export interface EmdashConfig {
   preservePatterns?: string[];
-  scripts?: EmdashScripts;
+  scripts?: LifecycleScriptConfig;
 }
 
 /**
@@ -34,11 +31,13 @@ class LifecycleScriptsService {
   }
 
   /**
-   * Get the setup script command if configured
+   * Get a specific lifecycle script command if configured.
    */
-  getSetupScript(projectPath: string): string | null {
+  getScript(projectPath: string, phase: LifecyclePhase): string | null {
     const config = this.readConfig(projectPath);
-    return config?.scripts?.setup || null;
+    const scripts = config?.scripts;
+    const script = scripts?.[phase];
+    return typeof script === 'string' && script.trim().length > 0 ? script.trim() : null;
   }
 }
 

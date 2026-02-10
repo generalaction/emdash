@@ -13,9 +13,11 @@ import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
+import TerminalSettingsCard from './TerminalSettingsCard';
 import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
 import Context7SettingsCard from './Context7SettingsCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
+import DefaultOpenInSettingsCard from './DefaultOpenInSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import { CliAgentStatus } from '../types/connections';
@@ -219,10 +221,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialT
         description: '',
         sections: [
           { title: 'Theme', render: () => <ThemeCard /> },
+          { title: 'Default open in app', render: () => <DefaultOpenInSettingsCard /> },
           { title: 'Keyboard shortcuts', render: () => <KeyboardSettingsCard /> },
           { title: 'Notifications', render: () => <NotificationSettingsCard /> },
           { title: 'Right sidebar', render: () => <RightSidebarSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
+          { title: 'Terminal font', render: () => <TerminalSettingsCard /> },
         ],
       },
       repository: {

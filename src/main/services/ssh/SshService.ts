@@ -3,6 +3,7 @@ import { Client, SFTPWrapper, ConnectConfig } from 'ssh2';
 import { SshConfig, ExecResult } from '../../../shared/ssh/types';
 import { Connection, ConnectionPool } from './types';
 import { SshCredentialService } from './SshCredentialService';
+import { quoteShellArg } from '../../utils/shellEscape';
 import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
@@ -173,27 +174,32 @@ export class SshService extends EventEmitter {
       return; // Already disconnected or never existed
     }
 
-    return new Promise((resolve) => {
-      // Close SFTP session if open
-      if (connection.sftp) {
-        try {
-          connection.sftp.end();
-        } catch {
-          // Ignore errors during SFTP close
-        }
+    // Close SFTP session if open, waiting for close to complete
+    if (connection.sftp) {
+      try {
+        await new Promise<void>((resolve) => {
+          const sftp = connection.sftp!;
+          const timeout = setTimeout(() => resolve(), 2000); // 2s safety timeout
+          sftp.once('close', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          sftp.end();
+        });
+      } catch {
+        // Ignore errors during SFTP close
       }
+      connection.sftp = undefined;
+    }
 
-      // Close SSH client
-      connection.client.end();
+    // Close SSH client
+    connection.client.end();
 
-      // Remove from pool
-      delete this.connections[connectionId];
+    // Remove from pool
+    delete this.connections[connectionId];
 
-      // Emit disconnected event
-      this.emit('disconnected', connectionId);
-
-      resolve();
-    });
+    // Emit disconnected event
+    this.emit('disconnected', connectionId);
   }
 
   /**
@@ -213,7 +219,7 @@ export class SshService extends EventEmitter {
     connection.lastActivity = new Date();
 
     // Build the command with optional cwd
-    const fullCommand = cwd ? `cd ${this.escapeShellArg(cwd)} && ${command}` : command;
+    const fullCommand = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
 
     return new Promise((resolve, reject) => {
       connection.client.exec(fullCommand, (err, stream) => {
@@ -248,14 +254,6 @@ export class SshService extends EventEmitter {
         });
       });
     });
-  }
-
-  /**
-   * Escapes a shell argument to prevent injection attacks
-   */
-  private escapeShellArg(arg: string): string {
-    // Replace single quotes with '"'"' and wrap in single quotes
-    return `'${arg.replace(/'/g, "'\"'\"'")}'`;
   }
 
   /**

@@ -8,11 +8,20 @@ import { HostKeyEntry } from './types';
 const KNOWN_HOSTS_PATH = join(homedir(), '.ssh', 'known_hosts');
 
 /**
+ * Structured representation of a stored host key.
+ * Preserves the algorithm so we can round-trip to known_hosts without data loss.
+ */
+interface StoredHostKey {
+  algorithm: string;
+  keyBase64: string;
+}
+
+/**
  * Service for managing SSH host key verification.
  * Stores and validates host fingerprints for security.
  */
 export class SshHostKeyService {
-  private knownHosts: Map<string, string> = new Map();
+  private knownHosts: Map<string, StoredHostKey> = new Map();
   private initialized = false;
 
   /**
@@ -33,7 +42,8 @@ export class SshHostKeyService {
   }
 
   /**
-   * Parse known_hosts content into memory
+   * Parse known_hosts content into memory.
+   * Format: <host> <algorithm> <base64-key>
    */
   private parseKnownHosts(content: string): void {
     const lines = content.split('\n');
@@ -44,8 +54,9 @@ export class SshHostKeyService {
       const parts = trimmed.split(' ');
       if (parts.length >= 3) {
         const host = parts[0];
-        const key = parts.slice(2).join(' ');
-        this.knownHosts.set(host, key);
+        const algorithm = parts[1];
+        const keyBase64 = parts.slice(2).join(' ');
+        this.knownHosts.set(host, { algorithm, keyBase64 });
       }
     }
   }
@@ -75,14 +86,14 @@ export class SshHostKeyService {
     await this.initialize();
 
     const hostPort = port === 22 ? host : `[${host}]:${port}`;
-    const knownKey = this.knownHosts.get(hostPort) || this.knownHosts.get(host);
+    const stored = this.knownHosts.get(hostPort) || this.knownHosts.get(host);
 
-    if (!knownKey) {
+    if (!stored) {
       return 'new';
     }
 
     // Compare fingerprints instead of raw keys for this interface
-    const knownFingerprint = this.getFingerprint(Buffer.from(knownKey, 'base64'));
+    const knownFingerprint = this.getFingerprint(Buffer.from(stored.keyBase64, 'base64'));
     if (knownFingerprint === fingerprint) {
       return 'known';
     }
@@ -102,14 +113,14 @@ export class SshHostKeyService {
     await this.initialize();
 
     const hostPort = port === 22 ? host : `[${host}]:${port}`;
-    const knownKey = this.knownHosts.get(hostPort) || this.knownHosts.get(host);
+    const stored = this.knownHosts.get(hostPort) || this.knownHosts.get(host);
 
-    if (!knownKey) {
+    if (!stored) {
       return 'unknown';
     }
 
     const keyBase64 = key.toString('base64');
-    if (knownKey === keyBase64) {
+    if (stored.keyBase64 === keyBase64) {
       return 'valid';
     }
 
@@ -132,8 +143,8 @@ export class SshHostKeyService {
     await this.initialize();
 
     const hostPort = port === 22 ? host : `[${host}]:${port}`;
-    // Store fingerprint directly for this interface
-    this.knownHosts.set(hostPort, fingerprint);
+    // Store fingerprint with algorithm so we can persist correctly
+    this.knownHosts.set(hostPort, { algorithm: keyType || 'ssh-ed25519', keyBase64: fingerprint });
 
     // Rewrite entire file to ensure consistency
     await this.persistKnownHosts();
@@ -158,7 +169,7 @@ export class SshHostKeyService {
     const keyBase64 = key.toString('base64');
     const entry = `${hostPort} ${algorithm} ${keyBase64}\n`;
 
-    this.knownHosts.set(hostPort, keyBase64);
+    this.knownHosts.set(hostPort, { algorithm, keyBase64 });
 
     try {
       await appendFile(KNOWN_HOSTS_PATH, entry);
@@ -199,7 +210,7 @@ export class SshHostKeyService {
     await this.initialize();
 
     const entries: HostKeyEntry[] = [];
-    for (const [hostPort, keyBase64] of this.knownHosts) {
+    for (const [hostPort, stored] of this.knownHosts) {
       // Parse host and port from the key format
       let host: string;
       let port: number;
@@ -221,8 +232,8 @@ export class SshHostKeyService {
       entries.push({
         host,
         port,
-        keyType: 'unknown', // We don't store the algorithm separately in the simple format
-        fingerprint: this.getFingerprint(Buffer.from(keyBase64, 'base64')),
+        keyType: stored.algorithm,
+        fingerprint: this.getFingerprint(Buffer.from(stored.keyBase64, 'base64')),
         verifiedAt: new Date(),
       });
     }
@@ -266,10 +277,8 @@ export class SshHostKeyService {
    */
   private async persistKnownHosts(): Promise<void> {
     const entries: string[] = [];
-    for (const [hostPort, key] of this.knownHosts) {
-      // Use ssh-ed25519 as default algorithm since we store fingerprints
-      // In a full implementation, we might want to store the algorithm separately
-      entries.push(`${hostPort} ssh-ed25519 ${key}`);
+    for (const [hostPort, stored] of this.knownHosts) {
+      entries.push(`${hostPort} ${stored.algorithm} ${stored.keyBase64}`);
     }
 
     try {

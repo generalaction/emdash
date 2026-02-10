@@ -13,6 +13,7 @@ import { CTRL_J_ASCII, shouldMapShiftEnterToCtrlJ } from './terminalKeybindings'
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
+const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -34,7 +35,9 @@ export interface TerminalSessionOptions {
   initialSize: { cols: number; rows: number };
   scrollbackLines: number;
   theme: SessionTheme;
-  telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
+  telemetry?: {
+    track: (event: string, payload?: Record<string, unknown>) => void;
+  } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
   mapShiftEnterToCtrlJ?: boolean;
@@ -70,6 +73,8 @@ export class TerminalSessionManager {
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
+  private customFontFamily = '';
+  private themeFontFamily = '';
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -100,6 +105,25 @@ export class TerminalSessionManager {
       allowProposedApi: true,
       scrollOnUserInput: false,
     });
+
+    const updateCustomFont = (customFont?: string) => {
+      this.customFontFamily = customFont?.trim() ?? '';
+      this.applyEffectiveFont();
+    };
+
+    window.electronAPI.getSettings().then((result) => {
+      updateCustomFont(result?.settings?.terminal?.fontFamily);
+    });
+
+    const handleFontChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
+      updateCustomFont(detail?.fontFamily);
+      this.fitPreservingViewport();
+    };
+    window.addEventListener('terminal-font-changed', handleFontChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-font-changed', handleFontChange)
+    );
 
     this.fitAddon = new FitAddon();
     this.serializeAddon = new SerializeAddon();
@@ -264,7 +288,10 @@ export class TerminalSessionManager {
       try {
         dispose();
       } catch (error) {
-        log.warn('Terminal session dispose callback failed', { id: this.id, error });
+        log.warn('Terminal session dispose callback failed', {
+          id: this.id,
+          error,
+        });
       }
     }
     this.metrics.dispose();
@@ -388,12 +415,16 @@ export class TerminalSessionManager {
     this.terminal.options.theme = { ...base, ...colorTheme };
 
     // Apply font settings separately
-    if (fontFamily) {
-      this.terminal.options.fontFamily = fontFamily;
-    }
+    this.themeFontFamily = typeof fontFamily === 'string' ? fontFamily.trim() : '';
+    this.applyEffectiveFont();
     if (fontSize) {
       this.terminal.options.fontSize = fontSize;
     }
+  }
+
+  private applyEffectiveFont() {
+    const selected = this.customFontFamily || this.themeFontFamily;
+    this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
   }
 
   /**
@@ -423,7 +454,10 @@ export class TerminalSessionManager {
               this.terminal.scrollToLine(targetLine);
             }
           } catch (error) {
-            log.warn('Terminal scroll restore failed after fit', { id: this.id, error });
+            log.warn('Terminal scroll restore failed after fit', {
+              id: this.id,
+              error,
+            });
           }
         });
       }
@@ -687,7 +721,10 @@ export class TerminalSessionManager {
           payload,
         });
         if (!result?.ok) {
-          log.warn('Terminal snapshot save failed', { id: this.id, error: result?.error });
+          log.warn('Terminal snapshot save failed', {
+            id: this.id,
+            error: result?.error,
+          });
         } else {
           this.metrics.markSnapshot();
         }

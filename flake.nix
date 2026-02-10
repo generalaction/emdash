@@ -12,6 +12,7 @@
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
         nodejs = pkgs.nodejs_22;
+        pnpm = pkgs.pnpm_10 or pkgs.pnpm;
 
         # Electron version must match package.json
         electronVersion = "30.5.1";
@@ -54,19 +55,20 @@
         cleanSrc = lib.cleanSource ./.;
         emdashPackage =
           if pkgs.stdenv.isLinux then
-            pkgs.buildNpmPackage rec {
+            pkgs.stdenv.mkDerivation rec {
               pname = "emdash";
               version = "0.3.34";
               src = cleanSrc;
-              inherit nodejs;
-              npmDepsHash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
-
-              # Don't use npmBuildScript - we'll run electron-builder manually with overrides
-              dontNpmBuild = true;
+              pnpmDeps = pnpm.fetchDeps {
+                inherit pname version src;
+                hash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
+              };
+              dontConfigure = true;
 
               nativeBuildInputs =
                 sharedEnv
                 ++ [
+                  pnpm.configHook
                   pkgs.dpkg
                   pkgs.rpm
                 ];
@@ -79,7 +81,7 @@
               env = {
                 HOME = "$TMPDIR/emdash-home";
                 npm_config_build_from_source = "true";
-                # Skip Electron binary download during npm install
+                # Skip Electron binary download during pnpm install
                 ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
               };
 
@@ -89,11 +91,11 @@
                 mkdir -p "$TMPDIR/emdash-home"
 
                 # Build the app (renderer + main)
-                npm run build
+                pnpm run build
 
                 # Run electron-builder with electronDist override to avoid download
                 # Use --dir to only produce unpacked output (no AppImage/deb which require network)
-                npx electron-builder --linux --dir \
+                pnpm exec electron-builder --linux --dir \
                   -c.electronDist=${electronDistDir} \
                   -c.electronVersion=${electronVersion}
 
@@ -153,7 +155,7 @@ EOF
           shellHook = ''
             echo "Emdash dev shell ready"
             echo "Node: $(node --version)"
-            echo "Run 'npm run d' for the full dev loop."
+            echo "Run 'pnpm run d' for the full dev loop."
           '';
         };
 

@@ -134,6 +134,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['amp'],
     versionArgs: ['--version'],
     cli: 'amp',
+    autoApproveFlag: '--dangerously-allow-all',
+    initialPromptFlag: '',
     icon: 'ampcode.png',
     terminalOnly: true,
   },

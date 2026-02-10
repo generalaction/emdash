@@ -8,7 +8,7 @@ try {
   // dotenv is optional - no error if .env doesn't exist
 }
 
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { initializeShellEnvironment } from './utils/shellEnv';
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
@@ -101,12 +101,34 @@ import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
+import { taskLifecycleService } from './services/TaskLifecycleService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
 
 // Set app name for macOS dock and menu bar
 app.setName('Emdash');
+
+// Prevent multiple instances in production (e.g. user clicks icon while auto-updater is restarting).
+// Skip in dev so dev server can run alongside the packaged app.
+const isDev = !app.isPackaged || process.argv.includes('--dev');
+if (!isDev) {
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    // Must also exit the process; app.quit() alone still runs the rest of this module
+    // before the event loop drains, which would register unnecessary listeners and timers.
+    process.exit(0);
+  }
+}
+
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+});
 
 // Set dock icon on macOS in development mode
 if (process.platform === 'darwin' && !app.isPackaged) {
@@ -246,6 +268,8 @@ app.on('before-quit', () => {
 
   // Cleanup auto-update service
   autoUpdateService.shutdown();
+  // Stop any lifecycle run scripts so they do not outlive the app process.
+  taskLifecycleService.shutdown();
 
   // Cleanup reserve worktrees (fire and forget - don't block quit)
   worktreePoolService.cleanup().catch(() => {});

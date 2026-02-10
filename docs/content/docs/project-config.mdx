@@ -51,7 +51,7 @@ You can run a command automatically when a new task is created. This is useful f
 ```json
 {
   "scripts": {
-    "setup": "npm install && npm run dev"
+    "setup": "pnpm install && pnpm run dev"
   }
 }
 ```
@@ -76,7 +76,7 @@ When a task terminal starts, Emdash injects convenience environment variables yo
 ```json
 {
   "scripts": {
-    "setup": "export PORT=$EMDASH_PORT && export DB_PORT=$((EMDASH_PORT + 1)) && export COMPOSE_PROJECT_NAME=$EMDASH_TASK_NAME && docker-compose up -d && npm run dev"
+    "setup": "export PORT=$EMDASH_PORT && export DB_PORT=$((EMDASH_PORT + 1)) && export COMPOSE_PROJECT_NAME=$EMDASH_TASK_NAME && docker-compose up -d && pnpm run dev"
   }
 }
 ```
@@ -108,7 +108,7 @@ Install dependencies:
 ```json
 {
   "scripts": {
-    "setup": "npm install"
+    "setup": "pnpm install"
   }
 }
 ```
@@ -118,7 +118,7 @@ Install and start dev server:
 ```json
 {
   "scripts": {
-    "setup": "npm install && npm run dev"
+    "setup": "pnpm install && pnpm run dev"
   }
 }
 ```

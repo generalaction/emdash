@@ -1,0 +1,114 @@
+---
+title: Skills
+description: Extend your agents with reusable skill modules
+---
+
+Skills are reusable capability modules that extend your coding agents with specialized functionality. They follow the open [Agent Skills](https://agentskills.io) standard and work across all supported agents—Claude Code, Codex, OpenCode, Cursor, Gemini, Roo Code, and Mistral Vibe.
+
+<img
+  src="/media/skills.png"
+  alt="Skills catalog in Emdash"
+  style={{
+    width: '100%',
+    maxWidth: '700px',
+    margin: '20px auto',
+    display: 'block',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  }}
+/>
+
+## Browsing Skills
+
+Open the Skills view by clicking **Skills** (puzzle icon) in the left sidebar. You'll see a catalog of available skills sourced from:
+
+- [OpenAI skill library](https://github.com/openai/skills/)
+- [Anthropic skill library](https://github.com/anthropics/skills/)
+
+Use the search box to filter by name or description. Click **Refresh** to fetch the latest skills from GitHub.
+
+If you want to use skills from another library, feel free to let us know through the feedback modal in the app.
+
+<img
+  src="/media/feedback.png"
+  alt="Feedback modal in Emdash"
+  style={{
+    width: '100%',
+    maxWidth: '700px',
+    margin: '20px auto',
+    display: 'block',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  }}
+/>
+
+## Installing a Skill
+
+1. Find a skill in the catalog
+2. Click the skill card to view details, example prompts, and documentation
+3. Click **Install**
+
+Emdash downloads the skill to `~/.agentskills/` and automatically syncs it to all installed agents on your machine. The skill is immediately available in your next agent session.
+
+## Uninstalling a Skill
+
+1. Click an installed skill card
+2. Click **Uninstall** in the detail modal
+
+This removes the skill from `~/.agentskills/` and removes the symlinks from all agent directories.
+
+## Creating Custom Skills
+
+1. Click **New Skill** in the Skills view
+2. Enter a name (lowercase, hyphens, 2–64 characters) and description
+3. Click **Create**
+
+Emdash generates a `SKILL.md` file in `~/.agentskills/<your-skill>/` and opens the directory so you can edit it. The file uses YAML frontmatter for metadata:
+
+```yaml
+---
+name: 'my-skill'
+description: 'What this skill does'
+---
+# My Skill
+
+Instructions and documentation for the agent...
+```
+
+Custom skills sync to all installed agents just like catalog skills.
+
+## How Skills Work
+
+Each skill is a directory containing a `SKILL.md` file. When installed, Emdash creates symlinks in each agent's config directory:
+
+| Agent        | Skill location                       |
+| ------------ | ------------------------------------ |
+| Claude Code  | `~/.claude/commands/<skill>/`        |
+| Codex        | `~/.codex/skills/<skill>/`           |
+| OpenCode     | `~/.config/opencode/skills/<skill>/` |
+| Cursor       | `~/.cursor/skills/<skill>/`          |
+| Gemini       | `~/.gemini/skills/<skill>/`          |
+| Roo Code     | `~/.roo/skills/<skill>/`             |
+| Mistral Vibe | `~/.vibe/skills/<skill>/`            |
+
+This means skills you install through Emdash also work when you run these agents outside of Emdash.
+
+## Example Skills
+
+The catalog includes skills for many common workflows:
+
+- **Deployment**: Cloudflare, Vercel, Netlify deploy
+- **Design**: Figma integration, design implementation
+- **GitHub**: Address PR comments, fix CI failures
+- **Documentation**: Word docs, Jupyter notebooks
+- **Content**: Image generation
+- **Integrations**: Linear, Notion, Stripe, Twilio
+
+Each skill includes an example prompt showing how to invoke it.
+
+## Tips
+
+- Skills persist across Emdash sessions—install once, use everywhere.
+- Click the terminal icon on an installed skill to open its directory and inspect or edit the `SKILL.md` directly.
+- Custom skills appear in the "Installed" section alongside catalog skills.
+- If an agent can't find a skill, make sure the agent is detected by Emdash (check the Skills view footer for detected agents).

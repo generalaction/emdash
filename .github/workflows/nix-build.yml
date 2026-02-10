@@ -25,24 +25,6 @@ jobs:
           name: emdash
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-      - name: Compute npmDepsHash from package-lock.json
-        id: npm-hash
-        run: |
-          set -euo pipefail
-          # Use prefetch-npm-deps to compute the correct hash for current package-lock.json
-          HASH=$(nix run nixpkgs#prefetch-npm-deps -- package-lock.json 2>/dev/null)
-          echo "Computed npmDepsHash: $HASH"
-          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
-
-      - name: Update flake.nix with computed hash
-        run: |
-          set -euo pipefail
-          HASH="${{ steps.npm-hash.outputs.hash }}"
-          echo "Updating flake.nix npmDepsHash to: $HASH"
-          sed -i "s|npmDepsHash = \"sha256-[^\"]*\"|npmDepsHash = \"$HASH\"|" flake.nix
-          echo "Updated flake.nix:"
-          grep npmDepsHash flake.nix
-
       - name: Build x86_64-linux package
         run: |
           set -euo pipefail

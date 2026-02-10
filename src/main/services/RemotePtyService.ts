@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { SshService } from './ssh/SshService';
+import { quoteShellArg, isValidEnvVarName } from '../utils/shellEscape';
 
 export interface RemotePtyOptions {
   id: string;
@@ -21,13 +22,20 @@ export interface RemotePty {
 }
 
 /**
- * Escapes a shell argument using POSIX single-quote escaping.
- * This is safer than double-quotes as it prevents all variable expansion.
+ * Allowlist of shells that can be launched as remote PTYs.
+ * Only absolute paths to well-known shells are permitted.
  */
-function quoteShellArg(arg: string): string {
-  // Replace single quotes with '\'' (end quote, escaped quote, start quote)
-  return `'${arg.replace(/'/g, "'\\''")}'`;
-}
+const ALLOWED_SHELLS = new Set([
+  '/bin/bash',
+  '/bin/sh',
+  '/bin/zsh',
+  '/usr/bin/bash',
+  '/usr/bin/zsh',
+  '/usr/bin/fish',
+  '/usr/local/bin/bash',
+  '/usr/local/bin/zsh',
+  '/usr/local/bin/fish',
+]);
 
 /**
  * Service for managing remote PTY (pseudo-terminal) sessions over SSH.
@@ -70,12 +78,28 @@ export class RemotePtyService extends EventEmitter {
         }
 
         // Build command with environment and cwd
-        const envVars = Object.entries(options.env || {})
+        // Validate env var keys to prevent injection (CRITICAL #1)
+        const envEntries = Object.entries(options.env || {}).filter(([k]) => {
+          if (!isValidEnvVarName(k)) {
+            console.warn(`[RemotePtyService] Skipping invalid env var name: ${k}`);
+            return false;
+          }
+          return true;
+        });
+        const envVars = envEntries
           .map(([k, v]) => `export ${k}=${quoteShellArg(v)}`)
           .join(' && ');
 
         const cdCommand = options.cwd ? `cd ${quoteShellArg(options.cwd)}` : '';
         const autoApproveFlag = options.autoApprove ? ' --full-auto' : '';
+
+        // Validate shell against allowlist (HIGH #5)
+        const shellBinary = options.shell.split(/\s+/)[0];
+        if (!ALLOWED_SHELLS.has(shellBinary)) {
+          reject(new Error(`Shell not allowed: ${shellBinary}. Allowed: ${[...ALLOWED_SHELLS].join(', ')}`));
+          return;
+        }
+
         const fullCommand = [envVars, cdCommand, `${options.shell}${autoApproveFlag}`]
           .filter(Boolean)
           .join(' && ');

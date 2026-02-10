@@ -4,6 +4,7 @@ import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
+import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 
@@ -68,6 +69,10 @@ export interface AppSettings {
   };
   keyboard?: KeyboardSettings;
   interface?: InterfaceSettings;
+  terminal?: {
+    fontFamily: string;
+  };
+  defaultOpenInApp?: OpenInAppId;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -117,6 +122,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   interface: {
     autoRightSidebarBehavior: false,
   },
+  terminal: {
+    fontFamily: '',
+  },
+  defaultOpenInApp: 'terminal',
 };
 
 function getSettingsPath(): string {
@@ -325,6 +334,17 @@ function normalizeSettings(input: AppSettings): AppSettings {
       iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
     ),
   };
+
+  // Terminal
+  const term = (input as any)?.terminal || {};
+  const fontFamily = String(term?.fontFamily ?? '').trim();
+  out.terminal = { fontFamily };
+
+  // Default Open In App
+  const defaultOpenInApp = (input as any)?.defaultOpenInApp;
+  out.defaultOpenInApp = isValidOpenInAppId(defaultOpenInApp)
+    ? defaultOpenInApp
+    : DEFAULT_SETTINGS.defaultOpenInApp!;
 
   return out;
 }

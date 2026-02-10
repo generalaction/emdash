@@ -9,17 +9,13 @@ import crypto from 'crypto';
 import { RemoteGitService } from './RemoteGitService';
 import { sshService } from '../ipc/sshIpc';
 import { log } from '../lib/logger';
+import { quoteShellArg } from '../utils/shellEscape';
 
 const remoteGitService = new RemoteGitService(sshService);
 
 function stableIdFromRemotePath(worktreePath: string): string {
   const h = crypto.createHash('sha1').update(worktreePath).digest('hex').slice(0, 12);
   return `wt-${h}`;
-}
-
-function quoteShellArg(arg: string): string {
-  // POSIX-safe single-quote escaping.
-  return `'${arg.replace(/'/g, "'\"'\"'")}'`;
 }
 
 async function resolveProjectByIdOrPath(args: {
