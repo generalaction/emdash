@@ -15,7 +15,7 @@ const MAX_REDIRECTS = 5;
 
 function httpsGet(url: string, redirectCount = 0): Promise<string> {
   return new Promise((resolve, reject) => {
-    if (redirectCount > MAX_REDIRECTS) {
+    if (redirectCount >= MAX_REDIRECTS) {
       reject(new Error(`Too many redirects (>${MAX_REDIRECTS}) for ${url}`));
       return;
     }
@@ -26,7 +26,8 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
         if (res.statusCode === 301 || res.statusCode === 302) {
           const location = res.headers.location;
           if (location) {
-            httpsGet(location, redirectCount + 1).then(resolve, reject);
+            const resolved = new URL(location, url).href;
+            httpsGet(resolved, redirectCount + 1).then(resolve, reject);
             return;
           }
         }
@@ -256,6 +257,9 @@ export class SkillsService {
       }
       await fs.promises.writeFile(path.join(tmpDir, 'SKILL.md'), content);
 
+      // Remove stale target dir if present (e.g. from a previous failed install)
+      await fs.promises.rm(skillDir, { recursive: true, force: true }).catch(() => {});
+
       // Atomic move: rename tmp dir to final location
       await fs.promises.rename(tmpDir, skillDir);
 
@@ -374,10 +378,14 @@ export class SkillsService {
         const targetDir = target.getSkillDir(skillId);
         const stat = await fs.promises.lstat(targetDir);
         if (stat.isSymbolicLink()) {
-          await fs.promises.unlink(targetDir);
-        } else if (stat.isDirectory()) {
-          await fs.promises.rm(targetDir, { recursive: true, force: true });
+          // Only remove symlinks that point into our central skills root
+          const linkTarget = await fs.promises.readlink(targetDir);
+          const resolved = path.resolve(path.dirname(targetDir), linkTarget);
+          if (resolved.startsWith(SKILLS_ROOT)) {
+            await fs.promises.unlink(targetDir);
+          }
         }
+        // Never rm -rf real directories in agent config — they may be user-managed
       } catch {
         // Doesn't exist or can't remove — skip
       }
