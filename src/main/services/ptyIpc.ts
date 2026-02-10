@@ -23,8 +23,13 @@ const listeners = new Set<string>();
 const providerPtyTimers = new Map<string, number>();
 // Map PTY IDs to provider IDs for multi-agent tracking
 const ptyProviderMap = new Map<string, ProviderId>();
+// Prevent duplicate finish handling when cleanup and onExit race for the same PTY.
+const finalizedPtys = new Set<string>();
 // Track WebContents that have a 'destroyed' listener to avoid duplicates
 const wcDestroyedListeners = new Set<number>();
+let isAppQuitting = false;
+
+type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kill';
 
 // Guard IPC sends to prevent crashes when WebContents is destroyed
 function safeSendToOwner(id: string, channel: string, payload: unknown): boolean {
@@ -220,7 +225,12 @@ export function registerPtyIpc(): void {
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
-            maybeMarkProviderFinish(id, exitCode, signal);
+            maybeMarkProviderFinish(
+              id,
+              exitCode,
+              signal,
+              isAppQuitting ? 'app_quit' : 'process_exit'
+            );
             owners.delete(id);
             listeners.delete(id);
           });
@@ -238,7 +248,12 @@ export function registerPtyIpc(): void {
             for (const [ptyId, owner] of owners.entries()) {
               if (owner === wc) {
                 try {
-                  maybeMarkProviderFinish(ptyId, null, undefined);
+                  maybeMarkProviderFinish(
+                    ptyId,
+                    null,
+                    undefined,
+                    isAppQuitting ? 'app_quit' : 'owner_destroyed'
+                  );
                   killPty(ptyId);
                 } catch {}
                 owners.delete(ptyId);
@@ -324,7 +339,7 @@ export function registerPtyIpc(): void {
   ipcMain.on('pty:kill', (_event, args: { id: string }) => {
     try {
       // Ensure telemetry timers are cleared even on manual kill
-      maybeMarkProviderFinish(args.id, null, undefined);
+      maybeMarkProviderFinish(args.id, null, undefined, 'manual_kill');
       killPty(args.id);
       owners.delete(args.id);
       listeners.delete(args.id);
@@ -452,7 +467,12 @@ export function registerPtyIpc(): void {
 
           proc.onExit(({ exitCode, signal }) => {
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
-            maybeMarkProviderFinish(id, exitCode, signal);
+            maybeMarkProviderFinish(
+              id,
+              exitCode,
+              signal,
+              isAppQuitting ? 'app_quit' : 'process_exit'
+            );
             // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
             // For fallback: clean up owner since no shell respawn happens
             if (usedFallback) {
@@ -472,7 +492,12 @@ export function registerPtyIpc(): void {
             for (const [ptyId, owner] of owners.entries()) {
               if (owner === wc) {
                 try {
-                  maybeMarkProviderFinish(ptyId, null, undefined);
+                  maybeMarkProviderFinish(
+                    ptyId,
+                    null,
+                    undefined,
+                    isAppQuitting ? 'app_quit' : 'owner_destroyed'
+                  );
                   killPty(ptyId);
                 } catch {}
                 owners.delete(ptyId);
@@ -523,6 +548,8 @@ function providerRunKey(providerId: ProviderId, taskId: string) {
 }
 
 function maybeMarkProviderStart(id: string, providerId?: ProviderId) {
+  finalizedPtys.delete(id);
+
   // First check if we have a direct provider ID (for multi-agent mode)
   if (providerId && PROVIDER_IDS.includes(providerId)) {
     ptyProviderMap.set(id, providerId);
@@ -555,8 +582,12 @@ function maybeMarkProviderStart(id: string, providerId?: ProviderId) {
 function maybeMarkProviderFinish(
   id: string,
   exitCode: number | null | undefined,
-  signal: number | undefined
+  signal: number | undefined,
+  cause: FinishCause
 ) {
+  if (finalizedPtys.has(id)) return;
+  finalizedPtys.add(id);
+
   let providerId: ProviderId | undefined;
   let key: string;
 
@@ -592,7 +623,7 @@ function maybeMarkProviderFinish(
     duration_ms: duration,
   });
 
-  if (exitCode === 0) {
+  if (cause === 'process_exit' && exitCode === 0) {
     const providerName = getProvider(providerId)?.name ?? providerId;
     showCompletionNotification(providerName);
   }
@@ -627,10 +658,11 @@ function showCompletionNotification(providerName: string) {
 // Kill all PTYs on app shutdown to prevent crash loop
 try {
   app.on('before-quit', () => {
+    isAppQuitting = true;
     for (const id of Array.from(owners.keys())) {
       try {
         // Ensure telemetry timers are cleared on app quit
-        maybeMarkProviderFinish(id, null, undefined);
+        maybeMarkProviderFinish(id, null, undefined, 'app_quit');
         killPty(id);
       } catch {}
     }
