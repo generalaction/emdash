@@ -52,7 +52,13 @@ export function subscribeToPrComments(
   prNumber: number | undefined,
   listener: Listener
 ): () => void {
-  if (prNumber) prNumbers.set(taskPath, prNumber);
+  const prevPrNumber = prNumbers.get(taskPath);
+  if (prNumber) {
+    prNumbers.set(taskPath, prNumber);
+  }
+  if (prNumber && prevPrNumber && prevPrNumber !== prNumber) {
+    cache.delete(taskPath);
+  }
 
   const set = listeners.get(taskPath) || new Set<Listener>();
   set.add(listener);
