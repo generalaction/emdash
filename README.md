@@ -37,10 +37,6 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 # Installation
 
-**[Latest Release (macOS • Linux)](https://github.com/generalaction/emdash/releases/latest)**
-
-<details><summary>Direct links</summary>
-
 ### macOS
 - Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg  
 - Intel x64: https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
@@ -52,6 +48,10 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 - AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage  
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
 </details>
+
+### Release Overview
+
+**[Latest Releases (macOS • Linux)](https://github.com/generalaction/emdash/releases/latest)**
 
 # Providers
 
