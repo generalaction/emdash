@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
@@ -17,7 +18,17 @@ import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
-import { Plus, Minus, Undo2, ArrowUpRight, FileDiff, ChevronDown, Loader2 } from 'lucide-react';
+import {
+  Plus,
+  Minus,
+  Undo2,
+  ArrowUpRight,
+  FileDiff,
+  ChevronDown,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react';
 import { useTaskScope } from './TaskScopeContext';
 
 type ActiveTab = 'changes' | 'checks';
@@ -647,21 +658,24 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             <div className="flex items-center gap-1.5 px-4 py-1.5">
               <span className="text-sm font-medium text-foreground">Checks</span>
               {checkRunsStatus?.summary && (
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-1.5">
                   {checkRunsStatus.summary.passed > 0 && (
-                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                    <Badge variant="outline">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-500" />
                       {checkRunsStatus.summary.passed} passed
-                    </span>
+                    </Badge>
                   )}
                   {checkRunsStatus.summary.failed > 0 && (
-                    <span className="font-medium text-red-600 dark:text-red-400">
+                    <Badge variant="outline">
+                      <XCircle className="h-3 w-3 text-red-500" />
                       {checkRunsStatus.summary.failed} failed
-                    </span>
+                    </Badge>
                   )}
                   {checkRunsStatus.summary.pending > 0 && (
-                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                    <Badge variant="outline">
+                      <Loader2 className="h-3 w-3 animate-spin" />
                       {checkRunsStatus.summary.pending} pending
-                    </span>
+                    </Badge>
                   )}
                 </div>
               )}
