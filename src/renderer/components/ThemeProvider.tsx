@@ -70,19 +70,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const { settings } = await window.electronAPI.getSettings();
-        const backendTheme = settings?.interface?.theme;
+        const result = await window.electronAPI.getSettings();
+        if (!result.success) return;
 
-        if (backendTheme && backendTheme !== 'system') {
+        const backendTheme = result.settings?.interface?.theme;
+
+        if (backendTheme !== undefined) {
           setThemeState(backendTheme);
         } else {
+          // Migrate localStorage theme to backend settings
           const localTheme = getStoredTheme();
           if (localTheme !== 'system') {
             await window.electronAPI.updateSettings({
               interface: { theme: localTheme },
             });
-            setThemeState(localTheme);
           }
+          setThemeState(localTheme);
         }
       } catch (error) {
         console.error('Failed to load theme settings:', error);
