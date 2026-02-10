@@ -371,7 +371,7 @@ describe('RemoteGitService', () => {
 
       expect(mockExecuteCommand).toHaveBeenCalledWith(
         'conn-1',
-        "git commit -m 'Fix bug in \"authentication\" module'",
+        'git commit -m \'Fix bug in "authentication" module\'',
         '/home/user/project'
       );
     });
