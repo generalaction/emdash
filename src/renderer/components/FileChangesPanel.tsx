@@ -18,7 +18,17 @@ import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
-import { Plus, Minus, Undo2, ArrowUpRight, FileDiff, ChevronDown, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import {
+  Plus,
+  Minus,
+  Undo2,
+  ArrowUpRight,
+  FileDiff,
+  ChevronDown,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react';
 import { useTaskScope } from './TaskScopeContext';
 
 type ActiveTab = 'changes' | 'checks';
