@@ -20,13 +20,37 @@ const getMenuItemClasses = (isAvailable: boolean) => {
   return `${menuItemBase} cursor-pointer hover:bg-accent hover:text-accent-foreground`;
 };
 
+const STORAGE_KEY = 'emdash:openInDefault';
+const DEFAULT_APP: OpenInAppId = 'terminal';
+
+function getDefaultApp(): OpenInAppId {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored && OPEN_IN_APPS.some((a) => a.id === stored)) return stored as OpenInAppId;
+  } catch {}
+  return DEFAULT_APP;
+}
+
+function setDefaultApp(id: OpenInAppId) {
+  try {
+    localStorage.setItem(STORAGE_KEY, id);
+  } catch {}
+}
+
 const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const [open, setOpen] = React.useState(false);
   const [availability, setAvailability] = React.useState<Record<string, boolean>>({});
   const [icons, setIcons] = React.useState<Partial<Record<OpenInAppId, string>>>({});
+  const [defaultAppId, setDefaultAppId] = React.useState<OpenInAppId>(getDefaultApp);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
+
+  const sortedApps = React.useMemo(() => {
+    const idx = OPEN_IN_APPS.findIndex((a) => a.id === defaultAppId);
+    if (idx <= 0) return OPEN_IN_APPS;
+    return [OPEN_IN_APPS[idx], ...OPEN_IN_APPS.slice(0, idx), ...OPEN_IN_APPS.slice(idx + 1)];
+  }, [defaultAppId]);
 
   // Fetch app availability on mount
   React.useEffect(() => {
@@ -100,6 +124,8 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         variant: 'destructive',
       });
     }
+    setDefaultApp(appId);
+    setDefaultAppId(appId);
     setOpen(false);
   };
 
@@ -126,10 +152,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         aria-haspopup
       >
         <span>Open in</span>
-        {icons[OPEN_IN_APPS[0]?.id] && (
+        {icons[defaultAppId] && (
           <img
-            src={icons[OPEN_IN_APPS[0].id]}
-            alt={OPEN_IN_APPS[0].label}
+            src={icons[defaultAppId]}
+            alt={getAppById(defaultAppId)?.label}
             className="h-4 w-4 rounded"
           />
         )}
@@ -159,7 +185,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {OPEN_IN_APPS.map((app) => (
+            {sortedApps.map((app) => (
               <button
                 key={app.id}
                 className={getMenuItemClasses(availability[app.id])}
