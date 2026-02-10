@@ -20,6 +20,7 @@ import { DeleteChatModal } from './DeleteChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { getTaskEnvVars } from '@shared/task/envVars';
+import { makePtyId } from '@shared/ptyId';
 
 declare const window: Window & {
   electronAPI: {
@@ -70,14 +71,13 @@ const ChatInterface: React.FC<Props> = ({
     if (activeConversation?.isMain) {
       // Main conversations use task-based ID for backward compatibility
       // This ensures terminal sessions persist correctly
-      return `${agent}-main-${task.id}`;
+      return makePtyId(agent, 'main', task.id);
     } else if (activeConversationId) {
       // Additional conversations use conversation-specific ID
-      // Format: ${agent}-chat-${conversationId}
-      return `${agent}-chat-${activeConversationId}`;
+      return makePtyId(agent, 'chat', activeConversationId);
     }
     // Fallback to main format if no active conversation
-    return `${agent}-main-${task.id}`;
+    return makePtyId(agent, 'main', task.id);
   }, [activeConversationId, agent, task.id, conversations]);
 
   // Claude needs consistent working directory to maintain session state
@@ -415,8 +415,8 @@ const ChatInterface: React.FC<Props> = ({
     // Only dispose the terminal when actually deleting the chat
     // Find the conversation to get its provider
     const convToDelete = conversations.find((c) => c.id === chatToDelete);
-    const convAgent = convToDelete?.provider || agent;
-    const terminalToDispose = `${convAgent}-chat-${chatToDelete}`;
+    const convAgent = (convToDelete?.provider || agent) as Agent;
+    const terminalToDispose = makePtyId(convAgent, 'chat', chatToDelete);
     terminalSessionRegistry.dispose(terminalToDispose);
 
     await window.electronAPI.deleteConversation(chatToDelete);

@@ -15,6 +15,7 @@ import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
 import { getAppSettings } from '../settings';
 import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
+import { parsePtyId, isChatPty } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 import { databaseService } from './DatabaseService';
 
@@ -124,7 +125,7 @@ export function registerPtyIpc(): void {
 
         // Check if this is an additional (non-main) chat
         // Additional chats should always skip resume as they don't have persistence
-        const isAdditionalChat = id.includes('-chat-') && !id.includes('-main-');
+        const isAdditionalChat = isChatPty(id);
 
         if (isAdditionalChat) {
           // Additional chats always start fresh (no resume)
@@ -527,20 +528,9 @@ function parseProviderPty(id: string): {
   providerId: ProviderId;
   taskId: string;
 } | null {
-  // Chat terminals can be:
-  // - `${provider}-main-${taskId}` for main task terminals
-  // - `${provider}-chat-${conversationId}` for chat-specific terminals
-  const mainMatch = /^([a-z0-9_-]+)-main-(.+)$/.exec(id);
-  const chatMatch = /^([a-z0-9_-]+)-chat-(.+)$/.exec(id);
-
-  const match = mainMatch || chatMatch;
-  if (!match) return null;
-
-  const providerId = match[1] as ProviderId;
-  if (!PROVIDER_IDS.includes(providerId)) return null;
-
-  const taskId = match[2]; // This is either taskId or conversationId
-  return { providerId, taskId };
+  const parsed = parsePtyId(id);
+  if (!parsed) return null;
+  return { providerId: parsed.providerId, taskId: parsed.suffix };
 }
 
 function providerRunKey(providerId: ProviderId, taskId: string) {

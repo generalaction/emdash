@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { makePtyId } from '../../shared/ptyId';
 
 type ExitPayload = {
   exitCode: number | null | undefined;
@@ -167,7 +168,7 @@ describe('ptyIpc notification lifecycle', () => {
     const start = ipcHandleHandlers.get('pty:start');
     expect(start).toBeTypeOf('function');
 
-    const id = 'codex-main-task-quit';
+    const id = makePtyId('codex', 'main', 'task-quit');
     await start!(
       { sender: createSender() },
       { id, cwd: '/tmp/task', shell: 'codex', cols: 120, rows: 32 }
@@ -194,7 +195,7 @@ describe('ptyIpc notification lifecycle', () => {
     const start = ipcHandleHandlers.get('pty:start');
     expect(start).toBeTypeOf('function');
 
-    const id = 'codex-main-task-success';
+    const id = makePtyId('codex', 'main', 'task-success');
     await start!(
       { sender: createSender() },
       { id, cwd: '/tmp/task', shell: 'codex', cols: 120, rows: 32 }
