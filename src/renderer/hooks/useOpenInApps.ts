@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
 
 export interface UseOpenInAppsResult {
@@ -47,8 +47,11 @@ export function useOpenInApps(): UseOpenInAppsResult {
     void fetchAvailability();
   }, []);
 
-  // Filter to only installed apps
-  const installedApps = OPEN_IN_APPS.filter((app) => availability[app.id]);
+  // Filter to only installed apps (return all while loading)
+  const installedApps = useMemo(() => {
+    if (loading) return OPEN_IN_APPS;
+    return OPEN_IN_APPS.filter((app) => availability[app.id]);
+  }, [availability, loading]);
 
   return { icons, availability, installedApps, loading };
 }
