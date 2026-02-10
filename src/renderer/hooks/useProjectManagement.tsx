@@ -103,8 +103,9 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       if (result.success && result.path) {
         try {
           const gitInfo = await window.electronAPI.getGitInfo(result.path);
-          const canonicalPath = gitInfo.rootPath || gitInfo.path || result.path;
-          const repoKey = normalizePathForComparison(canonicalPath, platform);
+          const selectedPath = gitInfo.path || result.path;
+          const repoCanonicalPath = gitInfo.rootPath || selectedPath;
+          const repoKey = normalizePathForComparison(repoCanonicalPath, platform);
           const existingProject = projects.find(
             (project) => getProjectRepoKey(project, platform) === repoKey
           );
@@ -130,12 +131,12 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           const remoteUrl = gitInfo.remote || '';
           const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
           const projectName =
-            canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+            selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
           const baseProject: Project = {
             id: Date.now().toString(),
             name: projectName,
-            path: canonicalPath,
+            path: selectedPath,
             repoKey,
             gitInfo: {
               isGitRepo: true,
@@ -147,7 +148,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           };
 
           if (isAuthenticated && isGithubRemote) {
-            const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+            const githubInfo = await window.electronAPI.connectToGitHub(selectedPath);
             if (githubInfo.success) {
               const projectWithGithub = withRepoKey(
                 {
@@ -292,8 +293,9 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       captureTelemetry('project_cloned');
       try {
         const gitInfo = await window.electronAPI.getGitInfo(projectPath);
-        const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
-        const repoKey = normalizePathForComparison(canonicalPath, platform);
+        const selectedPath = gitInfo.path || projectPath;
+        const repoCanonicalPath = gitInfo.rootPath || selectedPath;
+        const repoKey = normalizePathForComparison(repoCanonicalPath, platform);
         const existingProject = projects.find(
           (project) => getProjectRepoKey(project, platform) === repoKey
         );
@@ -305,12 +307,12 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
 
         const remoteUrl = gitInfo.remote || '';
         const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-        const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+        const projectName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
         const baseProject: Project = {
           id: Date.now().toString(),
           name: projectName,
-          path: canonicalPath,
+          path: selectedPath,
           repoKey,
           gitInfo: {
             isGitRepo: true,
@@ -322,7 +324,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         };
 
         if (isAuthenticated && isGithubRemote) {
-          const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+          const githubInfo = await window.electronAPI.connectToGitHub(selectedPath);
           if (githubInfo.success) {
             const projectWithGithub = withRepoKey(
               {
@@ -409,8 +411,9 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       captureTelemetry('new_project_created');
       try {
         const gitInfo = await window.electronAPI.getGitInfo(projectPath);
-        const canonicalPath = gitInfo.rootPath || gitInfo.path || projectPath;
-        const repoKey = normalizePathForComparison(canonicalPath, platform);
+        const selectedPath = gitInfo.path || projectPath;
+        const repoCanonicalPath = gitInfo.rootPath || selectedPath;
+        const repoKey = normalizePathForComparison(repoCanonicalPath, platform);
         const existingProject = projects.find(
           (project) => getProjectRepoKey(project, platform) === repoKey
         );
@@ -422,12 +425,12 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
 
         const remoteUrl = gitInfo.remote || '';
         const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-        const projectName = canonicalPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
+        const projectName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
         const baseProject: Project = {
           id: Date.now().toString(),
           name: projectName,
-          path: canonicalPath,
+          path: selectedPath,
           repoKey,
           gitInfo: {
             isGitRepo: true,
@@ -439,7 +442,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         };
 
         if (isAuthenticated && isGithubRemote) {
-          const githubInfo = await window.electronAPI.connectToGitHub(canonicalPath);
+          const githubInfo = await window.electronAPI.connectToGitHub(selectedPath);
           if (githubInfo.success) {
             const projectWithGithub = withRepoKey(
               {
