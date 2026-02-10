@@ -44,7 +44,12 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => 
       whileTap={{ scale: 0.97 }}
       transition={{ duration: 0.1, ease: 'easeInOut' }}
       onClick={() => onSelect(skill)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(skill); } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(skill);
+        }
+      }}
       className="group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 text-left text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md"
     >
       <SkillIcon skill={skill} />
