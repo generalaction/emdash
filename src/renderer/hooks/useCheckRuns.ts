@@ -4,7 +4,7 @@ import type { CheckRunsStatus } from '../lib/checkRunStatus';
 
 export function useCheckRuns(taskPath?: string) {
   const [status, setStatus] = useState<CheckRunsStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!taskPath);
 
   const refresh = async () => {
     if (!taskPath) return;
@@ -20,11 +20,16 @@ export function useCheckRuns(taskPath?: string) {
   useEffect(() => {
     if (!taskPath) {
       setStatus(null);
+      setIsLoading(false);
       return;
     }
 
     setStatus(null);
-    return subscribeToCheckRuns(taskPath, setStatus);
+    setIsLoading(true);
+    return subscribeToCheckRuns(taskPath, (newStatus) => {
+      setStatus(newStatus);
+      setIsLoading(false);
+    });
   }, [taskPath]);
 
   return { status, refresh, isLoading };
