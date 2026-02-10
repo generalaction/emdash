@@ -39,9 +39,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
               <TooltipTrigger asChild>
                 <SelectTrigger
                   aria-disabled
-                  className={`h-9 w-full border-none bg-muted ${
-                    disabled ? 'cursor-not-allowed opacity-60' : ''
-                  }`}
+                  className={`w-full ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
                 >
                   <SelectValue placeholder="Select agent" />
                 </SelectTrigger>
@@ -52,7 +50,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
             </Tooltip>
           </TooltipProvider>
         ) : (
-          <SelectTrigger className="h-9 w-full border-none bg-muted">
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Select agent" />
           </SelectTrigger>
         )}

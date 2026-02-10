@@ -124,6 +124,7 @@ declare global {
           terminal?: {
             fontFamily: string;
           };
+          defaultOpenInApp?: string;
         };
         error?: string;
       }>;
@@ -203,6 +204,7 @@ declare global {
           terminal?: {
             fontFamily?: string;
           };
+          defaultOpenInApp?: string;
         }>
       ) => Promise<{
         success: boolean;
@@ -281,6 +283,7 @@ declare global {
           terminal?: {
             fontFamily: string;
           };
+          defaultOpenInApp?: string;
         };
         error?: string;
       }>;
