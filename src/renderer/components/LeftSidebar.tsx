@@ -101,16 +101,16 @@ const ProjectItem: React.FC<ProjectItemProps> = ({ project, isActive, onSelect }
 
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span className="flex-1 truncate">{project.name}</span>
       {isRemoteProject(project) && connectionId && (
         <RemoteProjectIndicator
           host={remote.host || undefined}
           connectionState={remote.connectionState as ConnectionState}
-          size="sm"
+          size="md"
           onReconnect={remote.reconnect}
           disabled={remote.isLoading}
         />
       )}
+      <span className="flex-1 truncate">{project.name}</span>
     </div>
   );
 };
@@ -341,7 +341,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           <div
                             className={`group/project group/task relative flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
                               isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
-                            } ${projectIsRemote ? 'border-l-2 border-l-blue-500 pl-1.5' : ''}`}
+                            }`}
                             title={projectIsRemote ? 'Remote Project' : undefined}
                           >
                             <motion.button

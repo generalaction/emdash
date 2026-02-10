@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
-import { Globe, Cloud, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Globe, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
 
 export type ConnectionState =
@@ -25,8 +24,8 @@ const stateConfig: Record<
   { color: string; icon: React.ReactNode; label: string }
 > = {
   connected: {
-    color: 'text-green-500',
-    icon: <Cloud className="h-full w-full" />,
+    color: 'text-muted-foreground',
+    icon: <Globe className="h-full w-full" />,
     label: 'Connected',
   },
   connecting: {
