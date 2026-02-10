@@ -475,7 +475,7 @@ const ChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false;
-    let missingCheckRequested = false;
+    let refreshCheckRequested = false;
     const api: any = (window as any).electronAPI;
 
     const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
@@ -486,11 +486,22 @@ const ChatInterface: React.FC<Props> = ({
       setIsAgentInstalled(installed);
     };
 
-    const maybeRefreshMissing = async (statuses?: Record<string, any> | undefined | null) => {
-      if (cancelled || missingCheckRequested) return;
+    const maybeRefreshAgentStatus = async (statuses?: Record<string, any> | undefined | null) => {
+      if (cancelled || refreshCheckRequested) return;
       if (!api?.getProviderStatuses) return;
-      if (statuses && statuses[agent]) return;
-      missingCheckRequested = true;
+
+      const status = statuses?.[agent];
+      const hasEntry = Boolean(status);
+      const isInstalled = status?.installed === true;
+      const lastChecked =
+        typeof status?.lastChecked === 'number' && Number.isFinite(status.lastChecked)
+          ? status.lastChecked
+          : 0;
+      const isStale = !lastChecked || Date.now() - lastChecked > 5 * 60 * 1000;
+
+      if (hasEntry && isInstalled && !isStale) return;
+
+      refreshCheckRequested = true;
       try {
         const refreshed = await api.getProviderStatuses({ refresh: true, providers: [agent] });
         if (cancelled) return;
@@ -512,7 +523,7 @@ const ChatInterface: React.FC<Props> = ({
         if (cancelled) return;
         if (res?.success) {
           applyStatuses(res.statuses ?? {});
-          void maybeRefreshMissing(res.statuses);
+          void maybeRefreshAgentStatus(res.statuses);
         } else {
           setIsAgentInstalled(false);
         }
