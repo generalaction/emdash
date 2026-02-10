@@ -120,6 +120,7 @@ declare global {
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            theme?: 'light' | 'dark' | 'dark-black' | 'system';
           };
           terminal?: {
             fontFamily: string;
@@ -200,6 +201,7 @@ declare global {
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            theme?: 'light' | 'dark' | 'dark-black' | 'system';
           };
           terminal?: {
             fontFamily?: string;
@@ -279,6 +281,7 @@ declare global {
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            theme?: 'light' | 'dark' | 'dark-black' | 'system';
           };
           terminal?: {
             fontFamily: string;

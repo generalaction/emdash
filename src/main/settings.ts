@@ -38,6 +38,7 @@ export interface KeyboardSettings {
 
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
+  theme?: 'light' | 'dark' | 'dark-black' | 'system';
 }
 
 export interface AppSettings {
@@ -121,6 +122,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   interface: {
     autoRightSidebarBehavior: false,
+    theme: 'system',
   },
   terminal: {
     fontFamily: '',
@@ -333,6 +335,9 @@ function normalizeSettings(input: AppSettings): AppSettings {
     autoRightSidebarBehavior: Boolean(
       iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
     ),
+    theme: ['light', 'dark', 'dark-black', 'system'].includes(iface?.theme)
+      ? iface.theme
+      : DEFAULT_SETTINGS.interface!.theme,
   };
 
   // Terminal

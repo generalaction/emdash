@@ -66,6 +66,33 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [theme]);
 
+  // Load theme from backend settings on mount and handle migration
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const { settings } = await window.electronAPI.getSettings();
+        const backendTheme = settings?.interface?.theme;
+
+        if (backendTheme && backendTheme !== 'system') {
+          setThemeState(backendTheme);
+        } else {
+          const localTheme = getStoredTheme();
+          if (localTheme !== 'system') {
+            await window.electronAPI.updateSettings({
+              interface: { theme: localTheme },
+            });
+            setThemeState(localTheme);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load theme settings:', error);
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  // Listen for system theme changes
   useEffect(() => {
     if (theme !== 'system') return undefined;
 
@@ -85,24 +112,40 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => mediaQuery.removeListener(handler);
   }, [theme]);
 
+  const updateTheme = async (newTheme: Theme) => {
+    setThemeState(newTheme);
+    try {
+      await window.electronAPI.updateSettings({
+        interface: { theme: newTheme },
+      });
+    } catch (error) {
+      console.error('Failed to save theme setting:', error);
+    }
+  };
+
   const toggleTheme = () => {
-    setThemeState((current) => {
-      // Cycle through: light -> dark -> dark-black -> light
-      if (current === 'light') return 'dark';
-      if (current === 'dark') return 'dark-black';
-      if (current === 'dark-black') return 'light';
+    let newTheme: Theme = 'light';
+
+    // Cycle through: light -> dark -> dark-black -> light
+    if (theme === 'light') newTheme = 'dark';
+    else if (theme === 'dark') newTheme = 'dark-black';
+    else if (theme === 'dark-black') newTheme = 'light';
+    else if (theme === 'system') {
       // If system, start cycling from the effective theme
-      if (current === 'system') {
-        if (effectiveTheme === 'light') return 'dark';
-        if (effectiveTheme === 'dark') return 'dark-black';
-        return 'light';
-      }
-      return 'light';
-    });
+      if (effectiveTheme === 'light') newTheme = 'dark';
+      else if (effectiveTheme === 'dark') newTheme = 'dark-black';
+      else newTheme = 'light';
+    }
+
+    updateTheme(newTheme);
+  };
+
+  const setTheme = (newTheme: Theme) => {
+    updateTheme(newTheme);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: setThemeState, toggleTheme, effectiveTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, effectiveTheme }}>
       {children}
     </ThemeContext.Provider>
   );
