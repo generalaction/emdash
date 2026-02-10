@@ -20,7 +20,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
-  const { icons, installedApps } = useOpenInApps();
+  const { icons, installedApps, availability, loading } = useOpenInApps();
 
   // Fetch default app setting on mount and listen for changes
   React.useEffect(() => {
@@ -160,22 +160,27 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {sortedApps.map((app) => (
-              <button
-                key={app.id}
-                className={menuItemBase}
-                role="menuitem"
-                onClick={() => callOpen(app.id)}
-              >
-                {icons[app.id] ? (
-                  <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
-                ) : null}
-                <span>{app.label}</span>
-                {app.id === defaultApp && (
-                  <span className="ml-auto text-xs text-muted-foreground">Default</span>
-                )}
-              </button>
-            ))}
+            {sortedApps.map((app) => {
+              // While loading, disable apps that aren't confirmed installed
+              const isAvailable = loading ? availability[app.id] === true : true;
+              return (
+                <button
+                  key={app.id}
+                  className={`${menuItemBase} ${!isAvailable ? 'cursor-not-allowed opacity-50' : ''}`}
+                  role="menuitem"
+                  onClick={() => isAvailable && callOpen(app.id)}
+                  disabled={!isAvailable}
+                >
+                  {icons[app.id] ? (
+                    <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
+                  ) : null}
+                  <span>{app.label}</span>
+                  {app.id === defaultApp && (
+                    <span className="ml-auto text-xs text-muted-foreground">Default</span>
+                  )}
+                </button>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>

@@ -29,11 +29,22 @@ const DefaultOpenInSettingsCard: React.FC = () => {
   }, [load]);
 
   const save = useCallback(async (app: OpenInAppId) => {
-    setDefaultApp(app);
-    await window.electronAPI.updateSettings({ defaultOpenInApp: app });
-    // Notify other components of the change
-    window.dispatchEvent(new CustomEvent('defaultOpenInAppChanged', { detail: app }));
-  }, []);
+    const previousApp = defaultApp;
+    setDefaultApp(app); // Optimistic update
+    try {
+      const res = await window.electronAPI.updateSettings({ defaultOpenInApp: app });
+      if (res?.success) {
+        // Notify other components of the change
+        window.dispatchEvent(new CustomEvent('defaultOpenInAppChanged', { detail: app }));
+      } else {
+        // Revert on failure
+        setDefaultApp(previousApp);
+      }
+    } catch {
+      // Revert on error
+      setDefaultApp(previousApp);
+    }
+  }, [defaultApp]);
 
   // Sort apps: installed first, then uninstalled
   const sortedApps = useMemo(() => {
