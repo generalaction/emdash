@@ -16,8 +16,8 @@
     "package:mac": "pnpm run build && electron-builder --mac",
     "package:linux": "pnpm run build && electron-builder --linux --publish never",
     "package:win": "pnpm run build && electron-builder --win --publish never",
-    "postinstall": "electron-rebuild",
-    "rebuild": "electron-rebuild -f -v 30.5.1",
+    "postinstall": "electron-rebuild --only=sqlite3,node-pty,keytar",
+    "rebuild": "electron-rebuild -f -v 30.5.1 --only=sqlite3,node-pty,keytar",
     "clean": "rm -rf node_modules dist",
     "reset": "pnpm run clean && pnpm install",
     "lint": "eslint . --ext .ts,.tsx",
@@ -221,5 +221,8 @@
       "perMachine": false
     },
     "npmRebuild": false
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["sqlite3", "node-pty", "keytar", "electron"]
   }
 }
