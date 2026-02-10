@@ -331,7 +331,7 @@ host3.example.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdH
       expect(hosts[0]).toMatchObject({
         host: 'host1.example.com',
         port: 22,
-        keyType: 'unknown',
+        keyType: 'ssh-ed25519',
         fingerprint: expectedFingerprint,
       });
       expect(hosts[0].verifiedAt).toBeInstanceOf(Date);

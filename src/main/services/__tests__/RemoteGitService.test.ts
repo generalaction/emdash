@@ -131,14 +131,14 @@ describe('RemoteGitService', () => {
 
       const result = await service.createWorktree('conn-1', '/home/user/project', 'task name');
 
-      expect(mockExecuteCommand).toHaveBeenNthCalledWith(
-        1,
+      expect(mockExecuteCommand).toHaveBeenCalledWith(
         'conn-1',
         'mkdir -p .emdash/worktrees',
         '/home/user/project'
       );
-      expect(mockExecuteCommand).toHaveBeenNthCalledWith(
-        2,
+      // When no baseRef is provided, getDefaultBranch is called first (git rev-parse),
+      // then git worktree add is called
+      expect(mockExecuteCommand).toHaveBeenCalledWith(
         'conn-1',
         expect.stringContaining('git worktree add'),
         '/home/user/project'
@@ -194,11 +194,12 @@ describe('RemoteGitService', () => {
     it('should throw error when worktree creation fails', async () => {
       mockExecuteCommand
         .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult) // mkdir succeeds
+        .mockResolvedValueOnce({ stdout: 'main', stderr: '', exitCode: 0 } as ExecResult) // getDefaultBranch (git rev-parse)
         .mockResolvedValueOnce({
           stdout: '',
           stderr: 'fatal: A branch named \"test\" already exists',
           exitCode: 128,
-        } as ExecResult);
+        } as ExecResult); // git worktree add fails
 
       await expect(service.createWorktree('conn-1', '/home/user/project', 'test')).rejects.toThrow(
         'Failed to create worktree: fatal: A branch named'
@@ -334,7 +335,7 @@ describe('RemoteGitService', () => {
 
       expect(mockExecuteCommand).toHaveBeenCalledWith(
         'conn-1',
-        'git commit -m "Test commit"',
+        "git commit -m 'Test commit'",
         '/home/user/project'
       );
       expect(result.exitCode).toBe(0);
@@ -354,7 +355,7 @@ describe('RemoteGitService', () => {
 
       expect(mockExecuteCommand).toHaveBeenCalledWith(
         'conn-1',
-        'git add "file1.ts" "file2.ts" && git commit -m "Commit specific files"',
+        "git add 'file1.ts' 'file2.ts' && git commit -m 'Commit specific files'",
         '/home/user/project'
       );
     });
@@ -370,7 +371,7 @@ describe('RemoteGitService', () => {
 
       expect(mockExecuteCommand).toHaveBeenCalledWith(
         'conn-1',
-        'git commit -m "Fix bug in \\"authentication\\" module"',
+        "git commit -m 'Fix bug in \"authentication\" module'",
         '/home/user/project'
       );
     });
@@ -403,7 +404,7 @@ describe('RemoteGitService', () => {
 
       expect(mockExecuteCommand).toHaveBeenCalledWith(
         'conn-1',
-        'git commit -m "Commit message"',
+        "git commit -m 'Commit message'",
         '/home/user/project'
       );
     });
@@ -434,7 +435,7 @@ describe('RemoteGitService', () => {
 
       expect(mockExecuteCommand).toHaveBeenCalledWith(
         'conn-1',
-        expect.stringContaining('git add "file with spaces.ts"'),
+        expect.stringContaining("git add 'file with spaces.ts'"),
         '/home/user/project'
       );
     });

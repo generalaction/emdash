@@ -475,7 +475,7 @@ describe('SshService', () => {
       // Verify the command was escaped
       const execCall = mockClientInstance.exec.mock.calls[0];
       expect(execCall[0]).toContain("'");
-      expect(execCall[0]).toContain('"\'"');
+      expect(execCall[0]).toContain("'\\''");
     });
   });
 });
