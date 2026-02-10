@@ -181,3 +181,7 @@ export type OpenInAppConfig = OpenInAppConfigShape & { id: OpenInAppId };
 export function getAppById(id: string): OpenInAppConfig | undefined {
   return OPEN_IN_APPS.find((app) => app.id === id);
 }
+
+export function isValidOpenInAppId(value: unknown): value is OpenInAppId {
+  return typeof value === 'string' && OPEN_IN_APPS.some((app) => app.id === value);
+}

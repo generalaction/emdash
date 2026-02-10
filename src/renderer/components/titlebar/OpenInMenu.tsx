@@ -3,7 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { getAppById, OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
+import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import { useOpenInApps } from '../../hooks/useOpenInApps';
 
 interface OpenInMenuProps {
   path: string;
@@ -11,55 +12,32 @@ interface OpenInMenuProps {
 }
 
 const menuItemBase =
-  'flex w-full select-none items-center gap-2 rounded px-2.5 py-2 text-sm transition-colors';
-
-const getMenuItemClasses = (isAvailable: boolean) => {
-  if (!isAvailable) {
-    return `${menuItemBase} cursor-not-allowed opacity-40`;
-  }
-  return `${menuItemBase} cursor-pointer hover:bg-accent hover:text-accent-foreground`;
-};
+  'flex w-full select-none items-center gap-2 rounded px-2.5 py-2 text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground';
 
 const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   const [open, setOpen] = React.useState(false);
-  const [availability, setAvailability] = React.useState<Record<string, boolean>>({});
-  const [icons, setIcons] = React.useState<Partial<Record<OpenInAppId, string>>>({});
+  const [defaultApp, setDefaultApp] = React.useState<OpenInAppId | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
+  const { icons, installedApps } = useOpenInApps();
 
-  // Fetch app availability on mount
+  // Fetch default app setting on mount
   React.useEffect(() => {
-    const fetchAvailability = async () => {
+    const fetchDefaultApp = async () => {
       try {
-        const apps = await (window as any).electronAPI?.checkInstalledApps?.();
-        if (apps) setAvailability(apps);
-      } catch (e) {
-        console.error('Failed to check installed apps:', e);
-      }
-    };
-    void fetchAvailability();
-  }, []);
-
-  // Dynamically load icons
-  React.useEffect(() => {
-    const loadIcons = async () => {
-      const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
-
-      for (const app of OPEN_IN_APPS) {
-        try {
-          loadedIcons[app.id] = new URL(
-            `../../../assets/images/${app.iconPath}`,
-            import.meta.url
-          ).href;
-        } catch (e) {
-          console.error(`Failed to load icon for ${app.id}:`, e);
+        const res = await window.electronAPI?.getSettings?.();
+        if (res?.success && res.settings?.defaultOpenInApp) {
+          const app = res.settings.defaultOpenInApp;
+          if (isValidOpenInAppId(app)) {
+            setDefaultApp(app);
+          }
         }
+      } catch (e) {
+        console.error('Failed to fetch default open in app:', e);
       }
-
-      setIcons(loadedIcons);
     };
-    void loadIcons();
+    void fetchDefaultApp();
   }, []);
 
   React.useEffect(() => {
@@ -72,12 +50,6 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
   }, [open]);
 
   const callOpen = async (appId: OpenInAppId) => {
-    // Check if app is available
-    // noinspection PointlessBooleanExpressionJS
-    if (availability[appId] === false) {
-      return; // Don't proceed if app is not installed
-    }
-
     const appConfig = getAppById(appId);
     const label = appConfig?.label || appId;
 
@@ -85,7 +57,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
       captureTelemetry('toolbar_open_in_selected', { app: appId });
     });
     try {
-      const res = await (window as any).electronAPI?.openIn?.({ app: appId, path });
+      const res = await window.electronAPI?.openIn?.({ app: appId, path });
       if (!res?.success) {
         toast({
           title: `Open in ${label} failed`,
@@ -102,6 +74,24 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
     }
     setOpen(false);
   };
+
+  // Sort installed apps with default first
+  const sortedApps = React.useMemo(() => {
+    if (!defaultApp) return installedApps;
+    return [...installedApps].sort((a, b) => {
+      if (a.id === defaultApp) return -1;
+      if (b.id === defaultApp) return 1;
+      return 0;
+    });
+  }, [defaultApp, installedApps]);
+
+  // Determine which icon to show on the button (default if installed, otherwise first installed)
+  const buttonAppId = React.useMemo(() => {
+    if (defaultApp && installedApps.some((app) => app.id === defaultApp)) {
+      return defaultApp;
+    }
+    return installedApps[0]?.id;
+  }, [defaultApp, installedApps]);
 
   return (
     <div ref={containerRef} className="relative">
@@ -126,10 +116,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         aria-haspopup
       >
         <span>Open in</span>
-        {icons[OPEN_IN_APPS[0]?.id] && (
+        {buttonAppId && icons[buttonAppId] && (
           <img
-            src={icons[OPEN_IN_APPS[0].id]}
-            alt={OPEN_IN_APPS[0].label}
+            src={icons[buttonAppId]}
+            alt={getAppById(buttonAppId)?.label}
             className="h-4 w-4 rounded"
           />
         )}
@@ -159,19 +149,20 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {OPEN_IN_APPS.map((app) => (
+            {sortedApps.map((app) => (
               <button
                 key={app.id}
-                className={getMenuItemClasses(availability[app.id])}
+                className={menuItemBase}
                 role="menuitem"
                 onClick={() => callOpen(app.id)}
-                disabled={!availability[app.id]}
-                title={!availability[app.id] ? 'Not installed' : undefined}
               >
                 {icons[app.id] ? (
                   <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
                 ) : null}
                 <span>{app.label}</span>
+                {app.id === defaultApp && (
+                  <span className="ml-auto text-xs text-muted-foreground">Default</span>
+                )}
               </button>
             ))}
           </motion.div>
