@@ -553,44 +553,6 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [agent, task.id]);
 
-  // If we don't even have a cached status entry for the current agent, pessimistically
-  // show the install banner and kick off a background refresh to populate it.
-  useEffect(() => {
-    const api: any = (window as any).electronAPI;
-    if (!api?.getProviderStatuses) {
-      setIsAgentInstalled(false);
-      return;
-    }
-    if (currentAgentStatus) {
-      return;
-    }
-
-    let cancelled = false;
-    setIsAgentInstalled(false);
-
-    (async () => {
-      try {
-        const res = await api.getProviderStatuses({ refresh: true, providers: [agent] });
-        if (cancelled) return;
-        if (res?.success) {
-          const statuses = res.statuses ?? {};
-          setAgentStatuses(statuses);
-          const installed = statuses?.[agent]?.installed === true;
-          setIsAgentInstalled(installed);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setIsAgentInstalled(false);
-        }
-        console.error('Agent status refresh (missing entry) failed', error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [agent, currentAgentStatus]);
-
   // When switching agents, ensure other streams are stopped
   useEffect(() => {
     (async () => {
