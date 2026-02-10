@@ -7,7 +7,6 @@ export interface ModalState {
   settingsInitialTab: SettingsTab;
   showCommandPalette: boolean;
   showWelcomeScreen: boolean;
-  showFirstLaunchModal: boolean;
   showTaskModal: boolean;
   showNewProjectModal: boolean;
   showCloneModal: boolean;
@@ -21,7 +20,6 @@ export interface ModalActions {
   setSettingsInitialTab: React.Dispatch<React.SetStateAction<SettingsTab>>;
   setShowCommandPalette: React.Dispatch<React.SetStateAction<boolean>>;
   setShowWelcomeScreen: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowFirstLaunchModal: React.Dispatch<React.SetStateAction<boolean>>;
   setShowTaskModal: React.Dispatch<React.SetStateAction<boolean>>;
   setShowNewProjectModal: React.Dispatch<React.SetStateAction<boolean>>;
   setShowCloneModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -48,7 +46,6 @@ export function useModalState(deps: {
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
-  const [showFirstLaunchModal, setShowFirstLaunchModal] = useState<boolean>(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
@@ -101,11 +98,6 @@ export function useModalState(deps: {
     setShowEditorMode((v) => !v);
   }, []);
 
-  const handleWelcomeGetStarted = useCallback(() => {
-    setShowWelcomeScreen(false);
-    setShowFirstLaunchModal(true);
-  }, []);
-
   const markFirstLaunchSeen = useCallback(() => {
     try {
       localStorage.setItem(FIRST_LAUNCH_KEY, '1');
@@ -117,8 +109,12 @@ export function useModalState(deps: {
     } catch {
       // ignore
     }
-    setShowFirstLaunchModal(false);
   }, []);
+
+  const handleWelcomeGetStarted = useCallback(() => {
+    setShowWelcomeScreen(false);
+    markFirstLaunchSeen();
+  }, [markFirstLaunchSeen]);
 
   // First-launch check effect
   useEffect(() => {
@@ -148,7 +144,6 @@ export function useModalState(deps: {
     settingsInitialTab,
     showCommandPalette,
     showWelcomeScreen,
-    showFirstLaunchModal,
     showTaskModal,
     showNewProjectModal,
     showCloneModal,
@@ -159,7 +154,6 @@ export function useModalState(deps: {
     setSettingsInitialTab,
     setShowCommandPalette,
     setShowWelcomeScreen,
-    setShowFirstLaunchModal,
     setShowTaskModal,
     setShowNewProjectModal,
     setShowCloneModal,
