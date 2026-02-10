@@ -10,10 +10,10 @@ class TerminalLivenessStore {
 
   private ensureSubscribed() {
     if (this.subscribed) return;
-    this.subscribed = true;
 
     const api = window.electronAPI;
     if (!api) return;
+    this.subscribed = true;
 
     // taskId is non-null only for -main- terminals (getPtyTaskId regex on the main process)
     api.onPtyStarted?.((data) => {

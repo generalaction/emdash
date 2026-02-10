@@ -353,6 +353,7 @@ export function registerPtyIpc(): void {
     try {
       // Ensure telemetry timers are cleared even on manual kill
       maybeMarkProviderFinish(args.id, null, undefined, 'manual_kill');
+      broadcastToAll('pty:exited', { id: args.id, taskId: getPtyTaskId(args.id) });
       killPty(args.id);
       owners.delete(args.id);
       listeners.delete(args.id);
