@@ -1,20 +1,34 @@
 import React from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, MessageSquare } from 'lucide-react';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { CommentsPopover } from './CommentsPopover';
+import { Button } from './ui/button';
+import { useTaskComments } from '../hooks/useLineComments';
+import { useTaskScope } from './TaskScopeContext';
 import linearLogo from '../../assets/images/linear.png';
 import githubLogo from '../../assets/images/github.png';
 import jiraLogo from '../../assets/images/jira.png';
 
 type Props = {
+  taskId?: string;
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
 };
 
-export const TaskContextBadges: React.FC<Props> = ({ linearIssue, githubIssue, jiraIssue }) => {
+export const TaskContextBadges: React.FC<Props> = ({ taskId, linearIssue, githubIssue, jiraIssue }) => {
+  const { taskId: scopedTaskId } = useTaskScope();
+  const resolvedTaskId = taskId ?? scopedTaskId;
+  const { unsentCount } = useTaskComments(resolvedTaskId);
+  const [selectedCount, setSelectedCount] = React.useState(0);
+
+  React.useEffect(() => {
+    setSelectedCount(0);
+  }, [resolvedTaskId]);
+
   const handleIssueClick = (url?: string) => {
     if (!url) return;
     try {
@@ -161,6 +175,39 @@ export const TaskContextBadges: React.FC<Props> = ({ linearIssue, githubIssue, j
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+      )}
+
+      {resolvedTaskId && unsentCount > 0 && (
+        <CommentsPopover
+          tooltipContent="Selected comments are appended to your next agent message."
+          tooltipDelay={300}
+          onSelectedCountChange={setSelectedCount}
+        >
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={[
+              'relative h-7 gap-1.5 px-2 text-xs',
+              selectedCount > 0
+                ? 'border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/15'
+                : 'border-border bg-muted hover:bg-muted/80 dark:border-border dark:bg-muted',
+            ].join(' ')}
+            title={
+              selectedCount > 0
+                ? `${selectedCount} selected comment${selectedCount === 1 ? '' : 's'} ready to append`
+                : 'Review or select comments to append'
+            }
+          >
+            <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="font-medium">Comments</span>
+            {selectedCount > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">
+                {selectedCount}
+              </span>
+            )}
+          </Button>
+        </CommentsPopover>
       )}
     </div>
   );

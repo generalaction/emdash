@@ -849,6 +849,7 @@ const ChatInterface: React.FC<Props> = ({
                     task.metadata?.githubIssue ||
                     task.metadata?.jiraIssue) && (
                     <TaskContextBadges
+                      taskId={task.id}
                       linearIssue={task.metadata?.linearIssue || null}
                       githubIssue={task.metadata?.githubIssue || null}
                       jiraIssue={task.metadata?.jiraIssue || null}
