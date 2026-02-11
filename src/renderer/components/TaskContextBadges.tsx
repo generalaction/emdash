@@ -19,7 +19,12 @@ type Props = {
   jiraIssue?: JiraIssueSummary | null;
 };
 
-export const TaskContextBadges: React.FC<Props> = ({ taskId, linearIssue, githubIssue, jiraIssue }) => {
+export const TaskContextBadges: React.FC<Props> = ({
+  taskId,
+  linearIssue,
+  githubIssue,
+  jiraIssue,
+}) => {
   const { taskId: scopedTaskId } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
   const { unsentCount } = useTaskComments(resolvedTaskId);
