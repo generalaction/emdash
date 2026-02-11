@@ -50,6 +50,7 @@ type PtyRecord = {
   proc: IPty;
   cwd?: string; // Working directory (for respawning shell after CLI exit)
   isDirectSpawn?: boolean; // Whether this was a direct CLI spawn
+  kind?: 'local' | 'ssh';
 };
 
 const ptys = new Map<string, PtyRecord>();
@@ -59,6 +60,86 @@ let onDirectCliExitCallback: ((id: string, cwd: string) => void) | null = null;
 
 export function setOnDirectCliExit(callback: (id: string, cwd: string) => void): void {
   onDirectCliExitCallback = callback;
+}
+
+function escapeShSingleQuoted(value: string): string {
+  // Safe for embedding into a single-quoted POSIX shell string.
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+/**
+ * Spawn an interactive SSH session in a PTY.
+ *
+ * This uses the system `ssh` binary so user SSH config features (e.g. ProxyJump,
+ * UseKeychain on macOS) work as expected.
+ */
+export function startSshPty(options: {
+  id: string;
+  target: string; // alias or user@host
+  sshArgs?: string[]; // extra ssh args like -p, -i
+  remoteInitCommand?: string; // if provided, executed by remote shell
+  cols?: number;
+  rows?: number;
+  env?: Record<string, string>;
+}): IPty {
+  if (process.env.EMDASH_DISABLE_PTY === '1') {
+    throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+  }
+
+  const { id, target, sshArgs = [], remoteInitCommand, cols = 120, rows = 32, env } = options;
+
+  // Lazy load native module
+  let pty: typeof import('node-pty');
+  try {
+    pty = require('node-pty');
+  } catch (e: any) {
+    throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
+  }
+
+  // Build a minimal environment; include SSH_AUTH_SOCK so agent works.
+  const useEnv: Record<string, string> = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+  };
+
+  // Pass through agent authentication env vars (same allowlist as direct spawn)
+  for (const key of AGENT_ENV_VARS) {
+    if (process.env[key]) {
+      useEnv[key] = process.env[key] as string;
+    }
+  }
+
+  if (env) {
+    for (const [key, value] of Object.entries(env)) {
+      if (!key.startsWith('EMDASH_')) continue;
+      if (typeof value === 'string') {
+        useEnv[key] = value;
+      }
+    }
+  }
+
+  const args: string[] = ['-tt', ...sshArgs, target];
+  if (typeof remoteInitCommand === 'string' && remoteInitCommand.trim().length > 0) {
+    // Pass as a single remote command argument; ssh will execute it via the remote user's shell.
+    args.push(remoteInitCommand);
+  }
+
+  const proc = pty.spawn('ssh', args, {
+    name: 'xterm-256color',
+    cols,
+    rows,
+    cwd: process.env.HOME || os.homedir(),
+    env: useEnv,
+  });
+
+  ptys.set(id, { id, proc, kind: 'ssh' });
+  return proc;
 }
 
 /**
@@ -179,7 +260,7 @@ export function startDirectPty(options: {
   });
 
   // Store record with cwd for shell respawn after CLI exits
-  ptys.set(id, { id, proc, cwd, isDirectSpawn: true });
+  ptys.set(id, { id, proc, cwd, isDirectSpawn: true, kind: 'local' });
 
   // When CLI exits, spawn a shell so user can continue working
   proc.onExit(() => {
@@ -423,7 +504,7 @@ export async function startPty(options: {
     }
   }
 
-  ptys.set(id, { id, proc });
+  ptys.set(id, { id, proc, kind: 'local' });
   return proc;
 }
 
@@ -449,6 +530,8 @@ export function resizePty(id: string, cols: number, rows: number): void {
       (error.code === 'EBADF' ||
         /EBADF/.test(String(error)) ||
         /Napi::Error/.test(String(error)) ||
+        /ENOTTY/.test(String(error)) ||
+        /ioctl\(2\) failed/.test(String(error)) ||
         error.message?.includes('not open'))
     ) {
       // Expected during shutdown - PTY already exited
@@ -470,10 +553,18 @@ export function killPty(id: string): void {
   }
 }
 
+export function removePtyRecord(id: string): void {
+  ptys.delete(id);
+}
+
 export function hasPty(id: string): boolean {
   return ptys.has(id);
 }
 
 export function getPty(id: string): IPty | undefined {
   return ptys.get(id)?.proc;
+}
+
+export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
+  return ptys.get(id)?.kind;
 }

@@ -31,6 +31,10 @@ interface Props {
   agent?: Agent;
   className?: string;
   projectPath?: string;
+  remote?: {
+    connectionId: string;
+    projectPath?: string;
+  };
   defaultBranch?: string;
   portSeed?: string;
 }
@@ -45,6 +49,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   agent,
   className,
   projectPath,
+  remote,
   defaultBranch,
   portSeed,
 }) => {
@@ -682,6 +687,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 <TerminalPane
                   id={terminal.id}
                   cwd={terminal.cwd || task?.path}
+                  remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
                   env={taskEnv}
                   variant={
                     effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
@@ -706,6 +712,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 <TerminalPane
                   id={terminal.id}
                   cwd={terminal.cwd || projectPath}
+                  remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
                   variant={
                     effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
                   }

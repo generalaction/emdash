@@ -9,6 +9,7 @@ try {
 }
 
 import { app, BrowserWindow } from 'electron';
+import { initializeShellEnvironment } from './utils/shellEnv';
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
 try {
@@ -90,6 +91,16 @@ if (process.platform === 'win32') {
     process.env.PATH = parts.join(';');
   }
 }
+
+// Detect SSH_AUTH_SOCK from user's shell environment
+// This is necessary because GUI-launched apps don't inherit shell env vars
+try {
+  initializeShellEnvironment();
+} catch (error) {
+  // Silent fail - SSH agent auth will fail if user tries to use it
+  console.log('[main] Failed to initialize shell environment:', error);
+}
+
 import { createMainWindow } from './app/window';
 import { registerAppLifecycle } from './app/lifecycle';
 import { registerAllIpc } from './ipc';
@@ -97,6 +108,7 @@ import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
+import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
@@ -269,4 +281,7 @@ app.on('before-quit', () => {
 
   // Cleanup reserve worktrees (fire and forget - don't block quit)
   worktreePoolService.cleanup().catch(() => {});
+
+  // Disconnect all SSH connections to avoid orphaned sessions on remote hosts
+  sshService.disconnectAll().catch(() => {});
 });

@@ -1,6 +1,30 @@
 import { relations, sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
+export const sshConnections = sqliteTable(
+  'ssh_connections',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    host: text('host').notNull(),
+    port: integer('port').notNull().default(22),
+    username: text('username').notNull(),
+    authType: text('auth_type').notNull().default('agent'), // 'password' | 'key' | 'agent'
+    privateKeyPath: text('private_key_path'), // optional, for key auth
+    useAgent: integer('use_agent').notNull().default(0), // boolean, 0=false, 1=true
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    nameIdx: uniqueIndex('idx_ssh_connections_name').on(table.name),
+    hostIdx: index('idx_ssh_connections_host').on(table.host),
+  })
+);
+
 export const projects = sqliteTable(
   'projects',
   {
@@ -12,6 +36,11 @@ export const projects = sqliteTable(
     baseRef: text('base_ref'),
     githubRepository: text('github_repository'),
     githubConnected: integer('github_connected').notNull().default(0),
+    sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
+      onDelete: 'set null',
+    }),
+    isRemote: integer('is_remote').notNull().default(0), // boolean, 0=false, 1=true
+    remotePath: text('remote_path'), // path on remote server
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -21,6 +50,8 @@ export const projects = sqliteTable(
   },
   (table) => ({
     pathIdx: uniqueIndex('idx_projects_path').on(table.path),
+    sshConnectionIdIdx: index('idx_projects_ssh_connection_id').on(table.sshConnectionId),
+    isRemoteIdx: index('idx_projects_is_remote').on(table.isRemote),
   })
 );
 
@@ -121,8 +152,16 @@ export const lineComments = sqliteTable(
   })
 );
 
-export const projectsRelations = relations(projects, ({ many }) => ({
+export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
+  projects: many(projects),
+}));
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
   tasks: many(tasks),
+  sshConnection: one(sshConnections, {
+    fields: [projects.sshConnectionId],
+    references: [sshConnections.id],
+  }),
 }));
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({
@@ -156,6 +195,8 @@ export const lineCommentsRelations = relations(lineComments, ({ one }) => ({
   }),
 }));
 
+export type SshConnectionRow = typeof sshConnections.$inferSelect;
+export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;

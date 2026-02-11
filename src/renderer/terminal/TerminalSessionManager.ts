@@ -26,6 +26,9 @@ export interface SessionTheme {
 export interface TerminalSessionOptions {
   taskId: string;
   cwd?: string;
+  remote?: {
+    connectionId: string;
+  };
   providerId?: string; // If set, uses direct CLI spawn
   shell?: string; // Used for shell-based spawn when providerId not set
   env?: Record<string, string>;
@@ -599,6 +602,7 @@ export class TerminalSessionManager {
             id,
             providerId,
             cwd,
+            remote: this.options.remote,
             cols: initialSize.cols,
             rows: initialSize.rows,
             autoApprove,
@@ -609,6 +613,7 @@ export class TerminalSessionManager {
         : window.electronAPI.ptyStart({
             id,
             cwd,
+            remote: this.options.remote,
             shell,
             env,
             cols: initialSize.cols,

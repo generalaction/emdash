@@ -25,14 +25,19 @@ import {
   Github,
   Archive,
   RotateCcw,
+  Globe,
+  Server,
   Puzzle,
 } from 'lucide-react';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import ProjectDeleteButton from './ProjectDeleteButton';
 import { TaskDeleteButton } from './TaskDeleteButton';
+import { RemoteProjectIndicator } from './ssh/RemoteProjectIndicator';
+import { useRemoteProject } from '../hooks/useRemoteProject';
 import type { Project } from '../types/app';
 import type { Task } from '../types/chat';
+import type { ConnectionState } from './ssh';
 
 interface LeftSidebarProps {
   projects: Project[];
@@ -43,6 +48,7 @@ interface LeftSidebarProps {
   onOpenProject?: () => void;
   onNewProject?: () => void;
   onCloneProject?: () => void;
+  onAddRemoteProject?: () => void;
   onSelectTask?: (task: Task) => void;
   activeTask?: Task | null;
   onReorderProjects?: (sourceId: string, targetId: string) => void;
@@ -71,6 +77,43 @@ interface MenuItemButtonProps {
   ariaLabel: string;
   onClick: () => void;
 }
+
+// Helper to determine if a project is remote
+const isRemoteProject = (project: Project): boolean => {
+  return Boolean((project as any).isRemote || (project as any).sshConnectionId);
+};
+
+// Get connection ID from project
+const getConnectionId = (project: Project): string | null => {
+  return (project as any).sshConnectionId || null;
+};
+
+// Project item with remote indicator
+interface ProjectItemProps {
+  project: Project;
+  isActive: boolean;
+  onSelect: () => void;
+}
+
+const ProjectItem: React.FC<ProjectItemProps> = ({ project, isActive, onSelect }) => {
+  const remote = useRemoteProject(project);
+  const connectionId = getConnectionId(project);
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {isRemoteProject(project) && connectionId && (
+        <RemoteProjectIndicator
+          host={remote.host || undefined}
+          connectionState={remote.connectionState as ConnectionState}
+          size="md"
+          onReconnect={remote.reconnect}
+          disabled={remote.isLoading}
+        />
+      )}
+      <span className="flex-1 truncate">{project.name}</span>
+    </div>
+  );
+};
 
 const MenuItemButton: React.FC<MenuItemButtonProps> = ({
   icon: Icon,
@@ -113,6 +156,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onOpenProject,
   onNewProject,
   onCloneProject,
+  onAddRemoteProject,
   onSelectTask,
   activeTask,
   onReorderProjects,
@@ -290,6 +334,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     const isDeletingProject = deletingProjectId === typedProject.id;
                     const showProjectDelete = Boolean(onDeleteProject);
                     const isProjectActive = selectedProject?.id === typedProject.id;
+                    const projectIsRemote = isRemoteProject(typedProject);
                     return (
                       <SidebarMenuItem>
                         <Collapsible defaultOpen className="group/collapsible">
@@ -297,6 +342,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             className={`group/project group/task relative flex w-full min-w-0 items-center rounded-md px-2 py-2 text-sm font-medium focus-within:bg-accent focus-within:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
                               isProjectActive ? 'bg-black/5 dark:bg-white/5' : ''
                             }`}
+                            title={projectIsRemote ? 'Remote Project' : undefined}
                           >
                             <motion.button
                               type="button"
@@ -308,7 +354,13 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 onSelectProject(typedProject);
                               }}
                             >
-                              <span className="block w-full truncate">{typedProject.name}</span>
+                              <span className="block w-full truncate">
+                                <ProjectItem
+                                  project={typedProject}
+                                  isActive={isProjectActive}
+                                  onSelect={() => onSelectProject(typedProject)}
+                                />
+                              </span>
                               <span className="hidden w-full truncate text-xs text-muted-foreground sm:block">
                                 {typedProject.githubInfo?.repository || typedProject.path}
                               </span>
@@ -544,6 +596,14 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             ariaLabel="Clone from GitHub"
                             onClick={() => onCloneProject?.()}
                           />
+                          {onAddRemoteProject && (
+                            <MenuItemButton
+                              icon={Server}
+                              label="Add Remote Project"
+                              ariaLabel="Add Remote Project"
+                              onClick={() => onAddRemoteProject?.()}
+                            />
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>

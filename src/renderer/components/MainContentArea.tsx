@@ -34,6 +34,7 @@ interface MainContentAreaProps {
   handleOpenProject: () => void;
   handleNewProjectClick: () => void;
   handleCloneProjectClick: () => void;
+  handleAddRemoteProject: () => void;
   setShowTaskModal: (show: boolean) => void;
   setShowKanban: (show: boolean) => void;
 }
@@ -56,6 +57,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   handleOpenProject,
   handleNewProjectClick,
   handleCloneProjectClick,
+  handleAddRemoteProject,
   setShowTaskModal,
   setShowKanban,
 }) => {
@@ -84,6 +86,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
         onOpenProject={handleOpenProject}
         onNewProjectClick={handleNewProjectClick}
         onCloneProjectClick={handleCloneProjectClick}
+        onAddRemoteProject={handleAddRemoteProject}
       />
     );
   }
