@@ -34,17 +34,17 @@ const stateConfig: Record<
     label: 'Connecting...',
   },
   reconnecting: {
-    color: 'text-amber-500',
+    color: 'text-muted-foreground',
     icon: <RefreshCw className="h-full w-full animate-spin" />,
     label: 'Reconnecting...',
   },
   disconnected: {
-    color: 'text-gray-400',
+    color: 'text-muted-foreground',
     icon: <Globe className="h-full w-full" />,
     label: 'Disconnected',
   },
   error: {
-    color: 'text-red-500',
+    color: 'text-muted-foreground',
     icon: <AlertCircle className="h-full w-full" />,
     label: 'Connection Error',
   },
