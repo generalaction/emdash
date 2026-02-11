@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GitBranch, ArrowUpRight, AlertCircle, Pencil, Pin, PinOff } from 'lucide-react';
+import { GitBranch, ArrowUpRight, AlertCircle, Pencil, Pin, PinOff, TerminalSquare } from 'lucide-react';
 import TaskDeleteButton from './TaskDeleteButton';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskBusy } from '../hooks/useTaskBusy';
+import { useTaskHasTerminal } from '../hooks/useTaskHasTerminal';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
 import {
@@ -54,6 +55,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
   const isRunning = useTaskBusy(task.id);
+  const hasTerminal = useTaskHasTerminal(task.id);
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -119,6 +121,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       <div className="flex min-w-0 flex-1 items-center gap-2 py-1">
         {isRunning || task.status === 'running' ? (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+        ) : hasTerminal ? (
+          <TerminalSquare className="h-3 w-3 flex-shrink-0 text-green-500" />
         ) : (
           <GitBranch className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}

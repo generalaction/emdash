@@ -93,6 +93,7 @@ vi.mock('../../main/services/ptyManager', () => ({
   getPty: getPtyMock,
   startDirectPty: vi.fn(),
   setOnDirectCliExit: vi.fn(),
+  listPtyIds: vi.fn(() => Array.from(ptys.keys())),
 }));
 
 vi.mock('../../main/lib/logger', () => ({
@@ -140,6 +141,40 @@ vi.mock('../../main/services/TerminalConfigParser', () => ({
 vi.mock('../../main/services/DatabaseService', () => ({
   databaseService: {},
 }));
+
+describe('getPtyTaskId', () => {
+  it('extracts taskId from standard main-terminal PTY IDs', async () => {
+    const { getPtyTaskId } = await import('../../main/services/ptyIpc');
+    expect(getPtyTaskId('claude-main-task-1')).toBe('task-1');
+    expect(getPtyTaskId('codex-main-abc123')).toBe('abc123');
+    expect(getPtyTaskId('qwen-main-my-feature')).toBe('my-feature');
+  });
+
+  it('returns null for chat terminal IDs', async () => {
+    const { getPtyTaskId } = await import('../../main/services/ptyIpc');
+    expect(getPtyTaskId('claude-chat-conv-1')).toBeNull();
+    expect(getPtyTaskId('codex-chat-abc')).toBeNull();
+  });
+
+  it('returns null for malformed or empty IDs', async () => {
+    const { getPtyTaskId } = await import('../../main/services/ptyIpc');
+    expect(getPtyTaskId('')).toBeNull();
+    expect(getPtyTaskId('main-task-1')).toBeNull(); // no provider prefix
+    expect(getPtyTaskId('-main-task-1')).toBeNull(); // starts with hyphen — not [a-z0-9_-]+
+  });
+
+  it('handles taskIds that themselves contain -main- (known greedy limitation)', async () => {
+    const { getPtyTaskId } = await import('../../main/services/ptyIpc');
+    // Greedy [a-z0-9_-]+ consumes up to the LAST -main-, so only 'loop' is captured.
+    // This is a known limitation — taskIds containing '-main-' will be misidentified.
+    expect(getPtyTaskId('claude-main-fix-main-loop')).toBe('loop');
+  });
+
+  it('handles provider names with underscores and digits', async () => {
+    const { getPtyTaskId } = await import('../../main/services/ptyIpc');
+    expect(getPtyTaskId('my_agent2-main-task99')).toBe('task99');
+  });
+});
 
 describe('ptyIpc notification lifecycle', () => {
   beforeEach(() => {

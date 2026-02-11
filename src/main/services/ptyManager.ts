@@ -477,3 +477,7 @@ export function hasPty(id: string): boolean {
 export function getPty(id: string): IPty | undefined {
   return ptys.get(id)?.proc;
 }
+
+export function listPtyIds(): string[] {
+  return Array.from(ptys.keys());
+}
