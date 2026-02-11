@@ -6,6 +6,7 @@ import { Label } from '../ui/label';
 import { Spinner } from '../ui/spinner';
 import { Separator } from '../ui/separator';
 import { Alert, AlertDescription } from '../ui/alert';
+import { Badge } from '../ui/badge';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
@@ -813,35 +814,28 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
             {/* Connection Test Result */}
             {testStatus !== 'idle' && (
-              <div
+              <Badge
+                variant="outline"
                 className={cn(
-                  'rounded-lg border p-4',
-                  testStatus === 'testing' && 'border-muted bg-muted/50',
-                  testStatus === 'success' &&
-                    'border-emerald-500/40 bg-emerald-50/60 dark:bg-emerald-500/10',
-                  testStatus === 'error' && 'border-destructive/50 bg-destructive/10'
+                  'w-full justify-start gap-2 py-1.5',
+                  testStatus === 'success' && 'border-emerald-500/40 bg-emerald-500/10',
+                  testStatus === 'error' && 'border-destructive/40 bg-destructive/10'
                 )}
               >
-                <div className="flex items-center gap-2">
-                  {testStatus === 'testing' && <Spinner size="sm" />}
-                  {testStatus === 'success' && (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                  )}
-                  {testStatus === 'error' && <XCircle className="h-5 w-5 text-destructive" />}
-                  <span
-                    className={cn(
-                      'text-sm font-medium',
-                      testStatus === 'success' && 'text-emerald-700 dark:text-emerald-200',
-                      testStatus === 'error' && 'text-destructive'
-                    )}
-                  >
-                    {testStatus === 'testing' && 'Testing connection...'}
-                    {testStatus === 'success' &&
-                      `Connected successfully${testResult?.latency ? ` (${testResult.latency}ms)` : ''}`}
-                    {testStatus === 'error' && (testResult?.error || 'Connection failed')}
-                  </span>
-                </div>
-              </div>
+                {testStatus === 'testing' && <Loader2 className="h-3 w-3 animate-spin" />}
+                {testStatus === 'success' && (
+                  <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+                )}
+                {testStatus === 'error' && (
+                  <XCircle className="h-3 w-3 shrink-0 text-destructive" />
+                )}
+                <span className="truncate">
+                  {testStatus === 'testing' && 'Testing connection...'}
+                  {testStatus === 'success' &&
+                    `Connected successfully${testResult?.latency ? ` (${testResult.latency}ms)` : ''}`}
+                  {testStatus === 'error' && (testResult?.error || 'Connection failed')}
+                </span>
+              </Badge>
             )}
           </div>
         );
@@ -883,10 +877,13 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             </div>
 
             {browseError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{browseError}</AlertDescription>
-              </Alert>
+              <Badge
+                variant="outline"
+                className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
+              >
+                <XCircle className="h-3 w-3 shrink-0 text-destructive" />
+                <span className="truncate">{browseError}</span>
+              </Badge>
             )}
 
             {/* Directory browser */}
@@ -928,7 +925,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                         )}
                       >
                         {entry.type === 'directory' ? (
-                          <Folder className="h-4 w-4 text-blue-500" />
+                          <Folder className="h-4 w-4 text-muted-foreground" />
                         ) : (
                           <FileCode className="h-4 w-4 text-muted-foreground" />
                         )}
@@ -954,12 +951,13 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       case 'confirm':
         return (
           <div className="space-y-4">
-            <Alert>
-              <CheckCircle2 className="h-4 w-4" />
-              <AlertDescription>
-                Please review your configuration before saving the connection.
-              </AlertDescription>
-            </Alert>
+            <Badge
+              variant="outline"
+              className="w-full justify-start gap-2 border-emerald-500/40 bg-emerald-500/10 py-1.5"
+            >
+              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+              <span>Please review your configuration before saving.</span>
+            </Badge>
 
             <div className="rounded-md border">
               <div className="border-b bg-muted/50 px-4 py-2 text-sm font-medium">
@@ -1053,10 +1051,13 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
         {/* Error display */}
         {errors.general && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{errors.general}</AlertDescription>
-          </Alert>
+          <Badge
+            variant="outline"
+            className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
+          >
+            <XCircle className="h-3 w-3 shrink-0 text-destructive" />
+            <span className="truncate">{errors.general}</span>
+          </Badge>
         )}
 
         {/* Step content */}
