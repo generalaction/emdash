@@ -695,6 +695,12 @@ const ChatInterface: React.FC<Props> = ({
       if (j.project?.key) details.push(`Project: ${j.project.key}`);
       if (details.length) lines.push(`Details: ${details.join(' • ')}`);
       if (j.url) lines.push(`URL: ${j.url}`);
+      const desc = typeof j.description === 'string' ? j.description.trim() : '';
+      if (desc) {
+        const max = 1500;
+        const clipped = desc.length > max ? desc.slice(0, max) + '\n…' : desc;
+        lines.push('', 'Issue Description:', clipped);
+      }
       const jiraContent = lines.join('\n');
       // Prepend comments if any
       if (commentsContext) {
