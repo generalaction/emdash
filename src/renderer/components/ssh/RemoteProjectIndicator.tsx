@@ -29,7 +29,7 @@ const stateConfig: Record<
     label: 'Connected',
   },
   connecting: {
-    color: 'text-blue-500',
+    color: 'text-muted-foreground',
     icon: <Loader2 className="h-full w-full animate-spin" />,
     label: 'Connecting...',
   },
