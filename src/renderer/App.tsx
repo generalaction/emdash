@@ -516,6 +516,7 @@ const AppContent: React.FC = () => {
                         handleOpenProject={projectMgmt.handleOpenProject}
                         handleNewProjectClick={projectMgmt.handleNewProjectClick}
                         handleCloneProjectClick={projectMgmt.handleCloneProjectClick}
+                        handleAddRemoteProject={handleAddRemoteProjectClick}
                         setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
                         setShowKanban={(show: boolean) => setShowKanban(show)}
                       />
