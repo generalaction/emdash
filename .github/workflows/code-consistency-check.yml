@@ -24,8 +24,10 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install dependencies (no native builds)
+        # This job only needs JS/TS tooling for format + type checks.
+        # Skip lifecycle scripts to avoid flaky node-gyp/native module builds in CI.
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Check formatting
         run: pnpm run format:check
