@@ -80,9 +80,11 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
   }, [browser, taskId]);
 
   const handleClick = React.useCallback(async () => {
-    import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('browser_preview_opened');
-    });
+    if (!browser.isOpen) {
+      import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('browser_preview_opened');
+      });
+    }
     const id = (taskId || '').trim();
     const wp = (taskPath || '').trim();
     const appPort = Number(window.location.port || 0);
