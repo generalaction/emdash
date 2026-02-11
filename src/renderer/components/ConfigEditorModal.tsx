@@ -150,11 +150,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
 
   const jsonDirty = useMemo(() => jsonContent !== originalContent, [jsonContent, originalContent]);
 
-  const hasChanges = useMemo(() => (mode === 'json' ? jsonDirty : scriptsDirty), [
-    mode,
-    jsonDirty,
-    scriptsDirty,
-  ]);
+  const hasChanges = useMemo(
+    () => (mode === 'json' ? jsonDirty : scriptsDirty),
+    [mode, jsonDirty, scriptsDirty]
+  );
 
   const loadConfig = useCallback(async () => {
     setIsLoading(true);
