@@ -266,18 +266,17 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     setError(null);
     try {
       let contentToSave = normalizedConfigContent;
+      let nextConfig = config;
+      let nextScripts = scripts;
+      let nextPreservePatternsInput = preservePatternsInput;
       if (mode === 'json') {
         if (jsonError) {
           throw new Error('Invalid JSON format');
         }
         const parsed = ensureConfigObject(JSON.parse(jsonContent));
-        const nextScripts = scriptsFromConfig(parsed);
-        const nextPreservePatterns = preservePatternsFromConfig(parsed);
-        setConfig(parsed);
-        setScripts(nextScripts);
-        setOriginalScripts(nextScripts);
-        setPreservePatternsInput(nextPreservePatterns.join('\n'));
-        setOriginalPreservePatternsInput(nextPreservePatterns.join('\n'));
+        nextConfig = parsed;
+        nextScripts = scriptsFromConfig(parsed);
+        nextPreservePatternsInput = preservePatternsFromConfig(parsed).join('\n');
         contentToSave = jsonContent.endsWith('\n') ? jsonContent : `${jsonContent}\n`;
       }
 
@@ -286,9 +285,12 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         throw new Error(result.error || 'Failed to save config');
       }
 
+      setConfig(nextConfig);
+      setScripts(nextScripts);
+      setPreservePatternsInput(nextPreservePatternsInput);
       setOriginalContent(contentToSave);
-      setOriginalScripts(scripts);
-      setOriginalPreservePatternsInput(preservePatternsInput);
+      setOriginalScripts(nextScripts);
+      setOriginalPreservePatternsInput(nextPreservePatternsInput);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save config');
@@ -296,6 +298,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setIsSaving(false);
     }
   }, [
+    config,
     jsonContent,
     jsonError,
     mode,
