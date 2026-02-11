@@ -1,5 +1,6 @@
 import React from 'react';
 import BranchSelect, { type BranchOption } from './BranchSelect';
+import { Button } from './ui/button';
 
 interface BaseBranchControlsProps {
   baseBranch?: string;
@@ -7,9 +8,7 @@ interface BaseBranchControlsProps {
   isLoadingBranches: boolean;
   isSavingBaseBranch: boolean;
   onBaseBranchChange: (value: string) => void;
-  projectPath?: string;
-  onEditConfig?: () => void;
-  onPreloadConfig?: () => void;
+  onOpenConfig?: () => void;
 }
 
 const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
@@ -18,9 +17,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   isLoadingBranches,
   isSavingBaseBranch,
   onBaseBranchChange,
-  projectPath,
-  onEditConfig,
-  onPreloadConfig,
+  onOpenConfig,
 }) => {
   const placeholder = isLoadingBranches
     ? 'Loading...'
@@ -31,7 +28,20 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <p className="text-xs font-medium text-foreground">Base branch</p>
+        <p className="text-sm font-medium text-foreground">Config</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 text-xs sm:w-auto"
+          onClick={onOpenConfig}
+          disabled={!onOpenConfig}
+        >
+          Open
+        </Button>
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <p className="text-sm font-medium text-foreground">Base branch</p>
         <BranchSelect
           value={baseBranch}
           onValueChange={onBaseBranchChange}
@@ -42,23 +52,6 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
           variant="default"
         />
       </div>
-      <p className="text-xs text-muted-foreground">
-        New tasks start from the latest code.
-        {projectPath && onEditConfig && (
-          <>
-            {' · '}
-            <button
-              type="button"
-              className="text-muted-foreground underline hover:text-foreground"
-              onClick={onEditConfig}
-              onMouseEnter={onPreloadConfig}
-              onFocus={onPreloadConfig}
-            >
-              Edit config
-            </button>
-          </>
-        )}
-      </p>
     </div>
   );
 };
