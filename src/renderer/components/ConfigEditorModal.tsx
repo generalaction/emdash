@@ -130,28 +130,30 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     return `${JSON.stringify(withScripts, null, 2)}\n`;
   }, [config, preservePatterns, scripts]);
 
-  const hasChanges = useMemo(() => {
-    if (mode === 'json') {
-      return jsonContent !== originalContent;
-    }
-    return (
+  const scriptsDirty = useMemo(
+    () =>
       scripts.setup !== originalScripts.setup ||
       scripts.run !== originalScripts.run ||
       scripts.teardown !== originalScripts.teardown ||
-      preservePatternsInput !== originalPreservePatternsInput
-    );
-  }, [
-    jsonContent,
+      preservePatternsInput !== originalPreservePatternsInput,
+    [
+      originalPreservePatternsInput,
+      originalScripts.run,
+      originalScripts.setup,
+      originalScripts.teardown,
+      preservePatternsInput,
+      scripts.run,
+      scripts.setup,
+      scripts.teardown,
+    ]
+  );
+
+  const jsonDirty = useMemo(() => jsonContent !== originalContent, [jsonContent, originalContent]);
+
+  const hasChanges = useMemo(() => (mode === 'json' ? jsonDirty : scriptsDirty), [
     mode,
-    originalContent,
-    originalPreservePatternsInput,
-    originalScripts.run,
-    originalScripts.setup,
-    originalScripts.teardown,
-    preservePatternsInput,
-    scripts.run,
-    scripts.setup,
-    scripts.teardown,
+    jsonDirty,
+    scriptsDirty,
   ]);
 
   const loadConfig = useCallback(async () => {
@@ -226,8 +228,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       if (nextMode === mode) return;
 
       if (nextMode === 'json') {
-        const withPatterns = applyPreservePatterns(config, preservePatterns);
-        const nextJson = `${JSON.stringify(applyScripts(withPatterns, scripts), null, 2)}\n`;
+        // Avoid false dirty state when no scripts-side edits were made.
+        const nextJson = scriptsDirty ? normalizedConfigContent : originalContent;
         setJsonContent(nextJson);
         setJsonError(null);
         setMode('json');
@@ -251,7 +253,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         setError('Fix JSON errors before switching to Scripts.');
       }
     },
-    [config, jsonContent, mode, preservePatterns, scripts]
+    [jsonContent, mode, normalizedConfigContent, originalContent, scriptsDirty]
   );
 
   const handleScriptChange =
