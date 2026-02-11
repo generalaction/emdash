@@ -71,6 +71,10 @@ export function useSkills() {
             variant: 'destructive',
           });
         } else {
+          const skill = catalog?.skills.find((s) => s.id === skillId);
+          import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+            captureTelemetry('skill_installed', { source: skill?.source });
+          });
           toast({
             title: 'Skill installed',
             description: `${skillId} is now available across your agents`,
@@ -88,7 +92,7 @@ export function useSkills() {
         return false;
       }
     },
-    [loadCatalog, toast]
+    [catalog?.skills, loadCatalog, toast]
   );
 
   const uninstall = useCallback(
@@ -114,6 +118,9 @@ export function useSkills() {
           });
           await loadCatalog();
         } else {
+          import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+            captureTelemetry('skill_uninstalled');
+          });
           toast({ title: 'Skill removed', description: `${skillId} has been uninstalled` });
         }
         return result.success;
@@ -131,6 +138,9 @@ export function useSkills() {
   );
 
   const openDetail = useCallback(async (skill: CatalogSkill) => {
+    import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('skill_detail_viewed', { source: skill.source });
+    });
     setSelectedSkill(skill);
     setShowDetailModal(true);
     // Load full detail

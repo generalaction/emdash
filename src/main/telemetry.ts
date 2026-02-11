@@ -85,6 +85,7 @@ type TelemetryEvent =
   | 'toolbar_open_in_selected' // when a user selects an app from the "Open in" menu (attribute: OpenInAppId)
   | 'toolbar_kanban_toggled' // when a user toggles the Kanban view (attribute for new state (open or closed))
   // Browser Preview
+  | 'browser_preview_opened'
   | 'browser_preview_closed'
   | 'browser_preview_url_navigated' // when a user navigates to a new URL in the browser preview
   // Settings & Preferences
@@ -93,6 +94,21 @@ type TelemetryEvent =
   | 'telemetry_toggled'
   | 'notification_settings_changed'
   | 'default_provider_changed' // attribute for which provider is selected
+  // Skills
+  | 'skills_view_opened'
+  | 'skill_installed'
+  | 'skill_uninstalled'
+  | 'skill_created'
+  | 'skill_detail_viewed'
+  // Remote Server / SSH
+  | 'remote_project_modal_opened'
+  | 'remote_project_connection_tested'
+  | 'remote_project_created'
+  // GitHub issues
+  | 'github_issues_searched'
+  | 'github_issue_selected'
+  // Task with issue
+  | 'task_created_with_issue'
   // Legacy/aggregate events
   | 'feature_used'
   | 'error'
