@@ -5,17 +5,22 @@ import { Spinner } from './ui/spinner';
 import Editor, { Monaco } from '@monaco-editor/react';
 import { useTheme } from '@/hooks/useTheme';
 import { defineMonacoThemes, getMonacoTheme } from '@/lib/monaco-themes';
+import { DEFAULT_EMDASH_CONFIG } from '@shared/lifecycle';
+
+const DEFAULT_CONFIG = JSON.stringify(DEFAULT_EMDASH_CONFIG, null, 2) + '\n';
 
 interface ConfigEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectPath: string;
+  isAutoDetected?: boolean;
 }
 
 export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isOpen,
   onClose,
   projectPath,
+  isAutoDetected,
 }) => {
   const { effectiveTheme } = useTheme();
   const [content, setContent] = useState('');
@@ -24,8 +29,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [isNewConfig, setIsNewConfig] = useState(false);
 
   const hasChanges = content !== originalContent;
+  const needsSave = hasChanges || isNewConfig;
 
   const handleEditorBeforeMount = useCallback((monaco: Monaco) => {
     // Register themes before editor creation so custom-dark/custom-black apply immediately.
@@ -40,12 +47,14 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setIsLoading(true);
       setError(null);
       setJsonError(null);
+      setIsNewConfig(false);
 
       try {
         const result = await window.electronAPI.getProjectConfig(projectPath);
         if (result.success && result.content) {
           setContent(result.content);
           setOriginalContent(result.content);
+          if (result.isNew) setIsNewConfig(true);
         } else {
           // Clear content when load fails to prevent stale data
           setContent('');
@@ -103,10 +112,18 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     }
   }, [projectPath, content, jsonError, onClose]);
 
+  // Write standard defaults on cancel so re-opening doesn't re-trigger detection
+  const handleCancel = useCallback(() => {
+    if (isNewConfig) {
+      window.electronAPI.saveProjectConfig(projectPath, DEFAULT_CONFIG).catch(() => {});
+    }
+    onClose();
+  }, [isNewConfig, projectPath, onClose]);
+
   const handleOpenChange = (open: boolean) => {
     if (!open && isSaving) return;
     if (!open) {
-      onClose();
+      handleCancel();
     }
   };
 
@@ -125,6 +142,11 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
           <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">{error}</div>
         ) : (
           <>
+            {isAutoDetected && (
+              <div className="rounded-md bg-blue-500/10 px-3 py-2 text-xs text-blue-400">
+                Auto-detected settings for this project. Review and save to confirm.
+              </div>
+            )}
             <div
               className={`min-h-0 flex-1 overflow-hidden rounded-md border ${isSaving ? 'opacity-75' : ''}`}
             >
@@ -161,19 +183,21 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+              <Button type="button" variant="outline" onClick={handleCancel} disabled={isSaving}>
                 Cancel
               </Button>
               <Button
                 type="button"
                 onClick={handleSave}
-                disabled={!hasChanges || !!jsonError || isSaving}
+                disabled={!needsSave || !!jsonError || isSaving}
               >
                 {isSaving ? (
                   <>
                     <Spinner size="sm" className="mr-2" />
                     Saving...
                   </>
+                ) : isAutoDetected ? (
+                  'Confirm'
                 ) : (
                   'Save'
                 )}

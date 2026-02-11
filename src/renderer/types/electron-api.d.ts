@@ -785,9 +785,13 @@ declare global {
         mkdirs?: boolean
       ) => Promise<{ success: boolean; error?: string }>;
       fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
-      getProjectConfig: (
-        projectPath: string
-      ) => Promise<{ success: boolean; path?: string; content?: string; error?: string }>;
+      getProjectConfig: (projectPath: string) => Promise<{
+        success: boolean;
+        path?: string;
+        content?: string;
+        isNew?: boolean;
+        error?: string;
+      }>;
       saveProjectConfig: (
         projectPath: string,
         content: string

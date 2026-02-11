@@ -5,23 +5,7 @@ import { Worker } from 'worker_threads';
 import { FsListWorkerResponse } from '../types/fsListWorker';
 import { DEFAULT_IGNORES } from '../utils/fsIgnores';
 import { safeStat } from '../utils/safeStat';
-
-const DEFAULT_EMDASH_CONFIG = `{
-  "preservePatterns": [
-    ".env",
-    ".env.keys",
-    ".env.local",
-    ".env.*.local",
-    ".envrc",
-    "docker-compose.override.yml"
-  ],
-  "scripts": {
-    "setup": "",
-    "run": "",
-    "teardown": ""
-  }
-}
-`;
+import { detectConfig } from './ProjectDetectionService';
 
 type ListArgs = {
   root: string;
@@ -661,7 +645,7 @@ export function registerFsIpc(): void {
     }
   });
 
-  // Get .emdash.json config file content (create with defaults if missing)
+  // Get .emdash.json config file content, or auto-detect if missing
   ipcMain.handle('fs:getProjectConfig', async (_event, args: { projectPath: string }) => {
     try {
       const { projectPath } = args;
@@ -671,13 +655,15 @@ export function registerFsIpc(): void {
 
       const configPath = path.join(projectPath, '.emdash.json');
 
-      // Create with defaults if missing
+      // Return detected config without writing — file is only created when user confirms
       if (!fs.existsSync(configPath)) {
-        fs.writeFileSync(configPath, DEFAULT_EMDASH_CONFIG, 'utf8');
+        const detected = await detectConfig(projectPath);
+        const content = JSON.stringify(detected, null, 2) + '\n';
+        return { success: true, path: configPath, content, isNew: true };
       }
 
       const content = fs.readFileSync(configPath, 'utf8');
-      return { success: true, path: configPath, content };
+      return { success: true, path: configPath, content, isNew: false };
     } catch (error) {
       console.error('fs:getProjectConfig failed:', error);
       return { success: false, error: 'Failed to read config file' };

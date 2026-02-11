@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
 import { minimatch } from 'minimatch';
 import { errorTracking } from '../errorTracking';
+import { DEFAULT_PRESERVE_PATTERNS } from '@shared/lifecycle';
 
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 
@@ -27,16 +28,6 @@ export interface PreserveResult {
   copied: string[];
   skipped: string[];
 }
-
-/** Default patterns for files to preserve when creating worktrees */
-const DEFAULT_PRESERVE_PATTERNS = [
-  '.env',
-  '.env.keys',
-  '.env.local',
-  '.env.*.local',
-  '.envrc',
-  'docker-compose.override.yml',
-];
 
 /** Default path segments to exclude from preservation */
 const DEFAULT_EXCLUDE_PATTERNS = [

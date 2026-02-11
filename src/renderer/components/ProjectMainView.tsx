@@ -390,10 +390,23 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     setSelectedIds(new Set());
   }, [project.id]);
 
-  // Reset config preload guard when switching projects.
+  const [isAutoDetected, setIsAutoDetected] = useState(false);
+
   useEffect(() => {
     currentProjectPathRef.current = project.path;
     hasPreloadedConfigRef.current = false;
+    setIsAutoDetected(false);
+
+    window.electronAPI
+      .getProjectConfig(project.path)
+      .then((result) => {
+        if (result.success && result.isNew && currentProjectPathRef.current === project.path) {
+          hasPreloadedConfigRef.current = true;
+          setIsAutoDetected(true);
+          setShowConfigEditor(true);
+        }
+      })
+      .catch(() => {});
   }, [project.path]);
 
   useEffect(() => {
@@ -862,8 +875,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
       <ConfigEditorModal
         isOpen={showConfigEditor}
-        onClose={() => setShowConfigEditor(false)}
+        onClose={() => {
+          setShowConfigEditor(false);
+          setIsAutoDetected(false);
+        }}
         projectPath={project.path}
+        isAutoDetected={isAutoDetected}
       />
     </div>
   );
