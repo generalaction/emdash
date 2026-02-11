@@ -6,7 +6,7 @@ import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
-import AgentDisplay from './AgentDisplay';
+import TaskContextBadges from './TaskContextBadges';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
@@ -848,9 +848,7 @@ const ChatInterface: React.FC<Props> = ({
                   {(task.metadata?.linearIssue ||
                     task.metadata?.githubIssue ||
                     task.metadata?.jiraIssue) && (
-                    <AgentDisplay
-                      agent={agent}
-                      taskId={task.id}
+                    <TaskContextBadges
                       linearIssue={task.metadata?.linearIssue || null}
                       githubIssue={task.metadata?.githubIssue || null}
                       jiraIssue={task.metadata?.jiraIssue || null}
