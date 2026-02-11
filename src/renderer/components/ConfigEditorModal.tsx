@@ -57,14 +57,21 @@ function applyScripts(config: ConfigShape, scripts: LifecycleScripts): ConfigSha
       ? (config.scripts as Record<string, unknown>)
       : {};
 
+  const cleanScripts: Record<string, unknown> = { ...existingScripts };
+  if (scripts.setup.trim()) cleanScripts.setup = scripts.setup;
+  else delete cleanScripts.setup;
+  if (scripts.run.trim()) cleanScripts.run = scripts.run;
+  else delete cleanScripts.run;
+  if (scripts.teardown.trim()) cleanScripts.teardown = scripts.teardown;
+  else delete cleanScripts.teardown;
+
+  const { scripts: _scripts, ...rest } = config;
+  if (Object.keys(cleanScripts).length === 0) {
+    return rest;
+  }
   return {
-    ...config,
-    scripts: {
-      ...existingScripts,
-      setup: scripts.setup,
-      run: scripts.run,
-      teardown: scripts.teardown,
-    },
+    ...rest,
+    scripts: cleanScripts,
   };
 }
 
@@ -75,8 +82,12 @@ function preservePatternsFromConfig(config: ConfigShape): string[] {
 }
 
 function applyPreservePatterns(config: ConfigShape, patterns: string[]): ConfigShape {
+  const { preservePatterns: _preservePatterns, ...rest } = config;
+  if (patterns.length === 0) {
+    return rest;
+  }
   return {
-    ...config,
+    ...rest,
     preservePatterns: patterns,
   };
 }
@@ -90,7 +101,9 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [mode, setMode] = useState<EditorMode>('scripts');
   const [config, setConfig] = useState<ConfigShape>({});
   const [scripts, setScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
+  const [originalScripts, setOriginalScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
   const [preservePatternsInput, setPreservePatternsInput] = useState('');
+  const [originalPreservePatternsInput, setOriginalPreservePatternsInput] = useState('');
   const [jsonContent, setJsonContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -121,8 +134,25 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     if (mode === 'json') {
       return jsonContent !== originalContent;
     }
-    return normalizedConfigContent !== originalContent;
-  }, [jsonContent, mode, normalizedConfigContent, originalContent]);
+    return (
+      scripts.setup !== originalScripts.setup ||
+      scripts.run !== originalScripts.run ||
+      scripts.teardown !== originalScripts.teardown ||
+      preservePatternsInput !== originalPreservePatternsInput
+    );
+  }, [
+    jsonContent,
+    mode,
+    originalContent,
+    originalPreservePatternsInput,
+    originalScripts.run,
+    originalScripts.setup,
+    originalScripts.teardown,
+    preservePatternsInput,
+    scripts.run,
+    scripts.setup,
+    scripts.teardown,
+  ]);
 
   const loadConfig = useCallback(async () => {
     setIsLoading(true);
@@ -140,13 +170,17 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       const nextJson = `${JSON.stringify(parsed, null, 2)}\n`;
       setConfig(parsed);
       setScripts(nextScripts);
+      setOriginalScripts(nextScripts);
       setPreservePatternsInput(nextPreservePatterns.join('\n'));
+      setOriginalPreservePatternsInput(nextPreservePatterns.join('\n'));
       setJsonContent(nextJson);
       setOriginalContent(nextJson);
     } catch (err) {
       setConfig({});
       setScripts({ ...EMPTY_SCRIPTS });
+      setOriginalScripts({ ...EMPTY_SCRIPTS });
       setPreservePatternsInput('');
+      setOriginalPreservePatternsInput('');
       setJsonContent('');
       setOriginalContent('');
       setError(err instanceof Error ? err.message : 'Failed to load config');
@@ -241,7 +275,9 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         const nextPreservePatterns = preservePatternsFromConfig(parsed);
         setConfig(parsed);
         setScripts(nextScripts);
+        setOriginalScripts(nextScripts);
         setPreservePatternsInput(nextPreservePatterns.join('\n'));
+        setOriginalPreservePatternsInput(nextPreservePatterns.join('\n'));
         contentToSave = jsonContent.endsWith('\n') ? jsonContent : `${jsonContent}\n`;
       }
 
@@ -251,13 +287,24 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       }
 
       setOriginalContent(contentToSave);
+      setOriginalScripts(scripts);
+      setOriginalPreservePatternsInput(preservePatternsInput);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save config');
     } finally {
       setIsSaving(false);
     }
-  }, [jsonContent, jsonError, mode, normalizedConfigContent, onClose, projectPath]);
+  }, [
+    jsonContent,
+    jsonError,
+    mode,
+    normalizedConfigContent,
+    onClose,
+    preservePatternsInput,
+    projectPath,
+    scripts,
+  ]);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
