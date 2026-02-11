@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { SSH_IPC_CHANNELS } from '../../shared/ssh/types';
-import { SshService } from '../services/ssh/SshService';
+import { sshService } from '../services/ssh/SshService';
 import { SshCredentialService } from '../services/ssh/SshCredentialService';
 import { SshHostKeyService } from '../services/ssh/SshHostKeyService';
 import { SshConnectionMonitor } from '../services/ssh/SshConnectionMonitor';
@@ -20,8 +20,6 @@ import type {
 } from '../../shared/ssh/types';
 
 // Initialize services
-// Exported so other main-process IPC handlers can reuse the same connection pool.
-export const sshService = new SshService();
 const credentialService = new SshCredentialService();
 // Host key service initialized for future use (host key verification)
 const _hostKeyService = new SshHostKeyService();
@@ -424,7 +422,23 @@ export function registerSshIpc() {
     }
   );
 
-  // Execute command
+  // Execute command (guarded: only allow known-safe command prefixes from renderer)
+  const ALLOWED_COMMAND_PREFIXES = [
+    'git ',
+    'ls ',
+    'pwd',
+    'cat ',
+    'head ',
+    'tail ',
+    'wc ',
+    'stat ',
+    'file ',
+    'which ',
+    'echo ',
+    'test ',
+    '[ ',
+  ];
+
   ipcMain.handle(
     SSH_IPC_CHANNELS.EXECUTE_COMMAND,
     async (
@@ -440,6 +454,16 @@ export function registerSshIpc() {
       error?: string;
     }> => {
       try {
+        // Validate the command against the allowlist
+        const trimmed = command.trimStart();
+        const isAllowed = ALLOWED_COMMAND_PREFIXES.some(
+          (prefix) => trimmed === prefix.trimEnd() || trimmed.startsWith(prefix)
+        );
+        if (!isAllowed) {
+          console.warn(`[sshIpc] Blocked disallowed command: ${trimmed.slice(0, 80)}`);
+          return { success: false, error: 'Command not allowed' };
+        }
+
         const result = await sshService.executeCommand(connectionId, command, cwd);
         return { success: true, ...result };
       } catch (error: any) {
@@ -458,6 +482,11 @@ export function registerSshIpc() {
       path: string
     ): Promise<{ success: boolean; files?: FileEntry[]; error?: string }> => {
       try {
+        // Validate path to prevent browsing sensitive directories
+        if (!isPathSafe(path)) {
+          return { success: false, error: 'Access denied: path is restricted' };
+        }
+
         const sftp = await sshService.getSftp(connectionId);
 
         return new Promise((resolve) => {

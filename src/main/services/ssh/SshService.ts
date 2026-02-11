@@ -348,3 +348,6 @@ export class SshService extends EventEmitter {
     await Promise.all(disconnectPromises);
   }
 }
+
+/** Module-level singleton — all main-process code should import this. */
+export const sshService = new SshService();

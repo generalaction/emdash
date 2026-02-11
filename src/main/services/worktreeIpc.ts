@@ -7,7 +7,7 @@ import { projects as projectsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import crypto from 'crypto';
 import { RemoteGitService } from './RemoteGitService';
-import { sshService } from '../ipc/sshIpc';
+import { sshService } from './ssh/SshService';
 import { log } from '../lib/logger';
 import { quoteShellArg } from '../utils/shellEscape';
 
