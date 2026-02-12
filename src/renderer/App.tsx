@@ -87,6 +87,8 @@ const AppContent: React.FC = () => {
   const {
     showSettings,
     settingsInitialTab,
+    showSettingsPage,
+    settingsPageInitialTab,
     showCommandPalette,
     showWelcomeScreen,
     showTaskModal,
@@ -101,10 +103,12 @@ const AppContent: React.FC = () => {
     setShowNewProjectModal,
     setShowCloneModal,
     openSettings,
+    openSettingsPage,
     handleToggleSettings,
     handleOpenSettings,
     handleOpenKeyboardShortcuts,
     handleCloseSettings,
+    handleCloseSettingsPage,
     handleToggleCommandPalette,
     handleCloseCommandPalette,
     handleToggleKanban,
@@ -189,7 +193,7 @@ const AppContent: React.FC = () => {
   });
 
   // Show toast on update availability
-  useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => openSettings('general') });
+  useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => openSettingsPage('general') });
 
   // Auto-refresh PR status
   useAutoPrRefresh(taskMgmt.activeTask?.path);
@@ -393,11 +397,11 @@ const AppContent: React.FC = () => {
             <RightSidebarProvider>
               <AppKeyboardShortcuts
                 showCommandPalette={showCommandPalette}
-                showSettings={showSettings}
+                showSettings={showSettingsPage}
                 handleToggleCommandPalette={handleToggleCommandPalette}
-                handleOpenSettings={handleOpenSettings}
+                handleOpenSettings={() => openSettingsPage()}
                 handleCloseCommandPalette={handleCloseCommandPalette}
-                handleCloseSettings={handleCloseSettings}
+                handleCloseSettings={handleCloseSettingsPage}
                 handleToggleKanban={handleToggleKanban}
                 handleToggleEditor={handleToggleEditor}
                 handleNextTask={taskMgmt.handleNextTask}
@@ -410,8 +414,8 @@ const AppContent: React.FC = () => {
               />
               {!showWelcomeScreen && (
                 <Titlebar
-                  onToggleSettings={handleToggleSettings}
-                  isSettingsOpen={showSettings}
+                  onToggleSettings={() => openSettingsPage()}
+                  isSettingsOpen={showSettingsPage}
                   currentPath={
                     activeTask?.metadata?.multiAgent?.enabled
                       ? null
@@ -485,6 +489,7 @@ const AppContent: React.FC = () => {
                       isHomeView={projectMgmt.showHomeView}
                       onGoToSkills={projectMgmt.handleGoToSkills}
                       isSkillsView={projectMgmt.showSkillsView}
+                      onCloseSettingsPage={handleCloseSettingsPage}
                     />
                   </ResizablePanel>
                   <ResizableHandle
@@ -505,6 +510,9 @@ const AppContent: React.FC = () => {
                         showKanban={showKanban}
                         showHomeView={projectMgmt.showHomeView}
                         showSkillsView={projectMgmt.showSkillsView}
+                        showSettingsPage={showSettingsPage}
+                        settingsPageInitialTab={settingsPageInitialTab}
+                        handleCloseSettingsPage={handleCloseSettingsPage}
                         projectDefaultBranch={projectMgmt.projectDefaultBranch}
                         projectBranchOptions={projectMgmt.projectBranchOptions}
                         isLoadingBranches={projectMgmt.isLoadingBranches}
@@ -561,8 +569,8 @@ const AppContent: React.FC = () => {
                 handleSelectTask={taskMgmt.handleSelectTask}
                 handleGoHome={projectMgmt.handleGoHome}
                 handleOpenProject={projectMgmt.handleOpenProject}
-                handleOpenSettings={handleOpenSettings}
-                handleOpenKeyboardShortcuts={handleOpenKeyboardShortcuts}
+                handleOpenSettings={() => openSettingsPage()}
+                handleOpenKeyboardShortcuts={() => openSettingsPage('interface')}
               />
               {showEditorMode && activeTask && selectedProject && (
                 <CodeEditor

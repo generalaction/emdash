@@ -2,9 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import type { SettingsTab } from '../components/SettingsModal';
 import { FIRST_LAUNCH_KEY } from '../constants/layout';
 
+export type SettingsPageTab = 'general' | 'clis-models' | 'integrations' | 'repository' | 'interface' | 'docs';
+
 export interface ModalState {
   showSettings: boolean;
   settingsInitialTab: SettingsTab;
+  showSettingsPage: boolean;
+  settingsPageInitialTab: SettingsPageTab;
   showCommandPalette: boolean;
   showWelcomeScreen: boolean;
   showTaskModal: boolean;
@@ -18,6 +22,8 @@ export interface ModalState {
 export interface ModalActions {
   setShowSettings: React.Dispatch<React.SetStateAction<boolean>>;
   setSettingsInitialTab: React.Dispatch<React.SetStateAction<SettingsTab>>;
+  setShowSettingsPage: React.Dispatch<React.SetStateAction<boolean>>;
+  setSettingsPageInitialTab: React.Dispatch<React.SetStateAction<SettingsPageTab>>;
   setShowCommandPalette: React.Dispatch<React.SetStateAction<boolean>>;
   setShowWelcomeScreen: React.Dispatch<React.SetStateAction<boolean>>;
   setShowTaskModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -27,10 +33,12 @@ export interface ModalActions {
   setShowKanban: React.Dispatch<React.SetStateAction<boolean>>;
   setShowDeviceFlowModal: React.Dispatch<React.SetStateAction<boolean>>;
   openSettings: (tab?: SettingsTab) => void;
+  openSettingsPage: (tab?: SettingsPageTab) => void;
   handleToggleSettings: () => void;
   handleOpenSettings: () => void;
   handleOpenKeyboardShortcuts: () => void;
   handleCloseSettings: () => void;
+  handleCloseSettingsPage: () => void;
   handleToggleCommandPalette: () => void;
   handleCloseCommandPalette: () => void;
   handleToggleKanban: () => void;
@@ -44,6 +52,8 @@ export function useModalState(deps: {
 }): ModalState & ModalActions {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
+  const [showSettingsPage, setShowSettingsPage] = useState<boolean>(false);
+  const [settingsPageInitialTab, setSettingsPageInitialTab] = useState<SettingsPageTab>('general');
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
@@ -56,6 +66,11 @@ export function useModalState(deps: {
   const openSettings = useCallback((tab: SettingsTab = 'general') => {
     setSettingsInitialTab(tab);
     setShowSettings(true);
+  }, []);
+
+  const openSettingsPage = useCallback((tab: SettingsPageTab = 'general') => {
+    setSettingsPageInitialTab(tab);
+    setShowSettingsPage(true);
   }, []);
 
   const handleToggleSettings = useCallback(() => {
@@ -77,6 +92,10 @@ export function useModalState(deps: {
 
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
+  }, []);
+
+  const handleCloseSettingsPage = useCallback(() => {
+    setShowSettingsPage(false);
   }, []);
 
   const handleToggleCommandPalette = useCallback(() => {
@@ -142,6 +161,8 @@ export function useModalState(deps: {
   return {
     showSettings,
     settingsInitialTab,
+    showSettingsPage,
+    settingsPageInitialTab,
     showCommandPalette,
     showWelcomeScreen,
     showTaskModal,
@@ -152,6 +173,8 @@ export function useModalState(deps: {
     showDeviceFlowModal,
     setShowSettings,
     setSettingsInitialTab,
+    setShowSettingsPage,
+    setSettingsPageInitialTab,
     setShowCommandPalette,
     setShowWelcomeScreen,
     setShowTaskModal,
@@ -161,10 +184,12 @@ export function useModalState(deps: {
     setShowKanban,
     setShowDeviceFlowModal,
     openSettings,
+    openSettingsPage,
     handleToggleSettings,
     handleOpenSettings,
     handleOpenKeyboardShortcuts,
     handleCloseSettings,
+    handleCloseSettingsPage,
     handleToggleCommandPalette,
     handleCloseCommandPalette,
     handleToggleKanban,
