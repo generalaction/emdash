@@ -41,6 +41,7 @@ import { useGithubIntegration } from './hooks/useGithubIntegration';
 import { useProjectManagement } from './hooks/useProjectManagement';
 import { useTaskManagement } from './hooks/useTaskManagement';
 import { createTask } from './lib/taskCreationService';
+import { getProjectRepoKey } from './lib/projectUtils';
 
 // Extracted constants
 import {
@@ -294,12 +295,25 @@ const AppContent: React.FC = () => {
       captureTelemetry('remote_project_created');
 
       try {
+        // Check for existing project with same repoKey
+        const repoKey = `${remoteProject.host}:${remoteProject.path}`;
+        const existingProject = projectMgmt.projects.find((p) => getProjectRepoKey(p) === repoKey);
+
+        if (existingProject) {
+          projectMgmt.activateProjectView(existingProject);
+          toast({
+            title: 'Project already open',
+            description: `"${existingProject.name}" is already in the sidebar.`,
+          });
+          return;
+        }
+
         // Create project object for remote project
         const project: Project = {
           id: remoteProject.id,
           name: remoteProject.name,
           path: remoteProject.path,
-          repoKey: `${remoteProject.host}:${remoteProject.path}`,
+          repoKey,
           gitInfo: {
             isGitRepo: true,
           },
@@ -342,7 +356,7 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [projectMgmt.activateProjectView, toast, appInit.saveProjectOrder]
+    [projectMgmt.projects, projectMgmt.activateProjectView, toast, appInit.saveProjectOrder]
   );
 
   // --- Convenience aliases and SSH-derived remote connection info ---
@@ -519,6 +533,8 @@ const AppContent: React.FC = () => {
                         handleAddRemoteProject={handleAddRemoteProjectClick}
                         setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
                         setShowKanban={(show: boolean) => setShowKanban(show)}
+                        projectRemoteConnectionId={derivedRemoteConnectionId}
+                        projectRemotePath={derivedRemotePath}
                       />
                     </div>
                   </ResizablePanel>

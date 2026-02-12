@@ -571,7 +571,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       if (useExistingConnection && selectedSavedConnection) {
         // Reuse existing connection — no save needed
         onSuccess({
-          id: selectedSavedConnection,
+          id: Date.now().toString(),
           name: formData.name,
           path: formData.remotePath,
           host: formData.host,
@@ -595,7 +595,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         const savedConfig = await window.electronAPI.sshSaveConnection(saveConfig);
 
         onSuccess({
-          id: savedConfig.id!,
+          id: Date.now().toString(),
           name: formData.name,
           path: formData.remotePath,
           host: formData.host,
