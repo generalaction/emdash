@@ -186,9 +186,7 @@ const TerminalSettingsCard: React.FC = () => {
     <div className="flex items-center justify-between gap-4">
       <div className="flex flex-1 flex-col gap-0.5">
         <p className="text-sm font-medium text-foreground">Terminal font</p>
-        <p className="text-sm text-muted-foreground">
-          Choose the font family for the terminal.
-        </p>
+        <p className="text-sm text-muted-foreground">Choose the font family for the terminal.</p>
       </div>
       <div className="w-[183px] flex-shrink-0">
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -203,89 +201,89 @@ const TerminalSettingsCard: React.FC = () => {
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
             </Button>
           </PopoverTrigger>
-        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
-          <div className="grid gap-2">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter') return;
-                const typed = search.trim();
-                if (!typed) return;
-                setSearch('');
-                setPickerOpen(false);
-                void applyFont(typed);
-              }}
-              placeholder="Search or type custom font"
-              aria-label="Search font options"
-              className="h-8"
-            />
-            <div className="max-h-56 overflow-auto">
-              {filteredPopularOptions.length > 0 ? (
-                <>
-                  <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Popular
+          <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
+            <div className="grid gap-2">
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  const typed = search.trim();
+                  if (!typed) return;
+                  setSearch('');
+                  setPickerOpen(false);
+                  void applyFont(typed);
+                }}
+                placeholder="Search or type custom font"
+                aria-label="Search font options"
+                className="h-8"
+              />
+              <div className="max-h-56 overflow-auto">
+                {filteredPopularOptions.length > 0 ? (
+                  <>
+                    <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Popular
+                    </div>
+                    {filteredPopularOptions.map((option) => {
+                      const selected =
+                        selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                          onClick={() => {
+                            setSearch('');
+                            setPickerOpen(false);
+                            void applyFont(option.fontValue);
+                          }}
+                        >
+                          <span>{option.label}</span>
+                          {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
+                        </button>
+                      );
+                    })}
+                  </>
+                ) : null}
+
+                {filteredInstalledOptions.length > 0 || loadingFonts ? (
+                  <div className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Installed Fonts
                   </div>
-                  {filteredPopularOptions.map((option) => {
-                    const selected =
-                      selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                        onClick={() => {
-                          setSearch('');
-                          setPickerOpen(false);
-                          void applyFont(option.fontValue);
-                        }}
-                      >
-                        <span>{option.label}</span>
-                        {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
-                      </button>
-                    );
-                  })}
-                </>
-              ) : null}
+                ) : null}
 
-              {filteredInstalledOptions.length > 0 || loadingFonts ? (
-                <div className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Installed Fonts
-                </div>
-              ) : null}
+                {loadingFonts ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    Loading installed fonts...
+                  </div>
+                ) : null}
 
-              {loadingFonts ? (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  Loading installed fonts...
-                </div>
-              ) : null}
+                {filteredInstalledOptions.map((option) => {
+                  const selected =
+                    selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                      onClick={() => {
+                        setSearch('');
+                        setPickerOpen(false);
+                        void applyFont(option.fontValue);
+                      }}
+                    >
+                      <span>{option.label}</span>
+                      {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
+                    </button>
+                  );
+                })}
 
-              {filteredInstalledOptions.map((option) => {
-                const selected =
-                  selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                    onClick={() => {
-                      setSearch('');
-                      setPickerOpen(false);
-                      void applyFont(option.fontValue);
-                    }}
-                  >
-                    <span>{option.label}</span>
-                    {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
-                  </button>
-                );
-              })}
-
-              {!loadingFonts && !hasAnyResults ? (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">No fonts found.</div>
-              ) : null}
+                {!loadingFonts && !hasAnyResults ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No fonts found.</div>
+                ) : null}
+              </div>
             </div>
-          </div>
-        </PopoverContent>
+          </PopoverContent>
         </Popover>
       </div>
     </div>

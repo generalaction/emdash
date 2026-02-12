@@ -362,7 +362,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               className="flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent pr-7 text-left outline-none focus-visible:outline-none"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleNavigationWithCloseSettings(() => onSelectProject(typedProject));
+                                handleNavigationWithCloseSettings(() =>
+                                  onSelectProject(typedProject)
+                                );
                               }}
                             >
                               <span className="block w-full truncate">
@@ -415,7 +417,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleNavigationWithCloseSettings(() => {
-                                    if (onSelectProject && selectedProject?.id !== typedProject.id) {
+                                    if (
+                                      onSelectProject &&
+                                      selectedProject?.id !== typedProject.id
+                                    ) {
                                       onSelectProject(typedProject);
                                     } else if (!selectedProject) {
                                       onSelectProject?.(typedProject);

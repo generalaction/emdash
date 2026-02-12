@@ -76,9 +76,7 @@ const Context7SettingsCard: React.FC = () => {
                       variant="link"
                       size="sm"
                       className="h-auto p-0 text-xs underline-offset-2 hover:underline"
-                      onClick={() =>
-                        window.electronAPI.openExternal(CONTEXT7_INTEGRATION.docsUrl)
-                      }
+                      onClick={() => window.electronAPI.openExternal(CONTEXT7_INTEGRATION.docsUrl)}
                     >
                       Docs ↗
                     </Button>

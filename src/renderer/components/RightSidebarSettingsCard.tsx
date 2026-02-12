@@ -39,7 +39,9 @@ const RightSidebarSettingsCard: React.FC = () => {
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="flex flex-1 flex-col gap-0.5">
-        <span className="text-sm font-medium text-foreground">Auto-collapse right sidebar on home pages</span>
+        <span className="text-sm font-medium text-foreground">
+          Auto-collapse right sidebar on home pages
+        </span>
         <span className="text-sm text-muted-foreground">
           Collapse sidebar on home/repo pages, expand on tasks
         </span>
