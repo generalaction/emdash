@@ -409,9 +409,7 @@ export function getAllProviderCustomConfigs(): ProviderCustomConfigs {
   const settings = getAppSettings();
   const configs = settings.providerConfigs ?? {};
   // Return deep copy to prevent cache corruption
-  return Object.fromEntries(
-    Object.entries(configs).map(([key, value]) => [key, { ...value }])
-  );
+  return Object.fromEntries(Object.entries(configs).map(([key, value]) => [key, { ...value }]));
 }
 
 /**
