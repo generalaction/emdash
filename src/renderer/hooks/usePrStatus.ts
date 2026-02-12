@@ -31,10 +31,10 @@ export function usePrStatus(taskPath?: string) {
     }
 
     setIsLoading(true);
-    
+
     return subscribeToPrStatus(taskPath, (newPr, newLoading) => {
-        setPr(newPr);
-        setIsLoading(newLoading);
+      setPr(newPr);
+      setIsLoading(newLoading);
     });
   }, [taskPath]);
 

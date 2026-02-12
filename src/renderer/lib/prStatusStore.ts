@@ -68,7 +68,7 @@ export function subscribeToPrStatus(taskPath: string, listener: Listener): () =>
   // Emit current cached value if available
   const cached = cache.get(taskPath);
   const isPending = pending.has(taskPath);
-  
+
   if (cached !== undefined) {
     try {
       listener(cached, false);
@@ -76,7 +76,7 @@ export function subscribeToPrStatus(taskPath: string, listener: Listener): () =>
   } else if (isPending) {
     // If pending but no cache (first load), emit undefined pr with loading=true
     try {
-        listener(null, true);
+      listener(null, true);
     } catch {}
   }
 

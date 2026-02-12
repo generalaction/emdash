@@ -629,9 +629,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             </div>
             <div className="flex items-center gap-2">
               {isPrLoading ? (
-                 <div className="flex items-center justify-center p-1">
-                    <Spinner size="sm" className="h-3.5 w-3.5" />
-                 </div>
+                <div className="flex items-center justify-center p-1">
+                  <Spinner size="sm" className="h-3.5 w-3.5" />
+                </div>
               ) : pr ? (
                 <button
                   type="button"
