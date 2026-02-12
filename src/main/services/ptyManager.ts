@@ -6,6 +6,7 @@ import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
+import { getProviderCustomConfig } from '../settings';
 
 /**
  * Environment variables to pass through for agent authentication.
@@ -54,6 +55,81 @@ type PtyRecord = {
 };
 
 const ptys = new Map<string, PtyRecord>();
+
+/**
+ * Parse a shell-style argument string into an array of arguments.
+ * Handles single quotes, double quotes, and escape characters.
+ *
+ * Examples:
+ *   '--flag1 --flag2' → ['--flag1', '--flag2']
+ *   '--message "hello world"' → ['--message', 'hello world']
+ *   "--path '/my dir/file'" → ['--path', '/my dir/file']
+ *   '--arg "say \"hi\""' → ['--arg', 'say "hi"']
+ */
+function parseShellArgs(input: string): string[] {
+  const args: string[] = [];
+  let current = '';
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let escape = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+
+    if (escape) {
+      // Handle escaped character
+      current += char;
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\' && !inSingleQuote) {
+      // Backslash escapes next character (except inside single quotes)
+      escape = true;
+      continue;
+    }
+
+    if (char === "'" && !inDoubleQuote) {
+      // Toggle single quote mode
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+
+    if (char === '"' && !inSingleQuote) {
+      // Toggle double quote mode
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+
+    if (char === ' ' && !inSingleQuote && !inDoubleQuote) {
+      // Space outside quotes - end of argument
+      if (current.length > 0) {
+        args.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  // Handle trailing backslash: include it literally
+  if (escape) {
+    current += '\\';
+  }
+
+  // Warn on unclosed quotes (still push what we have)
+  if (inSingleQuote || inDoubleQuote) {
+    log.warn('parseShellArgs: unclosed quote in input', { input });
+  }
+
+  // Don't forget the last argument
+  if (current.length > 0) {
+    args.push(current);
+  }
+
+  return args;
+}
 
 // Callback to spawn shell after direct CLI exits (set by ptyIpc)
 let onDirectCliExitCallback: ((id: string, cwd: string) => void) | null = null;
@@ -404,34 +480,61 @@ export async function startPty(options: {
       const provider = PROVIDERS.find((p) => p.cli === baseLower);
 
       if (provider) {
+        // Get custom config if available
+        const customConfig = getProviderCustomConfig(provider.id);
+
+        // Resolve values: custom config overrides provider defaults
+        // Empty string means "disabled", undefined means "use default"
+        // For CLI specifically, empty string falls back to default (can't have empty CLI)
+        const resolvedCli =
+          customConfig?.cli !== undefined && customConfig.cli !== ''
+            ? customConfig.cli
+            : provider.cli || baseLower;
+        const resolvedResumeFlag =
+          customConfig?.resumeFlag !== undefined ? customConfig.resumeFlag : provider.resumeFlag;
+        const resolvedDefaultArgs =
+          customConfig?.defaultArgs !== undefined
+            ? parseShellArgs(customConfig.defaultArgs)
+            : provider.defaultArgs;
+        const resolvedAutoApproveFlag =
+          customConfig?.autoApproveFlag !== undefined
+            ? customConfig.autoApproveFlag
+            : provider.autoApproveFlag;
+        const resolvedInitialPromptFlag =
+          customConfig?.initialPromptFlag !== undefined
+            ? customConfig.initialPromptFlag
+            : provider.initialPromptFlag;
+
         // Build the provider command with flags
         const cliArgs: string[] = [];
 
         // Add resume flag FIRST if available (unless skipResume is true)
-        if (provider.resumeFlag && !skipResume) {
-          const resumeParts = provider.resumeFlag.split(' ');
+        if (resolvedResumeFlag && !skipResume) {
+          const resumeParts = parseShellArgs(resolvedResumeFlag);
           cliArgs.push(...resumeParts);
         }
 
         // Then add default args
-        if (provider.defaultArgs?.length) {
-          cliArgs.push(...provider.defaultArgs);
+        if (resolvedDefaultArgs?.length) {
+          cliArgs.push(...resolvedDefaultArgs);
         }
 
-        // Then auto-approve flag
-        if (autoApprove && provider.autoApproveFlag) {
-          cliArgs.push(provider.autoApproveFlag);
+        // Then auto-approve flag (parse shell-style in case of multiple flags or quoted values)
+        if (autoApprove && resolvedAutoApproveFlag) {
+          const autoApproveParts = parseShellArgs(resolvedAutoApproveFlag);
+          cliArgs.push(...autoApproveParts);
         }
 
-        // Finally initial prompt
-        if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
-          if (provider.initialPromptFlag) {
-            cliArgs.push(provider.initialPromptFlag);
+        // Finally initial prompt (parse shell-style in case of multiple flags or quoted values)
+        if (resolvedInitialPromptFlag !== undefined && initialPrompt?.trim()) {
+          if (resolvedInitialPromptFlag) {
+            const promptFlagParts = parseShellArgs(resolvedInitialPromptFlag);
+            cliArgs.push(...promptFlagParts);
           }
           cliArgs.push(initialPrompt.trim());
         }
 
-        const cliCommand = provider.cli || baseLower;
+        const cliCommand = resolvedCli;
         const commandString =
           cliArgs.length > 0
             ? `${cliCommand} ${cliArgs

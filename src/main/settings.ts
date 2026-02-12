@@ -41,6 +41,21 @@ export interface InterfaceSettings {
   theme?: 'light' | 'dark' | 'dark-black' | 'system';
 }
 
+/**
+ * Custom configuration for a CLI provider.
+ * All fields are optional - if undefined, the default from registry.ts is used.
+ * If set to empty string, the flag is disabled.
+ */
+export interface ProviderCustomConfig {
+  cli?: string;
+  resumeFlag?: string;
+  defaultArgs?: string;
+  autoApproveFlag?: string;
+  initialPromptFlag?: string;
+}
+
+export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
+
 export interface AppSettings {
   repository: RepositorySettings;
   projectPrep: {
@@ -70,6 +85,7 @@ export interface AppSettings {
   };
   keyboard?: KeyboardSettings;
   interface?: InterfaceSettings;
+  providerConfigs?: ProviderCustomConfigs;
   terminal?: {
     fontFamily: string;
   };
@@ -124,6 +140,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     autoRightSidebarBehavior: false,
     theme: 'system',
   },
+  providerConfigs: {},
   terminal: {
     fontFamily: '',
   },
@@ -340,6 +357,26 @@ function normalizeSettings(input: AppSettings): AppSettings {
       : DEFAULT_SETTINGS.interface!.theme,
   };
 
+  // Provider custom configs
+  const providerConfigs = (input as any)?.providerConfigs || {};
+  out.providerConfigs = {};
+  if (providerConfigs && typeof providerConfigs === 'object') {
+    for (const [providerId, config] of Object.entries(providerConfigs)) {
+      if (config && typeof config === 'object') {
+        const c = config as Record<string, unknown>;
+        out.providerConfigs[providerId] = {
+          ...(typeof c.cli === 'string' ? { cli: c.cli } : {}),
+          ...(typeof c.resumeFlag === 'string' ? { resumeFlag: c.resumeFlag } : {}),
+          ...(typeof c.defaultArgs === 'string' ? { defaultArgs: c.defaultArgs } : {}),
+          ...(typeof c.autoApproveFlag === 'string' ? { autoApproveFlag: c.autoApproveFlag } : {}),
+          ...(typeof c.initialPromptFlag === 'string'
+            ? { initialPromptFlag: c.initialPromptFlag }
+            : {}),
+        };
+      }
+    }
+  }
+
   // Terminal
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
@@ -352,4 +389,51 @@ function normalizeSettings(input: AppSettings): AppSettings {
     : DEFAULT_SETTINGS.defaultOpenInApp!;
 
   return out;
+}
+
+/**
+ * Get custom configuration for a specific provider.
+ * Returns a shallow copy to prevent cache corruption from external mutations.
+ */
+export function getProviderCustomConfig(providerId: string): ProviderCustomConfig | undefined {
+  const settings = getAppSettings();
+  const config = settings.providerConfigs?.[providerId];
+  return config ? { ...config } : undefined;
+}
+
+/**
+ * Get all provider custom configurations.
+ * Returns a deep copy to prevent cache corruption from external mutations.
+ */
+export function getAllProviderCustomConfigs(): ProviderCustomConfigs {
+  const settings = getAppSettings();
+  const configs = settings.providerConfigs ?? {};
+  // Return deep copy to prevent cache corruption
+  return Object.fromEntries(Object.entries(configs).map(([key, value]) => [key, { ...value }]));
+}
+
+/**
+ * Update custom configuration for a specific provider.
+ * Pass undefined to remove the custom config and use defaults.
+ */
+export function updateProviderCustomConfig(
+  providerId: string,
+  config: ProviderCustomConfig | undefined
+): void {
+  const settings = getAppSettings();
+  const currentConfigs = settings.providerConfigs ?? {};
+
+  if (config === undefined) {
+    // Remove the config
+    const { [providerId]: _, ...rest } = currentConfigs;
+    updateAppSettings({ providerConfigs: rest });
+  } else {
+    // Update/add the config
+    updateAppSettings({
+      providerConfigs: {
+        ...currentConfigs,
+        [providerId]: config,
+      },
+    });
+  }
 }

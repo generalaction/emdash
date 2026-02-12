@@ -381,6 +381,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
+  getProviderCustomConfig: (providerId: string) =>
+    ipcRenderer.invoke('providers:getCustomConfig', providerId),
+  getAllProviderCustomConfigs: () => ipcRenderer.invoke('providers:getAllCustomConfigs'),
+  updateProviderCustomConfig: (providerId: string, config: any) =>
+    ipcRenderer.invoke('providers:updateCustomConfig', providerId, config),
   // Database methods
   getProjects: () => ipcRenderer.invoke('db:getProjects'),
   saveProject: (project: any) => ipcRenderer.invoke('db:saveProject', project),

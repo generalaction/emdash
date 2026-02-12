@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
-import { Sparkles } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Settings2, Sparkles } from 'lucide-react';
 import IntegrationRow from './IntegrationRow';
+import CustomCommandModal from './CustomCommandModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { CliAgentStatus } from '../types/connections';
 import { PROVIDERS } from '@shared/providers/registry';
 import { agentAssets } from '@/providers/assets';
@@ -21,7 +23,10 @@ export const BASE_CLI_AGENTS: CliAgentStatus[] = PROVIDERS.filter(
   installCommand: provider.installCommand ?? null,
 }));
 
-const renderAgentRow = (agent: CliAgentStatus) => {
+const ICON_BUTTON =
+  'rounded-md p-1.5 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+
+const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => void) => {
   const logo = agentAssets[agent.id as keyof typeof agentAssets]?.logo;
 
   const handleNameClick =
@@ -60,29 +65,60 @@ const renderAgentRow = (agent: CliAgentStatus) => {
           {statusLabel}
         </span>
       }
+      rightExtra={
+        isDetected ? (
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onSettingsClick(agent.id)}
+                  className={ICON_BUTTON}
+                  aria-label={`${agent.name} execution settings`}
+                >
+                  <Settings2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                Execution settings
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null
+      }
     />
   );
 };
 
-const CliAgentsList: React.FC<CliAgentsListProps> = ({ agents, error }) => {
+const CliAgentsList: React.FC<CliAgentsListProps> = (props) => {
+  const [customModalAgentId, setCustomModalAgentId] = useState<string | null>(null);
+
   const sortedAgents = useMemo(() => {
-    const source = agents.length ? agents : BASE_CLI_AGENTS;
+    const source = props.agents.length ? props.agents : BASE_CLI_AGENTS;
     return [...source].sort((a, b) => {
       if (a.status === 'connected' && b.status !== 'connected') return -1;
       if (b.status === 'connected' && a.status !== 'connected') return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [agents]);
+  }, [props.agents]);
 
   return (
     <div className="space-y-3">
-      {error ? (
+      {props.error ? (
         <div className="rounded-md border border-red-200/70 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:border-red-500/40 dark:text-red-400">
-          {error}
+          {props.error}
         </div>
       ) : null}
 
-      <div className="space-y-2">{sortedAgents.map((agent) => renderAgentRow(agent))}</div>
+      <div className="space-y-2">
+        {sortedAgents.map((agent) => renderAgentRow(agent, setCustomModalAgentId))}
+      </div>
+
+      <CustomCommandModal
+        isOpen={customModalAgentId !== null}
+        onClose={() => setCustomModalAgentId(null)}
+        providerId={customModalAgentId ?? ''}
+      />
     </div>
   );
 };

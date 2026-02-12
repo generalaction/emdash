@@ -21,6 +21,16 @@ export type LineComment = {
   sentAt?: string | null;
 };
 
+export type ProviderCustomConfig = {
+  cli?: string;
+  resumeFlag?: string;
+  defaultArgs?: string;
+  autoApproveFlag?: string;
+  initialPromptFlag?: string;
+};
+
+export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
+
 export {};
 
 declare global {
@@ -960,6 +970,23 @@ declare global {
       onProviderStatusUpdated?: (
         listener: (data: { providerId: string; status: any }) => void
       ) => () => void;
+      getProviderCustomConfig?: (providerId: string) => Promise<{
+        success: boolean;
+        config?: ProviderCustomConfig;
+        error?: string;
+      }>;
+      getAllProviderCustomConfigs?: () => Promise<{
+        success: boolean;
+        configs?: ProviderCustomConfigs;
+        error?: string;
+      }>;
+      updateProviderCustomConfig?: (
+        providerId: string,
+        config: ProviderCustomConfig | undefined
+      ) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
 
       // Database operations
       getProjects: () => Promise<any[]>;
