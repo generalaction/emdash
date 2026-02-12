@@ -23,15 +23,7 @@ export function UpdateCard(): JSX.Element {
   };
 
   const handleDownload = async () => {
-    const result = await updater.download();
-    // If download fails due to missing zip file, offer manual download
-    if (!result?.success && updater.state.status === 'error') {
-      const errorMessage = updater.state.message || '';
-      if (errorMessage.includes('ZIP_FILE_NOT_FOUND') || errorMessage.includes('404')) {
-        // Auto-update not available, open manual download
-        await window.electronAPI.openLatestDownload();
-      }
-    }
+    await updater.download();
   };
 
   const handleInstall = () => {
@@ -149,15 +141,14 @@ export function UpdateCard(): JSX.Element {
         );
 
       case 'error':
-        const errorMsg = updater.state.message || 'Update check failed';
-        const isZipError = errorMsg.includes('ZIP_FILE_NOT_FOUND') || errorMsg.includes('404');
         return (
-          <p className="flex items-center gap-1 text-xs text-red-600 dark:text-red-500">
+          <Badge
+            variant="outline"
+            className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+          >
             <AlertCircle className="h-3 w-3" />
-            {isZipError
-              ? 'There was a problem with the update, manual download required'
-              : errorMsg}
-          </p>
+            Update temporarily unavailable — please try again later
+          </Badge>
         );
 
       default:
@@ -200,21 +191,6 @@ export function UpdateCard(): JSX.Element {
         );
 
       case 'error':
-        const err = updater.state.message || '';
-        const needsManual = err.includes('ZIP_FILE_NOT_FOUND') || err.includes('404');
-        if (needsManual) {
-          return (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => window.electronAPI.openLatestDownload()}
-              className="h-7 text-xs"
-            >
-              <Download className="mr-1.5 h-3 w-3" />
-              Manual Download
-            </Button>
-          );
-        }
         return (
           <Button size="sm" variant="outline" onClick={handleCheckNow} className="h-7 text-xs">
             Try Again
