@@ -1,14 +1,14 @@
 ---
 default_branch: main
-package_manager: npm
+package_manager: pnpm
 node_version: "22.20.0"
-start_command: "npm run d"
-dev_command: "npm run dev"
-build_command: "npm run build"
+start_command: "pnpm run d"
+dev_command: "pnpm run dev"
+build_command: "pnpm run build"
 test_commands:
-  - "npm run lint"
-  - "npm run type-check"
-  - "npx vitest run"
+  - "pnpm run lint"
+  - "pnpm run type-check"
+  - "pnpm exec vitest run"
 ports:
   dev: 3000
 required_env: []
@@ -22,18 +22,18 @@ optional_env:
 
 **Quickstart**
 1. `nvm use` (installs Node 22.20.0 if missing) or install Node 22.x manually.
-2. `npm run d` to install dependencies, rebuild native modules, and launch Electron + Vite.
-3. If `npm run d` fails mid-stream, rerun `npm install`, then `npm run dev` (main + renderer).
+2. `pnpm run d` to install dependencies, rebuild native modules, and launch Electron + Vite.
+3. If `pnpm run d` fails mid-stream, rerun `pnpm install`, then `pnpm run dev` (main + renderer).
 
 **Testing**
-1. Run `npm run lint`.
-2. Run `npm run type-check`.
-3. Run `npx vitest run` (tests live under `src/**/*.test.ts`).
+1. Run `pnpm run lint`.
+2. Run `pnpm run type-check`.
+3. Run `pnpm exec vitest run` (tests live under `src/**/*.test.ts`).
 
 **Build & Package**
-1. `npm run build` to compile the Electron main and Vite renderer.
-2. Platform-specific installers: `npm run package:mac|linux|win` (artifacts in `release/`).
-3. If native modules misbehave, `npm run rebuild`; use `npm run reset` as a last resort.
+1. `pnpm run build` to compile the Electron main and Vite renderer.
+2. Platform-specific installers: `pnpm run package:mac|linux|win` (artifacts in `release/`).
+3. If native modules misbehave, `pnpm run rebuild`; use `pnpm run reset` as a last resort.
 
 **Repo Map**
 - `src/main/` – Electron main process, IPC, database access, CLI orchestration.
@@ -50,14 +50,74 @@ optional_env:
 - Don't modify telemetry defaults or updater logic unless the change is intentional and reviewed.
 - Don't run commands that mutate global environments (package installs, git pushes) from agent scripts.
 
+**Skills System**
+
+Emdash implements the open [Agent Skills](https://agentskills.io) standard — a cross-agent specification for reusable skill packages. The standard defines skills as directories containing a `SKILL.md` file with YAML frontmatter, adopted by Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Roo Code, Mistral Vibe, and others. Emdash builds on this standard to provide a unified management layer across all compatible agents.
+
+*The Problem:* Every agent stores skills in its own directory — Claude Code uses `~/.claude/commands/`, Codex uses `~/.codex/skills/`, Cursor uses `~/.cursor/skills/`, etc. Two separate catalogs exist (OpenAI `openai/skills` repo, Anthropic `anthropics/skills` repo). Without a unified layer, you'd manually install the same skill into each agent's config directory.
+
+*How it works:*
+- **Agent Skills standard:** Every skill is a `SKILL.md` file with YAML frontmatter (name, description) + markdown instructions, per the open spec. This is the format all compatible agents understand.
+- **Central storage:** All skills live in `~/.agentskills/{skill-name}/`. Emdash metadata in `~/.agentskills/.emdash/`.
+- **Agent sync via symlinks:** On install, Emdash symlinks from central storage into each detected agent's native directory (`~/.claude/commands/{skill}/`, `~/.codex/skills/{skill}/`, etc.). Each agent sees the skill in its own native format.
+- **Aggregated catalog:** Emdash fetches skills from OpenAI's repo (with icons from `openai.yaml`), Anthropic's repo (descriptions from `SKILL.md` frontmatter), and local user-created skills — deduplicates by ID and merges into one browsable catalog.
+- **One-click install/uninstall:** Downloads `SKILL.md` from GitHub, saves to `~/.agentskills/`, creates symlinks to all agents. Uninstall removes directory + symlinks.
+
+*Key files:* `src/shared/skills/` (types, validation, agent targets), `src/main/services/SkillsService.ts` (core logic), `src/main/ipc/skillsIpc.ts` (IPC handlers), `src/renderer/components/skills/` (UI), `src/main/services/skills/bundled-catalog.json` (offline fallback).
+
+*Usage:* Install a skill in the Emdash Skills view, then invoke it in the agent — e.g. `/skill-name` in Claude Code.
+
+*Value:* Emdash is the first tool to implement the Agent Skills standard as a cross-agent management layer:
+1. **One install, every agent.** Install a skill once from the Emdash catalog → it's immediately available in Claude Code, Codex, Cursor, Gemini, OpenCode, Roo Code, and Mistral Vibe via symlinks into each agent's native directory.
+2. **Aggregated discovery.** Browse skills from both the OpenAI and Anthropic catalogs in one place, with icons, descriptions, and example prompts. No switching between GitHub repos.
+3. **Full-machine awareness.** Emdash scans all 10+ known skill directories on your machine — if you installed a skill directly into Cursor or through another tool, Emdash discovers it and shows it in your inventory.
+4. **Open standard, no lock-in.** Everything is based on the [Agent Skills](https://agentskills.io) open spec — a SKILL.md file with YAML frontmatter in a named directory. No proprietary format. Skills are portable plain text that any compatible agent can read.
+
+**SSH Remote Projects**
+
+Emdash can orchestrate AI coding agents on remote machines over SSH — useful when code can't live on your laptop (compliance, large repos, GPU requirements).
+
+*The Problem:* If your code is on a remote server, you'd normally SSH in manually, run agents in separate terminal sessions, and lose all of Emdash's orchestration (parallel agents, worktree isolation, unified UI).
+
+*How it works:*
+- **Connection management:** Users add SSH connections (password, key, or agent auth) via the UI. Credentials are stored securely in the OS keychain via `keytar`. Connections are monitored for health with automatic reconnection on timeout.
+- **Remote worktrees:** When a task is created on a remote project, Emdash SSHes into the server and runs `git worktree add` to create an isolated worktree at `<project>/.emdash/worktrees/<task-slug>/`. Each agent works in its own worktree, same as local.
+- **Remote PTY:** Agent shells (Claude Code, Codex, etc.) are launched over SSH via `ssh2`'s shell API. The terminal output streams back to Emdash's UI in real-time, same as a local terminal pane.
+- **Remote file browsing:** Files on the remote server can be browsed and read via SFTP.
+
+*What works remotely:*
+- Worktree lifecycle (create, list, remove, status)
+- Git status, commit, branch listing
+- Interactive agent terminal sessions
+- File browsing via SFTP
+
+*What's local-only (not yet supported for remote):*
+- Staging/unstaging/reverting individual files in the UI
+- File diffs, file watching (live status updates)
+- Branch rename, push, worktree merge
+- Worktree pooling (instant task start)
+- All GitHub/PR features (create PR, PR status, check runs, merge)
+
+The remote workflow is more terminal-centric — agents handle git operations (staging, pushing, PRs) through the shell rather than through Emdash's UI controls.
+
+*Key files:* `src/main/services/ssh/` (SshService, SshCredentialService, SshHostKeyService, SshConnectionMonitor), `src/main/services/RemotePtyService.ts` (remote terminal sessions), `src/main/services/RemoteGitService.ts` (remote git operations), `src/main/ipc/sshIpc.ts` (IPC handlers), `src/main/utils/shellEscape.ts` (shared POSIX shell escaping), `src/renderer/components/ssh/` (UI components).
+
+*Security notes:*
+- All shell arguments are escaped via `quoteShellArg()` from `src/main/utils/shellEscape.ts` (POSIX single-quote wrapping).
+- Environment variable keys are validated against `^[A-Za-z_][A-Za-z0-9_]*$` before being injected into shell commands.
+- Remote PTY shells are restricted to an allowlist of known shell binaries.
+- Remote file access is gated by `isPathSafe()` which blocks traversal attacks and sensitive directories.
+- Host key verification uses `~/.ssh/known_hosts` with algorithm-aware storage.
+
 **Risky Areas**
 - `src/main/services/CodexService.ts` – manages long-lived child processes and log streaming; race conditions or unhandled exits can kill agent runs.
 - `src/main/db/**` + `drizzle/` – schema migrations and SQLite access; mismatches can corrupt user data.
 - `build/` entitlements and updater config – incorrect changes break signing/auto-update.
 - Native dependencies (`sqlite3`, `node-pty`, `keytar`) – rebuilding is slow; avoid upgrading casually.
+- **SSH Services** (`src/main/services/ssh/**`, `src/main/utils/shellEscape.ts`) – security-critical code handling remote connections, credentials, and shell command construction. See "SSH Remote Projects" section above for details.
 
 **Pre-PR Checklist**
-- [ ] Dev server runs: `npm run d` (or `npm run dev`) starts cleanly.
-- [ ] Tests and checks pass: `npm run lint`, `npm run type-check`, `npx vitest run`.
+- [ ] Dev server runs: `pnpm run d` (or `pnpm run dev`) starts cleanly.
+- [ ] Tests and checks pass: `pnpm run lint`, `pnpm run type-check`, `pnpm exec vitest run`.
 - [ ] No stray build artifacts or secrets committed.
 - [ ] Documented any schema or config changes impacting users.

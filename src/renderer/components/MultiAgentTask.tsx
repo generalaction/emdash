@@ -15,11 +15,16 @@ import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { getTaskEnvVars } from '@shared/task/envVars';
 
 interface Props {
   task: Task;
   projectName: string;
   projectId: string;
+  projectPath?: string | null;
+  projectRemoteConnectionId?: string | null;
+  projectRemotePath?: string | null;
+  defaultBranch?: string | null;
 }
 
 type Variant = {
@@ -31,13 +36,39 @@ type Variant = {
   worktreeId: string;
 };
 
-const MultiAgentTask: React.FC<Props> = ({ task }) => {
+const MultiAgentTask: React.FC<Props> = ({
+  task,
+  projectPath,
+  projectRemoteConnectionId,
+  projectRemotePath: _projectRemotePath,
+  defaultBranch,
+}) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
+
+  const variantEnvs = useMemo(() => {
+    if (!projectPath) return new Map<string, Record<string, string>>();
+    const envMap = new Map<string, Record<string, string>>();
+    for (const variant of variants) {
+      const key = variant.worktreeId || variant.path;
+      envMap.set(
+        key,
+        getTaskEnvVars({
+          taskId: task.id,
+          taskName: variant.name || task.name,
+          taskPath: variant.path,
+          projectPath,
+          defaultBranch: defaultBranch || undefined,
+          portSeed: key,
+        })
+      );
+    }
+    return envMap;
+  }, [variants, task.id, task.name, projectPath, defaultBranch]);
 
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
@@ -364,6 +395,29 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
     }
   }, [task.id, activeTabIndex, variants.length, scrollToBottom]);
 
+  // Switch active agent tab via global shortcuts (Cmd+Shift+J/K)
+  useEffect(() => {
+    const handleAgentSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
+      if (variants.length <= 1) return;
+      const direction = customEvent.detail?.direction;
+      if (!direction) return;
+
+      setActiveTabIndex((current) => {
+        if (variants.length <= 1) return current;
+        if (direction === 'prev') {
+          return current <= 0 ? variants.length - 1 : current - 1;
+        }
+        return (current + 1) % variants.length;
+      });
+    };
+
+    window.addEventListener('emdash:switch-agent', handleAgentSwitch);
+    return () => {
+      window.removeEventListener('emdash:switch-agent', handleAgentSwitch);
+    };
+  }, [variants.length]);
+
   if (!multi?.enabled) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -394,7 +448,11 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
           >
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-end gap-2 px-3 py-1.5">
-                <OpenInMenu path={v.path} />
+                <OpenInMenu
+                  path={v.path}
+                  isRemote={!!projectRemoteConnectionId}
+                  sshConnectionId={projectRemoteConnectionId}
+                />
               </div>
               <div className="mt-2 flex items-center justify-center px-4 py-2">
                 <TooltipProvider delayDuration={250}>
@@ -458,7 +516,13 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                     ref={isActive ? activeTerminalRef : undefined}
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
+                    remote={
+                      projectRemoteConnectionId
+                        ? { connectionId: projectRemoteConnectionId }
+                        : undefined
+                    }
                     providerId={v.agent}
+                    env={variantEnvs.get(v.worktreeId || v.path)}
                     autoApprove={
                       Boolean(task.metadata?.autoApprove) &&
                       Boolean(agentMeta[v.agent]?.autoApproveFlag)
@@ -470,6 +534,7 @@ const MultiAgentTask: React.FC<Props> = ({ task }) => {
                         : undefined
                     }
                     keepAlive
+                    mapShiftEnterToCtrlJ
                     variant={isDark ? 'dark' : 'light'}
                     themeOverride={
                       v.agent === 'mistral'

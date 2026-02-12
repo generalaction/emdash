@@ -7,13 +7,15 @@ export function useFileIndex(rootPath: string | undefined) {
   const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const loadRequestedRef = useRef(false);
+  const loadRequestedRef = useRef<string | null>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     if (!rootPath) return;
     // Only load once per rootPath (lazy); can be reloaded manually
-    if (loadedFor === rootPath || loadRequestedRef.current) return;
-    loadRequestedRef.current = true;
+    if (loadedFor === rootPath || loadRequestedRef.current === rootPath) return;
+    loadRequestedRef.current = rootPath;
+    const requestId = (requestIdRef.current += 1);
     setLoading(true);
     setError(null);
     (async () => {
@@ -22,6 +24,13 @@ export function useFileIndex(rootPath: string | undefined) {
           includeDirs: true,
           maxEntries: 5000,
         });
+        if (requestIdRef.current !== requestId) return;
+        if (res.canceled) {
+          if (loadRequestedRef.current === rootPath) {
+            loadRequestedRef.current = null;
+          }
+          return;
+        }
         if (res.success && res.items) {
           setItems(res.items);
           setLoadedFor(rootPath);
@@ -29,15 +38,19 @@ export function useFileIndex(rootPath: string | undefined) {
           setError(res.error || 'Failed to load files');
         }
       } catch (e) {
+        if (requestIdRef.current !== requestId) return;
         setError('Failed to load files');
       } finally {
-        setLoading(false);
+        if (requestIdRef.current === requestId) {
+          setLoading(false);
+        }
       }
     })();
   }, [rootPath, loadedFor]);
 
   const reload = async () => {
     if (!rootPath) return;
+    const requestId = (requestIdRef.current += 1);
     setLoading(true);
     setError(null);
     try {
@@ -45,6 +58,10 @@ export function useFileIndex(rootPath: string | undefined) {
         includeDirs: true,
         maxEntries: 5000,
       });
+      if (requestIdRef.current !== requestId) return;
+      if (res.canceled) {
+        return;
+      }
       if (res.success && res.items) {
         setItems(res.items);
         setLoadedFor(rootPath);
@@ -52,9 +69,12 @@ export function useFileIndex(rootPath: string | undefined) {
         setError(res.error || 'Failed to load files');
       }
     } catch (e) {
+      if (requestIdRef.current !== requestId) return;
       setError('Failed to load files');
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   };
 

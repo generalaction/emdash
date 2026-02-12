@@ -1,6 +1,7 @@
 import { registerPtyIpc } from '../services/ptyIpc';
 import { registerWorktreeIpc } from '../services/worktreeIpc';
 import { registerFsIpc } from '../services/fsIpc';
+import { registerLifecycleIpc } from '../services/lifecycleIpc';
 
 import { registerAppIpc } from './appIpc';
 import { registerProjectIpc } from './projectIpc';
@@ -20,6 +21,8 @@ import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
 import { registerLineCommentsIpc } from './lineCommentsIpc';
+import { registerSshIpc } from './sshIpc';
+import { registerSkillsIpc } from './skillsIpc';
 
 export function registerAllIpc() {
   // Core app/utility IPC
@@ -44,8 +47,11 @@ export function registerAllIpc() {
   registerPtyIpc();
   registerWorktreeIpc();
   registerFsIpc();
+  registerLifecycleIpc();
   registerLinearIpc();
   registerConnectionsIpc();
   registerJiraIpc();
   registerPlanLockIpc();
+  registerSshIpc();
+  registerSkillsIpc();
 }

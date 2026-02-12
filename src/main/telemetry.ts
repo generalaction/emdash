@@ -82,9 +82,10 @@ type TelemetryEvent =
   | 'toolbar_right_sidebar_clicked' // when a user clicks on the right sidebar button in the toolbar (attribute for new state (open or closed))
   | 'toolbar_settings_clicked' // when a user clicks on the settings button in the toolbar
   | 'toolbar_open_in_menu_clicked' // when a user clicks on the "Open in" menu button (attribute for new state (open or closed))
-  | 'toolbar_open_in_selected' // when a user selects an app from the "Open in" menu (attribute for which app was selected: finder, cursor, vscode, terminal, warp, iterm2, ghostty, zed)
+  | 'toolbar_open_in_selected' // when a user selects an app from the "Open in" menu (attribute: OpenInAppId)
   | 'toolbar_kanban_toggled' // when a user toggles the Kanban view (attribute for new state (open or closed))
   // Browser Preview
+  | 'browser_preview_opened'
   | 'browser_preview_closed'
   | 'browser_preview_url_navigated' // when a user navigates to a new URL in the browser preview
   // Settings & Preferences
@@ -93,6 +94,21 @@ type TelemetryEvent =
   | 'telemetry_toggled'
   | 'notification_settings_changed'
   | 'default_provider_changed' // attribute for which provider is selected
+  // Skills
+  | 'skills_view_opened'
+  | 'skill_installed'
+  | 'skill_uninstalled'
+  | 'skill_created'
+  | 'skill_detail_viewed'
+  // Remote Server / SSH
+  | 'remote_project_modal_opened'
+  | 'remote_project_connection_tested'
+  | 'remote_project_created'
+  // GitHub issues
+  | 'github_issues_searched'
+  | 'github_issue_selected'
+  // Task with issue
+  | 'task_created_with_issue'
   // Legacy/aggregate events
   | 'feature_used'
   | 'error'
@@ -103,6 +119,7 @@ type TelemetryEvent =
   // Agent usage (provider-level only)
   | 'agent_run_start'
   | 'agent_run_finish'
+  | 'agent_prompt_sent'
   // DB setup (privacy-safe)
   | 'db_setup'
   // Daily active user tracking
@@ -246,6 +263,7 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
     'project_count_bucket',
     'date',
     'timezone',
+    'scope',
   ]);
 
   if (props) {

@@ -61,6 +61,58 @@ interface EmdashConfig {
 export class WorktreeService {
   private worktrees = new Map<string, WorktreeInfo>();
 
+  private async cleanupWorktreeDirectory(pathToRemove: string, projectPath: string): Promise<void> {
+    if (!fs.existsSync(pathToRemove)) {
+      return;
+    }
+
+    const normalizedPathToRemove = path.resolve(pathToRemove);
+    const normalizedProjectPath = path.resolve(projectPath);
+
+    if (normalizedPathToRemove === normalizedProjectPath) {
+      log.error(`CRITICAL: Prevented filesystem removal of main repository! Path: ${pathToRemove}`);
+      return;
+    }
+
+    const isLikelyWorktree =
+      pathToRemove.includes('/worktrees/') ||
+      pathToRemove.includes('\\worktrees\\') ||
+      pathToRemove.includes('/.conductor/') ||
+      pathToRemove.includes('\\.conductor\\') ||
+      pathToRemove.includes('/.cursor/worktrees/') ||
+      pathToRemove.includes('\\.cursor\\worktrees\\');
+
+    if (!isLikelyWorktree) {
+      log.warn(
+        `Path doesn't appear to be a worktree directory, skipping filesystem removal: ${pathToRemove}`
+      );
+      return;
+    }
+
+    try {
+      await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+    } catch (rmErr: any) {
+      if (rmErr && (rmErr.code === 'EACCES' || rmErr.code === 'EPERM')) {
+        try {
+          if (process.platform === 'win32') {
+            await execFileAsync('cmd', ['/c', 'attrib', '-R', '/S', '/D', pathToRemove + '\\*']);
+          } else {
+            await execFileAsync('chmod', ['-R', 'u+w', pathToRemove]);
+          }
+        } catch (permErr) {
+          log.warn('Failed to adjust permissions for worktree cleanup:', permErr);
+        }
+        try {
+          await fs.promises.rm(pathToRemove, { recursive: true, force: true });
+        } catch (retryErr) {
+          log.warn('Failed to cleanup worktree directory after permission fix:', retryErr);
+        }
+      } else {
+        log.warn('Failed to cleanup worktree directory:', rmErr);
+      }
+    }
+  }
+
   /**
    * Read .emdash.json config from project root
    */
@@ -86,6 +138,17 @@ export class WorktreeService {
       return config.preservePatterns;
     }
     return DEFAULT_PRESERVE_PATTERNS;
+  }
+
+  /**
+   * Preserve project files into a worktree using project config (or defaults).
+   */
+  async preserveProjectFilesToWorktree(
+    projectPath: string,
+    worktreePath: string
+  ): Promise<PreserveResult> {
+    const patterns = this.getPreservePatterns(projectPath);
+    return this.preserveFilesToWorktree(projectPath, worktreePath, patterns);
   }
 
   /** Slugify task name to make it shell-safe */
@@ -117,7 +180,6 @@ export class WorktreeService {
     projectPath: string,
     taskName: string,
     projectId: string,
-    autoApprove?: boolean,
     baseRef?: string
   ): Promise<WorktreeInfo> {
     // Declare variables outside try block for access in catch block
@@ -186,15 +248,9 @@ export class WorktreeService {
 
       // Preserve .env and other gitignored config files from source to worktree
       try {
-        const patterns = this.getPreservePatterns(projectPath);
-        await this.preserveFilesToWorktree(projectPath, worktreePath, patterns);
+        await this.preserveProjectFilesToWorktree(projectPath, worktreePath);
       } catch (preserveErr) {
         log.warn('Failed to preserve files to worktree (continuing):', preserveErr);
-      }
-
-      // Setup Claude Code settings if auto-approve is enabled
-      if (autoApprove) {
-        this.ensureClaudeAutoApprove(worktreePath);
       }
 
       await this.logWorktreeSyncStatus(projectPath, worktreePath, fetchedBaseRef);
@@ -436,65 +492,7 @@ export class WorktreeService {
       }
 
       // Ensure directory is removed even if git command failed
-      if (fs.existsSync(pathToRemove)) {
-        // SAFETY: Double-check we're not removing the main repo before filesystem operations
-        const normalizedPathToRemove = path.resolve(pathToRemove);
-        const normalizedProjectPath = path.resolve(projectPath);
-
-        if (normalizedPathToRemove === normalizedProjectPath) {
-          log.error(
-            `CRITICAL: Prevented filesystem removal of main repository! Path: ${pathToRemove}`
-          );
-          throw new Error('Cannot remove main repository directory');
-        }
-
-        // Additional safety: Check if this path is within the worktrees directory
-        // Worktrees should typically be in a ../worktrees/ directory or similar
-        const isLikelyWorktree =
-          pathToRemove.includes('/worktrees/') ||
-          pathToRemove.includes('\\worktrees\\') ||
-          pathToRemove.includes('/.conductor/') ||
-          pathToRemove.includes('\\.conductor\\') ||
-          pathToRemove.includes('/.cursor/worktrees/') ||
-          pathToRemove.includes('\\.cursor\\worktrees\\');
-
-        if (!isLikelyWorktree) {
-          log.warn(
-            `Path doesn't appear to be a worktree directory, skipping filesystem removal: ${pathToRemove}`
-          );
-          return;
-        }
-
-        try {
-          await fs.promises.rm(pathToRemove, { recursive: true, force: true });
-        } catch (rmErr: any) {
-          // Handle permission issues by making files writable, then retry
-          if (rmErr && (rmErr.code === 'EACCES' || rmErr.code === 'EPERM')) {
-            try {
-              if (process.platform === 'win32') {
-                // Remove read-only attribute recursively on Windows
-                await execFileAsync('cmd', [
-                  '/c',
-                  'attrib',
-                  '-R',
-                  '/S',
-                  '/D',
-                  pathToRemove + '\\*',
-                ]);
-              } else {
-                // Make everything writable on POSIX
-                await execFileAsync('chmod', ['-R', 'u+w', pathToRemove]);
-              }
-            } catch (permErr) {
-              console.warn('Failed to adjust permissions for worktree cleanup:', permErr);
-            }
-            // Retry removal once after permissions adjusted
-            await fs.promises.rm(pathToRemove, { recursive: true, force: true });
-          } else {
-            throw rmErr;
-          }
-        }
-      }
+      void this.cleanupWorktreeDirectory(pathToRemove, projectPath);
 
       if (branchToDelete) {
         const tryDeleteBranch = async () =>
@@ -1112,38 +1110,6 @@ export class WorktreeService {
     return result;
   }
 
-  private ensureClaudeAutoApprove(worktreePath: string) {
-    try {
-      const claudeDir = path.join(worktreePath, '.claude');
-      const settingsPath = path.join(claudeDir, 'settings.json');
-
-      // Create .claude directory if it doesn't exist
-      if (!fs.existsSync(claudeDir)) {
-        fs.mkdirSync(claudeDir, { recursive: true });
-      }
-
-      // Read existing settings or create new
-      let settings: any = {};
-      if (fs.existsSync(settingsPath)) {
-        try {
-          const content = fs.readFileSync(settingsPath, 'utf8');
-          settings = JSON.parse(content);
-        } catch (err) {
-          log.warn('Failed to parse existing .claude/settings.json, will overwrite', err);
-        }
-      }
-
-      // Set defaultMode to bypassPermissions
-      settings.defaultMode = 'bypassPermissions';
-
-      // Write settings file
-      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
-      log.info(`Created .claude/settings.json with auto-approve enabled in ${worktreePath}`);
-    } catch (err) {
-      log.error('Failed to create .claude/settings.json', err);
-    }
-  }
-
   private async logWorktreeSyncStatus(
     projectPath: string,
     worktreePath: string,
@@ -1209,8 +1175,7 @@ export class WorktreeService {
 
     // Preserve .env and other gitignored config files from source to worktree
     try {
-      const patterns = this.getPreservePatterns(projectPath);
-      await this.preserveFilesToWorktree(projectPath, worktreePath, patterns);
+      await this.preserveProjectFilesToWorktree(projectPath, worktreePath);
     } catch (preserveErr) {
       log.warn('Failed to preserve files to worktree (continuing):', preserveErr);
     }

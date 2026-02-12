@@ -7,6 +7,7 @@ import {
   FolderOpen,
   Home,
   Settings,
+  Keyboard,
   PanelLeft,
   PanelRight,
   GitBranch,
@@ -18,6 +19,7 @@ import {
   Palette,
 } from 'lucide-react';
 import { APP_SHORTCUTS } from '../hooks/useKeyboardShortcuts';
+import type { ShortcutModifier } from '../types/shortcuts';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -35,14 +37,13 @@ interface CommandPaletteProps {
   onSelectProject?: (projectId: string) => void;
   onSelectTask?: (projectId: string, taskId: string) => void;
   onOpenSettings?: () => void;
+  onOpenKeyboardShortcuts?: () => void;
   onToggleLeftSidebar?: () => void;
   onToggleRightSidebar?: () => void;
   onToggleTheme?: () => void;
   onGoHome?: () => void;
   onOpenProject?: () => void;
 }
-
-type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
 
 type CommandItem = {
   id: string;
@@ -65,6 +66,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onSelectProject,
   onSelectTask,
   onOpenSettings,
+  onOpenKeyboardShortcuts,
   onToggleLeftSidebar,
   onToggleRightSidebar,
   onToggleTheme,
@@ -144,6 +146,18 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         keywords: ['settings', 'preferences', 'config'],
         shortcut: { key: APP_SHORTCUTS.SETTINGS.key, modifier: APP_SHORTCUTS.SETTINGS.modifier },
         onSelect: () => runCommand(onOpenSettings),
+      });
+    }
+
+    if (onOpenKeyboardShortcuts) {
+      items.push({
+        id: 'nav-keyboard-shortcuts',
+        label: 'Keyboard Shortcuts',
+        description: 'Customize app shortcuts',
+        icon: <Keyboard className="h-4 w-4" />,
+        group: 'Navigation',
+        keywords: ['keyboard', 'shortcuts', 'keybind', 'hotkey'],
+        onSelect: () => runCommand(onOpenKeyboardShortcuts),
       });
     }
 
@@ -237,6 +251,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     onGoHome,
     onOpenProject,
     onOpenSettings,
+    onOpenKeyboardShortcuts,
     onSelectProject,
     onSelectTask,
     onToggleLeftSidebar,

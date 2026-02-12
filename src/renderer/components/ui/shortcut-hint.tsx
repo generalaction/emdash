@@ -1,5 +1,5 @@
 import React from 'react';
-import { Command } from 'lucide-react';
+import { ArrowBigUp, Command } from 'lucide-react';
 import { useKeyboardSettings } from '../../contexts/KeyboardSettingsContext';
 import type { ShortcutSettingsKey } from '../../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../../types/shortcuts';
@@ -19,7 +19,7 @@ const ModifierIcon: React.FC<{ modifier: ShortcutModifier }> = ({ modifier }) =>
     case 'option':
       return <span>⌥</span>;
     case 'shift':
-      return <span>⇧</span>;
+      return <ArrowBigUp className="h-3 w-3" aria-hidden="true" />;
     default:
       return null;
   }
@@ -40,9 +40,18 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
   else if (displayKey === 'Escape') displayKey = 'Esc';
   else displayKey = displayKey.toUpperCase();
 
+  // Handle compound modifiers separately
+  const modifierElements: React.ReactNode[] = [];
+  if (modifier === 'cmd+shift') {
+    modifierElements.push(<Command key="cmd" className="h-3 w-3" aria-hidden="true" />);
+    modifierElements.push(<ArrowBigUp key="shift" className="h-3 w-3" aria-hidden="true" />);
+  } else if (modifier) {
+    modifierElements.push(<ModifierIcon key="mod" modifier={modifier} />);
+  }
+
   return (
     <span className={`flex items-center gap-1 text-muted-foreground ${className || ''}`}>
-      {modifier && <ModifierIcon modifier={modifier} />}
+      {modifierElements}
       <span>{displayKey}</span>
     </span>
   );

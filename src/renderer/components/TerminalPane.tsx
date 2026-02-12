@@ -15,6 +15,9 @@ import ExternalLinkModal from './ExternalLinkModal';
 type Props = {
   id: string;
   cwd?: string;
+  remote?: {
+    connectionId: string;
+  };
   providerId?: string; // If set, uses direct CLI spawn (no shell)
   shell?: string; // Used for shell-based spawn when providerId not set
   cols?: number;
@@ -27,6 +30,7 @@ type Props = {
   keepAlive?: boolean;
   autoApprove?: boolean;
   initialPrompt?: string;
+  mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean; // If true, don't save/restore terminal snapshots (for non-main chats)
   onActivity?: () => void;
   onStartError?: (message: string) => void;
@@ -39,6 +43,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     {
       id,
       cwd,
+      remote,
       providerId,
       cols = 120,
       rows = 32,
@@ -51,6 +56,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       keepAlive = true,
       autoApprove,
       initialPrompt,
+      mapShiftEnterToCtrlJ,
       disableSnapshots = false,
       onActivity,
       onStartError,
@@ -117,6 +123,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         taskId: id,
         container,
         cwd,
+        remote,
         providerId,
         shell,
         env,
@@ -124,6 +131,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         theme,
         autoApprove,
         initialPrompt,
+        mapShiftEnterToCtrlJ,
         disableSnapshots,
         onLinkClick: handleLinkClick,
       });
@@ -157,6 +165,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     }, [
       id,
       cwd,
+      remote,
       providerId,
       shell,
       env,
@@ -164,6 +173,8 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       rows,
       theme,
       autoApprove,
+      initialPrompt,
+      mapShiftEnterToCtrlJ,
       handleLinkClick,
       onActivity,
       onStartError,

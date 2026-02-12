@@ -2,6 +2,7 @@
 
 /* Hide xterm viewport scrollbars in embedded terminals */
 .xterm .xterm-viewport {
+  background-color: transparent !important;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */
 }
@@ -162,24 +163,6 @@
 
   .dark-black *::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.4);
-  }
-
-  .sidebar-panel {
-    transition: flex-grow 300ms ease;
-  }
-
-  [data-panel-group]:has([data-resize-handle-state='drag']) .sidebar-panel {
-    transition-duration: 0ms;
-  }
-
-  [data-panel-group].no-transition .sidebar-panel {
-    transition-duration: 0ms;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .sidebar-panel {
-      transition-duration: 0ms;
-    }
   }
 }
 

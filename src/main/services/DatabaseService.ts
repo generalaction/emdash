@@ -10,18 +10,25 @@ import {
   conversations as conversationsTable,
   messages as messagesTable,
   lineComments as lineCommentsTable,
+  sshConnections as sshConnectionsTable,
   type ProjectRow,
   type TaskRow,
   type ConversationRow,
   type MessageRow,
   type LineCommentRow,
   type LineCommentInsert,
+  type SshConnectionRow,
+  type SshConnectionInsert,
 } from '../db/schema';
 
 export interface Project {
   id: string;
   name: string;
   path: string;
+  // Remote project fields (optional for backward compatibility)
+  isRemote?: boolean;
+  sshConnectionId?: string | null;
+  remotePath?: string | null;
   gitInfo: {
     isGitRepo: boolean;
     remote?: string;
@@ -46,6 +53,7 @@ export interface Task {
   agentId?: string | null;
   metadata?: any;
   useWorktree?: boolean;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -157,6 +165,9 @@ export class DatabaseService {
         baseRef: baseRef ?? null,
         githubRepository,
         githubConnected,
+        sshConnectionId: project.sshConnectionId ?? null,
+        isRemote: project.isRemote ? 1 : 0,
+        remotePath: project.remotePath ?? null,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
@@ -168,6 +179,9 @@ export class DatabaseService {
           baseRef: baseRef ?? null,
           githubRepository,
           githubConnected,
+          sshConnectionId: project.sshConnectionId ?? null,
+          isRemote: project.isRemote ? 1 : 0,
+          remotePath: project.remotePath ?? null,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
@@ -281,14 +295,64 @@ export class DatabaseService {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
 
+    // Filter out archived tasks by default
     const rows: TaskRow[] = projectId
       ? await db
           .select()
           .from(tasksTable)
-          .where(eq(tasksTable.projectId, projectId))
+          .where(and(eq(tasksTable.projectId, projectId), isNull(tasksTable.archivedAt)))
           .orderBy(desc(tasksTable.updatedAt))
-      : await db.select().from(tasksTable).orderBy(desc(tasksTable.updatedAt));
+      : await db
+          .select()
+          .from(tasksTable)
+          .where(isNull(tasksTable.archivedAt))
+          .orderBy(desc(tasksTable.updatedAt));
     return rows.map((row) => this.mapDrizzleTaskRow(row));
+  }
+
+  async getArchivedTasks(projectId?: string): Promise<Task[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+
+    const rows: TaskRow[] = projectId
+      ? await db
+          .select()
+          .from(tasksTable)
+          .where(
+            and(eq(tasksTable.projectId, projectId), sql`${tasksTable.archivedAt} IS NOT NULL`)
+          )
+          .orderBy(desc(tasksTable.archivedAt))
+      : await db
+          .select()
+          .from(tasksTable)
+          .where(sql`${tasksTable.archivedAt} IS NOT NULL`)
+          .orderBy(desc(tasksTable.archivedAt));
+    return rows.map((row) => this.mapDrizzleTaskRow(row));
+  }
+
+  async archiveTask(taskId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(tasksTable)
+      .set({
+        archivedAt: new Date().toISOString(),
+        status: 'idle', // Reset status since PTY processes are killed on archive
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(tasksTable.id, taskId));
+  }
+
+  async restoreTask(taskId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(tasksTable)
+      .set({
+        archivedAt: null,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(tasksTable.id, taskId));
   }
 
   async getTaskByPath(taskPath: string): Promise<Task | null> {
@@ -667,6 +731,75 @@ export class DatabaseService {
     return rows;
   }
 
+  // SSH connection management methods
+  async saveSshConnection(
+    connection: Omit<SshConnectionInsert, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+  ): Promise<SshConnectionRow> {
+    if (this.disabled) {
+      throw new Error('Database is disabled');
+    }
+    const { db } = await getDrizzleClient();
+
+    const id = connection.id ?? `ssh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+
+    const result = await db
+      .insert(sshConnectionsTable)
+      .values({
+        ...connection,
+        id,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: sshConnectionsTable.id,
+        set: {
+          name: connection.name,
+          host: connection.host,
+          port: connection.port,
+          username: connection.username,
+          authType: connection.authType,
+          privateKeyPath: connection.privateKeyPath ?? null,
+          useAgent: connection.useAgent,
+          updatedAt: now,
+        },
+      })
+      .returning();
+
+    return result[0];
+  }
+
+  async getSshConnections(): Promise<SshConnectionRow[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+    return db.select().from(sshConnectionsTable).orderBy(sshConnectionsTable.name);
+  }
+
+  async getSshConnection(id: string): Promise<SshConnectionRow | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(sshConnectionsTable)
+      .where(eq(sshConnectionsTable.id, id))
+      .limit(1);
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  async deleteSshConnection(id: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+
+    // First update any projects using this connection
+    await db
+      .update(projectsTable)
+      .set({ sshConnectionId: null, isRemote: 0 })
+      .where(eq(projectsTable.sshConnectionId, id));
+
+    // Then delete the connection
+    await db.delete(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
+  }
+
   private computeBaseRef(
     preferred?: string | null,
     remote?: string | null,
@@ -726,6 +859,9 @@ export class DatabaseService {
       id: row.id,
       name: row.name,
       path: row.path,
+      isRemote: row.isRemote === 1,
+      sshConnectionId: row.sshConnectionId ?? null,
+      remotePath: row.remotePath ?? null,
       gitInfo: {
         isGitRepo: !!(row.gitRemote || row.gitBranch),
         remote: row.gitRemote ?? undefined,
@@ -757,6 +893,7 @@ export class DatabaseService {
           ? this.parseTaskMetadata(row.metadata, row.id)
           : null,
       useWorktree: row.useWorktree === 1,
+      archivedAt: row.archivedAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

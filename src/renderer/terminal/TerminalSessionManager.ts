@@ -9,9 +9,11 @@ import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { CTRL_J_ASCII, shouldMapShiftEnterToCtrlJ } from './terminalKeybindings';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
+const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -24,15 +26,21 @@ export interface SessionTheme {
 export interface TerminalSessionOptions {
   taskId: string;
   cwd?: string;
+  remote?: {
+    connectionId: string;
+  };
   providerId?: string; // If set, uses direct CLI spawn
   shell?: string; // Used for shell-based spawn when providerId not set
   env?: Record<string, string>;
   initialSize: { cols: number; rows: number };
   scrollbackLines: number;
   theme: SessionTheme;
-  telemetry?: { track: (event: string, payload?: Record<string, unknown>) => void } | null;
+  telemetry?: {
+    track: (event: string, payload?: Record<string, unknown>) => void;
+  } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
 }
@@ -65,6 +73,8 @@ export class TerminalSessionManager {
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
+  private customFontFamily = '';
+  private themeFontFamily = '';
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -95,6 +105,25 @@ export class TerminalSessionManager {
       allowProposedApi: true,
       scrollOnUserInput: false,
     });
+
+    const updateCustomFont = (customFont?: string) => {
+      this.customFontFamily = customFont?.trim() ?? '';
+      this.applyEffectiveFont();
+    };
+
+    window.electronAPI.getSettings().then((result) => {
+      updateCustomFont(result?.settings?.terminal?.fontFamily);
+    });
+
+    const handleFontChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
+      updateCustomFont(detail?.fontFamily);
+      this.fitPreservingViewport();
+    };
+    window.addEventListener('terminal-font-changed', handleFontChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-font-changed', handleFontChange)
+    );
 
     this.fitAddon = new FitAddon();
     this.serializeAddon = new SerializeAddon();
@@ -134,40 +163,30 @@ export class TerminalSessionManager {
 
     this.applyTheme(options.theme);
 
+    // Map Shift+Enter to Ctrl+J for CLI agents only
+    if (options.mapShiftEnterToCtrlJ) {
+      this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+        if (shouldMapShiftEnterToCtrlJ(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+
+          // Send Ctrl+J (line feed) instead of Shift+Enter
+          // Pass true to skip injection handling - this is a newline insert, not a submit
+          this.handleTerminalInput(CTRL_J_ASCII, true);
+          return false; // Prevent xterm from processing the Shift+Enter
+        }
+        return true; // Let xterm handle all other keys normally
+      });
+    }
+
     this.metrics = new TerminalMetrics({
       maxDataWindowBytes: MAX_DATA_WINDOW_BYTES,
       telemetry: options.telemetry ?? null,
     });
 
     const inputDisposable = this.terminal.onData((data) => {
-      this.emitActivity();
-      if (!this.disposed) {
-        // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
-        // These are sent by xterm.js when focus changes but shouldn't go to the PTY
-        const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
-        if (filtered) {
-          // Track command execution when Enter is pressed
-          const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
-          if (isEnterPress) {
-            void (async () => {
-              const { captureTelemetry } = await import('../lib/telemetryClient');
-              captureTelemetry('terminal_command_executed');
-            })();
-          }
-
-          // Check for pending injection text when Enter is pressed
-          const pendingText = pendingInjectionManager.getPending();
-          if (pendingText && isEnterPress) {
-            // Append pending text to the existing input and keep the prior working behavior.
-            const stripped = filtered.replace(/[\r\n]+$/g, '');
-            const injectedData = stripped + pendingText + '\r\r';
-            window.electronAPI.ptyInput({ id: this.id, data: injectedData });
-            pendingInjectionManager.markUsed();
-          } else {
-            window.electronAPI.ptyInput({ id: this.id, data: filtered });
-          }
-        }
-      }
+      this.handleTerminalInput(data);
     });
     const resizeDisposable = this.terminal.onResize(({ cols, rows }) => {
       if (!this.disposed) {
@@ -180,10 +199,6 @@ export class TerminalSessionManager {
     );
 
     void this.initializeTerminal();
-    // Only start snapshot timer if snapshots are enabled (main chats only)
-    if (!this.options.disableSnapshots) {
-      this.startSnapshotTimer();
-    }
   }
 
   attach(container: HTMLElement) {
@@ -226,6 +241,11 @@ export class TerminalSessionManager {
         }
       });
     });
+
+    // Only start snapshot timer if snapshots are enabled (main chats only)
+    if (!this.options.disableSnapshots) {
+      this.startSnapshotTimer();
+    }
   }
 
   detach() {
@@ -236,6 +256,7 @@ export class TerminalSessionManager {
       this.resizeObserver = null;
       ensureTerminalHost().appendChild(this.container);
       this.attachedContainer = null;
+      this.stopSnapshotTimer();
       // Only capture snapshot on detach if snapshots are enabled
       if (!this.options.disableSnapshots) {
         void this.captureSnapshot('detach');
@@ -267,7 +288,10 @@ export class TerminalSessionManager {
       try {
         dispose();
       } catch (error) {
-        log.warn('Terminal session dispose callback failed', { id: this.id, error });
+        log.warn('Terminal session dispose callback failed', {
+          id: this.id,
+          error,
+        });
       }
     }
     this.metrics.dispose();
@@ -321,6 +345,39 @@ export class TerminalSessionManager {
     };
   }
 
+  private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
+    this.emitActivity();
+    if (this.disposed) return;
+
+    // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
+    // These are sent by xterm.js when focus changes but shouldn't go to the PTY
+    const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
+    if (!filtered) return;
+
+    // Track command execution when Enter is pressed (but not for newline inserts)
+    const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
+    if (isEnterPress && !isNewlineInsert) {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('terminal_command_executed');
+      })();
+    }
+
+    // Check for pending injection text when Enter is pressed (but not for newline inserts)
+    const pendingText = pendingInjectionManager.getPending();
+    if (pendingText && isEnterPress && !isNewlineInsert) {
+      // Append pending text to the existing input and keep the prior working behavior.
+      const stripped = filtered.replace(/[\r\n]+$/g, '');
+      const enterSequence = filtered.includes('\r') ? '\r' : '\n';
+      const injectedData = stripped + pendingText + enterSequence + enterSequence;
+      window.electronAPI.ptyInput({ id: this.id, data: injectedData });
+      pendingInjectionManager.markUsed();
+      return;
+    }
+
+    window.electronAPI.ptyInput({ id: this.id, data: filtered });
+  }
+
   private applyTheme(theme: SessionTheme) {
     const selection =
       theme.base === 'light'
@@ -358,12 +415,16 @@ export class TerminalSessionManager {
     this.terminal.options.theme = { ...base, ...colorTheme };
 
     // Apply font settings separately
-    if (fontFamily) {
-      this.terminal.options.fontFamily = fontFamily;
-    }
+    this.themeFontFamily = typeof fontFamily === 'string' ? fontFamily.trim() : '';
+    this.applyEffectiveFont();
     if (fontSize) {
       this.terminal.options.fontSize = fontSize;
     }
+  }
+
+  private applyEffectiveFont() {
+    const selected = this.customFontFamily || this.themeFontFamily;
+    this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
   }
 
   /**
@@ -393,7 +454,10 @@ export class TerminalSessionManager {
               this.terminal.scrollToLine(targetLine);
             }
           } catch (error) {
-            log.warn('Terminal scroll restore failed after fit', { id: this.id, error });
+            log.warn('Terminal scroll restore failed after fit', {
+              id: this.id,
+              error,
+            });
           }
         });
       }
@@ -538,15 +602,18 @@ export class TerminalSessionManager {
             id,
             providerId,
             cwd,
+            remote: this.options.remote,
             cols: initialSize.cols,
             rows: initialSize.rows,
             autoApprove,
             initialPrompt,
+            env,
             resume: hasExistingSession,
           })
         : window.electronAPI.ptyStart({
             id,
             cwd,
+            remote: this.options.remote,
             shell,
             env,
             cols: initialSize.cols,
@@ -654,7 +721,10 @@ export class TerminalSessionManager {
           payload,
         });
         if (!result?.ok) {
-          log.warn('Terminal snapshot save failed', { id: this.id, error: result?.error });
+          log.warn('Terminal snapshot save failed', {
+            id: this.id,
+            error: result?.error,
+          });
         } else {
           this.metrics.markSnapshot();
         }

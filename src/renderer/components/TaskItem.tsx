@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GitBranch, ArrowUpRight, AlertCircle, Pencil } from 'lucide-react';
+import { GitBranch, ArrowUpRight, AlertCircle, Pencil, Pin, PinOff } from 'lucide-react';
 import TaskDeleteButton from './TaskDeleteButton';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
@@ -14,6 +14,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from './ui/context-menu';
+import { Archive } from 'lucide-react';
 
 function stopPropagation(e: React.MouseEvent): void {
   e.stopPropagation();
@@ -33,6 +34,9 @@ interface TaskItemProps {
   task: Task;
   onDelete?: () => void | Promise<void | boolean>;
   onRename?: (newName: string) => void | Promise<void>;
+  onArchive?: () => void | Promise<void | boolean>;
+  onPin?: () => void | Promise<void>;
+  isPinned?: boolean;
   showDelete?: boolean;
   showDirectBadge?: boolean;
 }
@@ -41,6 +45,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   task,
   onDelete,
   onRename,
+  onArchive,
+  onPin,
+  isPinned,
   showDelete,
   showDirectBadge = true,
 }) => {
@@ -128,7 +135,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             onClick={stopPropagation}
           />
         ) : (
-          <span className="block truncate text-xs font-medium text-foreground">{task.name}</span>
+          <>
+            {isPinned && <Pin className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
+            <span className="block truncate text-xs font-medium text-foreground">{task.name}</span>
+          </>
         )}
         {showDirectBadge && task.useWorktree === false && (
           <span
@@ -190,21 +200,54 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     </div>
   );
 
-  // Wrap with context menu if rename is available
-  if (onRename) {
+  // Wrap with context menu if rename, archive, or pin is available
+  if (onRename || onArchive || onPin) {
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild>{taskContent}</ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStartEdit();
-            }}
-          >
-            <Pencil className="mr-2 h-3.5 w-3.5" />
-            Rename
-          </ContextMenuItem>
+          {onPin && (
+            <ContextMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onPin();
+              }}
+            >
+              {isPinned ? (
+                <>
+                  <PinOff className="mr-2 h-3.5 w-3.5" />
+                  Unpin
+                </>
+              ) : (
+                <>
+                  <Pin className="mr-2 h-3.5 w-3.5" />
+                  Pin
+                </>
+              )}
+            </ContextMenuItem>
+          )}
+          {onRename && (
+            <ContextMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStartEdit();
+              }}
+            >
+              <Pencil className="mr-2 h-3.5 w-3.5" />
+              Rename
+            </ContextMenuItem>
+          )}
+          {onArchive && (
+            <ContextMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive();
+              }}
+            >
+              <Archive className="mr-2 h-3.5 w-3.5" />
+              Archive
+            </ContextMenuItem>
+          )}
         </ContextMenuContent>
       </ContextMenu>
     );

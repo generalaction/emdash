@@ -10,7 +10,7 @@
 
 # ignore config files that shouldn't be formatted
 **/.env*
-**/package-lock.json
+**/pnpm-lock.yaml
 **/yarn.lock
 
 # ignore specific file types

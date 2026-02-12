@@ -6,7 +6,7 @@ import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
-import AgentDisplay from './AgentDisplay';
+import TaskContextBadges from './TaskContextBadges';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
@@ -19,6 +19,7 @@ import { CreateChatModal } from './CreateChatModal';
 import { DeleteChatModal } from './DeleteChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
+import { getTaskEnvVars } from '@shared/task/envVars';
 
 declare const window: Window & {
   electronAPI: {
@@ -29,6 +30,10 @@ declare const window: Window & {
 interface Props {
   task: Task;
   projectName: string;
+  projectPath?: string | null;
+  projectRemoteConnectionId?: string | null;
+  projectRemotePath?: string | null;
+  defaultBranch?: string | null;
   className?: string;
   initialAgent?: Agent;
 }
@@ -36,6 +41,10 @@ interface Props {
 const ChatInterface: React.FC<Props> = ({
   task,
   projectName: _projectName,
+  projectPath,
+  projectRemoteConnectionId,
+  projectRemotePath: _projectRemotePath,
+  defaultBranch,
   className,
   initialAgent,
 }) => {
@@ -56,7 +65,6 @@ const ChatInterface: React.FC<Props> = ({
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
-  const [installedAgents, setInstalledAgents] = useState<string[]>([]);
 
   // Update terminal ID to include conversation ID and agent - unique per conversation
   const terminalId = useMemo(() => {
@@ -80,6 +88,25 @@ const ChatInterface: React.FC<Props> = ({
   const terminalCwd = useMemo(() => {
     return task.path;
   }, [task.path]);
+
+  const taskEnv = useMemo(() => {
+    if (!projectPath) return undefined;
+    return getTaskEnvVars({
+      taskId: task.id,
+      taskName: task.name,
+      taskPath: task.path,
+      projectPath,
+      defaultBranch: defaultBranch || undefined,
+    });
+  }, [task.id, task.name, task.path, projectPath, defaultBranch]);
+
+  const installedAgents = useMemo(
+    () =>
+      Object.entries(agentStatuses)
+        .filter(([, status]) => status.installed === true)
+        .map(([id]) => id),
+    [agentStatuses]
+  );
 
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
@@ -149,14 +176,6 @@ const ChatInterface: React.FC<Props> = ({
 
     loadConversations();
   }, [task.id, task.agentId]); // provider is intentionally not included as a dependency
-
-  // Track installed agents
-  useEffect(() => {
-    const installed = Object.entries(agentStatuses)
-      .filter(([_, status]) => status.installed === true)
-      .map(([id]) => id);
-    setInstalledAgents(installed);
-  }, [agentStatuses]);
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
@@ -460,7 +479,7 @@ const ChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false;
-    let missingCheckRequested = false;
+    let refreshCheckRequested = false;
     const api: any = (window as any).electronAPI;
 
     const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
@@ -471,11 +490,22 @@ const ChatInterface: React.FC<Props> = ({
       setIsAgentInstalled(installed);
     };
 
-    const maybeRefreshMissing = async (statuses?: Record<string, any> | undefined | null) => {
-      if (cancelled || missingCheckRequested) return;
+    const maybeRefreshAgentStatus = async (statuses?: Record<string, any> | undefined | null) => {
+      if (cancelled || refreshCheckRequested) return;
       if (!api?.getProviderStatuses) return;
-      if (statuses && statuses[agent]) return;
-      missingCheckRequested = true;
+
+      const status = statuses?.[agent];
+      const hasEntry = Boolean(status);
+      const isInstalled = status?.installed === true;
+      const lastChecked =
+        typeof status?.lastChecked === 'number' && Number.isFinite(status.lastChecked)
+          ? status.lastChecked
+          : 0;
+      const isStale = !lastChecked || Date.now() - lastChecked > 5 * 60 * 1000;
+
+      if (hasEntry && isInstalled && !isStale) return;
+
+      refreshCheckRequested = true;
       try {
         const refreshed = await api.getProviderStatuses({ refresh: true, providers: [agent] });
         if (cancelled) return;
@@ -497,7 +527,7 @@ const ChatInterface: React.FC<Props> = ({
         if (cancelled) return;
         if (res?.success) {
           applyStatuses(res.statuses ?? {});
-          void maybeRefreshMissing(res.statuses);
+          void maybeRefreshAgentStatus(res.statuses);
         } else {
           setIsAgentInstalled(false);
         }
@@ -527,44 +557,6 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [agent, task.id]);
 
-  // If we don't even have a cached status entry for the current agent, pessimistically
-  // show the install banner and kick off a background refresh to populate it.
-  useEffect(() => {
-    const api: any = (window as any).electronAPI;
-    if (!api?.getProviderStatuses) {
-      setIsAgentInstalled(false);
-      return;
-    }
-    if (currentAgentStatus) {
-      return;
-    }
-
-    let cancelled = false;
-    setIsAgentInstalled(false);
-
-    (async () => {
-      try {
-        const res = await api.getProviderStatuses({ refresh: true, providers: [agent] });
-        if (cancelled) return;
-        if (res?.success) {
-          const statuses = res.statuses ?? {};
-          setAgentStatuses(statuses);
-          const installed = statuses?.[agent]?.installed === true;
-          setIsAgentInstalled(installed);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setIsAgentInstalled(false);
-        }
-        console.error('Agent status refresh (missing entry) failed', error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [agent, currentAgentStatus]);
-
   // When switching agents, ensure other streams are stopped
   useEffect(() => {
     (async () => {
@@ -572,6 +564,36 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
     })();
   }, [agent, task.id]);
+
+  // Switch active chat/agent via global shortcuts (Cmd+Shift+J/K)
+  useEffect(() => {
+    const handleAgentSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
+      if (conversations.length <= 1) return;
+      const direction = customEvent.detail?.direction;
+      if (!direction) return;
+
+      const currentIndex = conversations.findIndex((c) => c.id === activeConversationId);
+      if (currentIndex === -1) return;
+
+      let newIndex: number;
+      if (direction === 'prev') {
+        newIndex = currentIndex <= 0 ? conversations.length - 1 : currentIndex - 1;
+      } else {
+        newIndex = (currentIndex + 1) % conversations.length;
+      }
+
+      const newConversation = conversations[newIndex];
+      if (newConversation) {
+        handleSwitchChat(newConversation.id);
+      }
+    };
+
+    window.addEventListener('emdash:switch-agent', handleAgentSwitch);
+    return () => {
+      window.removeEventListener('emdash:switch-agent', handleAgentSwitch);
+    };
+  }, [conversations, activeConversationId, handleSwitchChat]);
 
   const isTerminal = agentMeta[agent]?.terminalOnly === true;
   const autoApproveEnabled =
@@ -673,6 +695,12 @@ const ChatInterface: React.FC<Props> = ({
       if (j.project?.key) details.push(`Project: ${j.project.key}`);
       if (details.length) lines.push(`Details: ${details.join(' • ')}`);
       if (j.url) lines.push(`URL: ${j.url}`);
+      const desc = typeof j.description === 'string' ? j.description.trim() : '';
+      if (desc) {
+        const max = 1500;
+        const clipped = desc.length > max ? desc.slice(0, max) + '\n…' : desc;
+        lines.push('', 'Issue Description:', clipped);
+      }
       const jiraContent = lines.join('\n');
       // Prepend comments if any
       if (commentsContext) {
@@ -718,8 +746,7 @@ const ChatInterface: React.FC<Props> = ({
           isOpen={showCreateChatModal}
           onClose={() => setShowCreateChatModal(false)}
           onCreateChat={handleCreateChat}
-          installedProviders={installedAgents}
-          currentProvider={agent}
+          installedAgents={installedAgents}
           existingConversations={conversations}
         />
 
@@ -786,16 +813,25 @@ const ChatInterface: React.FC<Props> = ({
                             )}
                           </span>
                           {conversations.length > 1 && (
-                            <button
+                            <span
+                              role="button"
+                              tabIndex={0}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleCloseChat(conv.id);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleCloseChat(conv.id);
+                                }
                               }}
                               className="ml-1 rounded hover:bg-background/20"
                               title="Close chat"
                             >
                               <X className="h-3 w-3" />
-                            </button>
+                            </span>
                           )}
                         </button>
                       );
@@ -812,8 +848,7 @@ const ChatInterface: React.FC<Props> = ({
                   {(task.metadata?.linearIssue ||
                     task.metadata?.githubIssue ||
                     task.metadata?.jiraIssue) && (
-                    <AgentDisplay
-                      agent={agent}
+                    <TaskContextBadges
                       taskId={task.id}
                       linearIssue={task.metadata?.linearIssue || null}
                       githubIssue={task.metadata?.githubIssue || null}
@@ -878,10 +913,16 @@ const ChatInterface: React.FC<Props> = ({
                   ref={terminalRef}
                   id={terminalId}
                   cwd={terminalCwd}
+                  remote={
+                    projectRemoteConnectionId
+                      ? { connectionId: projectRemoteConnectionId }
+                      : undefined
+                  }
                   providerId={agent}
                   autoApprove={autoApproveEnabled}
-                  env={undefined}
+                  env={taskEnv}
                   keepAlive={true}
+                  mapShiftEnterToCtrlJ
                   disableSnapshots={false}
                   onActivity={() => {
                     try {

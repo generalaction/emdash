@@ -40,6 +40,9 @@ declare global {
       getAppVersion: () => Promise<string>;
       getElectronVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
+      listInstalledFonts: (args?: {
+        refresh?: boolean;
+      }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;
       // Updater
       checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -78,40 +81,61 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            toggleEditor?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            newTask?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            nextAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            prevAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            theme?: 'light' | 'dark' | 'dark-black' | 'system';
           };
+          terminal?: {
+            fontFamily: string;
+          };
+          defaultOpenInApp?: string;
         };
         error?: string;
       }>;
@@ -138,40 +162,61 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            toggleEditor?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            newTask?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            nextAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            prevAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            theme?: 'light' | 'dark' | 'dark-black' | 'system';
           };
+          terminal?: {
+            fontFamily?: string;
+          };
+          defaultOpenInApp?: string;
         }>
       ) => Promise<{
         success: boolean;
@@ -197,40 +242,61 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            toggleEditor?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            newTask?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            nextAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+            };
+            prevAgent?: {
+              key: string;
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
             };
           };
           interface?: {
             autoRightSidebarBehavior?: boolean;
+            theme?: 'light' | 'dark' | 'dark-black' | 'system';
           };
+          terminal?: {
+            fontFamily: string;
+          };
+          defaultOpenInApp?: string;
         };
         error?: string;
       }>;
@@ -239,6 +305,7 @@ declare global {
       ptyStart: (opts: {
         id: string;
         cwd?: string;
+        remote?: { connectionId: string };
         shell?: string;
         env?: Record<string, string>;
         cols?: number;
@@ -251,10 +318,12 @@ declare global {
         id: string;
         providerId: string;
         cwd: string;
+        remote?: { connectionId: string };
         cols?: number;
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        env?: Record<string, string>;
         resume?: boolean;
       }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
@@ -314,7 +383,6 @@ declare global {
         projectPath: string;
         taskName: string;
         projectId: string;
-        autoApprove?: boolean;
         baseRef?: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
@@ -325,6 +393,7 @@ declare global {
         worktreeId: string;
         worktreePath?: string;
         branch?: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeStatus: (args: {
         worktreePath: string;
@@ -356,7 +425,6 @@ declare global {
         projectPath: string;
         taskName: string;
         baseRef?: string;
-        autoApprove?: boolean;
       }) => Promise<{
         success: boolean;
         worktree?: any;
@@ -366,6 +434,63 @@ declare global {
       worktreeRemoveReserve: (args: {
         projectId: string;
       }) => Promise<{ success: boolean; error?: string }>;
+
+      // Lifecycle scripts
+      lifecycleGetScript: (args: {
+        projectPath: string;
+        phase: 'setup' | 'run' | 'teardown';
+      }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+      lifecycleSetup: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleRunStart: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleRunStop: (args: {
+        taskId: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleTeardown: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleGetState: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        state?: {
+          taskId: string;
+          setup: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+          };
+          run: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+            pid?: number | null;
+          };
+          teardown: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+          };
+        };
+        error?: string;
+      }>;
+      lifecycleClearTask: (args: {
+        taskId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
       // Project management
       openProject: () => Promise<{
@@ -407,6 +532,21 @@ declare global {
         }>;
         error?: string;
       }>;
+      watchGitStatus: (taskPath: string) => Promise<{
+        success: boolean;
+        watchId?: string;
+        error?: string;
+      }>;
+      unwatchGitStatus: (
+        taskPath: string,
+        watchId?: string
+      ) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      onGitStatusChanged: (
+        listener: (data: { taskPath: string; error?: string }) => void
+      ) => () => void;
       getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         diff?: {
@@ -419,6 +559,10 @@ declare global {
         error?: string;
       }>;
       stageFile: (args: { taskPath: string; filePath: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      stageAllFiles: (args: { taskPath: string }) => Promise<{
         success: boolean;
         error?: string;
       }>;
@@ -463,6 +607,12 @@ declare global {
         output?: string;
         error?: string;
       }>;
+      mergeToMain: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        output?: string;
+        prUrl?: string;
+        error?: string;
+      }>;
       getPrStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         pr?: {
@@ -480,6 +630,40 @@ declare global {
           changedFiles?: number;
         } | null;
         error?: string;
+      }>;
+      getCheckRuns: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        checks?: Array<{
+          name: string;
+          state: string;
+          bucket: 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
+          description?: string;
+          link?: string;
+          workflow?: string;
+          event?: string;
+          startedAt?: string;
+          completedAt?: string;
+        }> | null;
+        error?: string;
+        code?: string;
+      }>;
+      getPrComments: (args: { taskPath: string; prNumber?: number }) => Promise<{
+        success: boolean;
+        comments?: Array<{
+          id: string;
+          author: { login: string; avatarUrl?: string };
+          body: string;
+          createdAt: string;
+        }>;
+        reviews?: Array<{
+          id: string;
+          author: { login: string; avatarUrl?: string };
+          body: string;
+          submittedAt: string;
+          state: string;
+        }>;
+        error?: string;
+        code?: string;
       }>;
       getBranchStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
@@ -501,15 +685,12 @@ declare global {
       }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
-        app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
+        app: OpenInAppId;
         path: string;
+        isRemote?: boolean;
+        sshConnectionId?: string | null;
       }) => Promise<{ success: boolean; error?: string }>;
-      checkInstalledApps: () => Promise<
-        Record<
-          'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
-          boolean
-        >
-      >;
+      checkInstalledApps: () => Promise<Record<OpenInAppId, boolean>>;
       connectToGitHub: (projectPath: string) => Promise<{
         success: boolean;
         repository?: string;
@@ -558,11 +739,15 @@ declare global {
       // Filesystem helpers
       fsList: (
         root: string,
-        opts?: { includeDirs?: boolean; maxEntries?: number }
+        opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
       ) => Promise<{
         success: boolean;
         items?: Array<{ path: string; type: 'file' | 'dir' }>;
         error?: string;
+        canceled?: boolean;
+        truncated?: boolean;
+        reason?: string;
+        durationMs?: number;
       }>;
       fsRead: (
         root: string,
@@ -810,6 +995,9 @@ declare global {
       saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
       deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
       deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      archiveTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      restoreTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      getArchivedTasks: (projectId?: string) => Promise<any[]>;
 
       // Conversation and Message operations
       saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
@@ -898,6 +1086,146 @@ declare global {
         comments?: LineComment[];
         error?: string;
       }>;
+
+      // SSH operations
+      sshTestConnection: (config: {
+        id?: string;
+        name: string;
+        host: string;
+        port: number;
+        username: string;
+        authType: 'password' | 'key' | 'agent';
+        privateKeyPath?: string;
+        useAgent?: boolean;
+        password?: string;
+        passphrase?: string;
+      }) => Promise<{ success: boolean; error?: string; latency?: number }>;
+      sshSaveConnection: (config: {
+        id?: string;
+        name: string;
+        host: string;
+        port: number;
+        username: string;
+        authType: 'password' | 'key' | 'agent';
+        privateKeyPath?: string;
+        useAgent?: boolean;
+        password?: string;
+        passphrase?: string;
+      }) => Promise<{
+        id: string;
+        name: string;
+        host: string;
+        port: number;
+        username: string;
+        authType: 'password' | 'key' | 'agent';
+        privateKeyPath?: string;
+        useAgent?: boolean;
+      }>;
+      sshGetConnections: () => Promise<
+        Array<{
+          id: string;
+          name: string;
+          host: string;
+          port: number;
+          username: string;
+          authType: 'password' | 'key' | 'agent';
+          privateKeyPath?: string;
+          useAgent?: boolean;
+        }>
+      >;
+      sshDeleteConnection: (id: string) => Promise<void>;
+      sshConnect: (
+        arg:
+          | string
+          | {
+              id?: string;
+              name: string;
+              host: string;
+              port: number;
+              username: string;
+              authType: 'password' | 'key' | 'agent';
+              privateKeyPath?: string;
+              useAgent?: boolean;
+              password?: string;
+              passphrase?: string;
+            }
+      ) => Promise<string>;
+      sshDisconnect: (connectionId: string) => Promise<void>;
+      sshExecuteCommand: (
+        connectionId: string,
+        command: string,
+        cwd?: string
+      ) => Promise<{
+        stdout: string;
+        stderr: string;
+        exitCode: number;
+      }>;
+      sshListFiles: (
+        connectionId: string,
+        path: string
+      ) => Promise<
+        Array<{
+          path: string;
+          name: string;
+          type: 'file' | 'directory' | 'symlink';
+          size: number;
+          modifiedAt: Date;
+          permissions?: string;
+        }>
+      >;
+      sshReadFile: (connectionId: string, path: string) => Promise<string>;
+      sshWriteFile: (connectionId: string, path: string, content: string) => Promise<void>;
+      sshGetState: (
+        connectionId: string
+      ) => Promise<'connecting' | 'connected' | 'disconnected' | 'error'>;
+      sshGetConfig: () => Promise<{ success: boolean; hosts?: any[]; error?: string }>;
+      sshGetSshConfigHost: (hostAlias: string) => Promise<{
+        success: boolean;
+        host?: {
+          host: string;
+          hostname?: string;
+          user?: string;
+          port?: number;
+          identityFile?: string;
+        };
+        error?: string;
+      }>;
+
+      // Skills management
+      skillsGetCatalog: () => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogIndex;
+        error?: string;
+      }>;
+      skillsRefreshCatalog: () => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogIndex;
+        error?: string;
+      }>;
+      skillsInstall: (args: { skillId: string }) => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogSkill;
+        error?: string;
+      }>;
+      skillsUninstall: (args: { skillId: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      skillsGetDetail: (args: { skillId: string }) => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogSkill;
+        error?: string;
+      }>;
+      skillsGetDetectedAgents: () => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').DetectedAgent[];
+        error?: string;
+      }>;
+      skillsCreate: (args: { name: string; description: string }) => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogSkill;
+        error?: string;
+      }>;
     };
   }
 }
@@ -907,6 +1235,9 @@ export interface ElectronAPI {
   // App info
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
+  listInstalledFonts: (args?: {
+    refresh?: boolean;
+  }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -940,6 +1271,7 @@ export interface ElectronAPI {
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
+    env?: Record<string, string>;
     resume?: boolean;
   }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
   ptyInput: (args: { id: string; data: string }) => void;
@@ -967,7 +1299,6 @@ export interface ElectronAPI {
     projectPath: string;
     taskName: string;
     projectId: string;
-    autoApprove?: boolean;
     baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
@@ -978,6 +1309,7 @@ export interface ElectronAPI {
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeStatus: (args: {
     worktreePath: string;
@@ -1009,7 +1341,6 @@ export interface ElectronAPI {
     projectPath: string;
     taskName: string;
     baseRef?: string;
-    autoApprove?: boolean;
   }) => Promise<{
     success: boolean;
     worktree?: any;
@@ -1019,6 +1350,61 @@ export interface ElectronAPI {
   worktreeRemoveReserve: (args: {
     projectId: string;
   }) => Promise<{ success: boolean; error?: string }>;
+
+  // Lifecycle scripts
+  lifecycleGetScript: (args: {
+    projectPath: string;
+    phase: 'setup' | 'run' | 'teardown';
+  }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+  lifecycleSetup: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStart: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStop: (args: {
+    taskId: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleTeardown: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleGetState: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    state?: {
+      taskId: string;
+      setup: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+      run: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+        pid?: number | null;
+      };
+      teardown: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+    };
+    error?: string;
+  }>;
+  lifecycleClearTask: (args: { taskId: string }) => Promise<{ success: boolean; error?: string }>;
+  onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management
   openProject: () => Promise<{
@@ -1065,6 +1451,12 @@ export interface ElectronAPI {
     success: boolean;
     url?: string;
     output?: string;
+    error?: string;
+  }>;
+  mergeToMain: (args: { taskPath: string }) => Promise<{
+    success: boolean;
+    output?: string;
+    prUrl?: string;
     error?: string;
   }>;
   connectToGitHub: (projectPath: string) => Promise<{
@@ -1119,11 +1511,15 @@ export interface ElectronAPI {
   // Filesystem
   fsList: (
     root: string,
-    opts?: { includeDirs?: boolean; maxEntries?: number }
+    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
   ) => Promise<{
     success: boolean;
     items?: Array<{ path: string; type: 'file' | 'dir' }>;
     error?: string;
+    canceled?: boolean;
+    truncated?: boolean;
+    reason?: string;
+    durationMs?: number;
   }>;
   fsRead: (
     root: string,
@@ -1269,6 +1665,9 @@ export interface ElectronAPI {
   saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  archiveTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  restoreTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  getArchivedTasks: (projectId?: string) => Promise<any[]>;
 
   // Message operations
   saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
@@ -1325,5 +1724,42 @@ export interface ElectronAPI {
     comments?: LineComment[];
     error?: string;
   }>;
+
+  // Skills management
+  skillsGetCatalog: () => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogIndex;
+    error?: string;
+  }>;
+  skillsRefreshCatalog: () => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogIndex;
+    error?: string;
+  }>;
+  skillsInstall: (args: { skillId: string }) => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogSkill;
+    error?: string;
+  }>;
+  skillsUninstall: (args: { skillId: string }) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  skillsGetDetail: (args: { skillId: string }) => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogSkill;
+    error?: string;
+  }>;
+  skillsGetDetectedAgents: () => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').DetectedAgent[];
+    error?: string;
+  }>;
+  skillsCreate: (args: { name: string; description: string }) => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogSkill;
+    error?: string;
+  }>;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
+import type { OpenInAppId } from '#shared/openInApps';

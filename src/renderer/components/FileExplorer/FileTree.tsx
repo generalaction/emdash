@@ -326,6 +326,10 @@ export const FileTree: React.FC<FileTreeProps> = ({
       try {
         const result = await window.electronAPI.fsList(rootPath, { includeDirs: true });
 
+        if (result.canceled) {
+          return;
+        }
+
         if (!result.success || !result.items) {
           throw new Error(result.error || 'Failed to load files');
         }

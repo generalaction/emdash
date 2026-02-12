@@ -1,6 +1,10 @@
 import { ipcMain, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Worker } from 'worker_threads';
+import { FsListWorkerResponse } from '../types/fsListWorker';
+import { DEFAULT_IGNORES } from '../utils/fsIgnores';
+import { safeStat } from '../utils/safeStat';
 
 const DEFAULT_EMDASH_CONFIG = `{
   "preservePatterns": [
@@ -10,7 +14,12 @@ const DEFAULT_EMDASH_CONFIG = `{
     ".env.*.local",
     ".envrc",
     "docker-compose.override.yml"
-  ]
+  ],
+  "scripts": {
+    "setup": "",
+    "run": "",
+    "teardown": ""
+  }
 }
 `;
 
@@ -18,25 +27,21 @@ type ListArgs = {
   root: string;
   includeDirs?: boolean;
   maxEntries?: number;
+  timeBudgetMs?: number;
 };
 
-type Item = {
-  path: string;
-  type: 'file' | 'dir';
+type ListWorkerState = {
+  worker: Worker;
+  requestId: number;
+  canceled: boolean;
 };
 
-const DEFAULT_IGNORES = new Set([
-  '.git',
-  'node_modules',
-  'dist',
-  'build',
-  'out',
-  '.next',
-  '.nuxt',
-  '.cache',
-  'coverage',
-  '.DS_Store',
-]);
+const listWorkersBySender = new Map<number, ListWorkerState>();
+const DEFAULT_TIME_BUDGET_MS = 2000;
+const MIN_TIME_BUDGET_MS = 250;
+const MAX_TIME_BUDGET_MS = 10000;
+const MAX_FILES_TO_SEARCH = 10000;
+const DEFAULT_BATCH_SIZE = 250;
 
 // Centralized configuration/constants for attachments
 const ALLOWED_IMAGE_EXTENSIONS = new Set<string>([
@@ -49,56 +54,6 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set<string>([
   '.svg',
 ]);
 const DEFAULT_ATTACHMENTS_SUBDIR = 'attachments' as const;
-
-function safeStat(p: string): fs.Stats | null {
-  try {
-    return fs.statSync(p);
-  } catch {
-    return null;
-  }
-}
-
-function listFiles(root: string, includeDirs: boolean, maxEntries: number): Item[] {
-  const items: Item[] = [];
-  const stack: string[] = ['.'];
-
-  while (stack.length > 0) {
-    const rel = stack.pop() as string;
-    const abs = path.join(root, rel);
-
-    const stat = safeStat(abs);
-    if (!stat) continue;
-
-    if (stat.isDirectory()) {
-      const name = path.basename(abs);
-      if (rel !== '.' && DEFAULT_IGNORES.has(name)) continue;
-
-      if (rel !== '.' && includeDirs) {
-        items.push({ path: rel, type: 'dir' });
-        if (items.length >= maxEntries) break;
-      }
-
-      let entries: string[] = [];
-      try {
-        entries = fs.readdirSync(abs);
-      } catch {
-        continue;
-      }
-
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const entry = entries[i];
-        if (DEFAULT_IGNORES.has(entry)) continue;
-        const nextRel = rel === '.' ? entry : path.join(rel, entry);
-        stack.push(nextRel);
-      }
-    } else if (stat.isFile()) {
-      items.push({ path: rel, type: 'file' });
-      if (items.length >= maxEntries) break;
-    }
-  }
-
-  return items;
-}
 
 export function registerFsIpc(): void {
   function emitPlanEvent(payload: any) {
@@ -115,12 +70,90 @@ export function registerFsIpc(): void {
     try {
       const root = args.root;
       const includeDirs = args.includeDirs ?? true;
-      const maxEntries = Math.min(Math.max(args.maxEntries ?? 5000, 100), 20000);
+      const maxEntries = Math.min(Math.max(args.maxEntries ?? 5000, 100), MAX_FILES_TO_SEARCH);
+      const timeBudgetMs = Math.min(
+        Math.max(args.timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS, MIN_TIME_BUDGET_MS),
+        MAX_TIME_BUDGET_MS
+      );
       if (!root || !fs.existsSync(root)) {
         return { success: false, error: 'Invalid root path' };
       }
-      const items = listFiles(root, includeDirs, maxEntries);
-      return { success: true, items };
+
+      const senderId = _event.sender.id;
+      const prev = listWorkersBySender.get(senderId);
+      if (prev) {
+        prev.canceled = true;
+        prev.worker.terminate().catch(() => {});
+      }
+
+      const requestId = (prev?.requestId ?? 0) + 1;
+      const workerPath = path.join(__dirname, '..', 'workers', 'fsListWorker.js');
+      const worker = new Worker(workerPath);
+      const state: ListWorkerState = { worker, requestId, canceled: false };
+      listWorkersBySender.set(senderId, state);
+
+      const result = await new Promise<FsListWorkerResponse>((resolve, reject) => {
+        const cleanup = () => {
+          worker.removeAllListeners('message');
+          worker.removeAllListeners('error');
+          worker.removeAllListeners('exit');
+        };
+
+        worker.once('message', (message) => {
+          cleanup();
+          worker.terminate().catch(() => {});
+          resolve(message as FsListWorkerResponse);
+        });
+        worker.once('error', (error) => {
+          cleanup();
+          reject(error);
+        });
+        worker.once('exit', (code) => {
+          cleanup();
+          if (state.canceled) {
+            resolve({ taskId: requestId, ok: false, error: 'Canceled' });
+            return;
+          }
+          if (code === 0) {
+            resolve({
+              taskId: requestId,
+              ok: false,
+              error: 'Worker exited before responding',
+            });
+            return;
+          }
+          reject(new Error(`fs:list worker exited with code ${code}`));
+        });
+
+        worker.postMessage({
+          taskId: requestId,
+          root,
+          includeDirs,
+          maxEntries,
+          timeBudgetMs,
+          batchSize: DEFAULT_BATCH_SIZE,
+        });
+      });
+
+      const latest = listWorkersBySender.get(senderId);
+      if (!latest || latest.requestId !== requestId || state.canceled) {
+        return { success: true, canceled: true };
+      }
+
+      listWorkersBySender.delete(senderId);
+
+      if (!result.ok) {
+        if (result.error === 'Canceled') return { success: true, canceled: true };
+        return { success: false, error: result.error };
+      }
+
+      return {
+        success: true,
+        items: result.items,
+        truncated: result.truncated,
+        reason: result.reason,
+        durationMs: result.durationMs,
+      };
     } catch (error) {
       console.error('fs:list failed:', error);
       return { success: false, error: 'Failed to list files' };
@@ -223,7 +256,7 @@ export function registerFsIpc(): void {
   const SEARCH_PREVIEW_CONTEXT_LENGTH = 30;
   const DEFAULT_MAX_SEARCH_RESULTS = 100; // Increased back for better coverage
   const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB max file size
-  const MAX_FILES_TO_SEARCH = 5000; // Increased to search more files
+  const MAX_SEARCH_FILES = 5000; // Increased to search more files
   const BINARY_CHECK_BYTES = 512; // Check first 512 bytes for binary content (faster)
 
   // Extended ignore patterns for performance
@@ -386,7 +419,7 @@ export function registerFsIpc(): void {
 
         // Optimized async file search
         const searchInFile = async (filePath: string): Promise<void> => {
-          if (totalMatches >= maxResults || filesSearched >= MAX_FILES_TO_SEARCH) return;
+          if (totalMatches >= maxResults || filesSearched >= MAX_SEARCH_FILES) return;
 
           try {
             filesSearched++;
@@ -451,13 +484,13 @@ export function registerFsIpc(): void {
 
         // Collect files first, then search in parallel
         const collectFiles = async (dirPath: string, files: string[] = []): Promise<string[]> => {
-          if (files.length >= MAX_FILES_TO_SEARCH) return files;
+          if (files.length >= MAX_SEARCH_FILES) return files;
 
           try {
             const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
 
             for (const entry of entries) {
-              if (files.length >= MAX_FILES_TO_SEARCH) break;
+              if (files.length >= MAX_SEARCH_FILES) break;
 
               const fullPath = path.join(dirPath, entry.name);
 

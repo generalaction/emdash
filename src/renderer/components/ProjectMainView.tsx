@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ArrowUpRight, Folder, AlertCircle } from 'lucide-react';
+import { GitBranch, Plus, Loader2, ArrowUpRight, Folder, Archive } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -28,6 +28,7 @@ import { useToast } from '../hooks/use-toast';
 import DeletePrNotice from './DeletePrNotice';
 import { activityStore } from '../lib/activityStore';
 import PrPreviewTooltip from './PrPreviewTooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
 import type { Project, Task } from '../types/app';
@@ -43,6 +44,7 @@ function TaskRow({
   active,
   onClick,
   onDelete,
+  onArchive,
   isSelectMode,
   isSelected,
   onToggleSelect,
@@ -51,6 +53,7 @@ function TaskRow({
   active: boolean;
   onClick: () => void;
   onDelete: () => void | Promise<void | boolean>;
+  onArchive?: () => void | Promise<void | boolean>;
   isSelectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -138,6 +141,29 @@ function TaskRow({
             />
           ) : (
             <>
+              {onArchive && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onArchive();
+                        }}
+                        aria-label={`Archive task ${ws.name}`}
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Archive Task
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <TaskDeleteButton
                 taskName={ws.name}
                 taskId={ws.id}
@@ -173,6 +199,11 @@ interface ProjectMainViewProps {
     task: Task,
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
+  onArchiveTask?: (
+    project: Project,
+    task: Task,
+    options?: { silent?: boolean }
+  ) => void | Promise<void | boolean>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   branchOptions: BranchOption[];
   isLoadingBranches: boolean;
@@ -185,6 +216,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   activeTask,
   onSelectTask,
   onDeleteTask,
+  onArchiveTask,
   onDeleteProject,
   branchOptions,
   isLoadingBranches,
@@ -202,6 +234,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
 
@@ -309,6 +342,41 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
       toast({
         title: deletedNames.length === 1 ? 'Task deleted' : 'Tasks deleted',
+        description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
+      });
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    if (!onArchiveTask) return;
+    const toArchive = tasksInProject.filter((ws) => selectedIds.has(ws.id));
+    if (toArchive.length === 0) return;
+
+    setIsArchiving(true);
+
+    const archivedNames: string[] = [];
+    for (const ws of toArchive) {
+      try {
+        const result = await onArchiveTask(project, ws, { silent: true });
+        // Only count as archived if returned true (or void for backwards compat)
+        if (result !== false) {
+          archivedNames.push(ws.name);
+        }
+      } catch {
+        // Continue archiving remaining tasks
+      }
+    }
+
+    setIsArchiving(false);
+    exitSelectMode();
+
+    if (archivedNames.length > 0) {
+      const maxNames = 3;
+      const displayNames = archivedNames.slice(0, maxNames).join(', ');
+      const remaining = archivedNames.length - maxNames;
+
+      toast({
+        title: archivedNames.length === 1 ? 'Task archived' : 'Tasks archived',
         description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
       });
     }
@@ -490,9 +558,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       ) : null}
                     </div>
                   </div>
-                  <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
-                    {project.path}
-                  </p>
+                  <p className="break-all text-sm text-muted-foreground">{project.path}</p>
                 </div>
                 <BaseBranchControls
                   baseBranch={baseBranch}
@@ -500,46 +566,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   isLoadingBranches={isLoadingBranches}
                   isSavingBaseBranch={isSavingBaseBranch}
                   onBaseBranchChange={handleBaseBranchChange}
-                  projectPath={project.path}
-                  onEditConfig={() => setShowConfigEditor(true)}
+                  onOpenConfig={() => setShowConfigEditor(true)}
                 />
               </header>
               <Separator className="my-2" />
             </div>
-
-            {(() => {
-              // Find tasks running directly on the main branch (without worktrees)
-              // Check both useWorktree === false and tasks where path equals project path
-              const directTasks = tasksInProject.filter(
-                (task) => task.useWorktree === false || task.path === project.path
-              );
-              if (directTasks.length === 0) return null;
-
-              return (
-                <Alert className="border-border bg-muted/50">
-                  <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                  <AlertTitle className="text-sm font-medium text-foreground">
-                    Direct branch mode
-                  </AlertTitle>
-                  <AlertDescription className="text-xs text-muted-foreground">
-                    {directTasks.length === 1 ? (
-                      <>
-                        <span className="font-medium text-foreground">{directTasks[0].name}</span>{' '}
-                        is running directly on your current branch.
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-medium text-foreground">
-                          {directTasks.map((t) => t.name).join(', ')}
-                        </span>{' '}
-                        are running directly on your current branch.
-                      </>
-                    )}{' '}
-                    Changes will affect your working directory.
-                  </AlertDescription>
-                </Alert>
-              );
-            })()}
 
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -567,22 +598,42 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 <>
                   <div className="flex justify-end gap-2">
                     {isSelectMode && selectedCount > 0 && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-8 px-3 text-xs font-medium"
-                        onClick={() => setShowDeleteDialog(true)}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? (
-                          <>
-                            <Loader2 className="mr-2 size-4 animate-spin" />
-                            Deleting…
-                          </>
-                        ) : (
-                          'Delete'
+                      <>
+                        {onArchiveTask && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-8 px-3 text-xs font-medium"
+                            onClick={handleBulkArchive}
+                            disabled={isArchiving || isDeleting}
+                          >
+                            {isArchiving ? (
+                              <>
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                                Archiving…
+                              </>
+                            ) : (
+                              'Archive'
+                            )}
+                          </Button>
                         )}
-                      </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium"
+                          onClick={() => setShowDeleteDialog(true)}
+                          disabled={isDeleting || isArchiving}
+                        >
+                          {isDeleting ? (
+                            <>
+                              <Loader2 className="mr-2 size-4 animate-spin" />
+                              Deleting…
+                            </>
+                          ) : (
+                            'Delete'
+                          )}
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="secondary"
@@ -604,6 +655,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         active={activeTask?.id === ws.id}
                         onClick={() => onSelectTask(ws)}
                         onDelete={() => onDeleteTask(project, ws)}
+                        onArchive={onArchiveTask ? () => onArchiveTask(project, ws) : undefined}
                       />
                     ))}
                   </div>

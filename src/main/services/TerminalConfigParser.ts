@@ -167,7 +167,13 @@ function loadiTerm2Config(): TerminalConfig | null {
       return loadiTerm2ConfigXML(plistPath);
     }
 
-    const plist = JSON.parse(jsonContent);
+    let plist: any;
+    try {
+      plist = JSON.parse(jsonContent);
+    } catch (error) {
+      // Silently ignore plist parsing errors - the file may contain non-standard objects
+      return null;
+    }
 
     // iTerm2 stores color schemes in "New Bookmarks" -> "Color Presets"
     // We need to find the default profile's color scheme
@@ -334,7 +340,13 @@ function loadTerminalAppConfig(): TerminalConfig | null {
       return null;
     }
 
-    const plist = JSON.parse(jsonContent);
+    let plist: any;
+    try {
+      plist = JSON.parse(jsonContent);
+    } catch (error) {
+      // Silently ignore plist parsing errors - the file may contain non-standard objects
+      return null;
+    }
     const windowSettings = plist['Window Settings'] || {};
     const defaultProfile = plist['Default Window Settings'] || 'Basic';
 

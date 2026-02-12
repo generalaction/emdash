@@ -29,6 +29,10 @@
 
 Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (supports 15+ CLI agents, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; Hand off Linear, GitHub, or Jira tickets to an agent and review diffs side-by-side.
 
+**Develop on remote servers via SSH**
+
+Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development.
+
 <div align="center" style="margin:24px 0;">
 
 [Installation](#installation) • [Integrations](#integrations) • [Contributing](#contributing) • [FAQ](#faq)
@@ -36,10 +40,6 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 </div>
 
 # Installation
-
-**[Latest Release (macOS • Linux)](https://github.com/generalaction/emdash/releases/latest)**
-
-<details><summary>Direct links</summary>
 
 ### macOS
 - Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg  
@@ -52,6 +52,10 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 - AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage  
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
 </details>
+
+### Release Overview
+
+**[Latest Releases (macOS • Linux)](https://github.com/generalaction/emdash/releases/latest)**
 
 # Providers
 
@@ -66,7 +70,7 @@ Emdash currently supports twenty CLI providers and we are adding new providers r
 | [Amp](https://ampcode.com/manual) | ✅ Supported | `npm install -g @sourcegraph/amp@latest` |
 | [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | `npm install -g @augmentcode/auggie` |
 | [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | `npm install -g @charmland/crush` |
-| [Claude Code](https://www.npmjs.com/package/%40anthropic-ai/claude-code) | ✅ Supported | `npm install -g @anthropic-ai/claude-code` |
+| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | `curl -fsSL https://claude.ai/install.sh \| bash` |
 | [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | `npm install -g cline` |
 | [Codebuff](https://www.codebuff.com/docs/help/getting-started) | ✅ Supported | `npm install -g codebuff` |
 | [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | `npm install -g @openai/codex` |
@@ -188,6 +192,24 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > Emdash itself does **not** send your code or chats to any servers. Third‑party CLIs may transmit data per their policies.
 </details>
 
+
+<details>
+<summary><b>Can I work with remote projects over SSH?</b></summary>
+
+> **Yes!** Emdash supports remote development via SSH.
+>
+> **Setup:**
+> 1. Go to **Settings → SSH Connections** and add your server details
+> 2. Choose authentication: SSH agent (recommended), private key, or password
+> 3. Add a remote project and specify the path on the server
+>
+> **Requirements:**
+> - SSH access to the remote server
+> - Git installed on the remote server
+> - For agent auth: SSH agent running with your key loaded (`ssh-add -l`)
+>
+> See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions and [docs/ssh-architecture.md](./docs/ssh-architecture.md) for technical details.
+</details>
+
 [![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
 [![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)
-

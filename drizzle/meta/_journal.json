@@ -57,6 +57,20 @@
       "when": 1765592430359,
       "tag": "0007_add_is_main_to_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1765592430360,
+      "tag": "0008_add_archived_at_to_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1738857600000,
+      "tag": "0009_add_ssh_support",
+      "breakpoints": true
     }
   ]
 }

@@ -39,13 +39,13 @@ export function useCreatePR() {
       // Guard: ensure Electron bridge methods exist (prevents hard crashes in plain web builds)
       const api: any = (window as any).electronAPI;
       if (!api?.gitCommitAndPush || !api?.createPullRequest) {
-        const msg = 'PR creation is only available in the Electron app. Start via "npm run d".';
+        const msg = 'PR creation is only available in the Electron app. Start via "pnpm run d".';
         toast({ title: 'Create PR Unavailable', description: msg, variant: 'destructive' });
         return { success: false, error: 'Electron bridge unavailable' } as any;
       }
 
       // Auto-generate PR title and description if not provided
-      let finalPrOptions = { ...(prOptions || {}) };
+      const finalPrOptions = { ...(prOptions || {}) };
 
       if (!finalPrOptions.title || !finalPrOptions.body) {
         try {

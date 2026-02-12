@@ -4,6 +4,15 @@ import type { PrStatus } from '../lib/prStatus';
 
 export function usePrStatus(taskPath?: string) {
   const [pr, setPr] = useState<PrStatus | null>(null);
+  const [prevTaskPath, setPrevTaskPath] = useState(taskPath);
+
+  // Synchronously clear stale pr when taskPath changes (before effects run)
+  if (taskPath !== prevTaskPath) {
+    setPrevTaskPath(taskPath);
+    if (pr !== null) {
+      setPr(null);
+    }
+  }
 
   const refresh = async () => {
     if (!taskPath) return;
@@ -17,7 +26,6 @@ export function usePrStatus(taskPath?: string) {
       return;
     }
 
-    setPr(null); // Clear stale data before subscribing to new task
     return subscribeToPrStatus(taskPath, setPr);
   }, [taskPath]);
 

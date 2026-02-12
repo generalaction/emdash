@@ -41,7 +41,7 @@ export function useUpdateNotifier(opts: Options = {}) {
       } catch {}
     };
 
-    const off = window.electronAPI.onUpdateEvent?.((evt) => {
+    const off = window.electronAPI?.onUpdateEvent?.((evt) => {
       if (evt?.type === 'available') {
         const v = evt?.payload?.version || evt?.payload?.tag || undefined;
         if (!shouldNotify(v)) return;

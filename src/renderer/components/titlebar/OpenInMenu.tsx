@@ -3,48 +3,59 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useToast } from '@/hooks/use-toast';
-import cursorLogo from '../../../assets/images/cursorlogo.png';
-import finderLogo from '../../../assets/images/finder.png';
-import terminalLogo from '../../../assets/images/terminal.png';
-import zedLogo from '../../../assets/images/zed.png';
-import ghosttyLogo from '../../../assets/images/ghostty.png';
-import vscodeLogo from '../../../assets/images/vscode.png';
-import iterm2Logo from '../../../assets/images/iterm2.png';
-import warpLogo from '../../../assets/images/warp.svg';
+import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import { useOpenInApps } from '../../hooks/useOpenInApps';
 
 interface OpenInMenuProps {
   path: string;
   align?: 'left' | 'right';
+  isRemote?: boolean;
+  sshConnectionId?: string | null;
 }
 
 const menuItemBase =
-  'flex w-full select-none items-center gap-2 rounded px-2.5 py-2 text-sm transition-colors';
+  'flex w-full select-none items-center gap-2 rounded px-2.5 py-2 text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground';
 
-const getMenuItemClasses = (isAvailable: boolean) => {
-  if (!isAvailable) {
-    return `${menuItemBase} cursor-not-allowed opacity-40`;
-  }
-  return `${menuItemBase} cursor-pointer hover:bg-accent hover:text-accent-foreground`;
-};
-
-const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
+const OpenInMenu: React.FC<OpenInMenuProps> = ({
+  path,
+  align = 'right',
+  isRemote = false,
+  sshConnectionId = null,
+}) => {
   const [open, setOpen] = React.useState(false);
-  const [availability, setAvailability] = React.useState<Record<string, boolean>>({});
+  const [defaultApp, setDefaultApp] = React.useState<OpenInAppId | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
+  const { icons, installedApps, availability, loading } = useOpenInApps();
 
-  // Fetch app availability on mount
+  // Fetch default app setting on mount and listen for changes
   React.useEffect(() => {
-    const fetchAvailability = async () => {
+    const fetchDefaultApp = async () => {
       try {
-        const apps = await (window as any).electronAPI?.checkInstalledApps?.();
-        if (apps) setAvailability(apps);
+        const res = await window.electronAPI?.getSettings?.();
+        if (res?.success && res.settings?.defaultOpenInApp) {
+          const app = res.settings.defaultOpenInApp;
+          if (isValidOpenInAppId(app)) {
+            setDefaultApp(app);
+          }
+        }
       } catch (e) {
-        console.error('Failed to check installed apps:', e);
+        console.error('Failed to fetch default open in app:', e);
       }
     };
-    void fetchAvailability();
+    void fetchDefaultApp();
+
+    // Listen for changes from settings
+    const handleChange = (e: CustomEvent<OpenInAppId>) => {
+      if (isValidOpenInAppId(e.detail)) {
+        setDefaultApp(e.detail);
+      }
+    };
+    window.addEventListener('defaultOpenInAppChanged', handleChange as EventListener);
+    return () => {
+      window.removeEventListener('defaultOpenInAppChanged', handleChange as EventListener);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -56,69 +67,54 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  const callOpen = async (
-    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp'
-  ) => {
-    // Check if app is available
-    if (availability[app] === false) {
-      return; // Don't proceed if app is not installed
-    }
+  const callOpen = async (appId: OpenInAppId) => {
+    const appConfig = getAppById(appId);
+    const label = appConfig?.label || appId;
 
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('toolbar_open_in_selected', { app });
+      captureTelemetry('toolbar_open_in_selected', { app: appId });
     });
     try {
-      const res = await (window as any).electronAPI?.openIn?.({ app, path });
+      const res = await window.electronAPI?.openIn?.({
+        app: appId,
+        path,
+        isRemote,
+        sshConnectionId,
+      });
       if (!res?.success) {
-        const pretty =
-          app === 'ghostty'
-            ? 'Ghostty'
-            : app === 'zed'
-              ? 'Zed'
-              : app === 'vscode'
-                ? 'VS Code'
-                : app === 'iterm2'
-                  ? 'iTerm2'
-                  : app === 'warp'
-                    ? 'Warp'
-                    : app;
         toast({
-          title: `Open in ${pretty} failed`,
-          description:
-            res?.error ||
-            (app === 'ghostty'
-              ? 'Ghostty is not installed or not available on this platform.'
-              : app === 'zed'
-                ? 'Zed is not installed or not available on this platform.'
-                : app === 'iterm2'
-                  ? 'iTerm2 is not installed or not available on this platform.'
-                  : app === 'warp'
-                    ? 'Warp is not installed or not available on this platform.'
-                    : 'Application not available.'),
+          title: `Open in ${label} failed`,
+          description: res?.error || 'Application not available.',
           variant: 'destructive',
         });
       }
     } catch (e: any) {
-      const pretty =
-        app === 'ghostty'
-          ? 'Ghostty'
-          : app === 'zed'
-            ? 'Zed'
-            : app === 'vscode'
-              ? 'VS Code'
-              : app === 'iterm2'
-                ? 'iTerm2'
-                : app === 'warp'
-                  ? 'Warp'
-                  : app;
       toast({
-        title: `Open in ${pretty} failed`,
+        title: `Open in ${label} failed`,
         description: e?.message || String(e),
         variant: 'destructive',
       });
     }
     setOpen(false);
   };
+
+  // Sort installed apps with default first
+  const sortedApps = React.useMemo(() => {
+    if (!defaultApp) return installedApps;
+    return [...installedApps].sort((a, b) => {
+      if (a.id === defaultApp) return -1;
+      if (b.id === defaultApp) return 1;
+      return 0;
+    });
+  }, [defaultApp, installedApps]);
+
+  // Determine which icon to show on the button (default if installed, otherwise first installed)
+  const buttonAppId = React.useMemo(() => {
+    if (defaultApp && installedApps.some((app) => app.id === defaultApp)) {
+      return defaultApp;
+    }
+    return installedApps[0]?.id;
+  }, [defaultApp, installedApps]);
 
   return (
     <div ref={containerRef} className="relative">
@@ -143,6 +139,13 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
         aria-haspopup
       >
         <span>Open in</span>
+        {buttonAppId && icons[buttonAppId] && (
+          <img
+            src={icons[buttonAppId]}
+            alt={getAppById(buttonAppId)?.label}
+            className="h-4 w-4 rounded"
+          />
+        )}
         <ChevronDown
           className={`h-3 w-3 opacity-50 transition-transform duration-200 ${
             open ? 'rotate-180' : ''
@@ -169,86 +172,29 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            <button
-              className={getMenuItemClasses(availability.finder !== false)}
-              role="menuitem"
-              onClick={() => callOpen('finder')}
-              disabled={availability.finder === false}
-              title={availability.finder === false ? 'Not installed' : undefined}
-            >
-              <img src={finderLogo} alt="Finder" className="h-4 w-4 rounded" />
-              <span>Finder</span>
-            </button>
-            <button
-              className={getMenuItemClasses(availability.cursor !== false)}
-              role="menuitem"
-              onClick={() => callOpen('cursor')}
-              disabled={availability.cursor === false}
-              title={availability.cursor === false ? 'Not installed' : undefined}
-            >
-              <img src={cursorLogo} alt="Cursor" className="h-4 w-4" />
-              <span>Cursor</span>
-            </button>
-            <button
-              className={getMenuItemClasses(availability.vscode !== false)}
-              role="menuitem"
-              onClick={() => callOpen('vscode')}
-              disabled={availability.vscode === false}
-              title={availability.vscode === false ? 'Not installed' : undefined}
-            >
-              <img src={vscodeLogo} alt="VS Code" className="h-4 w-4 rounded" />
-              <span>VS Code</span>
-            </button>
-            <button
-              className={getMenuItemClasses(availability.terminal !== false)}
-              role="menuitem"
-              onClick={() => callOpen('terminal')}
-              disabled={availability.terminal === false}
-              title={availability.terminal === false ? 'Not installed' : undefined}
-            >
-              <img src={terminalLogo} alt="Terminal" className="h-4 w-4 rounded" />
-              <span>Terminal</span>
-            </button>
-            <button
-              className={getMenuItemClasses(availability.warp !== false)}
-              role="menuitem"
-              onClick={() => callOpen('warp')}
-              disabled={availability.warp === false}
-              title={availability.warp === false ? 'Not installed' : undefined}
-            >
-              <img src={warpLogo} alt="Warp" className="h-4 w-4 rounded" />
-              <span>Warp</span>
-            </button>
-            <button
-              className={getMenuItemClasses(availability.iterm2 !== false)}
-              role="menuitem"
-              onClick={() => callOpen('iterm2')}
-              disabled={availability.iterm2 === false}
-              title={availability.iterm2 === false ? 'Not installed' : undefined}
-            >
-              <img src={iterm2Logo} alt="iTerm2" className="h-4 w-4 rounded" />
-              <span>iTerm2</span>
-            </button>
-            <button
-              className={getMenuItemClasses(availability.ghostty !== false)}
-              role="menuitem"
-              onClick={() => callOpen('ghostty')}
-              disabled={availability.ghostty === false}
-              title={availability.ghostty === false ? 'Not installed' : undefined}
-            >
-              <img src={ghosttyLogo} alt="Ghostty" className="h-4 w-4 rounded" />
-              <span>Ghostty</span>
-            </button>
-            <button
-              className={getMenuItemClasses(availability.zed !== false)}
-              role="menuitem"
-              onClick={() => callOpen('zed')}
-              disabled={availability.zed === false}
-              title={availability.zed === false ? 'Not installed' : undefined}
-            >
-              <img src={zedLogo} alt="Zed" className="h-4 w-4 rounded" />
-              <span>Zed</span>
-            </button>
+            {sortedApps
+              .filter((app) => !app.hideIfUnavailable || availability[app.id])
+              .map((app) => {
+                // While loading, disable apps that aren't confirmed installed
+                const isAvailable = loading ? availability[app.id] === true : true;
+                return (
+                  <button
+                    key={app.id}
+                    className={`${menuItemBase} ${!isAvailable ? 'cursor-not-allowed opacity-50' : ''}`}
+                    role="menuitem"
+                    onClick={() => isAvailable && callOpen(app.id)}
+                    disabled={!isAvailable}
+                  >
+                    {icons[app.id] ? (
+                      <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
+                    ) : null}
+                    <span>{app.label}</span>
+                    {app.id === defaultApp && (
+                      <span className="ml-auto text-xs text-muted-foreground">Default</span>
+                    )}
+                  </button>
+                );
+              })}
           </motion.div>
         )}
       </AnimatePresence>

@@ -55,6 +55,16 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   const editorRefs = useRef<Map<string, monaco.editor.IStandaloneDiffEditor>>(new Map());
   const changeDisposables = useRef<Map<string, monaco.IDisposable>>(new Map());
 
+  // Close on escape key
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   const updateFileData = (filePath: string, updater: (data: FileDiffData) => FileDiffData) => {
     setFileData((prev) => {
       const existing = prev.get(filePath);

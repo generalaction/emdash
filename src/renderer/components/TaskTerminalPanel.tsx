@@ -1,6 +1,6 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Terminal, Plus, X } from 'lucide-react';
+import { Bot, Plus, Play, Square, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from './ui/select';
 import type { Agent } from '../types';
+import { getTaskEnvVars } from '@shared/task/envVars';
+import { shouldDisablePlay } from '../lib/lifecycleUi';
 
 interface Task {
   id: string;
@@ -29,10 +31,30 @@ interface Props {
   agent?: Agent;
   className?: string;
   projectPath?: string;
+  remote?: {
+    connectionId: string;
+    projectPath?: string;
+  };
+  defaultBranch?: string;
+  portSeed?: string;
 }
 
-const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, projectPath }) => {
+type LifecyclePhaseStatus = 'idle' | 'running' | 'succeeded' | 'failed';
+type SelectedMode = 'task' | 'global' | 'lifecycle';
+type LifecyclePhase = 'setup' | 'run' | 'teardown';
+type LifecycleLogs = Record<LifecyclePhase, string[]>;
+
+const TaskTerminalPanelComponent: React.FC<Props> = ({
+  task,
+  agent,
+  className,
+  projectPath,
+  remote,
+  defaultBranch,
+  portSeed,
+}) => {
   const { effectiveTheme } = useTheme();
+
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
@@ -40,99 +62,286 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
   const globalKey = task?.path ? `global::${task.path}` : 'global';
   const globalTerminals = useTaskTerminals(globalKey, projectPath, { defaultCwd: projectPath });
 
-  // Combined selection state: "task::id" or "global::id"
-  const [selectedValue, setSelectedValue] = useState<string | null>(() => {
+  const [selectedValue, setSelectedValue] = useState<string>(() => {
     if (task && taskTerminals.activeTerminalId) {
       return `task::${taskTerminals.activeTerminalId}`;
     }
     if (globalTerminals.activeTerminalId) {
       return `global::${globalTerminals.activeTerminalId}`;
     }
-    return null;
+    return '';
   });
 
-  // Parse the selected value to get mode and terminal ID
-  const parseValue = (value: string): { mode: 'task' | 'global'; id: string } | null => {
-    const match = value.match(/^(task|global)::(.+)$/);
+  const [runStatus, setRunStatus] = useState<LifecyclePhaseStatus>('idle');
+  const [setupStatus, setSetupStatus] = useState<LifecyclePhaseStatus>('idle');
+  const [teardownStatus, setTeardownStatus] = useState<LifecyclePhaseStatus>('idle');
+  const [runActionBusy, setRunActionBusy] = useState(false);
+  const activeTaskIdRef = useRef<string | null>(task?.id ?? null);
+  const [lifecycleLogs, setLifecycleLogs] = useState<LifecycleLogs>({
+    setup: [],
+    run: [],
+    teardown: [],
+  });
+
+  const parseValue = (value: string): { mode: SelectedMode; id: string } | null => {
+    const match = value.match(/^(task|global|lifecycle)::(.+)$/);
     if (!match) return null;
-    return { mode: match[1] as 'task' | 'global', id: match[2] };
+    return { mode: match[1] as SelectedMode, id: match[2] };
   };
 
   const parsed = selectedValue ? parseValue(selectedValue) : null;
+  const selectedLifecycle =
+    parsed?.mode === 'lifecycle' ? (parsed.id as LifecyclePhase) : (null as LifecyclePhase | null);
 
-  // Sync selection when store's active terminal changes (e.g., after creating a new terminal)
+  const taskEnv = useMemo(() => {
+    if (!task || !task.path || !projectPath) return undefined;
+    return getTaskEnvVars({
+      taskId: task.id,
+      taskName: task.name,
+      taskPath: task.path,
+      projectPath,
+      defaultBranch,
+      portSeed,
+    });
+  }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
+
   useEffect(() => {
-    if (taskTerminals.activeTerminalId) {
-      const newValue = `task::${taskTerminals.activeTerminalId}`;
-      if (selectedValue !== newValue) {
-        setSelectedValue(newValue);
-      }
+    activeTaskIdRef.current = task?.id ?? null;
+  }, [task?.id]);
+
+  const refreshLifecycleState = useCallback(async () => {
+    const taskId = task?.id;
+    if (!taskId) return;
+    const api = window.electronAPI as any;
+    if (typeof api?.lifecycleGetState !== 'function') return;
+    try {
+      const res = await api.lifecycleGetState({ taskId });
+      if (activeTaskIdRef.current !== taskId) return;
+      if (!res?.success || !res.state) return;
+      if (res.state.run?.status) setRunStatus(res.state.run.status);
+      if (res.state.setup?.status) setSetupStatus(res.state.setup.status);
+      if (res.state.teardown?.status) setTeardownStatus(res.state.teardown.status);
+    } catch {}
+  }, [task?.id]);
+
+  useEffect(() => {
+    setRunStatus('idle');
+    setSetupStatus('idle');
+    setTeardownStatus('idle');
+    setRunActionBusy(false);
+    setLifecycleLogs({ setup: [], run: [], teardown: [] });
+    if (!task) return;
+
+    const api = window.electronAPI as any;
+    let cancelled = false;
+
+    void refreshLifecycleState();
+
+    if (typeof api?.onLifecycleEvent !== 'function') {
+      return () => {
+        cancelled = true;
+      };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync when store's activeId changes
+
+    const off = api.onLifecycleEvent((evt: any) => {
+      if (!evt || evt.taskId !== task.id) return;
+      const phase =
+        evt.phase === 'setup' || evt.phase === 'run' || evt.phase === 'teardown'
+          ? (evt.phase as LifecyclePhase)
+          : null;
+      if (phase) {
+        if (evt.status === 'starting') {
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            [phase]: [...prev[phase], `$ ${phase} started\n`].slice(-300),
+          }));
+        } else if (evt.status === 'line' && typeof evt.line === 'string') {
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            [phase]: [...prev[phase], evt.line].slice(-300),
+          }));
+        } else if (evt.status === 'done') {
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            [phase]: [...prev[phase], `$ ${phase} finished (exit ${evt.exitCode ?? 0})\n`].slice(
+              -300
+            ),
+          }));
+        } else if (evt.status === 'error') {
+          const detail = typeof evt.error === 'string' ? `: ${evt.error}` : '';
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            [phase]: [
+              ...prev[phase],
+              `$ ${phase} failed (exit ${evt.exitCode ?? 'unknown'})${detail}\n`,
+            ].slice(-300),
+          }));
+        } else if (phase === 'run' && evt.status === 'exit') {
+          const code = evt.exitCode === null ? 'signal' : evt.exitCode;
+          setLifecycleLogs((prev) => ({
+            ...prev,
+            run: [...prev.run, `$ run exited (${code})\n`].slice(-300),
+          }));
+        }
+      }
+
+      if (evt.phase === 'setup') {
+        if (evt.status === 'starting') setSetupStatus('running');
+        if (evt.status === 'done') setSetupStatus('succeeded');
+        if (evt.status === 'error') setSetupStatus('failed');
+        return;
+      }
+      if (evt.phase === 'teardown') {
+        if (evt.status === 'starting') setTeardownStatus('running');
+        if (evt.status === 'done') setTeardownStatus('succeeded');
+        if (evt.status === 'error') setTeardownStatus('failed');
+        return;
+      }
+      if (evt.phase !== 'run') return;
+      if (evt.status === 'starting') {
+        setRunStatus('running');
+        return;
+      }
+      if (evt.status === 'error') {
+        setRunStatus('failed');
+        return;
+      }
+      if (evt.status === 'exit') {
+        void (async () => {
+          if (cancelled) return;
+          const apiInner = window.electronAPI as any;
+          if (typeof apiInner?.lifecycleGetState === 'function') {
+            try {
+              const res = await apiInner.lifecycleGetState({ taskId: task.id });
+              if (!cancelled && res?.success && res.state?.run?.status) {
+                setRunStatus(res.state.run.status);
+                return;
+              }
+            } catch {}
+          }
+          if (cancelled) return;
+          if (evt.exitCode === 0) setRunStatus('succeeded');
+          else if (typeof evt.exitCode === 'number') setRunStatus('failed');
+          else setRunStatus('idle');
+        })();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }, [task?.id, refreshLifecycleState]);
+
+  // Sync selection when store active terminal changes; don't override lifecycle selection.
+  useEffect(() => {
+    if (!taskTerminals.activeTerminalId) return;
+    if (!selectedValue || parsed?.mode === 'task') {
+      const newValue = `task::${taskTerminals.activeTerminalId}`;
+      if (selectedValue !== newValue) setSelectedValue(newValue);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskTerminals.activeTerminalId]);
 
   useEffect(() => {
-    if (globalTerminals.activeTerminalId) {
+    if (!globalTerminals.activeTerminalId) return;
+    if (!selectedValue || parsed?.mode === 'global') {
       const newValue = `global::${globalTerminals.activeTerminalId}`;
-      // Only sync if we're currently in global mode or have no selection
-      if (!selectedValue || parsed?.mode === 'global') {
-        if (selectedValue !== newValue) {
-          setSelectedValue(newValue);
-        }
-      }
+      if (selectedValue !== newValue) setSelectedValue(newValue);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync when store's activeId changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalTerminals.activeTerminalId]);
 
-  // Initialize selection and handle terminal removal
   useEffect(() => {
     if (!selectedValue) {
-      // Initialize with first available terminal
       if (task && taskTerminals.terminals.length > 0) {
         setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
       } else if (globalTerminals.terminals.length > 0) {
         setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
       }
+      return;
+    }
+
+    const p = parseValue(selectedValue);
+    if (!p || p.mode === 'lifecycle') return;
+
+    const terminals = p.mode === 'task' ? taskTerminals.terminals : globalTerminals.terminals;
+    const exists = terminals.some((t) => t.id === p.id);
+    if (exists) return;
+
+    if (p.mode === 'task' && taskTerminals.terminals.length > 0) {
+      setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
+    } else if (globalTerminals.terminals.length > 0) {
+      setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
+    } else if (taskTerminals.terminals.length > 0) {
+      setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
     } else {
-      // Verify selected terminal still exists
-      const p = parseValue(selectedValue);
-      if (p) {
-        const terminals = p.mode === 'task' ? taskTerminals.terminals : globalTerminals.terminals;
-        const exists = terminals.some((t) => t.id === p.id);
-        if (!exists) {
-          // Fall back to first available
-          if (p.mode === 'task' && taskTerminals.terminals.length > 0) {
-            setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
-          } else if (globalTerminals.terminals.length > 0) {
-            setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
-          } else if (taskTerminals.terminals.length > 0) {
-            setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
-          } else {
-            setSelectedValue(null);
-          }
-        }
-      }
+      setSelectedValue('');
     }
   }, [selectedValue, taskTerminals.terminals, globalTerminals.terminals, task]);
 
-  // Handle selection change
   const handleSelectChange = (value: string) => {
     setSelectedValue(value);
     const p = parseValue(value);
-    if (p) {
-      if (p.mode === 'task') {
-        taskTerminals.setActiveTerminal(p.id);
-      } else {
-        globalTerminals.setActiveTerminal(p.id);
-      }
+    if (!p) return;
+    if (p.mode === 'task') {
+      taskTerminals.setActiveTerminal(p.id);
+    } else if (p.mode === 'global') {
+      globalTerminals.setActiveTerminal(p.id);
     }
   };
 
-  // Get current active terminal info
-  const activeTerminalId = parsed?.id ?? null;
-
-  // Total terminal count for close button visibility
+  const activeTerminalId = parsed?.mode === 'lifecycle' ? null : (parsed?.id ?? null);
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
+
+  const canStartRun =
+    !!task &&
+    !!projectPath &&
+    !runActionBusy &&
+    runStatus !== 'running' &&
+    setupStatus !== 'running' &&
+    setupStatus !== 'failed';
+
+  const isRunSelection = !selectedLifecycle || selectedLifecycle === 'run';
+  const selectedTerminalScope = useMemo(() => {
+    if (parsed?.mode === 'task') return 'WORKTREE';
+    if (parsed?.mode === 'global') return 'GLOBAL';
+    return null;
+  }, [parsed?.mode]);
+
+  const handlePlay = useCallback(async () => {
+    if (!task || !projectPath) return;
+    const api = window.electronAPI as any;
+    setRunActionBusy(true);
+    try {
+      if (selectedLifecycle === 'setup') {
+        await api.lifecycleSetup?.({ taskId: task.id, taskPath: task.path, projectPath });
+      } else if (selectedLifecycle === 'teardown') {
+        await api.lifecycleTeardown?.({ taskId: task.id, taskPath: task.path, projectPath });
+      } else {
+        await api.lifecycleRunStart?.({ taskId: task.id, taskPath: task.path, projectPath });
+      }
+    } catch (error) {
+      console.error('Failed lifecycle play action:', error);
+    } finally {
+      setRunActionBusy(false);
+      void refreshLifecycleState();
+    }
+  }, [task?.id, task?.path, projectPath, selectedLifecycle, refreshLifecycleState]);
+
+  const handleStop = useCallback(async () => {
+    if (!task) return;
+    const api = window.electronAPI as any;
+    setRunActionBusy(true);
+    try {
+      await api.lifecycleRunStop?.({ taskId: task.id });
+    } catch (error) {
+      console.error('Failed to stop run phase:', error);
+    } finally {
+      setRunActionBusy(false);
+      void refreshLifecycleState();
+    }
+  }, [task?.id, refreshLifecycleState]);
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -158,24 +367,18 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
     brightWhite?: string;
   } | null>(null);
 
-  // Fetch native terminal theme on mount
   useEffect(() => {
     void (async () => {
       try {
         const result = await window.electronAPI.terminalGetTheme();
-        if (result?.ok && result.config?.theme) {
-          setNativeTheme(result.config.theme);
-        }
+        if (result?.ok && result.config?.theme) setNativeTheme(result.config.theme);
       } catch (error) {
-        // Silently fail - fall back to default theme
         console.warn('Failed to load native terminal theme', error);
       }
     })();
   }, []);
 
-  // Default theme (VS Code inspired)
   const defaultTheme = useMemo(() => {
-    // Mistral-specific theme: white in light mode, app blue-gray background in dark mode
     const isMistral = agent === 'mistral';
     const darkBackground = isMistral ? '#202938' : '#1e1e1e';
     const blackBackground = isMistral ? '#141820' : '#000000';
@@ -231,16 +434,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
         };
   }, [effectiveTheme, agent]);
 
-  // Merge native theme with defaults (native theme takes precedence)
   const themeOverride = useMemo(() => {
-    if (!nativeTheme) {
-      return defaultTheme;
-    }
-    // Merge: native theme values override defaults, but we keep defaults for missing values
-    return {
-      ...defaultTheme,
-      ...nativeTheme,
-    };
+    if (!nativeTheme) return defaultTheme;
+    return { ...defaultTheme, ...nativeTheme };
   }, [nativeTheme, defaultTheme]);
 
   if (!task && !projectPath) {
@@ -258,10 +454,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
   return (
     <div className={cn('flex h-full flex-col bg-card', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
-        <Select value={selectedValue ?? undefined} onValueChange={handleSelectChange}>
-          <SelectTrigger className="h-7 min-w-0 flex-1 border-none bg-transparent px-2 text-xs shadow-none">
-            <Terminal className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-            <SelectValue placeholder="Select terminal" />
+        <Select value={selectedValue} onValueChange={handleSelectChange}>
+          <SelectTrigger className="h-7 min-w-0 flex-1 justify-between border-none bg-transparent px-2 text-left text-xs shadow-none">
+            <span className="flex min-w-0 flex-1 items-center">
+              <span className="mr-2 inline-flex w-4 shrink-0 justify-center text-[11px] leading-none text-muted-foreground/90">
+                {'>_'}
+              </span>
+              <SelectValue placeholder="Select target" />
+            </span>
           </SelectTrigger>
           <SelectContent>
             {task && (
@@ -296,6 +496,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
                 ))}
               </SelectGroup>
             )}
+
             {projectPath && (
               <SelectGroup>
                 <div className="flex items-center justify-between px-2 py-1.5">
@@ -328,14 +529,88 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
                 ))}
               </SelectGroup>
             )}
+
+            {task && (
+              <SelectGroup>
+                <div className="px-2 py-1.5">
+                  <span className="text-[10px] font-semibold text-muted-foreground">Lifecycle</span>
+                </div>
+                <SelectItem value="lifecycle::setup" className="text-xs">
+                  Setup
+                </SelectItem>
+                <SelectItem value="lifecycle::run" className="text-xs">
+                  Run
+                </SelectItem>
+                <SelectItem value="lifecycle::teardown" className="text-xs">
+                  Teardown
+                </SelectItem>
+              </SelectGroup>
+            )}
           </SelectContent>
         </Select>
+        {selectedTerminalScope && (
+          <span className="shrink-0 rounded bg-zinc-500/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
+            {selectedTerminalScope}
+          </span>
+        )}
+
+        {task && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {isRunSelection && runStatus === 'running' ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleStop}
+                    disabled={runActionBusy}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Square className="h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handlePlay}
+                    disabled={shouldDisablePlay({
+                      runActionBusy,
+                      hasProjectPath: !!projectPath,
+                      isRunSelection,
+                      canStartRun,
+                    })}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs">
+                  {isRunSelection && runStatus === 'running'
+                    ? 'Stop run script'
+                    : selectedLifecycle === 'setup'
+                      ? 'Run setup script'
+                      : selectedLifecycle === 'teardown'
+                        ? 'Run teardown script'
+                        : setupStatus === 'running'
+                          ? 'Setup is still running'
+                          : setupStatus === 'failed'
+                            ? 'Setup failed'
+                            : 'Start run script'}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
         {(() => {
-          // Can only delete if current group has more than 1 terminal
           const canDelete =
             parsed?.mode === 'task'
               ? taskTerminals.terminals.length > 1
-              : globalTerminals.terminals.length > 1;
+              : parsed?.mode === 'global'
+                ? globalTerminals.terminals.length > 1
+                : false;
           return (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -351,7 +626,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
                         })();
                         if (parsed.mode === 'task') {
                           taskTerminals.closeTerminal(activeTerminalId);
-                        } else {
+                        } else if (parsed.mode === 'global') {
                           globalTerminals.closeTerminal(activeTerminalId);
                         }
                       }
@@ -364,7 +639,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p className="text-xs">
-                    {canDelete ? 'Close terminal' : 'Cannot close last terminal'}
+                    {canDelete ? 'Close terminal tab' : 'Cannot close selected item'}
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -373,73 +648,92 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, agent, className, p
         })()}
       </div>
 
-      <div
-        className={cn(
-          'bw-terminal relative flex-1 overflow-hidden',
-          effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-            ? agent === 'mistral'
-              ? effectiveTheme === 'dark-black'
-                ? 'bg-[#141820]'
-                : 'bg-[#202938]'
-              : 'bg-card'
-            : 'bg-white'
-        )}
-      >
-        {taskTerminals.terminals.map((terminal) => {
-          const isActive = parsed?.mode === 'task' && terminal.id === activeTerminalId;
-          return (
-            <div
-              key={`task::${terminal.id}`}
-              className={cn(
-                'absolute inset-0 h-full w-full transition-opacity',
-                isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
-              )}
-            >
-              <TerminalPane
-                id={terminal.id}
-                cwd={terminal.cwd || task?.path}
-                variant={
-                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                }
-                themeOverride={themeOverride}
-                className="h-full w-full"
-                keepAlive
-              />
-            </div>
-          );
-        })}
-        {globalTerminals.terminals.map((terminal) => {
-          const isActive = parsed?.mode === 'global' && terminal.id === activeTerminalId;
-          return (
-            <div
-              key={`global::${terminal.id}`}
-              className={cn(
-                'absolute inset-0 h-full w-full transition-opacity',
-                isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
-              )}
-            >
-              <TerminalPane
-                id={terminal.id}
-                cwd={terminal.cwd || projectPath}
-                variant={
-                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                }
-                themeOverride={themeOverride}
-                className="h-full w-full"
-                keepAlive
-              />
-            </div>
-          );
-        })}
-        {totalTerminals === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
-            <p>No terminal found.</p>
+      {selectedLifecycle ? (
+        <div className="flex h-full flex-1 flex-col overflow-hidden">
+          <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
+            {selectedLifecycle === 'setup'
+              ? `Setup status: ${setupStatus}`
+              : selectedLifecycle === 'teardown'
+                ? `Teardown status: ${teardownStatus}`
+                : `Run status: ${runStatus}`}
           </div>
-        ) : null}
-      </div>
+          <pre className="h-full overflow-auto p-3 text-xs leading-relaxed text-foreground">
+            {lifecycleLogs[selectedLifecycle].join('') || 'No lifecycle output yet.'}
+          </pre>
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'bw-terminal relative flex-1 overflow-hidden',
+            effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+              ? agent === 'mistral'
+                ? effectiveTheme === 'dark-black'
+                  ? 'bg-[#141820]'
+                  : 'bg-[#202938]'
+                : 'bg-card'
+              : 'bg-white'
+          )}
+        >
+          {taskTerminals.terminals.map((terminal) => {
+            const isActive = parsed?.mode === 'task' && terminal.id === activeTerminalId;
+            return (
+              <div
+                key={`task::${terminal.id}`}
+                className={cn(
+                  'absolute inset-0 h-full w-full transition-opacity',
+                  isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
+                )}
+              >
+                <TerminalPane
+                  id={terminal.id}
+                  cwd={terminal.cwd || task?.path}
+                  remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
+                  env={taskEnv}
+                  variant={
+                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+                  }
+                  themeOverride={themeOverride}
+                  className="h-full w-full"
+                  keepAlive
+                />
+              </div>
+            );
+          })}
+          {globalTerminals.terminals.map((terminal) => {
+            const isActive = parsed?.mode === 'global' && terminal.id === activeTerminalId;
+            return (
+              <div
+                key={`global::${terminal.id}`}
+                className={cn(
+                  'absolute inset-0 h-full w-full transition-opacity',
+                  isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
+                )}
+              >
+                <TerminalPane
+                  id={terminal.id}
+                  cwd={terminal.cwd || projectPath}
+                  remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
+                  variant={
+                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+                  }
+                  themeOverride={themeOverride}
+                  className="h-full w-full"
+                  keepAlive
+                />
+              </div>
+            );
+          })}
+          {totalTerminals === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
+              <p>No terminal found.</p>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 };
+
 export const TaskTerminalPanel = React.memo(TaskTerminalPanelComponent);
 
 export default TaskTerminalPanel;

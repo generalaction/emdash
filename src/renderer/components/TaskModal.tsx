@@ -14,6 +14,7 @@ import { agentMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
+import { type GitHubIssueLink } from '../types/chat';
 import { type JiraIssueSummary } from '../types/jira';
 import {
   generateFriendlyTaskName,
@@ -41,6 +42,7 @@ interface TaskModalProps {
   projectName: string;
   defaultBranch: string;
   existingNames?: string[];
+  linkedGithubIssueMap?: ReadonlyMap<number, GitHubIssueLink>;
   projectPath?: string;
   branchOptions?: BranchOption[];
   isLoadingBranches?: boolean;
@@ -53,6 +55,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   projectName,
   defaultBranch,
   existingNames = [],
+  linkedGithubIssueMap,
   projectPath,
   branchOptions = [],
   isLoadingBranches = false,
@@ -60,7 +63,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
   // Form state
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
-  const [defaultAgentFromSettings, setDefaultAgentFromSettings] = useState<Agent>(DEFAULT_AGENT);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -76,6 +78,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
   const userChangedBranchRef = useRef(false);
+  const taskNameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && !userChangedBranchRef.current) {
@@ -176,7 +179,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
       const agent: Agent = isValidProviderId(settingsAgent)
         ? (settingsAgent as Agent)
         : DEFAULT_AGENT;
-      setDefaultAgentFromSettings(agent);
       setAgentRuns([{ agent, runs: 1 }]);
 
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
@@ -247,9 +249,17 @@ const TaskModal: React.FC<TaskModalProps> = ({
     }
   };
 
+  const handleOpenAutoFocus = useCallback((event: Event) => {
+    event.preventDefault();
+    taskNameInputRef.current?.focus({ preventScroll: true });
+  }, []);
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[calc(100vh-48px)] max-w-md overflow-visible">
+      <DialogContent
+        className="max-h-[calc(100vh-48px)] max-w-md overflow-visible"
+        onOpenAutoFocus={handleOpenAutoFocus}
+      >
         <DialogHeader>
           <DialogTitle>New Task</DialogTitle>
           <div className="space-y-1 pt-1">
@@ -281,6 +291,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
               Task name
             </Label>
             <SlugInput
+              ref={taskNameInputRef}
               id="task-name"
               value={taskName}
               onChange={handleNameChange}
@@ -293,17 +304,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
               maxLength={MAX_TASK_NAME_LENGTH}
               className={`w-full ${touched && error && !isFocused ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
               aria-invalid={touched && !!error && !isFocused}
-              autoFocus
             />
           </div>
 
           <div className="flex items-center gap-4">
             <Label className="shrink-0">Agent</Label>
-            <MultiAgentDropdown
-              agentRuns={agentRuns}
-              onChange={setAgentRuns}
-              defaultAgent={defaultAgentFromSettings}
-            />
+            <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
           </div>
 
           <TaskAdvancedSettings
@@ -323,6 +329,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
             onLinearConnect={integrations.handleLinearConnect}
             selectedGithubIssue={selectedGithubIssue}
             onGithubIssueChange={setSelectedGithubIssue}
+            linkedGithubIssueMap={linkedGithubIssueMap}
             isGithubConnected={integrations.isGithubConnected}
             onGithubConnect={integrations.handleGithubConnect}
             githubLoading={integrations.githubLoading}

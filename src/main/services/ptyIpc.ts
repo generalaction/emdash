@@ -5,7 +5,10 @@ import {
   resizePty,
   killPty,
   getPty,
+  getPtyKind,
   startDirectPty,
+  startSshPty,
+  removePtyRecord,
   setOnDirectCliExit,
 } from './ptyManager';
 import { log } from '../lib/logger';
@@ -17,12 +20,27 @@ import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 import { databaseService } from './DatabaseService';
+import { getDrizzleClient } from '../db/drizzleClient';
+import { sshConnections as sshConnectionsTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
 const providerPtyTimers = new Map<string, number>();
+// Map PTY IDs to provider IDs for multi-agent tracking
+const ptyProviderMap = new Map<string, ProviderId>();
+// Prevent duplicate finish handling when cleanup and onExit race for the same PTY.
+const finalizedPtys = new Set<string>();
 // Track WebContents that have a 'destroyed' listener to avoid duplicates
 const wcDestroyedListeners = new Set<number>();
+let isAppQuitting = false;
+
+type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kill';
+
+// Buffer PTY output to reduce IPC overhead (helps SSH feel less laggy)
+const ptyDataBuffers = new Map<string, string>();
+const ptyDataTimers = new Map<string, NodeJS.Timeout>();
+const PTY_DATA_FLUSH_MS = 16;
 
 // Guard IPC sends to prevent crashes when WebContents is destroyed
 function safeSendToOwner(id: string, channel: string, payload: unknown): boolean {
@@ -40,6 +58,161 @@ function safeSendToOwner(id: string, channel: string, payload: unknown): boolean
     });
     return false;
   }
+}
+
+function flushPtyData(id: string): void {
+  const buf = ptyDataBuffers.get(id);
+  if (!buf) return;
+  ptyDataBuffers.delete(id);
+  safeSendToOwner(id, `pty:data:${id}`, buf);
+}
+
+function clearPtyData(id: string): void {
+  const t = ptyDataTimers.get(id);
+  if (t) {
+    clearTimeout(t);
+    ptyDataTimers.delete(id);
+  }
+  ptyDataBuffers.delete(id);
+}
+
+function bufferedSendPtyData(id: string, chunk: string): void {
+  const prev = ptyDataBuffers.get(id) || '';
+  ptyDataBuffers.set(id, prev + chunk);
+  if (ptyDataTimers.has(id)) return;
+  const t = setTimeout(() => {
+    ptyDataTimers.delete(id);
+    flushPtyData(id);
+  }, PTY_DATA_FLUSH_MS);
+  ptyDataTimers.set(id, t);
+}
+
+function quoteShellArg(arg: string): string {
+  return /[\s'"\\$`\n\r\t]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg;
+}
+
+function escapeForDoubleQuotes(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function buildRemoteInitCommand(args: {
+  cwd?: string;
+  provider?: { cli: string; cmd: string; installCommand?: string };
+}): string {
+  const parts: string[] = [];
+  if (args.cwd) {
+    // Avoid `cd --` for maximum shell portability.
+    parts.push(
+      `cd ${quoteShellArg(args.cwd)} || echo "emdash: could not cd to ${escapeForDoubleQuotes(args.cwd)}"`
+    );
+  }
+  if (args.provider) {
+    const cli = args.provider.cli;
+    const install = args.provider.installCommand ? ` Install: ${args.provider.installCommand}` : '';
+    const msg = `emdash: ${cli} not found on remote.${install}`;
+    parts.push(
+      `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then ${args.provider.cmd}; else echo "${escapeForDoubleQuotes(
+        msg
+      )}"; fi`
+    );
+  }
+
+  // Prefer bash for interactive shells when available.
+  // This avoids bash-specific init scripts failing under /bin/sh (e.g. `[[` not found).
+  parts.push(
+    `if [ -x /bin/bash ]; then exec /bin/bash -i; elif [ -x /usr/bin/bash ]; then exec /usr/bin/bash -i; elif command -v bash >/dev/null 2>&1; then exec bash -i; else exec "${'${SHELL:-sh}'}" -i; fi`
+  );
+
+  const init = parts.join('; ');
+  const quotedInit = quoteShellArg(init);
+
+  // Ensure init runs under bash when available (falls back to sh).
+  // We log the chosen shell minimally to the terminal output.
+  return `if [ -x /bin/bash ]; then echo "emdash: remote init shell=/bin/bash"; exec /bin/bash -ic ${quotedInit}; elif [ -x /usr/bin/bash ]; then echo "emdash: remote init shell=/usr/bin/bash"; exec /usr/bin/bash -ic ${quotedInit}; elif command -v bash >/dev/null 2>&1; then echo "emdash: remote init shell=bash"; exec bash -ic ${quotedInit}; else echo "emdash: remote init shell=sh"; exec sh -ic ${quotedInit}; fi`;
+}
+
+async function resolveSshInvocation(
+  connectionId: string
+): Promise<{ target: string; args: string[] }> {
+  // If created from ssh config selection, prefer using the alias so OpenSSH config
+  // (ProxyJump, UseKeychain, etc.) is honored by system ssh.
+  if (connectionId.startsWith('ssh-config:')) {
+    const raw = connectionId.slice('ssh-config:'.length);
+    let alias = raw;
+    try {
+      // New scheme uses encodeURIComponent.
+      if (/%[0-9A-Fa-f]{2}/.test(raw)) {
+        alias = decodeURIComponent(raw);
+      }
+    } catch {
+      alias = raw;
+    }
+    if (alias) {
+      return { target: alias, args: [] };
+    }
+  }
+
+  const { db } = await getDrizzleClient();
+  const rows = await db
+    .select({
+      id: sshConnectionsTable.id,
+      host: sshConnectionsTable.host,
+      port: sshConnectionsTable.port,
+      username: sshConnectionsTable.username,
+      privateKeyPath: sshConnectionsTable.privateKeyPath,
+    })
+    .from(sshConnectionsTable)
+    .where(eq(sshConnectionsTable.id, connectionId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error(`SSH connection not found: ${connectionId}`);
+  }
+
+  const args: string[] = [];
+  if (row.port && row.port !== 22) {
+    args.push('-p', String(row.port));
+  }
+  if (row.privateKeyPath) {
+    args.push('-i', row.privateKeyPath);
+  }
+
+  const target = row.username ? `${row.username}@${row.host}` : row.host;
+  return { target, args };
+}
+
+function buildRemoteProviderInvocation(args: {
+  providerId: string;
+  autoApprove?: boolean;
+  initialPrompt?: string;
+  resume?: boolean;
+}): { cli: string; cmd: string; installCommand?: string } {
+  const { providerId, autoApprove, initialPrompt, resume } = args;
+  const provider = getProvider(providerId as ProviderId);
+
+  const cliArgs: string[] = [];
+  if (provider?.resumeFlag && resume) {
+    cliArgs.push(...provider.resumeFlag.split(' '));
+  }
+  if (provider?.defaultArgs?.length) {
+    cliArgs.push(...provider.defaultArgs);
+  }
+  if (autoApprove && provider?.autoApproveFlag) {
+    cliArgs.push(provider.autoApproveFlag);
+  }
+  if (provider?.initialPromptFlag !== undefined && initialPrompt?.trim()) {
+    if (provider.initialPromptFlag) {
+      cliArgs.push(provider.initialPromptFlag);
+    }
+    cliArgs.push(initialPrompt.trim());
+  }
+
+  const cliCommand = provider?.cli || providerId.toLowerCase();
+  const cmd =
+    cliArgs.length > 0 ? `${cliCommand} ${cliArgs.map(quoteShellArg).join(' ')}` : cliCommand;
+
+  return { cli: cliCommand, cmd, installCommand: provider?.installCommand };
 }
 
 export function registerPtyIpc(): void {
@@ -67,10 +240,12 @@ export function registerPtyIpc(): void {
       listeners.delete(id); // Clear old listener registration
       if (!listeners.has(id)) {
         proc.onData((data) => {
-          safeSendToOwner(id, `pty:data:${id}`, data);
+          bufferedSendPtyData(id, data);
         });
 
         proc.onExit(({ exitCode, signal }) => {
+          flushPtyData(id);
+          clearPtyData(id);
           safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
           owners.delete(id);
           listeners.delete(id);
@@ -95,6 +270,7 @@ export function registerPtyIpc(): void {
       args: {
         id: string;
         cwd?: string;
+        remote?: { connectionId: string };
         shell?: string;
         env?: Record<string, string>;
         cols?: number;
@@ -109,8 +285,61 @@ export function registerPtyIpc(): void {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
       try {
-        const { id, cwd, shell, env, cols, rows, autoApprove, initialPrompt, skipResume } = args;
+        const { id, cwd, remote, shell, env, cols, rows, autoApprove, initialPrompt, skipResume } =
+          args;
         const existing = getPty(id);
+
+        // Remote PTY routing: run an interactive ssh session in a local PTY.
+        if (remote?.connectionId) {
+          const wc = event.sender;
+          owners.set(id, wc);
+
+          if (existing) {
+            const kind = getPtyKind(id);
+            if (kind === 'ssh') {
+              return { ok: true, reused: true };
+            }
+            // Replace an existing local PTY with an SSH-backed PTY.
+            try {
+              killPty(id);
+            } catch {}
+            listeners.delete(id);
+          }
+
+          const ssh = await resolveSshInvocation(remote.connectionId);
+          const remoteInitCommand = buildRemoteInitCommand({ cwd });
+          const proc = startSshPty({
+            id,
+            target: ssh.target,
+            sshArgs: ssh.args,
+            remoteInitCommand,
+            cols,
+            rows,
+            env,
+          });
+
+          if (!listeners.has(id)) {
+            proc.onData((data) => {
+              bufferedSendPtyData(id, data);
+            });
+            proc.onExit(({ exitCode, signal }) => {
+              flushPtyData(id);
+              clearPtyData(id);
+              safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+              owners.delete(id);
+              listeners.delete(id);
+              removePtyRecord(id);
+            });
+            listeners.add(id);
+          }
+
+          try {
+            const windows = BrowserWindow.getAllWindows();
+            windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
+          } catch {}
+
+          return { ok: true };
+        }
 
         // Determine if we should skip resume
         let shouldSkipResume = skipResume;
@@ -209,16 +438,23 @@ export function registerPtyIpc(): void {
         // Attach data/exit listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
-            safeSendToOwner(id, `pty:data:${id}`, data);
+            bufferedSendPtyData(id, data);
           });
 
           proc.onExit(({ exitCode, signal }) => {
+            flushPtyData(id);
+            clearPtyData(id);
             // Check if this PTY is still active (not replaced by a newer instance)
             if (getPty(id) !== proc) {
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
-            maybeMarkProviderFinish(id, exitCode, signal);
+            maybeMarkProviderFinish(
+              id,
+              exitCode,
+              signal,
+              isAppQuitting ? 'app_quit' : 'process_exit'
+            );
             owners.delete(id);
             listeners.delete(id);
           });
@@ -236,7 +472,12 @@ export function registerPtyIpc(): void {
             for (const [ptyId, owner] of owners.entries()) {
               if (owner === wc) {
                 try {
-                  maybeMarkProviderFinish(ptyId, null, undefined);
+                  maybeMarkProviderFinish(
+                    ptyId,
+                    null,
+                    undefined,
+                    isAppQuitting ? 'app_quit' : 'owner_destroyed'
+                  );
                   killPty(ptyId);
                 } catch {}
                 owners.delete(ptyId);
@@ -246,11 +487,11 @@ export function registerPtyIpc(): void {
           });
         }
 
-        if (!existing) {
-          maybeMarkProviderStart(id);
-        }
+        // Track agent start even when reusing PTY (happens after shell respawn)
+        // This ensures subsequent agent runs in the same task are tracked
+        maybeMarkProviderStart(id);
 
-        // Signal that PTY is ready so renderer may inject initial prompt safely
+        // Signal that PTY is ready
         try {
           const windows = BrowserWindow.getAllWindows();
           windows.forEach((w) => {
@@ -292,6 +533,20 @@ export function registerPtyIpc(): void {
   ipcMain.on('pty:input', (_event, args: { id: string; data: string }) => {
     try {
       writePty(args.id, args.data);
+
+      // Track prompts sent to agents (not shell terminals)
+      // Only count Enter key presses for known agent PTYs
+      if (args.data === '\r' || args.data === '\n') {
+        // Check if this PTY is associated with an agent
+        const providerId = ptyProviderMap.get(args.id) || parseProviderPty(args.id)?.providerId;
+
+        if (providerId) {
+          // This is an agent terminal, track the prompt
+          telemetry.capture('agent_prompt_sent', {
+            provider: providerId,
+          });
+        }
+      }
     } catch (e) {
       log.error('pty:input error', { id: args.id, error: e });
     }
@@ -308,7 +563,7 @@ export function registerPtyIpc(): void {
   ipcMain.on('pty:kill', (_event, args: { id: string }) => {
     try {
       // Ensure telemetry timers are cleared even on manual kill
-      maybeMarkProviderFinish(args.id, null, undefined);
+      maybeMarkProviderFinish(args.id, null, undefined, 'manual_kill');
       killPty(args.id);
       owners.delete(args.id);
       listeners.delete(args.id);
@@ -367,10 +622,12 @@ export function registerPtyIpc(): void {
         id: string;
         providerId: string;
         cwd: string;
+        remote?: { connectionId: string };
         cols?: number;
         rows?: number;
         autoApprove?: boolean;
         initialPrompt?: string;
+        env?: Record<string, string>;
         resume?: boolean;
       }
     ) => {
@@ -379,12 +636,77 @@ export function registerPtyIpc(): void {
       }
 
       try {
-        const { id, providerId, cwd, cols, rows, autoApprove, initialPrompt, resume } = args;
+        const { id, providerId, cwd, remote, cols, rows, autoApprove, initialPrompt, env, resume } =
+          args;
         const existing = getPty(id);
+
+        if (remote?.connectionId) {
+          const wc = event.sender;
+          owners.set(id, wc);
+
+          if (existing) {
+            const kind = getPtyKind(id);
+            if (kind === 'ssh') {
+              return { ok: true, reused: true };
+            }
+            try {
+              killPty(id);
+            } catch {}
+            listeners.delete(id);
+          }
+
+          const ssh = await resolveSshInvocation(remote.connectionId);
+          const remoteProvider = buildRemoteProviderInvocation({
+            providerId,
+            autoApprove,
+            initialPrompt,
+            resume,
+          });
+          const remoteInitCommand = buildRemoteInitCommand({
+            cwd,
+            provider: remoteProvider,
+          });
+
+          const proc = startSshPty({
+            id,
+            target: ssh.target,
+            sshArgs: ssh.args,
+            remoteInitCommand,
+            cols,
+            rows,
+            env,
+          });
+
+          if (!listeners.has(id)) {
+            proc.onData((data) => {
+              bufferedSendPtyData(id, data);
+            });
+            proc.onExit(({ exitCode, signal }) => {
+              flushPtyData(id);
+              clearPtyData(id);
+              safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+              maybeMarkProviderFinish(id, exitCode, signal, 'process_exit');
+              owners.delete(id);
+              listeners.delete(id);
+              removePtyRecord(id);
+            });
+            listeners.add(id);
+          }
+
+          maybeMarkProviderStart(id);
+          try {
+            const windows = BrowserWindow.getAllWindows();
+            windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
+          } catch {}
+
+          return { ok: true };
+        }
 
         if (existing) {
           const wc = event.sender;
           owners.set(id, wc);
+          // Still track agent start even when reusing PTY (happens after shell respawn)
+          maybeMarkProviderStart(id, providerId as ProviderId);
           return { ok: true, reused: true };
         }
 
@@ -396,6 +718,7 @@ export function registerPtyIpc(): void {
           rows,
           autoApprove,
           initialPrompt,
+          env,
           resume,
         });
 
@@ -416,6 +739,7 @@ export function registerPtyIpc(): void {
             rows,
             autoApprove,
             initialPrompt,
+            env,
             skipResume: !resume,
           });
           usedFallback = true;
@@ -426,12 +750,19 @@ export function registerPtyIpc(): void {
 
         if (!listeners.has(id)) {
           proc.onData((data) => {
-            safeSendToOwner(id, `pty:data:${id}`, data);
+            bufferedSendPtyData(id, data);
           });
 
           proc.onExit(({ exitCode, signal }) => {
+            flushPtyData(id);
+            clearPtyData(id);
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
-            maybeMarkProviderFinish(id, exitCode, signal);
+            maybeMarkProviderFinish(
+              id,
+              exitCode,
+              signal,
+              isAppQuitting ? 'app_quit' : 'process_exit'
+            );
             // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
             // For fallback: clean up owner since no shell respawn happens
             if (usedFallback) {
@@ -451,7 +782,12 @@ export function registerPtyIpc(): void {
             for (const [ptyId, owner] of owners.entries()) {
               if (owner === wc) {
                 try {
-                  maybeMarkProviderFinish(ptyId, null, undefined);
+                  maybeMarkProviderFinish(
+                    ptyId,
+                    null,
+                    undefined,
+                    isAppQuitting ? 'app_quit' : 'owner_destroyed'
+                  );
                   killPty(ptyId);
                 } catch {}
                 owners.delete(ptyId);
@@ -461,7 +797,7 @@ export function registerPtyIpc(): void {
           });
         }
 
-        maybeMarkProviderStart(id);
+        maybeMarkProviderStart(id, providerId as ProviderId);
 
         try {
           const windows = BrowserWindow.getAllWindows();
@@ -501,7 +837,30 @@ function providerRunKey(providerId: ProviderId, taskId: string) {
   return `${providerId}:${taskId}`;
 }
 
-function maybeMarkProviderStart(id: string) {
+function maybeMarkProviderStart(id: string, providerId?: ProviderId) {
+  finalizedPtys.delete(id);
+
+  // First check if we have a direct provider ID (for multi-agent mode)
+  if (providerId && PROVIDER_IDS.includes(providerId)) {
+    ptyProviderMap.set(id, providerId);
+    const key = `${providerId}:${id}`;
+    if (providerPtyTimers.has(key)) return;
+    providerPtyTimers.set(key, Date.now());
+    telemetry.capture('agent_run_start', { provider: providerId });
+    return;
+  }
+
+  // Check if we have a stored mapping (for subsequent calls)
+  const storedProvider = ptyProviderMap.get(id);
+  if (storedProvider) {
+    const key = `${storedProvider}:${id}`;
+    if (providerPtyTimers.has(key)) return;
+    providerPtyTimers.set(key, Date.now());
+    telemetry.capture('agent_run_start', { provider: storedProvider });
+    return;
+  }
+
+  // Fall back to parsing the ID (single-agent mode)
   const parsed = parseProviderPty(id);
   if (!parsed) return;
   const key = providerRunKey(parsed.providerId, parsed.taskId);
@@ -513,26 +872,49 @@ function maybeMarkProviderStart(id: string) {
 function maybeMarkProviderFinish(
   id: string,
   exitCode: number | null | undefined,
-  signal: number | undefined
+  signal: number | undefined,
+  cause: FinishCause
 ) {
-  const parsed = parseProviderPty(id);
-  if (!parsed) return;
-  const key = providerRunKey(parsed.providerId, parsed.taskId);
+  if (finalizedPtys.has(id)) return;
+  finalizedPtys.add(id);
+
+  let providerId: ProviderId | undefined;
+  let key: string;
+
+  // First check if we have a stored mapping (multi-agent mode)
+  const storedProvider = ptyProviderMap.get(id);
+  if (storedProvider) {
+    providerId = storedProvider;
+    key = `${storedProvider}:${id}`;
+  } else {
+    // Fall back to parsing the ID (single-agent mode)
+    const parsed = parseProviderPty(id);
+    if (!parsed) return;
+    providerId = parsed.providerId;
+    key = providerRunKey(parsed.providerId, parsed.taskId);
+  }
+
   const started = providerPtyTimers.get(key);
   providerPtyTimers.delete(key);
 
+  // Clean up the provider mapping
+  ptyProviderMap.delete(id);
+
+  // No valid exit code means the process was killed during cleanup, not a real completion
+  if (typeof exitCode !== 'number') return;
+
   const duration = started ? Math.max(0, Date.now() - started) : undefined;
   const wasSignaled = signal !== undefined && signal !== null;
-  const outcome = typeof exitCode === 'number' && exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
+  const outcome = exitCode !== 0 && !wasSignaled ? 'error' : 'ok';
 
   telemetry.capture('agent_run_finish', {
-    provider: parsed.providerId,
+    provider: providerId,
     outcome,
     duration_ms: duration,
   });
 
-  const providerName = getProvider(parsed.providerId)?.name ?? parsed.providerId;
-  if (outcome === 'ok') {
+  if (cause === 'process_exit' && exitCode === 0) {
+    const providerName = getProvider(providerId)?.name ?? providerId;
     showCompletionNotification(providerName);
   }
 }
@@ -566,10 +948,11 @@ function showCompletionNotification(providerName: string) {
 // Kill all PTYs on app shutdown to prevent crash loop
 try {
   app.on('before-quit', () => {
+    isAppQuitting = true;
     for (const id of Array.from(owners.keys())) {
       try {
         // Ensure telemetry timers are cleared on app quit
-        maybeMarkProviderFinish(id, null, undefined);
+        maybeMarkProviderFinish(id, null, undefined, 'app_quit');
         killPty(id);
       } catch {}
     }

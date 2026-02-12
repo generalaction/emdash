@@ -194,7 +194,14 @@ const Titlebar: React.FC<TitlebarProps> = ({
           </div>
         </div>
         <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
-          {currentPath ? <OpenInMenu path={currentPath} align="right" /> : null}
+          {currentPath ? (
+            <OpenInMenu
+              path={currentPath}
+              align="right"
+              isRemote={selectedProject?.isRemote || false}
+              sshConnectionId={selectedProject?.sshConnectionId || null}
+            />
+          ) : null}
           {showEditorButton ? (
             <TitlebarToggleButton
               isOpen={isEditorOpen}

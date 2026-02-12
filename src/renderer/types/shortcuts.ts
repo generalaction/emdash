@@ -1,4 +1,4 @@
-export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
 
 export interface ShortcutBinding {
   key: string;
@@ -17,6 +17,8 @@ export interface KeyboardSettings {
   nextProject?: ShortcutBinding;
   prevProject?: ShortcutBinding;
   newTask?: ShortcutBinding;
+  nextAgent?: ShortcutBinding;
+  prevAgent?: ShortcutBinding;
 }
 
 export interface ShortcutConfig {
@@ -75,6 +77,10 @@ export interface GlobalShortcutHandlers {
 
   // Task creation
   onNewTask?: () => void;
+
+  // Agent switching (within same task)
+  onNextAgent?: () => void;
+  onPrevAgent?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;

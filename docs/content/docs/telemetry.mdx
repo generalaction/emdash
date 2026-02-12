@@ -54,7 +54,10 @@ Events track which features are used, not what you do with them:
 - Changes (view diff, create PR)
 - Plan mode (enable/disable)
 - Settings (theme, notifications, default provider)
-- Integrations (Linear, Jira connections)
+- Integrations (Linear, Jira, GitHub issues)
+- Skills (view, install, uninstall, create)
+- Remote projects (SSH connection, test)
+- Browser preview (open, close, navigate)
 - UI interactions (toolbar, sidebar, Kanban)
 
 All events include only: event name, anonymized properties (e.g., `provider: "claude"`). No file paths, code, prompts, or identifying information.
@@ -66,9 +69,9 @@ All events include only: event name, anonymized properties (e.g., `provider: "cl
 
 **GitHub:** `github_connection_triggered`, `github_connected`
 
-**Projects:** `project_add_clicked`, `project_open_clicked`, `project_added_success`, `project_deleted`, `project_view_opened`
+**Projects:** `project_add_clicked`, `project_open_clicked`, `project_create_clicked`, `project_clone_clicked`, `project_create_success`, `project_clone_success`, `project_added_success`, `project_deleted`, `project_view_opened`
 
-**Tasks:** `workspace_created`, `workspace_deleted`, `workspace_provider_switched`, `workspace_custom_named`, `workspace_advanced_options_opened`
+**Tasks:** `task_created`, `task_deleted`, `task_provider_switched`, `task_custom_named`, `task_advanced_options_opened`, `task_created_with_issue`
 
 **Terminal:** `terminal_entered`, `terminal_command_executed`, `terminal_new_terminal_created`, `terminal_deleted`
 
@@ -80,15 +83,23 @@ All events include only: event name, anonymized properties (e.g., `provider: "cl
 
 **Jira:** `jira_connected`, `jira_disconnected`, `jira_issues_searched`, `jira_issue_selected`
 
+**Container:** `container_connect_clicked`, `container_connect_success`, `container_connect_failed`
+
 **Toolbar:** `toolbar_feedback_clicked`, `toolbar_left_sidebar_clicked`, `toolbar_right_sidebar_clicked`, `toolbar_settings_clicked`, `toolbar_open_in_menu_clicked`, `toolbar_open_in_selected`, `toolbar_kanban_toggled`
 
-**Browser Preview:** `browser_preview_closed`, `browser_preview_url_navigated`
+**GitHub Issues:** `github_issues_searched`, `github_issue_selected`
+
+**Skills:** `skills_view_opened`, `skill_installed`, `skill_uninstalled`, `skill_created`, `skill_detail_viewed`
+
+**Remote Server / SSH:** `remote_project_modal_opened`, `remote_project_connection_tested`, `remote_project_created`
+
+**Browser Preview:** `browser_preview_opened`, `browser_preview_closed`, `browser_preview_url_navigated`
 
 **Settings:** `settings_tab_viewed`, `theme_changed`, `telemetry_toggled`, `notification_settings_changed`, `default_provider_changed`
 
-**Agent:** `agent_run_start`, `agent_run_finish`
+**Agent:** `agent_run_start`, `agent_run_finish`, `agent_prompt_sent`
 
-**Aggregates:** `workspace_snapshot`, `feature_used`, `error`
+**Aggregates:** `task_snapshot`, `daily_active_user`, `db_setup`, `feature_used`, `error`
 
 </details>
 

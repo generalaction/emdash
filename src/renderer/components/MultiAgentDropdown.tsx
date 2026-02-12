@@ -13,7 +13,6 @@ const MAX_RUNS = 4;
 interface MultiAgentDropdownProps {
   agentRuns: AgentRun[];
   onChange: (agentRuns: AgentRun[]) => void;
-  defaultAgent?: Agent;
   className?: string;
   disabledAgents?: string[];
 }
@@ -21,16 +20,11 @@ interface MultiAgentDropdownProps {
 export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
   agentRuns,
   onChange,
-  defaultAgent = 'claude',
   className = '',
   disabledAgents = [],
 }) => {
-  // Sort agents with default agent first
-  const sortedAgents = Object.entries(agentConfig).sort(([keyA], [keyB]) => {
-    if (keyA === defaultAgent) return -1;
-    if (keyB === defaultAgent) return 1;
-    return 0;
-  });
+  // Use agentConfig order directly (already properly ordered)
+  const sortedAgents = Object.entries(agentConfig);
   const [open, setOpen] = useState(false);
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null);
   const [runsSelectOpenFor, setRunsSelectOpenFor] = useState<Agent | null>(null);

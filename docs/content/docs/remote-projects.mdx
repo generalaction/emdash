@@ -1,0 +1,143 @@
+---
+title: Remote Projects
+description: Run coding agents on remote machines over SSH
+---
+
+Run coding agents on a remote server over SSH. Instead of working only with local repositories, you can connect to any machine and orchestrate agents against codebases hosted there.
+
+<img
+  src="/media/addremoteproject.png"
+  alt="Add Remote Project in Emdash"
+  style={{
+    width: '100%',
+    maxWidth: '700px',
+    margin: '20px auto',
+    display: 'block',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  }}
+/>
+
+## Adding a Remote Project
+
+1. On the home screen, click **Add Remote Project**
+2. A wizard walks you through four steps:
+
+### Step 1: Connection Details
+
+Enter the SSH connection info:
+
+- **Name** — a label for this connection (e.g., "Dev Server")
+- **Host** — hostname or IP address
+- **Port** — SSH port (default: 22)
+- **Username** — your SSH user
+
+If you have an existing `~/.ssh/config`, Emdash detects it automatically. Select a host from the dropdown to pre-fill the form.
+
+<img
+  src="/media/remoteproj1.png"
+  alt="Remote project connection details step"
+  style={{
+    width: '100%',
+    maxWidth: '700px',
+    margin: '20px auto',
+    display: 'block',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  }}
+/>
+
+### Step 2: Authentication
+
+Choose an authentication method:
+
+| Method          | Description                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| **SSH Agent**   | Uses your system SSH agent. No keys stored in Emdash. Recommended.                               |
+| **Private Key** | Point to a key file (e.g., `~/.ssh/id_ed25519`). Passphrase stored securely in your OS keychain. |
+| **Password**    | Direct password auth. Password stored in your OS keychain.                                       |
+
+Click **Test Connection** to verify before proceeding.
+
+If SSH agent auth fails, Emdash suggests falling back to key-based auth and shows common key paths.
+
+<img
+  src="/media/remoteproj2.png"
+  alt="Remote project path selection step"
+  style={{
+    width: '100%',
+    maxWidth: '700px',
+    margin: '20px auto',
+    display: 'block',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  }}
+/>
+
+### Step 3: Path Selection
+
+Browse the remote filesystem via SFTP and select your project directory. The browser starts at your home directory.
+
+<img
+  src="/media/remoteproj3.png"
+  alt="Remote project confirmation step"
+  style={{
+    width: '100%',
+    maxWidth: '700px',
+    margin: '20px auto',
+    display: 'block',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  }}
+/>
+
+### Step 4: Confirmation
+
+Review the connection summary and click **Save**. The project appears in your sidebar.
+
+## Connection Status
+
+Remote projects show a connection indicator in the sidebar:
+
+- **Connected** — ready to use
+- **Connecting** — establishing SSH session
+- **Error** — connection failed (click to retry)
+- **Disconnected** — no active session
+
+Emdash auto-connects when you select a remote project and monitors the connection with periodic health checks. If the connection drops, it reconnects automatically with exponential backoff (up to 3 attempts).
+
+## How It Works
+
+When you create a task on a remote project:
+
+1. A git worktree is created on the remote machine
+2. The agent runs in a shell session over SSH
+3. File browsing and git operations happen remotely via SFTP
+4. Terminal output streams back to your local Emdash UI in real time
+
+All shell commands are executed on the remote server. Your local machine only runs the Emdash interface.
+
+## Security
+
+- **Credentials** are stored in your OS keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager) — never in the database
+- **Host keys** are verified against `~/.ssh/known_hosts` to prevent MITM attacks
+- **Shell commands** are escaped using POSIX single-quote wrapping to prevent injection
+- **Path traversal** is blocked — sensitive directories like `/etc`, `/proc`, `/sys`, and `.ssh` are restricted
+
+## Requirements
+
+- SSH access to the remote machine
+- Git installed on the remote server
+- At least one [provider](/providers) CLI installed on the remote machine
+
+## Current Limitations
+
+Some features that work locally are not yet available for remote projects:
+
+- Staging/unstaging individual files in the UI
+- Live file diffs and status updates
+- Branch rename and worktree merge via UI
+- Worktree pooling (instant task start)
+- GitHub PR creation, status checks, and merge from the UI
+
+Agents can still perform these operations via shell commands in the terminal.

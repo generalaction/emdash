@@ -13,9 +13,11 @@ import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
+import TerminalSettingsCard from './TerminalSettingsCard';
 import ProjectPrepSettingsCard from './ProjectPrepSettingsCard';
 import Context7SettingsCard from './Context7SettingsCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
+import DefaultOpenInSettingsCard from './DefaultOpenInSettingsCard';
 import TaskSettingsCard from './TaskSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import { CliAgentStatus } from '../types/connections';
@@ -75,9 +77,10 @@ const mapAgentStatusesToCli = (
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'general' | 'interface' | 'repository' | 'connections' | 'mcp';
+export type SettingsTab = 'general' | 'interface' | 'repository' | 'connections' | 'mcp';
 
 interface SettingsSection {
   title: string;
@@ -88,7 +91,7 @@ interface SettingsSection {
 
 const ORDERED_TABS: SettingsTab[] = ['general', 'interface', 'repository', 'mcp', 'connections'];
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const [cliError, setCliError] = useState<string | null>(null);
@@ -97,9 +100,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      setActiveTab('general');
+      setActiveTab(initialTab ?? 'general');
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab]);
 
   useEffect(() => {
     if (isOpen) {
@@ -218,10 +221,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         description: '',
         sections: [
           { title: 'Theme', render: () => <ThemeCard /> },
+          { title: 'Default open in app', render: () => <DefaultOpenInSettingsCard /> },
           { title: 'Keyboard shortcuts', render: () => <KeyboardSettingsCard /> },
           { title: 'Notifications', render: () => <NotificationSettingsCard /> },
           { title: 'Right sidebar', render: () => <RightSidebarSettingsCard /> },
           { title: 'In‑app Browser Preview', render: () => <BrowserPreviewSettingsCard /> },
+          { title: 'Terminal font', render: () => <TerminalSettingsCard /> },
         ],
       },
       repository: {

@@ -36,7 +36,7 @@ const IntegrationsCard: React.FC = () => {
   const [linearState, setLinearState] = useState<LinearState>(
     () => cachedLinearState ?? defaultLinearState
   );
-  const { installed, authenticated, user, isLoading, login, checkStatus } = useGithubAuth();
+  const { installed, authenticated, user, isLoading, login, logout, checkStatus } = useGithubAuth();
   const [githubError, setGithubError] = useState<string | null>(null);
   // Jira state
   const [jiraSite, setJiraSite] = useState('');
@@ -264,6 +264,16 @@ const IntegrationsCard: React.FC = () => {
     }
   }, [checkStatus, login]);
 
+  const handleGithubDisconnect = useCallback(async () => {
+    setGithubError(null);
+    try {
+      await logout();
+    } catch (error) {
+      console.error('GitHub logout failed:', error);
+      setGithubError('Could not disconnect.');
+    }
+  }, [logout]);
+
   const renderStatusIndicator = useCallback(
     (label: string, tone: 'connected' | 'inactive' = 'inactive') => {
       const dotClass = tone === 'connected' ? 'bg-emerald-500' : 'bg-muted-foreground/50';
@@ -394,6 +404,7 @@ const IntegrationsCard: React.FC = () => {
             'Install & Sign in'
           )
         }
+        onDisconnect={authenticated ? () => void handleGithubDisconnect() : undefined}
       />
       {githubError ? (
         <p className="text-xs text-red-600" role="alert">
@@ -484,8 +495,8 @@ const IntegrationsCard: React.FC = () => {
                   <motion.div
                     role="dialog"
                     aria-label="Jira setup"
-                    className="absolute right-0 top-full z-50 mt-2 w-[420px] max-w-[calc(100vw-3rem)] rounded-xl border border-border/60 bg-background/95 p-3 shadow-2xl ring-1 ring-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:w-[480px]"
-                    style={{ transformOrigin: 'top right' }}
+                    className="absolute left-0 top-full z-50 mt-2 w-[360px] max-w-[calc(100vw-3rem)] rounded-xl border border-border/60 bg-background/95 p-3 shadow-2xl ring-1 ring-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+                    style={{ transformOrigin: 'top left' }}
                     {...(menuMotion(!!reduceMotion) as any)}
                   >
                     <JiraSetupForm

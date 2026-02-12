@@ -10,6 +10,9 @@ interface AttachOptions {
   taskId: string;
   container: HTMLElement;
   cwd?: string;
+  remote?: {
+    connectionId: string;
+  };
   providerId?: string; // If set, uses direct CLI spawn
   shell?: string; // Used for shell-based spawn when providerId not set
   env?: Record<string, string>;
@@ -17,6 +20,7 @@ interface AttachOptions {
   theme: SessionTheme;
   autoApprove?: boolean;
   initialPrompt?: string;
+  mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
 }
@@ -59,6 +63,7 @@ class SessionRegistry {
     const sessionOptions: TerminalSessionOptions = {
       taskId: options.taskId,
       cwd: options.cwd,
+      remote: options.remote,
       providerId: options.providerId,
       shell: options.shell,
       env: options.env,
@@ -68,6 +73,7 @@ class SessionRegistry {
       telemetry: null,
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
+      mapShiftEnterToCtrlJ: options.mapShiftEnterToCtrlJ,
       disableSnapshots: options.disableSnapshots,
       onLinkClick: options.onLinkClick,
     };

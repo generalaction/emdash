@@ -44,6 +44,95 @@ Emdash looks for gitignored files in your main project that match your preserve 
 
 This means you can safely modify environment files in a worktree without worrying about them being reset when you create new tasks.
 
+## Setup scripts
+
+You can run a command automatically when a new task is created. This is useful for installing dependencies, starting dev servers, or any other initialization your project needs.
+
+```json
+{
+  "scripts": {
+    "setup": "pnpm install && pnpm run dev"
+  }
+}
+```
+
+The setup script runs in the task's terminal as soon as the worktree is ready. It runs in parallel with the agent starting, so the agent can begin working while your dev server spins up.
+
+## Task env vars
+
+When a task terminal starts, Emdash injects convenience environment variables you can use inside setup scripts and other terminal commands.
+
+| Variable                | Purpose                          |
+| ----------------------- | -------------------------------- |
+| `EMDASH_TASK_ID`        | Stable unique task id            |
+| `EMDASH_TASK_NAME`      | Shell-safe task name slug        |
+| `EMDASH_TASK_PATH`      | Absolute task (worktree) path    |
+| `EMDASH_ROOT_PATH`      | Absolute project root path       |
+| `EMDASH_DEFAULT_BRANCH` | Default branch name (e.g., main) |
+| `EMDASH_PORT`           | Base port for a 10-port range    |
+
+### Example: Port-aware setup script
+
+```json
+{
+  "scripts": {
+    "setup": "export PORT=$EMDASH_PORT && export DB_PORT=$((EMDASH_PORT + 1)) && export COMPOSE_PROJECT_NAME=$EMDASH_TASK_NAME && docker-compose up -d && pnpm run dev"
+  }
+}
+```
+
+### Example: docker-compose override with task ports
+
+```yaml
+services:
+  db:
+    ports:
+      - '${EMDASH_PORT:-5432}:5432'
+  app:
+    environment:
+      - DATABASE_PORT=${EMDASH_PORT:-5432}
+```
+
+### Example: Port offsets (app + db + redis)
+
+```
+APP_PORT=$EMDASH_PORT
+DB_PORT=$((EMDASH_PORT + 1))
+REDIS_PORT=$((EMDASH_PORT + 2))
+```
+
+### Examples
+
+Install dependencies:
+
+```json
+{
+  "scripts": {
+    "setup": "pnpm install"
+  }
+}
+```
+
+Install and start dev server:
+
+```json
+{
+  "scripts": {
+    "setup": "pnpm install && pnpm run dev"
+  }
+}
+```
+
+Python project with virtual environment:
+
+```json
+{
+  "scripts": {
+    "setup": "python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+  }
+}
+```
+
 ## Editing the config
 
 You can edit your project's `.emdash.json` directly from the app. On the project page, click "Edit config" to open the configuration file in the built-in editor.

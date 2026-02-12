@@ -1,6 +1,5 @@
 import React from 'react';
 import { ExternalLink, MessageSquare } from 'lucide-react';
-import { type Agent } from '../types';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
@@ -9,71 +8,23 @@ import { CommentsPopover } from './CommentsPopover';
 import { Button } from './ui/button';
 import { useTaskComments } from '../hooks/useLineComments';
 import { useTaskScope } from './TaskScopeContext';
-
-// Agent logos
-import openaiLogo from '../../assets/images/openai.png';
-import kiroLogo from '../../assets/images/kiro.png';
 import linearLogo from '../../assets/images/linear.png';
 import githubLogo from '../../assets/images/github.png';
 import jiraLogo from '../../assets/images/jira.png';
-import claudeLogo from '../../assets/images/claude.png';
-import factoryLogo from '../../assets/images/factorydroid.png';
-import geminiLogo from '../../assets/images/gemini.png';
-import cursorLogo from '../../assets/images/cursorlogo.png';
-import copilotLogo from '../../assets/images/ghcopilot.png';
-import ampLogo from '../../assets/images/ampcode.png';
-import opencodeLogo from '../../assets/images/opencode.png';
-import charmLogo from '../../assets/images/charm.png';
-import qwenLogo from '../../assets/images/qwen.png';
-import augmentLogo from '../../assets/images/augmentcode.png';
-import gooseLogo from '../../assets/images/goose.png';
-import kimiLogo from '../../assets/images/kimi.png';
-import kilocodeLogo from '../../assets/images/kilocode.png';
-import atlassianLogo from '../../assets/images/atlassian.png';
-import clineLogo from '../../assets/images/cline.png';
-import continueLogo from '../../assets/images/continue.png';
-import codebuffLogo from '../../assets/images/codebuff.png';
-import mistralLogo from '../../assets/images/mistral.png';
 
 type Props = {
-  agent: Agent;
   taskId?: string;
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
 };
 
-const agentConfig: Record<Agent, { name: string; logo: string }> = {
-  qwen: { name: 'Qwen Code', logo: qwenLogo },
-  codex: { name: 'Codex', logo: openaiLogo },
-  claude: { name: 'Claude Code', logo: claudeLogo },
-  droid: { name: 'Droid', logo: factoryLogo },
-  gemini: { name: 'Gemini', logo: geminiLogo },
-  cursor: { name: 'Cursor', logo: cursorLogo },
-  copilot: { name: 'Copilot', logo: copilotLogo },
-  amp: { name: 'Amp', logo: ampLogo },
-  opencode: { name: 'OpenCode', logo: opencodeLogo },
-  charm: { name: 'Charm', logo: charmLogo },
-  auggie: { name: 'Auggie', logo: augmentLogo },
-  goose: { name: 'Goose', logo: gooseLogo },
-  kimi: { name: 'Kimi', logo: kimiLogo },
-  kilocode: { name: 'Kilocode', logo: kilocodeLogo },
-  kiro: { name: 'Kiro', logo: kiroLogo },
-  rovo: { name: 'Rovo Dev', logo: atlassianLogo },
-  cline: { name: 'Cline', logo: clineLogo },
-  continue: { name: 'Continue', logo: continueLogo },
-  codebuff: { name: 'Codebuff', logo: codebuffLogo },
-  mistral: { name: 'Mistral Vibe', logo: mistralLogo },
-};
-
-export const AgentDisplay: React.FC<Props> = ({
-  agent,
+export const TaskContextBadges: React.FC<Props> = ({
   taskId,
   linearIssue,
   githubIssue,
   jiraIssue,
 }) => {
-  const config = agentConfig[agent] ?? { name: agent, logo: '' };
   const { taskId: scopedTaskId } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
   const { unsentCount } = useTaskComments(resolvedTaskId);
@@ -86,7 +37,7 @@ export const AgentDisplay: React.FC<Props> = ({
   const handleIssueClick = (url?: string) => {
     if (!url) return;
     try {
-      (window as any).electronAPI?.openExternal?.(url);
+      window.electronAPI?.openExternal?.(url);
     } catch (e) {
       console.error('Failed to open external link:', e);
     }
@@ -94,40 +45,6 @@ export const AgentDisplay: React.FC<Props> = ({
 
   return (
     <div className="inline-flex items-center gap-2">
-      {/* Agent Badge */}
-      <TooltipProvider delayDuration={250}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              className="inline-flex h-7 cursor-default select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground dark:border-border dark:bg-muted"
-              role="status"
-              aria-label={`Current agent: ${config.name}`}
-            >
-              {config.logo ? (
-                <img
-                  src={config.logo}
-                  alt={config.name}
-                  className={`h-3.5 w-3.5 flex-shrink-0 rounded-sm object-contain ${
-                    agent === 'codex' || agent === 'auggie' ? 'dark-black:invert dark:invert' : ''
-                  }`}
-                />
-              ) : (
-                <div
-                  className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-[3px] bg-muted-foreground/20 text-micro font-semibold text-foreground"
-                  aria-hidden
-                >
-                  {config.name.slice(0, 1)}
-                </div>
-              )}
-              <span className="max-w-[10rem] truncate">{config.name}</span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Agent locked for this conversation</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-
       {linearIssue && (
         <TooltipProvider delayDuration={250}>
           <Tooltip>
@@ -301,4 +218,4 @@ export const AgentDisplay: React.FC<Props> = ({
   );
 };
 
-export default AgentDisplay;
+export default TaskContextBadges;

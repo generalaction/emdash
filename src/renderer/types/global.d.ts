@@ -19,6 +19,7 @@ declare global {
       ptyStart: (opts: {
         id: string;
         cwd?: string;
+        remote?: { connectionId: string };
         shell?: string;
         env?: Record<string, string>;
         cols?: number;
@@ -27,6 +28,18 @@ declare global {
         initialPrompt?: string;
         skipResume?: boolean;
       }) => Promise<{ ok: boolean; error?: string }>;
+      ptyStartDirect: (opts: {
+        id: string;
+        providerId: string;
+        cwd: string;
+        remote?: { connectionId: string };
+        cols?: number;
+        rows?: number;
+        autoApprove?: boolean;
+        initialPrompt?: string;
+        env?: Record<string, string>;
+        resume?: boolean;
+      }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows: number }) => void;
       ptyKill: (id: string) => void;
@@ -50,7 +63,7 @@ declare global {
         projectPath: string;
         taskName: string;
         projectId: string;
-        autoApprove?: boolean;
+        baseRef?: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
         projectPath: string;
@@ -87,7 +100,6 @@ declare global {
         projectPath: string;
         taskName: string;
         baseRef?: string;
-        autoApprove?: boolean;
       }) => Promise<{
         success: boolean;
         worktree?: any;
@@ -97,6 +109,63 @@ declare global {
       worktreeRemoveReserve: (args: {
         projectId: string;
       }) => Promise<{ success: boolean; error?: string }>;
+
+      // Lifecycle scripts
+      lifecycleGetScript: (args: {
+        projectPath: string;
+        phase: 'setup' | 'run' | 'teardown';
+      }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+      lifecycleSetup: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleRunStart: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleRunStop: (args: {
+        taskId: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleTeardown: (args: {
+        taskId: string;
+        taskPath: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+      lifecycleGetState: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        state?: {
+          taskId: string;
+          setup: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+          };
+          run: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+            pid?: number | null;
+          };
+          teardown: {
+            status: 'idle' | 'running' | 'succeeded' | 'failed';
+            startedAt?: string;
+            finishedAt?: string;
+            exitCode?: number | null;
+            error?: string | null;
+          };
+        };
+        error?: string;
+      }>;
+      lifecycleClearTask: (args: {
+        taskId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
       openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;
       getProjectSettings: (projectId: string) => Promise<{
@@ -139,6 +208,21 @@ declare global {
         }>;
         error?: string;
       }>;
+      watchGitStatus: (taskPath: string) => Promise<{
+        success: boolean;
+        watchId?: string;
+        error?: string;
+      }>;
+      unwatchGitStatus: (
+        taskPath: string,
+        watchId?: string
+      ) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      onGitStatusChanged: (
+        listener: (data: { taskPath: string; error?: string }) => void
+      ) => () => void;
       listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
@@ -152,11 +236,15 @@ declare global {
       // Filesystem
       fsList: (
         root: string,
-        opts?: { includeDirs?: boolean; maxEntries?: number }
+        opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
       ) => Promise<{
         success: boolean;
         items?: Array<{ path: string; type: 'file' | 'dir' }>;
         error?: string;
+        canceled?: boolean;
+        truncated?: boolean;
+        reason?: string;
+        durationMs?: number;
       }>;
       fsRead: (
         root: string,

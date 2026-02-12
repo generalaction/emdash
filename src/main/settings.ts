@@ -4,6 +4,7 @@ import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
+import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 
@@ -12,7 +13,7 @@ export interface RepositorySettings {
   pushOnCreate: boolean;
 }
 
-export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option';
+export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
 
 export interface ShortcutBinding {
   key: string;
@@ -26,14 +27,18 @@ export interface KeyboardSettings {
   toggleRightSidebar?: ShortcutBinding;
   toggleTheme?: ShortcutBinding;
   toggleKanban?: ShortcutBinding;
+  toggleEditor?: ShortcutBinding;
   closeModal?: ShortcutBinding;
   nextProject?: ShortcutBinding;
   prevProject?: ShortcutBinding;
   newTask?: ShortcutBinding;
+  nextAgent?: ShortcutBinding;
+  prevAgent?: ShortcutBinding;
 }
 
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
+  theme?: 'light' | 'dark' | 'dark-black' | 'system';
 }
 
 /**
@@ -81,6 +86,10 @@ export interface AppSettings {
   keyboard?: KeyboardSettings;
   interface?: InterfaceSettings;
   providerConfigs?: ProviderCustomConfigs;
+  terminal?: {
+    fontFamily: string;
+  };
+  defaultOpenInApp?: OpenInAppId;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -120,14 +129,22 @@ const DEFAULT_SETTINGS: AppSettings = {
     toggleRightSidebar: { key: '.', modifier: 'cmd' },
     toggleTheme: { key: 't', modifier: 'cmd' },
     toggleKanban: { key: 'p', modifier: 'cmd' },
+    toggleEditor: { key: 'e', modifier: 'cmd' },
     nextProject: { key: 'ArrowRight', modifier: 'cmd' },
     prevProject: { key: 'ArrowLeft', modifier: 'cmd' },
     newTask: { key: 'n', modifier: 'cmd' },
+    nextAgent: { key: 'k', modifier: 'cmd+shift' },
+    prevAgent: { key: 'j', modifier: 'cmd+shift' },
   },
   interface: {
     autoRightSidebarBehavior: false,
+    theme: 'system',
   },
   providerConfigs: {},
+  terminal: {
+    fontFamily: '',
+  },
+  defaultOpenInApp: 'terminal',
 };
 
 function getSettingsPath(): string {
@@ -293,7 +310,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
 
   // Keyboard
   const keyboard = (input as any)?.keyboard || {};
-  const validModifiers: ShortcutModifier[] = ['cmd', 'ctrl', 'shift', 'alt', 'option'];
+  const validModifiers: ShortcutModifier[] = ['cmd', 'ctrl', 'shift', 'alt', 'option', 'cmd+shift'];
   const normalizeBinding = (binding: any, defaultBinding: ShortcutBinding): ShortcutBinding => {
     if (!binding || typeof binding !== 'object') return defaultBinding;
     const key =
@@ -321,9 +338,12 @@ function normalizeSettings(input: AppSettings): AppSettings {
     ),
     toggleTheme: normalizeBinding(keyboard.toggleTheme, DEFAULT_SETTINGS.keyboard!.toggleTheme!),
     toggleKanban: normalizeBinding(keyboard.toggleKanban, DEFAULT_SETTINGS.keyboard!.toggleKanban!),
+    toggleEditor: normalizeBinding(keyboard.toggleEditor, DEFAULT_SETTINGS.keyboard!.toggleEditor!),
     nextProject: normalizeBinding(keyboard.nextProject, DEFAULT_SETTINGS.keyboard!.nextProject!),
     prevProject: normalizeBinding(keyboard.prevProject, DEFAULT_SETTINGS.keyboard!.prevProject!),
     newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
+    nextAgent: normalizeBinding(keyboard.nextAgent, DEFAULT_SETTINGS.keyboard!.nextAgent!),
+    prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),
   };
 
   // Interface
@@ -332,6 +352,9 @@ function normalizeSettings(input: AppSettings): AppSettings {
     autoRightSidebarBehavior: Boolean(
       iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
     ),
+    theme: ['light', 'dark', 'dark-black', 'system'].includes(iface?.theme)
+      ? iface.theme
+      : DEFAULT_SETTINGS.interface!.theme,
   };
 
   // Provider custom configs
@@ -353,6 +376,17 @@ function normalizeSettings(input: AppSettings): AppSettings {
       }
     }
   }
+
+  // Terminal
+  const term = (input as any)?.terminal || {};
+  const fontFamily = String(term?.fontFamily ?? '').trim();
+  out.terminal = { fontFamily };
+
+  // Default Open In App
+  const defaultOpenInApp = (input as any)?.defaultOpenInApp;
+  out.defaultOpenInApp = isValidOpenInAppId(defaultOpenInApp)
+    ? defaultOpenInApp
+    : DEFAULT_SETTINGS.defaultOpenInApp!;
 
   return out;
 }

@@ -1,5 +1,28 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
+import type { OpenInAppId } from '../shared/openInApps';
+
+// Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
+const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
+const GIT_STATUS_CHANGED_CHANNEL = 'git:status-changed';
+
+const gitStatusChangedListeners = new Set<(data: { taskPath: string; error?: string }) => void>();
+let gitStatusBridgeAttached = false;
+
+function attachGitStatusBridgeOnce() {
+  if (gitStatusBridgeAttached) return;
+  gitStatusBridgeAttached = true;
+  ipcRenderer.on(
+    GIT_STATUS_CHANGED_CHANNEL,
+    (_: Electron.IpcRendererEvent, data: { taskPath: string; error?: string }) => {
+      for (const listener of gitStatusChangedListeners) {
+        try {
+          listener(data);
+        } catch {}
+      }
+    }
+  );
+}
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -8,6 +31,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:getAppVersion'),
   getElectronVersion: () => ipcRenderer.invoke('app:getElectronVersion'),
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
+  listInstalledFonts: (args?: { refresh?: boolean }) =>
+    ipcRenderer.invoke('app:listInstalledFonts', args),
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
@@ -39,24 +64,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Open a path in a specific app
-  openIn: (args: {
-    app: 'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp';
-    path: string;
-  }) => ipcRenderer.invoke('app:openIn', args),
+  openIn: (args: { app: OpenInAppId; path: string }) => ipcRenderer.invoke('app:openIn', args),
 
   // Check which apps are installed
   checkInstalledApps: () =>
-    ipcRenderer.invoke('app:checkInstalledApps') as Promise<
-      Record<
-        'finder' | 'cursor' | 'vscode' | 'terminal' | 'ghostty' | 'zed' | 'iterm2' | 'warp',
-        boolean
-      >
-    >,
+    ipcRenderer.invoke('app:checkInstalledApps') as Promise<Record<OpenInAppId, boolean>>,
 
   // PTY management
   ptyStart: (opts: {
     id: string;
     cwd?: string;
+    remote?: { connectionId: string };
     shell?: string;
     env?: Record<string, string>;
     cols?: number;
@@ -74,11 +92,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     id: string;
     providerId: string;
     cwd: string;
+    remote?: { connectionId: string };
     cols?: number;
     rows?: number;
     autoApprove?: boolean;
     initialPrompt?: string;
     clickTime?: number;
+    env?: Record<string, string>;
     resume?: boolean;
   }) => ipcRenderer.invoke('pty:startDirect', opts),
 
@@ -116,7 +136,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
     taskName: string;
     projectId: string;
-    autoApprove?: boolean;
+    baseRef?: string;
   }) => ipcRenderer.invoke('worktree:create', args),
   worktreeList: (args: { projectPath: string }) => ipcRenderer.invoke('worktree:list', args),
   worktreeRemove: (args: {
@@ -124,6 +144,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
+    taskName?: string;
   }) => ipcRenderer.invoke('worktree:remove', args),
   worktreeStatus: (args: { worktreePath: string }) => ipcRenderer.invoke('worktree:status', args),
   worktreeMerge: (args: { projectPath: string; worktreeId: string }) =>
@@ -141,14 +162,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
     taskName: string;
     baseRef?: string;
-    autoApprove?: boolean;
   }) => ipcRenderer.invoke('worktree:claimReserve', args),
   worktreeRemoveReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:removeReserve', args),
 
+  // Lifecycle scripts
+  lifecycleGetScript: (args: { projectPath: string; phase: 'setup' | 'run' | 'teardown' }) =>
+    ipcRenderer.invoke('lifecycle:getScript', args),
+  lifecycleSetup: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:setup', args),
+  lifecycleRunStart: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:run:start', args),
+  lifecycleRunStop: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:run:stop', args),
+  lifecycleTeardown: (args: { taskId: string; taskPath: string; projectPath: string }) =>
+    ipcRenderer.invoke('lifecycle:teardown', args),
+  lifecycleGetState: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getState', args),
+  lifecycleClearTask: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:clearTask', args),
+  onLifecycleEvent: (listener: (data: any) => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(LIFECYCLE_EVENT_CHANNEL, wrapped);
+    return () => ipcRenderer.removeListener(LIFECYCLE_EVENT_CHANNEL, wrapped);
+  },
+
   // Filesystem helpers
-  fsList: (root: string, opts?: { includeDirs?: boolean; maxEntries?: number }) =>
-    ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
+  fsList: (
+    root: string,
+    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
+  ) => ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
   fsRead: (root: string, relPath: string, maxBytes?: number) =>
     ipcRenderer.invoke('fs:read', { root, relPath, maxBytes }),
   fsReadImage: (root: string, relPath: string) =>
@@ -183,10 +223,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
   getGitStatus: (taskPath: string) => ipcRenderer.invoke('git:get-status', taskPath),
+  watchGitStatus: (taskPath: string) => ipcRenderer.invoke('git:watch-status', taskPath),
+  unwatchGitStatus: (taskPath: string, watchId?: string) =>
+    ipcRenderer.invoke('git:unwatch-status', taskPath, watchId),
+  onGitStatusChanged: (listener: (data: { taskPath: string; error?: string }) => void) => {
+    attachGitStatusBridgeOnce();
+    gitStatusChangedListeners.add(listener);
+    return () => {
+      gitStatusChangedListeners.delete(listener);
+    };
+  },
   getFileDiff: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:get-file-diff', args),
   stageFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:stage-file', args),
+  stageAllFiles: (args: { taskPath: string }) => ipcRenderer.invoke('git:stage-all-files', args),
   unstageFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:unstage-file', args),
   revertFile: (args: { taskPath: string; filePath: string }) =>
@@ -209,7 +260,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     web?: boolean;
     fill?: boolean;
   }) => ipcRenderer.invoke('git:create-pr', args),
+  mergeToMain: (args: { taskPath: string }) => ipcRenderer.invoke('git:merge-to-main', args),
   getPrStatus: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
+  getCheckRuns: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-check-runs', args),
+  getPrComments: (args: { taskPath: string; prNumber?: number }) =>
+    ipcRenderer.invoke('git:get-pr-comments', args),
   getBranchStatus: (args: { taskPath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
   renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) =>
@@ -338,6 +393,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTask: (task: any) => ipcRenderer.invoke('db:saveTask', task),
   deleteProject: (projectId: string) => ipcRenderer.invoke('db:deleteProject', projectId),
   deleteTask: (taskId: string) => ipcRenderer.invoke('db:deleteTask', taskId),
+  archiveTask: (taskId: string) => ipcRenderer.invoke('db:archiveTask', taskId),
+  restoreTask: (taskId: string) => ipcRenderer.invoke('db:restoreTask', taskId),
+  getArchivedTasks: (projectId?: string) => ipcRenderer.invoke('db:getArchivedTasks', projectId),
 
   // Conversation management
   saveConversation: (conversation: any) => ipcRenderer.invoke('db:saveConversation', conversation),
@@ -445,6 +503,95 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Lightweight TCP probe for localhost ports to avoid noisy fetches
   netProbePorts: (host: string, ports: number[], timeoutMs?: number) =>
     ipcRenderer.invoke('net:probePorts', host, ports, timeoutMs),
+
+  // SSH operations (unwrap { success, ... } IPC responses)
+  sshTestConnection: (config: any) => ipcRenderer.invoke('ssh:testConnection', config),
+  sshSaveConnection: async (config: any) => {
+    const res = await ipcRenderer.invoke('ssh:saveConnection', config);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'Failed to save SSH connection');
+    }
+    return (res as any).connection;
+  },
+  sshGetConnections: async () => {
+    const res = await ipcRenderer.invoke('ssh:getConnections');
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'Failed to load SSH connections');
+    }
+    return (res as any).connections || [];
+  },
+  sshDeleteConnection: async (id: string) => {
+    const res = await ipcRenderer.invoke('ssh:deleteConnection', id);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'Failed to delete SSH connection');
+    }
+  },
+  sshConnect: async (arg: any) => {
+    const res = await ipcRenderer.invoke('ssh:connect', arg);
+    if (res && typeof res === 'object' && 'success' in res) {
+      if (!res.success) {
+        throw new Error((res as any).error || 'SSH connect failed');
+      }
+      return (res as any).connectionId as string;
+    }
+    return res as string;
+  },
+  sshDisconnect: async (connectionId: string) => {
+    const res = await ipcRenderer.invoke('ssh:disconnect', connectionId);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH disconnect failed');
+    }
+  },
+  sshExecuteCommand: async (connectionId: string, command: string, cwd?: string) => {
+    const res = await ipcRenderer.invoke('ssh:executeCommand', connectionId, command, cwd);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH command failed');
+    }
+    return {
+      stdout: (res as any).stdout || '',
+      stderr: (res as any).stderr || '',
+      exitCode: (res as any).exitCode ?? -1,
+    };
+  },
+  sshListFiles: async (connectionId: string, path: string) => {
+    const res = await ipcRenderer.invoke('ssh:listFiles', connectionId, path);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH list files failed');
+    }
+    return (res as any).files || [];
+  },
+  sshReadFile: async (connectionId: string, path: string) => {
+    const res = await ipcRenderer.invoke('ssh:readFile', connectionId, path);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH read file failed');
+    }
+    return (res as any).content || '';
+  },
+  sshWriteFile: async (connectionId: string, path: string, content: string) => {
+    const res = await ipcRenderer.invoke('ssh:writeFile', connectionId, path, content);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH write file failed');
+    }
+  },
+  sshGetState: async (connectionId: string) => {
+    const res = await ipcRenderer.invoke('ssh:getState', connectionId);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH get state failed');
+    }
+    return (res as any).state;
+  },
+  sshGetConfig: () => ipcRenderer.invoke('ssh:getSshConfig'),
+  sshGetSshConfigHost: (hostAlias: string) => ipcRenderer.invoke('ssh:getSshConfigHost', hostAlias),
+
+  // Skills management
+  skillsGetCatalog: () => ipcRenderer.invoke('skills:getCatalog'),
+  skillsRefreshCatalog: () => ipcRenderer.invoke('skills:refreshCatalog'),
+  skillsInstall: (args: { skillId: string }) => ipcRenderer.invoke('skills:install', args),
+  skillsUninstall: (args: { skillId: string }) => ipcRenderer.invoke('skills:uninstall', args),
+  skillsGetDetail: (args: { skillId: string }) => ipcRenderer.invoke('skills:getDetail', args),
+  skillsGetDetectedAgents: () => ipcRenderer.invoke('skills:getDetectedAgents'),
+  skillsCreate: (args: { name: string; description: string }) =>
+    ipcRenderer.invoke('skills:create', args),
 });
 
 // Type definitions for the exposed API
@@ -452,6 +599,9 @@ export interface ElectronAPI {
   // App info
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
+  listInstalledFonts: (args?: {
+    refresh?: boolean;
+  }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -512,7 +662,7 @@ export interface ElectronAPI {
     projectPath: string;
     taskName: string;
     projectId: string;
-    autoApprove?: boolean;
+    baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
     projectPath: string;
@@ -520,6 +670,9 @@ export interface ElectronAPI {
   worktreeRemove: (args: {
     projectPath: string;
     worktreeId: string;
+    worktreePath?: string;
+    branch?: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeStatus: (args: {
     worktreePath: string;
@@ -532,6 +685,61 @@ export interface ElectronAPI {
     worktreeId: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeGetAll: () => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
+
+  // Lifecycle scripts
+  lifecycleGetScript: (args: {
+    projectPath: string;
+    phase: 'setup' | 'run' | 'teardown';
+  }) => Promise<{ success: boolean; script?: string | null; error?: string }>;
+  lifecycleSetup: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStart: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleRunStop: (args: {
+    taskId: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleTeardown: (args: {
+    taskId: string;
+    taskPath: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
+  lifecycleGetState: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    state?: {
+      taskId: string;
+      setup: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+      run: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+        pid?: number | null;
+      };
+      teardown: {
+        status: 'idle' | 'running' | 'succeeded' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        exitCode?: number | null;
+        error?: string | null;
+      };
+    };
+    error?: string;
+  }>;
+  lifecycleClearTask: (args: { taskId: string }) => Promise<{ success: boolean; error?: string }>;
+  onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management
   openProject: () => Promise<{ success: boolean; path?: string; error?: string }>;
@@ -558,6 +766,21 @@ export interface ElectronAPI {
     }>;
     error?: string;
   }>;
+  watchGitStatus: (taskPath: string) => Promise<{
+    success: boolean;
+    watchId?: string;
+    error?: string;
+  }>;
+  unwatchGitStatus: (
+    taskPath: string,
+    watchId?: string
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  onGitStatusChanged: (
+    listener: (data: { taskPath: string; error?: string }) => void
+  ) => () => void;
   getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
     success: boolean;
     diff?: { lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> };
@@ -586,11 +809,15 @@ export interface ElectronAPI {
   // Filesystem helpers
   fsList: (
     root: string,
-    opts?: { includeDirs?: boolean; maxEntries?: number }
+    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
   ) => Promise<{
     success: boolean;
     items?: Array<{ path: string; type: 'file' | 'dir' }>;
     error?: string;
+    canceled?: boolean;
+    truncated?: boolean;
+    reason?: string;
+    durationMs?: number;
   }>;
   fsRead: (
     root: string,
@@ -751,6 +978,30 @@ export interface ElectronAPI {
     ports: number[],
     timeoutMs?: number
   ) => Promise<{ reachable: number[] }>;
+
+  // SSH operations
+  sshTestConnection: (
+    config: any
+  ) => Promise<{ success: boolean; latency?: number; error?: string }>;
+  sshSaveConnection: (config: any) => Promise<any>;
+  sshGetConnections: () => Promise<any[]>;
+  sshDeleteConnection: (id: string) => Promise<void>;
+  sshConnect: (arg: any) => Promise<string>;
+  sshDisconnect: (connectionId: string) => Promise<void>;
+  sshExecuteCommand: (
+    connectionId: string,
+    command: string,
+    cwd?: string
+  ) => Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+  }>;
+  sshListFiles: (connectionId: string, path: string) => Promise<any[]>;
+  sshReadFile: (connectionId: string, path: string) => Promise<string>;
+  sshWriteFile: (connectionId: string, path: string, content: string) => Promise<void>;
+  sshGetState: (connectionId: string) => Promise<any>;
+  sshGetConfig: () => Promise<{ success: boolean; hosts?: any[]; error?: string }>;
 }
 
 declare global {

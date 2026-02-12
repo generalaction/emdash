@@ -46,6 +46,15 @@ export async function refreshPrStatus(taskPath: string): Promise<PrStatus | null
   }
 }
 
+/**
+ * Refresh PR status for all currently subscribed task paths.
+ * Used on window focus to update all visible PR buttons.
+ */
+export async function refreshAllSubscribedPrStatus(): Promise<void> {
+  const paths = Array.from(listeners.keys());
+  await Promise.all(paths.map(refreshPrStatus));
+}
+
 export function subscribeToPrStatus(taskPath: string, listener: Listener): () => void {
   const set = listeners.get(taskPath) || new Set<Listener>();
   set.add(listener);
@@ -70,6 +79,7 @@ export function subscribeToPrStatus(taskPath: string, listener: Listener): () =>
       taskListeners.delete(listener);
       if (taskListeners.size === 0) {
         listeners.delete(taskPath);
+        cache.delete(taskPath); // Clear cache when no subscribers
       }
     }
   };
