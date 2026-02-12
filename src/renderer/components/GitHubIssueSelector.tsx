@@ -74,6 +74,9 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
 
   const loadIssues = useCallback(async () => {
     if (!canListGithub) return;
+    import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('github_issues_searched');
+    });
     setIsLoadingIssues(true);
     try {
       const result = await api.githubIssuesList(projectPath, 50);
@@ -164,6 +167,11 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
     }
     const num = Number(String(value).replace(/^#/, ''));
     const issue = filteredIssues.find((i) => i.number === num) ?? null;
+    if (issue) {
+      import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('github_issue_selected');
+      });
+    }
     onIssueChange(issue);
   };
 

@@ -64,6 +64,9 @@ const SkillsView: React.FC = () => {
         description: newDescription.trim(),
       });
       if (result.success) {
+        import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('skill_created');
+        });
         setShowCreateModal(false);
         setNewName('');
         setNewDescription('');

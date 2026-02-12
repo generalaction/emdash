@@ -160,6 +160,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       // Load SSH config hosts and saved connections
       void loadSshConfig();
       void loadSavedConnections();
+
+      import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('remote_project_modal_opened');
+      });
     }
   }, [isOpen]);
 
@@ -321,6 +325,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
       const result = await window.electronAPI.sshTestConnection(testConfig);
       setTestResult(result);
+
+      import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('remote_project_connection_tested', { success: result.success });
+      });
 
       if (result.success) {
         setTestStatus('success');

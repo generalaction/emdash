@@ -66,8 +66,24 @@ const RENDERER_ALLOWED_EVENTS = new Set([
   'toolbar_open_in_selected',
   'toolbar_kanban_toggled',
   // Browser Preview
+  'browser_preview_opened',
   'browser_preview_closed',
   'browser_preview_url_navigated',
+  // Skills
+  'skills_view_opened',
+  'skill_installed',
+  'skill_uninstalled',
+  'skill_created',
+  'skill_detail_viewed',
+  // Remote Server / SSH
+  'remote_project_modal_opened',
+  'remote_project_connection_tested',
+  'remote_project_created',
+  // GitHub issues
+  'github_issues_searched',
+  'github_issue_selected',
+  // Task with issue
+  'task_created_with_issue',
   // Settings & Preferences
   'settings_tab_viewed',
   'theme_changed',
