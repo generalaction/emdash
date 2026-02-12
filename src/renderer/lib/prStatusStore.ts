@@ -1,6 +1,6 @@
 import type { PrStatus } from './prStatus';
 
-type Listener = (pr: PrStatus | null) => void;
+type Listener = (pr: PrStatus | null, isLoading: boolean) => void;
 
 const cache = new Map<string, PrStatus | null>();
 const listeners = new Map<string, Set<Listener>>();
@@ -18,10 +18,25 @@ async function fetchPrStatus(taskPath: string): Promise<PrStatus | null> {
   }
 }
 
+function notifyListeners(taskPath: string, pr: PrStatus | null, isLoading: boolean) {
+  const taskListeners = listeners.get(taskPath);
+  if (taskListeners) {
+    for (const listener of taskListeners) {
+      try {
+        listener(pr, isLoading);
+      } catch {}
+    }
+  }
+}
+
 export async function refreshPrStatus(taskPath: string): Promise<PrStatus | null> {
   // Deduplicate concurrent requests
   const inFlight = pending.get(taskPath);
   if (inFlight) return inFlight;
+
+  // Verify we actually need to change state before notifying
+  const cached = cache.get(taskPath);
+  notifyListeners(taskPath, cached ?? null, !cached);
 
   const promise = fetchPrStatus(taskPath);
   pending.set(taskPath, promise);
@@ -29,17 +44,7 @@ export async function refreshPrStatus(taskPath: string): Promise<PrStatus | null
   try {
     const pr = await promise;
     cache.set(taskPath, pr);
-
-    // Notify all listeners
-    const taskListeners = listeners.get(taskPath);
-    if (taskListeners) {
-      for (const listener of taskListeners) {
-        try {
-          listener(pr);
-        } catch {}
-      }
-    }
-
+    notifyListeners(taskPath, pr, false);
     return pr;
   } finally {
     pending.delete(taskPath);
@@ -62,13 +67,20 @@ export function subscribeToPrStatus(taskPath: string, listener: Listener): () =>
 
   // Emit current cached value if available
   const cached = cache.get(taskPath);
+  const isPending = pending.has(taskPath);
+  
   if (cached !== undefined) {
     try {
-      listener(cached);
+      listener(cached, false);
+    } catch {}
+  } else if (isPending) {
+    // If pending but no cache (first load), emit undefined pr with loading=true
+    try {
+        listener(null, true);
     } catch {}
   }
 
-  // Trigger fetch if not cached
+  // Trigger fetch if not cached and not pending
   if (!cache.has(taskPath) && !pending.has(taskPath)) {
     refreshPrStatus(taskPath);
   }
