@@ -131,6 +131,17 @@ export class WorktreeService {
     return DEFAULT_PRESERVE_PATTERNS;
   }
 
+  /**
+   * Preserve project files into a worktree using project config (or defaults).
+   */
+  async preserveProjectFilesToWorktree(
+    projectPath: string,
+    worktreePath: string
+  ): Promise<PreserveResult> {
+    const patterns = this.getPreservePatterns(projectPath);
+    return this.preserveFilesToWorktree(projectPath, worktreePath, patterns);
+  }
+
   /** Slugify task name to make it shell-safe */
   private slugify(name: string): string {
     return name
@@ -228,8 +239,7 @@ export class WorktreeService {
 
       // Preserve .env and other gitignored config files from source to worktree
       try {
-        const patterns = this.getPreservePatterns(projectPath);
-        await this.preserveFilesToWorktree(projectPath, worktreePath, patterns);
+        await this.preserveProjectFilesToWorktree(projectPath, worktreePath);
       } catch (preserveErr) {
         log.warn('Failed to preserve files to worktree (continuing):', preserveErr);
       }
@@ -1156,8 +1166,7 @@ export class WorktreeService {
 
     // Preserve .env and other gitignored config files from source to worktree
     try {
-      const patterns = this.getPreservePatterns(projectPath);
-      await this.preserveFilesToWorktree(projectPath, worktreePath, patterns);
+      await this.preserveProjectFilesToWorktree(projectPath, worktreePath);
     } catch (preserveErr) {
       log.warn('Failed to preserve files to worktree (continuing):', preserveErr);
     }

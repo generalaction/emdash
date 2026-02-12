@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppKeyboardShortcuts from './components/AppKeyboardShortcuts';
 import BrowserPane from './components/BrowserPane';
 import { CloneFromUrlModal } from './components/CloneFromUrlModal';
+import { AddRemoteProjectModal } from './components/ssh/AddRemoteProjectModal';
 import CommandPaletteWrapper from './components/CommandPaletteWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -30,6 +31,7 @@ import type { LinearIssueSummary } from './types/linear';
 import type { GitHubIssueSummary } from './types/github';
 import type { JiraIssueSummary } from './types/jira';
 import type { AgentRun } from './types/chat';
+import type { Project } from './types/app';
 
 // Extracted hooks
 import { useModalState } from './hooks/useModalState';
@@ -109,6 +111,7 @@ const AppContent: React.FC = () => {
     handleToggleEditor,
     handleWelcomeGetStarted,
   } = modals;
+  const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
 
   // --- App initialization (version, platform, loadAppData) ---
   // The callbacks here execute inside a useEffect (after render), so all hooks
@@ -274,11 +277,110 @@ const AppContent: React.FC = () => {
     ]
   );
 
+  // --- SSH Remote Project handlers ---
+  const handleAddRemoteProjectClick = useCallback(() => {
+    setShowRemoteProjectModal(true);
+  }, []);
+
+  const handleRemoteProjectSuccess = useCallback(
+    async (remoteProject: {
+      id: string;
+      name: string;
+      path: string;
+      host: string;
+      connectionId: string;
+    }) => {
+      const { captureTelemetry } = await import('./lib/telemetryClient');
+      captureTelemetry('remote_project_created');
+
+      try {
+        // Create project object for remote project
+        const project: Project = {
+          id: remoteProject.id,
+          name: remoteProject.name,
+          path: remoteProject.path,
+          repoKey: `${remoteProject.host}:${remoteProject.path}`,
+          gitInfo: {
+            isGitRepo: true,
+          },
+          tasks: [],
+          // Mark as remote project
+          isRemote: true,
+          sshConnectionId: remoteProject.connectionId,
+          remotePath: remoteProject.path,
+        } as Project;
+
+        const saveResult = await window.electronAPI.saveProject(project);
+        if (saveResult.success) {
+          captureTelemetry('project_create_success');
+          captureTelemetry('project_added_success', { source: 'remote' });
+          toast({
+            title: 'Remote project added successfully!',
+            description: `${project.name} on ${remoteProject.host} has been added to your projects.`,
+          });
+          // Add to beginning of list
+          projectMgmt.setProjects((prev) => {
+            const updated = [project, ...prev];
+            appInit.saveProjectOrder(updated);
+            return updated;
+          });
+          projectMgmt.activateProjectView(project);
+        } else {
+          toast({
+            title: 'Failed to save remote project',
+            description: saveResult.error || 'Unknown error occurred',
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        const { log } = await import('./lib/logger');
+        log.error('Failed to save remote project:', error);
+        toast({
+          title: 'Failed to add remote project',
+          description: 'An error occurred while saving the project.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [projectMgmt.activateProjectView, toast, appInit.saveProjectOrder]
+  );
+
+  // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
   const { activeTask, activeTaskAgent } = taskMgmt;
   const activeTaskProjectPath = activeTask?.projectId
     ? projectMgmt.projects.find((p) => p.id === activeTask.projectId)?.path || null
     : null;
+
+  const derivedRemoteConnectionId = useMemo((): string | null => {
+    if (!selectedProject) return null;
+    if (selectedProject.sshConnectionId) return selectedProject.sshConnectionId;
+    const alias = selectedProject.name;
+    if (typeof alias !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(alias)) return null;
+
+    // Back-compat for remote projects created before remote fields were persisted.
+    // Heuristic: on macOS/Windows, a /home/... project path is almost certainly remote.
+    const p = selectedProject.path || '';
+    const looksRemoteByPath =
+      appInit.platform === 'darwin'
+        ? p.startsWith('/home/')
+        : appInit.platform === 'win32'
+          ? p.startsWith('/home/')
+          : false;
+
+    if (selectedProject.isRemote || looksRemoteByPath) {
+      return `ssh-config:${encodeURIComponent(alias)}`;
+    }
+    return null;
+  }, [selectedProject, appInit.platform]);
+
+  const derivedRemotePath = useMemo((): string | null => {
+    if (!selectedProject) return null;
+    if (selectedProject.remotePath) return selectedProject.remotePath;
+    // If we derived a connection id, treat project.path as the remote path.
+    if (derivedRemoteConnectionId) return selectedProject.path;
+    return selectedProject.isRemote ? selectedProject.path : null;
+  }, [selectedProject, derivedRemoteConnectionId]);
 
   return (
     <BrowserProvider>
@@ -313,7 +415,11 @@ const AppContent: React.FC = () => {
                   currentPath={
                     activeTask?.metadata?.multiAgent?.enabled
                       ? null
-                      : activeTask?.path || selectedProject?.path || null
+                      : activeTask?.path ||
+                        (selectedProject?.isRemote
+                          ? selectedProject?.remotePath
+                          : selectedProject?.path) ||
+                        null
                   }
                   defaultPreviewUrl={null}
                   taskId={activeTask?.id || null}
@@ -362,6 +468,7 @@ const AppContent: React.FC = () => {
                       onOpenProject={projectMgmt.handleOpenProject}
                       onNewProject={projectMgmt.handleNewProjectClick}
                       onCloneProject={projectMgmt.handleCloneProjectClick}
+                      onAddRemoteProject={handleAddRemoteProjectClick}
                       onSelectTask={taskMgmt.handleSelectTask}
                       activeTask={activeTask || undefined}
                       onReorderProjects={projectMgmt.handleReorderProjects}
@@ -409,6 +516,7 @@ const AppContent: React.FC = () => {
                         handleOpenProject={projectMgmt.handleOpenProject}
                         handleNewProjectClick={projectMgmt.handleNewProjectClick}
                         handleCloneProjectClick={projectMgmt.handleCloneProjectClick}
+                        handleAddRemoteProject={handleAddRemoteProjectClick}
                         setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
                         setShowKanban={(show: boolean) => setShowKanban(show)}
                       />
@@ -431,6 +539,8 @@ const AppContent: React.FC = () => {
                     <RightSidebar
                       task={activeTask}
                       projectPath={selectedProject?.path || activeTaskProjectPath}
+                      projectRemoteConnectionId={derivedRemoteConnectionId}
+                      projectRemotePath={derivedRemotePath}
                       projectDefaultBranch={projectMgmt.projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
@@ -484,6 +594,11 @@ const AppContent: React.FC = () => {
                 isOpen={showCloneModal}
                 onClose={() => setShowCloneModal(false)}
                 onSuccess={projectMgmt.handleCloneSuccess}
+              />
+              <AddRemoteProjectModal
+                isOpen={showRemoteProjectModal}
+                onClose={() => setShowRemoteProjectModal(false)}
+                onSuccess={handleRemoteProjectSuccess}
               />
               {showWelcomeScreen && <WelcomeScreen onGetStarted={handleWelcomeGetStarted} />}
               <GithubDeviceFlowModal

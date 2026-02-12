@@ -95,6 +95,10 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   };
 
   const handleGoToSkills = () => {
+    void (async () => {
+      const { captureTelemetry } = await import('../lib/telemetryClient');
+      captureTelemetry('skills_view_opened');
+    })();
     setSelectedProject(null);
     setShowHomeView(false);
     setShowSkillsView(true);

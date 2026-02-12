@@ -230,5 +230,25 @@ describe('WorktreeService', () => {
       expect(patterns).toContain('.env');
       expect(patterns).toContain('.envrc');
     });
+
+    it('should preserve ignored files from configured directory glob patterns', async () => {
+      fs.mkdirSync(path.join(sourceDir, '.claude'), { recursive: true });
+      fs.writeFileSync(
+        path.join(sourceDir, '.claude', 'settings.local.json'),
+        '{"sandbox":"workspace-write"}'
+      );
+      fs.writeFileSync(
+        path.join(sourceDir, '.emdash.json'),
+        JSON.stringify({ preservePatterns: ['.claude/**'] })
+      );
+      fs.writeFileSync(path.join(sourceDir, '.gitignore'), '.claude/\n.emdash.json\n');
+      execSync('git add .gitignore', { cwd: sourceDir, stdio: 'pipe' });
+      execSync('git commit -m "update gitignore for claude"', { cwd: sourceDir, stdio: 'pipe' });
+
+      const result = await service.preserveProjectFilesToWorktree(sourceDir, destDir);
+
+      expect(result.copied).toContain('.claude/settings.local.json');
+      expect(fs.existsSync(path.join(destDir, '.claude', 'settings.local.json'))).toBe(true);
+    });
   });
 });

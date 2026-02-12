@@ -6,7 +6,7 @@ import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
-import AgentDisplay from './AgentDisplay';
+import TaskContextBadges from './TaskContextBadges';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
@@ -31,6 +31,8 @@ interface Props {
   task: Task;
   projectName: string;
   projectPath?: string | null;
+  projectRemoteConnectionId?: string | null;
+  projectRemotePath?: string | null;
   defaultBranch?: string | null;
   className?: string;
   initialAgent?: Agent;
@@ -40,6 +42,8 @@ const ChatInterface: React.FC<Props> = ({
   task,
   projectName: _projectName,
   projectPath,
+  projectRemoteConnectionId,
+  projectRemotePath: _projectRemotePath,
   defaultBranch,
   className,
   initialAgent,
@@ -691,6 +695,12 @@ const ChatInterface: React.FC<Props> = ({
       if (j.project?.key) details.push(`Project: ${j.project.key}`);
       if (details.length) lines.push(`Details: ${details.join(' • ')}`);
       if (j.url) lines.push(`URL: ${j.url}`);
+      const desc = typeof j.description === 'string' ? j.description.trim() : '';
+      if (desc) {
+        const max = 1500;
+        const clipped = desc.length > max ? desc.slice(0, max) + '\n…' : desc;
+        lines.push('', 'Issue Description:', clipped);
+      }
       const jiraContent = lines.join('\n');
       // Prepend comments if any
       if (commentsContext) {
@@ -838,8 +848,7 @@ const ChatInterface: React.FC<Props> = ({
                   {(task.metadata?.linearIssue ||
                     task.metadata?.githubIssue ||
                     task.metadata?.jiraIssue) && (
-                    <AgentDisplay
-                      agent={agent}
+                    <TaskContextBadges
                       taskId={task.id}
                       linearIssue={task.metadata?.linearIssue || null}
                       githubIssue={task.metadata?.githubIssue || null}
@@ -904,6 +913,11 @@ const ChatInterface: React.FC<Props> = ({
                   ref={terminalRef}
                   id={terminalId}
                   cwd={terminalCwd}
+                  remote={
+                    projectRemoteConnectionId
+                      ? { connectionId: projectRemoteConnectionId }
+                      : undefined
+                  }
                   providerId={agent}
                   autoApprove={autoApproveEnabled}
                   env={taskEnv}

@@ -5,6 +5,9 @@ export interface Project {
   id: string;
   name: string;
   path: string;
+  isRemote?: boolean;
+  sshConnectionId?: string | null;
+  remotePath?: string | null;
   repoKey?: string;
   gitInfo: {
     isGitRepo: boolean;

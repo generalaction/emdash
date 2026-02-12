@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ArrowUpRight, Folder, AlertCircle, Archive } from 'lucide-react';
+import { GitBranch, Plus, Loader2, ArrowUpRight, Folder, Archive } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -543,18 +543,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     [baseBranch, project.id, project.gitInfo, onBaseBranchChangeCallback, toast]
   );
 
-  const preloadProjectConfig = useCallback(() => {
-    if (hasPreloadedConfigRef.current) return;
-    hasPreloadedConfigRef.current = true;
-    const requestedProjectPath = project.path;
-    void window.electronAPI.getProjectConfig(requestedProjectPath).catch(() => {
-      // Allow retry on next user intent if preload fails.
-      if (currentProjectPathRef.current === requestedProjectPath) {
-        hasPreloadedConfigRef.current = false;
-      }
-    });
-  }, [project.path]);
-
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
@@ -591,9 +579,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       ) : null}
                     </div>
                   </div>
-                  <p className="break-all font-mono text-xs text-muted-foreground sm:text-sm">
-                    {project.path}
-                  </p>
+                  <p className="break-all text-sm text-muted-foreground">{project.path}</p>
                 </div>
                 <BaseBranchControls
                   baseBranch={baseBranch}
@@ -601,50 +587,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   isLoadingBranches={isLoadingBranches}
                   isSavingBaseBranch={isSavingBaseBranch}
                   onBaseBranchChange={handleBaseBranchChange}
-                  projectPath={project.path}
-                  onEditConfig={() => {
-                    preloadProjectConfig();
-                    setShowConfigEditor(true);
-                  }}
-                  onPreloadConfig={preloadProjectConfig}
+                  onOpenConfig={() => setShowConfigEditor(true)}
                 />
               </header>
               <Separator className="my-2" />
             </div>
-
-            {(() => {
-              // Find tasks running directly on the main branch (without worktrees)
-              // Check both useWorktree === false and tasks where path equals project path
-              const directTasks = tasksInProject.filter(
-                (task) => task.useWorktree === false || task.path === project.path
-              );
-              if (directTasks.length === 0) return null;
-
-              return (
-                <Alert className="border-border bg-muted/50">
-                  <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                  <AlertTitle className="text-sm font-medium text-foreground">
-                    Direct branch mode
-                  </AlertTitle>
-                  <AlertDescription className="text-xs text-muted-foreground">
-                    {directTasks.length === 1 ? (
-                      <>
-                        <span className="font-medium text-foreground">{directTasks[0].name}</span>{' '}
-                        is running directly on your current branch.
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-medium text-foreground">
-                          {directTasks.map((t) => t.name).join(', ')}
-                        </span>{' '}
-                        are running directly on your current branch.
-                      </>
-                    )}{' '}
-                    Changes will affect your working directory.
-                  </AlertDescription>
-                </Alert>
-              );
-            })()}
 
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

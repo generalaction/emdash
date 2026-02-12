@@ -329,6 +329,9 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           provider: 'multi',
           has_initial_prompt: !!taskMetadata?.initialPrompt,
         });
+        if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
+        if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
+        if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
       });
     } else {
       let branch: string;
@@ -453,6 +456,9 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           provider: isMultiAgentTask ? 'multi' : (newTask.agentId as string) || 'codex',
           has_initial_prompt: !!taskMetadata?.initialPrompt,
         });
+        if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
+        if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
+        if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
       });
 
       // Background: seed conversation with issue context (non-blocking)

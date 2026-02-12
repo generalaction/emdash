@@ -186,7 +186,7 @@ export default class JiraService {
     const payload = JSON.stringify({
       jql,
       maxResults: Math.min(Math.max(limit, 1), 100),
-      fields: ['summary', 'updated', 'project', 'status', 'assignee'],
+      fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
     const body = await this.doRequest(url, email, token, 'POST', payload, {
       'Content-Type': 'application/json',
@@ -276,7 +276,7 @@ export default class JiraService {
     key: string
   ): Promise<any | null> {
     const url = new URL(`/rest/api/3/issue/${encodeURIComponent(key)}`, siteUrl);
-    url.searchParams.set('fields', 'summary,updated,project,status,assignee');
+    url.searchParams.set('fields', 'summary,description,updated,project,status,assignee');
     const body = await this.doGet(url, email, token);
     const data = JSON.parse(body || '{}');
     if (!data || data.errorMessages) return null;
@@ -309,6 +309,24 @@ export default class JiraService {
     return keys;
   }
 
+  private static flattenAdf(node: any): string {
+    if (!node) return '';
+    if (typeof node === 'string') return node;
+    if (node.type === 'text') return node.text || '';
+    if (Array.isArray(node.content)) {
+      const parts = node.content.map((c: any) => JiraService.flattenAdf(c));
+      // Add newlines between block-level nodes (paragraphs, headings, etc.)
+      if (['doc', 'bulletList', 'orderedList'].includes(node.type)) {
+        return parts.join('\n');
+      }
+      if (['paragraph', 'heading', 'listItem'].includes(node.type)) {
+        return parts.join('');
+      }
+      return parts.join('');
+    }
+    return '';
+  }
+
   private normalizeIssues(siteUrl: string, rawIssues: any[]): any[] {
     const base = siteUrl.replace(/\/$/, '');
     return (rawIssues || []).map((it) => {
@@ -317,7 +335,7 @@ export default class JiraService {
         id: String(it?.id || it?.key || ''),
         key: String(it?.key || ''),
         summary: String(fields?.summary || ''),
-        description: null,
+        description: fields?.description ? JiraService.flattenAdf(fields.description) : null,
         url: `${base}/browse/${it?.key}`,
         status: fields?.status ? { name: fields.status.name } : null,
         project: fields?.project ? { key: fields.project.key, name: fields.project.name } : null,

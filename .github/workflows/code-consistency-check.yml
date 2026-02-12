@@ -8,6 +8,8 @@ on:
 jobs:
   format-check:
     runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     
     steps:
       - name: Checkout
@@ -21,11 +23,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.20.0'
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # This job only needs JS/TS tooling for format + type checks.
+        # Skip lifecycle scripts to avoid flaky node-gyp/native module builds in CI.
+        run: |
+          for attempt in 1 2 3; do
+            pnpm install --frozen-lockfile --ignore-scripts && break
+            if [ "$attempt" -eq 3 ]; then
+              echo "pnpm install failed after 3 attempts"
+              exit 1
+            fi
+            echo "Install failed (attempt $attempt). Retrying in 10s..."
+            sleep 10
+          done
 
       - name: Check formatting
         run: pnpm run format:check

@@ -21,6 +21,7 @@ import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
 import { registerLineCommentsIpc } from './lineCommentsIpc';
+import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
 
 export function registerAllIpc() {
@@ -51,5 +52,6 @@ export function registerAllIpc() {
   registerConnectionsIpc();
   registerJiraIpc();
   registerPlanLockIpc();
+  registerSshIpc();
   registerSkillsIpc();
 }

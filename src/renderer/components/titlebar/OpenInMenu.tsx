@@ -9,12 +9,19 @@ import { useOpenInApps } from '../../hooks/useOpenInApps';
 interface OpenInMenuProps {
   path: string;
   align?: 'left' | 'right';
+  isRemote?: boolean;
+  sshConnectionId?: string | null;
 }
 
 const menuItemBase =
   'flex w-full select-none items-center gap-2 rounded px-2.5 py-2 text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground';
 
-const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
+const OpenInMenu: React.FC<OpenInMenuProps> = ({
+  path,
+  align = 'right',
+  isRemote = false,
+  sshConnectionId = null,
+}) => {
   const [open, setOpen] = React.useState(false);
   const [defaultApp, setDefaultApp] = React.useState<OpenInAppId | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -68,7 +75,12 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, align = 'right' }) => {
       captureTelemetry('toolbar_open_in_selected', { app: appId });
     });
     try {
-      const res = await window.electronAPI?.openIn?.({ app: appId, path });
+      const res = await window.electronAPI?.openIn?.({
+        app: appId,
+        path,
+        isRemote,
+        sshConnectionId,
+      });
       if (!res?.success) {
         toast({
           title: `Open in ${label} failed`,

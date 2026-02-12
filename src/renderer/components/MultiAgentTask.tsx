@@ -22,6 +22,8 @@ interface Props {
   projectName: string;
   projectId: string;
   projectPath?: string | null;
+  projectRemoteConnectionId?: string | null;
+  projectRemotePath?: string | null;
   defaultBranch?: string | null;
 }
 
@@ -34,7 +36,13 @@ type Variant = {
   worktreeId: string;
 };
 
-const MultiAgentTask: React.FC<Props> = ({ task, projectPath, defaultBranch }) => {
+const MultiAgentTask: React.FC<Props> = ({
+  task,
+  projectPath,
+  projectRemoteConnectionId,
+  projectRemotePath: _projectRemotePath,
+  defaultBranch,
+}) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
@@ -440,7 +448,11 @@ const MultiAgentTask: React.FC<Props> = ({ task, projectPath, defaultBranch }) =
           >
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-end gap-2 px-3 py-1.5">
-                <OpenInMenu path={v.path} />
+                <OpenInMenu
+                  path={v.path}
+                  isRemote={!!projectRemoteConnectionId}
+                  sshConnectionId={projectRemoteConnectionId}
+                />
               </div>
               <div className="mt-2 flex items-center justify-center px-4 py-2">
                 <TooltipProvider delayDuration={250}>
@@ -504,6 +516,11 @@ const MultiAgentTask: React.FC<Props> = ({ task, projectPath, defaultBranch }) =
                     ref={isActive ? activeTerminalRef : undefined}
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
+                    remote={
+                      projectRemoteConnectionId
+                        ? { connectionId: projectRemoteConnectionId }
+                        : undefined
+                    }
                     providerId={v.agent}
                     env={variantEnvs.get(v.worktreeId || v.path)}
                     autoApprove={

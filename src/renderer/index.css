@@ -2,6 +2,7 @@
 
 /* Hide xterm viewport scrollbars in embedded terminals */
 .xterm .xterm-viewport {
+  background-color: transparent !important;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */
 }
