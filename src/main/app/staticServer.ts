@@ -78,7 +78,9 @@ async function listenWithFallback(server: ReturnType<typeof createServer>): Prom
     } catch (error) {
       const code = (error as any)?.code;
       if (code === 'EADDRINUSE') {
-        await new Promise<void>((resolve) => server.close(() => resolve()));
+        if (server.listening) {
+          await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
         continue;
       }
       throw error;
