@@ -7,6 +7,7 @@ import InstallBanner from './InstallBanner';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
 import TaskContextBadges from './TaskContextBadges';
+import { Badge } from './ui/badge';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
@@ -857,10 +858,10 @@ const ChatInterface: React.FC<Props> = ({
                   )}
                 </div>
                 {autoApproveEnabled && (
-                  <div className="inline-flex items-center gap-1.5 rounded-md border border-orange-500/50 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-400">
+                  <Badge variant="outline">
                     <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
                     Auto-approve
-                  </div>
+                  </Badge>
                 )}
               </div>
               {(() => {
