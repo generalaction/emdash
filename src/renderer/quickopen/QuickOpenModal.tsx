@@ -26,6 +26,8 @@ export function QuickOpenModal({
   // Get file list from existing index
   const { items, loading, error } = useFileIndex(rootPath);
 
+  console.log('[QuickOpen] rootPath:', rootPath, 'items:', items.length, 'loading:', loading, 'error:', error);
+
   // Build index manager
   const indexManager = useMemo(() => {
     const mgr = new FileIndexManager();
@@ -33,6 +35,7 @@ export function QuickOpenModal({
       mgr.buildIndex(items);
       mgr.setRootPath(rootPath);
     }
+    console.log('[QuickOpen] Index built, size:', mgr.size, 'from', items.length, 'items');
     return mgr;
   }, [items, rootPath]);
 
@@ -40,7 +43,9 @@ export function QuickOpenModal({
   const results = useMemo(() => {
     if (!query.trim()) return [];
     const { path: searchQuery } = indexManager.parseQuery(query);
-    return indexManager.search(searchQuery, 50);
+    const r = indexManager.search(searchQuery, 50);
+    console.log('[QuickOpen] Search:', JSON.stringify(query), '→ searchQuery:', JSON.stringify(searchQuery), '→ results:', r.length);
+    return r;
   }, [query, indexManager]);
 
   // Reset selection when results change

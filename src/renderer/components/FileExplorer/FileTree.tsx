@@ -447,7 +447,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
     return <div className={cn('p-4 text-sm text-destructive', className)}>Error: {error}</div>;
   }
 
-  if (tree.length === 0) {
+  if (tree.length === 0 && allFiles.length === 0) {
     return <div className={cn('p-4 text-sm text-muted-foreground', className)}>No files found</div>;
   }
 
