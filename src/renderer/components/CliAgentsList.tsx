@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Settings2, Sparkles } from 'lucide-react';
 import IntegrationRow from './IntegrationRow';
 import CustomCommandModal from './CustomCommandModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { CliAgentStatus } from '../types/connections';
 import { PROVIDERS } from '@shared/providers/registry';
 import { agentAssets } from '@/providers/assets';
@@ -66,15 +67,23 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
       }
       rightExtra={
         isDetected ? (
-          <button
-            type="button"
-            onClick={() => onSettingsClick(agent.id)}
-            className={ICON_BUTTON}
-            aria-label={`${agent.name} execution settings`}
-            title="Execution settings"
-          >
-            <Settings2 className="h-4 w-4" aria-hidden="true" />
-          </button>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onSettingsClick(agent.id)}
+                  className={ICON_BUTTON}
+                  aria-label={`${agent.name} execution settings`}
+                >
+                  <Settings2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                Execution settings
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : null
       }
     />
