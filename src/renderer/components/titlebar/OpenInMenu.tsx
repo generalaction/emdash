@@ -172,7 +172,8 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {sortedApps.map((app) => {
+            {sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id]).map(
+              (app) => {
               // While loading, disable apps that aren't confirmed installed
               const isAvailable = loading ? availability[app.id] === true : true;
               return (
