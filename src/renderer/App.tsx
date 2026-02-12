@@ -297,9 +297,7 @@ const AppContent: React.FC = () => {
       try {
         // Check for existing project with same repoKey
         const repoKey = `${remoteProject.host}:${remoteProject.path}`;
-        const existingProject = projectMgmt.projects.find(
-          (p) => getProjectRepoKey(p) === repoKey
-        );
+        const existingProject = projectMgmt.projects.find((p) => getProjectRepoKey(p) === repoKey);
 
         if (existingProject) {
           projectMgmt.activateProjectView(existingProject);
@@ -535,6 +533,8 @@ const AppContent: React.FC = () => {
                         handleAddRemoteProject={handleAddRemoteProjectClick}
                         setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
                         setShowKanban={(show: boolean) => setShowKanban(show)}
+                        projectRemoteConnectionId={derivedRemoteConnectionId}
+                        projectRemotePath={derivedRemotePath}
                       />
                     </div>
                   </ResizablePanel>

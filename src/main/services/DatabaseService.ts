@@ -156,12 +156,14 @@ export class DatabaseService {
 
     // Clean up stale rows that would conflict on id or path but not both.
     // This prevents unique constraint errors when re-adding a deleted project.
-    await db.delete(projectsTable).where(
-      or(
-        and(eq(projectsTable.id, project.id), ne(projectsTable.path, project.path)),
-        and(eq(projectsTable.path, project.path), ne(projectsTable.id, project.id))
-      )
-    );
+    await db
+      .delete(projectsTable)
+      .where(
+        or(
+          and(eq(projectsTable.id, project.id), ne(projectsTable.path, project.path)),
+          and(eq(projectsTable.path, project.path), ne(projectsTable.id, project.id))
+        )
+      );
 
     await db
       .insert(projectsTable)

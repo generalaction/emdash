@@ -37,6 +37,8 @@ interface MainContentAreaProps {
   handleAddRemoteProject: () => void;
   setShowTaskModal: (show: boolean) => void;
   setShowKanban: (show: boolean) => void;
+  projectRemoteConnectionId?: string | null;
+  projectRemotePath?: string | null;
 }
 
 const MainContentArea: React.FC<MainContentAreaProps> = ({
@@ -60,6 +62,8 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   handleAddRemoteProject,
   setShowTaskModal,
   setShowKanban,
+  projectRemoteConnectionId,
+  projectRemotePath,
 }) => {
   if (selectedProject && showKanban) {
     return (
@@ -101,6 +105,8 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
               projectName={selectedProject.name}
               projectId={selectedProject.id}
               projectPath={selectedProject.path}
+              projectRemoteConnectionId={projectRemoteConnectionId}
+              projectRemotePath={projectRemotePath}
               defaultBranch={projectDefaultBranch}
             />
           ) : (
@@ -108,6 +114,8 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
               task={activeTask}
               projectName={selectedProject.name}
               projectPath={selectedProject.path}
+              projectRemoteConnectionId={projectRemoteConnectionId}
+              projectRemotePath={projectRemotePath}
               defaultBranch={projectDefaultBranch}
               className="min-h-0 flex-1"
               initialAgent={activeTaskAgent || undefined}
