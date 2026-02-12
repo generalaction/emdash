@@ -21,6 +21,7 @@ import {
 import { FileTree } from './FileTree';
 import { FileTabs } from './FileTabs';
 import { EditorHeader } from './EditorHeader';
+import { QuickOpenModal } from '@/quickopen/QuickOpenModal';
 import '@/styles/editor-diff.css';
 
 interface CodeEditorProps {
@@ -57,6 +58,21 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
   // UI state
   const [explorerWidth, setExplorerWidth] = useState(EXPLORER_WIDTH.DEFAULT);
   const [isResizing, setIsResizing] = useState(false);
+  const [showQuickOpen, setShowQuickOpen] = useState(false);
+
+  // Intercept Cmd+P at capture phase before the global shortcut handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      if (isCmdOrCtrl && e.key.toLowerCase() === 'p' && !e.shiftKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setShowQuickOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true); // capture phase
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
 
   // State to track when editor is ready
   const [editorReady, setEditorReady] = useState(false);
@@ -156,6 +172,16 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
         onSaveAll: saveAllFiles,
       });
 
+      // Add Cmd+P / Ctrl+P for Quick Open
+      editor.addAction({
+        id: 'quickOpen',
+        label: 'Quick Open',
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP],
+        run: () => {
+          setShowQuickOpen(true);
+        },
+      });
+
       // Mark editor as ready
       setEditorReady(true);
 
@@ -176,6 +202,23 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
       updateFileContent(activeFilePath, value);
     },
     [activeFilePath, updateFileContent]
+  );
+
+  // Handle Quick Open file selection
+  const handleQuickOpenSelect = useCallback(
+    async (path: string, line?: number) => {
+      await loadFile(path);
+      
+      // If line number specified, scroll to it
+      if (line && editorRef.current) {
+        setTimeout(() => {
+          editorRef.current?.revealLineInCenter(line);
+          editorRef.current?.setPosition({ lineNumber: line, column: 1 });
+          editorRef.current?.focus();
+        }, 100);
+      }
+    },
+    [loadFile]
   );
 
   // Handle resize
@@ -255,6 +298,14 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
           />
         </div>
       </div>
+
+      {/* Quick Open Modal */}
+      <QuickOpenModal
+        isOpen={showQuickOpen}
+        onClose={() => setShowQuickOpen(false)}
+        onSelectFile={handleQuickOpenSelect}
+        rootPath={taskPath}
+      />
     </div>
   );
 }

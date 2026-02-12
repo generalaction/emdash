@@ -37,10 +37,10 @@ type ListWorkerState = {
 };
 
 const listWorkersBySender = new Map<number, ListWorkerState>();
-const DEFAULT_TIME_BUDGET_MS = 2000;
+const DEFAULT_TIME_BUDGET_MS = 8000;
 const MIN_TIME_BUDGET_MS = 250;
-const MAX_TIME_BUDGET_MS = 10000;
-const MAX_FILES_TO_SEARCH = 10000;
+const MAX_TIME_BUDGET_MS = 30000;
+const MAX_FILES_TO_SEARCH = 50000;
 const DEFAULT_BATCH_SIZE = 250;
 
 // Centralized configuration/constants for attachments
@@ -70,7 +70,7 @@ export function registerFsIpc(): void {
     try {
       const root = args.root;
       const includeDirs = args.includeDirs ?? true;
-      const maxEntries = Math.min(Math.max(args.maxEntries ?? 5000, 100), MAX_FILES_TO_SEARCH);
+      const maxEntries = Math.min(Math.max(args.maxEntries ?? 50000, 100), MAX_FILES_TO_SEARCH);
       const timeBudgetMs = Math.min(
         Math.max(args.timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS, MIN_TIME_BUDGET_MS),
         MAX_TIME_BUDGET_MS

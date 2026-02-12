@@ -156,6 +156,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allFiles, setAllFiles] = useState<any[]>([]);
+  const [truncated, setTruncated] = useState(false);
 
   // Use the clean content search hook
   const {
@@ -324,7 +325,11 @@ export const FileTree: React.FC<FileTreeProps> = ({
       setError(null);
 
       try {
-        const result = await window.electronAPI.fsList(rootPath, { includeDirs: true });
+        const result = await window.electronAPI.fsList(rootPath, {
+          includeDirs: true,
+          maxEntries: 50000,
+          timeBudgetMs: 8000,
+        });
 
         if (result.canceled) {
           return;
@@ -336,6 +341,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
         // Store all files for later use
         setAllFiles(result.items);
+        setTruncated(!!result.truncated);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load files');
       } finally {
@@ -484,6 +490,11 @@ export const FileTree: React.FC<FileTreeProps> = ({
                 fileChanges={fileChanges}
               />
             ))}
+            {truncated && (
+              <div className="px-3 py-1.5 text-xs text-muted-foreground">
+                File list truncated — large repository
+              </div>
+            )}
           </div>
         )}
       </div>
