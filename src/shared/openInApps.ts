@@ -13,6 +13,7 @@ type OpenInAppConfigShape = {
   label: string;
   iconPath: (typeof ICON_PATHS)[keyof typeof ICON_PATHS];
   alwaysAvailable?: boolean;
+  hideIfUnavailable?: boolean;
   autoInstall?: boolean;
   supportsRemote?: boolean;
   platforms: Partial<Record<PlatformKey, PlatformConfig>>;
@@ -27,6 +28,10 @@ const ICON_PATHS = {
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
   zed: 'zed.png',
+  'intellij-idea': 'intellij-idea.svg',
+  webstorm: 'webstorm.svg',
+  pycharm: 'pycharm.svg',
+  rustrover: 'rustrover.svg',
 } as const;
 
 export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
@@ -176,6 +181,90 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
       linux: {
         openCommands: ['zed {{path}}', 'xdg-open {{path}}'],
         checkCommands: ['zed'],
+      },
+    },
+  },
+  {
+    id: 'intellij-idea',
+    label: 'IntelliJ IDEA',
+    iconPath: ICON_PATHS['intellij-idea'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "IntelliJ IDEA" {{path}}'],
+        bundleIds: ['com.jetbrains.intellij'],
+        appNames: ['IntelliJ IDEA'],
+      },
+      win32: {
+        openCommands: ['idea64 {{path}}', 'idea {{path}}'],
+        checkCommands: ['idea64', 'idea'],
+      },
+      linux: {
+        openCommands: ['idea {{path}}'],
+        checkCommands: ['idea'],
+      },
+    },
+  },
+  {
+    id: 'webstorm',
+    label: 'WebStorm',
+    iconPath: ICON_PATHS.webstorm,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "WebStorm" {{path}}'],
+        bundleIds: ['com.jetbrains.WebStorm'],
+        appNames: ['WebStorm'],
+      },
+      win32: {
+        openCommands: ['webstorm64 {{path}}', 'webstorm {{path}}'],
+        checkCommands: ['webstorm64', 'webstorm'],
+      },
+      linux: {
+        openCommands: ['webstorm {{path}}'],
+        checkCommands: ['webstorm'],
+      },
+    },
+  },
+  {
+    id: 'pycharm',
+    label: 'PyCharm',
+    iconPath: ICON_PATHS.pycharm,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "PyCharm" {{path}}'],
+        bundleIds: ['com.jetbrains.pycharm'],
+        appNames: ['PyCharm'],
+      },
+      win32: {
+        openCommands: ['pycharm64 {{path}}', 'pycharm {{path}}'],
+        checkCommands: ['pycharm64', 'pycharm'],
+      },
+      linux: {
+        openCommands: ['pycharm {{path}}'],
+        checkCommands: ['pycharm'],
+      },
+    },
+  },
+  {
+    id: 'rustrover',
+    label: 'RustRover',
+    iconPath: ICON_PATHS.rustrover,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "RustRover" {{path}}'],
+        bundleIds: ['com.jetbrains.rustrover'],
+        appNames: ['RustRover'],
+      },
+      win32: {
+        openCommands: ['rustrover64 {{path}}', 'rustrover {{path}}'],
+        checkCommands: ['rustrover64', 'rustrover'],
+      },
+      linux: {
+        openCommands: ['rustrover {{path}}'],
+        checkCommands: ['rustrover'],
       },
     },
   },
