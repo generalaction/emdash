@@ -1,5 +1,5 @@
 import type sqlite3Type from 'sqlite3';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -153,6 +153,15 @@ export class DatabaseService {
     );
     const githubRepository = project.githubInfo?.repository ?? null;
     const githubConnected = project.githubInfo?.connected ? 1 : 0;
+
+    // Clean up stale rows that would conflict on id or path but not both.
+    // This prevents unique constraint errors when re-adding a deleted project.
+    await db.delete(projectsTable).where(
+      or(
+        and(eq(projectsTable.id, project.id), ne(projectsTable.path, project.path)),
+        and(eq(projectsTable.path, project.path), ne(projectsTable.id, project.id))
+      )
+    );
 
     await db
       .insert(projectsTable)
