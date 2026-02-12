@@ -33,41 +33,50 @@ export function UpdateCard(): JSX.Element {
   // In dev, show simple informational message
   if (isDev) {
     return (
-      <div className="grid gap-3">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium">Version</p>
-              {appVersion && (
-                <Badge variant="outline" className="h-5 px-2 font-mono text-xs">
-                  v{appVersion}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Auto-updates are enabled in production builds
-            </p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-foreground">Version</p>
+            {appVersion && (
+              <Badge variant="outline" className="h-5 px-2 font-mono text-xs">
+                v{appVersion}
+              </Badge>
+            )}
           </div>
+          <p className="text-sm text-muted-foreground">
+            Auto-updates are enabled in production builds.{' '}
+            <button
+              type="button"
+              onClick={() =>
+                window.electronAPI.openExternal('https://github.com/generalaction/emdash/releases')
+              }
+              className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground"
+            >
+              View changelog ↗
+            </button>
+          </p>
         </div>
-
-        <div className="mt-2">
-          <a
-            href="https://github.com/generalaction/emdash/releases"
-            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            View latest release →
-          </a>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={handleCheckNow}
+          disabled
+          aria-label="Check for updates (disabled in development)"
+        >
+          <RefreshCw className="h-3 w-3" />
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="grid gap-3">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium">Version</p>
+            <p className="text-sm font-medium text-foreground">Version</p>
             {appVersion && (
               <Badge variant="outline" className="h-5 px-2 font-mono text-xs">
                 v{appVersion}
@@ -76,7 +85,22 @@ export function UpdateCard(): JSX.Element {
           </div>
           {renderStatusMessage()}
         </div>
-        {renderAction()}
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleCheckNow}
+            disabled={updater.state.status === 'checking'}
+            aria-label="Check for updates"
+          >
+            <RefreshCw
+              className={`h-3 w-3 ${updater.state.status === 'checking' ? 'animate-spin' : ''}`}
+            />
+          </Button>
+          {renderAction()}
+        </div>
       </div>
 
       {updater.state.status === 'downloading' && updater.state.progress && (
@@ -93,15 +117,6 @@ export function UpdateCard(): JSX.Element {
           </p>
         </div>
       )}
-
-      <div className="mt-2">
-        <a
-          href="https://github.com/generalaction/emdash/releases"
-          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          View latest release →
-        </a>
-      </div>
     </div>
   );
 
@@ -109,7 +124,7 @@ export function UpdateCard(): JSX.Element {
     switch (updater.state.status) {
       case 'checking':
         return (
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="flex items-center gap-1 text-sm text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
             Checking for updates...
           </p>
@@ -118,23 +133,23 @@ export function UpdateCard(): JSX.Element {
       case 'available':
         if (updater.state.info?.version) {
           return (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Version {updater.state.info.version} is available
             </p>
           );
         }
-        return <p className="text-xs text-muted-foreground">An update is available</p>;
+        return <p className="text-sm text-muted-foreground">An update is available</p>;
 
       case 'downloading':
         return (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Downloading update{updater.progressLabel ? ` (${updater.progressLabel})` : '...'}
           </p>
         );
 
       case 'downloaded':
         return (
-          <p className="flex items-center gap-1 text-xs text-green-600 dark:text-green-500">
+          <p className="flex items-center gap-1 text-sm text-green-600 dark:text-green-500">
             <CheckCircle2 className="h-3 w-3" />
             Update ready. Restart Emdash to use the new version.
           </p>
@@ -153,9 +168,18 @@ export function UpdateCard(): JSX.Element {
 
       default:
         return (
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="flex items-center gap-1 text-sm text-muted-foreground">
             <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-500" />
-            You're up to date
+            You're up to date.{' '}
+            <button
+              type="button"
+              onClick={() =>
+                window.electronAPI.openExternal('https://github.com/generalaction/emdash/releases')
+              }
+              className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground"
+            >
+              View changelog ↗
+            </button>
           </p>
         );
     }
@@ -163,9 +187,6 @@ export function UpdateCard(): JSX.Element {
 
   function renderAction() {
     switch (updater.state.status) {
-      case 'checking':
-        return null;
-
       case 'available':
         return (
           <Button size="sm" variant="default" onClick={handleDownload} className="h-7 text-xs">
@@ -190,19 +211,8 @@ export function UpdateCard(): JSX.Element {
           </Button>
         );
 
-      case 'error':
-        return (
-          <Button size="sm" variant="outline" onClick={handleCheckNow} className="h-7 text-xs">
-            Try Again
-          </Button>
-        );
-
       default:
-        return (
-          <Button size="sm" variant="ghost" onClick={handleCheckNow} className="h-7 text-xs">
-            Check Now
-          </Button>
-        );
+        return null;
     }
   }
 

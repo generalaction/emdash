@@ -183,19 +183,26 @@ const TerminalSettingsCard: React.FC = () => {
   const hasAnyResults = filteredPopularOptions.length > 0 || filteredInstalledOptions.length > 0;
 
   return (
-    <div className="grid gap-2">
-      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-9 w-full justify-between text-sm font-normal"
-            disabled={loading || saving}
-          >
-            <span className="truncate text-left">{pickerLabel}</span>
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
-          </Button>
-        </PopoverTrigger>
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-1 flex-col gap-0.5">
+        <p className="text-sm font-medium text-foreground">Terminal font</p>
+        <p className="text-sm text-muted-foreground">
+          Choose the font family for the terminal.
+        </p>
+      </div>
+      <div className="w-[183px] flex-shrink-0">
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 w-full justify-between text-sm font-normal"
+              disabled={loading || saving}
+            >
+              <span className="truncate text-left">{pickerLabel}</span>
+              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
+            </Button>
+          </PopoverTrigger>
         <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
           <div className="grid gap-2">
             <Input
@@ -279,7 +286,8 @@ const TerminalSettingsCard: React.FC = () => {
             </div>
           </div>
         </PopoverContent>
-      </Popover>
+        </Popover>
+      </div>
     </div>
   );
 };
