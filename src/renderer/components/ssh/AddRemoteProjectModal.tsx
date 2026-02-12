@@ -100,6 +100,23 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const [isLoadingSshConfig, setIsLoadingSshConfig] = useState(false);
   const [sshConfigSelection, setSshConfigSelection] = useState<string>('');
 
+  // Saved connections state (for reusing existing SSH connections)
+  const [savedConnections, setSavedConnections] = useState<
+    Array<{
+      id: string;
+      name: string;
+      host: string;
+      port: number;
+      username: string;
+      authType: AuthType;
+      privateKeyPath?: string;
+      useAgent?: boolean;
+    }>
+  >([]);
+  const [isLoadingSavedConnections, setIsLoadingSavedConnections] = useState(false);
+  const [selectedSavedConnection, setSelectedSavedConnection] = useState<string | null>(null);
+  const [useExistingConnection, setUseExistingConnection] = useState(false);
+
   // Form data
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -136,9 +153,13 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setBrowseError(null);
       setConnectionId(null);
       setSshConfigSelection('');
+      setSavedConnections([]);
+      setSelectedSavedConnection(null);
+      setUseExistingConnection(false);
 
-      // Load SSH config hosts
+      // Load SSH config hosts and saved connections
       void loadSshConfig();
+      void loadSavedConnections();
     }
   }, [isOpen]);
 
@@ -155,6 +176,21 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       console.debug('Failed to load SSH config:', error);
     } finally {
       setIsLoadingSshConfig(false);
+    }
+  }, []);
+
+  // Load saved SSH connections from database
+  const loadSavedConnections = useCallback(async () => {
+    setIsLoadingSavedConnections(true);
+    try {
+      const connections = await window.electronAPI.sshGetConnections();
+      if (Array.isArray(connections)) {
+        setSavedConnections(connections as typeof savedConnections);
+      }
+    } catch (error) {
+      console.debug('Failed to load saved connections:', error);
+    } finally {
+      setIsLoadingSavedConnections(false);
     }
   }, []);
 
@@ -362,6 +398,65 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     [connectionId, updateField]
   );
 
+  // Select an existing saved connection
+  const selectExistingConnection = useCallback(
+    async (conn: (typeof savedConnections)[number]) => {
+      setSelectedSavedConnection(conn.id);
+      setUseExistingConnection(true);
+      setErrors({});
+
+      // Populate form data for display in confirm step
+      setFormData((prev) => ({
+        ...prev,
+        name: conn.name,
+        host: conn.host,
+        port: conn.port,
+        username: conn.username,
+        authType: conn.authType,
+        privateKeyPath: conn.privateKeyPath || '',
+      }));
+
+      // Connect using the saved connection ID
+      try {
+        const connId = await window.electronAPI.sshConnect(conn.id);
+        setConnectionId(connId);
+        setCurrentStep('path');
+
+        // Browse directly with connId since connectionId state hasn't updated yet
+        const homePath = '/home/' + conn.username;
+        setIsBrowsing(true);
+        setBrowseError(null);
+        try {
+          const result = await window.electronAPI.sshListFiles(connId, homePath);
+          const entries: FileEntry[] =
+            result && typeof result === 'object' && 'files' in result
+              ? (result.files as FileEntry[]) || []
+              : Array.isArray(result)
+                ? (result as FileEntry[])
+                : [];
+          const sorted = entries.sort((a: FileEntry, b: FileEntry) => {
+            if (a.type === 'directory' && b.type !== 'directory') return -1;
+            if (a.type !== 'directory' && b.type === 'directory') return 1;
+            return a.name.localeCompare(b.name);
+          });
+          setFileEntries(sorted);
+          updateField('remotePath', homePath);
+        } catch (browseErr) {
+          const msg = browseErr instanceof Error ? browseErr.message : 'Failed to browse directory';
+          setBrowseError(msg);
+        } finally {
+          setIsBrowsing(false);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to reconnect';
+        setErrors({ general: message });
+        setUseExistingConnection(false);
+        setSelectedSavedConnection(null);
+      }
+    },
+    [updateField]
+  );
+
   // Navigate up
   const navigateUp = useCallback(() => {
     const currentPath = formData.remotePath;
@@ -424,21 +519,39 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       }
     }
 
-    const stepOrder: WizardStep[] = ['connection', 'auth', 'path', 'confirm'];
+    const stepOrder: WizardStep[] = useExistingConnection
+      ? ['connection', 'path', 'confirm']
+      : ['connection', 'auth', 'path', 'confirm'];
     const currentIndex = stepOrder.indexOf(currentStep);
     if (currentIndex < stepOrder.length - 1) {
       setCurrentStep(stepOrder[currentIndex + 1]);
     }
-  }, [currentStep, formData, validateStep, testConnection, browseRemotePath]);
+  }, [
+    currentStep,
+    formData,
+    validateStep,
+    testConnection,
+    browseRemotePath,
+    useExistingConnection,
+  ]);
 
   // Handle previous step
   const handleBack = useCallback(() => {
-    const stepOrder: WizardStep[] = ['connection', 'auth', 'path', 'confirm'];
+    if (useExistingConnection && currentStep === 'path') {
+      // Going back from path with existing connection → reset to connection selection
+      setUseExistingConnection(false);
+      setSelectedSavedConnection(null);
+      setCurrentStep('connection');
+      return;
+    }
+    const stepOrder: WizardStep[] = useExistingConnection
+      ? ['connection', 'path', 'confirm']
+      : ['connection', 'auth', 'path', 'confirm'];
     const currentIndex = stepOrder.indexOf(currentStep);
     if (currentIndex > 0) {
       setCurrentStep(stepOrder[currentIndex - 1]);
     }
-  }, [currentStep]);
+  }, [currentStep, useExistingConnection]);
 
   // Handle submit
   const handleSubmit = useCallback(async () => {
@@ -447,30 +560,40 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Save the connection
-      const saveConfig: SshConfig & { password?: string; passphrase?: string } = {
-        id: connectionId || undefined,
-        name: formData.name,
-        host: formData.host,
-        port: formData.port,
-        username: formData.username,
-        authType: formData.authType,
-        privateKeyPath: formData.privateKeyPath || undefined,
-        useAgent: formData.authType === 'agent',
-        password: formData.authType === 'password' ? formData.password : undefined,
-        passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
-      };
+      if (useExistingConnection && selectedSavedConnection) {
+        // Reuse existing connection — no save needed
+        onSuccess({
+          id: selectedSavedConnection,
+          name: formData.name,
+          path: formData.remotePath,
+          host: formData.host,
+          connectionId: selectedSavedConnection,
+        });
+      } else {
+        // Save a new connection
+        const saveConfig: SshConfig & { password?: string; passphrase?: string } = {
+          id: connectionId || undefined,
+          name: formData.name,
+          host: formData.host,
+          port: formData.port,
+          username: formData.username,
+          authType: formData.authType,
+          privateKeyPath: formData.privateKeyPath || undefined,
+          useAgent: formData.authType === 'agent',
+          password: formData.authType === 'password' ? formData.password : undefined,
+          passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
+        };
 
-      const savedConfig = await window.electronAPI.sshSaveConnection(saveConfig);
+        const savedConfig = await window.electronAPI.sshSaveConnection(saveConfig);
 
-      // Return success with project info
-      onSuccess({
-        id: savedConfig.id!,
-        name: formData.name,
-        path: formData.remotePath,
-        host: formData.host,
-        connectionId: savedConfig.id!,
-      });
+        onSuccess({
+          id: savedConfig.id!,
+          name: formData.name,
+          path: formData.remotePath,
+          host: formData.host,
+          connectionId: savedConfig.id!,
+        });
+      }
 
       onClose();
     } catch (error) {
@@ -479,7 +602,15 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, connectionId, validateStep, onSuccess, onClose]);
+  }, [
+    formData,
+    connectionId,
+    validateStep,
+    onSuccess,
+    onClose,
+    useExistingConnection,
+    selectedSavedConnection,
+  ]);
 
   // Handle close
   const handleOpenChange = useCallback(
@@ -495,13 +626,23 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     [isSubmitting, connectionId, onClose]
   );
 
-  // Step indicators
-  const steps: { id: WizardStep; label: string; icon: React.ElementType }[] = [
-    { id: 'connection', label: 'Connection', icon: Server },
-    { id: 'auth', label: 'Authentication', icon: formData.authType === 'password' ? Lock : Key },
-    { id: 'path', label: 'Project Path', icon: FolderOpen },
-    { id: 'confirm', label: 'Confirm', icon: Check },
-  ];
+  // Step indicators — omit auth step when reusing an existing connection
+  const steps: { id: WizardStep; label: string; icon: React.ElementType }[] = useExistingConnection
+    ? [
+        { id: 'connection', label: 'Connection', icon: Server },
+        { id: 'path', label: 'Project Path', icon: FolderOpen },
+        { id: 'confirm', label: 'Confirm', icon: Check },
+      ]
+    : [
+        { id: 'connection', label: 'Connection', icon: Server },
+        {
+          id: 'auth',
+          label: 'Authentication',
+          icon: formData.authType === 'password' ? Lock : Key,
+        },
+        { id: 'path', label: 'Project Path', icon: FolderOpen },
+        { id: 'confirm', label: 'Confirm', icon: Check },
+      ];
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
@@ -511,6 +652,46 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       case 'connection':
         return (
           <div className="space-y-4">
+            {/* Saved connections for reuse */}
+            {isLoadingSavedConnections ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading saved connections...
+              </div>
+            ) : savedConnections.length > 0 ? (
+              <div className="space-y-2">
+                <Label>Saved Connections</Label>
+                <div className="space-y-2">
+                  {savedConnections.map((conn) => (
+                    <button
+                      key={conn.id}
+                      type="button"
+                      onClick={() => void selectExistingConnection(conn)}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors hover:bg-accent',
+                        selectedSavedConnection === conn.id && 'border-primary bg-primary/5'
+                      )}
+                    >
+                      <Server className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium">{conn.name}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {conn.username}@{conn.host}:{conn.port}
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+                <div className="relative py-2">
+                  <Separator />
+                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
+                    Or create a new connection
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
             {sshConfigHosts.length > 0 && (
               <div className="space-y-2">
                 <Label>SSH Config (optional)</Label>
@@ -992,8 +1173,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              The connection will be saved and you&apos;ll be able to access this project from the
-              workspace.
+              {useExistingConnection
+                ? 'The existing connection will be reused for this project.'
+                : "The connection will be saved and you'll be able to access this project from the workspace."}
             </p>
           </div>
         );
@@ -1066,7 +1248,12 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         <Separator />
 
         {/* Navigation buttons */}
-        <div className="flex justify-between">
+        <div
+          className={cn(
+            'flex gap-2',
+            currentStep === 'connection' ? 'justify-end' : 'justify-between'
+          )}
+        >
           <Button
             type="button"
             variant="outline"
@@ -1093,7 +1280,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               ) : (
                 <>
                   <Check className="mr-1 h-4 w-4" />
-                  Save Connection
+                  {useExistingConnection ? 'Add Project' : 'Save Connection'}
                 </>
               )}
             </Button>
