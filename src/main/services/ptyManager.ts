@@ -113,6 +113,16 @@ function parseShellArgs(input: string): string[] {
     current += char;
   }
 
+  // Handle trailing backslash: include it literally
+  if (escape) {
+    current += '\\';
+  }
+
+  // Warn on unclosed quotes (still push what we have)
+  if (inSingleQuote || inDoubleQuote) {
+    log.warn('parseShellArgs: unclosed quote in input', { input });
+  }
+
   // Don't forget the last argument
   if (current.length > 0) {
     args.push(current);
