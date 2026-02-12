@@ -14,37 +14,55 @@ import { AlertCircle } from 'lucide-react';
 
 export function Toaster() {
   const { toasts } = useToast();
-  const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  const lastFocusedOutsideToast = useRef<HTMLElement | null>(null);
   const previousToastsCount = useRef(0);
 
-  // Preserve and restore focus when toasts appear/disappear
+  const isInToastViewport = (element: Element | null) =>
+    element?.closest?.('[data-radix-toast-viewport]') != null;
+
+  // Track the most recent focus target outside the toast viewport so we can
+  // restore it if Radix shifts focus to the toast/viewport when a toast opens.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && !isInToastViewport(active) && active !== document.body) {
+      lastFocusedOutsideToast.current = active;
+    }
+
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (isInToastViewport(target)) return;
+      if (target === document.body) return;
+      lastFocusedOutsideToast.current = target;
+    };
+
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+    };
+  }, []);
+
   useEffect(() => {
     const currentToastsCount = toasts.length;
     const toastsChanged = currentToastsCount !== previousToastsCount.current;
+    if (!toastsChanged) return;
 
-    if (toastsChanged) {
-      // Save the currently focused element when a toast appears
-      if (currentToastsCount > previousToastsCount.current) {
-        previousActiveElement.current = document.activeElement as HTMLElement;
+    requestAnimationFrame(() => {
+      const currentFocus = document.activeElement;
+      const focusIsOnToast = isInToastViewport(currentFocus);
+      const focusIsOnBody = currentFocus === document.body;
+      const restoreTarget = lastFocusedOutsideToast.current;
+
+      if (
+        (focusIsOnToast || focusIsOnBody) &&
+        restoreTarget &&
+        document.body.contains(restoreTarget) &&
+        restoreTarget !== document.activeElement
+      ) {
+        restoreTarget.focus();
       }
-
-      // Only restore focus if it was stolen by the toast (i.e., current focus is on toast or body)
-      // Don't restore if user intentionally moved focus elsewhere
-      requestAnimationFrame(() => {
-        const currentFocus = document.activeElement;
-        const focusIsOnToast = currentFocus?.closest('[data-radix-toast-viewport]') !== null;
-        const focusIsOnBody = currentFocus === document.body;
-
-        // Only restore if focus is on toast/body AND we have a valid saved element
-        if (
-          (focusIsOnToast || focusIsOnBody) &&
-          previousActiveElement.current &&
-          document.body.contains(previousActiveElement.current)
-        ) {
-          previousActiveElement.current.focus();
-        }
-      });
-    }
+    });
 
     previousToastsCount.current = currentToastsCount;
   }, [toasts.length]);
