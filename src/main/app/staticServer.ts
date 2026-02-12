@@ -49,12 +49,20 @@ async function listenWithFallback(server: ReturnType<typeof createServer>): Prom
   for (const port of candidates) {
     try {
       const addr = await new Promise<AddressInfo>((resolve, reject) => {
-        const onError = (error: unknown) => {
+        let onError: (error: unknown) => void;
+        let onListening: () => void;
+
+        const cleanup = () => {
+          server.removeListener('error', onError);
           server.removeListener('listening', onListening);
+        };
+
+        onError = (error: unknown) => {
+          cleanup();
           reject(error);
         };
-        const onListening = () => {
-          server.removeListener('error', onError);
+        onListening = () => {
+          cleanup();
           resolve(server.address() as AddressInfo);
         };
 
@@ -69,7 +77,10 @@ async function listenWithFallback(server: ReturnType<typeof createServer>): Prom
       return addr;
     } catch (error) {
       const code = (error as any)?.code;
-      if (code === 'EADDRINUSE') continue;
+      if (code === 'EADDRINUSE') {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        continue;
+      }
       throw error;
     }
   }
