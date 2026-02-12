@@ -6,6 +6,9 @@ import type { AddressInfo } from 'net';
 let serverUrl: string | null = null;
 let serverStarted = false;
 
+const DEFAULT_RENDERER_PORT = 12112;
+const RENDERER_PORT_RANGE = 100;
+
 const MIME_MAP: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -31,6 +34,69 @@ function isPathInside(parent: string, child: string) {
   const parentPath = normalize(parent + sep);
   const childPath = normalize(child);
   return childPath.startsWith(parentPath);
+}
+
+function getRendererPortCandidates(): number[] {
+  const raw = process.env.EMDASH_RENDERER_PORT;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  const start = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_RENDERER_PORT;
+  return Array.from({ length: RENDERER_PORT_RANGE }, (_, i) => start + i);
+}
+
+async function listenWithFallback(server: ReturnType<typeof createServer>): Promise<AddressInfo> {
+  const candidates = getRendererPortCandidates();
+
+  for (const port of candidates) {
+    try {
+      const addr = await new Promise<AddressInfo>((resolve, reject) => {
+        let onError: (error: unknown) => void;
+        let onListening: () => void;
+
+        const cleanup = () => {
+          server.removeListener('error', onError);
+          server.removeListener('listening', onListening);
+        };
+
+        onError = (error: unknown) => {
+          cleanup();
+          reject(error);
+        };
+        onListening = () => {
+          cleanup();
+          resolve(server.address() as AddressInfo);
+        };
+
+        server.once('error', onError);
+        server.once('listening', onListening);
+        server.listen(port, '127.0.0.1');
+      });
+
+      if (!addr || typeof addr.port !== 'number') {
+        throw new Error('Failed to start renderer server');
+      }
+      return addr;
+    } catch (error) {
+      const code = (error as any)?.code;
+      if (code === 'EADDRINUSE') {
+        if (server.listening) {
+          await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  // As a last resort, pick an ephemeral port (should be extremely rare).
+  const addr = await new Promise<AddressInfo>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve(server.address() as AddressInfo));
+  });
+
+  if (!addr || typeof addr.port !== 'number') {
+    throw new Error('Failed to start renderer server');
+  }
+  return addr;
 }
 
 export async function ensureRendererServer(root: string): Promise<string> {
@@ -82,19 +148,9 @@ export async function ensureRendererServer(root: string): Promise<string> {
     }
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address() as AddressInfo | null;
-      if (!addr || typeof addr.port !== 'number') {
-        reject(new Error('Failed to start renderer server'));
-        return;
-      }
-      serverUrl = `http://127.0.0.1:${addr.port}/index.html`;
-      serverStarted = true;
-      resolve();
-    });
-  });
+  const addr = await listenWithFallback(server);
+  serverUrl = `http://127.0.0.1:${addr.port}/index.html`;
+  serverStarted = true;
 
   return serverUrl!;
 }
