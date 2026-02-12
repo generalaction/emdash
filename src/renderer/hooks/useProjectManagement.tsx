@@ -650,7 +650,10 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         });
         if (cancelled) return;
         if (res.success && res.branches) {
-          const options = res.branches.map((b) => ({ value: b.label, label: b.label }));
+          const options = res.branches.map((b) => ({
+            value: b.ref,
+            label: b.remote ? b.label : `${b.branch} (local)`,
+          }));
           setProjectBranchOptions(options);
           const defaultBranch = pickDefaultBranch(options, currentRef);
           setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');

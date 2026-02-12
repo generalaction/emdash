@@ -1015,6 +1015,33 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
                   label: `${remoteAlias || remote}/${branch}`,
                 };
               }) ?? [];
+
+          // Also include local-only branches (not on remote)
+          try {
+            const { stdout: localStdout } = await execAsync(
+              'git for-each-ref --format="%(refname:short)" refs/heads/',
+              { cwd: projectPath }
+            );
+
+            const remoteBranchNames = new Set(branches.map((b) => b.branch));
+
+            const localOnlyBranches =
+              localStdout
+                ?.split('\n')
+                .map((line) => line.trim())
+                .filter((line) => line.length > 0)
+                .filter((branch) => !remoteBranchNames.has(branch))
+                .map((branch) => ({
+                  ref: branch,
+                  remote: '',
+                  branch,
+                  label: branch,
+                })) ?? [];
+
+            branches = [...branches, ...localOnlyBranches];
+          } catch (localBranchError) {
+            log.warn('Failed to list local branches', localBranchError);
+          }
         } else {
           // No remote - list local branches instead
           try {

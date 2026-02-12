@@ -22,7 +22,7 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
   const placeholder = isLoadingBranches
     ? 'Loading...'
     : branchOptions.length === 0
-      ? 'No remote branches found'
+      ? 'No branches found'
       : 'Select a base branch';
 
   return (
