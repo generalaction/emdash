@@ -19,6 +19,7 @@ export const PROVIDER_IDS = [
   'continue',
   'codebuff',
   'mistral',
+  'pi',
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -300,6 +301,19 @@ export const PROVIDERS: ProviderDefinition[] = [
     autoApproveFlag: '--auto-approve',
     initialPromptFlag: '--prompt',
     icon: 'mistral.png',
+    terminalOnly: true,
+  },
+  {
+    id: 'pi',
+    name: 'Pi',
+    docUrl: 'https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent',
+    installCommand: 'npm install -g @mariozechner/pi-coding-agent',
+    commands: ['pi'],
+    versionArgs: ['--version'],
+    cli: 'pi',
+    initialPromptFlag: '',
+    resumeFlag: '-c',
+    icon: 'pi.png',
     terminalOnly: true,
   },
 ];

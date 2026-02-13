@@ -19,6 +19,7 @@ import clineLogo from '../../assets/images/cline.png';
 import continueLogo from '../../assets/images/continue.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
+import piLogo from '../../assets/images/pi.png';
 
 export type AgentInfo = {
   name: string;
@@ -36,6 +37,7 @@ export const agentConfig: Record<Agent, AgentInfo> = {
   mistral: { name: 'Mistral Vibe', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
   qwen: { name: 'Qwen Code', logo: qwenLogo, alt: 'Qwen Code' },
   droid: { name: 'Droid', logo: factoryLogo, alt: 'Factory Droid', invertInDark: true },
+  pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },
   auggie: { name: 'Auggie', logo: augmentLogo, alt: 'Auggie CLI', invertInDark: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },

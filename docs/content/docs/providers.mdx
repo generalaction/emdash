@@ -3,7 +3,7 @@ title: Providers
 description: Supported coding agents and CLI providers
 ---
 
-Emdash supports 20 coding agent CLIs. Install any of them and Emdash detects it automatically.
+Emdash supports 21 coding agent CLIs. Install any of them and Emdash detects it automatically.
 
 <img
   src="/media/providers.png"
@@ -42,6 +42,7 @@ Emdash supports 20 coding agent CLIs. Install any of them and Emdash detects it 
 | Kiro           | `curl -fsSL https://cli.kiro.dev/install \| bash`                                            |
 | Rovo Dev       | `acli rovodev auth login`                                                                    |
 | Mistral Vibe   | `curl -LsSf https://mistral.ai/vibe/install.sh \| bash`                                      |
+| Pi             | `npm install -g @mariozechner/pi-coding-agent`                                               |
 
 ## Feature Support
 
@@ -49,7 +50,7 @@ Not all providers support the same features. Here's what varies:
 
 **Auto-approve**: Skip permission prompts for file operations. Supported by Claude Code, Codex, Gemini, Qwen, Cursor, Kilocode, Rovo, and Mistral.
 
-**Resume**: Continue from previous session. Supported by Claude Code, Gemini, Qwen, Kilocode, and Continue.
+**Resume**: Continue from previous session. Supported by Claude Code, Gemini, Qwen, Kilocode, Continue, and Pi.
 
 **Initial prompt**: Pass instructions when starting the agent. Most providers support this.
 
