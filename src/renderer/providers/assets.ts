@@ -21,7 +21,13 @@ import mistralLogo from '../../assets/images/mistral.png';
 import piLogo from '../../assets/images/pi.png';
 import type { UiAgent } from './meta';
 
-export type AgentAsset = { logo: string; alt: string; invertInDark?: boolean; name: string; isSvg?: boolean };
+export type AgentAsset = {
+  logo: string;
+  alt: string;
+  invertInDark?: boolean;
+  name: string;
+  isSvg?: boolean;
+};
 
 export const agentAssets: Record<UiAgent, AgentAsset> = {
   codex: { name: 'OpenAI', logo: openaiLogoSvg, alt: 'Codex', isSvg: true },

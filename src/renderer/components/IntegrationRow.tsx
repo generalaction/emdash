@@ -58,8 +58,7 @@ const ICON_WRAPPER =
   'flex h-6 w-6 items-center justify-center rounded-md bg-muted/40 text-muted-foreground';
 
 /** Logo wrapper without background - logos render directly. */
-const LOGO_WRAPPER =
-  'flex h-6 w-6 items-center justify-center';
+const LOGO_WRAPPER = 'flex h-6 w-6 items-center justify-center';
 
 const IntegrationRow: React.FC<IntegrationRowProps> = ({
   logoSrc,
@@ -95,11 +94,14 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
 
   // Check if logoSrc is an SVG string (starts with <svg)
   const isSvg = logoSrc?.trim().startsWith('<svg');
-  
+
   // Process SVG to use currentColor for theme-aware colors (primary)
-  const processedSvg = isSvg && logoSrc
-    ? logoSrc.replace(/\bfill="[^"]*"/g, 'fill="currentColor"').replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
-    : null;
+  const processedSvg =
+    isSvg && logoSrc
+      ? logoSrc
+          .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
+          .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
+      : null;
 
   const avatar = (
     <span className={logoSrc ? LOGO_WRAPPER : ICON_WRAPPER}>
