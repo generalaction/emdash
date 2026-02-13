@@ -28,7 +28,18 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  GitMerge,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { useTaskScope } from './TaskScopeContext';
 
 type ActiveTab = 'changes' | 'checks';
@@ -140,6 +151,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMergingToMain, setIsMergingToMain] = useState(false);
+  const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [prMode, setPrMode] = useState<PrMode>(() => {
     try {
       const stored = localStorage.getItem('emdash:prMode');
@@ -487,7 +499,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
 
   const handlePrAction = async () => {
     if (prMode === 'merge') {
-      await handleMergeToMain();
+      setShowMergeConfirm(true);
+      return;
     } else {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -879,6 +892,33 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           onRefreshChanges={refreshChanges}
         />
       )}
+      <AlertDialog open={showMergeConfirm} onOpenChange={setShowMergeConfirm}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3">
+              <AlertDialogTitle className="text-lg">Merge into main?</AlertDialogTitle>
+            </div>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <AlertDialogDescription className="text-sm">
+              This will merge your branch into main. This action may be difficult to reverse.
+            </AlertDialogDescription>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowMergeConfirm(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowMergeConfirm(false);
+                void handleMergeToMain();
+              }}
+              className="bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
+            >
+              <GitMerge className="mr-2 h-4 w-4" />
+              Merge into Main
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
