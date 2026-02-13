@@ -520,7 +520,31 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       try {
         const { stdout } = await execAsync(cmd, { cwd: taskPath });
         const json = (stdout || '').trim();
-        const data = json ? JSON.parse(json) : null;
+        let data = json ? JSON.parse(json) : null;
+
+        // Fallback: If gh pr view didn't find a PR (e.g. detached head, upstream not set, or fresh branch),
+        // try finding it by branch name via gh pr list.
+        if (!data) {
+          try {
+            const { stdout: branchOut } = await execAsync('git branch --show-current', {
+              cwd: taskPath,
+            });
+            const currentBranch = branchOut.trim();
+            if (currentBranch) {
+              const listCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --json ${queryFields.join(',')} --limit 1`;
+              const { stdout: listOut } = await execAsync(listCmd, { cwd: taskPath });
+              const listJson = (listOut || '').trim();
+              const listData = listJson ? JSON.parse(listJson) : [];
+              if (listData.length > 0) {
+                data = listData[0];
+              }
+            }
+          } catch (fallbackErr) {
+            log.warn('Failed to fallback to gh pr list:', fallbackErr);
+            // Ignore fallback errors and return original null/error
+          }
+        }
+
         if (!data) return { success: false, error: 'No PR data returned' };
 
         // Fallback: if GH CLI didn't return diff stats, try to compute locally

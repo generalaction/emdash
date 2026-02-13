@@ -167,7 +167,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
   const hasStagedChanges = fileChanges.some((change) => change.isStaged);
-  const { pr, refresh: refreshPr } = usePrStatus(safeTaskPath);
+  const { pr, isLoading: isPrLoading, refresh: refreshPr } = usePrStatus(safeTaskPath);
   const [activeTab, setActiveTab] = useState<ActiveTab>('changes');
   const { status: checkRunsStatus, isLoading: checkRunsLoading } = useCheckRuns(
     pr ? safeTaskPath : undefined
@@ -628,7 +628,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               <span className="text-sm font-medium text-foreground">Changes</span>
             </div>
             <div className="flex items-center gap-2">
-              {pr ? (
+              {isPrLoading ? (
+                <div className="flex items-center justify-center p-1">
+                  <Spinner size="sm" className="h-3.5 w-3.5" />
+                </div>
+              ) : pr ? (
                 <button
                   type="button"
                   onClick={(e) => {
