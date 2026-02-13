@@ -569,8 +569,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
     try {
       // Derive project display name from the remote folder path, not the connection name
-      const projectName =
-        formData.remotePath.split('/').filter(Boolean).pop() || formData.name;
+      const projectName = formData.remotePath.split('/').filter(Boolean).pop() || formData.name;
 
       if (useExistingConnection && selectedSavedConnection) {
         // Reuse existing connection — no save needed
