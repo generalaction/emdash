@@ -39,7 +39,7 @@ export const agentAssets: Record<UiAgent, AgentAsset> = {
   copilot: { name: 'GitHub', logo: copilotLogoSvg, alt: 'GitHub Copilot CLI', isSvg: true },
   amp: { name: 'Sourcegraph', logo: ampLogo, alt: 'Amp CLI' },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode CLI', invertInDark: true },
-  charm: { name: 'Charm', logo: charmLogo, alt: 'Charm CLI' },
+  charm: { name: 'Charm', logo: charmLogo, alt: 'Charm CLI', invertInDark: true },
   auggie: { name: 'Augment Code', logo: augmentLogoSvg, alt: 'Auggie CLI', isSvg: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Moonshot AI', logo: kimiLogo, alt: 'Kimi CLI' },

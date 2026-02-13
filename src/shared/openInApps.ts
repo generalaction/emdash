@@ -12,6 +12,7 @@ type OpenInAppConfigShape = {
   id: string;
   label: string;
   iconPath: (typeof ICON_PATHS)[keyof typeof ICON_PATHS];
+  invertInDark?: boolean;
   alwaysAvailable?: boolean;
   hideIfUnavailable?: boolean;
   autoInstall?: boolean;
@@ -21,7 +22,7 @@ type OpenInAppConfigShape = {
 
 const ICON_PATHS = {
   finder: 'finder.png',
-  cursor: 'cursorlogo.png',
+  cursor: 'cursor.svg',
   vscode: 'vscode.png',
   terminal: 'terminal.png',
   warp: 'warp.svg',
@@ -50,6 +51,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     id: 'cursor',
     label: 'Cursor',
     iconPath: ICON_PATHS.cursor,
+    invertInDark: true,
     autoInstall: true,
     supportsRemote: true,
     platforms: {

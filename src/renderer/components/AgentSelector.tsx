@@ -8,6 +8,7 @@ import { Badge } from './ui/badge';
 import type { UiAgent } from '@/providers/meta';
 import { type Agent } from '../types';
 import { agentConfig } from '../lib/agentConfig';
+import AgentLogo from './AgentLogo';
 
 interface AgentSelectorProps {
   value: Agent;
@@ -60,10 +61,12 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
               <TooltipRow key={key} id={key as UiAgent}>
                 <SelectItem value={key}>
                   <div className="flex items-center gap-2">
-                    <img
-                      src={config.logo}
+                    <AgentLogo
+                      logo={config.logo}
                       alt={config.alt}
-                      className={`h-4 w-4 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
+                      isSvg={config.isSvg}
+                      invertInDark={config.invertInDark}
+                      className="h-4 w-4 rounded-sm"
                     />
                     <span>{config.name}</span>
                   </div>

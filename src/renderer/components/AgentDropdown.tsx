@@ -2,6 +2,7 @@ import React from 'react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { type Agent } from '../types';
 import { agentConfig } from '../lib/agentConfig';
+import AgentLogo from './AgentLogo';
 
 interface AgentDropdownProps {
   value: Agent;
@@ -32,10 +33,13 @@ export const AgentDropdown: React.FC<AgentDropdownProps> = ({
             return (
               <SelectItem key={key} value={key} disabled={isDisabled}>
                 <div className="flex items-center gap-2">
-                  <img
-                    src={config.logo}
+                  <AgentLogo
+                    logo={config.logo}
                     alt={config.alt}
-                    className={`h-4 w-4 rounded-sm ${isDisabled ? 'grayscale' : ''} ${config.invertInDark ? 'dark:invert' : ''}`}
+                    isSvg={config.isSvg}
+                    invertInDark={config.invertInDark}
+                    className="h-4 w-4 rounded-sm"
+                    grayscale={isDisabled}
                   />
                   <span className={isDisabled ? 'text-muted-foreground' : ''}>
                     {config.name}
