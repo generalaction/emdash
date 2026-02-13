@@ -13,6 +13,7 @@ import RightSidebar from './components/RightSidebar';
 import CodeEditor from './components/FileExplorer/CodeEditor';
 import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
+import { UpdateModal } from './components/UpdateModal';
 import { ThemeProvider } from './components/ThemeProvider';
 import Titlebar from './components/titlebar/Titlebar';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from './components/ui/resizable';
@@ -117,6 +118,15 @@ const AppContent: React.FC = () => {
     });
     return () => cleanup?.();
   }, [handleOpenSettings]);
+
+  // Listen for native menu "Check for Updates" click (main → renderer)
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuCheckForUpdates?.(() => {
+      setShowUpdateModal(true);
+    });
+    return () => cleanup?.();
+  }, []);
 
   // --- App initialization (version, platform, loadAppData) ---
   // The callbacks here execute inside a useEffect (after render), so all hooks
@@ -451,6 +461,10 @@ const AppContent: React.FC = () => {
                 isOpen={showSettings}
                 onClose={handleCloseSettings}
                 initialTab={settingsInitialTab}
+              />
+              <UpdateModal
+                isOpen={showUpdateModal}
+                onClose={() => setShowUpdateModal(false)}
               />
               <CommandPaletteWrapper
                 isOpen={showCommandPalette}

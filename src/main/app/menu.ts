@@ -1,4 +1,4 @@
-import { Menu, shell, app, BrowserWindow } from 'electron';
+import { Menu, shell, app, BrowserWindow, nativeImage } from 'electron';
 
 function getFocusedWindow(): BrowserWindow | null {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
@@ -28,6 +28,10 @@ export function setupApplicationMenu(): void {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
                 click: () => sendToRenderer('menu:open-settings'),
+              },
+              {
+                label: 'Check for Updates\u2026',
+                click: () => sendToRenderer('menu:check-for-updates'),
               },
               { type: 'separator' as const },
               { role: 'services' as const },
@@ -90,6 +94,15 @@ export function setupApplicationMenu(): void {
           label: 'Emdash Documentation',
           click: () => shell.openExternal('https://docs.emdash.sh'),
         },
+        ...(!isMac
+          ? [
+              { type: 'separator' as const },
+              {
+                label: 'Check for Updates\u2026',
+                click: () => sendToRenderer('menu:check-for-updates'),
+              },
+            ]
+          : []),
       ],
     },
   ];
