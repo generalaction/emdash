@@ -20,6 +20,7 @@ import clineIcon from '../../assets/images/cline.png';
 import continueIcon from '../../assets/images/continue.png';
 import codebuffIcon from '../../assets/images/codebuff.png';
 import mistralIcon from '../../assets/images/mistral.png';
+import piIcon from '../../assets/images/pi.png';
 
 export type UiAgent = ProviderId;
 
@@ -44,6 +45,7 @@ const ICONS: Record<string, string> = {
   'continue.png': continueIcon,
   'codebuff.png': codebuffIcon,
   'mistral.png': mistralIcon,
+  'pi.png': piIcon,
 };
 
 export type AgentMeta = {

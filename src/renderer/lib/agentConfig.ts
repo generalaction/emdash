@@ -19,6 +19,7 @@ import clineLogo from '../../assets/images/cline.png';
 import continueLogo from '../../assets/images/continue.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
+import piLogo from '../../assets/images/pi.png';
 
 export type AgentInfo = {
   name: string;
@@ -50,4 +51,5 @@ export const agentConfig: Record<Agent, AgentInfo> = {
   copilot: { name: 'Copilot', logo: copilotLogo, alt: 'GitHub Copilot CLI', invertInDark: true },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
+  pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
 };

@@ -18,6 +18,7 @@ import clineLogo from '../../assets/images/cline.png';
 import continueLogo from '../../assets/images/continue.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
+import piLogo from '../../assets/images/pi.png';
 import type { UiAgent } from './meta';
 
 export type AgentAsset = { logo: string; alt: string; invertInDark?: boolean; name: string };
@@ -43,4 +44,5 @@ export const agentAssets: Record<UiAgent, AgentAsset> = {
   continue: { name: 'Continue', logo: continueLogo, alt: 'Continue CLI' },
   codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
   mistral: { name: 'Mistral AI', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
+  pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
 };

@@ -13,6 +13,7 @@ export const TERMINAL_PROVIDER_IDS = [
   'kimi',
   'kiro',
   'rovo',
+  'pi',
 ] as const;
 
 export type TerminalProviderId = (typeof TERMINAL_PROVIDER_IDS)[number];
