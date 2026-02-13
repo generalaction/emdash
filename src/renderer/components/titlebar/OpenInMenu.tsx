@@ -37,7 +37,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
         if (res?.success && res.settings?.defaultOpenInApp) {
           const app = res.settings.defaultOpenInApp;
           if (isValidOpenInAppId(app)) {
-            setDefaultApp(app);
+            setDefaultApp((prev) => prev ?? app);
           }
         }
       } catch (e) {
