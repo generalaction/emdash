@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Plus, Loader2 } from 'lucide-react';
 import { useGithubAuth } from '../hooks/useGithubAuth';
-import linearLogo from '../../assets/images/linear-icon.png';
-import jiraLogo from '../../assets/images/jira.png';
-import githubLogo from '../../assets/images/github.png';
+import { useTheme } from '../hooks/useTheme';
+import githubSvg from '../../assets/images/Github.svg?raw';
+import jiraSvg from '../../assets/images/Jira.svg?raw';
+import linearSvg from '../../assets/images/Linear.svg?raw';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import {
@@ -16,6 +17,25 @@ import {
 } from './ui/dialog';
 import { Separator } from './ui/separator';
 import JiraSetupForm from './integrations/JiraSetupForm';
+
+/** Light mode: original SVG colors. Dark / dark-black: primary colour. */
+const SvgLogo = ({ raw }: { raw: string }) => {
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+
+  const processed = isDark
+    ? raw
+        .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
+        .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
+    : raw;
+
+  return (
+    <span
+      className={`inline-flex h-8 w-8 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${isDark ? 'text-primary' : ''}`}
+      dangerouslySetInnerHTML={{ __html: processed }}
+    />
+  );
+};
 
 const IntegrationsCard: React.FC = () => {
   const { installed, authenticated, isLoading, login, logout, checkStatus } = useGithubAuth();
@@ -191,7 +211,7 @@ const IntegrationsCard: React.FC = () => {
       id: 'github',
       name: 'GitHub',
       description: 'Connect your repositories',
-      logo: githubLogo,
+      logoSvg: githubSvg,
       connected: authenticated,
       loading: isLoading,
       onConnect: handleGithubConnect,
@@ -201,7 +221,7 @@ const IntegrationsCard: React.FC = () => {
       id: 'linear',
       name: 'Linear',
       description: 'Work on Linear tickets',
-      logo: linearLogo,
+      logoSvg: linearSvg,
       connected: linearConnected,
       loading: linearLoading,
       onConnect: () => {
@@ -214,7 +234,7 @@ const IntegrationsCard: React.FC = () => {
       id: 'jira',
       name: 'Jira',
       description: 'Work on Jira tickets',
-      logo: jiraLogo,
+      logoSvg: jiraSvg,
       connected: jiraConnected,
       loading: jiraLoading,
       onConnect: () => {
@@ -232,14 +252,10 @@ const IntegrationsCard: React.FC = () => {
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
       >
         {integrations.map((integration) => (
-          <div key={integration.id} className="flex flex-col gap-2">
-            <div className="flex items-center gap-4 rounded-lg border border-muted bg-muted/20 p-4">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-white dark:bg-white">
-                <img
-                  src={integration.logo}
-                  alt={integration.name}
-                  className="h-8 w-8 object-contain"
-                />
+          <div key={integration.id} className="flex h-full min-h-0">
+            <div className="flex w-full items-center gap-4 rounded-lg border border-muted bg-muted/20 p-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                <SvgLogo raw={integration.logoSvg} />
               </div>
               <div className="flex flex-1 flex-col gap-0.5">
                 <h3 className="text-sm font-medium text-foreground">{integration.name}</h3>

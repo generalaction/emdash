@@ -1,16 +1,16 @@
 import { PROVIDERS, type ProviderId } from '@shared/providers/registry';
 
-import augmentcodeIcon from '../../assets/images/augmentcode.png';
+import augmentcodeIcon from '../../assets/images/Auggie.svg?raw';
 import qwenIcon from '../../assets/images/qwen.png';
 import charmIcon from '../../assets/images/charm.png';
 import opencodeIcon from '../../assets/images/opencode.png';
 import ampcodeIcon from '../../assets/images/ampcode.png';
-import openaiIcon from '../../assets/images/openai.png';
+import openaiIcon from '../../assets/images/openai.svg?raw';
 import claudeIcon from '../../assets/images/claude.png';
-import factorydroidIcon from '../../assets/images/factorydroid.png';
+import factorydroidIcon from '../../assets/images/droid.svg?raw';
 import geminiIcon from '../../assets/images/gemini.png';
-import cursorlogoIcon from '../../assets/images/cursorlogo.png';
-import ghcopilotIcon from '../../assets/images/ghcopilot.png';
+import cursorlogoIcon from '../../assets/images/cursor.svg?raw';
+import ghcopilotIcon from '../../assets/images/gh-copilot.svg?raw';
 import gooseIcon from '../../assets/images/goose.png';
 import kimiIcon from '../../assets/images/kimi.png';
 import kilocodeIcon from '../../assets/images/kilocode.png';
@@ -25,17 +25,17 @@ import piIcon from '../../assets/images/pi.png';
 export type UiAgent = ProviderId;
 
 const ICONS: Record<string, string> = {
-  'augmentcode.png': augmentcodeIcon,
+  'Auggie.svg': augmentcodeIcon,
   'qwen.png': qwenIcon,
   'charm.png': charmIcon,
   'opencode.png': opencodeIcon,
   'ampcode.png': ampcodeIcon,
-  'openai.png': openaiIcon,
+  'openai.svg': openaiIcon,
   'claude.png': claudeIcon,
-  'factorydroid.png': factorydroidIcon,
+  'droid.svg': factorydroidIcon,
   'gemini.png': geminiIcon,
-  'cursorlogo.png': cursorlogoIcon,
-  'ghcopilot.png': ghcopilotIcon,
+  'cursor.svg': cursorlogoIcon,
+  'gh-copilot.svg': ghcopilotIcon,
   'goose.png': gooseIcon,
   'kimi.png': kimiIcon,
   'kilocode.png': kilocodeIcon,

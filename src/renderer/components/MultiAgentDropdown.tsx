@@ -6,6 +6,7 @@ import { type Agent } from '../types';
 import { type AgentRun } from '../types/chat';
 import { agentConfig } from '../lib/agentConfig';
 import { AgentInfoCard } from './AgentInfoCard';
+import AgentLogo from './AgentLogo';
 import type { UiAgent } from '@/providers/meta';
 
 const MAX_RUNS = 4;
@@ -94,10 +95,12 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
         >
           <div className="flex min-w-0 items-center gap-2">
             {singleAgentConfig && (
-              <img
-                src={singleAgentConfig.logo}
+              <AgentLogo
+                logo={singleAgentConfig.logo}
                 alt={singleAgentConfig.alt}
-                className={`h-4 w-4 flex-shrink-0 rounded-sm ${singleAgentConfig.invertInDark ? 'dark:invert' : ''}`}
+                isSvg={singleAgentConfig.isSvg}
+                invertInDark={singleAgentConfig.invertInDark}
+                className="h-4 w-4 flex-shrink-0 rounded-sm"
               />
             )}
             <span className="truncate">{triggerText}</span>
@@ -142,10 +145,12 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                         onClick={(e) => e.stopPropagation()}
                         className="h-4 w-4 cursor-pointer"
                       />
-                      <img
-                        src={config.logo}
+                      <AgentLogo
+                        logo={config.logo}
                         alt={config.alt}
-                        className={`h-4 w-4 flex-shrink-0 rounded-sm ${config.invertInDark ? 'dark:invert' : ''}`}
+                        isSvg={config.isSvg}
+                        invertInDark={config.invertInDark}
+                        className="h-4 w-4 flex-shrink-0 rounded-sm"
                       />
                       <span className="text-sm">{config.name}</span>
                     </div>
@@ -213,10 +218,13 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                           disabled={true}
                           className="h-4 w-4 cursor-not-allowed"
                         />
-                        <img
-                          src={config.logo}
+                        <AgentLogo
+                          logo={config.logo}
                           alt={config.alt}
-                          className={`h-4 w-4 flex-shrink-0 rounded-sm ${config.invertInDark ? 'dark:invert' : ''} grayscale`}
+                          isSvg={config.isSvg}
+                          invertInDark={config.invertInDark}
+                          className="h-4 w-4 flex-shrink-0 rounded-sm"
+                          grayscale
                         />
                         <span className="text-sm text-muted-foreground">
                           {config.name}

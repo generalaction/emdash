@@ -89,7 +89,7 @@ const DefaultOpenInSettingsCard: React.FC = () => {
                     <img
                       src={icons[selectedApp.id]}
                       alt={selectedApp.label}
-                      className="h-4 w-4 rounded"
+                      className={`h-4 w-4 rounded ${selectedApp.invertInDark ? 'dark:invert' : ''}`}
                     />
                   )}
                   <span>{selectedApp.label}</span>
@@ -109,7 +109,11 @@ const DefaultOpenInSettingsCard: React.FC = () => {
                 >
                   <span className="flex items-center gap-2">
                     {icons[app.id] && (
-                      <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
+                      <img
+                        src={icons[app.id]}
+                        alt={app.label}
+                        className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
+                      />
                     )}
                     <span>{app.label}</span>
                   </span>

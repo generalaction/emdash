@@ -6,6 +6,7 @@ import TaskTerminalPanel from './TaskTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { agentAssets } from '@/providers/assets';
 import { agentMeta } from '@/providers/meta';
+import AgentLogo from './AgentLogo';
 import type { Agent } from '../types';
 import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -163,24 +164,19 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                             )}
                             {(() => {
-                              const asset = (agentAssets as any)[v.agent] as
-                                | {
-                                    logo: string;
-                                    alt: string;
-                                    name: string;
-                                    invertInDark?: boolean;
-                                  }
-                                | undefined;
+                              const asset = agentAssets[v.agent as keyof typeof agentAssets];
                               const meta = (agentMeta as any)[v.agent] as
                                 | { label?: string }
                                 | undefined;
                               return (
                                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] font-medium">
                                   {asset?.logo ? (
-                                    <img
-                                      src={asset.logo}
+                                    <AgentLogo
+                                      logo={asset.logo}
                                       alt={asset.alt || meta?.label || String(v.agent)}
-                                      className={`h-3.5 w-3.5 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                                      isSvg={asset.isSvg}
+                                      invertInDark={asset.invertInDark}
+                                      className="h-3.5 w-3.5"
                                     />
                                   ) : null}
                                   {getVariantDisplayLabel(v)}

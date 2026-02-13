@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { agentConfig } from '../lib/agentConfig';
+import AgentLogo from './AgentLogo';
 import type { Agent } from '../types';
 
 interface ChatTab {
@@ -76,12 +77,12 @@ export function ChatTabs({
             onClick={() => onTabClick(tab.id)}
           >
             {config && (
-              <img
-                src={config.logo}
-                alt=""
-                className={`h-4 w-4 flex-shrink-0 object-contain ${
-                  config.invertInDark ? 'dark:invert' : ''
-                }`}
+              <AgentLogo
+                logo={config.logo}
+                alt={config.alt}
+                isSvg={config.isSvg}
+                invertInDark={config.invertInDark}
+                className="h-4 w-4 flex-shrink-0"
               />
             )}
             <span className="flex-1 truncate text-sm font-medium" title={tab.title}>

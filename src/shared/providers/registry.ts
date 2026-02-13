@@ -55,7 +55,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     autoApproveFlag: '--full-auto',
     initialPromptFlag: '',
     resumeFlag: 'resume --last',
-    icon: 'openai.png',
+    icon: 'openai.svg',
     terminalOnly: true,
   },
   {
@@ -83,7 +83,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'cursor-agent',
     autoApproveFlag: '-p',
     initialPromptFlag: '',
-    icon: 'cursorlogo.png',
+    icon: 'cursor.svg',
     terminalOnly: true,
   },
   {
@@ -124,7 +124,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'droid',
     initialPromptFlag: '',
     resumeFlag: '-r',
-    icon: 'factorydroid.png',
+    icon: 'droid.svg',
     terminalOnly: true,
   },
   {
@@ -160,7 +160,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['copilot'],
     versionArgs: ['--version'],
     cli: 'copilot',
-    icon: 'ghcopilot.png',
+    icon: 'gh-copilot.svg',
     terminalOnly: true,
   },
   {
@@ -185,7 +185,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '',
     // otherwise user is prompted each time before prompt is passed
     defaultArgs: ['--allow-indexing'],
-    icon: 'augmentcode.png',
+    icon: 'Auggie.svg',
     terminalOnly: true,
   },
   {

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { type UiAgent } from '@/providers/meta';
 import { agentAssets } from '@/providers/assets';
+import AgentLogo from './AgentLogo';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import { Button } from './ui/button';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
@@ -171,10 +172,12 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
     <div className="w-80 max-w-[20rem] rounded-lg bg-background p-3 text-foreground shadow-sm">
       <div className="mb-2 flex items-center gap-2">
         {logo ? (
-          <img
-            src={logo}
+          <AgentLogo
+            logo={logo}
             alt={brand}
-            className={`h-5 w-5 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`}
+            isSvg={asset.isSvg}
+            invertInDark={asset.invertInDark}
+            className="h-5 w-5 rounded-sm"
           />
         ) : null}
         <div className="flex items-baseline gap-1 text-sm leading-none">

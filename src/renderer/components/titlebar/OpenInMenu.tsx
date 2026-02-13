@@ -143,7 +143,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
           <img
             src={icons[buttonAppId]}
             alt={getAppById(buttonAppId)?.label}
-            className="h-4 w-4 rounded"
+            className={`h-4 w-4 rounded ${getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''}`}
           />
         )}
         <ChevronDown
@@ -186,7 +186,11 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
                     disabled={!isAvailable}
                   >
                     {icons[app.id] ? (
-                      <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
+                      <img
+                        src={icons[app.id]}
+                        alt={app.label}
+                        className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
+                      />
                     ) : null}
                     <span>{app.label}</span>
                     {app.id === defaultApp && (
