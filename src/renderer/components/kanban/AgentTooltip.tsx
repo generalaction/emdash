@@ -2,6 +2,7 @@ import React from 'react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
+import AgentLogo from '../AgentLogo';
 import { GitBranch } from 'lucide-react';
 
 type AgentTooltipProps = {
@@ -36,6 +37,7 @@ export const AgentTooltip: React.FC<AgentTooltipProps> = ({
           label,
           logo: asset?.logo,
           invert: !!asset?.invertInDark,
+          isSvg: !!asset?.isSvg,
         };
       })
       .filter((x) => {
@@ -123,10 +125,12 @@ export const AgentTooltip: React.FC<AgentTooltipProps> = ({
             {items.map((it) => (
               <div key={it.id} className="flex items-center gap-2 text-foreground/90">
                 {it.logo ? (
-                  <img
-                    src={it.logo}
+                  <AgentLogo
+                    logo={it.logo}
                     alt={it.label}
-                    className={`h-3.5 w-3.5 shrink-0 rounded-sm ${it.invert ? 'dark:invert' : ''}`}
+                    isSvg={it.isSvg}
+                    invertInDark={it.invert}
+                    className="h-3.5 w-3.5 shrink-0 rounded-sm"
                   />
                 ) : (
                   <span className="h-3.5 w-3.5 shrink-0 rounded-sm bg-muted" />

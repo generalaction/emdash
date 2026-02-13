@@ -37,6 +37,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
         if (res?.success && res.settings?.defaultOpenInApp) {
           const app = res.settings.defaultOpenInApp;
           if (isValidOpenInAppId(app)) {
+            // Do not overwrite a newer in-memory selection from user interaction.
             setDefaultApp((prev) => prev ?? app);
           }
         }
@@ -152,7 +153,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
             <img
               src={icons[buttonAppId]}
               alt={getAppById(buttonAppId)?.label}
-              className="h-4 w-4 rounded"
+              className={`h-4 w-4 rounded ${
+                getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
+              }`}
             />
           )}
           <span>Open</span>
@@ -219,7 +222,11 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
                   disabled={!isAvailable}
                 >
                   {icons[app.id] ? (
-                    <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
+                    <img
+                      src={icons[app.id]}
+                      alt={app.label}
+                      className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
+                    />
                   ) : null}
                   <span>{app.label}</span>
                   {app.id === defaultApp && (

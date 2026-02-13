@@ -57,6 +57,9 @@ const ICON_BUTTON =
 const ICON_WRAPPER =
   'flex h-6 w-6 items-center justify-center rounded-md bg-muted/40 text-muted-foreground';
 
+/** Logo wrapper without background - logos render directly. */
+const LOGO_WRAPPER = 'flex h-6 w-6 items-center justify-center';
+
 const IntegrationRow: React.FC<IntegrationRowProps> = ({
   logoSrc,
   icon,
@@ -89,10 +92,28 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       <span className="truncate text-sm text-muted-foreground">{accountLabel}</span>
     ) : null;
 
+  // Check if logoSrc is an SVG string (starts with <svg)
+  const isSvg = logoSrc?.trim().startsWith('<svg');
+
+  // Process SVG to use currentColor for theme-aware colors (primary)
+  const processedSvg =
+    isSvg && logoSrc
+      ? logoSrc
+          .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
+          .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
+      : null;
+
   const avatar = (
-    <span className={ICON_WRAPPER}>
+    <span className={logoSrc ? LOGO_WRAPPER : ICON_WRAPPER}>
       {logoSrc ? (
-        <img src={logoSrc} alt="" className="h-5 w-5 object-contain" />
+        isSvg ? (
+          <span
+            className="inline-flex h-5 w-5 items-center justify-center text-primary [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
+            dangerouslySetInnerHTML={{ __html: processedSvg ?? '' }}
+          />
+        ) : (
+          <img src={logoSrc} alt="" className="h-5 w-5 object-contain" />
+        )
       ) : icon ? (
         icon
       ) : null}

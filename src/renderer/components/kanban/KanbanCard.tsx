@@ -4,6 +4,7 @@ import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
 import { activityStore } from '../../lib/activityStore';
 import AgentTooltip from './AgentTooltip';
+import AgentLogo from '../AgentLogo';
 import { Spinner } from '../ui/spinner';
 
 function resolveAgent(taskId: string): UiAgent | null {
@@ -88,12 +89,12 @@ const KanbanCard: React.FC<{
                         }`}
                         title={tooltip}
                       >
-                        <img
-                          src={asset.logo}
+                        <AgentLogo
+                          logo={asset.logo}
                           alt={asset.alt}
-                          className={`h-3.5 w-3.5 shrink-0 rounded-sm ${
-                            asset.invertInDark ? 'dark:invert' : ''
-                          }`}
+                          isSvg={asset.isSvg}
+                          invertInDark={asset.invertInDark}
+                          className="h-3.5 w-3.5 shrink-0 rounded-sm"
                         />
                       </span>
                     );
@@ -109,10 +110,12 @@ const KanbanCard: React.FC<{
             SHOW_AGENT_LOGOS ? (
               <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
                 {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
-                <img
-                  src={asset.logo}
+                <AgentLogo
+                  logo={asset.logo}
                   alt={asset.alt}
-                  className={`h-3.5 w-3.5 shrink-0 rounded-sm ${asset.invertInDark ? 'dark:invert' : ''}`}
+                  isSvg={asset.isSvg}
+                  invertInDark={asset.invertInDark}
+                  className="h-3.5 w-3.5 shrink-0 rounded-sm"
                 />
               </span>
             ) : busy ? (
@@ -125,12 +128,12 @@ const KanbanCard: React.FC<{
           <div className="mt-2">
             <span className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
               <span className="font-medium text-foreground/80">Admin:</span>
-              <img
-                src={agentAssets[adminAgent].logo}
+              <AgentLogo
+                logo={agentAssets[adminAgent].logo}
                 alt={agentAssets[adminAgent].alt}
-                className={`h-3.5 w-3.5 rounded-sm ${
-                  agentAssets[adminAgent].invertInDark ? 'dark:invert' : ''
-                }`}
+                isSvg={agentAssets[adminAgent].isSvg}
+                invertInDark={agentAssets[adminAgent].invertInDark}
+                className="h-3.5 w-3.5 rounded-sm"
               />
             </span>
           </div>

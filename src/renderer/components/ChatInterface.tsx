@@ -6,6 +6,7 @@ import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
+import AgentLogo from './AgentLogo';
 import TaskContextBadges from './TaskContextBadges';
 import { Badge } from './ui/badge';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
@@ -799,12 +800,12 @@ const ChatInterface: React.FC<Props> = ({
                           title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
                         >
                           {config?.logo && (
-                            <img
-                              src={config.logo}
-                              alt=""
-                              className={`h-3.5 w-3.5 flex-shrink-0 object-contain ${
-                                config.invertInDark ? 'dark:invert' : ''
-                              }`}
+                            <AgentLogo
+                              logo={config.logo}
+                              alt={config.alt}
+                              isSvg={config.isSvg}
+                              invertInDark={config.invertInDark}
+                              className="h-3.5 w-3.5 flex-shrink-0"
                             />
                           )}
                           <span className="max-w-[10rem] truncate">

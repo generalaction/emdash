@@ -7,6 +7,7 @@ import OpenInMenu from './titlebar/OpenInMenu';
 import { TerminalPane } from './TerminalPane';
 import { agentMeta } from '@/providers/meta';
 import { agentAssets } from '@/providers/assets';
+import AgentLogo from './AgentLogo';
 import { useTheme } from '@/hooks/useTheme';
 import { classifyActivity } from '@/lib/activityClassifier';
 import { activityStore } from '@/lib/activityStore';
@@ -474,10 +475,12 @@ const MultiAgentTask: React.FC<Props> = ({
                               }`}
                             >
                               {asset?.logo ? (
-                                <img
-                                  src={asset.logo}
+                                <AgentLogo
+                                  logo={asset.logo}
                                   alt={asset.alt || meta?.label || variant.agent}
-                                  className={`h-4 w-4 shrink-0 object-contain ${asset?.invertInDark ? 'dark:invert' : ''}`}
+                                  isSvg={asset.isSvg}
+                                  invertInDark={asset.invertInDark}
+                                  className="h-4 w-4 shrink-0"
                                 />
                               ) : null}
                               <span>{getVariantDisplayLabel(variant)}</span>
