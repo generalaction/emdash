@@ -166,7 +166,7 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
             size="icon"
             aria-label="Toggle in-app browser"
             onClick={handleClick}
-            className="h-8 w-8 text-muted-foreground hover:bg-background/80"
+            className="h-8 w-8 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
           >
             <Globe className="h-4 w-4" />
           </Button>

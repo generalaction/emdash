@@ -67,6 +67,16 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
+  const persistPreferredApp = React.useCallback(async (appId: OpenInAppId) => {
+    setDefaultApp(appId);
+    window.dispatchEvent(new CustomEvent('defaultOpenInAppChanged', { detail: appId }));
+    try {
+      await window.electronAPI?.updateSettings?.({ defaultOpenInApp: appId });
+    } catch (e) {
+      console.error('Failed to persist preferred open in app:', e);
+    }
+  }, []);
+
   const callOpen = async (appId: OpenInAppId) => {
     const appConfig = getAppById(appId);
     const label = appConfig?.label || appId;
@@ -108,50 +118,71 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
     });
   }, [defaultApp, installedApps]);
 
-  // Determine which icon to show on the button (default if installed, otherwise first installed)
+  const menuApps = React.useMemo(
+    () => sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id]),
+    [availability, sortedApps]
+  );
+
+  // Primary click app: persisted app first, otherwise first available entry.
   const buttonAppId = React.useMemo(() => {
-    if (defaultApp && installedApps.some((app) => app.id === defaultApp)) {
+    if (defaultApp && menuApps.some((app) => app.id === defaultApp)) {
       return defaultApp;
     }
-    return installedApps[0]?.id;
-  }, [defaultApp, installedApps]);
+    return menuApps[0]?.id;
+  }, [defaultApp, menuApps]);
+
+  const buttonAppLabel = buttonAppId ? (getAppById(buttonAppId)?.label ?? buttonAppId) : null;
 
   return (
     <div ref={containerRef} className="relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className={[
-          'h-7 gap-1.5 px-2 text-[13px] font-medium leading-none text-muted-foreground hover:bg-background/70 hover:text-foreground',
-          open ? 'bg-background/80 text-foreground' : '',
-        ].join(' ')}
-        onClick={async () => {
-          const newState = !open;
-          void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-            captureTelemetry('toolbar_open_in_menu_clicked', {
-              state: newState ? 'open' : 'closed',
+      <div className="flex min-w-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="group h-7 min-w-0 gap-1.5 truncate rounded-r-none pl-2 pr-0.5 text-[13px] font-medium leading-none text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+          onClick={() => {
+            if (!buttonAppId) return;
+            void callOpen(buttonAppId);
+          }}
+          disabled={!buttonAppId || loading}
+          aria-label={buttonAppLabel ? `Open in ${buttonAppLabel}` : 'Open'}
+        >
+          {buttonAppId && icons[buttonAppId] && (
+            <img
+              src={icons[buttonAppId]}
+              alt={getAppById(buttonAppId)?.label}
+              className="h-4 w-4 rounded"
+            />
+          )}
+          <span>Open</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={[
+            'group h-7 rounded-l-none px-1 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground',
+            open ? 'text-foreground' : '',
+          ].join(' ')}
+          onClick={() => {
+            const newState = !open;
+            void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+              captureTelemetry('toolbar_open_in_menu_clicked', {
+                state: newState ? 'open' : 'closed',
+              });
             });
-          });
-          setOpen(newState);
-        }}
-        aria-expanded={open}
-        aria-haspopup
-      >
-        <span>Open in</span>
-        {buttonAppId && icons[buttonAppId] && (
-          <img
-            src={icons[buttonAppId]}
-            alt={getAppById(buttonAppId)?.label}
-            className="h-4 w-4 rounded"
+            setOpen(newState);
+          }}
+          aria-expanded={open}
+          aria-haspopup
+          aria-label="Open in options"
+        >
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
           />
-        )}
-        <ChevronDown
-          className={`h-3 w-3 opacity-50 transition-transform duration-200 ${
-            open ? 'rotate-180' : ''
-          }`}
-        />
-      </Button>
+        </Button>
+      </div>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -172,29 +203,31 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
               shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            {sortedApps
-              .filter((app) => !app.hideIfUnavailable || availability[app.id])
-              .map((app) => {
-                // While loading, disable apps that aren't confirmed installed
-                const isAvailable = loading ? availability[app.id] === true : true;
-                return (
-                  <button
-                    key={app.id}
-                    className={`${menuItemBase} ${!isAvailable ? 'cursor-not-allowed opacity-50' : ''}`}
-                    role="menuitem"
-                    onClick={() => isAvailable && callOpen(app.id)}
-                    disabled={!isAvailable}
-                  >
-                    {icons[app.id] ? (
-                      <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
-                    ) : null}
-                    <span>{app.label}</span>
-                    {app.id === defaultApp && (
-                      <span className="ml-auto text-xs text-muted-foreground">Default</span>
-                    )}
-                  </button>
-                );
-              })}
+            {menuApps.map((app) => {
+              // While loading, disable apps that aren't confirmed installed
+              const isAvailable = loading ? availability[app.id] === true : true;
+              return (
+                <button
+                  key={app.id}
+                  className={`${menuItemBase} ${!isAvailable ? 'cursor-not-allowed opacity-50' : ''}`}
+                  role="menuitem"
+                  onClick={() => {
+                    if (!isAvailable) return;
+                    void persistPreferredApp(app.id);
+                    setOpen(false);
+                  }}
+                  disabled={!isAvailable}
+                >
+                  {icons[app.id] ? (
+                    <img src={icons[app.id]} alt={app.label} className="h-4 w-4 rounded" />
+                  ) : null}
+                  <span>{app.label}</span>
+                  {app.id === defaultApp && (
+                    <span className="ml-auto text-xs text-muted-foreground">Selected</span>
+                  )}
+                </button>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>

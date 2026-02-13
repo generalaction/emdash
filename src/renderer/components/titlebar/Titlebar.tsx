@@ -80,7 +80,7 @@ function TitlebarToggleButton({
             size={isOpen ? 'sm' : 'icon'}
             aria-label={isOpen ? ariaLabelOpen : ariaLabelClosed}
             onClick={onClick}
-            className={`h-8 hover:bg-accent hover:text-accent-foreground ${
+            className={`h-8 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground ${
               isOpen ? 'gap-1.5 px-2 text-xs font-medium' : 'w-8 text-muted-foreground'
             }`}
           >
@@ -269,7 +269,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
                   aria-label="Open feedback"
                   onClick={handleOpenFeedback}
                   ref={feedbackButtonRef}
-                  className="h-8 w-8 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-background/80"
+                  className="h-8 w-8 text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-transparent hover:text-foreground"
                 >
                   <MessageSquare className="h-4 w-4" />
                 </Button>
@@ -303,7 +303,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
                     });
                     onToggleSettings();
                   }}
-                  className="h-8 w-8 text-muted-foreground hover:bg-background/80"
+                  className="h-8 w-8 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
                 >
                   <SettingsIcon className="h-4 w-4" />
                 </Button>
