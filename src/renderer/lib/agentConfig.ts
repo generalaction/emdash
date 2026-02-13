@@ -37,6 +37,7 @@ export const agentConfig: Record<Agent, AgentInfo> = {
   mistral: { name: 'Mistral Vibe', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
   qwen: { name: 'Qwen Code', logo: qwenLogo, alt: 'Qwen Code' },
   droid: { name: 'Droid', logo: factoryLogo, alt: 'Factory Droid', invertInDark: true },
+  pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },
   auggie: { name: 'Auggie', logo: augmentLogo, alt: 'Auggie CLI', invertInDark: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
@@ -51,5 +52,4 @@ export const agentConfig: Record<Agent, AgentInfo> = {
   copilot: { name: 'Copilot', logo: copilotLogo, alt: 'GitHub Copilot CLI', invertInDark: true },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
-  pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
 };

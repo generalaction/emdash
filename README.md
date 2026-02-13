@@ -63,7 +63,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 ### Supported CLI Providers
 
-Emdash currently supports twenty CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR.
+Emdash currently supports twenty-one CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR.
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
@@ -85,6 +85,7 @@ Emdash currently supports twenty CLI providers and we are adding new providers r
 | [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | `curl -fsSL https://cli.kiro.dev/install | bash` |
 | [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | `curl -LsSf https://mistral.ai/vibe/install.sh \| bash` |
 | [OpenCode](https://opencode.ai/docs/) | ✅ Supported | `npm install -g opencode-ai` |
+| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | `npm install -g @mariozechner/pi-coding-agent` |
 | [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code` |
 | [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | `acli rovodev auth login` |
 
