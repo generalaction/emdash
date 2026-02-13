@@ -36,7 +36,7 @@ export async function refreshPrStatus(taskPath: string): Promise<PrStatus | null
 
   // Verify we actually need to change state before notifying
   const cached = cache.get(taskPath);
-  notifyListeners(taskPath, cached ?? null, !cached);
+  notifyListeners(taskPath, cached ?? null, !cache.has(taskPath));
 
   const promise = fetchPrStatus(taskPath);
   pending.set(taskPath, promise);
