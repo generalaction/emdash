@@ -252,8 +252,8 @@ const IntegrationsCard: React.FC = () => {
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
       >
         {integrations.map((integration) => (
-          <div key={integration.id} className="flex flex-col gap-2">
-            <div className="flex items-center gap-4 rounded-lg border border-muted bg-muted/20 p-4">
+          <div key={integration.id} className="flex h-full min-h-0">
+            <div className="flex w-full items-center gap-4 rounded-lg border border-muted bg-muted/20 p-4">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-muted/50">
                 <SvgLogo raw={integration.logoSvg} />
               </div>
