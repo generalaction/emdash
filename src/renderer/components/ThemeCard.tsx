@@ -15,10 +15,10 @@ const ThemeCard: React.FC = () => {
   return (
     <div className="grid gap-3">
       <div>
-        <div className="text-sm font-medium text-foreground">Appearance</div>
-        <div className="text-xs text-muted-foreground">Choose how Emdash looks.</div>
+        <div className="text-sm font-medium text-foreground">Color mode</div>
+        <div className="text-sm text-muted-foreground">Choose how Emdash looks.</div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {options.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
@@ -31,7 +31,7 @@ const ThemeCard: React.FC = () => {
               }
               setTheme(value);
             }}
-            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+            className={`flex flex-col items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               theme === value
                 ? 'border-primary bg-primary/10 text-foreground'
                 : 'border-border/60 bg-background text-muted-foreground hover:border-border hover:bg-muted/40'
@@ -39,7 +39,7 @@ const ThemeCard: React.FC = () => {
             aria-pressed={theme === value}
             aria-label={`Set theme to ${label}`}
           >
-            <Icon className="h-4 w-4" aria-hidden="true" />
+            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{label}</span>
           </button>
         ))}

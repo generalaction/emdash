@@ -103,6 +103,7 @@ try {
 
 import { createMainWindow } from './app/window';
 import { registerAppLifecycle } from './app/lifecycle';
+import { setupApplicationMenu } from './app/menu';
 import { registerAllIpc } from './ipc';
 import { databaseService } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
@@ -250,6 +251,9 @@ app.whenReady().then(async () => {
   } catch {
     // best-effort; ignore failures
   }
+
+  // Set up native application menu (Settings, Edit, View, Window)
+  setupApplicationMenu();
 
   // Create main window
   createMainWindow();

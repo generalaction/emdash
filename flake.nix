@@ -52,23 +52,34 @@
             pkgs.libutempter
             pkgs.patchelf
           ];
+        packageJson = builtins.fromJSON (builtins.readFile ./package.json);
         cleanSrc = lib.cleanSource ./.;
         emdashPackage =
           if pkgs.stdenv.isLinux then
             pkgs.stdenv.mkDerivation rec {
               pname = "emdash";
-              version = "0.3.34";
+              version = packageJson.version;
               src = cleanSrc;
-              pnpmDeps = pnpm.fetchDeps {
-                inherit pname version src;
-                hash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
-              };
+              pnpmDeps =
+                if pkgs ? fetchPnpmDeps then
+                  pkgs.fetchPnpmDeps {
+                    inherit pname version src;
+                    fetcherVersion = 1;
+                    hash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
+                  }
+                else
+                  pnpm.fetchDeps {
+                    inherit pname version src;
+                    fetcherVersion = 1;
+                    hash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
+                  };
               dontConfigure = true;
 
               nativeBuildInputs =
                 sharedEnv
                 ++ [
-                  pnpm.configHook
+                  pnpm
+                  (pkgs.pnpmConfigHook or pnpm.configHook)
                   pkgs.dpkg
                   pkgs.rpm
                 ];

@@ -131,6 +131,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
 
+  // Menu events (main → renderer)
+  onMenuOpenSettings: (listener: () => void) => {
+    const channel = 'menu:open-settings';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onMenuCheckForUpdates: (listener: () => void) => {
+    const channel = 'menu:check-for-updates';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;

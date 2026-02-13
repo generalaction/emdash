@@ -56,6 +56,10 @@ declare global {
       getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
       checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
+      // Menu events (main → renderer)
+      onMenuOpenSettings: (listener: () => void) => () => void;
+      onMenuCheckForUpdates: (listener: () => void) => () => void;
+
       // App settings
       getSettings: () => Promise<{
         success: boolean;
@@ -1232,6 +1236,10 @@ declare global {
 
 // Explicit type export for better TypeScript recognition
 export interface ElectronAPI {
+  // Menu events (main → renderer)
+  onMenuOpenSettings: (listener: () => void) => () => void;
+  onMenuCheckForUpdates: (listener: () => void) => () => void;
+
   // App info
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
