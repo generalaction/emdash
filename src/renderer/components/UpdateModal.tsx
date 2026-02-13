@@ -17,7 +17,9 @@ interface UpdateModalProps {
   onClose: () => void;
 }
 
-type SimState = UpdateState & { progress?: { percent: number; transferred: number; total: number } };
+type SimState = UpdateState & {
+  progress?: { percent: number; transferred: number; total: number };
+};
 
 function useDevSimulation(isOpen: boolean) {
   const [state, setState] = useState<SimState>({ status: 'idle' });
@@ -61,9 +63,8 @@ function useDevSimulation(isOpen: boolean) {
     return cleanup;
   }, [isOpen, run, cleanup]);
 
-  const progressLabel = state.status === 'downloading' && state.progress
-    ? `${(state.progress.percent).toFixed(0)}%`
-    : '';
+  const progressLabel =
+    state.status === 'downloading' && state.progress ? `${state.progress.percent.toFixed(0)}%` : '';
 
   return {
     state,
@@ -100,7 +101,12 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
 
   // Auto-download when an update is found (production only)
   useEffect(() => {
-    if (isOpen && !isDev && realUpdater.state.status === 'available' && !autoDownloadTriggered.current) {
+    if (
+      isOpen &&
+      !isDev &&
+      realUpdater.state.status === 'available' &&
+      !autoDownloadTriggered.current
+    ) {
       autoDownloadTriggered.current = true;
       handleDownload();
     }

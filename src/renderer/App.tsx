@@ -462,10 +462,7 @@ const AppContent: React.FC = () => {
                 onClose={handleCloseSettings}
                 initialTab={settingsInitialTab}
               />
-              <UpdateModal
-                isOpen={showUpdateModal}
-                onClose={() => setShowUpdateModal(false)}
-              />
+              <UpdateModal isOpen={showUpdateModal} onClose={() => setShowUpdateModal(false)} />
               <CommandPaletteWrapper
                 isOpen={showCommandPalette}
                 onClose={handleCloseCommandPalette}
