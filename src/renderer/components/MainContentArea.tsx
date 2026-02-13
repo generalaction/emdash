@@ -5,8 +5,10 @@ import MultiAgentTask from './MultiAgentTask';
 import ProjectMainView from './ProjectMainView';
 import HomeView from './HomeView';
 import SkillsView from './skills/SkillsView';
+import SettingsPage from './SettingsPage';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
+import type { SettingsPageTab } from '../hooks/useModalState';
 
 interface MainContentAreaProps {
   selectedProject: Project | null;
@@ -15,6 +17,9 @@ interface MainContentAreaProps {
   showKanban: boolean;
   showHomeView: boolean;
   showSkillsView: boolean;
+  showSettingsPage: boolean;
+  settingsPageInitialTab?: SettingsPageTab;
+  handleCloseSettingsPage?: () => void;
   projectDefaultBranch: string;
   projectBranchOptions: Array<{ value: string; label: string }>;
   isLoadingBranches: boolean;
@@ -48,6 +53,9 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   showKanban,
   showHomeView,
   showSkillsView,
+  showSettingsPage,
+  settingsPageInitialTab,
+  handleCloseSettingsPage,
   projectDefaultBranch,
   projectBranchOptions,
   isLoadingBranches,
@@ -65,6 +73,15 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   projectRemoteConnectionId,
   projectRemotePath,
 }) => {
+  if (showSettingsPage) {
+    return (
+      <SettingsPage
+        initialTab={settingsPageInitialTab}
+        onClose={handleCloseSettingsPage || (() => {})}
+      />
+    );
+  }
+
   if (selectedProject && showKanban) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

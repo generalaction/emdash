@@ -1,6 +1,8 @@
 import React from 'react';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
+import { Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import FeedbackModal from './FeedbackModal';
 import context7Logo from '../../assets/images/context7.png';
@@ -35,22 +37,63 @@ const Context7SettingsCard: React.FC = () => {
   };
 
   return (
-    <div className="grid gap-3">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <img
-            src={context7Logo}
-            alt="Context7"
-            className="mt-0.5 h-6 w-6 rounded-sm border border-border/50 object-contain"
-          />
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <p>
-              Enable {CONTEXT7_INTEGRATION.label} to enrich prompts with up‑to‑date library docs.
-            </p>
-            <p>
-              Recommended: add a rule in your client to auto‑invoke Context7 for code questions.
-            </p>
-          </div>
+    <>
+      <div className="flex items-center gap-2 p-2">
+        <img
+          src={context7Logo}
+          alt="Context7"
+          className="h-5 w-5 flex-shrink-0 rounded object-contain"
+        />
+        <div className="flex flex-1 items-center gap-1.5">
+          <p className="text-sm font-medium text-foreground">Context7</p>
+          <p className="text-sm text-foreground/50">
+            Enable Context7 MCP to enrich prompts with up‑to‑date library docs.
+          </p>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="flex-shrink-0 text-foreground/50 transition-colors hover:text-foreground"
+                  aria-label="More information"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <div className="space-y-2 text-xs">
+                  <p>
+                    You must configure Context7 MCP in your coding agent (Codex, Claude Code,
+                    Cursor, etc.) before using it in Emdash.
+                  </p>
+                  <p>
+                    After setup, enabling Context7 here lets Emdash invoke it in your terminal
+                    sessions so agents can fetch up‑to‑date docs when needed.
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs underline-offset-2 hover:underline"
+                      onClick={() => window.electronAPI.openExternal(CONTEXT7_INTEGRATION.docsUrl)}
+                    >
+                      Docs ↗
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs underline-offset-2 hover:underline"
+                      onClick={() => setShowMcpFeedback(true)}
+                    >
+                      Suggest an MCP ↗
+                    </Button>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <Switch
           checked={enabled}
@@ -60,40 +103,6 @@ const Context7SettingsCard: React.FC = () => {
         />
       </div>
 
-      <div className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-        <div className="text-tiny leading-snug text-muted-foreground">
-          <p>
-            You must configure Context7 MCP in your coding agent (Codex, Claude Code, Cursor, etc.)
-            before using it in Emdash.
-          </p>
-          <p className="mt-1">
-            After setup, enabling Context7 here lets Emdash invoke it in your terminal sessions so
-            agents can fetch up‑to‑date docs when needed. Use the Docs link for per‑agent setup.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          onClick={() => window.electronAPI.openExternal(CONTEXT7_INTEGRATION.docsUrl)}
-        >
-          Docs ↗
-        </Button>
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className="h-auto p-0 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          onClick={() => setShowMcpFeedback(true)}
-        >
-          Suggest an MCP ↗
-        </Button>
-      </div>
-
       {showMcpFeedback ? (
         <FeedbackModal
           isOpen={showMcpFeedback}
@@ -101,7 +110,7 @@ const Context7SettingsCard: React.FC = () => {
           blurb="Which MCP would you like Emdash to support next? Include the MCP name, link, and why it helps your workflow."
         />
       ) : null}
-    </div>
+    </>
   );
 };
 

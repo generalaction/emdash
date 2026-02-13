@@ -64,11 +64,14 @@ const DefaultOpenInSettingsCard: React.FC = () => {
   const selectedApp = OPEN_IN_APPS.find((app) => app.id === defaultApp);
 
   return (
-    <div className="space-y-3">
-      <div className="text-xs text-muted-foreground">
-        The application shown first when using "Open in".
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-1 flex-col gap-0.5">
+        <p className="text-sm font-medium text-foreground">Default open in app</p>
+        <p className="text-sm text-muted-foreground">
+          The application shown first when using "Open in".
+        </p>
       </div>
-      <div className="w-full max-w-xs">
+      <div className="w-[183px] flex-shrink-0">
         <Select
           value={defaultApp}
           onValueChange={(value) => {

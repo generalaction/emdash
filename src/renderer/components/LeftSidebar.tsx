@@ -69,6 +69,7 @@ interface LeftSidebarProps {
   isHomeView?: boolean;
   onGoToSkills?: () => void;
   isSkillsView?: boolean;
+  onCloseSettingsPage?: () => void;
 }
 
 interface MenuItemButtonProps {
@@ -173,6 +174,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   isHomeView,
   onGoToSkills,
   isSkillsView,
+  onCloseSettingsPage,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
@@ -246,6 +248,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
 
+  // Helper to close settings page when navigating
+  const handleNavigationWithCloseSettings = useCallback(
+    (callback: () => void) => {
+      onCloseSettingsPage?.();
+      callback();
+    },
+    [onCloseSettingsPage]
+  );
+
   return (
     <div className="relative h-full">
       <Sidebar className="!w-full lg:border-r-0">
@@ -258,7 +269,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               >
                 <Button
                   variant="ghost"
-                  onClick={onGoHome}
+                  onClick={() => handleNavigationWithCloseSettings(onGoHome)}
                   aria-label="Home"
                   className="w-full justify-start"
                 >
@@ -275,7 +286,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 >
                   <Button
                     variant="ghost"
-                    onClick={onGoToSkills}
+                    onClick={() => handleNavigationWithCloseSettings(onGoToSkills)}
                     aria-label="Skills"
                     className="w-full justify-start"
                   >
@@ -351,7 +362,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               className="flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent pr-7 text-left outline-none focus-visible:outline-none"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onSelectProject(typedProject);
+                                handleNavigationWithCloseSettings(() =>
+                                  onSelectProject(typedProject)
+                                );
                               }}
                             >
                               <span className="block w-full truncate">
@@ -403,12 +416,17 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/5"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (onSelectProject && selectedProject?.id !== typedProject.id) {
-                                    onSelectProject(typedProject);
-                                  } else if (!selectedProject) {
-                                    onSelectProject?.(typedProject);
-                                  }
-                                  onCreateTaskForProject?.(typedProject);
+                                  handleNavigationWithCloseSettings(() => {
+                                    if (
+                                      onSelectProject &&
+                                      selectedProject?.id !== typedProject.id
+                                    ) {
+                                      onSelectProject(typedProject);
+                                    } else if (!selectedProject) {
+                                      onSelectProject?.(typedProject);
+                                    }
+                                    onCreateTaskForProject?.(typedProject);
+                                  });
                                 }}
                                 aria-label={`New Task for ${typedProject.name}`}
                               >
@@ -433,13 +451,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                         key={task.id}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (
-                                            onSelectProject &&
-                                            selectedProject?.id !== typedProject.id
-                                          ) {
-                                            onSelectProject(typedProject);
-                                          }
-                                          onSelectTask && onSelectTask(task);
+                                          handleNavigationWithCloseSettings(() => {
+                                            if (
+                                              onSelectProject &&
+                                              selectedProject?.id !== typedProject.id
+                                            ) {
+                                              onSelectProject(typedProject);
+                                            }
+                                            onSelectTask && onSelectTask(task);
+                                          });
                                         }}
                                         className={`group/task min-w-0 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 ${
                                           isActive ? 'bg-black/5 dark:bg-white/5' : ''

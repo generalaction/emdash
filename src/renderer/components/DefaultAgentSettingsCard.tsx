@@ -46,11 +46,14 @@ const DefaultAgentSettingsCard: React.FC = () => {
   }, []);
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-1 text-xs text-muted-foreground">
-        <div>The agent that will be selected by default when creating a new task.</div>
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-1 flex-col gap-0.5">
+        <p className="text-sm font-medium text-foreground">Default agent</p>
+        <p className="text-sm text-muted-foreground">
+          The agent that will be selected by default when creating a new task.
+        </p>
       </div>
-      <div className="w-full max-w-xs">
+      <div className="w-[183px] flex-shrink-0">
         <AgentSelector
           value={defaultAgent}
           onChange={(agent) => {

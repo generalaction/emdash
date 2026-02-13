@@ -64,8 +64,8 @@ const RepositorySettingsCard: React.FC = () => {
   }, [settings.branchPrefix]);
 
   return (
-    <div className="grid gap-3">
-      <div className="grid gap-1">
+    <div className="grid gap-8">
+      <div className="grid gap-2">
         <Input
           value={settings.branchPrefix}
           onChange={(e) => setSettings((s) => ({ ...s, branchPrefix: e.target.value }))}
@@ -81,8 +81,10 @@ const RepositorySettingsCard: React.FC = () => {
 
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-1 text-xs text-muted-foreground">
-          <div className="text-sm text-foreground">Auto-push to origin</div>
-          <div>Push the new branch to origin and set upstream after creation.</div>
+          <div className="text-sm font-medium text-foreground">Auto-push to origin</div>
+          <div className="text-sm">
+            Push the new branch to origin and set upstream after creation.
+          </div>
         </div>
         <Switch
           checked={settings.pushOnCreate}
