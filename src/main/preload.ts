@@ -138,6 +138,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onMenuCheckForUpdates: (listener: () => void) => {
+    const channel = 'menu:check-for-updates';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 
   // Worktree management
   worktreeCreate: (args: {

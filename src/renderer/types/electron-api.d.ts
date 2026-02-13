@@ -58,6 +58,7 @@ declare global {
 
       // Menu events (main → renderer)
       onMenuOpenSettings: (listener: () => void) => () => void;
+      onMenuCheckForUpdates: (listener: () => void) => () => void;
 
       // App settings
       getSettings: () => Promise<{
@@ -1237,6 +1238,7 @@ declare global {
 export interface ElectronAPI {
   // Menu events (main → renderer)
   onMenuOpenSettings: (listener: () => void) => () => void;
+  onMenuCheckForUpdates: (listener: () => void) => () => void;
 
   // App info
   getVersion: () => Promise<string>;
