@@ -37,7 +37,7 @@ type PrMode = 'create' | 'draft' | 'merge';
 const PR_MODE_LABELS: Record<PrMode, string> = {
   create: 'Create PR',
   draft: 'Draft PR',
-  merge: 'Merge Main',
+  merge: 'Merge into Main',
 };
 
 interface PrActionButtonProps {
