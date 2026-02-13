@@ -1,4 +1,4 @@
-import { Menu, app, BrowserWindow } from 'electron';
+import { Menu, shell, app, BrowserWindow } from 'electron';
 
 function getFocusedWindow(): BrowserWindow | null {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
@@ -75,6 +75,16 @@ export function setupApplicationMenu(): void {
     },
     // Window menu
     { role: 'windowMenu' as const },
+    // Help menu
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Emdash Documentation',
+          click: () => shell.openExternal('https://docs.emdash.sh'),
+        },
+      ],
+    },
   ];
 
   const menu = Menu.buildFromTemplate(template);
