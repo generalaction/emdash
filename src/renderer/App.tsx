@@ -114,6 +114,14 @@ const AppContent: React.FC = () => {
   } = modals;
   const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
 
+  // Listen for native menu "Settings" click (main → renderer)
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
+      handleOpenSettings();
+    });
+    return () => cleanup?.();
+  }, [handleOpenSettings]);
+
   // --- App initialization (version, platform, loadAppData) ---
   // The callbacks here execute inside a useEffect (after render), so all hooks
   // are already initialized by the time they run — no temporal dead zone issue.
@@ -218,7 +226,8 @@ const AppContent: React.FC = () => {
     });
   }, []);
 
-  const handleDeleteTaskAndUnpin: typeof taskMgmt.handleDeleteTask = useCallback(
+  const { handleDeleteTask } = taskMgmt;
+  const handleDeleteTaskAndUnpin: typeof handleDeleteTask = useCallback(
     async (project, task, options) => {
       setPinnedTaskIds((prev) => {
         if (!prev.has(task.id)) return prev;
@@ -227,9 +236,9 @@ const AppContent: React.FC = () => {
         localStorage.setItem(PINNED_TASKS_KEY, JSON.stringify([...next]));
         return next;
       });
-      return taskMgmt.handleDeleteTask(project, task, options);
+      return handleDeleteTask(project, task, options);
     },
-    [taskMgmt.handleDeleteTask]
+    [handleDeleteTask]
   );
 
   // --- Task creation wrapper ---
