@@ -19,7 +19,10 @@ export function setupApplicationMenu(): void {
           {
             label: app.name,
             submenu: [
-              { role: 'about' as const },
+              {
+                label: `About ${app.name}`,
+                click: () => app.showAboutPanel(),
+              },
               { type: 'separator' as const },
               {
                 label: 'Settings\u2026',
@@ -33,7 +36,11 @@ export function setupApplicationMenu(): void {
               { role: 'hideOthers' as const },
               { role: 'unhide' as const },
               { type: 'separator' as const },
-              { role: 'quit' as const },
+              {
+                label: `Quit ${app.name}`,
+                accelerator: 'CmdOrCtrl+Q',
+                click: () => app.quit(),
+              },
             ],
           } as Electron.MenuItemConstructorOptions,
         ]
