@@ -254,12 +254,15 @@ function isEditableElementFocused(): boolean {
  */
 function isTextNavigationShortcut(key: string, modifier: ShortcutModifier | undefined): boolean {
   const lowerKey = key.toLowerCase();
+  const isArrowLeftOrRight = lowerKey === 'arrowleft' || lowerKey === 'arrowright';
 
   // Cmd/Ctrl + Arrow Left/Right: move to beginning/end of line
-  if (
-    (modifier === 'cmd' || modifier === 'ctrl') &&
-    (lowerKey === 'arrowleft' || lowerKey === 'arrowright')
-  ) {
+  if ((modifier === 'cmd' || modifier === 'ctrl') && isArrowLeftOrRight) {
+    return true;
+  }
+
+  // Option/Alt + Arrow Left/Right: move by word/token
+  if ((modifier === 'option' || modifier === 'alt') && isArrowLeftOrRight) {
     return true;
   }
 
