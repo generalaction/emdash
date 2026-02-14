@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { GitBranch, Plus, Loader2, ArrowUpRight, Folder, Archive } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -237,6 +237,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [isArchiving, setIsArchiving] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
+  const hasPreloadedConfigRef = useRef(false);
+  const currentProjectPathRef = useRef(project.path);
 
   const tasksInProject = project.tasks ?? [];
   const selectedCount = selectedIds.size;
@@ -387,6 +389,25 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     setIsSelectMode(false);
     setSelectedIds(new Set());
   }, [project.id]);
+
+  const [isAutoDetected, setIsAutoDetected] = useState(false);
+
+  useEffect(() => {
+    currentProjectPathRef.current = project.path;
+    hasPreloadedConfigRef.current = false;
+    setIsAutoDetected(false);
+
+    window.electronAPI
+      .getProjectConfig(project.path)
+      .then((result) => {
+        if (result.success && result.isNew && currentProjectPathRef.current === project.path) {
+          hasPreloadedConfigRef.current = true;
+          setIsAutoDetected(true);
+          setShowConfigEditor(true);
+        }
+      })
+      .catch(() => {});
+  }, [project.path]);
 
   useEffect(() => {
     setBaseBranch(normalizeBaseRef(project.gitInfo.baseRef));
@@ -801,8 +822,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
       <ConfigEditorModal
         isOpen={showConfigEditor}
-        onClose={() => setShowConfigEditor(false)}
+        onClose={() => {
+          setShowConfigEditor(false);
+          setIsAutoDetected(false);
+        }}
         projectPath={project.path}
+        isAutoDetected={isAutoDetected}
       />
     </div>
   );

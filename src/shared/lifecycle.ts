@@ -15,6 +15,20 @@ export interface LifecycleScriptConfig {
   teardown?: string;
 }
 
+export const DEFAULT_PRESERVE_PATTERNS = [
+  '.env',
+  '.env.keys',
+  '.env.local',
+  '.env.*.local',
+  '.envrc',
+  'docker-compose.override.yml',
+];
+
+export const DEFAULT_EMDASH_CONFIG = {
+  preservePatterns: DEFAULT_PRESERVE_PATTERNS,
+  scripts: { setup: '', run: '', teardown: '' } as LifecycleScriptConfig,
+};
+
 export interface LifecyclePhaseState {
   status: LifecyclePhaseStateStatus;
   startedAt?: string;

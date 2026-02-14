@@ -7,6 +7,9 @@ import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
 import { useTheme } from '@/hooks/useTheme';
 import { defineMonacoThemes, getMonacoTheme } from '@/lib/monaco-themes';
+import { DEFAULT_EMDASH_CONFIG } from '@shared/lifecycle';
+
+const DEFAULT_CONFIG = JSON.stringify(DEFAULT_EMDASH_CONFIG, null, 2) + '\n';
 
 type EditorMode = 'scripts' | 'json';
 
@@ -25,6 +28,7 @@ interface ConfigEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectPath: string;
+  isAutoDetected?: boolean;
 }
 
 const EMPTY_SCRIPTS: LifecycleScripts = {
@@ -96,6 +100,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isOpen,
   onClose,
   projectPath,
+  isAutoDetected,
 }) => {
   const { effectiveTheme } = useTheme();
   const [mode, setMode] = useState<EditorMode>('scripts');
@@ -217,11 +222,6 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     }
   }, [jsonContent, mode]);
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open && isSaving) return;
-    if (!open) onClose();
-  };
-
   const handleModeChange = useCallback(
     (nextMode: EditorMode) => {
       if (nextMode === mode) return;
@@ -310,6 +310,21 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     scripts,
   ]);
 
+  // Write standard defaults on cancel so re-opening doesn't re-trigger detection
+  const handleCancel = useCallback(() => {
+    if (isAutoDetected) {
+      window.electronAPI.saveProjectConfig(projectPath, DEFAULT_CONFIG).catch(() => {});
+    }
+    onClose();
+  }, [isAutoDetected, projectPath, onClose]);
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open && isSaving) return;
+    if (!open) {
+      handleCancel();
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[88vh] max-w-3xl flex-col">
@@ -325,6 +340,11 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
           <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">{error}</div>
         ) : (
           <>
+            {isAutoDetected && (
+              <div className="rounded-md bg-blue-500/10 px-3 py-2 text-xs text-blue-400">
+                Auto-detected settings for this project. Review and save to confirm.
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -454,19 +474,23 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
             ) : null}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+              <Button type="button" variant="outline" onClick={handleCancel} disabled={isSaving}>
                 Cancel
               </Button>
               <Button
                 type="button"
                 onClick={handleSave}
-                disabled={!hasChanges || isSaving || (mode === 'json' && !!jsonError)}
+                disabled={
+                  (!hasChanges && !isAutoDetected) || isSaving || (mode === 'json' && !!jsonError)
+                }
               >
                 {isSaving ? (
                   <>
                     <Spinner size="sm" className="mr-2" />
                     Saving...
                   </>
+                ) : isAutoDetected ? (
+                  'Confirm'
                 ) : (
                   'Save'
                 )}
