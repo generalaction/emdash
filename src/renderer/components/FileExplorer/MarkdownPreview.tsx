@@ -123,7 +123,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content }) => 
 
   return (
     <div className="flex flex-1 overflow-auto bg-background">
-      <div className="mx-auto w-full max-w-3xl px-8 py-8">
+      <div className="w-full max-w-3xl px-8 py-8">
         <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
           {content}
         </Markdown>
