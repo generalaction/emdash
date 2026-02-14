@@ -220,6 +220,52 @@ export function hasShortcutConflict(shortcut1: ShortcutConfig, shortcut2: Shortc
 const isMacPlatform =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
+/**
+ * Check if the currently focused element is an editable text input.
+ * Used to allow default text navigation behavior in input fields.
+ */
+function isEditableElementFocused(): boolean {
+  const target = document.activeElement as HTMLElement | null;
+  if (!target) return false;
+
+  const tagName = target.tagName;
+
+  // Check for standard form inputs
+  if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') {
+    return true;
+  }
+
+  // Check for contenteditable elements
+  if (target.getAttribute('contenteditable') === 'true') {
+    return true;
+  }
+
+  // Check for xterm terminal textarea (hidden textarea used by xterm.js for input)
+  if (target.classList.contains('xterm-helper-textarea')) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Check if a shortcut conflicts with standard text navigation behavior.
+ * These shortcuts should be allowed to work normally in editable elements.
+ */
+function isTextNavigationShortcut(key: string, modifier: ShortcutModifier | undefined): boolean {
+  const lowerKey = key.toLowerCase();
+
+  // Cmd/Ctrl + Arrow Left/Right: move to beginning/end of line
+  if (
+    (modifier === 'cmd' || modifier === 'ctrl') &&
+    (lowerKey === 'arrowleft' || lowerKey === 'arrowright')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function matchesModifier(modifier: ShortcutModifier | undefined, event: KeyboardEvent): boolean {
   if (!modifier) {
     return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
@@ -394,6 +440,15 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
         // Check modifier requirements precisely (e.g., Cmd ≠ Ctrl on macOS)
         if (!matchesModifier(shortcut.config.modifier, event)) continue;
+
+        // Allow text navigation shortcuts (Cmd+Arrow) to work normally in editable elements
+        // This preserves expected cursor behavior: Cmd+Left/Right moves to line start/end
+        if (
+          isEditableElementFocused() &&
+          isTextNavigationShortcut(shortcut.config.key, shortcut.config.modifier)
+        ) {
+          continue;
+        }
 
         // Handle priority and modal state
         const isModalOpen = handlers.isCommandPaletteOpen || handlers.isSettingsOpen;
