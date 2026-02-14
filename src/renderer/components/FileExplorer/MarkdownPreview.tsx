@@ -67,9 +67,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content }) => 
           );
         }
 
-        return (
-          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{children}</code>
-        );
+        return <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{children}</code>;
       },
       pre: ({ children }: any) => (
         <pre className="mb-3 overflow-x-auto rounded-md border border-border">{children}</pre>
