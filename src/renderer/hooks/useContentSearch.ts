@@ -76,8 +76,7 @@ export function useContentSearch(
       setError(null);
 
       try {
-        const remote =
-          connectionId && remotePath ? { connectionId, remotePath } : undefined;
+        const remote = connectionId && remotePath ? { connectionId, remotePath } : undefined;
         const result = await window.electronAPI.fsSearchContent(
           rootPath,
           query,

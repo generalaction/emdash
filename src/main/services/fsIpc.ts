@@ -261,68 +261,69 @@ export function registerFsIpc(): void {
   ipcMain.handle(
     'fs:read-image',
     async (_event, args: { root: string; relPath: string } & RemoteParams) => {
-    try {
-      // --- Remote path ---
-      if (isRemoteRequest(args)) {
-        try {
-          const rfs = createRemoteFs(args);
-          const result = await rfs.readImage(args.relPath);
-          return result;
-        } catch (error) {
-          console.error('fs:read-image remote failed:', error);
-          return { success: false, error: 'Failed to read remote image' };
+      try {
+        // --- Remote path ---
+        if (isRemoteRequest(args)) {
+          try {
+            const rfs = createRemoteFs(args);
+            const result = await rfs.readImage(args.relPath);
+            return result;
+          } catch (error) {
+            console.error('fs:read-image remote failed:', error);
+            return { success: false, error: 'Failed to read remote image' };
+          }
         }
+
+        // --- Local path ---
+        const { root, relPath } = args;
+        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+        if (!relPath) return { success: false, error: 'Invalid relPath' };
+
+        // Resolve and ensure within root
+        const abs = path.resolve(root, relPath);
+        const normRoot = path.resolve(root) + path.sep;
+        if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+
+        const st = safeStat(abs);
+        if (!st) return { success: false, error: 'Not found' };
+        if (st.isDirectory()) return { success: false, error: 'Is a directory' };
+
+        // Check if it's an allowed image type
+        const ext = path.extname(relPath).toLowerCase();
+        if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+          return { success: false, error: 'Not an image file' };
+        }
+
+        // Read file as base64
+        const buffer = fs.readFileSync(abs);
+        const base64 = buffer.toString('base64');
+
+        // Determine MIME type
+        let mimeType = 'image/';
+        switch (ext) {
+          case '.svg':
+            mimeType += 'svg+xml';
+            break;
+          case '.jpg':
+          case '.jpeg':
+            mimeType += 'jpeg';
+            break;
+          default:
+            mimeType += ext.substring(1); // Remove the dot
+        }
+
+        return {
+          success: true,
+          dataUrl: `data:${mimeType};base64,${base64}`,
+          mimeType,
+          size: st.size,
+        };
+      } catch (error) {
+        console.error('fs:read-image failed:', error);
+        return { success: false, error: 'Failed to read image' };
       }
-
-      // --- Local path ---
-      const { root, relPath } = args;
-      if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
-      if (!relPath) return { success: false, error: 'Invalid relPath' };
-
-      // Resolve and ensure within root
-      const abs = path.resolve(root, relPath);
-      const normRoot = path.resolve(root) + path.sep;
-      if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
-
-      const st = safeStat(abs);
-      if (!st) return { success: false, error: 'Not found' };
-      if (st.isDirectory()) return { success: false, error: 'Is a directory' };
-
-      // Check if it's an allowed image type
-      const ext = path.extname(relPath).toLowerCase();
-      if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
-        return { success: false, error: 'Not an image file' };
-      }
-
-      // Read file as base64
-      const buffer = fs.readFileSync(abs);
-      const base64 = buffer.toString('base64');
-
-      // Determine MIME type
-      let mimeType = 'image/';
-      switch (ext) {
-        case '.svg':
-          mimeType += 'svg+xml';
-          break;
-        case '.jpg':
-        case '.jpeg':
-          mimeType += 'jpeg';
-          break;
-        default:
-          mimeType += ext.substring(1); // Remove the dot
-      }
-
-      return {
-        success: true,
-        dataUrl: `data:${mimeType};base64,${base64}`,
-        mimeType,
-        size: st.size,
-      };
-    } catch (error) {
-      console.error('fs:read-image failed:', error);
-      return { success: false, error: 'Failed to read image' };
     }
-  });
+  );
 
   // Constants for search functionality
   const SEARCH_PREVIEW_CONTEXT_LENGTH = 30;
@@ -754,62 +755,63 @@ export function registerFsIpc(): void {
   ipcMain.handle(
     'fs:remove',
     async (_event, args: { root: string; relPath: string } & RemoteParams) => {
-    try {
-      // --- Remote path ---
-      if (isRemoteRequest(args)) {
-        try {
-          const rfs = createRemoteFs(args);
-          return await rfs.remove(args.relPath);
-        } catch (error) {
-          console.error('fs:remove remote failed:', error);
-          return { success: false, error: 'Failed to remove remote file' };
-        }
-      }
-
-      // --- Local path ---
-      const { root, relPath } = args;
-      if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
-      if (!relPath) return { success: false, error: 'Invalid relPath' };
-      const abs = path.resolve(root, relPath);
-      const normRoot = path.resolve(root) + path.sep;
-      if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
-      if (!fs.existsSync(abs)) return { success: true };
-      const st = safeStat(abs);
-      if (st && st.isDirectory()) return { success: false, error: 'Is a directory' };
       try {
-        fs.unlinkSync(abs);
-      } catch (e: any) {
-        // Try to relax permissions and retry (useful after a plan lock)
-        try {
-          const dir = path.dirname(abs);
-          const dst = safeStat(dir);
-          if (dst) fs.chmodSync(dir, (dst.mode & 0o7777) | 0o222);
-        } catch {}
-        try {
-          const fst = safeStat(abs);
-          if (fst) fs.chmodSync(abs, (fst.mode & 0o7777) | 0o222);
-        } catch {}
+        // --- Remote path ---
+        if (isRemoteRequest(args)) {
+          try {
+            const rfs = createRemoteFs(args);
+            return await rfs.remove(args.relPath);
+          } catch (error) {
+            console.error('fs:remove remote failed:', error);
+            return { success: false, error: 'Failed to remove remote file' };
+          }
+        }
+
+        // --- Local path ---
+        const { root, relPath } = args;
+        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+        if (!relPath) return { success: false, error: 'Invalid relPath' };
+        const abs = path.resolve(root, relPath);
+        const normRoot = path.resolve(root) + path.sep;
+        if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+        if (!fs.existsSync(abs)) return { success: true };
+        const st = safeStat(abs);
+        if (st && st.isDirectory()) return { success: false, error: 'Is a directory' };
         try {
           fs.unlinkSync(abs);
-        } catch (e2: any) {
-          if ((e2?.code || '').toUpperCase() === 'EACCES') {
-            emitPlanEvent({
-              type: 'remove_blocked',
-              root,
-              relPath,
-              code: e2?.code,
-              message: e2?.message || String(e2),
-            });
+        } catch (e: any) {
+          // Try to relax permissions and retry (useful after a plan lock)
+          try {
+            const dir = path.dirname(abs);
+            const dst = safeStat(dir);
+            if (dst) fs.chmodSync(dir, (dst.mode & 0o7777) | 0o222);
+          } catch {}
+          try {
+            const fst = safeStat(abs);
+            if (fst) fs.chmodSync(abs, (fst.mode & 0o7777) | 0o222);
+          } catch {}
+          try {
+            fs.unlinkSync(abs);
+          } catch (e2: any) {
+            if ((e2?.code || '').toUpperCase() === 'EACCES') {
+              emitPlanEvent({
+                type: 'remove_blocked',
+                root,
+                relPath,
+                code: e2?.code,
+                message: e2?.message || String(e2),
+              });
+            }
+            throw e2;
           }
-          throw e2;
         }
+        return { success: true };
+      } catch (error) {
+        console.error('fs:remove failed:', error);
+        return { success: false, error: 'Failed to remove file' };
       }
-      return { success: true };
-    } catch (error) {
-      console.error('fs:remove failed:', error);
-      return { success: false, error: 'Failed to remove file' };
     }
-  });
+  );
 
   // Get .emdash.json config file content (create with defaults if missing)
   ipcMain.handle('fs:getProjectConfig', async (_event, args: { projectPath: string }) => {

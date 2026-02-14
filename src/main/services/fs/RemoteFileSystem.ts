@@ -260,10 +260,7 @@ export class RemoteFileSystem implements IFileSystem {
    * Recursively list all files and directories via SSH find (single round-trip).
    * Returns items in the same {path, type} format used by the local fs:list handler.
    */
-  async listRecursive(options?: {
-    includeDirs?: boolean;
-    maxEntries?: number;
-  }): Promise<{
+  async listRecursive(options?: { includeDirs?: boolean; maxEntries?: number }): Promise<{
     items: Array<{ path: string; type: 'file' | 'dir' }>;
     truncated: boolean;
   }> {
@@ -299,9 +296,7 @@ export class RemoteFileSystem implements IFileSystem {
     ];
 
     // Build prune clause for find
-    const pruneExpr = pruneNames
-      .map((name) => `-name "${name}"`)
-      .join(' -o ');
+    const pruneExpr = pruneNames.map((name) => `-name "${name}"`).join(' -o ');
 
     // Build find command: prune ignored dirs, print files (and optionally dirs)
     const typeFilter = includeDirs ? '' : '-type f';
