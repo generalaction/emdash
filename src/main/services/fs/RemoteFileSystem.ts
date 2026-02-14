@@ -17,6 +17,7 @@ import {
   FileSystemErrorCodes,
 } from './types';
 import { SshService } from '../ssh/SshService';
+import { quoteShellArg } from '../../utils/shellEscape';
 
 /**
  * Allowed image extensions for readImage
@@ -295,13 +296,13 @@ export class RemoteFileSystem implements IFileSystem {
       '.DS_Store',
     ];
 
-    // Build prune clause for find
-    const pruneExpr = pruneNames.map((name) => `-name "${name}"`).join(' -o ');
+    // Build prune clause for find (names are hardcoded, but escape for safety)
+    const pruneExpr = pruneNames.map((name) => `-name ${quoteShellArg(name)}`).join(' -o ');
 
     // Build find command: prune ignored dirs, print files (and optionally dirs)
     const typeFilter = includeDirs ? '' : '-type f';
     const command = [
-      `find "${this.remotePath}"`,
+      `find ${quoteShellArg(this.remotePath)}`,
       `\\( ${pruneExpr} \\) -prune -o`,
       typeFilter ? `${typeFilter} -print` : '-print',
       `2>/dev/null`,
@@ -424,8 +425,8 @@ export class RemoteFileSystem implements IFileSystem {
     const maxResults = options?.maxResults || 100;
     const caseFlag = options?.caseSensitive ? '' : '-i';
 
-    // Build grep command with proper escaping
-    const escapedPattern = searchPattern.replace(/"/g, '\\"');
+    // Build grep command with shell-safe escaping
+    const escapedPattern = quoteShellArg(searchPattern);
 
     // Build file extension filter if provided
     let includeFilter = '';
@@ -433,11 +434,11 @@ export class RemoteFileSystem implements IFileSystem {
       const extensions = options.fileExtensions.map((ext) =>
         ext.startsWith('.') ? ext : `.${ext}`
       );
-      includeFilter = `--include="*.{${extensions.map((e) => e.slice(1)).join(',')}}"`;
+      includeFilter = extensions.map((e) => `--include=${quoteShellArg(`*${e}`)}`).join(' ');
     }
 
     // Use grep recursively with line numbers
-    const command = `grep -rn ${caseFlag} ${includeFilter} "${escapedPattern}" "${basePath}" 2>/dev/null | head -n ${maxResults}`;
+    const command = `grep -rn ${caseFlag} ${includeFilter} -e ${escapedPattern} ${quoteShellArg(basePath)} 2>/dev/null | head -n ${maxResults}`;
 
     try {
       const result = await this.sshService.executeCommand(this.connectionId, command);
@@ -523,7 +524,7 @@ export class RemoteFileSystem implements IFileSystem {
 
       if (entry.type === 'dir') {
         // For directories, use SSH exec to recursively remove
-        const command = `rm -rf "${fullPath}"`;
+        const command = `rm -rf ${quoteShellArg(fullPath)}`;
         const result = await this.sshService.executeCommand(this.connectionId, command);
 
         if (result.exitCode !== 0) {
