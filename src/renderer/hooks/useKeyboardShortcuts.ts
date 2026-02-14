@@ -81,7 +81,7 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
 
   TOGGLE_KANBAN: {
     key: 'p',
-    modifier: 'cmd',
+    modifier: 'cmd+shift',
     label: 'Toggle Kanban',
     description: 'Show or hide the Kanban board',
     category: 'Navigation',

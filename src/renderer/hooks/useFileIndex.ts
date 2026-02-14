@@ -22,7 +22,7 @@ export function useFileIndex(rootPath: string | undefined) {
       try {
         const res = await window.electronAPI.fsList(rootPath, {
           includeDirs: true,
-          maxEntries: 5000,
+          maxEntries: 50000,
         });
         if (requestIdRef.current !== requestId) return;
         if (res.canceled) {
@@ -56,7 +56,7 @@ export function useFileIndex(rootPath: string | undefined) {
     try {
       const res = await window.electronAPI.fsList(rootPath, {
         includeDirs: true,
-        maxEntries: 5000,
+        maxEntries: 50000,
       });
       if (requestIdRef.current !== requestId) return;
       if (res.canceled) {
