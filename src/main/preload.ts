@@ -275,7 +275,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fill?: boolean;
   }) => ipcRenderer.invoke('git:create-pr', args),
   mergeToMain: (args: { taskPath: string }) => ipcRenderer.invoke('git:merge-to-main', args),
-  mergePr: (args: { taskPath: string; strategy?: 'merge' | 'squash' | 'rebase' }) =>
+  mergePr: (args: { taskPath: string; admin?: boolean }) =>
     ipcRenderer.invoke('git:merge-pr', args),
   getPrStatus: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
   getCheckRuns: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-check-runs', args),

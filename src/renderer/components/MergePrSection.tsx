@@ -1,20 +1,11 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
+import { Checkbox } from './ui/checkbox';
 import { Spinner } from './ui/spinner';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Close as PopoverClose } from '@radix-ui/react-popover';
 import { useToast } from '../hooks/use-toast';
-import { ChevronDown, CheckCircle2, XCircle, AlertTriangle, GitMerge } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, GitMerge } from 'lucide-react';
 import type { PrStatus } from '../lib/prStatus';
 import type { CheckRunsStatus } from '../lib/checkRunStatus';
-
-type MergeStrategy = 'squash' | 'merge' | 'rebase';
-
-const STRATEGY_LABELS: Record<MergeStrategy, string> = {
-  squash: 'Squash & Merge',
-  merge: 'Merge Commit',
-  rebase: 'Rebase & Merge',
-};
 
 function getMergeStateInfo(pr: PrStatus, checkRunsStatus: CheckRunsStatus | null) {
   const state = pr.mergeStateStatus?.toUpperCase();
@@ -22,21 +13,22 @@ function getMergeStateInfo(pr: PrStatus, checkRunsStatus: CheckRunsStatus | null
   const prState = typeof pr.state === 'string' ? pr.state.toUpperCase() : '';
 
   if (prState === 'MERGED') {
-    return { label: 'Pull request merged', canMerge: false, variant: 'success' as const };
+    return { label: 'Pull request merged', canMerge: false, isBlocked: false, variant: 'success' as const };
   }
   if (prState === 'CLOSED') {
-    return { label: 'Pull request closed', canMerge: false, variant: 'muted' as const };
+    return { label: 'Pull request closed', canMerge: false, isBlocked: false, variant: 'muted' as const };
   }
   if (isDraft) {
     return {
       label: 'Draft — mark as ready before merging',
       canMerge: false,
+      isBlocked: false,
       variant: 'muted' as const,
     };
   }
 
   if (checkRunsStatus && !checkRunsStatus.allComplete) {
-    return { label: 'Checks are still running', canMerge: true, variant: 'pending' as const };
+    return { label: 'Checks are still running', canMerge: true, isBlocked: false, variant: 'pending' as const };
   }
 
   switch (state) {
@@ -44,41 +36,51 @@ function getMergeStateInfo(pr: PrStatus, checkRunsStatus: CheckRunsStatus | null
       return {
         label: 'All checks passed — ready to merge',
         canMerge: true,
+        isBlocked: false,
         variant: 'success' as const,
       };
     case 'UNSTABLE':
-      return { label: 'Some checks have failed', canMerge: true, variant: 'warning' as const };
+      return {
+        label: 'Some checks have failed',
+        canMerge: false,
+        isBlocked: true,
+        variant: 'warning' as const,
+      };
     case 'DIRTY':
       return {
         label: 'Merge conflicts must be resolved',
         canMerge: false,
+        isBlocked: false,
         variant: 'error' as const,
       };
     case 'BLOCKED':
       return {
         label: 'Merging is blocked by branch protections',
         canMerge: false,
+        isBlocked: true,
         variant: 'error' as const,
       };
     case 'BEHIND':
       return {
         label: 'Branch is behind the base branch',
-        canMerge: true,
+        canMerge: false,
+        isBlocked: true,
         variant: 'warning' as const,
       };
     default:
       if (checkRunsStatus?.hasFailures) {
-        return { label: 'Some checks have failed', canMerge: true, variant: 'warning' as const };
+        return {
+          label: 'Some checks have failed',
+          canMerge: false,
+          isBlocked: true,
+          variant: 'warning' as const,
+        };
       }
-      return { label: 'Ready to merge', canMerge: true, variant: 'success' as const };
+      return { label: 'Ready to merge', canMerge: true, isBlocked: false, variant: 'success' as const };
   }
 }
 
-function StatusIcon({
-  variant,
-}: {
-  variant: 'success' | 'warning' | 'error' | 'pending' | 'muted';
-}) {
+function StatusIcon({ variant }: { variant: 'success' | 'warning' | 'error' | 'pending' | 'muted' }) {
   switch (variant) {
     case 'success':
       return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
@@ -102,39 +104,26 @@ interface MergePrSectionProps {
 
 export function MergePrSection({ pr, checkRunsStatus, taskPath, onMerged }: MergePrSectionProps) {
   const [isMerging, setIsMerging] = useState(false);
-  const [strategy, setStrategy] = useState<MergeStrategy>(() => {
-    try {
-      const stored = localStorage.getItem('emdash:mergeStrategy');
-      if (stored === 'squash' || stored === 'merge' || stored === 'rebase') return stored;
-      return 'squash';
-    } catch {
-      return 'squash';
-    }
-  });
+  const [bypassRules, setBypassRules] = useState(false);
   const { toast } = useToast();
 
   const prState = typeof pr.state === 'string' ? pr.state.toUpperCase() : '';
   if (prState === 'MERGED' || prState === 'CLOSED') return null;
 
   const stateInfo = getMergeStateInfo(pr, checkRunsStatus);
-
-  const selectStrategy = (s: MergeStrategy) => {
-    setStrategy(s);
-    try {
-      localStorage.setItem('emdash:mergeStrategy', s);
-    } catch {
-      // localStorage not available
-    }
-  };
+  const canMerge = stateInfo.canMerge || (stateInfo.isBlocked && bypassRules);
 
   const handleMerge = async () => {
     setIsMerging(true);
     try {
-      const result = await window.electronAPI.mergePr({ taskPath, strategy });
+      const result = await window.electronAPI.mergePr({
+        taskPath,
+        admin: bypassRules,
+      });
       if (result.success) {
         toast({
           title: 'Pull Request Merged',
-          description: `Successfully merged via ${STRATEGY_LABELS[strategy].toLowerCase()}.`,
+          description: 'Successfully merged the pull request.',
         });
         await onMerged();
       } else {
@@ -161,50 +150,32 @@ export function MergePrSection({ pr, checkRunsStatus, taskPath, onMerged }: Merg
         <StatusIcon variant={stateInfo.variant} />
         <span className="text-xs text-muted-foreground">{stateInfo.label}</span>
       </div>
-      <div className="flex min-w-0">
-        <Button
-          variant="default"
-          size="sm"
-          className="h-8 min-w-0 flex-1 truncate rounded-r-none border-r-0 px-3 text-xs"
-          disabled={isMerging || !stateInfo.canMerge}
-          onClick={handleMerge}
-        >
-          {isMerging ? (
-            <Spinner size="sm" />
-          ) : (
-            <>
-              <GitMerge className="mr-1.5 h-3.5 w-3.5" />
-              {STRATEGY_LABELS[strategy]}
-            </>
-          )}
-        </Button>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="default"
-              size="sm"
-              className="h-8 rounded-l-none border-l border-primary-foreground/20 px-1.5"
-              disabled={isMerging || !stateInfo.canMerge}
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
-            {(['squash', 'merge', 'rebase'] as MergeStrategy[])
-              .filter((s) => s !== strategy)
-              .map((s) => (
-                <PopoverClose key={s} asChild>
-                  <button
-                    className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
-                    onClick={() => selectStrategy(s)}
-                  >
-                    {STRATEGY_LABELS[s]}
-                  </button>
-                </PopoverClose>
-              ))}
-          </PopoverContent>
-        </Popover>
-      </div>
+      {stateInfo.isBlocked && (
+        <label className="mb-2 flex cursor-pointer items-center gap-2">
+          <Checkbox
+            checked={bypassRules}
+            onCheckedChange={(checked) => setBypassRules(checked === true)}
+            className="h-3.5 w-3.5"
+          />
+          <span className="text-xs text-muted-foreground">Bypass branch protections</span>
+        </label>
+      )}
+      <Button
+        variant="default"
+        size="sm"
+        className="h-8 w-full px-3 text-xs"
+        disabled={isMerging || !canMerge}
+        onClick={handleMerge}
+      >
+        {isMerging ? (
+          <Spinner size="sm" />
+        ) : (
+          <>
+            <GitMerge className="mr-1.5 h-3.5 w-3.5" />
+            Merge Pull Request
+          </>
+        )}
+      </Button>
     </div>
   );
 }

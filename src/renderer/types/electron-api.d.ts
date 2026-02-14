@@ -617,7 +617,7 @@ declare global {
         prUrl?: string;
         error?: string;
       }>;
-      mergePr: (args: { taskPath: string; strategy?: 'merge' | 'squash' | 'rebase' }) => Promise<{
+      mergePr: (args: { taskPath: string; admin?: boolean }) => Promise<{
         success: boolean;
         error?: string;
       }>;
@@ -1471,7 +1471,7 @@ export interface ElectronAPI {
     prUrl?: string;
     error?: string;
   }>;
-  mergePr: (args: { taskPath: string; strategy?: 'merge' | 'squash' | 'rebase' }) => Promise<{
+  mergePr: (args: { taskPath: string; admin?: boolean }) => Promise<{
     success: boolean;
     error?: string;
   }>;

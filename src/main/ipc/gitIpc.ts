@@ -1194,19 +1194,18 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       _,
       args: {
         taskPath: string;
-        strategy?: 'merge' | 'squash' | 'rebase';
+        admin?: boolean;
       }
     ) => {
-      const { taskPath, strategy = 'squash' } = args || {};
+      const { taskPath, admin } = args || {};
 
       try {
-        const strategyFlag =
-          strategy === 'rebase' ? '--rebase' : strategy === 'merge' ? '--merge' : '--squash';
-
         // Don't use --delete-branch: the agent runs inside a worktree on
         // this branch, so deleting it would break the checkout.  Branch
         // cleanup happens when the workspace is deleted.
-        await execAsync(`gh pr merge ${strategyFlag}`, {
+        // No strategy flag: uses the repo's default merge method.
+        const adminFlag = admin ? ' --admin' : '';
+        await execAsync(`gh pr merge${adminFlag}`, {
           cwd: taskPath,
         });
 
