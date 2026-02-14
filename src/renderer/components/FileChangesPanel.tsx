@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -14,6 +14,7 @@ import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
 import { usePrComments } from '../hooks/usePrComments';
 import { ChecksPanel } from './CheckRunsList';
 import { PrCommentsList } from './PrCommentsList';
+import { MergePrSection } from './MergePrSection';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -182,6 +183,16 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   );
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
+
+  // Refresh PR merge-state when check runs finish so the merge button updates
+  const prevAllComplete = useRef(checkRunsStatus?.allComplete);
+  useEffect(() => {
+    const wasComplete = prevAllComplete.current;
+    prevAllComplete.current = checkRunsStatus?.allComplete;
+    if (!wasComplete && checkRunsStatus?.allComplete && pr) {
+      refreshPr().catch(() => {});
+    }
+  }, [checkRunsStatus?.allComplete, pr, refreshPr]);
 
   // Default to checks when PR exists but no changes; reset when PR disappears
   useEffect(() => {
@@ -723,6 +734,19 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             isLoading={prCommentsLoading}
             hasPr={!!pr}
             prUrl={pr?.url}
+          />
+          <MergePrSection
+            pr={pr}
+            checkRunsStatus={checkRunsStatus}
+            taskPath={safeTaskPath}
+            onMerged={async () => {
+              await refreshChanges();
+              try {
+                await refreshPr();
+              } catch {
+                // PR refresh is best-effort
+              }
+            }}
           />
         </div>
       ) : (

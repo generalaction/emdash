@@ -617,6 +617,10 @@ declare global {
         prUrl?: string;
         error?: string;
       }>;
+      mergePr: (args: { taskPath: string; strategy?: 'merge' | 'squash' | 'rebase' }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
       getPrStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         pr?: {
@@ -1465,6 +1469,10 @@ export interface ElectronAPI {
     success: boolean;
     output?: string;
     prUrl?: string;
+    error?: string;
+  }>;
+  mergePr: (args: { taskPath: string; strategy?: 'merge' | 'squash' | 'rebase' }) => Promise<{
+    success: boolean;
     error?: string;
   }>;
   connectToGitHub: (projectPath: string) => Promise<{

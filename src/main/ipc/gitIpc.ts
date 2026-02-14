@@ -1187,6 +1187,38 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     }
   });
 
+  // Git: Merge an existing PR via GitHub CLI
+  ipcMain.handle(
+    'git:merge-pr',
+    async (
+      _,
+      args: {
+        taskPath: string;
+        strategy?: 'merge' | 'squash' | 'rebase';
+      }
+    ) => {
+      const { taskPath, strategy = 'squash' } = args || {};
+
+      try {
+        const strategyFlag =
+          strategy === 'rebase' ? '--rebase' : strategy === 'merge' ? '--merge' : '--squash';
+
+        // Don't use --delete-branch: the agent runs inside a worktree on
+        // this branch, so deleting it would break the checkout.  Branch
+        // cleanup happens when the workspace is deleted.
+        await execAsync(`gh pr merge ${strategyFlag}`, {
+          cwd: taskPath,
+        });
+
+        return { success: true };
+      } catch (e) {
+        const errMsg = (e as { stderr?: string })?.stderr || String(e);
+        log.error('Failed to merge PR:', e);
+        return { success: false, error: errMsg };
+      }
+    }
+  );
+
   // Git: Rename branch (local and optionally remote)
   ipcMain.handle(
     'git:rename-branch',
