@@ -59,6 +59,16 @@ type CommandItem = {
   onSelect: () => void;
 };
 
+const formatShortcutKey = (key: string): string => {
+  if (key === 'Tab') return 'Tab';
+  if (key === 'Escape') return 'Esc';
+  if (key === 'ArrowLeft') return '←';
+  if (key === 'ArrowRight') return '→';
+  if (key === 'ArrowUp') return '↑';
+  if (key === 'ArrowDown') return '↓';
+  return key.toUpperCase();
+};
+
 const CommandPalette: React.FC<CommandPaletteProps> = ({
   isOpen,
   onClose,
@@ -351,15 +361,27 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                               {item.shortcut.modifier === 'cmd' && (
                                 <CommandIcon className="h-3 w-3" />
                               )}
+                              {item.shortcut.modifier === 'cmd+shift' && (
+                                <>
+                                  <CommandIcon className="h-3 w-3" />
+                                  <span className="font-medium">⇧</span>
+                                </>
+                              )}
                               {item.shortcut.modifier === 'ctrl' && (
                                 <span className="font-medium">Ctrl</span>
+                              )}
+                              {item.shortcut.modifier === 'ctrl+shift' && (
+                                <>
+                                  <span className="font-medium">Ctrl</span>
+                                  <span className="font-medium">⇧</span>
+                                </>
                               )}
                               {item.shortcut.modifier === 'shift' && (
                                 <span className="font-medium">⇧</span>
                               )}
                               {(item.shortcut.modifier === 'option' ||
                                 item.shortcut.modifier === 'alt') && <Option className="h-3 w-3" />}
-                              <span className="font-medium">{item.shortcut.key}</span>
+                              <span className="font-medium">{formatShortcutKey(item.shortcut.key)}</span>
                             </div>
                           )}
                         </Command.Item>

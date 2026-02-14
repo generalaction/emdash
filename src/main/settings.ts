@@ -13,7 +13,14 @@ export interface RepositorySettings {
   pushOnCreate: boolean;
 }
 
-export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+export type ShortcutModifier =
+  | 'cmd'
+  | 'ctrl'
+  | 'shift'
+  | 'alt'
+  | 'option'
+  | 'cmd+shift'
+  | 'ctrl+shift';
 
 export interface ShortcutBinding {
   key: string;
@@ -42,6 +49,7 @@ export interface InterfaceSettings {
 }
 
 export interface AppSettings {
+  schemaVersion?: number;
   repository: RepositorySettings;
   projectPrep: {
     autoInstallOnOpenInEditor: boolean;
@@ -76,7 +84,60 @@ export interface AppSettings {
   defaultOpenInApp?: OpenInAppId;
 }
 
+const SETTINGS_SCHEMA_VERSION = 2;
+const TASK_SHORTCUT_MIGRATION_VERSION = 2;
+const IS_MACOS = process.platform === 'darwin';
+
+const SHORTCUT_SPECIAL_KEYS = ['Tab', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'] as const;
+
+type ShortcutSpecialKey = (typeof SHORTCUT_SPECIAL_KEYS)[number];
+
+const SHORTCUT_SPECIAL_KEY_ALIASES: Record<string, ShortcutSpecialKey> = {
+  tab: 'Tab',
+  escape: 'Escape',
+  esc: 'Escape',
+  arrowleft: 'ArrowLeft',
+  arrowright: 'ArrowRight',
+  arrowup: 'ArrowUp',
+  arrowdown: 'ArrowDown',
+};
+
+const PLATFORM_TASK_SHORTCUT_DEFAULTS = IS_MACOS
+  ? {
+      nextProject: { key: ']', modifier: 'cmd' as const },
+      prevProject: { key: '[', modifier: 'cmd' as const },
+    }
+  : {
+      nextProject: { key: 'Tab', modifier: 'ctrl' as const },
+      prevProject: { key: 'Tab', modifier: 'ctrl+shift' as const },
+    };
+
+const LEGACY_TASK_SHORTCUT_DEFAULTS = {
+  nextProject: [
+    { key: 'ArrowRight', modifier: 'cmd' as const },
+    { key: 'Tab', modifier: 'ctrl' as const },
+  ],
+  prevProject: [
+    { key: 'ArrowLeft', modifier: 'cmd' as const },
+    { key: 'Tab', modifier: 'ctrl+shift' as const },
+  ],
+};
+
+function normalizeShortcutKey(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.length === 1) {
+    return trimmed.toLowerCase();
+  }
+
+  return SHORTCUT_SPECIAL_KEY_ALIASES[trimmed.toLowerCase()] ?? null;
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
+  schemaVersion: SETTINGS_SCHEMA_VERSION,
   repository: {
     branchPrefix: 'emdash',
     pushOnCreate: true,
@@ -114,8 +175,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     toggleTheme: { key: 't', modifier: 'cmd' },
     toggleKanban: { key: 'p', modifier: 'cmd' },
     toggleEditor: { key: 'e', modifier: 'cmd' },
-    nextProject: { key: 'ArrowRight', modifier: 'cmd' },
-    prevProject: { key: 'ArrowLeft', modifier: 'cmd' },
+    nextProject: PLATFORM_TASK_SHORTCUT_DEFAULTS.nextProject,
+    prevProject: PLATFORM_TASK_SHORTCUT_DEFAULTS.prevProject,
     newTask: { key: 'n', modifier: 'cmd' },
     nextAgent: { key: 'k', modifier: 'cmd+shift' },
     prevAgent: { key: 'j', modifier: 'cmd+shift' },
@@ -160,7 +221,11 @@ export function getAppSettings(): AppSettings {
     if (existsSync(file)) {
       const raw = readFileSync(file, 'utf8');
       const parsed = JSON.parse(raw);
-      cached = normalizeSettings(deepMerge(DEFAULT_SETTINGS, parsed));
+      const sourceSchemaVersion =
+        typeof parsed?.schemaVersion === 'number' && Number.isFinite(parsed.schemaVersion)
+          ? parsed.schemaVersion
+          : 0;
+      cached = normalizeSettings(deepMerge(DEFAULT_SETTINGS, parsed), sourceSchemaVersion);
       return cached;
     }
   } catch {
@@ -176,7 +241,11 @@ export function getAppSettings(): AppSettings {
 export function updateAppSettings(partial: Partial<AppSettings>): AppSettings {
   const current = getAppSettings();
   const merged = deepMerge(current, partial);
-  const next = normalizeSettings(merged);
+  const sourceSchemaVersion =
+    typeof current.schemaVersion === 'number' && Number.isFinite(current.schemaVersion)
+      ? current.schemaVersion
+      : 0;
+  const next = normalizeSettings(merged, sourceSchemaVersion);
   persistSettings(next);
   cached = next;
   return next;
@@ -194,8 +263,9 @@ export function persistSettings(settings: AppSettings) {
 /**
  * Coerce and validate settings for robustness and forward-compatibility.
  */
-function normalizeSettings(input: AppSettings): AppSettings {
+function normalizeSettings(input: AppSettings, sourceSchemaVersion = SETTINGS_SCHEMA_VERSION): AppSettings {
   const out: AppSettings = {
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
@@ -293,17 +363,39 @@ function normalizeSettings(input: AppSettings): AppSettings {
 
   // Keyboard
   const keyboard = (input as any)?.keyboard || {};
-  const validModifiers: ShortcutModifier[] = ['cmd', 'ctrl', 'shift', 'alt', 'option', 'cmd+shift'];
+  const validModifiers: ShortcutModifier[] = [
+    'cmd',
+    'ctrl',
+    'shift',
+    'alt',
+    'option',
+    'cmd+shift',
+    'ctrl+shift',
+  ];
   const normalizeBinding = (binding: any, defaultBinding: ShortcutBinding): ShortcutBinding => {
     if (!binding || typeof binding !== 'object') return defaultBinding;
-    const key =
-      typeof binding.key === 'string' && binding.key.length === 1
-        ? binding.key.toLowerCase()
-        : defaultBinding.key;
+    const key = normalizeShortcutKey(binding.key) ?? defaultBinding.key;
     const modifier = validModifiers.includes(binding.modifier)
       ? binding.modifier
       : defaultBinding.modifier;
     return { key, modifier };
+  };
+  const normalizeTaskBinding = (
+    binding: any,
+    defaultBinding: ShortcutBinding,
+    legacyDefaults: ShortcutBinding[]
+  ): ShortcutBinding => {
+    const normalized = normalizeBinding(binding, defaultBinding);
+    const shouldMigrateTaskShortcuts = sourceSchemaVersion < TASK_SHORTCUT_MIGRATION_VERSION;
+    if (
+      shouldMigrateTaskShortcuts &&
+      legacyDefaults.some(
+        (legacy) => normalized.key === legacy.key && normalized.modifier === legacy.modifier
+      )
+    ) {
+      return defaultBinding;
+    }
+    return normalized;
   };
   out.keyboard = {
     commandPalette: normalizeBinding(
@@ -322,8 +414,16 @@ function normalizeSettings(input: AppSettings): AppSettings {
     toggleTheme: normalizeBinding(keyboard.toggleTheme, DEFAULT_SETTINGS.keyboard!.toggleTheme!),
     toggleKanban: normalizeBinding(keyboard.toggleKanban, DEFAULT_SETTINGS.keyboard!.toggleKanban!),
     toggleEditor: normalizeBinding(keyboard.toggleEditor, DEFAULT_SETTINGS.keyboard!.toggleEditor!),
-    nextProject: normalizeBinding(keyboard.nextProject, DEFAULT_SETTINGS.keyboard!.nextProject!),
-    prevProject: normalizeBinding(keyboard.prevProject, DEFAULT_SETTINGS.keyboard!.prevProject!),
+    nextProject: normalizeTaskBinding(
+      keyboard.nextProject,
+      DEFAULT_SETTINGS.keyboard!.nextProject!,
+      LEGACY_TASK_SHORTCUT_DEFAULTS.nextProject
+    ),
+    prevProject: normalizeTaskBinding(
+      keyboard.prevProject,
+      DEFAULT_SETTINGS.keyboard!.prevProject!,
+      LEGACY_TASK_SHORTCUT_DEFAULTS.prevProject
+    ),
     newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
     nextAgent: normalizeBinding(keyboard.nextAgent, DEFAULT_SETTINGS.keyboard!.nextAgent!),
     prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),

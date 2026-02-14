@@ -7,6 +7,9 @@ import type {
   KeyboardSettings,
 } from '../types/shortcuts';
 
+const isMacPlatform =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
 // Settings keys for keyboard shortcuts
 export type ShortcutSettingsKey =
   | 'commandPalette'
@@ -108,8 +111,8 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   },
 
   NEXT_TASK: {
-    key: 'ArrowRight',
-    modifier: 'cmd',
+    key: isMacPlatform ? ']' : 'Tab',
+    modifier: isMacPlatform ? 'cmd' : 'ctrl',
     label: 'Next Task',
     description: 'Switch to the next task',
     category: 'Navigation',
@@ -117,8 +120,8 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   },
 
   PREV_TASK: {
-    key: 'ArrowLeft',
-    modifier: 'cmd',
+    key: isMacPlatform ? '[' : 'Tab',
+    modifier: isMacPlatform ? 'cmd' : 'ctrl+shift',
     label: 'Previous Task',
     description: 'Switch to the previous task',
     category: 'Navigation',
@@ -181,11 +184,15 @@ export function formatShortcut(shortcut: ShortcutConfig): string {
       case 'cmd+shift':
         modifier = '⌘⇧';
         break;
+      case 'ctrl+shift':
+        modifier = 'Ctrl⇧';
+        break;
     }
   }
 
   let key = shortcut.key;
-  if (key === 'Escape') key = 'Esc';
+  if (key === 'Tab') key = 'Tab';
+  else if (key === 'Escape') key = 'Esc';
   else if (key === 'ArrowLeft') key = '←';
   else if (key === 'ArrowRight') key = '→';
   else if (key === 'ArrowUp') key = '↑';
@@ -217,9 +224,6 @@ export function hasShortcutConflict(shortcut1: ShortcutConfig, shortcut2: Shortc
   );
 }
 
-const isMacPlatform =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-
 function matchesModifier(modifier: ShortcutModifier | undefined, event: KeyboardEvent): boolean {
   if (!modifier) {
     return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
@@ -229,18 +233,28 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
     case 'cmd':
       // On macOS require the Command key; on other platforms allow Ctrl as the Command equivalent
       // Also ensure shift is NOT pressed (to distinguish from cmd+shift)
-      return (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) && !event.shiftKey;
+      return (
+        (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        !event.altKey
+      );
     case 'ctrl':
       // Require the Control key without treating Command as equivalent
-      return event.ctrlKey && !event.metaKey;
+      return event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;
     case 'alt':
     case 'option':
-      return event.altKey;
+      return event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey;
     case 'shift':
-      return event.shiftKey;
+      return event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
     case 'cmd+shift':
       // Compound modifier: Command + Shift
-      return (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) && event.shiftKey;
+      return (
+        (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        !event.altKey
+      );
+    case 'ctrl+shift':
+      return event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey;
     default:
       return false;
   }

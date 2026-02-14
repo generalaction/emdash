@@ -33,7 +33,8 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
 
   // Format key display (handle arrow keys and special keys)
   let displayKey = key;
-  if (displayKey === 'ArrowLeft') displayKey = '←';
+  if (displayKey === 'Tab') displayKey = 'Tab';
+  else if (displayKey === 'ArrowLeft') displayKey = '←';
   else if (displayKey === 'ArrowRight') displayKey = '→';
   else if (displayKey === 'ArrowUp') displayKey = '↑';
   else if (displayKey === 'ArrowDown') displayKey = '↓';
@@ -44,6 +45,9 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
   const modifierElements: React.ReactNode[] = [];
   if (modifier === 'cmd+shift') {
     modifierElements.push(<Command key="cmd" className="h-3 w-3" aria-hidden="true" />);
+    modifierElements.push(<ArrowBigUp key="shift" className="h-3 w-3" aria-hidden="true" />);
+  } else if (modifier === 'ctrl+shift') {
+    modifierElements.push(<span key="ctrl">Ctrl</span>);
     modifierElements.push(<ArrowBigUp key="shift" className="h-3 w-3" aria-hidden="true" />);
   } else if (modifier) {
     modifierElements.push(<ModifierIcon key="mod" modifier={modifier} />);
