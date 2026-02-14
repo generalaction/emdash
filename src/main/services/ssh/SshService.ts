@@ -8,6 +8,12 @@ import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
 
+/** Maximum number of concurrent SSH connections allowed in the pool. */
+const MAX_CONNECTIONS = 10;
+
+/** Threshold (fraction of MAX_CONNECTIONS) at which a warning is logged. */
+const POOL_WARNING_THRESHOLD = 0.8;
+
 /**
  * Main SSH service for managing SSH connections, executing commands,
  * and handling SFTP operations.
@@ -19,6 +25,7 @@ import { homedir } from 'os';
  */
 export class SshService extends EventEmitter {
   private connections: ConnectionPool = {};
+  private pendingConnections: Map<string, Promise<string>> = new Map();
   private credentialService: SshCredentialService;
 
   constructor(credentialService?: SshCredentialService) {
@@ -28,11 +35,60 @@ export class SshService extends EventEmitter {
 
   /**
    * Establishes a new SSH connection.
+   *
+   * Guards against duplicate connections:
+   * - If a connection with this ID already exists and is alive, returns immediately.
+   * - If a connection attempt for this ID is already in flight, coalesces onto
+   *   the existing promise instead of opening a second TCP socket.
+   * - Enforces a global MAX_CONNECTIONS limit to prevent resource exhaustion.
+   *
    * @param config - SSH connection configuration
    * @returns Connection ID for future operations
    */
   async connect(config: SshConfig): Promise<string> {
     const connectionId = config.id ?? randomUUID();
+
+    // 1. If already connected, reuse the existing connection
+    if (this.connections[connectionId]) {
+      return connectionId;
+    }
+
+    // 2. If a connection attempt is already in flight, coalesce
+    const pending = this.pendingConnections.get(connectionId);
+    if (pending) {
+      return pending;
+    }
+
+    // 3. Enforce connection pool limit
+    const poolSize = Object.keys(this.connections).length + this.pendingConnections.size;
+    if (poolSize >= MAX_CONNECTIONS) {
+      throw new Error(
+        `SSH connection pool limit reached (${MAX_CONNECTIONS}). ` +
+          'Disconnect unused connections before opening new ones.'
+      );
+    }
+    if (poolSize >= MAX_CONNECTIONS * POOL_WARNING_THRESHOLD) {
+      console.warn(
+        `[SshService] Connection pool at ${poolSize}/${MAX_CONNECTIONS} — approaching limit`
+      );
+    }
+
+    // 4. Create the connection and track the in-flight promise
+    const connectionPromise = this.createConnection(connectionId, config);
+    this.pendingConnections.set(connectionId, connectionPromise);
+
+    try {
+      const result = await connectionPromise;
+      return result;
+    } finally {
+      this.pendingConnections.delete(connectionId);
+    }
+  }
+
+  /**
+   * Internal: opens a new SSH connection and registers it in the pool.
+   */
+  private createConnection(connectionId: string, config: SshConfig): Promise<string> {
     const client = new Client();
 
     return new Promise((resolve, reject) => {
@@ -43,9 +99,13 @@ export class SshService extends EventEmitter {
 
       // Handle connection close
       client.on('close', () => {
-        this.emit('disconnected', connectionId);
-        // Clean up the connection from pool
-        delete this.connections[connectionId];
+        // Only clean up if this client is still the one stored in the pool.
+        // A stale client's close event must not remove a newer connection
+        // that was established under the same connectionId.
+        if (this.connections[connectionId]?.client === client) {
+          delete this.connections[connectionId];
+          this.emit('disconnected', connectionId);
+        }
       });
 
       // Handle successful connection
