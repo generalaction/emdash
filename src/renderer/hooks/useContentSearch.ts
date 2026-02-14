@@ -22,6 +22,8 @@ export interface UseContentSearchOptions {
   debounceMs?: number;
   maxResults?: number;
   caseSensitive?: boolean;
+  connectionId?: string | null;
+  remotePath?: string | null;
 }
 
 export interface UseContentSearchReturn {
@@ -45,6 +47,8 @@ export function useContentSearch(
     debounceMs = SEARCH_DEBOUNCE_MS,
     maxResults = DEFAULT_MAX_RESULTS,
     caseSensitive = false,
+    connectionId,
+    remotePath,
   } = options;
 
   // State management
@@ -72,10 +76,13 @@ export function useContentSearch(
       setError(null);
 
       try {
-        const result = await window.electronAPI.fsSearchContent(rootPath, query, {
-          caseSensitive,
-          maxResults,
-        });
+        const remote = connectionId && remotePath ? { connectionId, remotePath } : undefined;
+        const result = await window.electronAPI.fsSearchContent(
+          rootPath,
+          query,
+          { caseSensitive, maxResults },
+          remote
+        );
 
         if (!result.success) {
           throw new Error(result.error || 'Search failed');
@@ -91,7 +98,7 @@ export function useContentSearch(
         setIsSearching(false);
       }
     },
-    [rootPath, caseSensitive, maxResults]
+    [rootPath, caseSensitive, maxResults, connectionId, remotePath]
   );
 
   // Handle search input changes with debouncing

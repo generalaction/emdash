@@ -28,9 +28,18 @@ interface CodeEditorProps {
   taskName: string;
   projectName: string;
   onClose: () => void;
+  connectionId?: string | null;
+  remotePath?: string | null;
 }
 
-export default function CodeEditor({ taskPath, taskName, projectName, onClose }: CodeEditorProps) {
+export default function CodeEditor({
+  taskPath,
+  taskName,
+  projectName,
+  onClose,
+  connectionId,
+  remotePath,
+}: CodeEditorProps) {
   const { effectiveTheme } = useTheme();
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
   const monacoRef = useRef<any>(null);
@@ -49,7 +58,7 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
     closeFile,
     updateFileContent,
     setActiveFile,
-  } = useFileManager({ taskPath });
+  } = useFileManager({ taskPath, connectionId, remotePath });
 
   // Get file changes status from git
   const { fileChanges } = useFileChanges(taskPath);
@@ -237,6 +246,8 @@ export default function CodeEditor({ taskPath, taskName, projectName, onClose }:
           onOpenFile={loadFile}
           onMouseDown={handleMouseDown}
           fileChanges={fileChanges}
+          connectionId={connectionId}
+          remotePath={remotePath}
         />
 
         <div className="flex flex-1 flex-col">
@@ -270,6 +281,8 @@ interface FileExplorerProps {
   onOpenFile: (path: string) => void;
   onMouseDown: (e: React.MouseEvent) => void;
   fileChanges: FileChange[];
+  connectionId?: string | null;
+  remotePath?: string | null;
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -283,6 +296,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   onOpenFile,
   onMouseDown,
   fileChanges,
+  connectionId,
+  remotePath,
 }) => (
   <div
     className="relative flex flex-col border-r border-border bg-muted/5"
@@ -306,6 +321,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           showHiddenFiles={false}
           excludePatterns={DEFAULT_EXCLUDE_PATTERNS}
           fileChanges={fileChanges}
+          connectionId={connectionId}
+          remotePath={remotePath}
         />
       </div>
     </div>

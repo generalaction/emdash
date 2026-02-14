@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { AUTO_SAVE_DELAY } from '@/constants/file-explorer';
 import { dispatchFileChangeEvent } from '@/lib/fileChangeEvents';
 
@@ -14,6 +14,8 @@ interface UseFileManagerOptions {
   autoSave?: boolean;
   autoSaveDelay?: number;
   onFileChange?: () => void; // Callback when files are modified/saved
+  connectionId?: string | null;
+  remotePath?: string | null;
 }
 
 interface UseFileManagerReturn {
@@ -35,7 +37,20 @@ interface UseFileManagerReturn {
  * Handles loading, saving, and tracking file changes
  */
 export function useFileManager(options: UseFileManagerOptions): UseFileManagerReturn {
-  const { taskPath, autoSave = true, autoSaveDelay = AUTO_SAVE_DELAY, onFileChange } = options;
+  const {
+    taskPath,
+    autoSave = true,
+    autoSaveDelay = AUTO_SAVE_DELAY,
+    onFileChange,
+    connectionId,
+    remotePath,
+  } = options;
+
+  // Build remote param object if both are provided
+  const remote = useMemo(
+    () => (connectionId && remotePath ? { connectionId, remotePath } : undefined),
+    [connectionId, remotePath]
+  );
 
   const [openFiles, setOpenFiles] = useState<Map<string, ManagedFile>>(new Map());
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -61,7 +76,7 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
       try {
         // For image files, load as base64
         if (isImageFile(filePath)) {
-          const result = await window.electronAPI.fsReadImage(taskPath, filePath);
+          const result = await window.electronAPI.fsReadImage(taskPath, filePath, remote);
 
           if (result.success && result.dataUrl) {
             const file: ManagedFile = {
@@ -88,7 +103,7 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
         }
 
         // Load text file
-        const result = await window.electronAPI.fsRead(taskPath, filePath);
+        const result = await window.electronAPI.fsRead(taskPath, filePath, undefined, remote);
 
         if (result.success && result.content !== undefined) {
           const file: ManagedFile = {
@@ -107,7 +122,7 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
         console.error('Error loading file:', error);
       }
     },
-    [taskPath, isImageFile]
+    [taskPath, isImageFile, remote]
   );
 
   /**
@@ -128,7 +143,8 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
           taskPath,
           targetPath,
           file.content,
-          true
+          true,
+          remote
         );
 
         if (result.success) {
@@ -163,7 +179,7 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
         setIsSaving(false);
       }
     },
-    [activeFilePath, openFiles, taskPath, onFileChange]
+    [activeFilePath, openFiles, taskPath, onFileChange, remote]
   );
 
   /**
