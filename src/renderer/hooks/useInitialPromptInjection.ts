@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { initialPromptSentKey } from '../lib/keys';
 import { classifyActivity } from '../lib/activityClassifier';
+import { makePtyId } from '@shared/ptyId';
+import type { ProviderId } from '@shared/providers/registry';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
@@ -21,7 +23,7 @@ export function useInitialPromptInjection(opts: {
     const sentKey = initialPromptSentKey(taskId, providerId);
     if (localStorage.getItem(sentKey) === '1') return;
 
-    const ptyId = `${providerId}-main-${taskId}`;
+    const ptyId = makePtyId(providerId as ProviderId, 'main', taskId);
     let sent = false;
     let idleSeen = false;
     let silenceTimer: any = null;

@@ -1,5 +1,7 @@
 import { classifyActivity } from './activityClassifier';
 import { CLEAR_BUSY_MS, BUSY_HOLD_MS } from './activityConstants';
+import { parsePtyId, makePtyId } from '@shared/ptyId';
+import { PROVIDER_IDS } from '@shared/providers/registry';
 
 type Listener = (busy: boolean) => void;
 
@@ -21,7 +23,7 @@ class ActivityStore {
         // Match any subscribed task id by suffix
         for (const wsId of this.subscribedIds) {
           if (!id.endsWith(wsId)) continue;
-          const prov = id.includes('-main-') ? id.split('-main-')[0] || '' : '';
+          const prov = parsePtyId(id)?.providerId || '';
           const signal = classifyActivity(prov, info?.chunk || '');
           if (signal === 'busy') {
             this.setBusy(wsId, true, true);
@@ -118,30 +120,8 @@ class ActivityStore {
     const offDirect: Array<() => void> = [];
     try {
       const api: any = (window as any).electronAPI;
-      const providers = [
-        'amp',
-        'auggie',
-        'charm',
-        'claude',
-        'cline',
-        'codebuff',
-        'codex',
-        'continue',
-        'copilot',
-        'cursor',
-        'droid',
-        'gemini',
-        'goose',
-        'kilocode',
-        'kimi',
-        'kiro',
-        'mistral',
-        'opencode',
-        'qwen',
-        'rovo',
-      ];
-      for (const prov of providers) {
-        const ptyId = `${prov}-main-${wsId}`;
+      for (const prov of PROVIDER_IDS) {
+        const ptyId = makePtyId(prov, 'main', wsId);
         const off = api?.onPtyData?.(ptyId, (chunk: string) => {
           try {
             const signal = classifyActivity(prov, chunk || '');

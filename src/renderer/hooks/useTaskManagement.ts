@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
+import { makePtyId } from '@shared/ptyId';
+import type { ProviderId } from '@shared/providers/registry';
 import { saveActiveIds, getStoredActiveIds } from '../constants/layout';
 import { getAgentForTask } from '../lib/getAgentForTask';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
@@ -298,8 +300,8 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           } catch {}
         } catch {}
         // Kill main agent terminals
-        // Single-agent: ${provider}-main-${task.id}
-        // Multi-agent: ${variant.worktreeId}-main
+        // Single-agent: makePtyId(provider, 'main', task.id)
+        // Multi-agent: ${variant.worktreeId}-main (different format, not provider-prefixed)
         const variants = task.metadata?.multiAgent?.variants || [];
         const mainSessionIds: string[] = [];
         if (variants.length > 0) {
@@ -312,7 +314,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           }
         } else {
           for (const provider of TERMINAL_PROVIDER_IDS) {
-            const id = `${provider}-main-${task.id}`;
+            const id = makePtyId(provider, 'main', task.id);
             mainSessionIds.push(id);
             try {
               window.electronAPI.ptyKill?.(id);
@@ -327,7 +329,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           if (convResult.success && convResult.conversations) {
             for (const conv of convResult.conversations) {
               if (!conv.isMain && conv.provider) {
-                const chatId = `${conv.provider}-chat-${conv.id}`;
+                const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
                 chatSessionIds.push(chatId);
                 try {
                   window.electronAPI.ptyKill?.(chatId);
@@ -628,7 +630,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
             }
           } else {
             for (const provider of TERMINAL_PROVIDER_IDS) {
-              const id = `${provider}-main-${task.id}`;
+              const id = makePtyId(provider, 'main', task.id);
               mainSessionIds.push(id);
               try {
                 window.electronAPI.ptyKill?.(id);
@@ -643,7 +645,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
             if (convResult.success && convResult.conversations) {
               for (const conv of convResult.conversations) {
                 if (!conv.isMain && conv.provider) {
-                  const chatId = `${conv.provider}-chat-${conv.id}`;
+                  const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
                   chatSessionIds.push(chatId);
                   try {
                     window.electronAPI.ptyKill?.(chatId);
