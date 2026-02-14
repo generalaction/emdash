@@ -17,10 +17,12 @@ import {
   DEFAULT_EXCLUDE_PATTERNS,
   EXPLORER_WIDTH,
   DEFAULT_EDITOR_OPTIONS,
+  isMarkdownFile,
 } from '@/constants/file-explorer';
 import { FileTree } from './FileTree';
 import { FileTabs } from './FileTabs';
 import { EditorHeader } from './EditorHeader';
+import { MarkdownPreview } from './MarkdownPreview';
 import '@/styles/editor-diff.css';
 
 interface CodeEditorProps {
@@ -66,6 +68,34 @@ export default function CodeEditor({
   // UI state
   const [explorerWidth, setExplorerWidth] = useState(EXPLORER_WIDTH.DEFAULT);
   const [isResizing, setIsResizing] = useState(false);
+
+  // Track which files are in preview mode (markdown files default to true)
+  const [previewMode, setPreviewMode] = useState<Map<string, boolean>>(new Map());
+
+  const isPreviewActive = activeFilePath
+    ? (previewMode.get(activeFilePath) ?? isMarkdownFile(activeFilePath))
+    : false;
+
+  const togglePreview = useCallback((filePath: string) => {
+    setPreviewMode((prev) => {
+      const next = new Map(prev);
+      const current = next.get(filePath) ?? isMarkdownFile(filePath);
+      next.set(filePath, !current);
+      return next;
+    });
+  }, []);
+
+  const handleCloseFile = useCallback(
+    (filePath: string) => {
+      closeFile(filePath);
+      setPreviewMode((prev) => {
+        const next = new Map(prev);
+        next.delete(filePath);
+        return next;
+      });
+    },
+    [closeFile]
+  );
 
   // State to track when editor is ready
   const [editorReady, setEditorReady] = useState(false);
@@ -255,7 +285,9 @@ export default function CodeEditor({
             openFiles={openFiles}
             activeFilePath={activeFilePath}
             onTabClick={setActiveFile}
-            onTabClose={closeFile}
+            onTabClose={handleCloseFile}
+            previewMode={previewMode}
+            onTogglePreview={togglePreview}
           />
 
           <EditorContent
@@ -263,6 +295,7 @@ export default function CodeEditor({
             effectiveTheme={effectiveTheme}
             onEditorMount={handleEditorMount}
             onEditorChange={handleEditorChange}
+            isPreviewActive={isPreviewActive}
           />
         </div>
       </div>
@@ -353,6 +386,7 @@ interface EditorContentProps {
   effectiveTheme: string;
   onEditorMount: (editor: any, monaco: any) => void;
   onEditorChange: (value: string | undefined) => void;
+  isPreviewActive: boolean;
 }
 
 const EditorContent: React.FC<EditorContentProps> = ({
@@ -360,6 +394,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
   effectiveTheme,
   onEditorMount,
   onEditorChange,
+  isPreviewActive,
 }) => {
   if (!activeFile) {
     return <NoFileOpen />;
@@ -371,6 +406,10 @@ const EditorContent: React.FC<EditorContentProps> = ({
 
   if (activeFile.content === '[IMAGE_ERROR]') {
     return <ImageError file={activeFile} />;
+  }
+
+  if (isPreviewActive) {
+    return <MarkdownPreview content={activeFile.content} />;
   }
 
   return (
