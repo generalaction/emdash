@@ -13,10 +13,20 @@ function getMergeStateInfo(pr: PrStatus, checkRunsStatus: CheckRunsStatus | null
   const prState = typeof pr.state === 'string' ? pr.state.toUpperCase() : '';
 
   if (prState === 'MERGED') {
-    return { label: 'Pull request merged', canMerge: false, isBlocked: false, variant: 'success' as const };
+    return {
+      label: 'Pull request merged',
+      canMerge: false,
+      isBlocked: false,
+      variant: 'success' as const,
+    };
   }
   if (prState === 'CLOSED') {
-    return { label: 'Pull request closed', canMerge: false, isBlocked: false, variant: 'muted' as const };
+    return {
+      label: 'Pull request closed',
+      canMerge: false,
+      isBlocked: false,
+      variant: 'muted' as const,
+    };
   }
   if (isDraft) {
     return {
@@ -28,7 +38,12 @@ function getMergeStateInfo(pr: PrStatus, checkRunsStatus: CheckRunsStatus | null
   }
 
   if (checkRunsStatus && !checkRunsStatus.allComplete) {
-    return { label: 'Checks are still running', canMerge: true, isBlocked: false, variant: 'pending' as const };
+    return {
+      label: 'Checks are still running',
+      canMerge: true,
+      isBlocked: false,
+      variant: 'pending' as const,
+    };
   }
 
   switch (state) {
@@ -76,11 +91,20 @@ function getMergeStateInfo(pr: PrStatus, checkRunsStatus: CheckRunsStatus | null
           variant: 'warning' as const,
         };
       }
-      return { label: 'Ready to merge', canMerge: true, isBlocked: false, variant: 'success' as const };
+      return {
+        label: 'Ready to merge',
+        canMerge: true,
+        isBlocked: false,
+        variant: 'success' as const,
+      };
   }
 }
 
-function StatusIcon({ variant }: { variant: 'success' | 'warning' | 'error' | 'pending' | 'muted' }) {
+function StatusIcon({
+  variant,
+}: {
+  variant: 'success' | 'warning' | 'error' | 'pending' | 'muted';
+}) {
   switch (variant) {
     case 'success':
       return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
