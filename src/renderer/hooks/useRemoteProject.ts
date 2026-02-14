@@ -19,6 +19,13 @@ const connectionStateCache = new Map<string, ConnectionState>();
 const connectionAttempts = new Map<string, number>();
 const MAX_RETRY_ATTEMPTS = 3;
 
+/**
+ * Module-level set of connection IDs that currently have an in-flight
+ * connect() call. Prevents multiple hooks (or re-renders) from firing
+ * parallel TCP connections for the same remote host.
+ */
+const connectingIds = new Set<string>();
+
 export function useRemoteProject(project: Project | null): UseRemoteProjectResult {
   const [connectionState, setConnectionState] = useState<ConnectionState>(() => {
     if (!project) return 'disconnected';
@@ -55,6 +62,10 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
   const connect = useCallback(async () => {
     if (!connectionId) return;
 
+    // Deduplicate: skip if this connectionId already has an in-flight connect
+    if (connectingIds.has(connectionId)) return;
+
+    connectingIds.add(connectionId);
     setIsLoading(true);
     setError(null);
     updateConnectionState('connecting');
@@ -80,6 +91,7 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
       updateConnectionState('error');
       console.error('Failed to connect to remote project:', error);
     } finally {
+      connectingIds.delete(connectionId);
       if (isMountedRef.current) {
         setIsLoading(false);
       }
@@ -128,6 +140,11 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
 
     await connect();
   }, [connectionId, connect, updateConnectionState]);
+
+  // Keep a ref to reconnect so the health-check effect can call it
+  // without depending on it (avoids interval teardown/recreation loops).
+  const reconnectRef = useRef(reconnect);
+  reconnectRef.current = reconnect;
 
   // Fetch connection details (host)
   useEffect(() => {
@@ -179,6 +196,8 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
   }, [isRemote, connectionId, connect, connectionState]);
 
   // Health check - poll connection state
+  // Note: `reconnect` is accessed via reconnectRef to avoid re-creating the
+  // interval every time the callback identity changes.
   useEffect(() => {
     if (!isRemote || !connectionId) return;
 
@@ -190,10 +209,14 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
           updateConnectionState(state);
 
           // Auto-reconnect if disconnected unexpectedly
-          if (state === 'disconnected' && connectionState === 'connected') {
+          if (
+            state === 'disconnected' &&
+            connectionState === 'connected' &&
+            !connectingIds.has(connectionId)
+          ) {
             const attempts = connectionAttempts.get(connectionId) || 0;
             if (attempts < MAX_RETRY_ATTEMPTS) {
-              reconnect();
+              reconnectRef.current();
             }
           }
         }
@@ -215,7 +238,7 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
         clearInterval(healthCheckIntervalRef.current);
       }
     };
-  }, [isRemote, connectionId, connectionState, updateConnectionState, reconnect]);
+  }, [isRemote, connectionId, connectionState, updateConnectionState]);
 
   // Cleanup on unmount
   useEffect(() => {

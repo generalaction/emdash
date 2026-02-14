@@ -100,6 +100,12 @@ export function registerSshIpc() {
   monitor.on('reconnect', async (connectionId: string, config: SshConfig, attempt: number) => {
     try {
       console.log(`[sshIpc] Reconnecting ${connectionId} (attempt ${attempt})...`);
+
+      // Clean up the stale/dead connection before opening a new one
+      if (sshService.isConnected(connectionId)) {
+        await sshService.disconnect(connectionId).catch(() => {});
+      }
+
       await sshService.connect(config);
       monitor.updateState(connectionId, 'connected');
     } catch (err: any) {
