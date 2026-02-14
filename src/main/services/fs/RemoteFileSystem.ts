@@ -257,6 +257,125 @@ export class RemoteFileSystem implements IFileSystem {
   }
 
   /**
+   * Recursively list all files and directories via SSH find (single round-trip).
+   * Returns items in the same {path, type} format used by the local fs:list handler.
+   */
+  async listRecursive(options?: {
+    includeDirs?: boolean;
+    maxEntries?: number;
+  }): Promise<{
+    items: Array<{ path: string; type: 'file' | 'dir' }>;
+    truncated: boolean;
+  }> {
+    const includeDirs = options?.includeDirs ?? true;
+    const maxEntries = options?.maxEntries ?? 5000;
+
+    // Directories to prune from the listing
+    const pruneNames = [
+      '.git',
+      'node_modules',
+      'dist',
+      'build',
+      '.next',
+      'out',
+      '.turbo',
+      'coverage',
+      '.nyc_output',
+      '.cache',
+      'tmp',
+      'temp',
+      '__pycache__',
+      '.pytest_cache',
+      'venv',
+      '.venv',
+      'target',
+      '.terraform',
+      '.serverless',
+      'vendor',
+      'bower_components',
+      'worktrees',
+      '.worktrees',
+      '.DS_Store',
+    ];
+
+    // Build prune clause for find
+    const pruneExpr = pruneNames
+      .map((name) => `-name "${name}"`)
+      .join(' -o ');
+
+    // Build find command: prune ignored dirs, print files (and optionally dirs)
+    const typeFilter = includeDirs ? '' : '-type f';
+    const command = [
+      `find "${this.remotePath}"`,
+      `\\( ${pruneExpr} \\) -prune -o`,
+      typeFilter ? `${typeFilter} -print` : '-print',
+      `2>/dev/null`,
+      `| head -n ${maxEntries + 1}`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    try {
+      const result = await this.sshService.executeCommand(this.connectionId, command);
+
+      const lines = result.stdout.split('\n').filter((line) => line.trim());
+
+      // Check if we exceeded maxEntries (we asked for maxEntries+1 to detect truncation)
+      const truncated = lines.length > maxEntries;
+      const effectiveLines = truncated ? lines.slice(0, maxEntries) : lines;
+
+      const items: Array<{ path: string; type: 'file' | 'dir' }> = [];
+
+      for (const line of effectiveLines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Skip the root path itself
+        if (trimmed === this.remotePath || trimmed === this.remotePath + '/') continue;
+
+        const relPath = this.relativePath(trimmed);
+        if (!relPath) continue;
+
+        // Determine type: find outputs directories with trailing / when using -print,
+        // but standard find doesn't. We'll use a heuristic: if any other entry starts
+        // with this path + '/', it's a directory. For efficiency, detect trailing slash.
+        const isDir = trimmed.endsWith('/');
+        const cleanRel = relPath.replace(/\/$/, '');
+
+        if (!cleanRel) continue;
+
+        items.push({
+          path: cleanRel,
+          type: isDir ? 'dir' : 'file',
+        });
+      }
+
+      // Since `find` doesn't always indicate directories clearly with just -print,
+      // we do a second pass: any path that is a prefix of another path is a directory.
+      const pathSet = new Set(items.map((i) => i.path));
+      for (const item of items) {
+        if (item.type === 'file') {
+          // Check if any other path starts with this path + '/'
+          const prefix = item.path + '/';
+          for (const otherPath of pathSet) {
+            if (otherPath.startsWith(prefix)) {
+              item.type = 'dir';
+              break;
+            }
+          }
+        }
+      }
+
+      // Filter out dirs if not requested
+      const finalItems = includeDirs ? items : items.filter((i) => i.type === 'file');
+
+      return { items: finalItems, truncated };
+    } catch {
+      return { items: [], truncated: false };
+    }
+  }
+
+  /**
    * Check if a path exists via SFTP
    */
   async exists(path: string): Promise<boolean> {

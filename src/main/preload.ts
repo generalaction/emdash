@@ -201,12 +201,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Filesystem helpers
   fsList: (
     root: string,
-    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
+    opts?: {
+      includeDirs?: boolean;
+      maxEntries?: number;
+      timeBudgetMs?: number;
+      connectionId?: string;
+      remotePath?: string;
+    }
   ) => ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
-  fsRead: (root: string, relPath: string, maxBytes?: number) =>
-    ipcRenderer.invoke('fs:read', { root, relPath, maxBytes }),
-  fsReadImage: (root: string, relPath: string) =>
-    ipcRenderer.invoke('fs:read-image', { root, relPath }),
+  fsRead: (
+    root: string,
+    relPath: string,
+    maxBytes?: number,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:read', { root, relPath, maxBytes, ...remote }),
+  fsReadImage: (
+    root: string,
+    relPath: string,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:read-image', { root, relPath, ...remote }),
   fsSearchContent: (
     root: string,
     query: string,
@@ -214,11 +227,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
       caseSensitive?: boolean;
       maxResults?: number;
       fileExtensions?: string[];
-    }
-  ) => ipcRenderer.invoke('fs:searchContent', { root, query, options }),
-  fsWriteFile: (root: string, relPath: string, content: string, mkdirs?: boolean) =>
-    ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs }),
-  fsRemove: (root: string, relPath: string) => ipcRenderer.invoke('fs:remove', { root, relPath }),
+    },
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:searchContent', { root, query, options, ...remote }),
+  fsWriteFile: (
+    root: string,
+    relPath: string,
+    content: string,
+    mkdirs?: boolean,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:write', { root, relPath, content, mkdirs, ...remote }),
+  fsRemove: (
+    root: string,
+    relPath: string,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:remove', { root, relPath, ...remote }),
   getProjectConfig: (projectPath: string) =>
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
@@ -823,7 +846,13 @@ export interface ElectronAPI {
   // Filesystem helpers
   fsList: (
     root: string,
-    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
+    opts?: {
+      includeDirs?: boolean;
+      maxEntries?: number;
+      timeBudgetMs?: number;
+      connectionId?: string;
+      remotePath?: string;
+    }
   ) => Promise<{
     success: boolean;
     items?: Array<{ path: string; type: 'file' | 'dir' }>;
@@ -836,7 +865,8 @@ export interface ElectronAPI {
   fsRead: (
     root: string,
     relPath: string,
-    maxBytes?: number
+    maxBytes?: number,
+    remote?: { connectionId: string; remotePath: string }
   ) => Promise<{
     success: boolean;
     path?: string;

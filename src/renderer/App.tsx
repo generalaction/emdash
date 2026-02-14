@@ -614,6 +614,8 @@ const AppContent: React.FC = () => {
                   taskName={activeTask.name}
                   projectName={selectedProject.name}
                   onClose={() => setShowEditorMode(false)}
+                  connectionId={derivedRemoteConnectionId}
+                  remotePath={derivedRemotePath}
                 />
               )}
 

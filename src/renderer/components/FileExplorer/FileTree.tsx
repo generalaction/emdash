@@ -27,6 +27,8 @@ interface FileTreeProps {
   showHiddenFiles?: boolean;
   excludePatterns?: string[];
   fileChanges?: FileChange[];
+  connectionId?: string | null;
+  remotePath?: string | null;
 }
 
 // Tree node component
@@ -150,6 +152,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
   showHiddenFiles = false,
   excludePatterns = [],
   fileChanges = [],
+  connectionId,
+  remotePath,
 }) => {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
@@ -165,7 +169,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
     error: searchError,
     handleSearchChange,
     clearSearch,
-  } = useContentSearch(rootPath);
+  } = useContentSearch(rootPath, { connectionId, remotePath });
 
   const defaultExcludePatterns = useMemo(
     () => [
@@ -324,7 +328,18 @@ export const FileTree: React.FC<FileTreeProps> = ({
       setError(null);
 
       try {
-        const result = await window.electronAPI.fsList(rootPath, { includeDirs: true });
+        const opts: {
+          includeDirs: boolean;
+          connectionId?: string;
+          remotePath?: string;
+        } = { includeDirs: true };
+
+        if (connectionId && remotePath) {
+          opts.connectionId = connectionId;
+          opts.remotePath = remotePath;
+        }
+
+        const result = await window.electronAPI.fsList(rootPath, opts);
 
         if (result.canceled) {
           return;
@@ -344,7 +359,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
     };
 
     loadAllFiles();
-  }, [rootPath]); // Only reload when rootPath changes
+  }, [rootPath, connectionId, remotePath]); // Reload when rootPath or remote info changes
 
   // Build tree when files or filters change
   useEffect(() => {

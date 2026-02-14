@@ -743,7 +743,13 @@ declare global {
       // Filesystem helpers
       fsList: (
         root: string,
-        opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
+        opts?: {
+          includeDirs?: boolean;
+          maxEntries?: number;
+          timeBudgetMs?: number;
+          connectionId?: string;
+          remotePath?: string;
+        }
       ) => Promise<{
         success: boolean;
         items?: Array<{ path: string; type: 'file' | 'dir' }>;
@@ -756,7 +762,8 @@ declare global {
       fsRead: (
         root: string,
         relPath: string,
-        maxBytes?: number
+        maxBytes?: number,
+        remote?: { connectionId: string; remotePath: string }
       ) => Promise<{
         success: boolean;
         path?: string;
@@ -767,7 +774,8 @@ declare global {
       }>;
       fsReadImage: (
         root: string,
-        relPath: string
+        relPath: string,
+        remote?: { connectionId: string; remotePath: string }
       ) => Promise<{
         success: boolean;
         dataUrl?: string;
@@ -782,7 +790,8 @@ declare global {
           caseSensitive?: boolean;
           maxResults?: number;
           fileExtensions?: string[];
-        }
+        },
+        remote?: { connectionId: string; remotePath: string }
       ) => Promise<{
         success: boolean;
         results?: Array<{
@@ -800,9 +809,14 @@ declare global {
         root: string,
         relPath: string,
         content: string,
-        mkdirs?: boolean
+        mkdirs?: boolean,
+        remote?: { connectionId: string; remotePath: string }
       ) => Promise<{ success: boolean; error?: string }>;
-      fsRemove: (root: string, relPath: string) => Promise<{ success: boolean; error?: string }>;
+      fsRemove: (
+        root: string,
+        relPath: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
       getProjectConfig: (
         projectPath: string
       ) => Promise<{ success: boolean; path?: string; content?: string; error?: string }>;
@@ -1519,7 +1533,13 @@ export interface ElectronAPI {
   // Filesystem
   fsList: (
     root: string,
-    opts?: { includeDirs?: boolean; maxEntries?: number; timeBudgetMs?: number }
+    opts?: {
+      includeDirs?: boolean;
+      maxEntries?: number;
+      timeBudgetMs?: number;
+      connectionId?: string;
+      remotePath?: string;
+    }
   ) => Promise<{
     success: boolean;
     items?: Array<{ path: string; type: 'file' | 'dir' }>;
@@ -1532,7 +1552,8 @@ export interface ElectronAPI {
   fsRead: (
     root: string,
     relPath: string,
-    maxBytes?: number
+    maxBytes?: number,
+    remote?: { connectionId: string; remotePath: string }
   ) => Promise<{
     success: boolean;
     path?: string;
@@ -1548,7 +1569,8 @@ export interface ElectronAPI {
       caseSensitive?: boolean;
       maxResults?: number;
       fileExtensions?: string[];
-    }
+    },
+    remote?: { connectionId: string; remotePath: string }
   ) => Promise<{
     success: boolean;
     results?: Array<{
