@@ -1019,7 +1019,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                       </summary>
                       <div className="mt-2 space-y-1 font-mono text-xs">
                         <p>1. Start SSH agent (if not running):</p>
-                        <p className="pl-2 text-muted-foreground">eval &quot;$(ssh-agent -s)&quot;</p>
+                        <p className="pl-2 text-muted-foreground">
+                          eval &quot;$(ssh-agent -s)&quot;
+                        </p>
                         <p className="pt-1">2. Check if your key is loaded:</p>
                         <p className="pl-2 text-muted-foreground">ssh-add -l</p>
                         <p className="pt-1">3. If not listed, add your key:</p>
@@ -1064,9 +1066,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         return (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="remote-path">
-                Project Path <span className="text-destructive">*</span>
-              </Label>
               <div className="flex gap-2">
                 <div className="relative min-w-0 flex-1">
                   <FolderOpen className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1187,7 +1186,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               <div className="divide-y">
                 <div className="flex px-4 py-3">
                   <span className="w-32 shrink-0 text-sm text-muted-foreground">Name</span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{formData.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {formData.name}
+                  </span>
                 </div>
                 <div className="flex px-4 py-3">
                   <span className="w-32 shrink-0 text-sm text-muted-foreground">Host</span>
@@ -1196,7 +1197,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                   </span>
                 </div>
                 <div className="flex px-4 py-3">
-                  <span className="w-32 shrink-0 text-sm text-muted-foreground">Authentication</span>
+                  <span className="w-32 shrink-0 text-sm text-muted-foreground">
+                    Authentication
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {formData.authType === 'password' && 'Password'}
                     {formData.authType === 'key' && 'SSH Key'}
