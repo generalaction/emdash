@@ -388,6 +388,7 @@ declare global {
         taskName: string;
         projectId: string;
         baseRef?: string;
+        branchPrefix?: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
         projectPath: string;
@@ -429,6 +430,7 @@ declare global {
         projectPath: string;
         taskName: string;
         baseRef?: string;
+        branchPrefix?: string;
       }) => Promise<{
         success: boolean;
         worktree?: any;
@@ -1322,6 +1324,7 @@ export interface ElectronAPI {
     taskName: string;
     projectId: string;
     baseRef?: string;
+    branchPrefix?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
     projectPath: string;
@@ -1363,6 +1366,7 @@ export interface ElectronAPI {
     projectPath: string;
     taskName: string;
     baseRef?: string;
+    branchPrefix?: string;
   }) => Promise<{
     success: boolean;
     worktree?: any;

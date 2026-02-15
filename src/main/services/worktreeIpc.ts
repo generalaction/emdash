@@ -75,6 +75,7 @@ export function registerWorktreeIpc(): void {
         taskName: string;
         projectId: string;
         baseRef?: string;
+        branchPrefix?: string;
       }
     ) => {
       try {
@@ -89,6 +90,7 @@ export function registerWorktreeIpc(): void {
             projectId: project.id,
             remotePath: project.remotePath,
           });
+          // Remote worktrees don't support prefix customization yet
           const remote = await remoteGitService.createWorktree(
             project.sshConnectionId,
             project.remotePath,
@@ -111,7 +113,8 @@ export function registerWorktreeIpc(): void {
           args.projectPath,
           args.taskName,
           args.projectId,
-          args.baseRef
+          args.baseRef,
+          args.branchPrefix
         );
         return { success: true, worktree };
       } catch (error) {
@@ -337,6 +340,7 @@ export function registerWorktreeIpc(): void {
         projectPath: string;
         taskName: string;
         baseRef?: string;
+        branchPrefix?: string;
       }
     ) => {
       try {
@@ -351,7 +355,8 @@ export function registerWorktreeIpc(): void {
           args.projectId,
           args.projectPath,
           args.taskName,
-          args.baseRef
+          args.baseRef,
+          args.branchPrefix
         );
         if (result) {
           return {
