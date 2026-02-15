@@ -15,7 +15,6 @@ import IntegrationsCard from './IntegrationsCard';
 import Context7SettingsCard from './Context7SettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ThemeCard from './ThemeCard';
-import DefaultOpenInSettingsCard from './DefaultOpenInSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
@@ -222,7 +221,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
-        { component: <DefaultOpenInSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Workspace',

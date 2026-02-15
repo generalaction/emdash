@@ -28,7 +28,7 @@ const SidebarRightToggleButton: React.FC = () => {
             variant="ghost"
             size="icon"
             onClick={handleClick}
-            className="h-8 w-8 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-background/80"
+            className="h-8 w-8 text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-transparent hover:text-foreground"
             aria-label={label}
           >
             <PanelRight className="h-4 w-4" />
