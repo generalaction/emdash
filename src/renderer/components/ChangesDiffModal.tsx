@@ -487,6 +487,11 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
     try {
       const monaco = await loader.init();
 
+      // Add Save Command (Cmd+S / Ctrl+S)
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+        handleSaveRef.current();
+      });
+
       // Configure diagnostics to suppress warnings in diff viewer
       // Disabling all validation since diff viewer is read-only
       configureDiffEditorDiagnostics(editor, monaco, {
@@ -602,6 +607,12 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
     }
   };
 
+  // Keep a ref to the latest handleSave callback so it can be used in listeners
+  const handleSaveRef = useRef(handleSave);
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
+
   const isDirty = fileData ? modifiedDraft !== fileData.initialModified : false;
 
   if (typeof document === 'undefined') {
@@ -649,7 +660,12 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                   }`}
                   onClick={() => setSelected(f.path)}
                 >
-                  <div className="truncate font-medium">{f.path}</div>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <div className="truncate font-medium">{f.path}</div>
+                    {selected === f.path && isDirty && (
+                      <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {f.status} • +{f.additions} / -{f.deletions}
                     {commentCounts[f.path] > 0 && (
@@ -667,7 +683,12 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex items-center justify-between border-b border-border bg-white/80 px-4 py-2.5 dark:border-border dark:bg-muted/50">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate font-mono text-sm text-foreground">{selected}</span>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="truncate font-mono text-sm text-foreground">{selected}</span>
+                    {isDirty && (
+                      <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />
+                    )}
+                  </div>
                   {selected && (
                     <button
                       onClick={async () => {
