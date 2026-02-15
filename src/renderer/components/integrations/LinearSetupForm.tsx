@@ -47,8 +47,8 @@ const LinearSetupForm: React.FC<Props> = ({
           <div className="text-xs leading-snug text-muted-foreground">
             <p className="font-medium text-foreground">How to get a Linear API key</p>
             <ol className="mt-1 list-decimal pl-4">
-              <li>Open Linear, go to Settings → Security & access.</li>
-              <li>Create a new personal API key and copy the key.</li>
+              <li>Open Linear, go to Settings → API Tokens.</li>
+              <li>Create a new token and copy the key.</li>
             </ol>
           </div>
         </div>

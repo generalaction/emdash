@@ -240,7 +240,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
   const repo = input?.repository ?? DEFAULT_SETTINGS.repository;
   let prefix = String(repo?.branchPrefix ?? DEFAULT_SETTINGS.repository.branchPrefix);
   prefix = prefix.trim().replace(/\/+$/, ''); // remove trailing slashes
-  // Allow empty string - no forced fallback to default
+  if (!prefix) prefix = DEFAULT_SETTINGS.repository.branchPrefix;
   if (prefix.length > 50) prefix = prefix.slice(0, 50);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
 

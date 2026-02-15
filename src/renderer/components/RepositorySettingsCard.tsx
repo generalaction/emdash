@@ -59,10 +59,7 @@ const RepositorySettingsCard: React.FC = () => {
   );
 
   const example = useMemo(() => {
-    const prefix = settings.branchPrefix.trim();
-    if (!prefix) {
-      return 'my-feature-a3f';
-    }
+    const prefix = settings.branchPrefix || DEFAULTS.branchPrefix;
     return `${prefix}/my-feature-a3f`;
   }, [settings.branchPrefix]);
 
@@ -73,16 +70,12 @@ const RepositorySettingsCard: React.FC = () => {
           value={settings.branchPrefix}
           onChange={(e) => setSettings((s) => ({ ...s, branchPrefix: e.target.value }))}
           onBlur={() => savePartial({ branchPrefix: settings.branchPrefix.trim() })}
-          placeholder="Branch prefix (optional)"
-          aria-label="Branch prefix (optional)"
+          placeholder="Branch prefix"
+          aria-label="Branch prefix"
           disabled={loading}
         />
         <div className="text-[11px] text-muted-foreground">
           Example: <code className="rounded bg-muted/60 px-1">{example}</code>
-          <br />
-          <span className="text-[10px]">
-            Leave empty for no prefix. You can also override this per task during creation.
-          </span>
         </div>
       </div>
 
