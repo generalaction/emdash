@@ -109,6 +109,17 @@ const ChatInterface: React.FC<Props> = ({
         .map(([id]) => id),
     [agentStatuses]
   );
+  const sortedConversations = useMemo(
+    () =>
+      [...conversations].sort((a, b) => {
+        // Sort by display order or creation time to maintain consistent order
+        if (a.displayOrder !== undefined && b.displayOrder !== undefined) {
+          return a.displayOrder - b.displayOrder;
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }),
+    [conversations]
+  );
 
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
@@ -244,7 +255,6 @@ const ChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     setCliStartFailed(false);
-    setIsAgentInstalled(null);
   }, [task.id]);
 
   const runInstallCommand = useCallback(
@@ -557,7 +567,7 @@ const ChatInterface: React.FC<Props> = ({
       cancelled = true;
       off?.();
     };
-  }, [agent, task.id]);
+  }, [agent]);
 
   // When switching agents, ensure other streams are stopped
   useEffect(() => {
@@ -767,77 +777,68 @@ const ChatInterface: React.FC<Props> = ({
             <div className="mx-auto max-w-4xl space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {conversations
-                    .sort((a, b) => {
-                      // Sort by display order or creation time to maintain consistent order
-                      if (a.displayOrder !== undefined && b.displayOrder !== undefined) {
-                        return a.displayOrder - b.displayOrder;
-                      }
-                      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-                    })
-                    .map((conv, index) => {
-                      const isActive = conv.id === activeConversationId;
-                      const convAgent = conv.provider || agent;
-                      const config = agentConfig[convAgent as Agent];
-                      const agentName = config?.name || convAgent;
+                  {sortedConversations.map((conv, index) => {
+                    const isActive = conv.id === activeConversationId;
+                    const convAgent = conv.provider || agent;
+                    const config = agentConfig[convAgent as Agent];
+                    const agentName = config?.name || convAgent;
 
-                      // Count how many chats use the same agent up to this point
-                      const sameAgentCount = conversations
-                        .slice(0, index + 1)
-                        .filter((c) => (c.provider || agent) === convAgent).length;
-                      const showNumber =
-                        conversations.filter((c) => (c.provider || agent) === convAgent).length > 1;
+                    // Count how many chats use the same agent up to this point
+                    const sameAgentCount = sortedConversations
+                      .slice(0, index + 1)
+                      .filter((c) => (c.provider || agent) === convAgent).length;
+                    const showNumber =
+                      sortedConversations.filter((c) => (c.provider || agent) === convAgent)
+                        .length > 1;
 
-                      return (
-                        <button
-                          key={conv.id}
-                          onClick={() => handleSwitchChat(conv.id)}
-                          className={`inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground transition-colors ${
-                            isActive
-                              ? 'font-semibold' // Just make active tab bold
-                              : 'hover:bg-muted/80' // Only inactive tabs have hover effect
-                          }`}
-                          title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
-                        >
-                          {config?.logo && (
-                            <AgentLogo
-                              logo={config.logo}
-                              alt={config.alt}
-                              isSvg={config.isSvg}
-                              invertInDark={config.invertInDark}
-                              className="h-3.5 w-3.5 flex-shrink-0"
-                            />
-                          )}
-                          <span className="max-w-[10rem] truncate">
-                            {agentName}
-                            {showNumber && (
-                              <span className="ml-1 opacity-60">{sameAgentCount}</span>
-                            )}
-                          </span>
-                          {conversations.length > 1 && (
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              onClick={(e) => {
+                    return (
+                      <button
+                        key={conv.id}
+                        onClick={() => handleSwitchChat(conv.id)}
+                        className={`inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground transition-colors ${
+                          isActive
+                            ? 'font-semibold' // Just make active tab bold
+                            : 'hover:bg-muted/80' // Only inactive tabs have hover effect
+                        }`}
+                        title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
+                      >
+                        {config?.logo && (
+                          <AgentLogo
+                            logo={config.logo}
+                            alt={config.alt}
+                            isSvg={config.isSvg}
+                            invertInDark={config.invertInDark}
+                            className="h-3.5 w-3.5 flex-shrink-0"
+                          />
+                        )}
+                        <span className="max-w-[10rem] truncate">
+                          {agentName}
+                          {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
+                        </span>
+                        {conversations.length > 1 && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCloseChat(conv.id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 handleCloseChat(conv.id);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleCloseChat(conv.id);
-                                }
-                              }}
-                              className="ml-1 rounded hover:bg-background/20"
-                              title="Close chat"
-                            >
-                              <X className="h-3 w-3" />
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
+                              }
+                            }}
+                            className="ml-1 rounded hover:bg-background/20"
+                            title="Close chat"
+                          >
+                            <X className="h-3 w-3" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
 
                   <button
                     onClick={handleCreateNewChat}
@@ -866,7 +867,7 @@ const ChatInterface: React.FC<Props> = ({
                 )}
               </div>
               {(() => {
-                if (isAgentInstalled !== true) {
+                if (isAgentInstalled === false) {
                   return (
                     <InstallBanner
                       agent={agent as any}
