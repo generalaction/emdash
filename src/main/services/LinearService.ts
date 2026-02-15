@@ -96,9 +96,15 @@ export class LinearService {
 
     const sanitizedLimit = Math.min(Math.max(limit, 1), 200);
 
+    // Use server-side filter to exclude completed/canceled issues so we get a full
+    // page of open issues instead of fetching N and discarding closed ones.
     const query = `
       query ListIssues($limit: Int!) {
-        issues(first: $limit, orderBy: updatedAt) {
+        issues(
+          first: $limit,
+          orderBy: updatedAt,
+          filter: { state: { type: { nin: ["completed", "cancelled"] } } }
+        ) {
           nodes {
             id
             identifier
@@ -119,17 +125,7 @@ export class LinearService {
       limit: sanitizedLimit,
     });
 
-    const nodes = response?.issues?.nodes ?? [];
-    // Filter out completed/done/canceled issues locally to avoid showing "Done" tickets
-    const open = nodes.filter((issue) => {
-      const type = String(issue?.state?.type || '').toLowerCase();
-      const name = String(issue?.state?.name || '').toLowerCase();
-      if (type === 'completed' || type === 'canceled') return false;
-      if (name === 'done' || name === 'completed' || name === 'canceled' || name === 'cancelled')
-        return false;
-      return true;
-    });
-    return open;
+    return response?.issues?.nodes ?? [];
   }
 
   async searchIssues(searchTerm: string, limit = 20): Promise<any[]> {
@@ -144,10 +140,10 @@ export class LinearService {
 
     const sanitizedLimit = Math.min(Math.max(limit, 1), 200);
 
-    // Get all recent issues and filter them locally
-    const allIssuesQuery = `
-      query ListAllIssues($limit: Int!) {
-        issues(first: $limit, orderBy: updatedAt) {
+    // Use Linear's server-side searchIssues query for full-text search across all issues
+    const searchQuery = `
+      query SearchIssues($term: String!, $limit: Int!) {
+        searchIssues(term: $term, first: $limit) {
           nodes {
             id
             identifier
@@ -165,51 +161,18 @@ export class LinearService {
     `;
 
     try {
-      const allIssuesResponse = await this.graphql<{ issues: { nodes: any[] } }>(
+      const searchResponse = await this.graphql<{ searchIssues: { nodes: any[] } }>(
         token,
-        allIssuesQuery,
+        searchQuery,
         {
-          limit: 100, // Get more issues to search through
+          term: searchTerm.trim(),
+          limit: sanitizedLimit,
         }
       );
 
-      const allIssues = allIssuesResponse?.issues?.nodes ?? [];
-
-      // Exclude completed/done/canceled issues
-      const candidateIssues = allIssues.filter((issue) => {
-        const type = String(issue?.state?.type || '').toLowerCase();
-        const name = String(issue?.state?.name || '').toLowerCase();
-        if (type === 'completed' || type === 'canceled') return false;
-        if (name === 'done' || name === 'completed' || name === 'canceled' || name === 'cancelled')
-          return false;
-        return true;
-      });
-
-      // Filter locally
-      const searchTermLower = searchTerm.trim().toLowerCase();
-      const filteredIssues = candidateIssues.filter((issue) => {
-        // Search in identifier
-        if (issue.identifier?.toLowerCase().includes(searchTermLower)) {
-          return true;
-        }
-        // Search in title
-        if (issue.title?.toLowerCase().includes(searchTermLower)) {
-          return true;
-        }
-        // Search in assignee name
-        if (issue.assignee?.name?.toLowerCase().includes(searchTermLower)) {
-          return true;
-        }
-        // Search in assignee displayName
-        if (issue.assignee?.displayName?.toLowerCase().includes(searchTermLower)) {
-          return true;
-        }
-        return false;
-      });
-
-      // Return up to the requested limit
-      return filteredIssues.slice(0, sanitizedLimit);
+      return searchResponse?.searchIssues?.nodes ?? [];
     } catch (error) {
+      console.error('[Linear] searchIssues error:', error);
       return [];
     }
   }
