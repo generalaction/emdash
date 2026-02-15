@@ -27,19 +27,16 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <p className="text-sm font-medium text-foreground">Config</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 px-3 text-xs sm:w-auto"
-          onClick={onOpenConfig}
-          disabled={!onOpenConfig}
-        >
-          Open
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 px-3 text-xs"
+        onClick={onOpenConfig}
+        disabled={!onOpenConfig}
+      >
+        Edit config
+      </Button>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <p className="text-sm font-medium text-foreground">Base branch</p>
         <BranchSelect

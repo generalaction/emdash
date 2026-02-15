@@ -1,14 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Editor, { Monaco } from '@monaco-editor/react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
-import { useTheme } from '@/hooks/useTheme';
-import { defineMonacoThemes, getMonacoTheme } from '@/lib/monaco-themes';
-
-type EditorMode = 'scripts' | 'json';
 
 type LifecycleScripts = {
   setup: string;
@@ -97,23 +92,15 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   onClose,
   projectPath,
 }) => {
-  const { effectiveTheme } = useTheme();
-  const [mode, setMode] = useState<EditorMode>('scripts');
   const [config, setConfig] = useState<ConfigShape>({});
   const [scripts, setScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
   const [originalScripts, setOriginalScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
   const [preservePatternsInput, setPreservePatternsInput] = useState('');
   const [originalPreservePatternsInput, setOriginalPreservePatternsInput] = useState('');
-  const [jsonContent, setJsonContent] = useState('');
-  const [originalContent, setOriginalContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [jsonError, setJsonError] = useState<string | null>(null);
-
-  const handleEditorBeforeMount = useCallback((monaco: Monaco) => {
-    defineMonacoThemes(monaco);
-  }, []);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const preservePatterns = useMemo(
     () =>
@@ -148,17 +135,12 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     ]
   );
 
-  const jsonDirty = useMemo(() => jsonContent !== originalContent, [jsonContent, originalContent]);
-
-  const hasChanges = useMemo(
-    () => (mode === 'json' ? jsonDirty : scriptsDirty),
-    [mode, jsonDirty, scriptsDirty]
-  );
+  const hasChanges = scriptsDirty;
 
   const loadConfig = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    setJsonError(null);
+    setLoadFailed(false);
     try {
       const result = await window.electronAPI.getProjectConfig(projectPath);
       if (!result.success || !result.content) {
@@ -168,23 +150,19 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       const parsed = ensureConfigObject(JSON.parse(result.content));
       const nextScripts = scriptsFromConfig(parsed);
       const nextPreservePatterns = preservePatternsFromConfig(parsed);
-      const nextJson = `${JSON.stringify(parsed, null, 2)}\n`;
       setConfig(parsed);
       setScripts(nextScripts);
       setOriginalScripts(nextScripts);
       setPreservePatternsInput(nextPreservePatterns.join('\n'));
       setOriginalPreservePatternsInput(nextPreservePatterns.join('\n'));
-      setJsonContent(nextJson);
-      setOriginalContent(nextJson);
     } catch (err) {
       setConfig({});
       setScripts({ ...EMPTY_SCRIPTS });
       setOriginalScripts({ ...EMPTY_SCRIPTS });
       setPreservePatternsInput('');
       setOriginalPreservePatternsInput('');
-      setJsonContent('');
-      setOriginalContent('');
       setError(err instanceof Error ? err.message : 'Failed to load config');
+      setLoadFailed(true);
     } finally {
       setIsLoading(false);
     }
@@ -192,68 +170,13 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
 
   useEffect(() => {
     if (!isOpen || !projectPath) return;
-    setMode('scripts');
     void loadConfig();
   }, [isOpen, loadConfig, projectPath]);
-
-  useEffect(() => {
-    if (mode !== 'json') {
-      setJsonError(null);
-      return;
-    }
-
-    if (!jsonContent.trim()) {
-      setJsonError('JSON cannot be empty');
-      return;
-    }
-
-    try {
-      JSON.parse(jsonContent);
-      setJsonError(null);
-    } catch (err) {
-      if (err instanceof SyntaxError) {
-        setJsonError(err.message);
-      }
-    }
-  }, [jsonContent, mode]);
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isSaving) return;
     if (!open) onClose();
   };
-
-  const handleModeChange = useCallback(
-    (nextMode: EditorMode) => {
-      if (nextMode === mode) return;
-
-      if (nextMode === 'json') {
-        // Avoid false dirty state when no scripts-side edits were made.
-        const nextJson = scriptsDirty ? normalizedConfigContent : originalContent;
-        setJsonContent(nextJson);
-        setJsonError(null);
-        setMode('json');
-        return;
-      }
-
-      // json -> scripts, only if json is valid
-      try {
-        const parsed = ensureConfigObject(JSON.parse(jsonContent));
-        const nextScripts = scriptsFromConfig(parsed);
-        const nextPreservePatterns = preservePatternsFromConfig(parsed);
-        setConfig(parsed);
-        setScripts(nextScripts);
-        setPreservePatternsInput(nextPreservePatterns.join('\n'));
-        setJsonError(null);
-        setMode('scripts');
-      } catch (err) {
-        if (err instanceof SyntaxError) {
-          setJsonError(err.message);
-        }
-        setError('Fix JSON errors before switching to Scripts.');
-      }
-    },
-    [jsonContent, mode, normalizedConfigContent, originalContent, scriptsDirty]
-  );
 
   const handleScriptChange =
     (key: keyof LifecycleScripts) => (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -266,32 +189,18 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     setIsSaving(true);
     setError(null);
     try {
-      let contentToSave = normalizedConfigContent;
-      let nextConfig = config;
-      let nextScripts = scripts;
-      let nextPreservePatternsInput = preservePatternsInput;
-      if (mode === 'json') {
-        if (jsonError) {
-          throw new Error('Invalid JSON format');
-        }
-        const parsed = ensureConfigObject(JSON.parse(jsonContent));
-        nextConfig = parsed;
-        nextScripts = scriptsFromConfig(parsed);
-        nextPreservePatternsInput = preservePatternsFromConfig(parsed).join('\n');
-        contentToSave = jsonContent.endsWith('\n') ? jsonContent : `${jsonContent}\n`;
-      }
-
-      const result = await window.electronAPI.saveProjectConfig(projectPath, contentToSave);
+      const result = await window.electronAPI.saveProjectConfig(
+        projectPath,
+        normalizedConfigContent
+      );
       if (!result.success) {
         throw new Error(result.error || 'Failed to save config');
       }
 
+      const nextConfig = applyScripts(applyPreservePatterns(config, preservePatterns), scripts);
       setConfig(nextConfig);
-      setScripts(nextScripts);
-      setPreservePatternsInput(nextPreservePatternsInput);
-      setOriginalContent(contentToSave);
-      setOriginalScripts(nextScripts);
-      setOriginalPreservePatternsInput(nextPreservePatternsInput);
+      setOriginalScripts(scripts);
+      setOriginalPreservePatternsInput(preservePatternsInput);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save config');
@@ -300,12 +209,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     }
   }, [
     config,
-    jsonContent,
-    jsonError,
-    mode,
     normalizedConfigContent,
     onClose,
     preservePatternsInput,
+    preservePatterns,
     projectPath,
     scripts,
   ]);
@@ -314,154 +221,95 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[88vh] max-w-3xl flex-col">
         <DialogHeader>
-          <DialogTitle>Config</DialogTitle>
+          <DialogTitle>Project config</DialogTitle>
         </DialogHeader>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Spinner size="md" />
           </div>
-        ) : error && !jsonContent ? (
+        ) : loadFailed ? (
           <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">{error}</div>
         ) : (
           <>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={mode === 'scripts' ? 'default' : 'outline'}
-                onClick={() => handleModeChange('scripts')}
-                disabled={isSaving}
-              >
-                Scripts
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={mode === 'json' ? 'default' : 'outline'}
-                onClick={() => handleModeChange('json')}
-                disabled={isSaving}
-              >
-                JSON
-              </Button>
-            </div>
-
-            {mode === 'scripts' ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="config-preserve-patterns">Preserved patterns</Label>
-                  <Textarea
-                    id="config-preserve-patterns"
-                    value={preservePatternsInput}
-                    onChange={(event) => {
-                      setPreservePatternsInput(event.target.value);
-                      setError(null);
-                    }}
-                    placeholder={['.env', '.env.local', 'config/local.yml', 'secrets/*.json'].join(
-                      '\n'
-                    )}
-                    className="min-h-[104px] font-mono text-xs"
-                    disabled={isSaving}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Files copied to new tasks. One glob pattern per line.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="config-scripts-setup">Setup script</Label>
-                  <Textarea
-                    id="config-scripts-setup"
-                    value={scripts.setup}
-                    onChange={handleScriptChange('setup')}
-                    placeholder="pnpm install"
-                    className="min-h-[84px] font-mono text-xs"
-                    disabled={isSaving}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Runs once right after a new task is created.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="config-scripts-run">Run script</Label>
-                  <Textarea
-                    id="config-scripts-run"
-                    value={scripts.run}
-                    onChange={handleScriptChange('run')}
-                    placeholder="pnpm run dev"
-                    className="min-h-[84px] font-mono text-xs"
-                    disabled={isSaving}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Long-running command for the task (start/stop from the task terminal).
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="config-scripts-teardown">Teardown script</Label>
-                  <Textarea
-                    id="config-scripts-teardown"
-                    value={scripts.teardown}
-                    onChange={handleScriptChange('teardown')}
-                    placeholder="docker compose down"
-                    className="min-h-[84px] font-mono text-xs"
-                    disabled={isSaving}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Runs when a task is being deleted or archived.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div
-                className={`min-h-0 overflow-hidden rounded-md border ${isSaving ? 'opacity-75' : ''}`}
-              >
-                <Editor
-                  height="420px"
-                  language="json"
-                  value={jsonContent}
-                  onChange={(value) => {
-                    setJsonContent(value || '');
-                    setError(null);
-                  }}
-                  beforeMount={handleEditorBeforeMount}
-                  theme={getMonacoTheme(effectiveTheme)}
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 13,
-                    lineNumbers: 'on',
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    tabSize: 2,
-                    wordWrap: 'on',
-                    readOnly: isSaving,
-                  }}
-                />
-              </div>
-            )}
-
-            {jsonError && mode === 'json' ? (
-              <div className="rounded-md bg-destructive/10 p-3 text-xs text-destructive">
-                Invalid JSON: {jsonError}
-              </div>
-            ) : null}
-
-            {error && jsonContent ? (
+            {error ? (
               <div className="rounded-md bg-destructive/10 p-3 text-xs text-destructive">
                 {error}
               </div>
             ) : null}
 
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="config-preserve-patterns">Preserved patterns</Label>
+                <Textarea
+                  id="config-preserve-patterns"
+                  value={preservePatternsInput}
+                  onChange={(event) => {
+                    setPreservePatternsInput(event.target.value);
+                    setError(null);
+                  }}
+                  placeholder={['.env', '.env.local', 'config/local.yml', 'secrets/*.json'].join(
+                    '\n'
+                  )}
+                  className="min-h-[104px] font-mono text-xs"
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Files copied to new tasks. One glob pattern per line.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="config-scripts-setup">Setup script</Label>
+                <Textarea
+                  id="config-scripts-setup"
+                  value={scripts.setup}
+                  onChange={handleScriptChange('setup')}
+                  placeholder="No setup script configured"
+                  className="min-h-[84px] font-mono text-xs"
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Runs once right after a new task is created.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="config-scripts-run">Run script</Label>
+                <Textarea
+                  id="config-scripts-run"
+                  value={scripts.run}
+                  onChange={handleScriptChange('run')}
+                  placeholder="No run script configured"
+                  className="min-h-[84px] font-mono text-xs"
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Long-running command for the task (start/stop from the task terminal).
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="config-scripts-teardown">Teardown script</Label>
+                <Textarea
+                  id="config-scripts-teardown"
+                  value={scripts.teardown}
+                  onChange={handleScriptChange('teardown')}
+                  placeholder="No teardown script configured"
+                  className="min-h-[84px] font-mono text-xs"
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Runs when a task is being deleted or archived.
+                </p>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button
-                type="button"
-                onClick={handleSave}
-                disabled={!hasChanges || isSaving || (mode === 'json' && !!jsonError)}
-              >
+              <Button type="button" onClick={handleSave} disabled={!hasChanges || isSaving}>
                 {isSaving ? (
                   <>
                     <Spinner size="sm" className="mr-2" />
