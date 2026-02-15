@@ -849,8 +849,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           <div className="space-y-4">
             {/* Show common SSH key paths when key auth is selected */}
             {formData.authType === 'key' && (
-              <Alert className="border-blue-500/40 bg-blue-500/10">
-                <AlertCircle className="h-4 w-4 text-blue-500" />
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <p className="mb-2 text-sm font-medium">Quick select common SSH keys:</p>
                   <div className="space-y-1 text-xs">
@@ -863,7 +863,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                         key={key.name}
                         type="button"
                         onClick={() => updateField('privateKeyPath', key.path)}
-                        className="block text-left font-medium text-blue-500 hover:underline"
+                        className="block text-left font-medium text-foreground hover:underline"
                       >
                         {key.path}
                       </button>
@@ -1019,11 +1019,11 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                       </summary>
                       <div className="mt-2 space-y-1 font-mono text-xs">
                         <p>1. Start SSH agent (if not running):</p>
-                        <p className="pl-2 text-blue-500">eval &quot;$(ssh-agent -s)&quot;</p>
+                        <p className="pl-2 text-muted-foreground">eval &quot;$(ssh-agent -s)&quot;</p>
                         <p className="pt-1">2. Check if your key is loaded:</p>
-                        <p className="pl-2 text-blue-500">ssh-add -l</p>
+                        <p className="pl-2 text-muted-foreground">ssh-add -l</p>
                         <p className="pt-1">3. If not listed, add your key:</p>
-                        <p className="pl-2 text-blue-500">ssh-add ~/.ssh/id_ed25519</p>
+                        <p className="pl-2 text-muted-foreground">ssh-add ~/.ssh/id_ed25519</p>
                         <p className="pt-1">(or your key filename if different)</p>
                       </div>
                     </details>
@@ -1068,7 +1068,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 Project Path <span className="text-destructive">*</span>
               </Label>
               <div className="flex gap-2">
-                <div className="relative flex-1">
+                <div className="relative min-w-0 flex-1">
                   <FolderOpen className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="remote-path"
@@ -1085,6 +1085,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 <Button
                   type="button"
                   variant="outline"
+                  className="shrink-0"
                   onClick={() => void browseRemotePath(formData.remotePath || '/')}
                   disabled={isBrowsing}
                 >
@@ -1107,7 +1108,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             )}
 
             {/* Directory browser */}
-            <div className="rounded-md border">
+            <div className="overflow-hidden rounded-md border">
               <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-2">
                 <Button
                   type="button"
@@ -1119,7 +1120,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 >
                   <ChevronUp className="h-4 w-4" />
                 </Button>
-                <span className="flex-1 truncate text-sm font-medium">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">
                   {formData.remotePath || '/'}
                 </span>
               </div>
@@ -1185,26 +1186,26 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               </div>
               <div className="divide-y">
                 <div className="flex px-4 py-3">
-                  <span className="w-32 text-sm text-muted-foreground">Name</span>
-                  <span className="flex-1 text-sm font-medium">{formData.name}</span>
+                  <span className="w-32 shrink-0 text-sm text-muted-foreground">Name</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{formData.name}</span>
                 </div>
                 <div className="flex px-4 py-3">
-                  <span className="w-32 text-sm text-muted-foreground">Host</span>
-                  <span className="flex-1 text-sm font-medium">
+                  <span className="w-32 shrink-0 text-sm text-muted-foreground">Host</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {formData.username}@{formData.host}:{formData.port}
                   </span>
                 </div>
                 <div className="flex px-4 py-3">
-                  <span className="w-32 text-sm text-muted-foreground">Authentication</span>
-                  <span className="flex-1 text-sm font-medium">
+                  <span className="w-32 shrink-0 text-sm text-muted-foreground">Authentication</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {formData.authType === 'password' && 'Password'}
                     {formData.authType === 'key' && 'SSH Key'}
                     {formData.authType === 'agent' && 'SSH Agent'}
                   </span>
                 </div>
                 <div className="flex px-4 py-3">
-                  <span className="w-32 text-sm text-muted-foreground">Project Path</span>
-                  <span className="flex-1 font-mono text-sm font-medium">
+                  <span className="w-32 shrink-0 text-sm text-muted-foreground">Project Path</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
                     {formData.remotePath}
                   </span>
                 </div>
@@ -1223,7 +1224,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg overflow-hidden">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Add Remote Project</DialogTitle>
           <DialogDescription>
@@ -1234,7 +1235,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         <Separator />
 
         {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2 py-2">
+        <div className="flex items-center gap-2 py-2">
           {steps.map((step, index) => {
             const Icon = step.icon;
             const isActive = index === currentStepIndex;
@@ -1244,7 +1245,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               <React.Fragment key={step.id}>
                 <div
                   className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-medium',
+                    'flex h-8 w-8 items-center justify-center rounded-sm border-2 text-xs font-medium',
                     isActive && 'border-primary bg-primary text-primary-foreground',
                     isCompleted && 'border-primary bg-primary/10 text-primary',
                     !isActive && !isCompleted && 'border-muted text-muted-foreground'
@@ -1266,12 +1267,12 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         </div>
 
         {/* Step title */}
-        <div className="text-center">
+        <div>
           <h3 className="text-lg font-medium">{steps[currentStepIndex]?.label}</h3>
         </div>
 
-        {/* Error display */}
-        {errors.general && (
+        {/* Error display (hidden on auth step where test result badge already shows it) */}
+        {errors.general && currentStep !== 'auth' && (
           <Badge
             variant="outline"
             className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
@@ -1282,9 +1283,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         )}
 
         {/* Step content */}
-        <div className="py-2">{renderStepContent()}</div>
-
-        <Separator />
+        <div className="min-w-0 py-2">{renderStepContent()}</div>
 
         {/* Navigation buttons */}
         <div
