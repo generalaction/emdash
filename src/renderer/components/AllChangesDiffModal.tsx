@@ -775,7 +775,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                               </span>
                               {isDirty && (
                                 <div
-                                  className="h-1.5 w-1.5 rounded-full bg-white"
+                                  className="h-1.5 w-1.5 rounded-full bg-blue-500"
                                   title="Unsaved changes"
                                 />
                               )}

@@ -663,7 +663,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                   <div className="flex min-w-0 items-center gap-1">
                     <div className="truncate font-medium">{f.path}</div>
                     {selected === f.path && isDirty && (
-                      <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-white" />
+                      <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -685,7 +685,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <div className="flex min-w-0 items-center gap-1">
                     <span className="truncate font-mono text-sm text-foreground">{selected}</span>
-                    {isDirty && <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-white" />}
+                    {isDirty && <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />}
                   </div>
                   {selected && (
                     <button
