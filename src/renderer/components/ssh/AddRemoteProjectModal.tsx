@@ -222,7 +222,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setConnectionId(stableId);
 
       // Determine auth type and key path - default to key auth (more reliable)
-      let authType: AuthType = 'key';
+      const authType: AuthType = 'key';
       let privateKeyPath = '';
 
       if (host.identityFile) {

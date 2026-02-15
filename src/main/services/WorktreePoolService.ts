@@ -167,7 +167,8 @@ export class WorktreePoolService {
     projectId: string,
     projectPath: string,
     taskName: string,
-    requestedBaseRef?: string
+    requestedBaseRef?: string,
+    requestedBranchPrefix?: string
   ): Promise<ClaimResult | null> {
     const reserve = this.reserves.get(projectId);
     if (!reserve) {
@@ -188,7 +189,12 @@ export class WorktreePoolService {
     this.reserves.delete(projectId);
 
     try {
-      const result = await this.transformReserve(reserve, taskName, requestedBaseRef);
+      const result = await this.transformReserve(
+        reserve,
+        taskName,
+        requestedBaseRef,
+        requestedBranchPrefix
+      );
 
       // Start background replenishment
       this.replenishReserve(projectId, projectPath, requestedBaseRef);
@@ -208,16 +214,28 @@ export class WorktreePoolService {
   private async transformReserve(
     reserve: ReserveWorktree,
     taskName: string,
-    requestedBaseRef?: string
+    requestedBaseRef?: string,
+    requestedBranchPrefix?: string
   ): Promise<ClaimResult> {
+    // Load settings for prefix resolution and pushOnCreate check
     const { getAppSettings } = await import('../settings');
     const settings = getAppSettings();
-    const prefix = settings?.repository?.branchPrefix || 'emdash';
+
+    // Resolve effective prefix: explicit override > settings default
+    let effectivePrefix: string;
+    if (requestedBranchPrefix !== undefined) {
+      // Explicit value (empty string means no prefix)
+      effectivePrefix = requestedBranchPrefix.trim().replace(/\/+$/, '');
+    } else {
+      // Use repository default from settings
+      effectivePrefix = settings?.repository?.branchPrefix?.trim() || '';
+    }
 
     // Generate new names
     const sluggedName = this.slugify(taskName);
     const hash = this.generateShortHash();
-    const newBranch = `${prefix}/${sluggedName}-${hash}`;
+    const taskSegment = `${sluggedName}-${hash}`;
+    const newBranch = effectivePrefix ? `${effectivePrefix}/${taskSegment}` : taskSegment;
     const newPath = path.join(reserve.projectPath, '..', `worktrees/${sluggedName}-${hash}`);
     const newId = this.stableIdFromPath(newPath);
 
