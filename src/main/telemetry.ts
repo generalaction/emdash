@@ -104,6 +104,13 @@ type TelemetryEvent =
   | 'remote_project_modal_opened'
   | 'remote_project_connection_tested'
   | 'remote_project_created'
+  | 'ssh_connection_saved'
+  | 'ssh_connection_deleted'
+  | 'ssh_connect_success'
+  | 'ssh_connect_failed'
+  | 'ssh_disconnected'
+  | 'ssh_reconnect_attempted'
+  | 'ssh_settings_opened'
   // GitHub issues
   | 'github_issues_searched'
   | 'github_issue_selected'

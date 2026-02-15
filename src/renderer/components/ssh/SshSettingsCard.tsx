@@ -33,6 +33,9 @@ export const SshSettingsCard: React.FC<Props> = ({ onAddConnection, onManageKeys
     setEditingConnection(null);
     setViewState('create');
     onAddConnection?.();
+    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('ssh_settings_opened');
+    });
   }, [onAddConnection]);
 
   const handleEdit = useCallback((connection: SshConnection) => {

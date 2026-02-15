@@ -93,6 +93,31 @@ function isPathSafe(remotePath: string): boolean {
 }
 
 /**
+ * Classify an SSH error into a safe, non-PII category for telemetry.
+ */
+function classifySshError(err: any): string {
+  const msg = String(err?.message || err || '').toLowerCase();
+  if (msg.includes('authentication') || msg.includes('auth') || msg.includes('password')) {
+    return 'auth_failed';
+  }
+  if (msg.includes('timed out') || msg.includes('timeout')) {
+    return 'timeout';
+  }
+  if (
+    msg.includes('econnrefused') ||
+    msg.includes('enotfound') ||
+    msg.includes('enetunreach') ||
+    msg.includes('network')
+  ) {
+    return 'network';
+  }
+  if (msg.includes('key') || msg.includes('passphrase') || msg.includes('decrypt')) {
+    return 'key_error';
+  }
+  return 'unknown';
+}
+
+/**
  * Register all SSH IPC handlers
  */
 export function registerSshIpc() {
@@ -108,12 +133,18 @@ export function registerSshIpc() {
 
       await sshService.connect(config);
       monitor.updateState(connectionId, 'connected');
+      void import('../telemetry').then(({ capture }) => {
+        void capture('ssh_reconnect_attempted', { success: true });
+      });
     } catch (err: any) {
       console.error(
         `[sshIpc] Reconnect attempt ${attempt} failed for ${connectionId}:`,
         err.message
       );
       monitor.updateState(connectionId, 'error', err.message);
+      void import('../telemetry').then(({ capture }) => {
+        void capture('ssh_reconnect_attempted', { success: false });
+      });
     }
   });
   // Test connection
@@ -251,6 +282,10 @@ export function registerSshIpc() {
             },
           });
 
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_connection_saved', { type: config.authType });
+        });
+
         return {
           success: true,
           connection: {
@@ -320,6 +355,10 @@ export function registerSshIpc() {
         // Delete from database
         await db.delete(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
 
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_connection_deleted');
+        });
+
         return { success: true };
       } catch (err: any) {
         console.error('[sshIpc] Delete connection error:', err);
@@ -363,6 +402,9 @@ export function registerSshIpc() {
           const loadedConfig = mapRowToConfig(row);
           const connectionId = await sshService.connect(loadedConfig);
           monitor.startMonitoring(connectionId, loadedConfig);
+          void import('../telemetry').then(({ capture }) => {
+            void capture('ssh_connect_success', { type: loadedConfig.authType });
+          });
           return { success: true, connectionId };
         }
 
@@ -405,9 +447,15 @@ export function registerSshIpc() {
 
         const connectionId = await sshService.connect(fullConfig as any);
         monitor.startMonitoring(connectionId, fullConfig as any);
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_connect_success', { type: config.authType });
+        });
         return { success: true, connectionId };
       } catch (err: any) {
         console.error('[sshIpc] Connection error:', err);
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_connect_failed', { error_type: classifySshError(err) });
+        });
         return { success: false, error: err.message };
       }
     }
@@ -420,6 +468,9 @@ export function registerSshIpc() {
       try {
         await sshService.disconnect(connectionId);
         monitor.stopMonitoring(connectionId);
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_disconnected');
+        });
         return { success: true };
       } catch (err: any) {
         console.error('[sshIpc] Disconnect error:', err);

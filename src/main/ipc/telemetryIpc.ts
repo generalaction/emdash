@@ -79,6 +79,7 @@ const RENDERER_ALLOWED_EVENTS = new Set([
   'remote_project_modal_opened',
   'remote_project_connection_tested',
   'remote_project_created',
+  'ssh_settings_opened',
   // GitHub issues
   'github_issues_searched',
   'github_issue_selected',
