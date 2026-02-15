@@ -30,6 +30,7 @@ import {
   ChevronUp,
   Loader2,
   Shield,
+  Trash,
 } from 'lucide-react';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
@@ -197,6 +198,22 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setIsLoadingSavedConnections(false);
     }
   }, []);
+
+  const deleteSavedConnection = useCallback(
+    async (id: string) => {
+      try {
+        await window.electronAPI.sshDeleteConnection(id);
+        if (selectedSavedConnection === id) {
+          setSelectedSavedConnection(null);
+          setUseExistingConnection(false);
+        }
+        await loadSavedConnections();
+      } catch (error) {
+        console.error('Failed to delete connection:', error);
+      }
+    },
+    [selectedSavedConnection, loadSavedConnections]
+  );
 
   // Apply SSH config host selection
   const applySshHost = useCallback(
@@ -690,6 +707,17 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                           {conn.username}@{conn.host}:{conn.port}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteSavedConnection(conn.id);
+                        }}
+                      >
+                        <Trash className="h-3.5 w-3.5" />
+                      </Button>
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                     </button>
                   ))}
