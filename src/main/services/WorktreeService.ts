@@ -180,8 +180,7 @@ export class WorktreeService {
     projectPath: string,
     taskName: string,
     projectId: string,
-    baseRef?: string,
-    branchPrefix?: string
+    baseRef?: string
   ): Promise<WorktreeInfo> {
     // Declare variables outside try block for access in catch block
     let branchName: string | undefined;
@@ -190,24 +189,10 @@ export class WorktreeService {
     const hash = this.generateShortHash();
 
     try {
-      // Load settings for prefix resolution and pushOnCreate check
       const { getAppSettings } = await import('../settings');
       const settings = getAppSettings();
-
-      // Resolve effective prefix: explicit override > settings default
-      let effectivePrefix: string;
-      if (branchPrefix !== undefined) {
-        // Explicit value (empty string means no prefix)
-        effectivePrefix = branchPrefix.trim().replace(/\/+$/, '');
-      } else {
-        // Use repository default from settings
-        effectivePrefix = settings?.repository?.branchPrefix?.trim() || '';
-      }
-
-      // Build branch name conditionally
-      const taskSegment = `${sluggedName}-${hash}`;
-      const branchNameRaw = effectivePrefix ? `${effectivePrefix}/${taskSegment}` : taskSegment;
-      branchName = this.sanitizeBranchName(branchNameRaw);
+      const prefix = settings?.repository?.branchPrefix || 'emdash';
+      branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
       worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 
