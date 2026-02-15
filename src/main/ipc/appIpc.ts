@@ -6,6 +6,7 @@ import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
 import { getAppById, OPEN_IN_APPS, type OpenInAppId, type PlatformKey } from '@shared/openInApps';
 import { databaseService } from '../services/DatabaseService';
+import { buildExternalToolEnv } from '../utils/childProcessEnv';
 
 const UNKNOWN_VERSION = 'unknown';
 
@@ -21,7 +22,11 @@ const execCommand = (
   return new Promise((resolve, reject) => {
     exec(
       command,
-      { maxBuffer: opts?.maxBuffer ?? 8 * 1024 * 1024, timeout: opts?.timeout ?? 30000 },
+      {
+        maxBuffer: opts?.maxBuffer ?? 8 * 1024 * 1024,
+        timeout: opts?.timeout ?? 30000,
+        env: buildExternalToolEnv(),
+      },
       (error, stdout) => {
         if (error) return reject(error);
         resolve(stdout ?? '');
@@ -226,7 +231,7 @@ export function registerAppIpc() {
               const terminalCommand = `osascript -e 'tell application "Terminal" to do script "${escapedCommand}"' -e 'tell application "Terminal" to activate'`;
 
               await new Promise<void>((resolve, reject) => {
-                exec(terminalCommand, (err) => {
+                exec(terminalCommand, { env: buildExternalToolEnv() }, (err) => {
                   if (err) return reject(err);
                   resolve();
                 });
@@ -239,7 +244,7 @@ export function registerAppIpc() {
               const terminalCommand = `osascript -e 'tell application "iTerm" to create window with default profile command "${escapedCommand}"'`;
 
               await new Promise<void>((resolve, reject) => {
-                exec(terminalCommand, (err) => {
+                exec(terminalCommand, { env: buildExternalToolEnv() }, (err) => {
                   if (err) return reject(err);
                   resolve();
                 });
@@ -259,7 +264,7 @@ export function registerAppIpc() {
               const terminalCommand = `ghostty -e ${quoted(sshCommand)}`;
 
               await new Promise<void>((resolve, reject) => {
-                exec(terminalCommand, (err) => {
+                exec(terminalCommand, { env: buildExternalToolEnv() }, (err) => {
                   if (err) return reject(err);
                   resolve();
                 });
@@ -328,7 +333,7 @@ export function registerAppIpc() {
         }
 
         await new Promise<void>((resolve, reject) => {
-          exec(command, (err) => {
+          exec(command, { env: buildExternalToolEnv() }, (err) => {
             if (err) return reject(err);
             resolve();
           });
@@ -349,7 +354,7 @@ export function registerAppIpc() {
     // Helper to check if a command exists
     const checkCommand = (cmd: string): Promise<boolean> => {
       return new Promise((resolve) => {
-        exec(`command -v ${cmd} >/dev/null 2>&1`, (error) => {
+        exec(`command -v ${cmd} >/dev/null 2>&1`, { env: buildExternalToolEnv() }, (error) => {
           resolve(!error);
         });
       });
@@ -358,18 +363,26 @@ export function registerAppIpc() {
     // Helper to check if macOS app exists by bundle ID
     const checkMacApp = (bundleId: string): Promise<boolean> => {
       return new Promise((resolve) => {
-        exec(`mdfind "kMDItemCFBundleIdentifier == '${bundleId}'"`, (error, stdout) => {
-          resolve(!error && stdout.trim().length > 0);
-        });
+        exec(
+          `mdfind "kMDItemCFBundleIdentifier == '${bundleId}'"`,
+          { env: buildExternalToolEnv() },
+          (error, stdout) => {
+            resolve(!error && stdout.trim().length > 0);
+          }
+        );
       });
     };
 
     // Helper to check if macOS app exists by name
     const checkMacAppByName = (appName: string): Promise<boolean> => {
       return new Promise((resolve) => {
-        exec(`osascript -e 'id of application "${appName}"' 2>/dev/null`, (error) => {
-          resolve(!error);
-        });
+        exec(
+          `osascript -e 'id of application "${appName}"' 2>/dev/null`,
+          { env: buildExternalToolEnv() },
+          (error) => {
+            resolve(!error);
+          }
+        );
       });
     };
 
