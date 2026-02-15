@@ -1,14 +1,17 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, Eye, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ManagedFile } from '@/hooks/useFileManager';
 import { FileIcon } from './FileIcons';
+import { isMarkdownFile } from '@/constants/file-explorer';
 
 interface FileTabsProps {
   openFiles: Map<string, ManagedFile>;
   activeFilePath: string | null;
   onTabClick: (filePath: string) => void;
   onTabClose: (filePath: string) => void;
+  previewMode: Map<string, boolean>;
+  onTogglePreview: (filePath: string) => void;
 }
 
 export const FileTabs: React.FC<FileTabsProps> = ({
@@ -16,6 +19,8 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   activeFilePath,
   onTabClick,
   onTabClose,
+  previewMode,
+  onTogglePreview,
 }) => {
   if (openFiles.size === 0) {
     return null;
@@ -29,10 +34,16 @@ export const FileTabs: React.FC<FileTabsProps> = ({
           path={path}
           file={file}
           isActive={activeFilePath === path}
+          isMarkdown={isMarkdownFile(path)}
+          isPreview={previewMode.get(path) ?? isMarkdownFile(path)}
           onClick={() => onTabClick(path)}
           onClose={(e) => {
             e.stopPropagation();
             onTabClose(path);
+          }}
+          onTogglePreview={(e) => {
+            e.stopPropagation();
+            onTogglePreview(path);
           }}
         />
       ))}
@@ -44,11 +55,23 @@ interface FileTabProps {
   path: string;
   file: ManagedFile;
   isActive: boolean;
+  isMarkdown: boolean;
+  isPreview: boolean;
   onClick: () => void;
   onClose: (e: React.MouseEvent) => void;
+  onTogglePreview: (e: React.MouseEvent) => void;
 }
 
-const FileTab: React.FC<FileTabProps> = ({ path, file, isActive, onClick, onClose }) => {
+const FileTab: React.FC<FileTabProps> = ({
+  path,
+  file,
+  isActive,
+  isMarkdown,
+  isPreview,
+  onClick,
+  onClose,
+  onTogglePreview,
+}) => {
   const fileName = path.split('/').pop() || 'Untitled';
 
   return (
@@ -68,6 +91,16 @@ const FileTab: React.FC<FileTabProps> = ({ path, file, isActive, onClick, onClos
         <span className="text-gray-500" title="Unsaved changes">
           ●
         </span>
+      )}
+      {isMarkdown && (
+        <button
+          className="ml-0.5 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          onClick={onTogglePreview}
+          aria-label={isPreview ? 'Edit source' : 'Show preview'}
+          title={isPreview ? 'Edit source' : 'Show preview'}
+        >
+          {isPreview ? <Pencil className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+        </button>
       )}
       <button
         className="ml-1 rounded p-0.5 hover:bg-accent"

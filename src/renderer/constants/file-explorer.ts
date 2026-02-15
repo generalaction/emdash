@@ -52,6 +52,15 @@ export const DEFAULT_EXCLUDE_PATTERNS = [
 // File extensions considered as images
 export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'];
 
+// File extensions considered as markdown
+export const MARKDOWN_EXTENSIONS = ['md', 'mdx'];
+
+/** Check if a file path points to a markdown file */
+export function isMarkdownFile(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  return ext ? MARKDOWN_EXTENSIONS.includes(ext) : false;
+}
+
 // UI Layout constants
 export const EXPLORER_WIDTH = {
   DEFAULT: 288,
