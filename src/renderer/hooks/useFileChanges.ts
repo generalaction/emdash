@@ -48,6 +48,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   }, []);
 
   useEffect(() => {
+    setFileChanges([]); // Clear stale state immediately
     taskPathRef.current = taskPath;
     hasLoadedRef.current = false;
   }, [taskPath]);
