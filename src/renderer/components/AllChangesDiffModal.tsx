@@ -559,6 +559,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     }
   };
 
+  const handleSaveRef = useRef(handleSave);
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
+
   const handleEditorDidMount = async (
     filePath: string,
     editor: monaco.editor.IStandaloneDiffEditor
@@ -583,6 +588,17 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     // Define themes when editor is ready and FORCE apply theme
     try {
       const monaco = await loader.init();
+      
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+        // Find the editor that has focus
+        for (const [path, editor] of editorRefs.current.entries()) {
+          const modifiedEditor = editor.getModifiedEditor();
+          if (modifiedEditor.hasTextFocus()) {
+            handleSaveRef.current(path);
+            return;
+          }
+        }
+      });
 
       // Configure diagnostics to suppress warnings in diff viewer
       // Disabling all validation since diff viewer is read-only
@@ -757,6 +773,12 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                               <span className="truncate font-mono text-sm font-medium text-foreground">
                                 {file.path}
                               </span>
+                              {isDirty && (
+                                <div
+                                  className="h-1.5 w-1.5 rounded-full bg-white"
+                                  title="Unsaved changes"
+                                />
+                              )}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
