@@ -7,13 +7,21 @@ import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
+const IS_MAC = process.platform === 'darwin';
 
 export interface RepositorySettings {
   branchPrefix: string; // e.g., 'emdash'
   pushOnCreate: boolean;
 }
 
-export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+export type ShortcutModifier =
+  | 'cmd'
+  | 'ctrl'
+  | 'shift'
+  | 'alt'
+  | 'option'
+  | 'cmd+shift'
+  | 'ctrl+shift';
 
 export interface ShortcutBinding {
   key: string;
@@ -92,6 +100,22 @@ export interface AppSettings {
   defaultOpenInApp?: OpenInAppId;
 }
 
+function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
+  if (IS_MAC) {
+    return {
+      next: { key: ']', modifier: 'cmd' },
+      prev: { key: '[', modifier: 'cmd' },
+    };
+  }
+
+  return {
+    next: { key: 'Tab', modifier: 'ctrl' },
+    prev: { key: 'Tab', modifier: 'ctrl+shift' },
+  };
+}
+
+const TASK_SWITCH_DEFAULTS = getPlatformTaskSwitchDefaults();
+
 const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchPrefix: 'emdash',
@@ -130,8 +154,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     toggleTheme: { key: 't', modifier: 'cmd' },
     toggleKanban: { key: 'p', modifier: 'cmd' },
     toggleEditor: { key: 'e', modifier: 'cmd' },
-    nextProject: { key: 'ArrowRight', modifier: 'cmd' },
-    prevProject: { key: 'ArrowLeft', modifier: 'cmd' },
+    nextProject: TASK_SWITCH_DEFAULTS.next,
+    prevProject: TASK_SWITCH_DEFAULTS.prev,
     newTask: { key: 'n', modifier: 'cmd' },
     nextAgent: { key: 'k', modifier: 'cmd+shift' },
     prevAgent: { key: 'j', modifier: 'cmd+shift' },
@@ -166,6 +190,63 @@ function deepMerge<T extends Record<string, any>>(base: T, partial?: Partial<T>)
 }
 
 let cached: AppSettings | null = null;
+
+function normalizeShortcutKey(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const lower = trimmed.toLowerCase();
+  if (lower === 'esc' || lower === 'escape') return 'Escape';
+  if (lower === 'tab') return 'Tab';
+  if (lower === 'arrowleft' || lower === 'left') return 'ArrowLeft';
+  if (lower === 'arrowright' || lower === 'right') return 'ArrowRight';
+  if (lower === 'arrowup' || lower === 'up') return 'ArrowUp';
+  if (lower === 'arrowdown' || lower === 'down') return 'ArrowDown';
+
+  // Allow single printable, non-whitespace characters.
+  if (trimmed.length === 1 && /\S/u.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+
+  return null;
+}
+
+function normalizeShortcutModifier(
+  value: unknown,
+  fallback: ShortcutModifier
+): ShortcutModifier {
+  if (typeof value !== 'string') return fallback;
+
+  const normalized = value.toLowerCase().replace(/\s+/g, '');
+  const aliases: Record<string, ShortcutModifier> = {
+    cmd: 'cmd',
+    command: 'cmd',
+    meta: 'cmd',
+    ctrl: 'ctrl',
+    control: 'ctrl',
+    shift: 'shift',
+    alt: 'alt',
+    option: 'option',
+    opt: 'option',
+    'cmd+shift': 'cmd+shift',
+    'shift+cmd': 'cmd+shift',
+    'command+shift': 'cmd+shift',
+    'shift+command': 'cmd+shift',
+    'meta+shift': 'cmd+shift',
+    'shift+meta': 'cmd+shift',
+    'ctrl+shift': 'ctrl+shift',
+    'shift+ctrl': 'ctrl+shift',
+    'control+shift': 'ctrl+shift',
+    'shift+control': 'ctrl+shift',
+  };
+
+  return aliases[normalized] ?? fallback;
+}
+
+function isBinding(binding: ShortcutBinding, modifier: ShortcutModifier, key: string): boolean {
+  return binding.modifier === modifier && binding.key === key;
+}
 
 /**
  * Load application settings from disk with sane defaults.
@@ -310,16 +391,10 @@ function normalizeSettings(input: AppSettings): AppSettings {
 
   // Keyboard
   const keyboard = (input as any)?.keyboard || {};
-  const validModifiers: ShortcutModifier[] = ['cmd', 'ctrl', 'shift', 'alt', 'option', 'cmd+shift'];
   const normalizeBinding = (binding: any, defaultBinding: ShortcutBinding): ShortcutBinding => {
     if (!binding || typeof binding !== 'object') return defaultBinding;
-    const key =
-      typeof binding.key === 'string' && binding.key.length === 1
-        ? binding.key.toLowerCase()
-        : defaultBinding.key;
-    const modifier = validModifiers.includes(binding.modifier)
-      ? binding.modifier
-      : defaultBinding.modifier;
+    const key = normalizeShortcutKey(binding.key) ?? defaultBinding.key;
+    const modifier = normalizeShortcutModifier(binding.modifier, defaultBinding.modifier);
     return { key, modifier };
   };
   out.keyboard = {
@@ -345,6 +420,19 @@ function normalizeSettings(input: AppSettings): AppSettings {
     nextAgent: normalizeBinding(keyboard.nextAgent, DEFAULT_SETTINGS.keyboard!.nextAgent!),
     prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),
   };
+  const platformTaskDefaults = getPlatformTaskSwitchDefaults();
+  if (
+    isBinding(out.keyboard.nextProject!, 'cmd', 'ArrowRight') ||
+    isBinding(out.keyboard.nextProject!, 'ctrl', 'Tab')
+  ) {
+    out.keyboard.nextProject = platformTaskDefaults.next;
+  }
+  if (
+    isBinding(out.keyboard.prevProject!, 'cmd', 'ArrowLeft') ||
+    isBinding(out.keyboard.prevProject!, 'ctrl+shift', 'Tab')
+  ) {
+    out.keyboard.prevProject = platformTaskDefaults.prev;
+  }
 
   // Interface
   const iface = (input as any)?.interface || {};

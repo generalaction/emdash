@@ -14,12 +14,18 @@ import {
   CornerDownLeft,
   ArrowUp,
   ArrowDown,
+  ArrowBigUp,
   Command as CommandIcon,
   Option,
   Palette,
 } from 'lucide-react';
-import { APP_SHORTCUTS } from '../hooks/useKeyboardShortcuts';
+import {
+  APP_SHORTCUTS,
+  normalizeShortcutKey,
+  type ShortcutSettingsKey,
+} from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
+import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -74,7 +80,22 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenProject,
 }) => {
   const [search, setSearch] = useState('');
+  const { getShortcut } = useKeyboardSettings();
   const shouldReduceMotion = useReducedMotion();
+
+  const getEffectiveShortcut = useCallback(
+    (
+      settingsKey: ShortcutSettingsKey,
+      fallback: { key: string; modifier?: ShortcutModifier }
+    ): { key: string; modifier?: ShortcutModifier } => {
+      const binding = getShortcut(settingsKey);
+      if (binding.key && binding.modifier) {
+        return { key: normalizeShortcutKey(binding.key), modifier: binding.modifier };
+      }
+      return { key: normalizeShortcutKey(fallback.key), modifier: fallback.modifier };
+    },
+    [getShortcut]
+  );
 
   const handleClose = useCallback(() => {
     setSearch(''); // Reset search on close
@@ -144,7 +165,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: <Settings className="h-4 w-4" />,
         group: 'Navigation',
         keywords: ['settings', 'preferences', 'config'],
-        shortcut: { key: APP_SHORTCUTS.SETTINGS.key, modifier: APP_SHORTCUTS.SETTINGS.modifier },
+        shortcut: getEffectiveShortcut('settings', APP_SHORTCUTS.SETTINGS),
         onSelect: () => runCommand(onOpenSettings),
       });
     }
@@ -170,10 +191,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: <PanelLeft className="h-4 w-4" />,
         group: 'Toggles',
         keywords: ['sidebar', 'panel', 'left', 'toggle'],
-        shortcut: {
-          key: APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR.key.toUpperCase(),
-          modifier: APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR.modifier,
-        },
+        shortcut: getEffectiveShortcut('toggleLeftSidebar', APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR),
         onSelect: () => runCommand(onToggleLeftSidebar),
       });
     }
@@ -186,10 +204,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: <PanelRight className="h-4 w-4" />,
         group: 'Toggles',
         keywords: ['sidebar', 'panel', 'right', 'toggle'],
-        shortcut: {
-          key: APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR.key,
-          modifier: APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR.modifier,
-        },
+        shortcut: getEffectiveShortcut('toggleRightSidebar', APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR),
         onSelect: () => runCommand(onToggleRightSidebar),
       });
     }
@@ -202,10 +217,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: <Palette className="h-4 w-4" />,
         group: 'Toggles',
         keywords: ['theme', 'dark', 'light', 'mode', 'toggle'],
-        shortcut: {
-          key: APP_SHORTCUTS.TOGGLE_THEME.key.toUpperCase(),
-          modifier: APP_SHORTCUTS.TOGGLE_THEME.modifier,
-        },
+        shortcut: getEffectiveShortcut('toggleTheme', APP_SHORTCUTS.TOGGLE_THEME),
         onSelect: () => runCommand(onToggleTheme),
       });
     }
@@ -247,6 +259,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
     return items;
   }, [
+    getEffectiveShortcut,
     projects,
     onGoHome,
     onOpenProject,
@@ -272,6 +285,17 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   }, [commands]);
 
   const groupOrder = ['Navigation', 'Toggles', 'Projects', 'Tasks'];
+
+  const formatShortcutKey = useCallback((value: string) => {
+    const key = normalizeShortcutKey(value);
+    if (key === 'ArrowLeft') return '←';
+    if (key === 'ArrowRight') return '→';
+    if (key === 'ArrowUp') return '↑';
+    if (key === 'ArrowDown') return '↓';
+    if (key === 'Escape') return 'Esc';
+    if (key === 'Tab') return 'Tab';
+    return key.toUpperCase();
+  }, []);
 
   return createPortal(
     <AnimatePresence>
@@ -354,12 +378,24 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                               {item.shortcut.modifier === 'ctrl' && (
                                 <span className="font-medium">Ctrl</span>
                               )}
+                              {item.shortcut.modifier === 'cmd+shift' && (
+                                <>
+                                  <CommandIcon className="h-3 w-3" />
+                                  <ArrowBigUp className="h-3 w-3" />
+                                </>
+                              )}
                               {item.shortcut.modifier === 'shift' && (
-                                <span className="font-medium">⇧</span>
+                                <ArrowBigUp className="h-3 w-3" />
+                              )}
+                              {item.shortcut.modifier === 'ctrl+shift' && (
+                                <>
+                                  <span className="font-medium">Ctrl</span>
+                                  <ArrowBigUp className="h-3 w-3" />
+                                </>
                               )}
                               {(item.shortcut.modifier === 'option' ||
                                 item.shortcut.modifier === 'alt') && <Option className="h-3 w-3" />}
-                              <span className="font-medium">{item.shortcut.key}</span>
+                              <span className="font-medium">{formatShortcutKey(item.shortcut.key)}</span>
                             </div>
                           )}
                         </Command.Item>
