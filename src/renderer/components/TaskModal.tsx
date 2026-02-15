@@ -22,6 +22,8 @@ import {
   MAX_TASK_NAME_LENGTH,
 } from '../lib/taskNames';
 import BranchSelect, { type BranchOption } from './BranchSelect';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Input } from './ui/input';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -37,7 +39,8 @@ interface TaskModalProps {
     linkedJiraIssue?: JiraIssueSummary | null,
     autoApprove?: boolean,
     useWorktree?: boolean,
-    baseRef?: string
+    baseRef?: string,
+    branchPrefix?: string
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -79,6 +82,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
   const userChangedBranchRef = useRef(false);
   const taskNameInputRef = useRef<HTMLInputElement>(null);
+
+  // Prefix selection state
+  const [prefixMode, setPrefixMode] = useState<'default' | 'none' | 'custom'>('default');
+  const [customPrefix, setCustomPrefix] = useState('');
+  const [repoDefaultPrefix, setRepoDefaultPrefix] = useState<string>('');
 
   useEffect(() => {
     if (isOpen && !userChangedBranchRef.current) {
@@ -161,6 +169,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
     customNameTrackedRef.current = false;
     userChangedBranchRef.current = false;
     setSelectedBranch(defaultBranch);
+    setPrefixMode('default');
+    setCustomPrefix('');
 
     // Generate initial name
     const suggested = generateFriendlyTaskName(normalizedExisting);
@@ -183,6 +193,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
       setAutoApprove(autoApproveByDefault && !!agentMeta[agent]?.autoApproveFlag);
+
+      // Load repository default prefix
+      const defaultPrefix = settings?.repository?.branchPrefix?.trim() || '';
+      setRepoDefaultPrefix(defaultPrefix);
 
       // Handle auto-generate setting
       if (settings?.tasks?.autoGenerateName === false && !userHasTypedRef.current) {
@@ -227,6 +241,19 @@ const TaskModal: React.FC<TaskModalProps> = ({
       return;
     }
 
+    // Resolve branch prefix based on selection mode
+    let resolvedBranchPrefix: string | undefined;
+    if (prefixMode === 'default') {
+      // Use repository default (undefined means use default in service layer)
+      resolvedBranchPrefix = undefined;
+    } else if (prefixMode === 'none') {
+      // Explicitly no prefix
+      resolvedBranchPrefix = '';
+    } else {
+      // Custom prefix
+      resolvedBranchPrefix = customPrefix.trim();
+    }
+
     // Close modal immediately - task creation happens in background
     // The task will appear in sidebar via optimistic UI update
     onClose();
@@ -242,7 +269,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
         selectedJiraIssue,
         hasAutoApproveSupport ? autoApprove : false,
         useWorktree,
-        selectedBranch
+        selectedBranch,
+        resolvedBranchPrefix
       );
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -311,6 +339,39 @@ const TaskModal: React.FC<TaskModalProps> = ({
             <Label className="shrink-0">Agent</Label>
             <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
           </div>
+
+          {useWorktree && (
+            <div className="space-y-2">
+              <Label htmlFor="branch-prefix">Branch prefix</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={prefixMode}
+                  onValueChange={(v) => setPrefixMode(v as typeof prefixMode)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">
+                      Use repository default
+                      {repoDefaultPrefix ? ` (${repoDefaultPrefix})` : ' (none)'}
+                    </SelectItem>
+                    <SelectItem value="none">No prefix</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                {prefixMode === 'custom' && (
+                  <Input
+                    id="branch-prefix"
+                    value={customPrefix}
+                    onChange={(e) => setCustomPrefix(e.target.value)}
+                    placeholder="e.g., feature"
+                    className="flex-1"
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           <TaskAdvancedSettings
             isOpen={isOpen}

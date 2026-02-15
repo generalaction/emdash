@@ -17,6 +17,7 @@ export interface CreateTaskParams {
   autoApprove?: boolean;
   useWorktree: boolean;
   baseRef?: string;
+  branchPrefix?: string;
 }
 
 export interface CreateTaskCallbacks {
@@ -61,6 +62,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
     autoApprove,
     useWorktree,
     baseRef,
+    branchPrefix,
   } = params;
   const {
     selectedProject,
@@ -193,6 +195,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
                   taskName: variantName,
                   projectId: selectedProject.id,
                   baseRef,
+                  branchPrefix,
                 });
                 if (!worktreeResult?.success || !worktreeResult.worktree) {
                   throw new Error(
@@ -345,6 +348,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           projectPath: selectedProject.path,
           taskName,
           baseRef,
+          branchPrefix,
         });
 
         if (claimResult.success && claimResult.worktree) {
@@ -367,6 +371,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
             taskName,
             projectId: selectedProject.id,
             baseRef,
+            branchPrefix,
           });
 
           if (!worktreeResult.success) {
