@@ -111,7 +111,13 @@ function useFullComponents(isDark: boolean) {
         <strong className="font-semibold text-foreground">{children}</strong>
       ),
       input: ({ checked, ...props }: any) => (
-        <input type="checkbox" checked={checked} disabled className="mr-2 align-middle" {...props} />
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled
+          className="mr-2 align-middle"
+          {...props}
+        />
       ),
     }),
     [isDark]
@@ -131,12 +137,8 @@ function useCompactComponents() {
         <h4 className="mb-1 mt-2 text-xs font-semibold text-foreground">{children}</h4>
       ),
       p: ({ children }: any) => <p className="mb-2 leading-relaxed">{children}</p>,
-      ul: ({ children }: any) => (
-        <ul className="mb-2 ml-4 list-disc space-y-0.5">{children}</ul>
-      ),
-      ol: ({ children }: any) => (
-        <ol className="mb-2 ml-4 list-decimal space-y-0.5">{children}</ol>
-      ),
+      ul: ({ children }: any) => <ul className="mb-2 ml-4 list-disc space-y-0.5">{children}</ul>,
+      ol: ({ children }: any) => <ol className="mb-2 ml-4 list-decimal space-y-0.5">{children}</ol>,
       li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
       code: ({ children, className }: any) => {
         const isBlock = className?.includes('language-');
@@ -153,12 +155,7 @@ function useCompactComponents() {
         <strong className="font-semibold text-foreground">{children}</strong>
       ),
       a: ({ href, children }: any) => (
-        <a
-          href={href}
-          className="text-primary underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={href} className="text-primary underline" target="_blank" rel="noopener noreferrer">
           {children}
         </a>
       ),
