@@ -588,7 +588,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     // Define themes when editor is ready and FORCE apply theme
     try {
       const monaco = await loader.init();
-      
+
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
         // Find the editor that has focus
         for (const [path, editor] of editorRefs.current.entries()) {
