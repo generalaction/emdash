@@ -30,6 +30,7 @@ import {
   ChevronUp,
   Loader2,
   Shield,
+  Trash,
 } from 'lucide-react';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
@@ -197,6 +198,22 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setIsLoadingSavedConnections(false);
     }
   }, []);
+
+  const deleteSavedConnection = useCallback(
+    async (id: string) => {
+      try {
+        await window.electronAPI.sshDeleteConnection(id);
+        if (selectedSavedConnection === id) {
+          setSelectedSavedConnection(null);
+          setUseExistingConnection(false);
+        }
+        await loadSavedConnections();
+      } catch (error) {
+        console.error('Failed to delete connection:', error);
+      }
+    },
+    [selectedSavedConnection, loadSavedConnections]
+  );
 
   // Apply SSH config host selection
   const applySshHost = useCallback(
@@ -690,6 +707,17 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                           {conn.username}@{conn.host}:{conn.port}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteSavedConnection(conn.id);
+                        }}
+                      >
+                        <Trash className="h-3.5 w-3.5" />
+                      </Button>
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                     </button>
                   ))}
@@ -1021,7 +1049,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 {testStatus === 'error' && (
                   <XCircle className="h-3 w-3 shrink-0 text-destructive" />
                 )}
-                <span className="truncate">
+                <span className="min-w-0 break-words">
                   {testStatus === 'testing' && 'Testing connection...'}
                   {testStatus === 'success' &&
                     `Connected successfully${testResult?.latency ? ` (${testResult.latency}ms)` : ''}`}
@@ -1074,7 +1102,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
               >
                 <XCircle className="h-3 w-3 shrink-0 text-destructive" />
-                <span className="truncate">{browseError}</span>
+                <span className="min-w-0 break-words">{browseError}</span>
               </Badge>
             )}
 
@@ -1195,7 +1223,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg overflow-hidden">
         <DialogHeader>
           <DialogTitle>Add Remote Project</DialogTitle>
           <DialogDescription>
@@ -1249,7 +1277,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
           >
             <XCircle className="h-3 w-3 shrink-0 text-destructive" />
-            <span className="truncate">{errors.general}</span>
+            <span className="min-w-0 break-words">{errors.general}</span>
           </Badge>
         )}
 
