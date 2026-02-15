@@ -33,7 +33,7 @@ const SidebarLeftToggleButton: React.FC<SidebarLeftToggleButtonProps> = ({
             size="icon"
             onClick={handleClick}
             disabled={isDisabled}
-            className="h-8 w-8 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-background/80 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-8 w-8 text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-transparent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Toggle left sidebar"
             aria-disabled={isDisabled}
           >
