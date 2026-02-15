@@ -212,10 +212,7 @@ function normalizeShortcutKey(value: unknown): string | null {
   return null;
 }
 
-function normalizeShortcutModifier(
-  value: unknown,
-  fallback: ShortcutModifier
-): ShortcutModifier {
+function normalizeShortcutModifier(value: unknown, fallback: ShortcutModifier): ShortcutModifier {
   if (typeof value !== 'string') return fallback;
 
   const normalized = value.toLowerCase().replace(/\s+/g, '');
@@ -421,16 +418,14 @@ function normalizeSettings(input: AppSettings): AppSettings {
     prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),
   };
   const platformTaskDefaults = getPlatformTaskSwitchDefaults();
-  if (
-    isBinding(out.keyboard.nextProject!, 'cmd', 'ArrowRight') ||
-    isBinding(out.keyboard.nextProject!, 'ctrl', 'Tab')
-  ) {
+  const isLegacyArrowPair =
+    isBinding(out.keyboard.nextProject!, 'cmd', 'ArrowRight') &&
+    isBinding(out.keyboard.prevProject!, 'cmd', 'ArrowLeft');
+  const isLegacyTabPair =
+    isBinding(out.keyboard.nextProject!, 'ctrl', 'Tab') &&
+    isBinding(out.keyboard.prevProject!, 'ctrl+shift', 'Tab');
+  if (isLegacyArrowPair || (IS_MAC && isLegacyTabPair)) {
     out.keyboard.nextProject = platformTaskDefaults.next;
-  }
-  if (
-    isBinding(out.keyboard.prevProject!, 'cmd', 'ArrowLeft') ||
-    isBinding(out.keyboard.prevProject!, 'ctrl+shift', 'Tab')
-  ) {
     out.keyboard.prevProject = platformTaskDefaults.prev;
   }
 

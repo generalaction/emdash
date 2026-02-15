@@ -395,7 +395,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                               )}
                               {(item.shortcut.modifier === 'option' ||
                                 item.shortcut.modifier === 'alt') && <Option className="h-3 w-3" />}
-                              <span className="font-medium">{formatShortcutKey(item.shortcut.key)}</span>
+                              <span className="font-medium">
+                                {formatShortcutKey(item.shortcut.key)}
+                              </span>
                             </div>
                           )}
                         </Command.Item>
