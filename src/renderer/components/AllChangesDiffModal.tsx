@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown, ChevronRight, AlertCircle, Copy, Check } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, AlertCircle, Copy, Check, FileText } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
@@ -17,12 +17,17 @@ import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../lib/m
 import { useTheme } from '../hooks/useTheme';
 import { useTaskScope } from './TaskScopeContext';
 
+// Thresholds for detecting large files that should not be rendered in all-changes modal
+const LARGE_DIFF_LINE_THRESHOLD = 2500;
+const LARGE_DIFF_CHAR_THRESHOLD = 300_000;
+
 interface AllChangesDiffModalProps {
   open: boolean;
   onClose: () => void;
   taskPath?: string;
   files: FileChange[];
   onRefreshChanges?: () => Promise<void> | void;
+  onOpenFile?: (filePath: string) => void;
 }
 
 interface FileDiffData {
@@ -35,6 +40,8 @@ interface FileDiffData {
   expanded: boolean;
   saving?: boolean;
   saveError?: string | null;
+  isLargeFile?: boolean;
+  largeFileReason?: 'line_count' | 'content_size' | 'truncated_read';
 }
 
 export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
@@ -43,6 +50,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   taskPath,
   files,
   onRefreshChanges,
+  onOpenFile,
 }) => {
   const { taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskPath = taskPath ?? scopedTaskPath ?? '';
@@ -145,6 +153,10 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
       const filePath = file.path;
       const language = getMonacoLanguageId(filePath);
 
+      // Early detection: check line count before loading content
+      const totalLineChanges = file.additions + file.deletions;
+      const isLargeByLineCount = totalLineChanges > LARGE_DIFF_LINE_THRESHOLD;
+
       // Skip binary files
       if (isBinaryFile(filePath)) {
         setFileData((prev) => {
@@ -157,13 +169,14 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             loading: false,
             error: 'Binary file - diff not available',
             expanded: true, // Default expanded
+            isLargeFile: false,
           });
           return next;
         });
         return;
       }
 
-      // Set loading state
+      // Set loading state with large file detection
       setFileData((prev) => {
         const next = new Map(prev);
         next.set(filePath, {
@@ -173,7 +186,9 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           language,
           loading: true,
           error: null,
-          expanded: true, // Default expanded
+          expanded: !isLargeByLineCount, // Collapse large files by default
+          isLargeFile: isLargeByLineCount,
+          largeFileReason: isLargeByLineCount ? 'line_count' : undefined,
         });
         return next;
       });
@@ -197,6 +212,9 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
 
         let originalContent = '';
         let modifiedContent = '';
+        let isLargeFile = isLargeByLineCount;
+        let largeFileReason: 'line_count' | 'content_size' | 'truncated_read' | undefined =
+          isLargeByLineCount ? 'line_count' : undefined;
 
         if (file.status === 'deleted') {
           // Try to read from git (HEAD version)
@@ -214,6 +232,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           if (readRes?.success && readRes.content) {
             modifiedContent = readRes.content;
             originalContent = '';
+            // Check for truncated read
+            if (readRes.truncated) {
+              isLargeFile = true;
+              largeFileReason = 'truncated_read';
+            }
           } else {
             // Fallback: use diff lines
             const converted = convertDiffLinesToMonacoFormat(diffLines);
@@ -235,10 +258,22 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             );
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
+              // Check for truncated read
+              if (readRes.truncated) {
+                isLargeFile = true;
+                largeFileReason = 'truncated_read';
+              }
             }
           } catch {
             // Fallback to diff-based content
           }
+        }
+
+        // Check content size after loading
+        const totalContentSize = originalContent.length + modifiedContent.length;
+        if (!isLargeFile && totalContentSize > LARGE_DIFF_CHAR_THRESHOLD) {
+          isLargeFile = true;
+          largeFileReason = 'content_size';
         }
 
         setFileData((prev) => {
@@ -250,7 +285,9 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             language,
             loading: false,
             error: null,
-            expanded: true, // Default expanded
+            expanded: !isLargeFile, // Collapse large files by default
+            isLargeFile,
+            largeFileReason,
           });
           return next;
         });
@@ -264,7 +301,9 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             language,
             loading: false,
             error: error?.message || 'Failed to load file diff',
-            expanded: true, // Default expanded even on error
+            expanded: !isLargeByLineCount, // Collapse large files even on error
+            isLargeFile: isLargeByLineCount,
+            largeFileReason: isLargeByLineCount ? 'line_count' : undefined,
           });
           return next;
         });
@@ -847,6 +886,40 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                                   <span className="text-sm">
                                     {data?.error || 'Failed to load diff'}
                                   </span>
+                                </div>
+                              ) : data?.isLargeFile ? (
+                                <div className="flex h-64 flex-col items-center justify-center gap-4 px-4 text-muted-foreground">
+                                  <div className="flex flex-col items-center gap-2">
+                                    <AlertCircle className="h-8 w-8 text-amber-500 dark:text-amber-400" />
+                                    <div className="text-center">
+                                      <p className="text-sm font-medium text-foreground">
+                                        File too large to render here
+                                      </p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {data.largeFileReason === 'line_count' &&
+                                          `This file has ${file.additions + file.deletions} line changes.`}
+                                        {data.largeFileReason === 'content_size' &&
+                                          'This file exceeds the size limit for inline viewing.'}
+                                        {data.largeFileReason === 'truncated_read' &&
+                                          'This file is too large to read completely.'}
+                                      </p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        Open individually for better performance.
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {onOpenFile && (
+                                    <button
+                                      onClick={() => {
+                                        onOpenFile(file.path);
+                                        onClose();
+                                      }}
+                                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                                    >
+                                      <FileText className="h-4 w-4" />
+                                      Open in single-file diff
+                                    </button>
+                                  )}
                                 </div>
                               ) : data ? (
                                 <div className="relative h-[600px] min-h-[400px]">
