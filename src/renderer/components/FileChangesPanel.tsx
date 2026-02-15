@@ -890,6 +890,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           taskPath={resolvedTaskPath}
           files={fileChanges}
           onRefreshChanges={refreshChanges}
+          onOpenFile={(filePath) => {
+            setShowAllChangesModal(false);
+            setSelectedPath(filePath);
+            setShowDiffModal(true);
+          }}
         />
       )}
       <AlertDialog open={showMergeConfirm} onOpenChange={setShowMergeConfirm}>
