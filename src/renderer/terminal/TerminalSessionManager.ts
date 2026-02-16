@@ -349,13 +349,15 @@ export class TerminalSessionManager {
     this.emitActivity();
     if (this.disposed) return;
 
-    // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
-    // These are sent by xterm.js when focus changes but shouldn't go to the PTY
-    // const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
-    // if (!filtered) return;
+    // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out) only if PTY hasn't started yet.
+    // This prevents raw escape sequences from appearing in the terminal before the CLI is ready,
+    // while still allowing apps that request them (like vim) to receive them once running.
+    let filtered = data;
+    if (!this.ptyStarted) {
+      filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
+    }
 
-    // Use raw data instead of filtered
-    const filtered = data;
+    if (!filtered) return;
 
     // Track command execution when Enter is pressed (but not for newline inserts)
     const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
