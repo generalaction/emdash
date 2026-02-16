@@ -351,8 +351,11 @@ export class TerminalSessionManager {
 
     // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out)
     // These are sent by xterm.js when focus changes but shouldn't go to the PTY
-    const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
-    if (!filtered) return;
+    // const filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
+    // if (!filtered) return;
+
+    // Use raw data instead of filtered
+    const filtered = data;
 
     // Track command execution when Enter is pressed (but not for newline inserts)
     const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
