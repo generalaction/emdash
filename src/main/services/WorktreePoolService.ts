@@ -198,9 +198,12 @@ export class WorktreePoolService {
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => reject(new Error('Fetch timed out')), 15000);
         });
-        const baseRefInfo = await Promise.race([fetchPromise, timeoutPromise]);
-        clearTimeout(timeoutId!);
-        fetchedRef = baseRefInfo.fullRef;
+        try {
+          const baseRefInfo = await Promise.race([fetchPromise, timeoutPromise]);
+          fetchedRef = baseRefInfo.fullRef;
+        } finally {
+          clearTimeout(timeoutId!);
+        }
       } catch (error) {
         log.warn('WorktreePool: Failed to fetch latest refs, proceeding with local refs', {
           projectId,
@@ -214,7 +217,10 @@ export class WorktreePoolService {
       // We do this independently of transformReserve because its internal reset
       // compares ref names — if the name matches (e.g. both "origin/main") it
       // skips the reset even though the ref now points to a newer commit.
-      if (fetchedRef) {
+      if (
+        fetchedRef &&
+        (!requestedBaseRef || requestedBaseRef === reserve.baseRef || requestedBaseRef === 'HEAD')
+      ) {
         try {
           await execFileAsync('git', ['reset', '--hard', fetchedRef], {
             cwd: result.worktree.path,
