@@ -746,13 +746,17 @@ const ChatInterface: React.FC<Props> = ({
     return null;
   }, [isTerminal, task.metadata, commentsContext]);
 
-  // Only use keystroke injection for agents WITHOUT CLI flag support
-  // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead
+  // Only use keystroke injection for agents WITHOUT CLI flag support,
+  // or agents that explicitly opt into it (useKeystrokeInjection: true).
+  // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead.
   useInitialPromptInjection({
     taskId: task.id,
     providerId: agent,
     prompt: initialInjection,
-    enabled: isTerminal && agentMeta[agent]?.initialPromptFlag === undefined,
+    enabled:
+      isTerminal &&
+      (agentMeta[agent]?.initialPromptFlag === undefined ||
+        agentMeta[agent]?.useKeystrokeInjection === true),
   });
 
   // Ensure an agent is stored for this task so fallbacks can subscribe immediately
@@ -1008,6 +1012,7 @@ const ChatInterface: React.FC<Props> = ({
                   }
                   initialPrompt={
                     agentMeta[agent]?.initialPromptFlag !== undefined &&
+                    !agentMeta[agent]?.useKeystrokeInjection &&
                     !task.metadata?.initialInjectionSent
                       ? (initialInjection ?? undefined)
                       : undefined

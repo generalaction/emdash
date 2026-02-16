@@ -281,8 +281,12 @@ export function startDirectPty(options: {
       cliArgs.push(provider.autoApproveFlag);
     }
 
-    // Add initial prompt
-    if (provider.initialPromptFlag !== undefined && initialPrompt?.trim()) {
+    // Add initial prompt (skip if agent uses keystroke injection instead)
+    if (
+      provider.initialPromptFlag !== undefined &&
+      !provider.useKeystrokeInjection &&
+      initialPrompt?.trim()
+    ) {
       if (provider.initialPromptFlag) {
         cliArgs.push(provider.initialPromptFlag);
       }
@@ -526,7 +530,12 @@ export async function startPty(options: {
         }
 
         // Finally initial prompt (parse shell-style in case of multiple flags or quoted values)
-        if (resolvedInitialPromptFlag !== undefined && initialPrompt?.trim()) {
+        // Skip if agent uses keystroke injection instead of CLI arg
+        if (
+          resolvedInitialPromptFlag !== undefined &&
+          !provider.useKeystrokeInjection &&
+          initialPrompt?.trim()
+        ) {
           if (resolvedInitialPromptFlag) {
             const promptFlagParts = parseShellArgs(resolvedInitialPromptFlag);
             cliArgs.push(...promptFlagParts);

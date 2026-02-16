@@ -532,6 +532,7 @@ const MultiAgentTask: React.FC<Props> = ({
                     }
                     initialPrompt={
                       agentMeta[v.agent]?.initialPromptFlag !== undefined &&
+                      !agentMeta[v.agent]?.useKeystrokeInjection &&
                       !task.metadata?.initialInjectionSent
                         ? (initialInjection ?? undefined)
                         : undefined
@@ -561,11 +562,12 @@ const MultiAgentTask: React.FC<Props> = ({
                     }
                     className="h-full w-full"
                     onStartSuccess={() => {
-                      // For agents WITHOUT CLI flag support, use keystroke injection
+                      // For agents WITHOUT CLI flag support or with keystroke injection, type prompt in
                       if (
                         initialInjection &&
                         !task.metadata?.initialInjectionSent &&
-                        agentMeta[v.agent]?.initialPromptFlag === undefined
+                        (agentMeta[v.agent]?.initialPromptFlag === undefined ||
+                          agentMeta[v.agent]?.useKeystrokeInjection)
                       ) {
                         void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
                       }
