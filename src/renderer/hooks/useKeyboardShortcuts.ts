@@ -33,6 +33,67 @@ export interface AppShortcut {
   hideFromSettings?: boolean;
 }
 
+const isMacPlatform =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+function getPlatformTaskSwitchDefaults(): { next: AppShortcut; prev: AppShortcut } {
+  if (isMacPlatform) {
+    return {
+      next: {
+        key: ']',
+        modifier: 'cmd',
+        label: 'Next Task',
+        description: 'Switch to the next task',
+        category: 'Navigation',
+        settingsKey: 'nextProject',
+      },
+      prev: {
+        key: '[',
+        modifier: 'cmd',
+        label: 'Previous Task',
+        description: 'Switch to the previous task',
+        category: 'Navigation',
+        settingsKey: 'prevProject',
+      },
+    };
+  }
+
+  return {
+    next: {
+      key: 'Tab',
+      modifier: 'ctrl',
+      label: 'Next Task',
+      description: 'Switch to the next task',
+      category: 'Navigation',
+      settingsKey: 'nextProject',
+    },
+    prev: {
+      key: 'Tab',
+      modifier: 'ctrl+shift',
+      label: 'Previous Task',
+      description: 'Switch to the previous task',
+      category: 'Navigation',
+      settingsKey: 'prevProject',
+    },
+  };
+}
+
+const TASK_SWITCH_SHORTCUTS = getPlatformTaskSwitchDefaults();
+
+export function normalizeShortcutKey(value: string): string {
+  const trimmed = value.trim();
+  const lower = trimmed.toLowerCase();
+
+  if (lower === 'esc' || lower === 'escape') return 'Escape';
+  if (lower === 'tab') return 'Tab';
+  if (lower === 'arrowleft' || lower === 'left') return 'ArrowLeft';
+  if (lower === 'arrowright' || lower === 'right') return 'ArrowRight';
+  if (lower === 'arrowup' || lower === 'up') return 'ArrowUp';
+  if (lower === 'arrowdown' || lower === 'down') return 'ArrowDown';
+  if (trimmed.length === 1) return trimmed.toLowerCase();
+  return trimmed;
+}
+
 export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   COMMAND_PALETTE: {
     key: 'k',
@@ -107,23 +168,9 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     hideFromSettings: true,
   },
 
-  NEXT_TASK: {
-    key: 'ArrowRight',
-    modifier: 'cmd',
-    label: 'Next Task',
-    description: 'Switch to the next task',
-    category: 'Navigation',
-    settingsKey: 'nextProject',
-  },
+  NEXT_TASK: TASK_SWITCH_SHORTCUTS.next,
 
-  PREV_TASK: {
-    key: 'ArrowLeft',
-    modifier: 'cmd',
-    label: 'Previous Task',
-    description: 'Switch to the previous task',
-    category: 'Navigation',
-    settingsKey: 'prevProject',
-  },
+  PREV_TASK: TASK_SWITCH_SHORTCUTS.prev,
 
   NEW_TASK: {
     key: 'n',
@@ -181,11 +228,15 @@ export function formatShortcut(shortcut: ShortcutConfig): string {
       case 'cmd+shift':
         modifier = '⌘⇧';
         break;
+      case 'ctrl+shift':
+        modifier = 'Ctrl⇧';
+        break;
     }
   }
 
-  let key = shortcut.key;
+  let key = normalizeShortcutKey(shortcut.key);
   if (key === 'Escape') key = 'Esc';
+  else if (key === 'Tab') key = 'Tab';
   else if (key === 'ArrowLeft') key = '←';
   else if (key === 'ArrowRight') key = '→';
   else if (key === 'ArrowUp') key = '↑';
@@ -212,13 +263,10 @@ export function getShortcutsByCategory(): Record<string, ShortcutConfig[]> {
 
 export function hasShortcutConflict(shortcut1: ShortcutConfig, shortcut2: ShortcutConfig): boolean {
   return (
-    shortcut1.key.toLowerCase() === shortcut2.key.toLowerCase() &&
+    normalizeShortcutKey(shortcut1.key) === normalizeShortcutKey(shortcut2.key) &&
     shortcut1.modifier === shortcut2.modifier
   );
 }
-
-const isMacPlatform =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 function matchesModifier(modifier: ShortcutModifier | undefined, event: KeyboardEvent): boolean {
   if (!modifier) {
@@ -229,18 +277,28 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
     case 'cmd':
       // On macOS require the Command key; on other platforms allow Ctrl as the Command equivalent
       // Also ensure shift is NOT pressed (to distinguish from cmd+shift)
-      return (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) && !event.shiftKey;
+      return (
+        (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        !event.altKey
+      );
     case 'ctrl':
       // Require the Control key without treating Command as equivalent
-      return event.ctrlKey && !event.metaKey;
+      return event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;
     case 'alt':
     case 'option':
-      return event.altKey;
+      return event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey;
     case 'shift':
-      return event.shiftKey;
+      return event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
     case 'cmd+shift':
       // Compound modifier: Command + Shift
-      return (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) && event.shiftKey;
+      return (
+        (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        !event.altKey
+      );
+    case 'ctrl+shift':
+      return event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey;
     default:
       return false;
   }
@@ -384,10 +442,10 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
     ];
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
+      const key = normalizeShortcutKey(event.key);
 
       for (const shortcut of shortcuts) {
-        const shortcutKey = shortcut.config.key.toLowerCase();
+        const shortcutKey = normalizeShortcutKey(shortcut.config.key);
         const keyMatches = key === shortcutKey;
 
         if (!keyMatches) continue;
@@ -435,7 +493,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [handlers, effectiveShortcuts]);
 }

@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { toast } from '../hooks/use-toast';
 import {
   APP_SHORTCUTS,
+  normalizeShortcutKey,
   type AppShortcut,
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
@@ -29,6 +30,8 @@ const formatModifier = (modifier: ShortcutModifier | undefined): string => {
       return '⌘⇧';
     case 'ctrl':
       return 'Ctrl';
+    case 'ctrl+shift':
+      return 'Ctrl⇧';
     case 'alt':
     case 'option':
       return '⌥';
@@ -39,13 +42,19 @@ const formatModifier = (modifier: ShortcutModifier | undefined): string => {
   }
 };
 
+const formatDisplayKey = (value: string): string => {
+  const key = normalizeShortcutKey(value);
+  if (key === 'ArrowLeft') return '←';
+  if (key === 'ArrowRight') return '→';
+  if (key === 'ArrowUp') return '↑';
+  if (key === 'ArrowDown') return '↓';
+  if (key === 'Escape') return 'Esc';
+  if (key === 'Tab') return 'Tab';
+  return key.toUpperCase();
+};
+
 const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) => {
-  let displayKey = binding.key;
-  if (displayKey === 'ArrowLeft') displayKey = '←';
-  else if (displayKey === 'ArrowRight') displayKey = '→';
-  else if (displayKey === 'ArrowUp') displayKey = '↑';
-  else if (displayKey === 'ArrowDown') displayKey = '↓';
-  else displayKey = displayKey.toUpperCase();
+  const displayKey = formatDisplayKey(binding.key);
 
   const kbdBase = 'flex h-6 min-w-6 items-center justify-center rounded bg-muted px-1.5 text-xs';
 
@@ -55,6 +64,17 @@ const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) =>
     modifierElements.push(
       <kbd key="cmd" className={kbdBase}>
         <Command className="h-3 w-3" />
+      </kbd>
+    );
+    modifierElements.push(
+      <kbd key="shift" className={kbdBase}>
+        <ArrowBigUp className="h-3 w-3" />
+      </kbd>
+    );
+  } else if (binding.modifier === 'ctrl+shift') {
+    modifierElements.push(
+      <kbd key="ctrl" className={`${kbdBase} font-mono`}>
+        Ctrl
       </kbd>
     );
     modifierElements.push(
@@ -167,7 +187,7 @@ const KeyboardSettingsCard: React.FC = () => {
         }
         toast({
           title: 'Shortcut updated',
-          description: `${shortcut.label} is now ${formatModifier(binding.modifier)} ${binding.key.toUpperCase()}`,
+          description: `${shortcut.label} is now ${formatModifier(binding.modifier)} ${formatDisplayKey(binding.key)}`,
         });
         // Refresh global keyboard settings so shortcuts work immediately
         await refreshSettings();
@@ -196,8 +216,18 @@ const KeyboardSettingsCard: React.FC = () => {
 
       // Determine which modifier is pressed
       let modifier: ShortcutModifier | null = null;
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
+      if (event.metaKey && event.ctrlKey) {
+        setError('Please use either Cmd or Ctrl, not both.');
+        return;
+      }
+      if (event.altKey && (event.metaKey || event.ctrlKey || event.shiftKey)) {
+        setError('Alt/Option can only be used by itself.');
+        return;
+      }
+      if (event.metaKey && event.shiftKey) {
         modifier = 'cmd+shift';
+      } else if (event.ctrlKey && event.shiftKey) {
+        modifier = 'ctrl+shift';
       } else if (event.metaKey) {
         modifier = 'cmd';
       } else if (event.ctrlKey) {
@@ -214,18 +244,27 @@ const KeyboardSettingsCard: React.FC = () => {
 
       // Require a modifier
       if (!modifier) {
-        setError('Please press a modifier key (Cmd/Ctrl/Alt/Shift) + a letter/number');
+        setError('Please press a modifier key (Cmd/Ctrl/Alt/Shift) + key');
         return;
       }
 
-      // Only allow single character keys
-      if (event.key.length !== 1) {
-        setError('Please use a single letter or number key');
+      const normalizedKey = normalizeShortcutKey(event.key);
+      const isSinglePrintable = normalizedKey.length === 1 && /\S/u.test(normalizedKey);
+      const isAllowedSpecial = [
+        'Tab',
+        'Escape',
+        'ArrowLeft',
+        'ArrowRight',
+        'ArrowUp',
+        'ArrowDown',
+      ].includes(normalizedKey);
+      if (!isSinglePrintable && !isAllowedSpecial) {
+        setError('Allowed keys: printable character, Tab, Esc, or arrow keys.');
         return;
       }
 
       const newBinding: ShortcutBinding = {
-        key: event.key.toLowerCase(),
+        key: normalizedKey,
         modifier,
       };
 
