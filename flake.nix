@@ -13,12 +13,12 @@
         lib = pkgs.lib;
         packageJson = builtins.fromJSON (builtins.readFile ./package.json);
         pnpmPackageManager = packageJson.packageManager or "";
-        pnpmVersionMatch = builtins.match "pnpm@([0-9]+\\.[0-9]+\\.[0-9]+)" pnpmPackageManager;
+        pnpmVersionMatch = builtins.match "pnpm@([0-9]+\\.[0-9]+\\.[0-9]+)(\\+.*)?" pnpmPackageManager;
         requiredPnpmVersion =
           if pnpmVersionMatch != null then
             builtins.elemAt pnpmVersionMatch 0
           else
-            throw "package.json must define packageManager as pnpm@<version>";
+            throw "package.json must define packageManager as pnpm@<version> (optionally with +suffix)";
         requiredPnpmAttr = "pnpm_" + builtins.replaceStrings [ "." ] [ "_" ] requiredPnpmVersion;
         nodejs = pkgs.nodejs_22;
         pnpm =
