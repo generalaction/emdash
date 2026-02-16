@@ -603,7 +603,10 @@ const AppContent: React.FC = () => {
                 projects={projectMgmt.projects}
                 handleSelectProject={projectMgmt.handleSelectProject}
                 handleSelectTask={taskMgmt.handleSelectTask}
-                handleGoHome={projectMgmt.handleGoHome}
+                handleGoHome={() => {
+                  handleCloseSettingsPage();
+                  projectMgmt.handleGoHome();
+                }}
                 handleOpenProject={projectMgmt.handleOpenProject}
                 handleOpenSettings={() => openSettingsPage()}
                 handleOpenKeyboardShortcuts={() => openSettingsPage('interface')}
