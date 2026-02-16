@@ -1,4 +1,11 @@
-export type ShortcutModifier = 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+export type ShortcutModifier =
+  | 'cmd'
+  | 'ctrl'
+  | 'shift'
+  | 'alt'
+  | 'option'
+  | 'cmd+shift'
+  | 'ctrl+shift';
 
 export interface ShortcutBinding {
   key: string;

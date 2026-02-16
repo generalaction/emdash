@@ -85,51 +85,51 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleEditor?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             newTask?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             nextAgent?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             prevAgent?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
           };
           interface?: {
@@ -166,51 +166,51 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleEditor?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             newTask?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             nextAgent?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             prevAgent?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
           };
           interface?: {
@@ -246,51 +246,51 @@ declare global {
           keyboard?: {
             commandPalette?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             settings?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleLeftSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleRightSidebar?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleTheme?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleKanban?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             toggleEditor?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             nextProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             prevProject?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             newTask?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             nextAgent?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
             prevAgent?: {
               key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift';
+              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
             };
           };
           interface?: {

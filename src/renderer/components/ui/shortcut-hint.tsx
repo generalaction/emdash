@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowBigUp, Command } from 'lucide-react';
 import { useKeyboardSettings } from '../../contexts/KeyboardSettingsContext';
+import { normalizeShortcutKey } from '../../hooks/useKeyboardShortcuts';
 import type { ShortcutSettingsKey } from '../../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../../types/shortcuts';
 
@@ -20,6 +21,13 @@ const ModifierIcon: React.FC<{ modifier: ShortcutModifier }> = ({ modifier }) =>
       return <span>⌥</span>;
     case 'shift':
       return <ArrowBigUp className="h-3 w-3" aria-hidden="true" />;
+    case 'ctrl+shift':
+      return (
+        <span className="inline-flex items-center gap-1">
+          <span>Ctrl</span>
+          <ArrowBigUp className="h-3 w-3" aria-hidden="true" />
+        </span>
+      );
     default:
       return null;
   }
@@ -32,12 +40,13 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
   if (!key) return null;
 
   // Format key display (handle arrow keys and special keys)
-  let displayKey = key;
+  let displayKey = normalizeShortcutKey(key);
   if (displayKey === 'ArrowLeft') displayKey = '←';
   else if (displayKey === 'ArrowRight') displayKey = '→';
   else if (displayKey === 'ArrowUp') displayKey = '↑';
   else if (displayKey === 'ArrowDown') displayKey = '↓';
   else if (displayKey === 'Escape') displayKey = 'Esc';
+  else if (displayKey === 'Tab') displayKey = 'Tab';
   else displayKey = displayKey.toUpperCase();
 
   // Handle compound modifiers separately
