@@ -19,17 +19,22 @@
             builtins.elemAt pnpmVersionMatch 0
           else
             throw "package.json must define packageManager as pnpm@<version> (optionally with +suffix)";
-        requiredPnpmAttr = "pnpm_" + builtins.replaceStrings [ "." ] [ "_" ] requiredPnpmVersion;
+        requiredPnpmMajor = builtins.elemAt (builtins.match "([0-9]+)\\..*" requiredPnpmVersion) 0;
+        requiredPnpmAttr = "pnpm_" + requiredPnpmMajor;
         nodejs = pkgs.nodejs_22;
         pnpm =
           if builtins.hasAttr requiredPnpmAttr pkgs then
-            builtins.getAttr requiredPnpmAttr pkgs
+            let
+              candidate = builtins.getAttr requiredPnpmAttr pkgs;
+            in
+            if lib.versionAtLeast candidate.version requiredPnpmVersion then
+              candidate
+            else
+              throw "Nixpkgs ${requiredPnpmAttr} is too old for this repo. Required >= ${requiredPnpmVersion}, but found ${candidate.version}."
           else if pkgs ? pnpm && lib.versionAtLeast pkgs.pnpm.version requiredPnpmVersion then
             pkgs.pnpm
-          else if pkgs ? pnpm_10 && lib.versionAtLeast pkgs.pnpm_10.version requiredPnpmVersion then
-            pkgs.pnpm_10
           else
-            throw "Nixpkgs pnpm is too old for this repo. Required >= ${requiredPnpmVersion} (from package.json packageManager), but found pnpm=${if pkgs ? pnpm then pkgs.pnpm.version else "missing"} pnpm_10=${if pkgs ? pnpm_10 then pkgs.pnpm_10.version else "missing"}.";
+            throw "Nixpkgs pnpm is too old for this repo. Required >= ${requiredPnpmVersion} (from package.json packageManager), but found pnpm=${if pkgs ? pnpm then pkgs.pnpm.version else "missing"} ${requiredPnpmAttr}=${if builtins.hasAttr requiredPnpmAttr pkgs then (builtins.getAttr requiredPnpmAttr pkgs).version else "missing"}.";
 
         # Electron version must match package.json
         electronVersion = "30.5.1";
