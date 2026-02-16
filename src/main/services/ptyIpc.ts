@@ -249,6 +249,7 @@ export function registerPtyIpc(): void {
           safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
           owners.delete(id);
           listeners.delete(id);
+          removePtyRecord(id);
         });
         listeners.add(id);
       }
@@ -457,6 +458,7 @@ export function registerPtyIpc(): void {
             );
             owners.delete(id);
             listeners.delete(id);
+            removePtyRecord(id);
           });
 
           listeners.add(id);
@@ -769,6 +771,7 @@ export function registerPtyIpc(): void {
               owners.delete(id);
             }
             listeners.delete(id);
+            removePtyRecord(id);
           });
           listeners.add(id);
         }
