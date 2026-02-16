@@ -161,6 +161,7 @@ const ChatInterface: React.FC<Props> = ({
             ...defaultResult.conversation,
             provider: taskAgent,
             isMain: true,
+            isActive: true,
           };
           setConversations([conversationWithAgent]);
           setActiveConversationId(defaultResult.conversation.id);
@@ -341,10 +342,26 @@ const ChatInterface: React.FC<Props> = ({
         });
 
         if (result.success && result.conversation) {
-          // Reload conversations
+          // Reload conversations from DB
           const conversationsResult = await window.electronAPI.getConversations(task.id);
-          if (conversationsResult.success) {
-            setConversations(conversationsResult.conversations || []);
+          if (conversationsResult.success && conversationsResult.conversations) {
+            const dbConversations = conversationsResult.conversations;
+            const dbIds = new Set(dbConversations.map((c: Conversation) => c.id));
+            const missingFromDb = conversations.filter((c) => !dbIds.has(c.id));
+            if (missingFromDb.length > 0) {
+              // Re-persist conversations that only existed in React state
+              for (const missing of missingFromDb) {
+                await window.electronAPI.saveConversation({ ...missing, isActive: false });
+              }
+              const retryResult = await window.electronAPI.getConversations(task.id);
+              setConversations(
+                retryResult.success && retryResult.conversations
+                  ? retryResult.conversations
+                  : [...missingFromDb, ...dbConversations]
+              );
+            } else {
+              setConversations(dbConversations);
+            }
           }
           setActiveConversationId(result.conversation.id);
           setAgent(newAgent as Agent);
@@ -369,7 +386,7 @@ const ChatInterface: React.FC<Props> = ({
         });
       }
     },
-    [task.id, toast]
+    [task.id, toast, conversations]
   );
 
   const handleCreateNewChat = useCallback(() => {
