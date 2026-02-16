@@ -188,7 +188,47 @@ export class WorktreePoolService {
     this.reserves.delete(projectId);
 
     try {
+      // Fetch latest remote refs so the worktree starts from up-to-date code.
+      // This runs in the foreground (user-initiated claim) so a brief delay is acceptable.
+      // Timeout prevents hanging on SSH passphrase prompts.
+      let fetchedRef: string | undefined;
+      try {
+        const fetchPromise = worktreeService.fetchLatestBaseRef(projectPath, projectId);
+        let timeoutId: NodeJS.Timeout;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Fetch timed out')), 15000);
+        });
+        try {
+          const baseRefInfo = await Promise.race([fetchPromise, timeoutPromise]);
+          fetchedRef = baseRefInfo.fullRef;
+        } finally {
+          clearTimeout(timeoutId!);
+        }
+      } catch (error) {
+        log.warn('WorktreePool: Failed to fetch latest refs, proceeding with local refs', {
+          projectId,
+          error,
+        });
+      }
+
       const result = await this.transformReserve(reserve, taskName, requestedBaseRef);
+
+      // After a successful fetch, always reset to the latest ref.
+      // We do this independently of transformReserve because its internal reset
+      // compares ref names — if the name matches (e.g. both "origin/main") it
+      // skips the reset even though the ref now points to a newer commit.
+      if (
+        fetchedRef &&
+        (!requestedBaseRef || requestedBaseRef === reserve.baseRef || requestedBaseRef === 'HEAD')
+      ) {
+        try {
+          await execFileAsync('git', ['reset', '--hard', fetchedRef], {
+            cwd: result.worktree.path,
+          });
+        } catch (error) {
+          log.warn('WorktreePool: Failed to reset to fetched ref', { error });
+        }
+      }
 
       // Start background replenishment
       this.replenishReserve(projectId, projectPath, requestedBaseRef);
