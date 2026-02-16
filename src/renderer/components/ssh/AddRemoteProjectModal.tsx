@@ -1051,7 +1051,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 {testStatus === 'error' && (
                   <XCircle className="h-3 w-3 shrink-0 text-destructive" />
                 )}
-                <span className="min-w-0 break-words">
+                <span className="whitespace-pre-wrap break-words">
                   {testStatus === 'testing' && 'Testing connection...'}
                   {testStatus === 'success' &&
                     `Connected successfully${testResult?.latency ? ` (${testResult.latency}ms)` : ''}`}
@@ -1102,7 +1102,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
               >
                 <XCircle className="h-3 w-3 shrink-0 text-destructive" />
-                <span className="min-w-0 break-words">{browseError}</span>
+                <span className="whitespace-pre-wrap break-words">{browseError}</span>
               </Badge>
             )}
 
@@ -1227,7 +1227,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg md:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add Remote Project</DialogTitle>
           <DialogDescription>
@@ -1281,7 +1281,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
           >
             <XCircle className="h-3 w-3 shrink-0 text-destructive" />
-            <span className="min-w-0 break-words">{errors.general}</span>
+            <span className="whitespace-pre-wrap break-words">{errors.general}</span>
           </Badge>
         )}
 

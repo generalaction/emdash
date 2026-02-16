@@ -238,7 +238,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
               </div>
             ) : null}
 
-            <div className="space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label htmlFor="config-preserve-patterns">Preserved patterns</Label>
                 <Textarea
@@ -305,7 +305,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="mt-4 flex justify-end gap-2 border-t pt-4">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
                 Cancel
               </Button>
