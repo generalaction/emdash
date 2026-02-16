@@ -21,16 +21,15 @@
             throw "package.json must define packageManager as pnpm@<version> (optionally with +suffix)";
         requiredPnpmMajor = builtins.elemAt (builtins.match "([0-9]+)\\..*" requiredPnpmVersion) 0;
         requiredPnpmAttr = "pnpm_" + requiredPnpmMajor;
+        majorPnpm =
+          if builtins.hasAttr requiredPnpmAttr pkgs then
+            builtins.getAttr requiredPnpmAttr pkgs
+          else
+            null;
         nodejs = pkgs.nodejs_22;
         pnpm =
-          if builtins.hasAttr requiredPnpmAttr pkgs then
-            let
-              candidate = builtins.getAttr requiredPnpmAttr pkgs;
-            in
-            if lib.versionAtLeast candidate.version requiredPnpmVersion then
-              candidate
-            else
-              throw "Nixpkgs ${requiredPnpmAttr} is too old for this repo. Required >= ${requiredPnpmVersion}, but found ${candidate.version}."
+          if majorPnpm != null && lib.versionAtLeast majorPnpm.version requiredPnpmVersion then
+            majorPnpm
           else if pkgs ? pnpm && lib.versionAtLeast pkgs.pnpm.version requiredPnpmVersion then
             pkgs.pnpm
           else
