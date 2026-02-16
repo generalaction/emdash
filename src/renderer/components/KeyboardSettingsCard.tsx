@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { toast } from '../hooks/use-toast';
 import {
   APP_SHORTCUTS,
+  hasShortcutConflict,
   normalizeShortcutKey,
   type AppShortcut,
   type ShortcutSettingsKey,
@@ -21,6 +22,28 @@ interface ShortcutBinding {
 const CONFIGURABLE_SHORTCUTS = Object.entries(APP_SHORTCUTS)
   .filter(([, shortcut]) => !shortcut.hideFromSettings && shortcut.modifier)
   .map(([id, shortcut]) => ({ id, ...shortcut }));
+
+function findConflictingShortcut(
+  settingsKey: ShortcutSettingsKey,
+  binding: ShortcutBinding,
+  allBindings: Record<ShortcutSettingsKey, ShortcutBinding>
+): (AppShortcut & { id: string }) | null {
+  const candidate = { key: binding.key, modifier: binding.modifier, description: '' };
+
+  for (const shortcut of CONFIGURABLE_SHORTCUTS) {
+    if (shortcut.settingsKey === settingsKey) continue;
+
+    const existing = allBindings[shortcut.settingsKey];
+    if (!existing) continue;
+
+    const existingConfig = { key: existing.key, modifier: existing.modifier, description: '' };
+    if (hasShortcutConflict(candidate, existingConfig)) {
+      return shortcut;
+    }
+  }
+
+  return null;
+}
 
 const formatModifier = (modifier: ShortcutModifier | undefined): string => {
   switch (modifier) {
@@ -165,6 +188,19 @@ const KeyboardSettingsCard: React.FC = () => {
     async (settingsKey: ShortcutSettingsKey, binding: ShortcutBinding) => {
       const shortcut = CONFIGURABLE_SHORTCUTS.find((s) => s.settingsKey === settingsKey);
       if (!shortcut) return;
+
+      const nextBindings = { ...bindings, [settingsKey]: binding };
+      const conflict = findConflictingShortcut(settingsKey, binding, nextBindings);
+      if (conflict) {
+        const message = `Conflicts with "${conflict.label}". Choose a different shortcut.`;
+        setError(message);
+        toast({
+          title: 'Shortcut conflict',
+          description: message,
+          variant: 'destructive',
+        });
+        return;
+      }
 
       const previous = bindings[settingsKey];
       setBindings((prev) => ({ ...prev, [settingsKey]: binding }));

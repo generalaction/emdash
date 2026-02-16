@@ -245,6 +245,28 @@ function isBinding(binding: ShortcutBinding, modifier: ShortcutModifier, key: st
   return binding.modifier === modifier && binding.key === key;
 }
 
+function assertNoKeyboardShortcutConflicts(keyboard?: KeyboardSettings): void {
+  if (!keyboard) return;
+
+  const seen = new Map<string, string>();
+
+  for (const [shortcutName, binding] of Object.entries(keyboard)) {
+    if (!binding?.key || !binding?.modifier) continue;
+
+    const normalizedKey = binding.key.toLowerCase();
+    const signature = `${binding.modifier}:${normalizedKey}`;
+    const conflictWith = seen.get(signature);
+
+    if (conflictWith) {
+      throw new Error(
+        `Keyboard shortcut conflict: "${shortcutName}" duplicates "${conflictWith}".`
+      );
+    }
+
+    seen.set(signature, shortcutName);
+  }
+}
+
 /**
  * Load application settings from disk with sane defaults.
  */
@@ -272,6 +294,9 @@ export function updateAppSettings(partial: Partial<AppSettings>): AppSettings {
   const current = getAppSettings();
   const merged = deepMerge(current, partial);
   const next = normalizeSettings(merged);
+  if (partial.keyboard) {
+    assertNoKeyboardShortcutConflicts(next.keyboard);
+  }
   persistSettings(next);
   cached = next;
   return next;
