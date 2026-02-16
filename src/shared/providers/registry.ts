@@ -35,6 +35,12 @@ export type ProviderDefinition = {
   cli?: string;
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  /**
+   * When true, the initial prompt is delivered via keystroke injection
+   * (typing into the TUI after startup) instead of as a CLI argument.
+   * Use for agents whose CLI has no flag for interactive-mode prompt delivery.
+   */
+  useKeystrokeInjection?: boolean;
   resumeFlag?: string;
   defaultArgs?: string[];
   planActivateCommand?: string;
@@ -137,6 +143,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
+    useKeystrokeInjection: true,
     icon: 'ampcode.png',
     terminalOnly: true,
   },
@@ -148,7 +155,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '--prompt',
+    initialPromptFlag: '',
+    useKeystrokeInjection: true,
     icon: 'opencode.png',
     terminalOnly: true,
   },
