@@ -397,7 +397,28 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
         useWorktree,
       };
 
-      // Optimistic UI update - show task immediately, save in background
+      // Save task to database before activating it in the UI.
+      // Conversations and messages have FK constraints on the task row,
+      // so the task must exist in DB before ChatInterface mounts and
+      // tries to create/load conversations.
+      const saveResult = await window.electronAPI.saveTask({
+        ...newTask,
+        agentId: primaryAgent,
+        metadata: taskMetadata,
+        useWorktree,
+      });
+      if (!saveResult?.success) {
+        const { log } = await import('./logger');
+        log.error('Failed to save task:', saveResult?.error);
+        toast({
+          title: 'Warning',
+          description:
+            'Task created but may not persist after restart. Try again if it disappears.',
+          variant: 'destructive',
+        });
+      }
+
+      // Update UI state now that DB row exists
       setProjects((prev) =>
         prev.map((project) =>
           project.id === selectedProject.id
@@ -418,36 +439,13 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           : null
       );
 
-      // Set the active task and its agent immediately
+      // Set the active task and its agent
       setActiveTask(newTask);
       setActiveTaskAgent(getAgentForTask(newTask) ?? primaryAgent ?? 'codex');
       saveActiveIds(newTask.projectId, newTask.id);
 
       // Run setup after task creation (non-blocking).
       void runSetupOnCreate(newTask.id, newTask.path, selectedProject.path, newTask.name);
-
-      // Background: save to database (non-blocking)
-      window.electronAPI
-        .saveTask({
-          ...newTask,
-          agentId: primaryAgent,
-          metadata: taskMetadata,
-          useWorktree,
-        })
-        .then((saveResult) => {
-          if (!saveResult?.success) {
-            import('./logger').then(({ log }) => {
-              log.error('Failed to save task:', saveResult?.error);
-            });
-            // Warn user that task may not persist across restarts
-            toast({
-              title: 'Warning',
-              description:
-                'Task created but may not persist after restart. Try again if it disappears.',
-              variant: 'destructive',
-            });
-          }
-        });
 
       // Background: telemetry (non-blocking)
       import('./telemetryClient').then(({ captureTelemetry }) => {

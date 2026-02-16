@@ -461,6 +461,7 @@ export class DatabaseService {
       taskId,
       title: 'Default Conversation',
       isMain: true,
+      isActive: true,
     });
 
     const [createdRow] = await db
