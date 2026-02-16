@@ -11,8 +11,29 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
+        packageJson = builtins.fromJSON (builtins.readFile ./package.json);
+        pnpmPackageManager = packageJson.packageManager or "";
+        pnpmVersionMatch = builtins.match "pnpm@([0-9]+\\.[0-9]+\\.[0-9]+)(\\+.*)?" pnpmPackageManager;
+        requiredPnpmVersion =
+          if pnpmVersionMatch != null then
+            builtins.elemAt pnpmVersionMatch 0
+          else
+            throw "package.json must define packageManager as pnpm@<version> (optionally with +suffix)";
+        requiredPnpmMajor = builtins.elemAt (builtins.match "([0-9]+)\\..*" requiredPnpmVersion) 0;
+        requiredPnpmAttr = "pnpm_" + requiredPnpmMajor;
+        majorPnpm =
+          if builtins.hasAttr requiredPnpmAttr pkgs then
+            builtins.getAttr requiredPnpmAttr pkgs
+          else
+            null;
         nodejs = pkgs.nodejs_22;
-        pnpm = pkgs.pnpm_10 or pkgs.pnpm;
+        pnpm =
+          if majorPnpm != null && lib.versionAtLeast majorPnpm.version requiredPnpmVersion then
+            majorPnpm
+          else if pkgs ? pnpm && lib.versionAtLeast pkgs.pnpm.version requiredPnpmVersion then
+            pkgs.pnpm
+          else
+            throw "Nixpkgs pnpm is too old for this repo. Required >= ${requiredPnpmVersion} (from package.json packageManager), but found pnpm=${if pkgs ? pnpm then pkgs.pnpm.version else "missing"} ${requiredPnpmAttr}=${if builtins.hasAttr requiredPnpmAttr pkgs then (builtins.getAttr requiredPnpmAttr pkgs).version else "missing"}.";
 
         # Electron version must match package.json
         electronVersion = "30.5.1";
@@ -52,7 +73,6 @@
             pkgs.libutempter
             pkgs.patchelf
           ];
-        packageJson = builtins.fromJSON (builtins.readFile ./package.json);
         cleanSrc = lib.cleanSource ./.;
         emdashPackage =
           if pkgs.stdenv.isLinux then
