@@ -434,6 +434,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
         height="100%"
         language={getMonacoLanguageId(activeFile.path)}
         path={buildMonacoModelPath(modelRootPath, activeFile.path)}
+        keepCurrentModel={true}
         value={activeFile.content}
         onChange={onEditorChange}
         beforeMount={defineMonacoThemes}

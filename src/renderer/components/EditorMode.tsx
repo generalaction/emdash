@@ -546,6 +546,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
                   height="100%"
                   language={getMonacoLanguageId(selectedFile)}
                   path={buildMonacoModelPath(taskPath, selectedFile)}
+                  keepCurrentModel={true}
                   value={fileContent}
                   onChange={(value) => setFileContent(value || '')}
                   onMount={handleEditorMount}
