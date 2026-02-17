@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { AUTO_SAVE_DELAY } from '@/constants/file-explorer';
-import { dispatchFileChangeEvent } from '@/lib/fileChangeEvents';
+import { dispatchFileChangeEvent, subscribeToFileChanges } from '@/lib/fileChangeEvents';
 
 export interface ManagedFile {
   path: string;
@@ -246,6 +246,29 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
 
     return () => clearTimeout(timer);
   }, [activeFile?.content, activeFile?.isDirty, autoSave, autoSaveDelay, saveFile]);
+
+  /**
+   * Listen for external file changes (e.g., revert, git pull)
+   */
+  useEffect(() => {
+    const unsubscribe = subscribeToFileChanges((event) => {
+      // Check if event matches our task
+      if (event.detail.taskPath !== taskPath) return;
+
+      const changedPath = event.detail.filePath;
+      if (!changedPath) return;
+
+      // Check if we have this file open
+      if (openFiles.has(changedPath)) {
+        // Reload content from disk
+        void loadFile(changedPath);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [taskPath, openFiles, loadFile]);
 
   return {
     openFiles,

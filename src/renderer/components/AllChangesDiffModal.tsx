@@ -11,6 +11,7 @@ import {
   getMonacoLanguageId,
   isBinaryFile,
 } from '../lib/diffUtils';
+import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
 import { useToast } from '../hooks/use-toast';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../lib/monacoDiffConfig';
@@ -128,6 +129,8 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         saveError: null,
       }));
       toast({ title: 'Saved', description: filePath });
+      // Dispatch file change event to update editor
+      dispatchFileChangeEvent(resolvedTaskPath, filePath);
       if (onRefreshChanges) {
         await onRefreshChanges();
       }

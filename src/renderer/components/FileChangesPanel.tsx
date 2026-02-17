@@ -8,6 +8,7 @@ import { useCreatePR } from '../hooks/useCreatePR';
 import ChangesDiffModal from './ChangesDiffModal';
 import AllChangesDiffModal from './AllChangesDiffModal';
 import { useFileChanges } from '../hooks/useFileChanges';
+import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useCheckRuns } from '../hooks/useCheckRuns';
 import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
@@ -382,6 +383,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         newSet.delete(filePath);
         return newSet;
       });
+      // specific file change event to update editor
+      dispatchFileChangeEvent(safeTaskPath, filePath);
     }
   };
 
