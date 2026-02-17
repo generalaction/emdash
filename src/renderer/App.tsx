@@ -43,7 +43,7 @@ import { useProjectManagement } from './hooks/useProjectManagement';
 import { useTaskManagement } from './hooks/useTaskManagement';
 import { createTask } from './lib/taskCreationService';
 import { getProjectRepoKey } from './lib/projectUtils';
-import { performActiveEditorUndo, performActiveEditorRedo } from './lib/activeCodeEditor';
+import { handleMenuUndo, handleMenuRedo } from './lib/menuUndoRedo';
 
 // Extracted constants
 import {
@@ -140,10 +140,10 @@ const AppContent: React.FC = () => {
   // Listen for native menu Undo/Redo (main → renderer) and keep operations editor-scoped.
   useEffect(() => {
     const cleanupUndo = window.electronAPI.onMenuUndo?.(() => {
-      performActiveEditorUndo();
+      handleMenuUndo();
     });
     const cleanupRedo = window.electronAPI.onMenuRedo?.(() => {
-      performActiveEditorRedo();
+      handleMenuRedo();
     });
     return () => {
       cleanupUndo?.();
