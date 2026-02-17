@@ -280,7 +280,7 @@ export default function CodeEditor({
           remotePath={remotePath}
         />
 
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col overflow-hidden">
           <FileTabs
             openFiles={openFiles}
             activeFilePath={activeFilePath}

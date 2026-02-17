@@ -27,7 +27,7 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   }
 
   return (
-    <div className="flex h-8 items-center overflow-x-auto border-b border-border bg-muted/10">
+    <div className="flex h-8 shrink-0 items-center overflow-x-auto border-b border-border bg-muted/10 [overscroll-behavior-x:contain]">
       {Array.from(openFiles.entries()).map(([path, file]) => (
         <FileTab
           key={path}
@@ -86,7 +86,7 @@ const FileTab: React.FC<FileTabProps> = ({
       <span className="flex-shrink-0 [&>svg]:h-3 [&>svg]:w-3">
         <FileIcon filename={fileName} isDirectory={false} />
       </span>
-      <span className="text-xs">{fileName}</span>
+      <span className="max-w-[200px] truncate text-xs">{fileName}</span>
       {file.isDirty && (
         <span className="text-gray-500" title="Unsaved changes">
           ●
