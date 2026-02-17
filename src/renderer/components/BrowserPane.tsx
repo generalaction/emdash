@@ -51,6 +51,7 @@ const BrowserPane: React.FC<{
   }, [widthPct]);
   const [failed, setFailed] = React.useState<boolean>(false);
   const [overlayRaised, setOverlayRaised] = React.useState<boolean>(false);
+  const paneVisible = isOpen && !overlayActive && !overlayRaised;
 
   // Listen for global overlay events (e.g., feedback modal) and hide preview when active
   React.useEffect(() => {
@@ -245,7 +246,7 @@ const BrowserPane: React.FC<{
       visibilityTimeoutRef.current = null;
     }
 
-    const shouldShow = isOpen && !overlayActive && !overlayRaised && !!url && !!taskId;
+    const shouldShow = paneVisible && !!url && !!taskId;
 
     if (!shouldShow) {
       visibilityTimeoutRef.current = setTimeout(() => {
@@ -310,7 +311,7 @@ const BrowserPane: React.FC<{
         resizeObserver?.disconnect?.();
       } catch {}
     };
-  }, [isOpen, url, computeBounds, overlayActive, overlayRaised, hasBoundsChanged, taskId]);
+  }, [paneVisible, url, computeBounds, hasBoundsChanged, taskId]);
 
   React.useEffect(() => {
     if (isOpen && !url) setAddress('');
@@ -325,7 +326,7 @@ const BrowserPane: React.FC<{
       lastTaskUrlRef.current = null;
     }
 
-    if (isOpen && url && !overlayActive && !overlayRaised && taskId) {
+    if (paneVisible && url && taskId) {
       const taskUrlKey = `${taskId}:${url}`;
       // Force reload if task changed or URL changed
       const isTaskChange = lastTaskUrlRef.current === null;
@@ -346,7 +347,7 @@ const BrowserPane: React.FC<{
         return () => clearTimeout(timeoutId);
       }
     }
-  }, [isOpen, url, overlayActive, overlayRaised, taskId]);
+  }, [paneVisible, url, taskId]);
 
   React.useEffect(() => {
     let dragging = false;
@@ -437,19 +438,19 @@ const BrowserPane: React.FC<{
     <div
       className={cn(
         'fixed bottom-0 left-0 right-0 z-[70] overflow-hidden',
-        isOpen ? 'pointer-events-auto' : 'pointer-events-none'
+        paneVisible ? 'pointer-events-auto' : 'pointer-events-none'
       )}
       // Offset below the app titlebar so the pane’s toolbar is visible
       style={{ top: 'var(--tb, 36px)' }}
-      aria-hidden={!isOpen}
+      aria-hidden={!paneVisible}
     >
       <div
         className="absolute right-0 top-0 h-full border-l border-border bg-background shadow-xl"
         style={{
           width: `${widthPct}%`,
-          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
+          transform: paneVisible ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 220ms cubic-bezier(0.22,1,0.36,1), opacity 220ms',
-          opacity: isOpen ? 1 : 0,
+          opacity: paneVisible ? 1 : 0,
           display: 'flex',
           flexDirection: 'column',
           zIndex: 10,

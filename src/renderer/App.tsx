@@ -676,7 +676,11 @@ const AppContent: React.FC = () => {
                 taskId={activeTask?.id || null}
                 taskPath={activeTask?.path || null}
                 overlayActive={
-                  showSettings || showCommandPalette || showTaskModal || showWelcomeScreen
+                  showSettings ||
+                  showSettingsPage ||
+                  showCommandPalette ||
+                  showTaskModal ||
+                  showWelcomeScreen
                 }
               />
             </RightSidebarProvider>

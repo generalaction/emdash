@@ -75,10 +75,12 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
 }) => {
   if (showSettingsPage) {
     return (
-      <SettingsPage
-        initialTab={settingsPageInitialTab}
-        onClose={handleCloseSettingsPage || (() => {})}
-      />
+      <div className="relative z-40 flex min-h-0 flex-1 overflow-hidden bg-background">
+        <SettingsPage
+          initialTab={settingsPageInitialTab}
+          onClose={handleCloseSettingsPage || (() => {})}
+        />
+      </div>
     );
   }
 
