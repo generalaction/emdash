@@ -2,6 +2,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { cn } from '@/lib/utils';
 import { getMonacoLanguageId } from '@/lib/diffUtils';
+import { buildMonacoModelPath } from '@/lib/monacoModelPath';
+import { registerActiveCodeEditor } from '@/lib/activeCodeEditor';
 import { useTheme } from '@/hooks/useTheme';
 import { useRightSidebar } from '../ui/right-sidebar';
 import { useFileManager } from '@/hooks/useFileManager';
@@ -46,6 +48,7 @@ export default function CodeEditor({
   const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
   const monacoRef = useRef<any>(null);
   const editorRef = useRef<any>(null);
+  const editorRegistrationCleanupRef = useRef<(() => void) | null>(null);
 
   // File management with custom hook
   const {
@@ -71,6 +74,7 @@ export default function CodeEditor({
 
   // Track which files are in preview mode (markdown files default to true)
   const [previewMode, setPreviewMode] = useState<Map<string, boolean>>(new Map());
+  const modelRootPath = remotePath ? `${connectionId || 'remote'}:${remotePath}` : taskPath;
 
   const isPreviewActive = activeFilePath
     ? (previewMode.get(activeFilePath) ?? isMarkdownFile(activeFilePath))
@@ -163,6 +167,8 @@ export default function CodeEditor({
     (editor: any, monaco: any) => {
       // Store editor reference
       editorRef.current = editor;
+      editorRegistrationCleanupRef.current?.();
+      editorRegistrationCleanupRef.current = registerActiveCodeEditor(editor);
 
       // Configure Monaco if not already done
       if (!monacoRef.current) {
@@ -207,6 +213,13 @@ export default function CodeEditor({
     },
     [saveFile, saveAllFiles, refreshDecorations]
   );
+
+  useEffect(() => {
+    return () => {
+      editorRegistrationCleanupRef.current?.();
+      editorRegistrationCleanupRef.current = null;
+    };
+  }, []);
 
   // Handle editor content change
   const handleEditorChange = useCallback(
@@ -296,6 +309,7 @@ export default function CodeEditor({
             onEditorMount={handleEditorMount}
             onEditorChange={handleEditorChange}
             isPreviewActive={isPreviewActive}
+            modelRootPath={modelRootPath}
           />
         </div>
       </div>
@@ -387,6 +401,7 @@ interface EditorContentProps {
   onEditorMount: (editor: any, monaco: any) => void;
   onEditorChange: (value: string | undefined) => void;
   isPreviewActive: boolean;
+  modelRootPath: string;
 }
 
 const EditorContent: React.FC<EditorContentProps> = ({
@@ -395,6 +410,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
   onEditorMount,
   onEditorChange,
   isPreviewActive,
+  modelRootPath,
 }) => {
   if (!activeFile) {
     return <NoFileOpen />;
@@ -417,6 +433,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
       <Editor
         height="100%"
         language={getMonacoLanguageId(activeFile.path)}
+        path={buildMonacoModelPath(modelRootPath, activeFile.path)}
         value={activeFile.content}
         onChange={onEditorChange}
         beforeMount={defineMonacoThemes}

@@ -68,7 +68,28 @@ export function setupApplicationMenu(): void {
       ],
     },
     // Edit menu
-    { role: 'editMenu' as const },
+    {
+      label: 'Edit',
+      submenu: [
+        {
+          label: 'Undo',
+          accelerator: 'CmdOrCtrl+Z',
+          click: () => sendToRenderer('menu:undo'),
+        },
+        {
+          label: 'Redo',
+          accelerator: isMac ? 'Shift+CmdOrCtrl+Z' : 'CmdOrCtrl+Y',
+          click: () => sendToRenderer('menu:redo'),
+        },
+        { type: 'separator' as const },
+        { role: 'cut' as const },
+        { role: 'copy' as const },
+        { role: 'paste' as const },
+        ...(isMac ? [{ role: 'pasteAndMatchStyle' as const }] : []),
+        { role: 'delete' as const },
+        { role: 'selectAll' as const },
+      ],
+    },
     // View menu
     {
       label: 'View',

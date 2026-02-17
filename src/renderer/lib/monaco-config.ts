@@ -201,4 +201,18 @@ export function addMonacoKeyboardShortcuts(
       handlers.onSaveAll
     );
   }
+
+  // Keep undo/redo scoped to the focused Monaco editor instance.
+  // This prevents fallback to browser/webContents undo when the current model has no undo stack.
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
+    editor.trigger('keyboard', 'undo', null);
+  });
+
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => {
+    editor.trigger('keyboard', 'redo', null);
+  });
+
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyY, () => {
+    editor.trigger('keyboard', 'redo', null);
+  });
 }

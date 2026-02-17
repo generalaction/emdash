@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   X,
   RefreshCw,
@@ -14,6 +14,8 @@ import Editor from '@monaco-editor/react';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { getMonacoLanguageId } from '@/lib/diffUtils';
+import { buildMonacoModelPath } from '@/lib/monacoModelPath';
+import { registerActiveCodeEditor } from '@/lib/activeCodeEditor';
 import { useTheme } from '@/hooks/useTheme';
 import { useRightSidebar } from './ui/right-sidebar';
 
@@ -45,6 +47,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   const [isResizing, setIsResizing] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showIgnoredFiles, setShowIgnoredFiles] = useState(false);
+  const editorRegistrationCleanupRef = useRef<(() => void) | null>(null);
 
   // Whitelist approach - only show files we explicitly want
   const shouldIncludeFile = (fullPath: string): boolean => {
@@ -301,10 +304,19 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
 
   // Handle keyboard shortcut for save
   const handleEditorMount = (editor: any, monaco: any) => {
+    editorRegistrationCleanupRef.current?.();
+    editorRegistrationCleanupRef.current = registerActiveCodeEditor(editor);
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       saveFile();
     });
   };
+
+  useEffect(() => {
+    return () => {
+      editorRegistrationCleanupRef.current?.();
+      editorRegistrationCleanupRef.current = null;
+    };
+  }, []);
 
   // Load subdirectory contents
   const loadSubdirectory = async (dirPath: string): Promise<FileNode[]> => {
@@ -529,6 +541,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
                 <Editor
                   height="100%"
                   language={getMonacoLanguageId(selectedFile)}
+                  path={buildMonacoModelPath(taskPath, selectedFile)}
                   value={fileContent}
                   onChange={(value) => setFileContent(value || '')}
                   onMount={handleEditorMount}
