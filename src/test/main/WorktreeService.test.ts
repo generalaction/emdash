@@ -204,6 +204,44 @@ describe('WorktreeService', () => {
       expect(fs.existsSync(path.join(destDir, 'local.config.json'))).toBe(true);
     });
 
+    it('should copy nested files for basename-only custom patterns', async () => {
+      const nestedDir = path.join(sourceDir, 'secrets');
+      fs.mkdirSync(nestedDir, { recursive: true });
+      fs.writeFileSync(path.join(nestedDir, 'custom.secret'), 'nested-secret');
+      fs.writeFileSync(path.join(sourceDir, '.gitignore'), 'custom.secret\n');
+      execSync('git add .gitignore', { cwd: sourceDir, stdio: 'pipe' });
+      execSync('git commit -m "ignore custom secret"', { cwd: sourceDir, stdio: 'pipe' });
+
+      const result = await service.preserveFilesToWorktree(
+        sourceDir,
+        destDir,
+        ['custom.secret'],
+        []
+      );
+
+      expect(result.copied).toContain('secrets/custom.secret');
+      expect(fs.existsSync(path.join(destDir, 'secrets', 'custom.secret'))).toBe(true);
+    });
+
+    it('should generate scoped pathspecs for preserve patterns', async () => {
+      const pathspecs = (service as any).buildIgnoredPathspecs([
+        '.env.keys',
+        '.claude/**',
+        './config/local.yml',
+      ]) as string[];
+
+      expect(pathspecs).toEqual(
+        expect.arrayContaining([
+          '.env.keys',
+          '**/.env.keys',
+          '.claude/**',
+          '**/.claude/**',
+          'config/local.yml',
+          '**/config/local.yml',
+        ])
+      );
+    });
+
     it('should read patterns from .emdash.json if present', async () => {
       // Create .emdash.json with custom patterns
       fs.writeFileSync(
