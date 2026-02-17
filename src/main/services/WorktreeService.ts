@@ -937,16 +937,44 @@ export class WorktreeService {
   }
 
   /**
-   * Get list of gitignored files in a directory using git ls-files
+   * Build scoped git pathspecs from preserve patterns.
+   * We query both the raw pattern and a recursive variant to preserve existing
+   * basename-matching behavior for nested files.
    */
-  private async getIgnoredFiles(dir: string): Promise<string[]> {
+  private buildIgnoredPathspecs(patterns: string[]): string[] {
+    const pathspecs = new Set<string>();
+
+    for (const rawPattern of patterns) {
+      const pattern = rawPattern.trim().replace(/\\/g, '/').replace(/^\.\//, '');
+      if (!pattern) {
+        continue;
+      }
+
+      pathspecs.add(pattern);
+      if (!pattern.startsWith('**/')) {
+        pathspecs.add(`**/${pattern}`);
+      }
+    }
+
+    return Array.from(pathspecs);
+  }
+
+  /**
+   * Get list of gitignored files that match preserve patterns.
+   */
+  private async getIgnoredFiles(dir: string, patterns: string[]): Promise<string[]> {
+    const pathspecs = this.buildIgnoredPathspecs(patterns);
+    if (pathspecs.length === 0) {
+      return [];
+    }
+
     try {
       const { stdout } = await execFileAsync(
         'git',
-        ['ls-files', '--others', '--ignored', '--exclude-standard'],
+        ['ls-files', '--others', '--ignored', '--exclude-standard', '--', ...pathspecs],
         {
           cwd: dir,
-          maxBuffer: 10 * 1024 * 1024, // Increase buffer to 10MB for large repos
+          maxBuffer: 10 * 1024 * 1024,
         }
       );
 
@@ -954,10 +982,14 @@ export class WorktreeService {
         return [];
       }
 
-      return stdout
-        .trim()
-        .split('\n')
-        .filter((line) => line.length > 0);
+      return Array.from(
+        new Set(
+          stdout
+            .trim()
+            .split('\n')
+            .filter((line) => line.length > 0)
+        )
+      );
     } catch (error) {
       log.debug('Failed to list ignored files:', error);
       return [];
@@ -1054,8 +1086,8 @@ export class WorktreeService {
       return result;
     }
 
-    // Get all gitignored files from source directory
-    const ignoredFiles = await this.getIgnoredFiles(sourceDir);
+    // Get gitignored files matching preserve patterns from source directory
+    const ignoredFiles = await this.getIgnoredFiles(sourceDir, patterns);
 
     if (ignoredFiles.length === 0) {
       log.debug('No ignored files found in source directory');
