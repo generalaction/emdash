@@ -163,6 +163,24 @@ const getCachedAppVersion = (): Promise<string> => {
 export function registerAppIpc() {
   void getCachedAppVersion();
 
+  ipcMain.handle('app:undo', async (event) => {
+    try {
+      event.sender.undo();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('app:redo', async (event) => {
+    try {
+      event.sender.redo();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   ipcMain.handle('app:openExternal', async (_event, url: string) => {
     try {
       if (!url || typeof url !== 'string') throw new Error('Invalid URL');

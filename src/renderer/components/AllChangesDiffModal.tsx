@@ -15,6 +15,7 @@ import { useToast } from '../hooks/use-toast';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../lib/monacoDiffConfig';
 import { useTheme } from '../hooks/useTheme';
+import { registerActiveCodeEditor } from '../lib/activeCodeEditor';
 import { useTaskScope } from './TaskScopeContext';
 
 // Thresholds for detecting large files that should not be rendered in all-changes modal
@@ -62,6 +63,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
   const editorRefs = useRef<Map<string, monaco.editor.IStandaloneDiffEditor>>(new Map());
   const changeDisposables = useRef<Map<string, monaco.IDisposable>>(new Map());
+  const activeEditorCleanupDisposables = useRef<Map<string, () => void>>(new Map());
 
   // Close on escape key
   useEffect(() => {
@@ -93,6 +95,14 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         }
       });
       changeDisposables.current.clear();
+      activeEditorCleanupDisposables.current.forEach((cleanup) => {
+        try {
+          cleanup();
+        } catch {
+          // ignore
+        }
+      });
+      activeEditorCleanupDisposables.current.clear();
       editorRefs.current.clear();
 
       // Reset diagnostic options when closing modal
@@ -610,6 +620,11 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     editorRefs.current.set(filePath, editor);
     try {
       const modifiedEditor = editor.getModifiedEditor();
+      activeEditorCleanupDisposables.current.get(filePath)?.();
+      activeEditorCleanupDisposables.current.set(
+        filePath,
+        registerActiveCodeEditor(modifiedEditor)
+      );
       changeDisposables.current.get(filePath)?.dispose();
       const disposable = modifiedEditor.onDidChangeModelContent(() => {
         const value = modifiedEditor.getValue() ?? '';

@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
   listInstalledFonts: (args?: { refresh?: boolean }) =>
     ipcRenderer.invoke('app:listInstalledFonts', args),
+  undo: () => ipcRenderer.invoke('app:undo'),
+  redo: () => ipcRenderer.invoke('app:redo'),
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
@@ -140,6 +142,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuCheckForUpdates: (listener: () => void) => {
     const channel = 'menu:check-for-updates';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onMenuUndo: (listener: () => void) => {
+    const channel = 'menu:undo';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onMenuRedo: (listener: () => void) => {
+    const channel = 'menu:redo';
     const wrapped = () => listener();
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);

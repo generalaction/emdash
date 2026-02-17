@@ -43,6 +43,8 @@ declare global {
       listInstalledFonts: (args?: {
         refresh?: boolean;
       }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;
+      undo: () => Promise<{ success: boolean; error?: string }>;
+      redo: () => Promise<{ success: boolean; error?: string }>;
       // Updater
       checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -59,6 +61,8 @@ declare global {
       // Menu events (main → renderer)
       onMenuOpenSettings: (listener: () => void) => () => void;
       onMenuCheckForUpdates: (listener: () => void) => () => void;
+      onMenuUndo: (listener: () => void) => () => void;
+      onMenuRedo: (listener: () => void) => () => void;
 
       // App settings
       getSettings: () => Promise<{
@@ -1253,6 +1257,8 @@ export interface ElectronAPI {
   // Menu events (main → renderer)
   onMenuOpenSettings: (listener: () => void) => () => void;
   onMenuCheckForUpdates: (listener: () => void) => () => void;
+  onMenuUndo: (listener: () => void) => () => void;
+  onMenuRedo: (listener: () => void) => () => void;
 
   // App info
   getVersion: () => Promise<string>;
@@ -1260,6 +1266,8 @@ export interface ElectronAPI {
   listInstalledFonts: (args?: {
     refresh?: boolean;
   }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;
+  undo: () => Promise<{ success: boolean; error?: string }>;
+  redo: () => Promise<{ success: boolean; error?: string }>;
   // Updater
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
