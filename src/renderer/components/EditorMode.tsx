@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { getMonacoLanguageId } from '@/lib/diffUtils';
 import { buildMonacoModelPath } from '@/lib/monacoModelPath';
 import { registerActiveCodeEditor } from '@/lib/activeCodeEditor';
+import { addMonacoKeyboardShortcuts } from '@/lib/monaco-config';
 import { useTheme } from '@/hooks/useTheme';
 import { useRightSidebar } from './ui/right-sidebar';
 
@@ -306,8 +307,11 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   const handleEditorMount = (editor: any, monaco: any) => {
     editorRegistrationCleanupRef.current?.();
     editorRegistrationCleanupRef.current = registerActiveCodeEditor(editor);
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      saveFile();
+
+    addMonacoKeyboardShortcuts(editor, monaco, {
+      onSave: () => {
+        void saveFile();
+      },
     });
   };
 
