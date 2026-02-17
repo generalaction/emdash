@@ -118,18 +118,11 @@ function buildRemoteInitCommand(args: {
     );
   }
 
-  // Prefer bash for interactive shells when available.
-  // This avoids bash-specific init scripts failing under /bin/sh (e.g. `[[` not found).
-  parts.push(
-    `if [ -x /bin/bash ]; then exec /bin/bash -i; elif [ -x /usr/bin/bash ]; then exec /usr/bin/bash -i; elif command -v bash >/dev/null 2>&1; then exec bash -i; else exec "${'${SHELL:-sh}'}" -i; fi`
-  );
+  // Launch an interactive session in the user's configured shell.
+  // $SHELL is always set by sshd from the remote user's passwd entry.
+  parts.push(`exec "\${SHELL:-/bin/bash}" -i`);
 
-  const init = parts.join('; ');
-  const quotedInit = quoteShellArg(init);
-
-  // Ensure init runs under bash when available (falls back to sh).
-  // We log the chosen shell minimally to the terminal output.
-  return `if [ -x /bin/bash ]; then echo "emdash: remote init shell=/bin/bash"; exec /bin/bash -ic ${quotedInit}; elif [ -x /usr/bin/bash ]; then echo "emdash: remote init shell=/usr/bin/bash"; exec /usr/bin/bash -ic ${quotedInit}; elif command -v bash >/dev/null 2>&1; then echo "emdash: remote init shell=bash"; exec bash -ic ${quotedInit}; else echo "emdash: remote init shell=sh"; exec sh -ic ${quotedInit}; fi`;
+  return parts.join('; ');
 }
 
 async function resolveSshInvocation(
