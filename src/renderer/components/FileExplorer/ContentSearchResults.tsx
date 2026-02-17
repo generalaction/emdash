@@ -67,9 +67,13 @@ const SearchResultItem: React.FC<{
 };
 
 const FileHeader: React.FC<{ fileName: string; filePath: string }> = ({ fileName, filePath }) => (
-  <div className="flex items-center gap-1">
-    <FileIcon filename={fileName} isDirectory={false} />
-    <span className="text-sm font-medium">{filePath}</span>
+  <div className="flex items-center gap-1 overflow-hidden">
+    <span className="shrink-0">
+      <FileIcon filename={fileName} isDirectory={false} />
+    </span>
+    <span className="truncate text-sm font-medium" title={filePath}>
+      {filePath}
+    </span>
   </div>
 );
 
@@ -82,9 +86,9 @@ const MatchList: React.FC<{ matches: any[] }> = ({ matches }) => (
 );
 
 const MatchPreview: React.FC<{ match: any }> = ({ match }) => (
-  <div className="text-xs text-muted-foreground">
-    <span className="font-mono">Line {match.line}:</span>{' '}
-    <span className="text-foreground">{match.preview}</span>
+  <div className="flex gap-1 overflow-hidden text-xs text-muted-foreground">
+    <span className="shrink-0 font-mono">Line {match.line}:</span>
+    <span className="truncate text-foreground">{match.preview}</span>
   </div>
 );
 
