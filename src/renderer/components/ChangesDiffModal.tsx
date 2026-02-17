@@ -17,6 +17,7 @@ import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../lib/monacoDiffConfig';
 import { useDiffEditorComments } from '../hooks/useDiffEditorComments';
 import { useTaskComments } from '../hooks/useLineComments';
+import { registerActiveCodeEditor } from '../lib/activeCodeEditor';
 import { useTaskScope } from './TaskScopeContext';
 
 interface ChangesDiffModalProps {
@@ -55,6 +56,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   );
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const changeDisposableRef = useRef<monaco.IDisposable | null>(null);
+  const activeEditorCleanupRef = useRef<(() => void) | null>(null);
 
   // Integrate line comments - use state (not ref) so hook re-runs when editor mounts
   useDiffEditorComments({
@@ -466,6 +468,12 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
         // ignore
       }
       changeDisposableRef.current = null;
+      try {
+        activeEditorCleanupRef.current?.();
+      } catch {
+        // ignore
+      }
+      activeEditorCleanupRef.current = null;
 
       // Reset diagnostic options when closing modal
       loader
@@ -482,6 +490,12 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   const handleEditorDidMount = async (editor: monaco.editor.IStandaloneDiffEditor) => {
     editorRef.current = editor;
     setEditorInstance(editor); // Trigger re-render so useDiffEditorComments sees the editor
+    try {
+      activeEditorCleanupRef.current?.();
+    } catch {
+      // ignore
+    }
+    activeEditorCleanupRef.current = registerActiveCodeEditor(editor.getModifiedEditor());
 
     // Define themes when editor is ready
     try {
