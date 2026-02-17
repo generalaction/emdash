@@ -449,7 +449,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       } else {
         toast({
           title: 'Commit Failed',
-          description: result.error || 'Failed to commit and push changes.',
+          description: typeof result.error === 'string' ? result.error : 'Failed to commit and push changes.',
           variant: 'destructive',
         });
       }
