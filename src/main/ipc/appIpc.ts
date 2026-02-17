@@ -1,4 +1,4 @@
-import { app, ipcMain, shell } from 'electron';
+import { app, clipboard, ipcMain, shell } from 'electron';
 import { exec } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -185,6 +185,16 @@ export function registerAppIpc() {
     try {
       if (!url || typeof url !== 'string') throw new Error('Invalid URL');
       await shell.openExternal(url);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('app:clipboard-write-text', async (_event, text: string) => {
+    try {
+      if (typeof text !== 'string') throw new Error('Invalid clipboard text');
+      clipboard.writeText(text);
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };

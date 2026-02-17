@@ -9,11 +9,17 @@ import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
-import { CTRL_J_ASCII, shouldMapShiftEnterToCtrlJ } from './terminalKeybindings';
+import {
+  CTRL_J_ASCII,
+  shouldCopySelectionFromTerminal,
+  shouldMapShiftEnterToCtrlJ,
+} from './terminalKeybindings';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
 const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
+const IS_MAC_PLATFORM =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -163,10 +169,23 @@ export class TerminalSessionManager {
 
     this.applyTheme(options.theme);
 
-    // Map Shift+Enter to Ctrl+J for CLI agents only
-    if (options.mapShiftEnterToCtrlJ) {
+    const isAgentSession = Boolean(options.providerId);
+
+    // Handle custom key behavior for agent sessions and Shift+Enter mapping.
+    if (options.mapShiftEnterToCtrlJ || isAgentSession) {
       this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-        if (shouldMapShiftEnterToCtrlJ(event)) {
+        if (
+          isAgentSession &&
+          shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, this.terminal.hasSelection())
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          this.copySelectionToClipboard();
+          return false; // Prevent xterm from processing the copy shortcut
+        }
+
+        if (options.mapShiftEnterToCtrlJ && shouldMapShiftEnterToCtrlJ(event)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -381,6 +400,46 @@ export class TerminalSessionManager {
     }
 
     window.electronAPI.ptyInput({ id: this.id, data: filtered });
+  }
+
+  private copySelectionToClipboard() {
+    try {
+      const selected = this.terminal.getSelection();
+      if (!selected) return;
+      const writeWithElectronFallback = () => {
+        const fallbackWrite = (window as any)?.electronAPI?.clipboardWriteText;
+        if (typeof fallbackWrite !== 'function') {
+          log.warn('Terminal clipboard API unavailable', { id: this.id });
+          return;
+        }
+
+        void fallbackWrite(selected).catch((error: unknown) => {
+          log.warn('Failed to copy terminal selection via Electron fallback', {
+            id: this.id,
+            error,
+          });
+        });
+      };
+
+      if (
+        typeof navigator !== 'undefined' &&
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText === 'function'
+      ) {
+        void navigator.clipboard.writeText(selected).catch((error) => {
+          log.warn('Failed to copy terminal selection via navigator clipboard, falling back', {
+            id: this.id,
+            error,
+          });
+          writeWithElectronFallback();
+        });
+        return;
+      }
+
+      writeWithElectronFallback();
+    } catch (error) {
+      log.warn('Failed to copy terminal selection', { id: this.id, error });
+    }
   }
 
   private applyTheme(theme: SessionTheme) {
