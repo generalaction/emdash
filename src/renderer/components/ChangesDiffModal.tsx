@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Copy, Check } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
@@ -15,6 +15,7 @@ import {
 } from '../lib/diffUtils';
 import { MONACO_DIFF_COLORS } from '../lib/monacoDiffColors';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../lib/monacoDiffConfig';
+import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
 import { useDiffEditorComments } from '../hooks/useDiffEditorComments';
 import { useTaskComments } from '../hooks/useLineComments';
 import { registerActiveCodeEditor } from '../lib/activeCodeEditor';
@@ -605,6 +606,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
         title: 'Saved',
         description: selected,
       });
+      // Dispatch file change event to update editor
+      dispatchFileChangeEvent(safeTaskPath, selected);
       if (onRefreshChanges) {
         await onRefreshChanges();
       }
