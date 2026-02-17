@@ -19,6 +19,9 @@
             builtins.elemAt pnpmVersionMatch 0
           else
             throw "package.json must define packageManager as pnpm@<version> (optionally with +suffix)";
+        # Nixpkgs can lag patch releases; require matching major/minor line (e.g. 10.28.x).
+        requiredPnpmMajorMinor = builtins.elemAt (builtins.match "([0-9]+\\.[0-9]+)\\..*" requiredPnpmVersion) 0;
+        requiredPnpmCompatVersion = "${requiredPnpmMajorMinor}.0";
         requiredPnpmMajor = builtins.elemAt (builtins.match "([0-9]+)\\..*" requiredPnpmVersion) 0;
         requiredPnpmAttr = "pnpm_" + requiredPnpmMajor;
         majorPnpm =
@@ -27,13 +30,18 @@
           else
             null;
         nodejs = pkgs.nodejs_22;
-        pnpm =
-          if majorPnpm != null && lib.versionAtLeast majorPnpm.version requiredPnpmVersion then
+        pnpmBase =
+          if majorPnpm != null && lib.versionAtLeast majorPnpm.version requiredPnpmCompatVersion then
             majorPnpm
-          else if pkgs ? pnpm && lib.versionAtLeast pkgs.pnpm.version requiredPnpmVersion then
+          else if pkgs ? pnpm && lib.versionAtLeast pkgs.pnpm.version requiredPnpmCompatVersion then
             pkgs.pnpm
           else
-            throw "Nixpkgs pnpm is too old for this repo. Required >= ${requiredPnpmVersion} (from package.json packageManager), but found pnpm=${if pkgs ? pnpm then pkgs.pnpm.version else "missing"} ${requiredPnpmAttr}=${if builtins.hasAttr requiredPnpmAttr pkgs then (builtins.getAttr requiredPnpmAttr pkgs).version else "missing"}.";
+            throw "Nixpkgs pnpm is too old for this repo. Required >= ${requiredPnpmCompatVersion} (matching packageManager ${requiredPnpmVersion} major/minor), but found pnpm=${if pkgs ? pnpm then pkgs.pnpm.version else "missing"} ${requiredPnpmAttr}=${if builtins.hasAttr requiredPnpmAttr pkgs then (builtins.getAttr requiredPnpmAttr pkgs).version else "missing"}.";
+        pnpm =
+          if pnpmBase ? override then
+            pnpmBase.override { inherit nodejs; }
+          else
+            pnpmBase;
 
         # Electron version must match package.json
         electronVersion = "30.5.1";
@@ -84,17 +92,16 @@
                 if pkgs ? fetchPnpmDeps then
                   pkgs.fetchPnpmDeps {
                     inherit pname version src;
+                    inherit pnpm;
                     fetcherVersion = 1;
-                    hash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
+                    hash = "sha256-JvJBHY0r1lNrLHrsAQjf0HMseZVaev93sOFfWoyN34s=";
                   }
                 else
                   pnpm.fetchDeps {
                     inherit pname version src;
                     fetcherVersion = 1;
-                    hash = "sha256-9NDjQ8L1thkaoSvWm6s9Q9ubT9+oPpWfLDPAnvKsq7A=";
+                    hash = "sha256-JvJBHY0r1lNrLHrsAQjf0HMseZVaev93sOFfWoyN34s=";
                   };
-              dontConfigure = true;
-
               nativeBuildInputs =
                 sharedEnv
                 ++ [
@@ -112,6 +119,7 @@
               env = {
                 HOME = "$TMPDIR/emdash-home";
                 npm_config_build_from_source = "true";
+                npm_config_manage_package_manager_versions = "false";
                 # Skip Electron binary download during pnpm install
                 ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
               };
@@ -120,6 +128,7 @@
                 runHook preBuild
 
                 mkdir -p "$TMPDIR/emdash-home"
+                pnpm config set manage-package-manager-versions false
 
                 # Build the app (renderer + main)
                 pnpm run build
