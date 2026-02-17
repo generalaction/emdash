@@ -9,7 +9,7 @@ import { Textarea } from './ui/textarea';
 import { useToast } from '../hooks/use-toast';
 
 const DISCORD_WEBHOOK_URL =
-  'https://discord.com/api/webhooks/1430482776045391912/7r3aZtu7y0safAJfFF0mywzw2uoY_2UhadMf7uv1oJSitIC2eUirWzGHdjiEm7zgdPDt';
+  'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';
 
 interface FeedbackModalProps {
   isOpen: boolean;
