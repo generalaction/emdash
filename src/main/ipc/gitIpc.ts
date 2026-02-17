@@ -289,7 +289,7 @@ export function registerGitIpc() {
               if (commitOut?.trim()) outputs.push(commitOut.trim());
               if (commitErr?.trim()) outputs.push(commitErr.trim());
             } catch (commitErr) {
-              const msg = commitErr as string;
+              const msg = commitErr instanceof Error ? commitErr.message : String(commitErr);
               if (msg && /nothing to commit/i.test(msg)) {
                 outputs.push('git commit: nothing to commit');
               } else {
@@ -876,12 +876,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
                 cwd: taskPath,
               });
             } catch (commitErr) {
-              const msg = commitErr as string;
+              const msg = commitErr instanceof Error ? commitErr.message : String(commitErr);
               if (!/nothing to commit/i.test(msg)) throw commitErr;
             }
           }
         } catch (e) {
-          log.warn('Stage/commit step issue:', e as string);
+          log.warn('Stage/commit step issue:', e instanceof Error ? e.message : String(e));
           throw e;
         }
 
