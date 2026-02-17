@@ -102,8 +102,6 @@
                     fetcherVersion = 1;
                     hash = "sha256-JvJBHY0r1lNrLHrsAQjf0HMseZVaev93sOFfWoyN34s=";
                   };
-              dontConfigure = true;
-
               nativeBuildInputs =
                 sharedEnv
                 ++ [
