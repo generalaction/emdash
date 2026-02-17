@@ -882,6 +882,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           }
         } catch (e) {
           log.warn('Stage/commit step issue:', e instanceof Error ? e.message : String(e));
+          throw e;
         }
 
         // Push current branch (set upstream if needed)
@@ -897,7 +898,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         return { success: true, branch: activeBranch, output: (out || '').trim() };
       } catch (error) {
         log.error('Failed to commit and push:', error);
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
+        const errObj = error as { stderr?: string; message?: string };
+        const errMsg = errObj?.stderr?.trim() || errObj?.message || String(error);
+        return { success: false, error: errMsg };
       }
     }
   );
