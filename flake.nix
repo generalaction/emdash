@@ -129,6 +129,7 @@
                 runHook preBuild
 
                 mkdir -p "$TMPDIR/emdash-home"
+                pnpm config set manage-package-manager-versions false
 
                 # Build the app (renderer + main)
                 pnpm run build
