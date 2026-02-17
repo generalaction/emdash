@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
   listInstalledFonts: (args?: { refresh?: boolean }) =>
     ipcRenderer.invoke('app:listInstalledFonts', args),
+  undo: () => ipcRenderer.invoke('app:undo'),
+  redo: () => ipcRenderer.invoke('app:redo'),
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
