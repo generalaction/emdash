@@ -121,6 +121,7 @@
               env = {
                 HOME = "$TMPDIR/emdash-home";
                 npm_config_build_from_source = "true";
+                npm_config_manage_package_manager_versions = "false";
                 # Skip Electron binary download during pnpm install
                 ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
               };
