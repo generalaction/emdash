@@ -175,7 +175,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
-  const { fileChanges, refreshChanges } = useFileChanges(safeTaskPath);
+  const { fileChanges, isLoading, refreshChanges } = useFileChanges(safeTaskPath);
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
   const hasStagedChanges = fileChanges.some((change) => change.isStaged);
@@ -741,136 +741,142 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {fileChanges.map((change, index) => (
-            <div
-              key={index}
-              className={`flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50 ${
-                change.isStaged ? 'bg-muted/50' : ''
-              }`}
-              onClick={() => {
-                void (async () => {
-                  const { captureTelemetry } = await import('../lib/telemetryClient');
-                  captureTelemetry('changes_viewed');
-                })();
-                setSelectedPath(change.path);
-                setShowDiffModal(true);
-              }}
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <span className="inline-flex items-center justify-center text-muted-foreground">
-                  <FileIcon filename={change.path} isDirectory={false} size={16} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{renderPath(change.path)}</div>
-                </div>
-              </div>
-              <div className="ml-3 flex items-center gap-2">
-                {change.additions > 0 && (
-                  <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
-                    +{change.additions}
-                  </span>
-                )}
-                {change.deletions > 0 && (
-                  <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                    -{change.deletions}
-                  </span>
-                )}
-                <div className="flex items-center gap-1">
-                  {!change.isStaged && (
-                    <TooltipProvider delayDuration={100}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
-                            onClick={(e) => handleStageFile(change.path, e)}
-                            disabled={stagingFiles.has(change.path)}
-                          >
-                            {stagingFiles.has(change.path) ? (
-                              <Spinner size="sm" />
-                            ) : (
-                              <Plus className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="left"
-                          className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
-                        >
-                          <p className="font-medium">Stage file for commit</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            Add this file to the staging area so it will be included in the next
-                            commit
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  {change.isStaged && (
-                    <TooltipProvider delayDuration={100}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
-                            onClick={(e) => handleUnstageFile(change.path, e)}
-                            disabled={unstagingFiles.has(change.path)}
-                          >
-                            {unstagingFiles.has(change.path) ? (
-                              <Spinner size="sm" />
-                            ) : (
-                              <Minus className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="left"
-                          className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
-                        >
-                          <p className="font-medium">Unstage file</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            Remove this file from staging so it will not be included in the next
-                            commit
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <TooltipProvider delayDuration={100}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
-                          onClick={(e) => handleRevertFile(change.path, e)}
-                          disabled={revertingFiles.has(change.path)}
-                        >
-                          {revertingFiles.has(change.path) ? (
-                            <Spinner size="sm" />
-                          ) : (
-                            <Undo2 className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="left"
-                        className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
-                      >
-                        <p className="font-medium">Revert file changes</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          Discard all uncommitted changes to this file and restore it to the last
-                          committed version
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </div>
+          {isLoading && fileChanges.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <Spinner size="lg" className="text-muted-foreground" />
             </div>
-          ))}
+          ) : (
+            fileChanges.map((change, index) => (
+              <div
+                key={index}
+                className={`flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50 ${
+                  change.isStaged ? 'bg-muted/50' : ''
+                }`}
+                onClick={() => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('../lib/telemetryClient');
+                    captureTelemetry('changes_viewed');
+                  })();
+                  setSelectedPath(change.path);
+                  setShowDiffModal(true);
+                }}
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="inline-flex items-center justify-center text-muted-foreground">
+                    <FileIcon filename={change.path} isDirectory={false} size={16} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm">{renderPath(change.path)}</div>
+                  </div>
+                </div>
+                <div className="ml-3 flex items-center gap-2">
+                  {change.additions > 0 && (
+                    <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+                      +{change.additions}
+                    </span>
+                  )}
+                  {change.deletions > 0 && (
+                    <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                      -{change.deletions}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-1">
+                    {!change.isStaged && (
+                      <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                              onClick={(e) => handleStageFile(change.path, e)}
+                              disabled={stagingFiles.has(change.path)}
+                            >
+                              {stagingFiles.has(change.path) ? (
+                                <Spinner size="sm" />
+                              ) : (
+                                <Plus className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="left"
+                            className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+                          >
+                            <p className="font-medium">Stage file for commit</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              Add this file to the staging area so it will be included in the next
+                              commit
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {change.isStaged && (
+                      <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                              onClick={(e) => handleUnstageFile(change.path, e)}
+                              disabled={unstagingFiles.has(change.path)}
+                            >
+                              {unstagingFiles.has(change.path) ? (
+                                <Spinner size="sm" />
+                              ) : (
+                                <Minus className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="left"
+                            className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+                          >
+                            <p className="font-medium">Unstage file</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              Remove this file from staging so it will not be included in the next
+                              commit
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    <TooltipProvider delayDuration={100}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            onClick={(e) => handleRevertFile(change.path, e)}
+                            disabled={revertingFiles.has(change.path)}
+                          >
+                            {revertingFiles.has(change.path) ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <Undo2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="left"
+                          className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+                        >
+                          <p className="font-medium">Revert file changes</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Discard all uncommitted changes to this file and restore it to the last
+                            committed version
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
       {showDiffModal && (
