@@ -752,13 +752,19 @@ export function registerPtyIpc(): void {
           proc.onExit(({ exitCode, signal }) => {
             flushPtyData(id);
             clearPtyData(id);
-            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             maybeMarkProviderFinish(
               id,
               exitCode,
               signal,
               isAppQuitting ? 'app_quit' : 'process_exit'
             );
+            // Direct-spawn CLIs can be replaced immediately by a fallback shell after exit.
+            // If this PTY has already been replaced, skip cleanup so we don't delete the new PTY record.
+            const current = getPty(id);
+            if (current && current !== proc) {
+              return;
+            }
+            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
             // For fallback: clean up owner since no shell respawn happens
             if (usedFallback) {
