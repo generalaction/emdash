@@ -12,6 +12,7 @@ export type UpdateState =
   | { status: 'error'; message: string };
 
 export const UPDATE_API_UNAVAILABLE_ERROR = 'Update API unavailable' as const;
+export { EMDASH_RELEASES_URL } from '@shared/urls';
 
 export function updaterUnavailableResult(setState: (state: UpdateState) => void): {
   success: false;
@@ -105,11 +106,24 @@ export function useUpdater() {
     return res;
   }, []);
 
+  const startChecking = useCallback(() => {
+    setState({ status: 'checking' });
+  }, []);
+
+  const applyBackendState = useCallback((data: any) => {
+    const s = data?.status;
+    if (s === 'downloaded') setState({ status: 'downloaded' });
+    else if (s === 'downloading')
+      setState({ status: 'downloading', progress: data.downloadProgress });
+    else if (s === 'available') setState({ status: 'available', info: data.updateInfo });
+    else if (s === 'checking') setState({ status: 'checking' });
+  }, []);
+
   const progressLabel = useMemo(() => {
     if (state.status !== 'downloading') return '';
     const p = state.progress?.percent ?? 0;
     return `${p.toFixed(0)}%`;
   }, [state]);
 
-  return { state, check, download, install, openLatest, progressLabel };
+  return { state, check, download, install, openLatest, progressLabel, startChecking, applyBackendState };
 }

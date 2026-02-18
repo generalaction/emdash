@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Download, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
-import { useUpdater, type UpdateState } from '@/hooks/useUpdater';
+import { useUpdater, EMDASH_RELEASES_URL, type UpdateState } from '@/hooks/useUpdater';
 
 const isDev = window.location.hostname === 'localhost';
 
@@ -73,6 +73,8 @@ function useDevSimulation(isOpen: boolean) {
     check: run,
     download: async () => {},
     openLatest: async () => {},
+    startChecking: run,
+    applyBackendState: () => {},
   };
 }
 
@@ -91,12 +93,35 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
       .catch(() => setAppVersion('Unknown'));
   }, []);
 
-  // Trigger check when modal opens (production only)
-  useEffect(() => {
+  // Before paint: reset to 'checking' to avoid flash of stale state (e.g. a previous error)
+  useLayoutEffect(() => {
     if (isOpen && !isDev) {
       autoDownloadTriggered.current = false;
-      realUpdater.check();
+      realUpdater.startChecking();
     }
+  }, [isOpen]);
+
+  // After open: sync with backend state before deciding to check or not
+  useEffect(() => {
+    if (!isOpen || isDev) return;
+
+    window.electronAPI.getUpdateState?.().then((res) => {
+      const s = res?.data?.status;
+      // If update is already downloaded or actively downloading, reflect that state
+      // without triggering a new check (which would re-run checkForUpdatesAndNotify)
+      if (s === 'downloaded' || s === 'downloading') {
+        realUpdater.applyBackendState(res.data);
+        return;
+      }
+      // If update is available but not yet downloading, reflect that; the
+      // auto-download effect below will start the download
+      if (s === 'available') {
+        realUpdater.applyBackendState(res.data);
+        return;
+      }
+      // Otherwise trigger a fresh check
+      realUpdater.check();
+    }).catch(() => realUpdater.check());
   }, [isOpen]);
 
   // Auto-download when an update is found (production only)
@@ -124,10 +149,21 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm focus:outline-none">
         <DialogHeader>
           <DialogTitle>Software Update</DialogTitle>
-          <DialogDescription>Current version: v{appVersion || '...'}</DialogDescription>
+          <DialogDescription>
+            Current version: v{appVersion || '...'} &middot;{' '}
+            <button
+              type="button"
+              onClick={() =>
+                window.electronAPI.openExternal(EMDASH_RELEASES_URL)
+              }
+              className="outline-none underline-offset-2 hover:text-foreground"
+            >
+              Changelog ↗
+            </button>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 py-4">

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { SettingsTab } from '../components/SettingsModal';
 import { FIRST_LAUNCH_KEY } from '../constants/layout';
 
 export type SettingsPageTab =
@@ -11,8 +10,6 @@ export type SettingsPageTab =
   | 'docs';
 
 export interface ModalState {
-  showSettings: boolean;
-  settingsInitialTab: SettingsTab;
   showSettingsPage: boolean;
   settingsPageInitialTab: SettingsPageTab;
   showCommandPalette: boolean;
@@ -26,8 +23,6 @@ export interface ModalState {
 }
 
 export interface ModalActions {
-  setShowSettings: React.Dispatch<React.SetStateAction<boolean>>;
-  setSettingsInitialTab: React.Dispatch<React.SetStateAction<SettingsTab>>;
   setShowSettingsPage: React.Dispatch<React.SetStateAction<boolean>>;
   setSettingsPageInitialTab: React.Dispatch<React.SetStateAction<SettingsPageTab>>;
   setShowCommandPalette: React.Dispatch<React.SetStateAction<boolean>>;
@@ -38,12 +33,8 @@ export interface ModalActions {
   setShowEditorMode: React.Dispatch<React.SetStateAction<boolean>>;
   setShowKanban: React.Dispatch<React.SetStateAction<boolean>>;
   setShowDeviceFlowModal: React.Dispatch<React.SetStateAction<boolean>>;
-  openSettings: (tab?: SettingsTab) => void;
   openSettingsPage: (tab?: SettingsPageTab) => void;
-  handleToggleSettings: () => void;
-  handleOpenSettings: () => void;
   handleOpenKeyboardShortcuts: () => void;
-  handleCloseSettings: () => void;
   handleCloseSettingsPage: () => void;
   handleToggleCommandPalette: () => void;
   handleCloseCommandPalette: () => void;
@@ -56,8 +47,6 @@ export interface ModalActions {
 export function useModalState(deps: {
   selectedProjectRef: React.RefObject<{ id: string } | null>;
 }): ModalState & ModalActions {
-  const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
   const [showSettingsPage, setShowSettingsPage] = useState<boolean>(false);
   const [settingsPageInitialTab, setSettingsPageInitialTab] = useState<SettingsPageTab>('general');
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
@@ -69,36 +58,14 @@ export function useModalState(deps: {
   const [showKanban, setShowKanban] = useState<boolean>(false);
   const [showDeviceFlowModal, setShowDeviceFlowModal] = useState(false);
 
-  const openSettings = useCallback((tab: SettingsTab = 'general') => {
-    setSettingsInitialTab(tab);
-    setShowSettings(true);
-  }, []);
-
   const openSettingsPage = useCallback((tab: SettingsPageTab = 'general') => {
     setSettingsPageInitialTab(tab);
     setShowSettingsPage(true);
   }, []);
 
-  const handleToggleSettings = useCallback(() => {
-    setShowSettings((prev) => {
-      if (!prev) {
-        setSettingsInitialTab('general');
-      }
-      return !prev;
-    });
-  }, []);
-
-  const handleOpenSettings = useCallback(() => {
-    openSettings('general');
-  }, [openSettings]);
-
   const handleOpenKeyboardShortcuts = useCallback(() => {
-    openSettings('interface');
-  }, [openSettings]);
-
-  const handleCloseSettings = useCallback(() => {
-    setShowSettings(false);
-  }, []);
+    openSettingsPage('interface');
+  }, [openSettingsPage]);
 
   const handleCloseSettingsPage = useCallback(() => {
     setShowSettingsPage(false);
@@ -165,8 +132,6 @@ export function useModalState(deps: {
   }, []);
 
   return {
-    showSettings,
-    settingsInitialTab,
     showSettingsPage,
     settingsPageInitialTab,
     showCommandPalette,
@@ -177,8 +142,6 @@ export function useModalState(deps: {
     showEditorMode,
     showKanban,
     showDeviceFlowModal,
-    setShowSettings,
-    setSettingsInitialTab,
     setShowSettingsPage,
     setSettingsPageInitialTab,
     setShowCommandPalette,
@@ -189,12 +152,8 @@ export function useModalState(deps: {
     setShowEditorMode,
     setShowKanban,
     setShowDeviceFlowModal,
-    openSettings,
     openSettingsPage,
-    handleToggleSettings,
-    handleOpenSettings,
     handleOpenKeyboardShortcuts,
-    handleCloseSettings,
     handleCloseSettingsPage,
     handleToggleCommandPalette,
     handleCloseCommandPalette,
