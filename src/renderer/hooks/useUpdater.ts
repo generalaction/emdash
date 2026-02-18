@@ -125,5 +125,14 @@ export function useUpdater() {
     return `${p.toFixed(0)}%`;
   }, [state]);
 
-  return { state, check, download, install, openLatest, progressLabel, startChecking, applyBackendState };
+  return {
+    state,
+    check,
+    download,
+    install,
+    openLatest,
+    progressLabel,
+    startChecking,
+    applyBackendState,
+  };
 }

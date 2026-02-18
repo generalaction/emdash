@@ -105,23 +105,26 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
   useEffect(() => {
     if (!isOpen || isDev) return;
 
-    window.electronAPI.getUpdateState?.().then((res) => {
-      const s = res?.data?.status;
-      // If update is already downloaded or actively downloading, reflect that state
-      // without triggering a new check (which would re-run checkForUpdatesAndNotify)
-      if (s === 'downloaded' || s === 'downloading') {
-        realUpdater.applyBackendState(res.data);
-        return;
-      }
-      // If update is available but not yet downloading, reflect that; the
-      // auto-download effect below will start the download
-      if (s === 'available') {
-        realUpdater.applyBackendState(res.data);
-        return;
-      }
-      // Otherwise trigger a fresh check
-      realUpdater.check();
-    }).catch(() => realUpdater.check());
+    window.electronAPI
+      .getUpdateState?.()
+      .then((res) => {
+        const s = res?.data?.status;
+        // If update is already downloaded or actively downloading, reflect that state
+        // without triggering a new check (which would re-run checkForUpdatesAndNotify)
+        if (s === 'downloaded' || s === 'downloading') {
+          realUpdater.applyBackendState(res.data);
+          return;
+        }
+        // If update is available but not yet downloading, reflect that; the
+        // auto-download effect below will start the download
+        if (s === 'available') {
+          realUpdater.applyBackendState(res.data);
+          return;
+        }
+        // Otherwise trigger a fresh check
+        realUpdater.check();
+      })
+      .catch(() => realUpdater.check());
   }, [isOpen]);
 
   // Auto-download when an update is found (production only)
@@ -156,10 +159,8 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
             Current version: v{appVersion || '...'} &middot;{' '}
             <button
               type="button"
-              onClick={() =>
-                window.electronAPI.openExternal(EMDASH_RELEASES_URL)
-              }
-              className="outline-none underline-offset-2 hover:text-foreground"
+              onClick={() => window.electronAPI.openExternal(EMDASH_RELEASES_URL)}
+              className="underline-offset-2 outline-none hover:text-foreground"
             >
               Changelog ↗
             </button>

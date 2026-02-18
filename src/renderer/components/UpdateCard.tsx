@@ -47,9 +47,7 @@ export function UpdateCard(): JSX.Element {
             Auto-updates are enabled in production builds.{' '}
             <button
               type="button"
-              onClick={() =>
-                window.electronAPI.openExternal(EMDASH_RELEASES_URL)
-              }
+              onClick={() => window.electronAPI.openExternal(EMDASH_RELEASES_URL)}
               className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground"
             >
               View changelog ↗
@@ -173,9 +171,7 @@ export function UpdateCard(): JSX.Element {
             You're up to date.{' '}
             <button
               type="button"
-              onClick={() =>
-                window.electronAPI.openExternal(EMDASH_RELEASES_URL)
-              }
+              onClick={() => window.electronAPI.openExternal(EMDASH_RELEASES_URL)}
               className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground"
             >
               View changelog ↗
