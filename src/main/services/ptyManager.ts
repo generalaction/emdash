@@ -4,7 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
-import { PROVIDERS } from '@shared/providers/registry';
+import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
@@ -183,6 +183,71 @@ function getOtherSessionUuids(ptyId: string, providerId: string, cwd: string): S
     }
   }
   return uuids;
+}
+
+/**
+ * Build session-isolation CLI args for a provider that supports sessionIdFlag.
+ *
+ * Decision tree:
+ *   1. Known session in map        → --resume <uuid>
+ *   2. Additional chat (new)       → --session-id <uuid>  (create)
+ *   3. Multi-chat transition       → --session-id <discovered-uuid>  (adopt existing)
+ *   4. First-time main chat        → --session-id <uuid>  (create, proactive)
+ *   5. Existing single-chat resume → (no isolation, caller uses generic -c -r)
+ *
+ * Returns true if session isolation args were added.
+ */
+function applySessionIsolation(
+  cliArgs: string[],
+  provider: ProviderDefinition,
+  id: string,
+  cwd: string,
+  isResume: boolean
+): boolean {
+  if (!provider.sessionIdFlag) return false;
+
+  const parsed = parsePtyId(id);
+  if (!parsed) return false;
+
+  const sessionUuid = deterministicUuid(parsed.suffix);
+  const isAdditionalChat = parsed.kind === 'chat';
+
+  const knownSession = getKnownSessionId(id);
+  if (knownSession) {
+    cliArgs.push('--resume', knownSession);
+    return true;
+  }
+
+  if (isAdditionalChat) {
+    cliArgs.push(provider.sessionIdFlag, sessionUuid);
+    markSessionCreated(id, sessionUuid, cwd);
+    return true;
+  }
+
+  if (hasOtherSameProviderSessions(id, parsed.providerId, cwd)) {
+    // Main chat transitioning to multi-chat mode. Try to discover its
+    // existing session from Claude's local storage and adopt it.
+    const otherUuids = getOtherSessionUuids(id, parsed.providerId, cwd);
+    const existingSession = discoverExistingClaudeSession(cwd, otherUuids);
+    if (existingSession) {
+      cliArgs.push(provider.sessionIdFlag, existingSession);
+      markSessionCreated(id, existingSession, cwd);
+    } else {
+      cliArgs.push(provider.sessionIdFlag, sessionUuid);
+      markSessionCreated(id, sessionUuid, cwd);
+    }
+    return true;
+  }
+
+  if (!isResume) {
+    // First-time creation — proactively assign a session ID so we can
+    // reliably resume later if more chats of this provider are added.
+    cliArgs.push(provider.sessionIdFlag, sessionUuid);
+    markSessionCreated(id, sessionUuid, cwd);
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -395,58 +460,11 @@ export function startDirectPty(options: {
 
   if (provider) {
     // Session isolation for multi-chat scenarios.
-    //
-    // When multiple chats of the same provider exist in one worktree,
-    // each needs its own session to avoid sharing the provider's
-    // directory-scoped state. We track created sessions in a persistent
-    // map to know whether to create (--session-id) or resume (--resume).
-    //
-    // For single-chat tasks we use the original resume flag (-c -r) so
-    // existing users' chat history is fully preserved.
-    const parsed = parsePtyId(id);
-    const isAdditionalChat = parsed?.kind === 'chat';
-    const sessionUuid = parsed ? deterministicUuid(parsed.suffix) : null;
-    let usedSessionIsolation = false;
-
-    if (provider.sessionIdFlag && sessionUuid) {
-      const knownSession = getKnownSessionId(id);
-      if (knownSession) {
-        // This chat was previously started with --session-id → resume it
-        cliArgs.push('--resume', knownSession);
-        usedSessionIsolation = true;
-      } else if (isAdditionalChat) {
-        // Additional chat → create isolated session
-        cliArgs.push(provider.sessionIdFlag, sessionUuid);
-        markSessionCreated(id, sessionUuid, cwd);
-        usedSessionIsolation = true;
-      } else if (hasOtherSameProviderSessions(id, parsed!.providerId, cwd)) {
-        // Main chat transitioning to multi-chat mode (existing chat from
-        // before session isolation). Try to discover its real session from
-        // Claude's local storage and adopt it via --session-id.
-        const otherUuids = getOtherSessionUuids(id, parsed!.providerId, cwd);
-        const existingSession = discoverExistingClaudeSession(cwd, otherUuids);
-        if (existingSession) {
-          // Found the main chat's real session — adopt it
-          cliArgs.push(provider.sessionIdFlag, existingSession);
-          markSessionCreated(id, existingSession, cwd);
-          usedSessionIsolation = true;
-        } else {
-          // No existing session found — create a new isolated one
-          cliArgs.push(provider.sessionIdFlag, sessionUuid);
-          markSessionCreated(id, sessionUuid, cwd);
-          usedSessionIsolation = true;
-        }
-      } else if (!resume) {
-        // First-time creation of main chat — proactively assign a session ID
-        // so we can reliably resume it later if more chats are added.
-        cliArgs.push(provider.sessionIdFlag, sessionUuid);
-        markSessionCreated(id, sessionUuid, cwd);
-        usedSessionIsolation = true;
-      }
-    }
+    // See applySessionIsolation() for the full decision tree.
+    const usedSessionIsolation = applySessionIsolation(cliArgs, provider, id, cwd, !!resume);
 
     if (!usedSessionIsolation && resume && provider.resumeFlag) {
-      // Single-chat task or provider without sessionIdFlag: generic resume
+      // Existing single-chat task: generic resume (-c -r)
       const resumeParts = provider.resumeFlag.split(' ');
       cliArgs.push(...resumeParts);
     }
@@ -692,44 +710,13 @@ export async function startPty(options: {
         // Build the provider command with flags
         const cliArgs: string[] = [];
 
-        // Session isolation — see startDirectPty for the full explanation.
-        const parsed = parsePtyId(id);
-        const isAdditionalChat = parsed?.kind === 'chat';
-        const sessionUuid = parsed ? deterministicUuid(parsed.suffix) : null;
-        let usedSessionIsolation = false;
-
-        if (provider.sessionIdFlag && sessionUuid) {
-          const knownSession = getKnownSessionId(id);
-          if (knownSession) {
-            cliArgs.push('--resume', knownSession);
-            usedSessionIsolation = true;
-          } else if (isAdditionalChat) {
-            cliArgs.push(provider.sessionIdFlag, sessionUuid);
-            markSessionCreated(id, sessionUuid, useCwd);
-            usedSessionIsolation = true;
-          } else if (hasOtherSameProviderSessions(id, parsed!.providerId, useCwd)) {
-            const otherUuids = getOtherSessionUuids(id, parsed!.providerId, useCwd);
-            const existingSession = discoverExistingClaudeSession(useCwd, otherUuids);
-            if (existingSession) {
-              cliArgs.push(provider.sessionIdFlag, existingSession);
-              markSessionCreated(id, existingSession, useCwd);
-              usedSessionIsolation = true;
-            } else {
-              cliArgs.push(provider.sessionIdFlag, sessionUuid);
-              markSessionCreated(id, sessionUuid, useCwd);
-              usedSessionIsolation = true;
-            }
-          } else if (skipResume) {
-            // First-time creation (skipResume=true means not a restart)
-            // Proactively assign session ID so we can resume later.
-            cliArgs.push(provider.sessionIdFlag, sessionUuid);
-            markSessionCreated(id, sessionUuid, useCwd);
-            usedSessionIsolation = true;
-          }
-        }
+        // Session isolation — see applySessionIsolation() for the full decision tree.
+        const usedSessionIsolation = applySessionIsolation(
+          cliArgs, provider, id, useCwd, !skipResume
+        );
 
         if (!usedSessionIsolation && resolvedResumeFlag && !skipResume) {
-          // Single-chat task or provider without sessionIdFlag: generic resume
+          // Existing single-chat task: generic resume (-c -r)
           const resumeParts = parseShellArgs(resolvedResumeFlag);
           cliArgs.push(...resumeParts);
         }
