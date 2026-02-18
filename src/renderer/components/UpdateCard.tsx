@@ -84,19 +84,21 @@ export function UpdateCard(): JSX.Element {
           {renderStatusMessage()}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleCheckNow}
-            disabled={updater.state.status === 'checking'}
-            aria-label="Check for updates"
-          >
-            <RefreshCw
-              className={`h-3 w-3 ${updater.state.status === 'checking' ? 'animate-spin' : ''}`}
-            />
-          </Button>
+          {updater.state.status !== 'downloaded' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleCheckNow}
+              disabled={updater.state.status === 'checking'}
+              aria-label="Check for updates"
+            >
+              <RefreshCw
+                className={`h-3 w-3 ${updater.state.status === 'checking' ? 'animate-spin' : ''}`}
+              />
+            </Button>
+          )}
           {renderAction()}
         </div>
       </div>
