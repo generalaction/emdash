@@ -29,6 +29,7 @@ interface ChangesDiffModalProps {
   files: FileChange[];
   initialFile?: string;
   onRefreshChanges?: () => Promise<void> | void;
+  onToggleView?: () => void;
 }
 
 export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
@@ -39,6 +40,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   files,
   initialFile,
   onRefreshChanges,
+  onToggleView,
 }) => {
   const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
@@ -738,6 +740,14 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       )}
                     </button>
                   )}
+                  {onToggleView && (
+                    <button
+                        onClick={onToggleView}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-foreground"
+                    >
+                        Toggle View
+                    </button>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {(isDirty || isSaving) && !fileData?.error && (
@@ -761,6 +771,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                   </button>
                 </div>
               </div>
+
+
 
               <div className="relative flex-1 overflow-hidden">
                 {fileData?.loading ? (

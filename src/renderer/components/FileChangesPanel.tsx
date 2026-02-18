@@ -891,6 +891,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           files={fileChanges}
           initialFile={selectedPath}
           onRefreshChanges={refreshChanges}
+          onToggleView={() => {
+            setShowDiffModal(false);
+            setShowAllChangesModal(true);
+          }}
         />
       )}
       {showAllChangesModal && (
@@ -903,6 +907,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           onOpenFile={(filePath) => {
             setShowAllChangesModal(false);
             setSelectedPath(filePath);
+            setShowDiffModal(true);
+          }}
+          onToggleView={() => {
+            setShowAllChangesModal(false);
+            // If we have a selected path use it, otherwise let modal default to first file
+            if (!selectedPath && fileChanges.length > 0) {
+                setSelectedPath(fileChanges[0].path);
+            }
             setShowDiffModal(true);
           }}
         />

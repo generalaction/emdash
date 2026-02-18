@@ -30,6 +30,7 @@ interface AllChangesDiffModalProps {
   files: FileChange[];
   onRefreshChanges?: () => Promise<void> | void;
   onOpenFile?: (filePath: string) => void;
+  onToggleView?: () => void;
 }
 
 interface FileDiffData {
@@ -53,6 +54,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   files,
   onRefreshChanges,
   onOpenFile,
+  onToggleView,
 }) => {
   const { taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskPath = taskPath ?? scopedTaskPath ?? '';
@@ -785,6 +787,14 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                       </span>
                     </div>
                   </div>
+                  {onToggleView && (
+                    <button
+                      onClick={onToggleView}
+                      className="rounded-md px-3 py-1 text-sm font-small text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-foreground"
+                    >
+                      Toggle View
+                    </button>
+                  )}
                 </div>
                 <button
                   onClick={onClose}
