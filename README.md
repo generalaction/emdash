@@ -5,7 +5,7 @@
   
 <br />
 
-[![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](LICENSE)
+[![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](./LICENSE.md)
 [![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash)
 [![Last Commit](https://img.shields.io/github/last-commit/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/commits/main)
@@ -35,7 +35,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 <div align="center" style="margin:24px 0;">
 
-[Installation](#installation) • [Integrations](#integrations) • [Contributing](#contributing) • [FAQ](#faq)
+[Installation](#installation) • [Providers](#providers) • [Contributing](#contributing) • [FAQ](#faq)
 
 </div>
 
