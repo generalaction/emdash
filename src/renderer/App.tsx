@@ -12,7 +12,6 @@ import MainContentArea from './components/MainContentArea';
 import { NewProjectModal } from './components/NewProjectModal';
 import RightSidebar from './components/RightSidebar';
 import CodeEditor from './components/FileExplorer/CodeEditor';
-import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
 import { UpdateModal } from './components/UpdateModal';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -88,8 +87,6 @@ const AppContent: React.FC = () => {
   const modals = useModalState({ selectedProjectRef });
 
   const {
-    showSettings,
-    settingsInitialTab,
     showSettingsPage,
     settingsPageInitialTab,
     showCommandPalette,
@@ -105,12 +102,8 @@ const AppContent: React.FC = () => {
     setShowTaskModal,
     setShowNewProjectModal,
     setShowCloneModal,
-    openSettings,
     openSettingsPage,
-    handleToggleSettings,
-    handleOpenSettings,
     handleOpenKeyboardShortcuts,
-    handleCloseSettings,
     handleCloseSettingsPage,
     handleToggleCommandPalette,
     handleCloseCommandPalette,
@@ -123,10 +116,10 @@ const AppContent: React.FC = () => {
   // Listen for native menu "Settings" click (main → renderer)
   useEffect(() => {
     const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
-      handleOpenSettings();
+      openSettingsPage();
     });
     return () => cleanup?.();
-  }, [handleOpenSettings]);
+  }, [openSettingsPage]);
 
   // Listen for native menu "Check for Updates" click (main → renderer)
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -434,6 +427,41 @@ const AppContent: React.FC = () => {
     return selectedProject.isRemote ? selectedProject.path : null;
   }, [selectedProject, derivedRemoteConnectionId]);
 
+  // Close modals before titlebar view toggles
+  const handleTitlebarKanbanToggle = useCallback(() => {
+    const isModalOpen = showCommandPalette || showSettingsPage;
+    if (isModalOpen) {
+      if (showCommandPalette) handleCloseCommandPalette();
+      if (showSettingsPage) handleCloseSettingsPage();
+      setTimeout(() => handleToggleKanban(), 100);
+    } else {
+      handleToggleKanban();
+    }
+  }, [
+    showCommandPalette,
+    showSettingsPage,
+    handleCloseCommandPalette,
+    handleCloseSettingsPage,
+    handleToggleKanban,
+  ]);
+
+  const handleTitlebarEditorToggle = useCallback(() => {
+    const isModalOpen = showCommandPalette || showSettingsPage;
+    if (isModalOpen) {
+      if (showCommandPalette) handleCloseCommandPalette();
+      if (showSettingsPage) handleCloseSettingsPage();
+      setTimeout(() => handleToggleEditor(), 100);
+    } else {
+      handleToggleEditor();
+    }
+  }, [
+    showCommandPalette,
+    showSettingsPage,
+    handleCloseCommandPalette,
+    handleCloseSettingsPage,
+    handleToggleEditor,
+  ]);
+
   return (
     <BrowserProvider>
       <div
@@ -479,10 +507,10 @@ const AppContent: React.FC = () => {
                   projectPath={selectedProject?.path || null}
                   isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
                   githubUser={github.user}
-                  onToggleKanban={handleToggleKanban}
+                  onToggleKanban={handleTitlebarKanbanToggle}
                   isKanbanOpen={Boolean(showKanban)}
                   kanbanAvailable={Boolean(selectedProject)}
-                  onToggleEditor={handleToggleEditor}
+                  onToggleEditor={handleTitlebarEditorToggle}
                   showEditorButton={Boolean(activeTask)}
                   isEditorOpen={showEditorMode}
                   projects={projectMgmt.projects}
@@ -606,11 +634,6 @@ const AppContent: React.FC = () => {
                   </ResizablePanel>
                 </ResizablePanelGroup>
               </div>
-              <SettingsModal
-                isOpen={showSettings}
-                onClose={handleCloseSettings}
-                initialTab={settingsInitialTab}
-              />
               <UpdateModal isOpen={showUpdateModal} onClose={() => setShowUpdateModal(false)} />
               <CommandPaletteWrapper
                 isOpen={showCommandPalette}
@@ -676,11 +699,7 @@ const AppContent: React.FC = () => {
                 taskId={activeTask?.id || null}
                 taskPath={activeTask?.path || null}
                 overlayActive={
-                  showSettings ||
-                  showSettingsPage ||
-                  showCommandPalette ||
-                  showTaskModal ||
-                  showWelcomeScreen
+                  showSettingsPage || showCommandPalette || showTaskModal || showWelcomeScreen
                 }
               />
             </RightSidebarProvider>

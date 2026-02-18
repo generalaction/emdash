@@ -376,10 +376,6 @@ const ChatInterface: React.FC<Props> = ({
           }
           setActiveConversationId(result.conversation.id);
           setAgent(newAgent as Agent);
-          toast({
-            title: 'Chat Created',
-            description: `Created new chat: ${title}`,
-          });
         } else {
           console.error('Failed to create conversation:', result.error);
           toast({
@@ -780,7 +776,6 @@ const ChatInterface: React.FC<Props> = ({
           onClose={() => setShowCreateChatModal(false)}
           onCreateChat={handleCreateChat}
           installedAgents={installedAgents}
-          existingConversations={conversations}
         />
 
         <DeleteChatModal

@@ -10,6 +10,9 @@ import {
   startSshPty,
   removePtyRecord,
   setOnDirectCliExit,
+  parseShellArgs,
+  buildProviderCliArgs,
+  resolveProviderCommandConfig,
 } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -24,6 +27,9 @@ import { databaseService } from './DatabaseService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { execFile } from 'child_process';
+import { randomUUID } from 'crypto';
+import path from 'path';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
@@ -183,30 +189,59 @@ function buildRemoteProviderInvocation(args: {
   resume?: boolean;
 }): { cli: string; cmd: string; installCommand?: string } {
   const { providerId, autoApprove, initialPrompt, resume } = args;
-  const provider = getProvider(providerId as ProviderId);
+  const fallbackProvider = getProvider(providerId as ProviderId);
+  const resolvedConfig = resolveProviderCommandConfig(providerId);
+  const provider = resolvedConfig?.provider ?? fallbackProvider;
 
-  const cliArgs: string[] = [];
-  if (provider?.resumeFlag && resume) {
-    cliArgs.push(...provider.resumeFlag.split(' '));
-  }
-  if (provider?.defaultArgs?.length) {
-    cliArgs.push(...provider.defaultArgs);
-  }
-  if (autoApprove && provider?.autoApproveFlag) {
-    cliArgs.push(provider.autoApproveFlag);
-  }
-  if (provider?.initialPromptFlag !== undefined && initialPrompt?.trim()) {
-    if (provider.initialPromptFlag) {
-      cliArgs.push(provider.initialPromptFlag);
-    }
-    cliArgs.push(initialPrompt.trim());
-  }
+  const cliCommand = resolvedConfig?.cli || fallbackProvider?.cli || providerId.toLowerCase();
+  const cliCheckCommand = parseShellArgs(cliCommand)[0] || cliCommand;
 
-  const cliCommand = provider?.cli || providerId.toLowerCase();
+  const cliArgs = buildProviderCliArgs({
+    resume,
+    resumeFlag: resolvedConfig?.resumeFlag ?? fallbackProvider?.resumeFlag,
+    defaultArgs: resolvedConfig?.defaultArgs ?? fallbackProvider?.defaultArgs,
+    autoApprove,
+    autoApproveFlag: resolvedConfig?.autoApproveFlag ?? fallbackProvider?.autoApproveFlag,
+    initialPrompt,
+    initialPromptFlag: resolvedConfig?.initialPromptFlag ?? fallbackProvider?.initialPromptFlag,
+    useKeystrokeInjection: provider?.useKeystrokeInjection,
+  });
+
   const cmd =
     cliArgs.length > 0 ? `${cliCommand} ${cliArgs.map(quoteShellArg).join(' ')}` : cliCommand;
 
-  return { cli: cliCommand, cmd, installCommand: provider?.installCommand };
+  return { cli: cliCheckCommand, cmd, installCommand: provider?.installCommand };
+}
+
+/** Convert SSH args to SCP-compatible args (e.g. `-p` port → `-P` port). */
+function buildScpArgs(sshArgs: string[]): string[] {
+  const scpArgs: string[] = [];
+  for (let i = 0; i < sshArgs.length; i++) {
+    if (sshArgs[i] === '-p' && i + 1 < sshArgs.length) {
+      // scp uses -P (uppercase) for port
+      scpArgs.push('-P', sshArgs[i + 1]);
+      i++;
+    } else if (
+      (sshArgs[i] === '-i' || sshArgs[i] === '-o' || sshArgs[i] === '-F') &&
+      i + 1 < sshArgs.length
+    ) {
+      scpArgs.push(sshArgs[i], sshArgs[i + 1]);
+      i++;
+    }
+  }
+  return scpArgs;
+}
+
+function execFileAsync(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout: 30_000 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`${cmd} failed: ${stderr || error.message}`));
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+  });
 }
 
 export function registerPtyIpc(): void {
@@ -340,12 +375,20 @@ export function registerPtyIpc(): void {
         let shouldSkipResume = skipResume;
 
         // Check if this is an additional (non-main) chat
-        // Additional chats should always skip resume as they don't have persistence
         const isAdditionalChat = isChatPty(id);
 
         if (isAdditionalChat) {
-          // Additional chats always start fresh (no resume)
-          shouldSkipResume = true;
+          // Additional chats can resume if the provider supports per-session
+          // isolation (via sessionIdFlag), since each chat gets its own
+          // session UUID. Without session isolation, always start fresh to
+          // avoid all chats sharing the provider's directory-scoped state.
+          const parsed = parsePtyId(id);
+          const chatProvider = parsed ? getProvider(parsed.providerId) : null;
+          if (!chatProvider?.sessionIdFlag) {
+            shouldSkipResume = true;
+          }
+          // Otherwise keep shouldSkipResume from the renderer (undefined or
+          // explicitly set), which is based on whether a snapshot exists.
         } else if (shouldSkipResume === undefined) {
           // For main chats, check if this is a first-time start
           // For Claude and similar providers, check if a session directory exists
@@ -608,6 +651,42 @@ export function registerPtyIpc(): void {
     }
   });
 
+  // SCP file transfer to SSH remote (for file drop on SSH terminals)
+  ipcMain.handle(
+    'pty:scp-to-remote',
+    async (
+      _event,
+      args: { connectionId: string; localPaths: string[] }
+    ): Promise<{ success: boolean; remotePaths?: string[]; error?: string }> => {
+      try {
+        const ssh = await resolveSshInvocation(args.connectionId);
+        const scpArgs = buildScpArgs(ssh.args);
+        const remoteDir = '/tmp/emdash-images';
+
+        // Ensure remote directory exists
+        await execFileAsync('ssh', [...ssh.args, ssh.target, `mkdir -p ${remoteDir}`]);
+
+        // Transfer each file individually so UUID-prefixed names avoid collisions
+        // (batching into one scp call would lose uniqueness for same-named files)
+        const remotePaths: string[] = [];
+        for (const localPath of args.localPaths) {
+          const remoteName = `${randomUUID()}-${path.basename(localPath)}`;
+          const remotePath = `${remoteDir}/${remoteName}`;
+          await execFileAsync('scp', [...scpArgs, localPath, `${ssh.target}:${remotePath}`]);
+          remotePaths.push(remotePath);
+        }
+
+        return { success: true, remotePaths };
+      } catch (err: any) {
+        log.error('pty:scp-to-remote failed', {
+          connectionId: args.connectionId,
+          error: err?.message || err,
+        });
+        return { success: false, error: String(err?.message || err) };
+      }
+    }
+  );
+
   // Start a PTY by spawning CLI directly (no shell wrapper)
   // This is faster but falls back to shell-based spawn if CLI path unknown
   ipcMain.handle(
@@ -706,6 +785,16 @@ export function registerPtyIpc(): void {
           return { ok: true, reused: true };
         }
 
+        // For additional chats without per-session isolation, never resume —
+        // they'd share the provider's directory-scoped session with other chats.
+        let effectiveResume = resume;
+        if (isChatPty(id)) {
+          const chatProvider = getProvider(providerId as ProviderId);
+          if (!chatProvider?.sessionIdFlag) {
+            effectiveResume = false;
+          }
+        }
+
         let proc = startDirectPty({
           id,
           providerId,
@@ -715,7 +804,7 @@ export function registerPtyIpc(): void {
           autoApprove,
           initialPrompt,
           env,
-          resume,
+          resume: effectiveResume,
         });
 
         // Fallback to shell-based spawn if direct spawn fails (CLI not in cache)
@@ -752,13 +841,19 @@ export function registerPtyIpc(): void {
           proc.onExit(({ exitCode, signal }) => {
             flushPtyData(id);
             clearPtyData(id);
-            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             maybeMarkProviderFinish(
               id,
               exitCode,
               signal,
               isAppQuitting ? 'app_quit' : 'process_exit'
             );
+            // Direct-spawn CLIs can be replaced immediately by a fallback shell after exit.
+            // If this PTY has already been replaced, skip cleanup so we don't delete the new PTY record.
+            const current = getPty(id);
+            if (current && current !== proc) {
+              return;
+            }
+            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
             // For fallback: clean up owner since no shell respawn happens
             if (usedFallback) {

@@ -87,6 +87,7 @@ describe('GitHubService.isAuthenticated', () => {
 
     expect(result).toBe(true);
     expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeDefined();
-    expect(setPasswordMock).toHaveBeenCalledWith('emdash-github', 'github-token', 'gho_mocktoken');
+    expect(execCalls.find((cmd) => cmd.startsWith('gh auth token'))).toBeUndefined();
+    expect(setPasswordMock).not.toHaveBeenCalled();
   });
 });
