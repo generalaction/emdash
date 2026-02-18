@@ -427,6 +427,41 @@ const AppContent: React.FC = () => {
     return selectedProject.isRemote ? selectedProject.path : null;
   }, [selectedProject, derivedRemoteConnectionId]);
 
+  // Close modals before titlebar view toggles
+  const handleTitlebarKanbanToggle = useCallback(() => {
+    const isModalOpen = showCommandPalette || showSettingsPage;
+    if (isModalOpen) {
+      if (showCommandPalette) handleCloseCommandPalette();
+      if (showSettingsPage) handleCloseSettingsPage();
+      setTimeout(() => handleToggleKanban(), 100);
+    } else {
+      handleToggleKanban();
+    }
+  }, [
+    showCommandPalette,
+    showSettingsPage,
+    handleCloseCommandPalette,
+    handleCloseSettingsPage,
+    handleToggleKanban,
+  ]);
+
+  const handleTitlebarEditorToggle = useCallback(() => {
+    const isModalOpen = showCommandPalette || showSettingsPage;
+    if (isModalOpen) {
+      if (showCommandPalette) handleCloseCommandPalette();
+      if (showSettingsPage) handleCloseSettingsPage();
+      setTimeout(() => handleToggleEditor(), 100);
+    } else {
+      handleToggleEditor();
+    }
+  }, [
+    showCommandPalette,
+    showSettingsPage,
+    handleCloseCommandPalette,
+    handleCloseSettingsPage,
+    handleToggleEditor,
+  ]);
+
   return (
     <BrowserProvider>
       <div
@@ -472,10 +507,10 @@ const AppContent: React.FC = () => {
                   projectPath={selectedProject?.path || null}
                   isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
                   githubUser={github.user}
-                  onToggleKanban={handleToggleKanban}
+                  onToggleKanban={handleTitlebarKanbanToggle}
                   isKanbanOpen={Boolean(showKanban)}
                   kanbanAvailable={Boolean(selectedProject)}
-                  onToggleEditor={handleToggleEditor}
+                  onToggleEditor={handleTitlebarEditorToggle}
                   showEditorButton={Boolean(activeTask)}
                   isEditorOpen={showEditorMode}
                   projects={projectMgmt.projects}
