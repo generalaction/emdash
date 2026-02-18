@@ -148,6 +148,44 @@ export class TerminalSessionManager {
     this.terminal.loadAddon(this.serializeAddon);
     this.terminal.loadAddon(this.webLinksAddon);
 
+    // Work around xterm.js 6.0.0 bug: the built-in DECRQM (Request Mode)
+    // handler crashes with "r is not defined" when TUI apps (e.g. Amp) send
+    // mode-query escape sequences (CSI Ps $ p / CSI ? Ps $ p).
+    // Register custom handlers that intercept these sequences before the
+    // buggy built-in handler runs, and send back a proper DECRPM response
+    // reporting each queried mode as "not recognized" (Pm=0).
+    // Response format: CSI [?] Ps ; Pm $ y
+    try {
+      const parser = (this.terminal as any).parser;
+      if (parser?.registerCsiHandler) {
+        const ptyId = this.id;
+        // ANSI mode request: CSI Ps $ p  →  respond CSI Ps ; 0 $ y
+        const ansiDisp = parser.registerCsiHandler(
+          { intermediates: '$', final: 'p' },
+          (params: { params: number[] }) => {
+            const mode = params.params[0] ?? 0;
+            window.electronAPI.ptyInput({ id: ptyId, data: `\x1b[${mode};0$y` });
+            return true;
+          }
+        );
+        // DEC private mode request: CSI ? Ps $ p  →  respond CSI ? Ps ; 0 $ y
+        const decDisp = parser.registerCsiHandler(
+          { prefix: '?', intermediates: '$', final: 'p' },
+          (params: { params: number[] }) => {
+            const mode = params.params[0] ?? 0;
+            window.electronAPI.ptyInput({ id: ptyId, data: `\x1b[?${mode};0$y` });
+            return true;
+          }
+        );
+        this.disposables.push(
+          () => ansiDisp.dispose(),
+          () => decDisp.dispose()
+        );
+      }
+    } catch (err) {
+      log.warn('Failed to register DECRQM workaround handlers', { error: err });
+    }
+
     try {
       this.webglAddon = new WebglAddon();
       this.webglAddon.onContextLoss?.(() => {
@@ -669,7 +707,13 @@ export class TerminalSessionManager {
       const buffer = this.terminal.buffer?.active;
       const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
 
-      this.terminal.write(chunk);
+      try {
+        this.terminal.write(chunk);
+      } catch (err) {
+        // Guard against xterm.js parser errors (e.g. DECRQM "r is not defined"
+        // in 6.0.0). Log once and continue — the terminal session stays usable.
+        log.warn('terminalSession:writeError', { id: this.id, error: (err as Error)?.message });
+      }
       if (!this.firstFrameRendered) {
         this.firstFrameRendered = true;
         const firstFrameTime = performance.now() - this.initStartTime;
