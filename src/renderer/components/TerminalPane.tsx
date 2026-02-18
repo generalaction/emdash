@@ -207,7 +207,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       sessionRef.current?.focus();
     };
 
-    const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
+    const handleDrop: React.DragEventHandler<HTMLDivElement> = async (event) => {
       try {
         event.preventDefault();
         const dt = event.dataTransfer;
@@ -219,8 +219,28 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
           if (p) paths.push(p);
         }
         if (paths.length === 0) return;
-        const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-        window.electronAPI.ptyInput({ id, data: `${escaped} ` });
+
+        if (remote?.connectionId) {
+          // SSH terminal: transfer files to remote first via scp
+          try {
+            const result = await window.electronAPI.ptyScpToRemote({
+              connectionId: remote.connectionId,
+              localPaths: paths,
+            });
+            if (result.success && result.remotePaths) {
+              const escaped = result.remotePaths
+                .map((p) => `'${p.replace(/'/g, "'\\''")}'`)
+                .join(' ');
+              window.electronAPI.ptyInput({ id, data: `${escaped} ` });
+            }
+          } catch (error) {
+            log.warn('SSH file transfer failed', { error });
+          }
+        } else {
+          // Local terminal: send local path directly
+          const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
+          window.electronAPI.ptyInput({ id, data: `${escaped} ` });
+        }
         sessionRef.current?.focus();
       } catch (error) {
         log.warn('Terminal drop failed', { error });

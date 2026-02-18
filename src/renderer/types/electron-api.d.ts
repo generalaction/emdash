@@ -334,6 +334,11 @@ declare global {
         env?: Record<string, string>;
         resume?: boolean;
       }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
+      ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) => Promise<{
+        success: boolean;
+        remotePaths?: string[];
+        error?: string;
+      }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
@@ -1304,6 +1309,11 @@ export interface ElectronAPI {
     env?: Record<string, string>;
     resume?: boolean;
   }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
+  ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) => Promise<{
+    success: boolean;
+    remotePaths?: string[];
+    error?: string;
+  }>;
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
   ptyKill: (id: string) => void;
