@@ -84,9 +84,10 @@ function deterministicUuid(input: string): string {
 //   Restart      → entry     → --resume <uuid>      (resume)
 // ---------------------------------------------------------------------------
 type SessionEntry = { uuid: string; cwd: string };
+const MAX_SESSION_MAP_ENTRIES = 2000;
 
 let _sessionMapPath: string | null = null;
-let _sessionMap: Record<string, SessionEntry> | null = null;
+let _sessionMap: Record<string, SessionEntry & { lastUsedAt?: number }> | null = null;
 
 function sessionMapPath(): string {
   if (!_sessionMapPath) {
@@ -97,37 +98,97 @@ function sessionMapPath(): string {
   return _sessionMapPath;
 }
 
-function loadSessionMap(): Record<string, SessionEntry> {
+function persistSessionMap(map: Record<string, SessionEntry & { lastUsedAt?: number }>): void {
+  try {
+    fs.writeFileSync(sessionMapPath(), JSON.stringify(map));
+  } catch (e) {
+    log.warn('ptyManager: failed to persist session map', e);
+  }
+}
+
+function pruneSessionMap(
+  map: Record<string, SessionEntry & { lastUsedAt?: number }>
+): { map: Record<string, SessionEntry & { lastUsedAt?: number }>; changed: boolean } {
+  let changed = false;
+  const next: Record<string, SessionEntry & { lastUsedAt?: number }> = {};
+
+  for (const [key, entry] of Object.entries(map)) {
+    const parsed = parsePtyId(key);
+    if (!parsed) {
+      changed = true;
+      continue;
+    }
+    if (!entry || typeof entry.uuid !== 'string' || typeof entry.cwd !== 'string') {
+      changed = true;
+      continue;
+    }
+    if (!entry.cwd.trim()) {
+      changed = true;
+      continue;
+    }
+    if (!fs.existsSync(entry.cwd)) {
+      changed = true;
+      continue;
+    }
+    next[key] = entry;
+  }
+
+  const entries = Object.entries(next);
+  if (entries.length > MAX_SESSION_MAP_ENTRIES) {
+    changed = true;
+    const keepEntries = entries
+      .sort((a, b) => (b[1].lastUsedAt || 0) - (a[1].lastUsedAt || 0))
+      .slice(0, MAX_SESSION_MAP_ENTRIES);
+
+    const bounded: Record<string, SessionEntry & { lastUsedAt?: number }> = {};
+    for (const [key, entry] of keepEntries) {
+      bounded[key] = entry;
+    }
+    return { map: bounded, changed };
+  }
+
+  return { map: next, changed };
+}
+
+function loadSessionMap(): Record<string, SessionEntry & { lastUsedAt?: number }> {
   if (_sessionMap) return _sessionMap;
   try {
     _sessionMap = JSON.parse(fs.readFileSync(sessionMapPath(), 'utf-8'));
   } catch {
     _sessionMap = {};
   }
+  const loaded = _sessionMap ?? {};
+  const pruned = pruneSessionMap(loaded);
+  _sessionMap = pruned.map;
+  if (pruned.changed) persistSessionMap(_sessionMap);
   return _sessionMap!;
 }
 
 function getKnownSessionId(ptyId: string): string | undefined {
-  return loadSessionMap()[ptyId]?.uuid;
+  const map = loadSessionMap();
+  const entry = map[ptyId];
+  if (!entry) return undefined;
+  entry.lastUsedAt = Date.now();
+  persistSessionMap(map);
+  return entry.uuid;
 }
 
 /** Check if the session map has entries for other chats of the same provider in the same cwd. */
 function hasOtherSameProviderSessions(ptyId: string, providerId: string, cwd: string): boolean {
   const map = loadSessionMap();
-  const prefix = `${providerId}-`;
   return Object.entries(map).some(
-    ([key, entry]) => key.startsWith(prefix) && key !== ptyId && entry.cwd === cwd
+    ([key, entry]) => {
+      if (key === ptyId) return false;
+      const parsed = parsePtyId(key);
+      return parsed?.providerId === providerId && entry.cwd === cwd;
+    }
   );
 }
 
 function markSessionCreated(ptyId: string, uuid: string, cwd: string): void {
   const map = loadSessionMap();
-  map[ptyId] = { uuid, cwd };
-  try {
-    fs.writeFileSync(sessionMapPath(), JSON.stringify(map));
-  } catch (e) {
-    log.warn('ptyManager: failed to persist session map', e);
-  }
+  map[ptyId] = { uuid, cwd, lastUsedAt: Date.now() };
+  persistSessionMap(map);
 }
 
 /**
@@ -142,8 +203,8 @@ function markSessionCreated(ptyId: string, uuid: string, cwd: string): void {
  */
 function discoverExistingClaudeSession(cwd: string, excludeUuids: Set<string>): string | null {
   try {
-    // Claude encodes project paths by replacing '/' with '-'
-    const encoded = cwd.replace(/\//g, '-');
+    // Claude encodes project paths by replacing path separators with '-'
+    const encoded = cwd.replace(/[\\/]/g, '-');
     const projectDir = path.join(os.homedir(), '.claude', 'projects', encoded);
 
     if (!fs.existsSync(projectDir)) return null;
@@ -175,10 +236,10 @@ function discoverExistingClaudeSession(cwd: string, excludeUuids: Set<string>): 
 /** Collect all session UUIDs from the map that belong to a given provider in the same cwd, excluding one PTY. */
 function getOtherSessionUuids(ptyId: string, providerId: string, cwd: string): Set<string> {
   const map = loadSessionMap();
-  const prefix = `${providerId}-`;
   const uuids = new Set<string>();
   for (const [key, entry] of Object.entries(map)) {
-    if (key.startsWith(prefix) && key !== ptyId && entry.cwd === cwd) {
+    const parsed = parsePtyId(key);
+    if (parsed?.providerId === providerId && key !== ptyId && entry.cwd === cwd) {
       uuids.add(entry.uuid);
     }
   }
@@ -214,7 +275,8 @@ function applySessionIsolation(
 
   const knownSession = getKnownSessionId(id);
   if (knownSession) {
-    cliArgs.push('--resume', knownSession);
+    const resumeFlag = provider.sessionResumeFlag || '--resume';
+    cliArgs.push(...resumeFlag.split(' '), knownSession);
     return true;
   }
 

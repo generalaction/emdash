@@ -50,6 +50,11 @@ export type ProviderDefinition = {
    * e.g. '--session-id' for Claude Code.
    */
   sessionIdFlag?: string;
+  /**
+   * CLI flag to resume a specific isolated session by id.
+   * e.g. '--resume' for Claude Code.
+   */
+  sessionResumeFlag?: string;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
@@ -84,6 +89,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '',
     resumeFlag: '-c -r',
     sessionIdFlag: '--session-id',
+    sessionResumeFlag: '--resume',
     planActivateCommand: '/plan',
     icon: 'claude.png',
     terminalOnly: true,
