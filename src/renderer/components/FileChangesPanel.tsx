@@ -145,6 +145,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [showAllChangesModal, setShowAllChangesModal] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
+
+  // Reset selectedPath when task changes
+  useEffect(() => {
+    setSelectedPath(undefined);
+  }, [resolvedTaskPath]);
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
   const [unstagingFiles, setUnstagingFiles] = useState<Set<string>>(new Set());
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
@@ -911,8 +916,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           }}
           onToggleView={() => {
             setShowAllChangesModal(false);
-            // If we have a selected path use it, otherwise let modal default to first file
-            if (!selectedPath && fileChanges.length > 0) {
+            // If we have a selected path that exists in current changes, use it
+            // Otherwise default to the first file
+            const isValidSelection = selectedPath && fileChanges.some((f) => f.path === selectedPath);
+            if (!isValidSelection && fileChanges.length > 0) {
               setSelectedPath(fileChanges[0].path);
             }
             setShowDiffModal(true);

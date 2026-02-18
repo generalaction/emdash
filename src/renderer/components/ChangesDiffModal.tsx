@@ -745,7 +745,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       onClick={onToggleView}
                       className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-foreground"
                     >
-                      Toggle View
+                      File View
                     </button>
                   )}
                 </div>
