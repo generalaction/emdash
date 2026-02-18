@@ -7,7 +7,14 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Download, ExternalLink, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 import { useUpdater, EMDASH_RELEASES_URL, type UpdateState } from '@/hooks/useUpdater';
 
 const isDev = window.location.hostname === 'localhost';
