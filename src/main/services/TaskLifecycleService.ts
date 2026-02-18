@@ -12,6 +12,7 @@ import {
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { log } from '../lib/logger';
 import { execFile } from 'node:child_process';
+import { databaseService } from './DatabaseService';
 
 const execFileAsync = promisify(execFile);
 
@@ -107,6 +108,7 @@ class TaskLifecycleService extends EventEmitter {
   ): Promise<NodeJS.ProcessEnv> {
     const defaultBranch = await this.resolveDefaultBranch(projectPath);
     const taskName = path.basename(taskPath) || taskId;
+    const task = await databaseService.getTaskById(taskId);
     const taskEnv = getTaskEnvVars({
       taskId,
       taskName,
@@ -114,6 +116,7 @@ class TaskLifecycleService extends EventEmitter {
       projectPath,
       defaultBranch,
       portSeed: taskPath || taskId,
+      dbTarget: task?.dbTarget ?? null,
     });
     return { ...process.env, ...taskEnv };
   }

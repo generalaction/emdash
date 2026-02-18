@@ -17,6 +17,7 @@ export interface CreateTaskParams {
   autoApprove?: boolean;
   useWorktree: boolean;
   baseRef?: string;
+  dbTarget?: string | null;
 }
 
 export interface CreateTaskCallbacks {
@@ -61,6 +62,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
     autoApprove,
     useWorktree,
     baseRef,
+    dbTarget,
   } = params;
   const {
     selectedProject,
@@ -176,6 +178,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           path: string;
           worktreeId: string;
         }> = [];
+        let firstWorktreeDbTarget: string | null = null;
 
         try {
           for (const { agent, runs } of agentRuns) {
@@ -193,6 +196,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
                   taskName: variantName,
                   projectId: selectedProject.id,
                   baseRef,
+                  dbTarget: dbTarget ?? null,
                 });
                 if (!worktreeResult?.success || !worktreeResult.worktree) {
                   throw new Error(
@@ -204,6 +208,9 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
                 branch = worktree.branch;
                 path = worktree.path;
                 worktreeId = worktree.id;
+                if (!firstWorktreeDbTarget && worktree.dbTarget) {
+                  firstWorktreeDbTarget = worktree.dbTarget;
+                }
               } else {
                 // Direct branch mode - use current project path and branch
                 branch = selectedProject.gitInfo.branch || 'main';
@@ -239,6 +246,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
             branch: variants[0]?.branch || selectedProject.gitInfo.branch || 'main',
             path: variants[0]?.path || selectedProject.path,
             metadata: finalMeta,
+            dbTarget: dbTarget ?? firstWorktreeDbTarget,
           };
 
           // Save to DB
@@ -247,6 +255,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
             agentId: primaryAgent,
             metadata: finalMeta,
             useWorktree,
+            dbTarget: dbTarget ?? firstWorktreeDbTarget,
           });
 
           if (!saveResult?.success) {
@@ -338,6 +347,8 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
       let path: string;
       let taskId: string;
 
+      let worktreeDbTarget: string | null = null;
+
       if (useWorktree) {
         // Try to claim a pre-created reserve worktree (instant)
         const claimResult = await window.electronAPI.worktreeClaimReserve({
@@ -352,6 +363,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           branch = worktree.branch;
           path = worktree.path;
           taskId = worktree.id;
+          worktreeDbTarget = dbTarget ?? null;
 
           // Warn if base ref switch failed
           if (claimResult.needsBaseRefSwitch) {
@@ -367,6 +379,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
             taskName,
             projectId: selectedProject.id,
             baseRef,
+            dbTarget: dbTarget ?? null,
           });
 
           if (!worktreeResult.success) {
@@ -377,6 +390,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           branch = worktree.branch;
           path = worktree.path;
           taskId = worktree.id;
+          worktreeDbTarget = dbTarget ?? worktree.dbTarget ?? null;
         }
       } else {
         // Direct branch mode - use current project path and branch
@@ -395,6 +409,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
         agentId: primaryAgent,
         metadata: taskMetadata,
         useWorktree,
+        dbTarget: worktreeDbTarget,
       };
 
       // Save task to database before activating it in the UI.
@@ -406,6 +421,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
         agentId: primaryAgent,
         metadata: taskMetadata,
         useWorktree,
+        dbTarget: worktreeDbTarget,
       });
       if (!saveResult?.success) {
         const { log } = await import('./logger');

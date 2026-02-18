@@ -99,8 +99,23 @@ const ChatInterface: React.FC<Props> = ({
       taskPath: task.path,
       projectPath,
       defaultBranch: defaultBranch || undefined,
+      dbTarget: task.dbTarget,
     });
-  }, [task.id, task.name, task.path, projectPath, defaultBranch]);
+  }, [task.id, task.name, task.path, projectPath, defaultBranch, task.dbTarget]);
+
+  const dbTargetLabel = useMemo(() => {
+    const raw = (task.dbTarget ?? '').trim();
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const profile = typeof parsed.profile === 'string' ? parsed.profile.trim() : '';
+        const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
+        return profile || name || 'custom';
+      }
+    } catch {}
+    return 'custom';
+  }, [task.dbTarget]);
 
   const installedAgents = useMemo(
     () =>
@@ -879,6 +894,11 @@ const ChatInterface: React.FC<Props> = ({
                   <Badge variant="outline">
                     <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
                     Auto-approve
+                  </Badge>
+                )}
+                {dbTargetLabel && (
+                  <Badge variant="outline" title="Active DB target for this task">
+                    DB: {dbTargetLabel}
                   </Badge>
                 )}
               </div>

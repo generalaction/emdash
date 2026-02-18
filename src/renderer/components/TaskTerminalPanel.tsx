@@ -102,8 +102,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       projectPath,
       defaultBranch,
       portSeed,
+      dbTarget: task.dbTarget,
     });
-  }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
+  }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed, task?.dbTarget]);
 
   useEffect(() => {
     activeTaskIdRef.current = task?.id ?? null;

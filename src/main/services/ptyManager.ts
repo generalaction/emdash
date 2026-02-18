@@ -49,6 +49,19 @@ const AGENT_ENV_VARS = [
   'OPENAI_BASE_URL',
 ];
 
+const TASK_DB_ENV_VARS = new Set([
+  'DATABASE_URL',
+  'DB_URL',
+  'DB_NAME',
+  'DATABASE_NAME',
+  'DB_PROFILE',
+  'DATABASE_PROFILE',
+]);
+
+function shouldForwardTaskEnvVar(key: string): boolean {
+  return key.startsWith('EMDASH_') || TASK_DB_ENV_VARS.has(key);
+}
+
 type PtyRecord = {
   id: string;
   proc: IPty;
@@ -387,7 +400,7 @@ export function startSshPty(options: {
 
   if (env) {
     for (const [key, value] of Object.entries(env)) {
-      if (!key.startsWith('EMDASH_')) continue;
+      if (!shouldForwardTaskEnvVar(key)) continue;
       if (typeof value === 'string') {
         useEnv[key] = value;
       }
@@ -514,7 +527,7 @@ export function startDirectPty(options: {
 
   if (env) {
     for (const [key, value] of Object.entries(env)) {
-      if (!key.startsWith('EMDASH_')) continue;
+      if (!shouldForwardTaskEnvVar(key)) continue;
       if (typeof value === 'string') {
         useEnv[key] = value;
       }

@@ -53,6 +53,7 @@ export interface Task {
   agentId?: string | null;
   metadata?: any;
   useWorktree?: boolean;
+  dbTarget?: string | null;
   archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -271,34 +272,46 @@ export class DatabaseService {
         : task.metadata
           ? JSON.stringify(task.metadata)
           : null;
+    const hasDbTargetField = Object.prototype.hasOwnProperty.call(task, 'dbTarget');
+    const dbTargetValue = hasDbTargetField ? (task.dbTarget ?? null) : undefined;
     const { db } = await getDrizzleClient();
+    const insertValues: Record<string, any> = {
+      id: task.id,
+      projectId: task.projectId,
+      name: task.name,
+      branch: task.branch,
+      path: task.path,
+      status: task.status,
+      agentId: task.agentId ?? null,
+      metadata: metadataValue,
+      useWorktree: task.useWorktree !== false ? 1 : 0,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    };
+    if (hasDbTargetField) {
+      insertValues.dbTarget = dbTargetValue;
+    }
+
+    const updateSet: Record<string, any> = {
+      projectId: task.projectId,
+      name: task.name,
+      branch: task.branch,
+      path: task.path,
+      status: task.status,
+      agentId: task.agentId ?? null,
+      metadata: metadataValue,
+      useWorktree: task.useWorktree !== false ? 1 : 0,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    };
+    if (hasDbTargetField) {
+      updateSet.dbTarget = dbTargetValue;
+    }
+
     await db
       .insert(tasksTable)
-      .values({
-        id: task.id,
-        projectId: task.projectId,
-        name: task.name,
-        branch: task.branch,
-        path: task.path,
-        status: task.status,
-        agentId: task.agentId ?? null,
-        metadata: metadataValue,
-        useWorktree: task.useWorktree !== false ? 1 : 0,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
-      })
+      .values(insertValues)
       .onConflictDoUpdate({
         target: tasksTable.id,
-        set: {
-          projectId: task.projectId,
-          name: task.name,
-          branch: task.branch,
-          path: task.path,
-          status: task.status,
-          agentId: task.agentId ?? null,
-          metadata: metadataValue,
-          useWorktree: task.useWorktree !== false ? 1 : 0,
-          updatedAt: sql`CURRENT_TIMESTAMP`,
-        },
+        set: updateSet,
       });
   }
 
@@ -905,6 +918,7 @@ export class DatabaseService {
           ? this.parseTaskMetadata(row.metadata, row.id)
           : null,
       useWorktree: row.useWorktree === 1,
+      dbTarget: row.dbTarget ?? null,
       archivedAt: row.archivedAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,

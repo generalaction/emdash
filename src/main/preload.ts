@@ -165,6 +165,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     taskName: string;
     projectId: string;
     baseRef?: string;
+    dbTarget?: string | null;
   }) => ipcRenderer.invoke('worktree:create', args),
   worktreeList: (args: { projectPath: string }) => ipcRenderer.invoke('worktree:list', args),
   worktreeRemove: (args: {
@@ -714,6 +715,7 @@ export interface ElectronAPI {
     taskName: string;
     projectId: string;
     baseRef?: string;
+    dbTarget?: string | null;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeList: (args: {
     projectPath: string;

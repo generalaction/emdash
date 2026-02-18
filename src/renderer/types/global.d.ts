@@ -64,6 +64,7 @@ declare global {
         taskName: string;
         projectId: string;
         baseRef?: string;
+        dbTarget?: string | null;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeList: (args: {
         projectPath: string;

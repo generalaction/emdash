@@ -69,6 +69,7 @@ export const tasks = sqliteTable(
     agentId: text('agent_id'),
     metadata: text('metadata'),
     useWorktree: integer('use_worktree').notNull().default(1),
+    dbTarget: text('db_target'), // JSON string: { url?: string, name?: string, profile?: string }
     archivedAt: text('archived_at'), // null = active, timestamp = archived
     createdAt: text('created_at')
       .notNull()

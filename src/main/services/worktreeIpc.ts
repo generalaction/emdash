@@ -75,6 +75,7 @@ export function registerWorktreeIpc(): void {
         taskName: string;
         projectId: string;
         baseRef?: string;
+        dbTarget?: string | null;
       }
     ) => {
       try {
@@ -103,6 +104,7 @@ export function registerWorktreeIpc(): void {
             projectId: project.id,
             status: 'active' as const,
             createdAt: new Date().toISOString(),
+            dbTarget: args.dbTarget ?? null,
           };
           return { success: true, worktree };
         }
@@ -113,7 +115,7 @@ export function registerWorktreeIpc(): void {
           args.projectId,
           args.baseRef
         );
-        return { success: true, worktree };
+        return { success: true, worktree: { ...worktree, dbTarget: args.dbTarget ?? null } };
       } catch (error) {
         console.error('Failed to create worktree:', error);
         return { success: false, error: (error as Error).message };

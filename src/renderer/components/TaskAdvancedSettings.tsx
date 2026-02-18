@@ -25,6 +25,10 @@ interface TaskAdvancedSettingsProps {
   useWorktree: boolean;
   onUseWorktreeChange: (value: boolean) => void;
 
+  // DB target (app/project DB, not Emdash DB)
+  dbTarget: string;
+  onDbTargetChange: (value: string) => void;
+
   // Auto-approve
   autoApprove: boolean;
   onAutoApproveChange: (value: boolean) => void;
@@ -62,6 +66,8 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   projectPath,
   useWorktree,
   onUseWorktreeChange,
+  dbTarget,
+  onDbTargetChange,
   autoApprove,
   onAutoApproveChange,
   hasAutoApproveSupport,
@@ -246,6 +252,25 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                       )}
                     </div>
                   </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="db-target" className="pt-2">
+                  DB target
+                </Label>
+                <div className="min-w-0 flex-1">
+                  <Textarea
+                    id="db-target"
+                    value={dbTarget}
+                    onChange={(e) => onDbTargetChange(e.target.value)}
+                    placeholder="DATABASE_URL or JSON {\"url\":\"...\",\"name\":\"...\",\"profile\":\"...\"}"
+                    className="resize-none font-mono text-xs"
+                    rows={2}
+                  />
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    Passed to terminals/agents as DATABASE_URL/DB_URL and optional name/profile.
+                  </div>
                 </div>
               </div>
 
