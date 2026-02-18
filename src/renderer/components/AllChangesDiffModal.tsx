@@ -140,7 +140,6 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
         saving: false,
         saveError: null,
       }));
-      toast({ title: 'Saved', description: filePath });
       // Dispatch file change event to update editor
       dispatchFileChangeEvent(resolvedTaskPath, filePath);
       if (onRefreshChanges) {
@@ -596,10 +595,6 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
     try {
       await navigator.clipboard.writeText(filePath);
       setCopiedFile(filePath);
-      toast({
-        title: 'Copied',
-        description: `File path copied to clipboard`,
-      });
       // Reset copied state after 2 seconds
       setTimeout(() => {
         setCopiedFile(null);
