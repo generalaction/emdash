@@ -27,6 +27,7 @@ const EMPTY_SCRIPTS: LifecycleScripts = {
   run: '',
   teardown: '',
 };
+const PROJECT_CONFIG_DOCS_URL = 'https://docs.emdash.sh/project-config';
 
 function ensureConfigObject(raw: unknown): ConfigShape {
   return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as ConfigShape) : {};
@@ -305,20 +306,31 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
               </div>
             </div>
 
-            <div className="mt-4 flex justify-end gap-2 border-t pt-4">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
-                Cancel
+            <div className="mt-4 flex items-center justify-between gap-2 border-t pt-4">
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs underline-offset-2 hover:underline"
+                onClick={() => window.electronAPI.openExternal(PROJECT_CONFIG_DOCS_URL)}
+              >
+                Check docs for examples ↗
               </Button>
-              <Button type="button" onClick={handleSave} disabled={!hasChanges || isSaving}>
-                {isSaving ? (
-                  <>
-                    <Spinner size="sm" className="mr-2" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save'
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+                  Cancel
+                </Button>
+                <Button type="button" onClick={handleSave} disabled={!hasChanges || isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </Button>
+              </div>
             </div>
           </>
         )}

@@ -3,7 +3,7 @@ title: Project Configuration
 description: Customize Emdash behavior per project
 ---
 
-Emdash can be configured on a per-project basis using a `.emdash.json` file in your project root. This lets you tailor how worktrees are set up and which files get copied to them.
+Emdash can be configured per project from the **Project config** modal (`Edit config` on the project page). Use it to control what gets copied to worktrees and what scripts run for each task.
 
 ## Copying files to worktrees
 
@@ -26,12 +26,13 @@ These defaults work well for most projects, but you can customize them if needed
 
 ## Custom preserve patterns
 
-To specify your own list of files to copy, create a `.emdash.json` file in your project root:
+In **Preserved patterns**, enter one glob pattern per line.
 
-```json
-{
-  "preservePatterns": [".env", ".env.local", "config/local.yml", "secrets/*.json"]
-}
+```text
+.env
+.env.local
+config/local.yml
+secrets/*.json
 ```
 
 When you define `preservePatterns`, it replaces the defaults entirely. Include any default patterns you still want alongside your custom ones.
@@ -44,41 +45,53 @@ Emdash looks for gitignored files in your main project that match your preserve 
 
 This means you can safely modify environment files in a worktree without worrying about them being reset when you create new tasks.
 
-## Setup scripts
+## Script fields
 
-You can run a command automatically when a new task is created. This is useful for installing dependencies, starting dev servers, or any other initialization your project needs.
+Project config has three script fields:
 
-```json
-{
-  "scripts": {
-    "setup": "pnpm install && pnpm run dev"
-  }
-}
-```
+- `Setup script`: runs once right after task creation (good for installs/bootstrap)
+- `Run script`: long-running command you start/stop from the task terminal (good for dev servers)
+- `Teardown script`: runs when a task is deleted or archived
 
-The setup script runs in the task's terminal as soon as the worktree is ready. It runs in parallel with the agent starting, so the agent can begin working while your dev server spins up.
+The setup script runs as soon as the worktree is ready, in parallel with the agent.
 
 ## Task env vars
 
 When a task terminal starts, Emdash injects convenience environment variables you can use inside setup scripts and other terminal commands.
 
-| Variable                | Purpose                          |
-| ----------------------- | -------------------------------- |
-| `EMDASH_TASK_ID`        | Stable unique task id            |
-| `EMDASH_TASK_NAME`      | Shell-safe task name slug        |
-| `EMDASH_TASK_PATH`      | Absolute task (worktree) path    |
-| `EMDASH_ROOT_PATH`      | Absolute project root path       |
-| `EMDASH_DEFAULT_BRANCH` | Default branch name (e.g., main) |
-| `EMDASH_PORT`           | Base port for a 10-port range    |
+If you run multiple tasks in parallel, do not hardcode `localhost:3000`. Use `EMDASH_PORT` so each task gets its own localhost port automatically.
 
-### Example: Port-aware setup script
+| Variable                | Purpose                                                          |
+| ----------------------- | ---------------------------------------------------------------- |
+| `EMDASH_TASK_ID`        | Stable unique task id                                            |
+| `EMDASH_TASK_NAME`      | Shell-safe task name slug                                        |
+| `EMDASH_TASK_PATH`      | Absolute task (worktree) path                                    |
+| `EMDASH_ROOT_PATH`      | Absolute project root path                                       |
+| `EMDASH_DEFAULT_BRANCH` | Default branch name (e.g., main)                                 |
+| `EMDASH_PORT`           | Unique localhost base port per task (use for `PORT` or `--port`) |
 
-```json
-{
-  "scripts": {
-    "setup": "export PORT=$EMDASH_PORT && export DB_PORT=$((EMDASH_PORT + 1)) && export COMPOSE_PROJECT_NAME=$EMDASH_TASK_NAME && docker-compose up -d && pnpm run dev"
-  }
-}
+`EMDASH_PORT` is different for each task. Example: one task might run on `localhost:50120`, another on `localhost:50730`, so they do not collide on `localhost:3000`.
+
+### Avoid localhost port collisions
+
+Use this as your **Run script** value:
+
+```bash
+PORT=$EMDASH_PORT pnpm run dev
+```
+
+If your dev server expects a `--port` flag instead of `PORT`:
+
+```bash
+pnpm run dev -- --port=$EMDASH_PORT
+```
+
+For multiple local services, use `EMDASH_PORT` with small offsets:
+
+```bash
+APP_PORT=$EMDASH_PORT
+DB_PORT=$((EMDASH_PORT + 1))
+REDIS_PORT=$((EMDASH_PORT + 2))
 ```
 
 ### Example: docker-compose override with task ports
@@ -93,48 +106,32 @@ services:
       - DATABASE_PORT=${EMDASH_PORT:-5432}
 ```
 
-### Example: Port offsets (app + db + redis)
-
-```
-APP_PORT=$EMDASH_PORT
-DB_PORT=$((EMDASH_PORT + 1))
-REDIS_PORT=$((EMDASH_PORT + 2))
-```
-
 ### Examples
 
-Install dependencies:
+Node app (recommended):
 
-```json
-{
-  "scripts": {
-    "setup": "pnpm install"
-  }
-}
+`Setup script`:
+
+```bash
+pnpm install
 ```
 
-Install and start dev server:
+`Run script`:
 
-```json
-{
-  "scripts": {
-    "setup": "pnpm install && pnpm run dev"
-  }
-}
+```bash
+PORT=$EMDASH_PORT pnpm run dev
 ```
 
 Python project with virtual environment:
 
-```json
-{
-  "scripts": {
-    "setup": "python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
-  }
-}
+`Setup script`:
+
+```bash
+python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 ```
 
 ## Editing the config
 
-You can edit your project's `.emdash.json` directly from the app. On the project page, click "Edit config" to open the configuration file in the built-in editor.
+On the project page, click **Edit config**, fill the fields, then click **Save**. Emdash stores these settings in `.emdash.json`.
 
 ![Edit config button on the project page](/media/edit-config.png)
