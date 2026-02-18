@@ -52,6 +52,29 @@ const startDirectPtyMock = vi.fn(({ id, cwd }: { id: string; cwd: string }) => {
   });
   return proc;
 });
+const startSshPtyMock = vi.fn(({ id }: { id: string }) => {
+  const proc = createMockProc();
+  ptys.set(id, proc);
+  return proc;
+});
+const parseShellArgsMock = vi.fn((input: string) => input.trim().split(/\s+/).filter(Boolean));
+const buildProviderCliArgsMock = vi.fn((opts: any) => {
+  const args: string[] = [];
+  if (opts.resume && opts.resumeFlag) args.push(...parseShellArgsMock(opts.resumeFlag));
+  if (opts.defaultArgs?.length) args.push(...opts.defaultArgs);
+  if (opts.autoApprove && opts.autoApproveFlag)
+    args.push(...parseShellArgsMock(opts.autoApproveFlag));
+  if (
+    opts.initialPromptFlag !== undefined &&
+    !opts.useKeystrokeInjection &&
+    opts.initialPrompt?.trim()
+  ) {
+    if (opts.initialPromptFlag) args.push(...parseShellArgsMock(opts.initialPromptFlag));
+    args.push(opts.initialPrompt.trim());
+  }
+  return args;
+});
+const resolveProviderCommandConfigMock = vi.fn();
 const getPtyMock = vi.fn((id: string) => ptys.get(id));
 const writePtyMock = vi.fn((id: string, data: string) => {
   ptys.get(id)?.write(data);
@@ -113,11 +136,14 @@ vi.mock('../../main/services/ptyManager', () => ({
   getPty: getPtyMock,
   getPtyKind: vi.fn(() => 'local'),
   startDirectPty: startDirectPtyMock,
-  startSshPty: vi.fn(),
+  startSshPty: startSshPtyMock,
   removePtyRecord: removePtyRecordMock,
   setOnDirectCliExit: vi.fn((cb: (id: string, cwd: string) => void) => {
     onDirectCliExitCallback = cb;
   }),
+  parseShellArgs: parseShellArgsMock,
+  buildProviderCliArgs: buildProviderCliArgsMock,
+  resolveProviderCommandConfig: resolveProviderCommandConfigMock,
 }));
 
 vi.mock('../../main/lib/logger', () => ({
@@ -175,6 +201,7 @@ describe('ptyIpc notification lifecycle', () => {
     appListeners.clear();
     ptys.clear();
     onDirectCliExitCallback = null;
+    resolveProviderCommandConfigMock.mockReturnValue(null);
   });
 
   function createSender() {
@@ -298,5 +325,58 @@ describe('ptyIpc notification lifecycle', () => {
     );
     expect(removePtyRecordMock).toHaveBeenCalledWith(id);
     expect(ptys.has(id)).toBe(false);
+  });
+
+  it('uses resolved provider config for remote invocation flags', async () => {
+    resolveProviderCommandConfigMock.mockReturnValue({
+      provider: {
+        id: 'codex',
+        name: 'Codex',
+        installCommand: 'npm install -g @openai/codex',
+        useKeystrokeInjection: false,
+      },
+      cli: 'codex-remote',
+      resumeFlag: 'resume --last',
+      defaultArgs: ['--model', 'gpt-5'],
+      autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+      initialPromptFlag: '',
+    });
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-remote-custom');
+    const sender = createSender();
+    const result = await startDirect!(
+      { sender },
+      {
+        id,
+        providerId: 'codex',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:devbox' },
+        autoApprove: true,
+        initialPrompt: 'hello world',
+        resume: true,
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+    expect(buildProviderCliArgsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resumeFlag: 'resume --last',
+        autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+      })
+    );
+    expect(startSshPtyMock).toHaveBeenCalledTimes(1);
+
+    const remoteInitCommand = String(
+      (startSshPtyMock.mock.calls[0][0] as any)?.remoteInitCommand || ''
+    );
+    expect(remoteInitCommand).toContain('command -v codex-remote');
+    expect(remoteInitCommand).toContain('codex-remote resume --last --model gpt-5');
+    expect(remoteInitCommand).toContain("--dangerously-bypass-approvals-and-sandbox 'hello world'");
   });
 });

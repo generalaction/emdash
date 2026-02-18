@@ -2,6 +2,7 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { execFileSync } from 'child_process';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
@@ -260,7 +261,7 @@ function applySessionIsolation(
  *   "--path '/my dir/file'" → ['--path', '/my dir/file']
  *   '--arg "say \"hi\""' → ['--arg', 'say "hi"']
  */
-function parseShellArgs(input: string): string[] {
+export function parseShellArgs(input: string): string[] {
   const args: string[] = [];
   let current = '';
   let inSingleQuote = false;
@@ -323,6 +324,115 @@ function parseShellArgs(input: string): string[] {
   }
 
   return args;
+}
+
+export type ResolvedProviderCommandConfig = {
+  provider: ProviderDefinition;
+  cli: string;
+  resumeFlag?: string;
+  defaultArgs?: string[];
+  autoApproveFlag?: string;
+  initialPromptFlag?: string;
+};
+
+type ProviderCliArgsOptions = {
+  resume?: boolean;
+  resumeFlag?: string;
+  defaultArgs?: string[];
+  autoApprove?: boolean;
+  autoApproveFlag?: string;
+  initialPrompt?: string;
+  initialPromptFlag?: string;
+  useKeystrokeInjection?: boolean;
+};
+
+export function resolveProviderCommandConfig(
+  providerId: string
+): ResolvedProviderCommandConfig | null {
+  const provider = PROVIDERS.find((p) => p.id === providerId);
+  if (!provider) return null;
+
+  const customConfig = getProviderCustomConfig(provider.id);
+
+  return {
+    provider,
+    cli:
+      customConfig?.cli !== undefined && customConfig.cli !== ''
+        ? customConfig.cli
+        : provider.cli || providerId.toLowerCase(),
+    resumeFlag:
+      customConfig?.resumeFlag !== undefined ? customConfig.resumeFlag : provider.resumeFlag,
+    defaultArgs:
+      customConfig?.defaultArgs !== undefined
+        ? parseShellArgs(customConfig.defaultArgs)
+        : provider.defaultArgs,
+    autoApproveFlag:
+      customConfig?.autoApproveFlag !== undefined
+        ? customConfig.autoApproveFlag
+        : provider.autoApproveFlag,
+    initialPromptFlag:
+      customConfig?.initialPromptFlag !== undefined
+        ? customConfig.initialPromptFlag
+        : provider.initialPromptFlag,
+  };
+}
+
+export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] {
+  const args: string[] = [];
+
+  if (options.resume && options.resumeFlag) {
+    args.push(...parseShellArgs(options.resumeFlag));
+  }
+
+  if (options.defaultArgs?.length) {
+    args.push(...options.defaultArgs);
+  }
+
+  if (options.autoApprove && options.autoApproveFlag) {
+    args.push(...parseShellArgs(options.autoApproveFlag));
+  }
+
+  if (
+    options.initialPromptFlag !== undefined &&
+    !options.useKeystrokeInjection &&
+    options.initialPrompt?.trim()
+  ) {
+    if (options.initialPromptFlag) {
+      args.push(...parseShellArgs(options.initialPromptFlag));
+    }
+    args.push(options.initialPrompt.trim());
+  }
+
+  return args;
+}
+
+const resolvedCommandPathCache = new Map<string, string | null>();
+
+function resolveCommandPath(command: string): string | null {
+  const resolver = process.platform === 'win32' ? 'where' : 'which';
+  try {
+    const result = execFileSync(resolver, [command], { encoding: 'utf8' });
+    const lines = result
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    return lines[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveCommandPathCached(command: string): string | null {
+  if (resolvedCommandPathCache.has(command)) {
+    return resolvedCommandPathCache.get(command) ?? null;
+  }
+  const resolved = resolveCommandPath(command);
+  resolvedCommandPathCache.set(command, resolved);
+  return resolved;
+}
+
+function needsShellResolution(command: string): boolean {
+  return /[|&;<>()$`\\]/.test(command);
 }
 
 // Callback to spawn shell after direct CLI exits (set by ptyIpc)
@@ -416,7 +526,8 @@ export function startSshPty(options: {
  * Spawn a CLI directly without a shell wrapper.
  * This is faster because it skips shell config loading (oh-my-zsh, nvm, etc.)
  *
- * Returns null if the CLI path is not known (not in providerStatusCache).
+ * Returns null if the CLI path is not known (not in providerStatusCache)
+ * or when CLI config requires shell parsing.
  */
 export function startDirectPty(options: {
   id: string;
@@ -445,6 +556,9 @@ export function startDirectPty(options: {
     resume,
   } = options;
 
+  const resolvedConfig = resolveProviderCommandConfig(providerId);
+  const provider = resolvedConfig?.provider;
+
   // Get the CLI path from cache
   const status = providerStatusCache.get(providerId);
   if (!status?.installed || !status?.path) {
@@ -452,44 +566,61 @@ export function startDirectPty(options: {
     return null;
   }
 
-  const cliPath = status.path;
-  const provider = PROVIDERS.find((p) => p.id === providerId);
+  let cliPath = status.path;
+
+  // Direct spawn requires an executable path. If custom CLI is an alias or shell
+  // expression, fall back to shell mode.
+  if (provider && resolvedConfig && resolvedConfig.cli !== provider.cli) {
+    const cliParts = parseShellArgs(resolvedConfig.cli);
+    if (cliParts.length !== 1) {
+      log.info('ptyManager:directSpawn - custom CLI needs shell parsing, using fallback', {
+        providerId,
+        cli: resolvedConfig.cli,
+      });
+      return null;
+    }
+
+    const customCommand = cliParts[0];
+    if (needsShellResolution(customCommand)) {
+      log.info('ptyManager:directSpawn - custom CLI requires shell resolution, using fallback', {
+        providerId,
+        cli: resolvedConfig.cli,
+      });
+      return null;
+    }
+
+    const resolvedCustomPath = resolveCommandPathCached(customCommand);
+    if (!resolvedCustomPath) {
+      log.info('ptyManager:directSpawn - custom CLI not directly executable, using fallback', {
+        providerId,
+        cli: resolvedConfig.cli,
+      });
+      return null;
+    }
+
+    cliPath = resolvedCustomPath;
+  }
 
   // Build CLI arguments
   const cliArgs: string[] = [];
 
-  if (provider) {
+  if (provider && resolvedConfig) {
     // Session isolation for multi-chat scenarios.
     // See applySessionIsolation() for the full decision tree.
     const usedSessionIsolation = applySessionIsolation(cliArgs, provider, id, cwd, !!resume);
 
-    if (!usedSessionIsolation && resume && provider.resumeFlag) {
-      // Existing single-chat task: generic resume (-c -r)
-      const resumeParts = provider.resumeFlag.split(' ');
-      cliArgs.push(...resumeParts);
-    }
-
-    // Add default args
-    if (provider.defaultArgs?.length) {
-      cliArgs.push(...provider.defaultArgs);
-    }
-
-    // Add auto-approve flag
-    if (autoApprove && provider.autoApproveFlag) {
-      cliArgs.push(provider.autoApproveFlag);
-    }
-
-    // Add initial prompt (skip if agent uses keystroke injection instead)
-    if (
-      provider.initialPromptFlag !== undefined &&
-      !provider.useKeystrokeInjection &&
-      initialPrompt?.trim()
-    ) {
-      if (provider.initialPromptFlag) {
-        cliArgs.push(provider.initialPromptFlag);
-      }
-      cliArgs.push(initialPrompt.trim());
-    }
+    cliArgs.push(
+      ...buildProviderCliArgs({
+        resume: !usedSessionIsolation && !!resume,
+        resumeFlag: resolvedConfig.resumeFlag,
+        defaultArgs: resolvedConfig.defaultArgs,
+        autoApprove,
+        autoApproveFlag: resolvedConfig.autoApproveFlag,
+        initialPrompt,
+        initialPromptFlag: resolvedConfig.initialPromptFlag,
+        useKeystrokeInjection: provider.useKeystrokeInjection,
+      })
+    );
   }
 
   // Build minimal environment - just what the CLI needs
@@ -682,30 +813,8 @@ export async function startPty(options: {
       const provider = PROVIDERS.find((p) => p.cli === baseLower);
 
       if (provider) {
-        // Get custom config if available
-        const customConfig = getProviderCustomConfig(provider.id);
-
-        // Resolve values: custom config overrides provider defaults
-        // Empty string means "disabled", undefined means "use default"
-        // For CLI specifically, empty string falls back to default (can't have empty CLI)
-        const resolvedCli =
-          customConfig?.cli !== undefined && customConfig.cli !== ''
-            ? customConfig.cli
-            : provider.cli || baseLower;
-        const resolvedResumeFlag =
-          customConfig?.resumeFlag !== undefined ? customConfig.resumeFlag : provider.resumeFlag;
-        const resolvedDefaultArgs =
-          customConfig?.defaultArgs !== undefined
-            ? parseShellArgs(customConfig.defaultArgs)
-            : provider.defaultArgs;
-        const resolvedAutoApproveFlag =
-          customConfig?.autoApproveFlag !== undefined
-            ? customConfig.autoApproveFlag
-            : provider.autoApproveFlag;
-        const resolvedInitialPromptFlag =
-          customConfig?.initialPromptFlag !== undefined
-            ? customConfig.initialPromptFlag
-            : provider.initialPromptFlag;
+        const resolvedConfig = resolveProviderCommandConfig(provider.id);
+        const resolvedCli = resolvedConfig?.cli || provider.cli || baseLower;
 
         // Build the provider command with flags
         const cliArgs: string[] = [];
@@ -719,36 +828,18 @@ export async function startPty(options: {
           !skipResume
         );
 
-        if (!usedSessionIsolation && resolvedResumeFlag && !skipResume) {
-          // Existing single-chat task: generic resume (-c -r)
-          const resumeParts = parseShellArgs(resolvedResumeFlag);
-          cliArgs.push(...resumeParts);
-        }
-
-        // Then add default args
-        if (resolvedDefaultArgs?.length) {
-          cliArgs.push(...resolvedDefaultArgs);
-        }
-
-        // Then auto-approve flag (parse shell-style in case of multiple flags or quoted values)
-        if (autoApprove && resolvedAutoApproveFlag) {
-          const autoApproveParts = parseShellArgs(resolvedAutoApproveFlag);
-          cliArgs.push(...autoApproveParts);
-        }
-
-        // Finally initial prompt (parse shell-style in case of multiple flags or quoted values)
-        // Skip if agent uses keystroke injection instead of CLI arg
-        if (
-          resolvedInitialPromptFlag !== undefined &&
-          !provider.useKeystrokeInjection &&
-          initialPrompt?.trim()
-        ) {
-          if (resolvedInitialPromptFlag) {
-            const promptFlagParts = parseShellArgs(resolvedInitialPromptFlag);
-            cliArgs.push(...promptFlagParts);
-          }
-          cliArgs.push(initialPrompt.trim());
-        }
+        cliArgs.push(
+          ...buildProviderCliArgs({
+            resume: !usedSessionIsolation && !skipResume,
+            resumeFlag: resolvedConfig?.resumeFlag,
+            defaultArgs: resolvedConfig?.defaultArgs,
+            autoApprove,
+            autoApproveFlag: resolvedConfig?.autoApproveFlag,
+            initialPrompt,
+            initialPromptFlag: resolvedConfig?.initialPromptFlag,
+            useKeystrokeInjection: provider.useKeystrokeInjection,
+          })
+        );
 
         const cliCommand = resolvedCli;
         const commandString =

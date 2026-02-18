@@ -10,6 +10,9 @@ import {
   startSshPty,
   removePtyRecord,
   setOnDirectCliExit,
+  parseShellArgs,
+  buildProviderCliArgs,
+  resolveProviderCommandConfig,
 } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -183,30 +186,28 @@ function buildRemoteProviderInvocation(args: {
   resume?: boolean;
 }): { cli: string; cmd: string; installCommand?: string } {
   const { providerId, autoApprove, initialPrompt, resume } = args;
-  const provider = getProvider(providerId as ProviderId);
+  const fallbackProvider = getProvider(providerId as ProviderId);
+  const resolvedConfig = resolveProviderCommandConfig(providerId);
+  const provider = resolvedConfig?.provider ?? fallbackProvider;
 
-  const cliArgs: string[] = [];
-  if (provider?.resumeFlag && resume) {
-    cliArgs.push(...provider.resumeFlag.split(' '));
-  }
-  if (provider?.defaultArgs?.length) {
-    cliArgs.push(...provider.defaultArgs);
-  }
-  if (autoApprove && provider?.autoApproveFlag) {
-    cliArgs.push(provider.autoApproveFlag);
-  }
-  if (provider?.initialPromptFlag !== undefined && initialPrompt?.trim()) {
-    if (provider.initialPromptFlag) {
-      cliArgs.push(provider.initialPromptFlag);
-    }
-    cliArgs.push(initialPrompt.trim());
-  }
+  const cliCommand = resolvedConfig?.cli || fallbackProvider?.cli || providerId.toLowerCase();
+  const cliCheckCommand = parseShellArgs(cliCommand)[0] || cliCommand;
 
-  const cliCommand = provider?.cli || providerId.toLowerCase();
+  const cliArgs = buildProviderCliArgs({
+    resume,
+    resumeFlag: resolvedConfig?.resumeFlag ?? fallbackProvider?.resumeFlag,
+    defaultArgs: resolvedConfig?.defaultArgs ?? fallbackProvider?.defaultArgs,
+    autoApprove,
+    autoApproveFlag: resolvedConfig?.autoApproveFlag ?? fallbackProvider?.autoApproveFlag,
+    initialPrompt,
+    initialPromptFlag: resolvedConfig?.initialPromptFlag ?? fallbackProvider?.initialPromptFlag,
+    useKeystrokeInjection: provider?.useKeystrokeInjection,
+  });
+
   const cmd =
     cliArgs.length > 0 ? `${cliCommand} ${cliArgs.map(quoteShellArg).join(' ')}` : cliCommand;
 
-  return { cli: cliCommand, cmd, installCommand: provider?.installCommand };
+  return { cli: cliCheckCommand, cmd, installCommand: provider?.installCommand };
 }
 
 export function registerPtyIpc(): void {
