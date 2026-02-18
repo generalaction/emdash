@@ -712,7 +712,11 @@ export async function startPty(options: {
 
         // Session isolation — see applySessionIsolation() for the full decision tree.
         const usedSessionIsolation = applySessionIsolation(
-          cliArgs, provider, id, useCwd, !skipResume
+          cliArgs,
+          provider,
+          id,
+          useCwd,
+          !skipResume
         );
 
         if (!usedSessionIsolation && resolvedResumeFlag && !skipResume) {
