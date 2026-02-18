@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Download, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, Download, ExternalLink, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import { useUpdater, EMDASH_RELEASES_URL, type UpdateState } from '@/hooks/useUpdater';
 
 const isDev = window.location.hostname === 'localhost';
@@ -93,13 +93,23 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
       .catch(() => setAppVersion('Unknown'));
   }, []);
 
+  const handleDownload = useCallback(async () => {
+    const result = await realUpdater.download();
+    if (!result?.success && realUpdater.state.status === 'error') {
+      const errorMessage = realUpdater.state.message || '';
+      if (errorMessage.includes('ZIP_FILE_NOT_FOUND') || errorMessage.includes('404')) {
+        await window.electronAPI.openLatestDownload();
+      }
+    }
+  }, [realUpdater.download, realUpdater.state]);
+
   // Before paint: reset to 'checking' to avoid flash of stale state (e.g. a previous error)
   useLayoutEffect(() => {
     if (isOpen && !isDev) {
       autoDownloadTriggered.current = false;
       realUpdater.startChecking();
     }
-  }, [isOpen]);
+  }, [isOpen, realUpdater.startChecking]);
 
   // After open: sync with backend state before deciding to check or not
   useEffect(() => {
@@ -125,7 +135,7 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
         realUpdater.check();
       })
       .catch(() => realUpdater.check());
-  }, [isOpen]);
+  }, [isOpen, realUpdater.applyBackendState, realUpdater.check]);
 
   // Auto-download when an update is found (production only)
   useEffect(() => {
@@ -138,17 +148,7 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
       autoDownloadTriggered.current = true;
       handleDownload();
     }
-  }, [isOpen, realUpdater.state.status]);
-
-  const handleDownload = async () => {
-    const result = await realUpdater.download();
-    if (!result?.success && realUpdater.state.status === 'error') {
-      const errorMessage = realUpdater.state.message || '';
-      if (errorMessage.includes('ZIP_FILE_NOT_FOUND') || errorMessage.includes('404')) {
-        await window.electronAPI.openLatestDownload();
-      }
-    }
-  };
+  }, [isOpen, realUpdater.state.status, handleDownload]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -160,9 +160,9 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
             <button
               type="button"
               onClick={() => window.electronAPI.openExternal(EMDASH_RELEASES_URL)}
-              className="underline-offset-2 outline-none hover:text-foreground"
+              className="inline-flex items-center gap-1 outline-none hover:text-foreground"
             >
-              Changelog ↗
+              Changelog <ExternalLink className="h-3 w-3" />
             </button>
           </DialogDescription>
         </DialogHeader>
