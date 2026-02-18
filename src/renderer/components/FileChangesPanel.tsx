@@ -913,7 +913,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             setShowAllChangesModal(false);
             // If we have a selected path use it, otherwise let modal default to first file
             if (!selectedPath && fileChanges.length > 0) {
-                setSelectedPath(fileChanges[0].path);
+              setSelectedPath(fileChanges[0].path);
             }
             setShowDiffModal(true);
           }}

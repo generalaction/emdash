@@ -742,10 +742,10 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                   )}
                   {onToggleView && (
                     <button
-                        onClick={onToggleView}
-                        className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-foreground"
+                      onClick={onToggleView}
+                      className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-foreground"
                     >
-                        Toggle View
+                      Toggle View
                     </button>
                   )}
                 </div>
@@ -771,8 +771,6 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                   </button>
                 </div>
               </div>
-
-
 
               <div className="relative flex-1 overflow-hidden">
                 {fileData?.loading ? (

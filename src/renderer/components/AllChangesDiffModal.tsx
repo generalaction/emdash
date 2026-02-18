@@ -790,7 +790,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                   {onToggleView && (
                     <button
                       onClick={onToggleView}
-                      className="rounded-md px-3 py-1 text-sm font-small text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-foreground"
+                      className="font-small rounded-md px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-foreground"
                     >
                       Toggle View
                     </button>
