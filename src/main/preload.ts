@@ -104,6 +104,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     resume?: boolean;
   }) => ipcRenderer.invoke('pty:startDirect', opts),
 
+  ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) =>
+    ipcRenderer.invoke('pty:scp-to-remote', args),
+
   onPtyData: (id: string, listener: (data: string) => void) => {
     const channel = `pty:data:${id}`;
     const wrapped = (_: Electron.IpcRendererEvent, data: string) => listener(data);
