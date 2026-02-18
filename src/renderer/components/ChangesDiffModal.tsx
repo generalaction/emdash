@@ -29,6 +29,7 @@ interface ChangesDiffModalProps {
   files: FileChange[];
   initialFile?: string;
   onRefreshChanges?: () => Promise<void> | void;
+  onToggleView?: () => void;
 }
 
 export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
@@ -39,6 +40,7 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
   files,
   initialFile,
   onRefreshChanges,
+  onToggleView,
 }) => {
   const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
@@ -736,6 +738,14 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
                       ) : (
                         <Copy className="h-3.5 w-3.5" />
                       )}
+                    </button>
+                  )}
+                  {onToggleView && (
+                    <button
+                      onClick={onToggleView}
+                      className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-accent dark:hover:text-foreground"
+                    >
+                      File View
                     </button>
                   )}
                 </div>
