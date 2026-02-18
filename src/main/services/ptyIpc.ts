@@ -347,12 +347,20 @@ export function registerPtyIpc(): void {
         let shouldSkipResume = skipResume;
 
         // Check if this is an additional (non-main) chat
-        // Additional chats should always skip resume as they don't have persistence
         const isAdditionalChat = isChatPty(id);
 
         if (isAdditionalChat) {
-          // Additional chats always start fresh (no resume)
-          shouldSkipResume = true;
+          // Additional chats can resume if the provider supports per-session
+          // isolation (via sessionIdFlag), since each chat gets its own
+          // session UUID. Without session isolation, always start fresh to
+          // avoid all chats sharing the provider's directory-scoped state.
+          const parsed = parsePtyId(id);
+          const chatProvider = parsed ? getProvider(parsed.providerId) : null;
+          if (!chatProvider?.sessionIdFlag) {
+            shouldSkipResume = true;
+          }
+          // Otherwise keep shouldSkipResume from the renderer (undefined or
+          // explicitly set), which is based on whether a snapshot exists.
         } else if (shouldSkipResume === undefined) {
           // For main chats, check if this is a first-time start
           // For Claude and similar providers, check if a session directory exists
@@ -713,6 +721,16 @@ export function registerPtyIpc(): void {
           return { ok: true, reused: true };
         }
 
+        // For additional chats without per-session isolation, never resume —
+        // they'd share the provider's directory-scoped session with other chats.
+        let effectiveResume = resume;
+        if (isChatPty(id)) {
+          const chatProvider = getProvider(providerId as ProviderId);
+          if (!chatProvider?.sessionIdFlag) {
+            effectiveResume = false;
+          }
+        }
+
         let proc = startDirectPty({
           id,
           providerId,
@@ -722,7 +740,7 @@ export function registerPtyIpc(): void {
           autoApprove,
           initialPrompt,
           env,
-          resume,
+          resume: effectiveResume,
         });
 
         // Fallback to shell-based spawn if direct spawn fails (CLI not in cache)

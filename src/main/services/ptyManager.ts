@@ -1,9 +1,11 @@
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS } from '@shared/providers/registry';
+import { parsePtyId } from '@shared/ptyId';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 import { getProviderCustomConfig } from '../settings';
@@ -56,6 +58,132 @@ type PtyRecord = {
 };
 
 const ptys = new Map<string, PtyRecord>();
+
+/**
+ * Generate a deterministic UUID from an arbitrary string.
+ * Uses SHA-256 and formats 16 bytes as a UUID v4-compatible string
+ * (with version and variant bits set per RFC 4122).
+ */
+function deterministicUuid(input: string): string {
+  const hash = crypto.createHash('sha256').update(input).digest();
+  // Set version 4 bits
+  hash[6] = (hash[6] & 0x0f) | 0x40;
+  // Set variant bits
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.toString('hex').slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Persistent session-ID map
+//
+// Tracks which PTY IDs have already been started with --session-id so we
+// know whether to create a new session or resume an existing one.
+//
+//   First start  → no entry  → --session-id <uuid>  (create)
+//   Restart      → entry     → --resume <uuid>      (resume)
+// ---------------------------------------------------------------------------
+type SessionEntry = { uuid: string; cwd: string };
+
+let _sessionMapPath: string | null = null;
+let _sessionMap: Record<string, SessionEntry> | null = null;
+
+function sessionMapPath(): string {
+  if (!_sessionMapPath) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { app } = require('electron');
+    _sessionMapPath = path.join(app.getPath('userData'), 'pty-session-map.json');
+  }
+  return _sessionMapPath;
+}
+
+function loadSessionMap(): Record<string, SessionEntry> {
+  if (_sessionMap) return _sessionMap;
+  try {
+    _sessionMap = JSON.parse(fs.readFileSync(sessionMapPath(), 'utf-8'));
+  } catch {
+    _sessionMap = {};
+  }
+  return _sessionMap!;
+}
+
+function getKnownSessionId(ptyId: string): string | undefined {
+  return loadSessionMap()[ptyId]?.uuid;
+}
+
+/** Check if the session map has entries for other chats of the same provider in the same cwd. */
+function hasOtherSameProviderSessions(ptyId: string, providerId: string, cwd: string): boolean {
+  const map = loadSessionMap();
+  const prefix = `${providerId}-`;
+  return Object.entries(map).some(
+    ([key, entry]) => key.startsWith(prefix) && key !== ptyId && entry.cwd === cwd
+  );
+}
+
+function markSessionCreated(ptyId: string, uuid: string, cwd: string): void {
+  const map = loadSessionMap();
+  map[ptyId] = { uuid, cwd };
+  try {
+    fs.writeFileSync(sessionMapPath(), JSON.stringify(map));
+  } catch (e) {
+    log.warn('ptyManager: failed to persist session map', e);
+  }
+}
+
+/**
+ * Discover the existing Claude session ID for a working directory by scanning
+ * Claude Code's local project storage (~/.claude/projects/<encoded-path>/).
+ *
+ * Claude stores each conversation as a <uuid>.jsonl file. We pick the most
+ * recently modified file whose UUID is NOT already claimed by another chat
+ * in our session map. This lets us seamlessly adopt an existing session
+ * when transitioning the main chat to session-isolated mode, so no history
+ * is lost.
+ */
+function discoverExistingClaudeSession(cwd: string, excludeUuids: Set<string>): string | null {
+  try {
+    // Claude encodes project paths by replacing '/' with '-'
+    const encoded = cwd.replace(/\//g, '-');
+    const projectDir = path.join(os.homedir(), '.claude', 'projects', encoded);
+
+    if (!fs.existsSync(projectDir)) return null;
+
+    const entries = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
+    if (entries.length === 0) return null;
+
+    // Sort by modification time, newest first
+    const sorted = entries
+      .map((f) => ({
+        uuid: f.replace('.jsonl', ''),
+        mtime: fs.statSync(path.join(projectDir, f)).mtimeMs,
+      }))
+      .sort((a, b) => b.mtime - a.mtime);
+
+    // Return the most recent session not claimed by another chat
+    for (const entry of sorted) {
+      if (!excludeUuids.has(entry.uuid)) {
+        return entry.uuid;
+      }
+    }
+    return null;
+  } catch (e) {
+    log.warn('ptyManager: failed to discover existing Claude session', e);
+    return null;
+  }
+}
+
+/** Collect all session UUIDs from the map that belong to a given provider in the same cwd, excluding one PTY. */
+function getOtherSessionUuids(ptyId: string, providerId: string, cwd: string): Set<string> {
+  const map = loadSessionMap();
+  const prefix = `${providerId}-`;
+  const uuids = new Set<string>();
+  for (const [key, entry] of Object.entries(map)) {
+    if (key.startsWith(prefix) && key !== ptyId && entry.cwd === cwd) {
+      uuids.add(entry.uuid);
+    }
+  }
+  return uuids;
+}
 
 /**
  * Parse a shell-style argument string into an array of arguments.
@@ -266,8 +394,59 @@ export function startDirectPty(options: {
   const cliArgs: string[] = [];
 
   if (provider) {
-    // Add resume flag if resuming an existing session (e.g., after app reload)
-    if (resume && provider.resumeFlag) {
+    // Session isolation for multi-chat scenarios.
+    //
+    // When multiple chats of the same provider exist in one worktree,
+    // each needs its own session to avoid sharing the provider's
+    // directory-scoped state. We track created sessions in a persistent
+    // map to know whether to create (--session-id) or resume (--resume).
+    //
+    // For single-chat tasks we use the original resume flag (-c -r) so
+    // existing users' chat history is fully preserved.
+    const parsed = parsePtyId(id);
+    const isAdditionalChat = parsed?.kind === 'chat';
+    const sessionUuid = parsed ? deterministicUuid(parsed.suffix) : null;
+    let usedSessionIsolation = false;
+
+    if (provider.sessionIdFlag && sessionUuid) {
+      const knownSession = getKnownSessionId(id);
+      if (knownSession) {
+        // This chat was previously started with --session-id → resume it
+        cliArgs.push('--resume', knownSession);
+        usedSessionIsolation = true;
+      } else if (isAdditionalChat) {
+        // Additional chat → create isolated session
+        cliArgs.push(provider.sessionIdFlag, sessionUuid);
+        markSessionCreated(id, sessionUuid, cwd);
+        usedSessionIsolation = true;
+      } else if (hasOtherSameProviderSessions(id, parsed!.providerId, cwd)) {
+        // Main chat transitioning to multi-chat mode (existing chat from
+        // before session isolation). Try to discover its real session from
+        // Claude's local storage and adopt it via --session-id.
+        const otherUuids = getOtherSessionUuids(id, parsed!.providerId, cwd);
+        const existingSession = discoverExistingClaudeSession(cwd, otherUuids);
+        if (existingSession) {
+          // Found the main chat's real session — adopt it
+          cliArgs.push(provider.sessionIdFlag, existingSession);
+          markSessionCreated(id, existingSession, cwd);
+          usedSessionIsolation = true;
+        } else {
+          // No existing session found — create a new isolated one
+          cliArgs.push(provider.sessionIdFlag, sessionUuid);
+          markSessionCreated(id, sessionUuid, cwd);
+          usedSessionIsolation = true;
+        }
+      } else if (!resume) {
+        // First-time creation of main chat — proactively assign a session ID
+        // so we can reliably resume it later if more chats are added.
+        cliArgs.push(provider.sessionIdFlag, sessionUuid);
+        markSessionCreated(id, sessionUuid, cwd);
+        usedSessionIsolation = true;
+      }
+    }
+
+    if (!usedSessionIsolation && resume && provider.resumeFlag) {
+      // Single-chat task or provider without sessionIdFlag: generic resume
       const resumeParts = provider.resumeFlag.split(' ');
       cliArgs.push(...resumeParts);
     }
@@ -513,8 +692,44 @@ export async function startPty(options: {
         // Build the provider command with flags
         const cliArgs: string[] = [];
 
-        // Add resume flag FIRST if available (unless skipResume is true)
-        if (resolvedResumeFlag && !skipResume) {
+        // Session isolation — see startDirectPty for the full explanation.
+        const parsed = parsePtyId(id);
+        const isAdditionalChat = parsed?.kind === 'chat';
+        const sessionUuid = parsed ? deterministicUuid(parsed.suffix) : null;
+        let usedSessionIsolation = false;
+
+        if (provider.sessionIdFlag && sessionUuid) {
+          const knownSession = getKnownSessionId(id);
+          if (knownSession) {
+            cliArgs.push('--resume', knownSession);
+            usedSessionIsolation = true;
+          } else if (isAdditionalChat) {
+            cliArgs.push(provider.sessionIdFlag, sessionUuid);
+            markSessionCreated(id, sessionUuid, useCwd);
+            usedSessionIsolation = true;
+          } else if (hasOtherSameProviderSessions(id, parsed!.providerId, useCwd)) {
+            const otherUuids = getOtherSessionUuids(id, parsed!.providerId, useCwd);
+            const existingSession = discoverExistingClaudeSession(useCwd, otherUuids);
+            if (existingSession) {
+              cliArgs.push(provider.sessionIdFlag, existingSession);
+              markSessionCreated(id, existingSession, useCwd);
+              usedSessionIsolation = true;
+            } else {
+              cliArgs.push(provider.sessionIdFlag, sessionUuid);
+              markSessionCreated(id, sessionUuid, useCwd);
+              usedSessionIsolation = true;
+            }
+          } else if (skipResume) {
+            // First-time creation (skipResume=true means not a restart)
+            // Proactively assign session ID so we can resume later.
+            cliArgs.push(provider.sessionIdFlag, sessionUuid);
+            markSessionCreated(id, sessionUuid, useCwd);
+            usedSessionIsolation = true;
+          }
+        }
+
+        if (!usedSessionIsolation && resolvedResumeFlag && !skipResume) {
+          // Single-chat task or provider without sessionIdFlag: generic resume
           const resumeParts = parseShellArgs(resolvedResumeFlag);
           cliArgs.push(...resumeParts);
         }
