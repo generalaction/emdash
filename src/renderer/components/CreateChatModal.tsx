@@ -56,9 +56,9 @@ export function CreateChatModal({
           setSelectedAgent(defaultFromSettings);
           setError(null);
         } else {
-          const firstInstalled = Object.keys(agentConfig).find((key) =>
-            installedSet.has(key)
-          ) as Agent | undefined;
+          const firstInstalled = Object.keys(agentConfig).find((key) => installedSet.has(key)) as
+            | Agent
+            | undefined;
           if (firstInstalled) {
             setSelectedAgent(firstInstalled);
             setError(null);
