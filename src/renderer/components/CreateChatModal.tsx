@@ -14,7 +14,6 @@ import { AgentDropdown } from './AgentDropdown';
 import { agentConfig } from '../lib/agentConfig';
 import { isValidProviderId } from '@shared/providers/registry';
 import type { Agent } from '../types';
-import type { Conversation } from '../../main/services/DatabaseService';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -23,7 +22,6 @@ interface CreateChatModalProps {
   onClose: () => void;
   onCreateChat: (title: string, agent: string) => void;
   installedAgents: string[];
-  existingConversations?: Conversation[];
 }
 
 export function CreateChatModal({
@@ -31,34 +29,12 @@ export function CreateChatModal({
   onClose,
   onCreateChat,
   installedAgents,
-  existingConversations = [],
 }: CreateChatModalProps) {
   const [selectedAgent, setSelectedAgent] = useState<Agent>(DEFAULT_AGENT);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Extract agents that are already in use
-  const usedAgents = useMemo(() => {
-    const agents = new Set<string>();
-    existingConversations.forEach((conv) => {
-      if (conv.provider) {
-        agents.add(conv.provider);
-      }
-    });
-    return agents;
-  }, [existingConversations]);
-
   const installedSet = useMemo(() => new Set(installedAgents), [installedAgents]);
-
-  // Find first available agent: must be installed and not in use
-  const findFirstAvailableAgent = (usedSet: Set<string>): Agent | null => {
-    for (const key of Object.keys(agentConfig)) {
-      if (installedSet.has(key) && !usedSet.has(key)) {
-        return key as Agent;
-      }
-    }
-    return null;
-  };
 
   // Load default agent from settings and reset state when modal opens
   useEffect(() => {
@@ -75,21 +51,19 @@ export function CreateChatModal({
           ? (settingsAgent as Agent)
           : DEFAULT_AGENT;
 
-        // Priority: settings default (if installed and available) > first available in agentConfig order
-        if (installedSet.has(defaultFromSettings) && !usedAgents.has(defaultFromSettings)) {
+        // Priority: settings default (if installed) > first installed in agentConfig order
+        if (installedSet.has(defaultFromSettings)) {
           setSelectedAgent(defaultFromSettings);
           setError(null);
         } else {
-          const firstAvailable = findFirstAvailableAgent(usedAgents);
-          if (firstAvailable) {
-            setSelectedAgent(firstAvailable);
+          const firstInstalled = Object.keys(agentConfig).find((key) => installedSet.has(key)) as
+            | Agent
+            | undefined;
+          if (firstInstalled) {
+            setSelectedAgent(firstInstalled);
             setError(null);
           } else {
-            setError(
-              installedAgents.length === 0
-                ? 'No agents installed'
-                : 'All installed agents are already in use for this task'
-            );
+            setError('No agents installed');
           }
         }
       });
@@ -98,13 +72,13 @@ export function CreateChatModal({
         cancel = true;
       };
     }
-  }, [isOpen, usedAgents, installedSet]);
+  }, [isOpen, installedSet]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!installedSet.has(selectedAgent) || usedAgents.has(selectedAgent)) {
-      setError('Please select an available agent');
+    if (!installedSet.has(selectedAgent)) {
+      setError('Please select an installed agent');
       return;
     }
 
@@ -128,7 +102,7 @@ export function CreateChatModal({
         <DialogHeader>
           <DialogTitle>New Chat</DialogTitle>
           <DialogDescription className="text-xs">
-            Start a new conversation with a different agent
+            Start a new conversation with any agent
           </DialogDescription>
         </DialogHeader>
 
@@ -141,7 +115,6 @@ export function CreateChatModal({
               value={selectedAgent}
               onChange={setSelectedAgent}
               installedAgents={installedAgents}
-              disabledAgents={Array.from(usedAgents)}
             />
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}

@@ -42,6 +42,14 @@ export type ProviderDefinition = {
    */
   useKeystrokeInjection?: boolean;
   resumeFlag?: string;
+  /**
+   * CLI flag to assign a unique session ID per chat instance.
+   * Used to isolate session state when multiple chats of the same provider
+   * run in the same worktree. The flag receives a deterministic UUID
+   * derived from the Emdash conversation ID.
+   * e.g. '--session-id' for Claude Code.
+   */
+  sessionIdFlag?: string;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
@@ -75,6 +83,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     autoApproveFlag: '--dangerously-skip-permissions',
     initialPromptFlag: '',
     resumeFlag: '-c -r',
+    sessionIdFlag: '--session-id',
     planActivateCommand: '/plan',
     icon: 'claude.png',
     terminalOnly: true,
