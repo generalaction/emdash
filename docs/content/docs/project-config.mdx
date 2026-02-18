@@ -62,23 +62,47 @@ The setup script runs in the task's terminal as soon as the worktree is ready. I
 
 When a task terminal starts, Emdash injects convenience environment variables you can use inside setup scripts and other terminal commands.
 
-| Variable                | Purpose                          |
-| ----------------------- | -------------------------------- |
-| `EMDASH_TASK_ID`        | Stable unique task id            |
-| `EMDASH_TASK_NAME`      | Shell-safe task name slug        |
-| `EMDASH_TASK_PATH`      | Absolute task (worktree) path    |
-| `EMDASH_ROOT_PATH`      | Absolute project root path       |
-| `EMDASH_DEFAULT_BRANCH` | Default branch name (e.g., main) |
-| `EMDASH_PORT`           | Base port for a 10-port range    |
+If you run multiple tasks in parallel, do not hardcode `localhost:3000`. Use `EMDASH_PORT` so each task gets its own localhost port automatically.
 
-### Example: Port-aware setup script
+| Variable                | Purpose                                                          |
+| ----------------------- | ---------------------------------------------------------------- |
+| `EMDASH_TASK_ID`        | Stable unique task id                                            |
+| `EMDASH_TASK_NAME`      | Shell-safe task name slug                                        |
+| `EMDASH_TASK_PATH`      | Absolute task (worktree) path                                    |
+| `EMDASH_ROOT_PATH`      | Absolute project root path                                       |
+| `EMDASH_DEFAULT_BRANCH` | Default branch name (e.g., main)                                 |
+| `EMDASH_PORT`           | Unique localhost base port per task (use for `PORT` or `--port`) |
+
+`EMDASH_PORT` is different for each task. Example: one task might run on `localhost:50120`, another on `localhost:50730`, so they do not collide on `localhost:3000`.
+
+### Avoid localhost port collisions
+
+Use this as your default `run` script:
 
 ```json
 {
   "scripts": {
-    "setup": "export PORT=$EMDASH_PORT && export DB_PORT=$((EMDASH_PORT + 1)) && export COMPOSE_PROJECT_NAME=$EMDASH_TASK_NAME && docker-compose up -d && pnpm run dev"
+    "run": "PORT=$EMDASH_PORT pnpm run dev"
   }
 }
+```
+
+If your dev server expects a `--port` flag instead of `PORT`:
+
+```json
+{
+  "scripts": {
+    "run": "pnpm run dev -- --port=$EMDASH_PORT"
+  }
+}
+```
+
+For multiple local services, use `EMDASH_PORT` with small offsets:
+
+```bash
+APP_PORT=$EMDASH_PORT
+DB_PORT=$((EMDASH_PORT + 1))
+REDIS_PORT=$((EMDASH_PORT + 2))
 ```
 
 ### Example: docker-compose override with task ports
@@ -91,14 +115,6 @@ services:
   app:
     environment:
       - DATABASE_PORT=${EMDASH_PORT:-5432}
-```
-
-### Example: Port offsets (app + db + redis)
-
-```
-APP_PORT=$EMDASH_PORT
-DB_PORT=$((EMDASH_PORT + 1))
-REDIS_PORT=$((EMDASH_PORT + 2))
 ```
 
 ### Examples
