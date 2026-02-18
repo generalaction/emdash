@@ -12,7 +12,6 @@ import MainContentArea from './components/MainContentArea';
 import { NewProjectModal } from './components/NewProjectModal';
 import RightSidebar from './components/RightSidebar';
 import CodeEditor from './components/FileExplorer/CodeEditor';
-import SettingsModal from './components/SettingsModal';
 import TaskModal from './components/TaskModal';
 import { UpdateModal } from './components/UpdateModal';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -88,8 +87,6 @@ const AppContent: React.FC = () => {
   const modals = useModalState({ selectedProjectRef });
 
   const {
-    showSettings,
-    settingsInitialTab,
     showSettingsPage,
     settingsPageInitialTab,
     showCommandPalette,
@@ -105,12 +102,8 @@ const AppContent: React.FC = () => {
     setShowTaskModal,
     setShowNewProjectModal,
     setShowCloneModal,
-    openSettings,
     openSettingsPage,
-    handleToggleSettings,
-    handleOpenSettings,
     handleOpenKeyboardShortcuts,
-    handleCloseSettings,
     handleCloseSettingsPage,
     handleToggleCommandPalette,
     handleCloseCommandPalette,
@@ -123,10 +116,10 @@ const AppContent: React.FC = () => {
   // Listen for native menu "Settings" click (main → renderer)
   useEffect(() => {
     const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
-      handleOpenSettings();
+      openSettingsPage();
     });
     return () => cleanup?.();
-  }, [handleOpenSettings]);
+  }, [openSettingsPage]);
 
   // Listen for native menu "Check for Updates" click (main → renderer)
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -606,11 +599,6 @@ const AppContent: React.FC = () => {
                   </ResizablePanel>
                 </ResizablePanelGroup>
               </div>
-              <SettingsModal
-                isOpen={showSettings}
-                onClose={handleCloseSettings}
-                initialTab={settingsInitialTab}
-              />
               <UpdateModal isOpen={showUpdateModal} onClose={() => setShowUpdateModal(false)} />
               <CommandPaletteWrapper
                 isOpen={showCommandPalette}
@@ -676,7 +664,7 @@ const AppContent: React.FC = () => {
                 taskId={activeTask?.id || null}
                 taskPath={activeTask?.path || null}
                 overlayActive={
-                  showSettings || showCommandPalette || showTaskModal || showWelcomeScreen
+                  showSettingsPage || showCommandPalette || showTaskModal || showWelcomeScreen
                 }
               />
             </RightSidebarProvider>

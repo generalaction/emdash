@@ -1,4 +1,5 @@
 import { Menu, shell, app, BrowserWindow, nativeImage } from 'electron';
+import { EMDASH_RELEASES_URL, EMDASH_DOCS_URL } from '@shared/urls';
 
 function getFocusedWindow(): BrowserWindow | null {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
@@ -112,8 +113,12 @@ export function setupApplicationMenu(): void {
       label: 'Help',
       submenu: [
         {
-          label: 'Emdash Documentation',
-          click: () => shell.openExternal('https://docs.emdash.sh'),
+          label: 'Docs',
+          click: () => shell.openExternal(EMDASH_DOCS_URL),
+        },
+        {
+          label: 'Changelog',
+          click: () => shell.openExternal(EMDASH_RELEASES_URL),
         },
         ...(!isMac
           ? [
