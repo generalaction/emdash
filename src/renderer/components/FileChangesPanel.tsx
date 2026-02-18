@@ -918,7 +918,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             setShowAllChangesModal(false);
             // If we have a selected path that exists in current changes, use it
             // Otherwise default to the first file
-            const isValidSelection = selectedPath && fileChanges.some((f) => f.path === selectedPath);
+            const isValidSelection =
+              selectedPath && fileChanges.some((f) => f.path === selectedPath);
             if (!isValidSelection && fileChanges.length > 0) {
               setSelectedPath(fileChanges[0].path);
             }
