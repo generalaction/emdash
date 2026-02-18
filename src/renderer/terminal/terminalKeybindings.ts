@@ -20,3 +20,28 @@ export function shouldMapShiftEnterToCtrlJ(event: KeyEventLike): boolean {
     !event.altKey
   );
 }
+
+export function shouldCopySelectionFromTerminal(
+  event: KeyEventLike,
+  isMacPlatform: boolean,
+  hasSelection: boolean
+): boolean {
+  if (!hasSelection) return false;
+  if (event.type !== 'keydown') return false;
+  if (event.key.toLowerCase() !== 'c') return false;
+
+  const ctrl = event.ctrlKey === true;
+  const meta = event.metaKey === true;
+  const alt = event.altKey === true;
+  const shift = event.shiftKey === true;
+
+  // Ctrl+Shift+C should copy on all platforms
+  if (ctrl && shift && !meta && !alt) return true;
+
+  // Platform-specific default copy shortcuts
+  if (isMacPlatform) {
+    return meta && !ctrl && !shift && !alt;
+  }
+
+  return ctrl && !meta && !shift && !alt;
+}
