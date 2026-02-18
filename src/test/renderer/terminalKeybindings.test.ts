@@ -63,7 +63,11 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
 
     // no selection should never copy
     expect(
-      shouldCopySelectionFromTerminal(makeEvent({ key: 'c', metaKey: true }), true, withoutSelection)
+      shouldCopySelectionFromTerminal(
+        makeEvent({ key: 'c', metaKey: true }),
+        true,
+        withoutSelection
+      )
     ).toBe(false);
     expect(
       shouldCopySelectionFromTerminal(
