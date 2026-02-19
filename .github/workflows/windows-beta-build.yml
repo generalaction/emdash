@@ -13,58 +13,32 @@ permissions:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Ensure Windows SDK
+      - name: Verify Windows SDK
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $kits = "${env:ProgramFiles(x86)}\Windows Kits\10\Include"
-          if (Test-Path $kits) {
-            Write-Host "Windows SDK already present at: $kits"
-            exit 0
+          $rootsKey = 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots'
+          $kitsRoot10 = (Get-ItemProperty -Path $rootsKey -Name KitsRoot10 -ErrorAction SilentlyContinue).KitsRoot10
+          if (!$kitsRoot10 -or !(Test-Path $kitsRoot10)) {
+            throw "Windows SDK not detected (KitsRoot10)."
           }
 
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (!(Test-Path $vswhere)) {
-            throw "vswhere.exe not found at $vswhere"
+          Write-Host "KitsRoot10: $kitsRoot10"
+          $includeDir = Join-Path $kitsRoot10 'Include'
+          if (!(Test-Path $includeDir)) {
+            throw "Windows SDK Include directory missing: $includeDir"
           }
 
-          $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if (!$installPath) {
-            throw "Visual Studio installation not found"
+          Get-ChildItem $includeDir -Directory | Select-Object -First 5 | ForEach-Object {
+            Write-Host "SDK include version: $($_.Name)"
           }
-
-          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
-          if (!(Test-Path $installer)) {
-            throw "vs_installer.exe not found at $installer"
-          }
-
-          $components = @(
-            "Microsoft.VisualStudio.Component.Windows11SDK.22621",
-            "Microsoft.VisualStudio.Component.Windows11SDK.22000",
-            "Microsoft.VisualStudio.Component.Windows10SDK.22621",
-            "Microsoft.VisualStudio.Component.Windows10SDK.20348",
-            "Microsoft.VisualStudio.Component.Windows10SDK.19041",
-            "Microsoft.VisualStudio.Component.Windows10SDK.18362",
-            "Microsoft.VisualStudio.Component.Windows10SDK.17763"
-          )
-
-          foreach ($c in $components) {
-            Write-Host "Attempting to add SDK component: $c"
-            & $installer modify --installPath "$installPath" --add $c --quiet --norestart --nocache | Out-Host
-            if (Test-Path $kits) { break }
-          }
-
-          if (!(Test-Path $kits)) {
-            throw "Windows SDK not found after attempting install. Expected: $kits"
-          }
-          Write-Host "Windows SDK installed at: $kits"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
