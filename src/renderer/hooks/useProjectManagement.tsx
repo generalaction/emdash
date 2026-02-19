@@ -649,6 +649,13 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           projectPath: selectedProject.path,
         });
         if (cancelled) return;
+        if (res.fetchFailed) {
+          toast({
+            title: 'Could not pull from repository',
+            description: res.fetchError ?? 'Remote fetch failed. Check your connection and try again.',
+            variant: 'destructive',
+          });
+        }
         if (res.success && res.branches) {
           const options = res.branches.map((b) => ({
             value: b.ref,
