@@ -60,6 +60,8 @@ export interface ProviderCustomConfig {
   defaultArgs?: string;
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  extraArgs?: string;
+  env?: Record<string, string>;
 }
 
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
@@ -472,6 +474,16 @@ function normalizeSettings(input: AppSettings): AppSettings {
     for (const [providerId, config] of Object.entries(providerConfigs)) {
       if (config && typeof config === 'object') {
         const c = config as Record<string, unknown>;
+        let env: Record<string, string> | undefined;
+        if (c.env && typeof c.env === 'object') {
+          env = {};
+          for (const [k, v] of Object.entries(c.env)) {
+            if (typeof k === 'string' && typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+              env[k] = v;
+            }
+          }
+          if (Object.keys(env).length === 0) env = undefined;
+        }
         out.providerConfigs[providerId] = {
           ...(typeof c.cli === 'string' ? { cli: c.cli } : {}),
           ...(typeof c.resumeFlag === 'string' ? { resumeFlag: c.resumeFlag } : {}),
@@ -480,6 +492,8 @@ function normalizeSettings(input: AppSettings): AppSettings {
           ...(typeof c.initialPromptFlag === 'string'
             ? { initialPromptFlag: c.initialPromptFlag }
             : {}),
+          ...(typeof c.extraArgs === 'string' ? { extraArgs: c.extraArgs } : {}),
+          ...(env ? { env } : {}),
         };
       }
     }

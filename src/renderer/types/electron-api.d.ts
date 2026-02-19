@@ -27,6 +27,8 @@ export type ProviderCustomConfig = {
   defaultArgs?: string;
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  extraArgs?: string;
+  env?: Record<string, string>;
 };
 
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;

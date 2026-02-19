@@ -336,12 +336,15 @@ export type ResolvedProviderCommandConfig = {
   defaultArgs?: string[];
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  extraArgs?: string[];
+  env?: Record<string, string>;
 };
 
 type ProviderCliArgsOptions = {
   resume?: boolean;
   resumeFlag?: string;
   defaultArgs?: string[];
+  extraArgs?: string[];
   autoApprove?: boolean;
   autoApproveFlag?: string;
   initialPrompt?: string;
@@ -356,6 +359,22 @@ export function resolveProviderCommandConfig(
   if (!provider) return null;
 
   const customConfig = getProviderCustomConfig(provider.id);
+
+  const extraArgs =
+    customConfig?.extraArgs !== undefined && customConfig.extraArgs.trim() !== ''
+      ? parseShellArgs(customConfig.extraArgs.trim())
+      : undefined;
+
+  let env: Record<string, string> | undefined;
+  if (customConfig?.env && typeof customConfig.env === 'object') {
+    env = {};
+    for (const [k, v] of Object.entries(customConfig.env)) {
+      if (typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+        env[k] = v;
+      }
+    }
+    if (Object.keys(env).length === 0) env = undefined;
+  }
 
   return {
     provider,
@@ -377,6 +396,8 @@ export function resolveProviderCommandConfig(
       customConfig?.initialPromptFlag !== undefined
         ? customConfig.initialPromptFlag
         : provider.initialPromptFlag,
+    extraArgs,
+    env,
   };
 }
 
@@ -404,6 +425,10 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
       args.push(...parseShellArgs(options.initialPromptFlag));
     }
     args.push(options.initialPrompt.trim());
+  }
+
+  if (options.extraArgs?.length) {
+    args.push(...options.extraArgs);
   }
 
   return args;
@@ -689,6 +714,7 @@ export function startDirectPty(options: {
         resume: !usedSessionIsolation && !!resume,
         resumeFlag: resolvedConfig.resumeFlag,
         defaultArgs: resolvedConfig.defaultArgs,
+        extraArgs: resolvedConfig.extraArgs,
         autoApprove,
         autoApproveFlag: resolvedConfig.autoApproveFlag,
         initialPrompt,
@@ -715,6 +741,14 @@ export function startDirectPty(options: {
   for (const key of AGENT_ENV_VARS) {
     if (process.env[key]) {
       useEnv[key] = process.env[key];
+    }
+  }
+
+  if (resolvedConfig?.env) {
+    for (const [key, value] of Object.entries(resolvedConfig.env)) {
+      if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) && typeof value === 'string') {
+        useEnv[key] = value;
+      }
     }
   }
 
@@ -908,6 +942,7 @@ export async function startPty(options: {
             resume: !usedSessionIsolation && !skipResume,
             resumeFlag: resolvedConfig?.resumeFlag,
             defaultArgs: resolvedConfig?.defaultArgs,
+            extraArgs: resolvedConfig?.extraArgs,
             autoApprove,
             autoApproveFlag: resolvedConfig?.autoApproveFlag,
             initialPrompt,
@@ -915,6 +950,14 @@ export async function startPty(options: {
             useKeystrokeInjection: provider.useKeystrokeInjection,
           })
         );
+
+        if (resolvedConfig?.env) {
+          for (const [k, v] of Object.entries(resolvedConfig.env)) {
+            if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) && typeof v === 'string') {
+              useEnv[k] = v;
+            }
+          }
+        }
 
         const cliCommand = resolvedCli;
         const commandString =
