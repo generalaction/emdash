@@ -91,6 +91,8 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
   const updater = isDev ? devSim : realUpdater;
 
   const [appVersion, setAppVersion] = useState('');
+  const [autoDownloadEnabledInBackend, setAutoDownloadEnabledInBackend] = useState(false);
+  const [updateSettingsLoaded, setUpdateSettingsLoaded] = useState(isDev);
   const autoDownloadTriggered = useRef(false);
 
   useEffect(() => {
@@ -114,9 +116,27 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
   useLayoutEffect(() => {
     if (isOpen && !isDev) {
       autoDownloadTriggered.current = false;
+      setUpdateSettingsLoaded(false);
       realUpdater.startChecking();
     }
   }, [isOpen, realUpdater.startChecking]);
+
+  useEffect(() => {
+    if (!isOpen || isDev) return;
+
+    window.electronAPI
+      .getUpdateSettings?.()
+      .then((res) => {
+        setAutoDownloadEnabledInBackend(Boolean(res?.data?.autoDownload));
+      })
+      .catch(() => {
+        // Fall back to modal-managed download behavior.
+        setAutoDownloadEnabledInBackend(false);
+      })
+      .finally(() => {
+        setUpdateSettingsLoaded(true);
+      });
+  }, [isOpen]);
 
   // After open: sync with backend state before deciding to check or not
   useEffect(() => {
@@ -149,13 +169,21 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
     if (
       isOpen &&
       !isDev &&
+      updateSettingsLoaded &&
+      !autoDownloadEnabledInBackend &&
       realUpdater.state.status === 'available' &&
       !autoDownloadTriggered.current
     ) {
       autoDownloadTriggered.current = true;
       handleDownload();
     }
-  }, [isOpen, realUpdater.state.status, handleDownload]);
+  }, [
+    isOpen,
+    updateSettingsLoaded,
+    autoDownloadEnabledInBackend,
+    realUpdater.state.status,
+    handleDownload,
+  ]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
