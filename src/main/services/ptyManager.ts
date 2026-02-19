@@ -2,7 +2,6 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { execFileSync } from 'child_process';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
@@ -409,17 +408,89 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
 const resolvedCommandPathCache = new Map<string, string | null>();
 
 function resolveCommandPath(command: string): string | null {
-  const resolver = process.platform === 'win32' ? 'where' : 'which';
-  try {
-    const result = execFileSync(resolver, [command], { encoding: 'utf8' });
-    const lines = result
-      .split(/\r?\n/)
-      .map((l) => l.trim())
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  const pathLike =
+    trimmed.includes('/') ||
+    trimmed.includes('\\') ||
+    trimmed.startsWith('.') ||
+    /^[A-Za-z]:/.test(trimmed);
+
+  const isExecutableFile = (candidate: string): boolean => {
+    try {
+      const stat = fs.statSync(candidate);
+      if (!stat.isFile()) return false;
+      if (process.platform === 'win32') return true;
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const appendWindowsExecutableExts = (base: string): string[] => {
+    if (process.platform !== 'win32') return [base];
+
+    if (path.extname(base)) return [base];
+
+    const pathExt = process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD';
+    const exts = pathExt
+      .split(';')
+      .map((ext) => ext.trim())
       .filter(Boolean);
-    return lines[0] ?? null;
-  } catch {
+    return [base, ...exts.map((ext) => `${base}${ext.toLowerCase()}`)];
+  };
+
+  const resolveFromCandidates = (bases: string[], makeAbsolute: boolean): string | null => {
+    for (const base of bases) {
+      const candidates = appendWindowsExecutableExts(base);
+      for (const candidate of candidates) {
+        const target = makeAbsolute ? path.resolve(candidate) : candidate;
+        if (isExecutableFile(target)) {
+          return target;
+        }
+      }
+    }
     return null;
+  };
+
+  if (pathLike) {
+    return resolveFromCandidates([trimmed], true);
   }
+
+  const pathEnv = process.env.PATH;
+  if (!pathEnv) return null;
+
+  const pathDirs = pathEnv.split(path.delimiter).filter(Boolean);
+  const pathCandidates = pathDirs.map((dir) => path.join(dir, trimmed));
+  return resolveFromCandidates(pathCandidates, false);
+}
+
+export function parseCustomCliForDirectSpawn(input: string): string[] {
+  const trimmed = input.trim();
+  if (!trimmed) return [];
+
+  if (process.platform !== 'win32') {
+    return parseShellArgs(trimmed);
+  }
+
+  // Preserve backslashes for Windows absolute/UNC paths.
+  if ((/^[A-Za-z]:\\/.test(trimmed) || /^\\\\/.test(trimmed)) && !/\s/.test(trimmed)) {
+    return [trimmed];
+  }
+
+  // Handle quoted absolute paths with spaces, e.g. "C:\Program Files\tool\tool.cmd"
+  const quotedAbsolutePath = trimmed.match(/^"([A-Za-z]:\\[^"]+)"$/);
+  if (quotedAbsolutePath) {
+    return [quotedAbsolutePath[1]];
+  }
+  const singleQuotedAbsolutePath = trimmed.match(/^'([A-Za-z]:\\[^']+)'$/);
+  if (singleQuotedAbsolutePath) {
+    return [singleQuotedAbsolutePath[1]];
+  }
+
+  return parseShellArgs(trimmed);
 }
 
 function resolveCommandPathCached(command: string): string | null {
@@ -432,7 +503,7 @@ function resolveCommandPathCached(command: string): string | null {
 }
 
 function needsShellResolution(command: string): boolean {
-  return /[|&;<>()$`\\]/.test(command);
+  return /[|&;<>()$`]/.test(command);
 }
 
 // Callback to spawn shell after direct CLI exits (set by ptyIpc)
@@ -571,7 +642,7 @@ export function startDirectPty(options: {
   // Direct spawn requires an executable path. If custom CLI is an alias or shell
   // expression, fall back to shell mode.
   if (provider && resolvedConfig && resolvedConfig.cli !== provider.cli) {
-    const cliParts = parseShellArgs(resolvedConfig.cli);
+    const cliParts = parseCustomCliForDirectSpawn(resolvedConfig.cli);
     if (cliParts.length !== 1) {
       log.info('ptyManager:directSpawn - custom CLI needs shell parsing, using fallback', {
         providerId,

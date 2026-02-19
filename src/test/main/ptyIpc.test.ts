@@ -375,8 +375,46 @@ describe('ptyIpc notification lifecycle', () => {
     const remoteInitCommand = String(
       (startSshPtyMock.mock.calls[0][0] as any)?.remoteInitCommand || ''
     );
-    expect(remoteInitCommand).toContain('command -v codex-remote');
-    expect(remoteInitCommand).toContain('codex-remote resume --last --model gpt-5');
-    expect(remoteInitCommand).toContain("--dangerously-bypass-approvals-and-sandbox 'hello world'");
+    expect(remoteInitCommand).toContain("command -v 'codex-remote'");
+    expect(remoteInitCommand).toContain("'codex-remote' 'resume' '--last' '--model' 'gpt-5'");
+    expect(remoteInitCommand).toContain(
+      "'--dangerously-bypass-approvals-and-sandbox' 'hello world'"
+    );
+  });
+
+  it('quotes remote custom CLI tokens to prevent shell metachar expansion', async () => {
+    resolveProviderCommandConfigMock.mockReturnValue({
+      provider: { installCommand: undefined, useKeystrokeInjection: false },
+      cli: 'codex-remote;echo',
+      resumeFlag: 'resume --last',
+      defaultArgs: [],
+      autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+      initialPromptFlag: '',
+    });
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-remote-metachar');
+    const sender = createSender();
+    const result = await startDirect!(
+      { sender },
+      {
+        id,
+        providerId: 'codex',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:devbox' },
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+    const remoteInitCommand = String(
+      (startSshPtyMock.mock.calls[0][0] as any)?.remoteInitCommand || ''
+    );
+    expect(remoteInitCommand).toContain("command -v 'codex-remote;echo'");
+    expect(remoteInitCommand).toContain("then 'codex-remote;echo'");
   });
 });
