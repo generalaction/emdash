@@ -1000,20 +1000,23 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         return { success: false, error: 'Not a git repository' };
       }
 
+      let fetchFailed = false;
+      let fetchError: string | undefined;
       try {
         // Check if remote exists before attempting to fetch
         let hasRemote = false;
         try {
           await execAsync(`git remote get-url ${remote}`, { cwd: projectPath });
           hasRemote = true;
-          // Remote exists, try to fetch
           try {
             await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
-          } catch (fetchError) {
-            log.warn('Failed to fetch remote before listing branches', fetchError);
+          } catch (fetchErr) {
+            log.warn('Failed to fetch remote before listing branches', fetchErr);
+            fetchFailed = true;
+            fetchError =
+              fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
           }
         } catch {
-          // Remote doesn't exist, skip fetch and will use local branches instead
           log.debug(`Remote '${remote}' not found, will use local branches`);
         }
 
@@ -1086,14 +1089,18 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
                   ref: branch,
                   remote: '', // No remote
                   branch,
-                  label: branch, // Just the branch name, no remote prefix
+                  label: branch,
                 })) ?? [];
           } catch (localBranchError) {
             log.warn('Failed to list local branches', localBranchError);
           }
         }
 
-        return { success: true, branches };
+        return {
+          success: true,
+          branches,
+          ...(fetchFailed && { fetchFailed: true, fetchError }),
+        };
       } catch (error) {
         log.error('Failed to list branches:', error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
