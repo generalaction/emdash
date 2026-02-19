@@ -57,6 +57,7 @@ class AutoUpdateService {
   private initialized = false;
   private lastNotifiedVersion?: string;
   private downloadStartTime?: number;
+  private installRequested = false;
 
   constructor() {
     const appVersion = this.getAppVersion();
@@ -356,6 +357,10 @@ class AutoUpdateService {
 
   private async performCheckForUpdates(silent = false): Promise<UpdateInfo | null> {
     try {
+      if (this.updateState.status === 'installing') {
+        return null;
+      }
+
       // Skip in development - always
       const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
       if (isDev) {
@@ -461,6 +466,21 @@ class AutoUpdateService {
    * Install the downloaded update and restart
    */
   quitAndInstall(): void {
+    if (this.installRequested) {
+      log.info('quitAndInstall ignored: install already requested');
+      return;
+    }
+
+    if (this.updateState.status !== 'downloaded') {
+      throw new Error(
+        `Cannot install update: status is "${this.updateState.status}", expected "downloaded"`
+      );
+    }
+
+    this.installRequested = true;
+    this.updateState.status = 'installing';
+    this.notifyWindows('installing');
+
     // Save current state for potential rollback
     this.saveRollbackInfo();
 

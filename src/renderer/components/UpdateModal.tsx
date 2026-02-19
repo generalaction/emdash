@@ -148,7 +148,7 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
         const s = res?.data?.status;
         // If update is already downloaded or actively downloading, reflect that state
         // without triggering a new check (which would re-run checkForUpdatesAndNotify)
-        if (s === 'downloaded' || s === 'downloading' || s === 'checking') {
+        if (s === 'downloaded' || s === 'downloading' || s === 'checking' || s === 'installing') {
           realUpdater.applyBackendState(res.data);
           return;
         }
@@ -267,6 +267,15 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
                   Restart Now
                 </Button>
               </div>
+            </>
+          )}
+
+          {updater.state.status === 'installing' && (
+            <>
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-center text-sm text-muted-foreground">
+                Installing update. Emdash will close automatically when ready.
+              </p>
             </>
           )}
 
