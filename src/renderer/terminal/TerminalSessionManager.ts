@@ -487,10 +487,39 @@ export class TerminalSessionManager {
     window.electronAPI.ptyInput({ id: this.id, data: filtered });
   }
 
+  private cleanTerminalText(text: string): string {
+    if (!text) return text;
+
+    let cleaned = text;
+
+    cleaned = cleaned.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+    cleaned = cleaned.replace(/\x1b\][^\x07\x1b\\]*(\x07|\x1b\\)?/g, '');
+    cleaned = cleaned.replace(/\x1bP[^\x1b\\]*(\x1b\\)?/g, '');
+    cleaned = cleaned.replace(/\x1b[^\[P\]][\x20-\x7e]*/g, '');
+
+    cleaned = cleaned.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '');
+
+    cleaned = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    cleaned = cleaned
+      .split('\n')
+      .map((line) => line.replace(/[ \t]+$/, ''))
+      .join('\n');
+
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+    cleaned = cleaned.trim();
+
+    return cleaned;
+  }
+
   private copySelectionToClipboard() {
     try {
       const selected = this.terminal.getSelection();
       if (!selected) return;
+
+      const cleaned = this.cleanTerminalText(selected);
+
       const writeWithElectronFallback = () => {
         const fallbackWrite = (window as any)?.electronAPI?.clipboardWriteText;
         if (typeof fallbackWrite !== 'function') {
@@ -498,7 +527,7 @@ export class TerminalSessionManager {
           return;
         }
 
-        void fallbackWrite(selected).catch((error: unknown) => {
+        void fallbackWrite(cleaned).catch((error: unknown) => {
           log.warn('Failed to copy terminal selection via Electron fallback', {
             id: this.id,
             error,
@@ -511,7 +540,7 @@ export class TerminalSessionManager {
         navigator.clipboard &&
         typeof navigator.clipboard.writeText === 'function'
       ) {
-        void navigator.clipboard.writeText(selected).catch((error) => {
+        void navigator.clipboard.writeText(cleaned).catch((error) => {
           log.warn('Failed to copy terminal selection via navigator clipboard, falling back', {
             id: this.id,
             error,
