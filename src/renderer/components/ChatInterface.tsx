@@ -905,7 +905,7 @@ const ChatInterface: React.FC<Props> = ({
                           {agentName}
                           {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
                         </span>
-                        {isBusy ? (
+                        {isBusy && conversations.length > 1 ? (
                           <Spinner
                             size="sm"
                             className={cn(
