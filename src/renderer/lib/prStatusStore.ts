@@ -1,20 +1,44 @@
 import type { PrStatus } from './prStatus';
 
+const STORAGE_KEY_PREFIX = 'emdash:pr:';
+
 type Listener = (pr: PrStatus | null, isLoading: boolean) => void;
 
 const cache = new Map<string, PrStatus | null>();
 const listeners = new Map<string, Set<Listener>>();
 const pending = new Map<string, Promise<PrStatus | null>>();
 
-async function fetchPrStatus(taskPath: string): Promise<PrStatus | null> {
+function getStoredPr(taskPath: string): PrStatus | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PREFIX + taskPath);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PrStatus;
+    if (parsed && (parsed.number != null || parsed.url)) return parsed;
+  } catch {}
+  return null;
+}
+
+function setStoredPr(taskPath: string, pr: PrStatus | null) {
+  try {
+    if (pr) {
+      localStorage.setItem(STORAGE_KEY_PREFIX + taskPath, JSON.stringify(pr));
+    } else {
+      localStorage.removeItem(STORAGE_KEY_PREFIX + taskPath);
+    }
+  } catch {}
+}
+
+async function fetchPrStatus(
+  taskPath: string
+): Promise<{ pr: PrStatus | null; success: boolean }> {
   try {
     const res = await window.electronAPI.getPrStatus({ taskPath });
-    if (res?.success && res.pr) {
-      return res.pr as PrStatus;
+    if (res?.success) {
+      return { pr: (res.pr as PrStatus) ?? null, success: true };
     }
-    return null;
-  } catch (error) {
-    return null;
+    return { pr: null, success: false };
+  } catch {
+    return { pr: null, success: false };
   }
 }
 
@@ -42,10 +66,20 @@ export async function refreshPrStatus(taskPath: string): Promise<PrStatus | null
   pending.set(taskPath, promise);
 
   try {
-    const pr = await promise;
-    cache.set(taskPath, pr);
-    notifyListeners(taskPath, pr, false);
-    return pr;
+    const { pr, success } = await promise;
+    if (success) {
+      cache.set(taskPath, pr);
+      setStoredPr(taskPath, pr);
+      notifyListeners(taskPath, pr, false);
+      return pr;
+    }
+    const inMemory = cache.get(taskPath);
+    const kept = inMemory ?? getStoredPr(taskPath);
+    if (kept != null && !cache.has(taskPath)) {
+      cache.set(taskPath, kept);
+    }
+    notifyListeners(taskPath, kept ?? null, false);
+    return kept ?? null;
   } finally {
     pending.delete(taskPath);
   }
@@ -65,7 +99,6 @@ export function subscribeToPrStatus(taskPath: string, listener: Listener): () =>
   set.add(listener);
   listeners.set(taskPath, set);
 
-  // Emit current cached value if available
   const cached = cache.get(taskPath);
   const isPending = pending.has(taskPath);
 
@@ -73,15 +106,21 @@ export function subscribeToPrStatus(taskPath: string, listener: Listener): () =>
     try {
       listener(cached, false);
     } catch {}
-  } else if (isPending) {
-    // If pending but no cache (first load), emit undefined pr with loading=true
-    try {
-      listener(null, true);
-    } catch {}
+  } else {
+    const stored = getStoredPr(taskPath);
+    if (stored) {
+      try {
+        listener(stored, false);
+      } catch {}
+      cache.set(taskPath, stored);
+    } else {
+      try {
+        listener(null, true);
+      } catch {}
+    }
   }
 
-  // Trigger fetch if not cached and not pending
-  if (!cache.has(taskPath) && !pending.has(taskPath)) {
+  if (!pending.has(taskPath)) {
     refreshPrStatus(taskPath);
   }
 
