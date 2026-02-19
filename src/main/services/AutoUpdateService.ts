@@ -207,6 +207,19 @@ class AutoUpdateService {
     });
 
     autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+      // A stale "not available" result from a concurrent check must not overwrite
+      // a known available/in-progress update state.
+      if (
+        this.updateState.status === 'available' ||
+        this.updateState.status === 'downloading' ||
+        this.updateState.status === 'downloaded' ||
+        this.updateState.status === 'installing'
+      ) {
+        this.updateState.lastCheck = new Date();
+        this.scheduleNextCheck();
+        return;
+      }
+
       this.updateState.status = 'idle';
       this.updateState.availableVersion = undefined;
       this.updateState.updateInfo = undefined;
