@@ -2,16 +2,43 @@ name: Windows Beta Build
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to build (branch, tag, or SHA)'
+        required: true
+        default: 'windows-beta'
 
 permissions:
   contents: read
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Verify Windows SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $rootsKey = 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots'
+          $kitsRoot10 = (Get-ItemProperty -Path $rootsKey -Name KitsRoot10 -ErrorAction SilentlyContinue).KitsRoot10
+          if (!$kitsRoot10 -or !(Test-Path $kitsRoot10)) {
+            throw "Windows SDK not detected (KitsRoot10)."
+          }
+
+          Write-Host "KitsRoot10: $kitsRoot10"
+          $includeDir = Join-Path $kitsRoot10 'Include'
+          if (!(Test-Path $includeDir)) {
+            throw "Windows SDK Include directory missing: $includeDir"
+          }
+
+          Get-ChildItem $includeDir -Directory | Select-Object -First 5 | ForEach-Object {
+            Write-Host "SDK include version: $($_.Name)"
+          }
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -41,6 +68,8 @@ jobs:
         shell: bash
         env:
           npm_config_python: ${{ env.python }}
+          npm_config_msvs_version: 2022
+          GYP_MSVS_VERSION: 2022
         run: pnpm install --frozen-lockfile
 
       - name: Build app (ts + vite)

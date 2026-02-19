@@ -260,7 +260,7 @@ jobs:
 
   release-win:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    runs-on: windows-latest
+    runs-on: windows-2022
     permissions:
       contents: write
     environment: release
@@ -314,6 +314,8 @@ jobs:
         shell: bash
         env:
           npm_config_python: ${{ env.python }}
+          npm_config_msvs_version: 2022
+          GYP_MSVS_VERSION: 2022
         run: pnpm install --frozen-lockfile
 
       - name: Build app (ts + vite)
