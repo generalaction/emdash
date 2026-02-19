@@ -226,14 +226,16 @@ export const FileTree: React.FC<FileTreeProps> = ({
         const lowerPart = part.toLowerCase();
         return allExcludePatterns.some((pattern) => {
           const lowerPattern = pattern.toLowerCase();
-          
+
           // Handle glob patterns (simplistic version)
           if (lowerPattern.includes('*')) {
             // Convert glob to regex: . -> \., * -> .*
             const regexStr = '^' + lowerPattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$';
-            return new RegExp(regexStr).test(lowerPart) || new RegExp(regexStr).test(path.toLowerCase());
+            return (
+              new RegExp(regexStr).test(lowerPart) || new RegExp(regexStr).test(path.toLowerCase())
+            );
           }
-          
+
           return lowerPart === lowerPattern;
         });
       });
@@ -417,7 +419,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
       try {
         const separator = rootPath.includes('\\') ? '\\' : '/';
         const subRoot = `${rootPath}${separator}${node.path}`; // node.path is relative
-        
+
         const result = await window.electronAPI.fsList(subRoot, {
           includeDirs: true,
           recursive: false,
