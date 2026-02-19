@@ -3,14 +3,12 @@ import React, {
   useRef,
   useMemo,
   useCallback,
-  useState,
   forwardRef,
   useImperativeHandle,
 } from 'react';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { SessionTheme } from '../terminal/TerminalSessionManager';
 import { log } from '../lib/logger';
-import ExternalLinkModal from './ExternalLinkModal';
 
 type Props = {
   id: string;
@@ -72,31 +70,11 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     const errorCleanupRef = useRef<(() => void) | null>(null);
     const exitCleanupRef = useRef<(() => void) | null>(null);
 
-    // State for external link modal
-    const [linkModalOpen, setLinkModalOpen] = useState(false);
-    const [currentLinkUrl, setCurrentLinkUrl] = useState('');
-
-    // Handle link clicks from terminal
     const handleLinkClick = useCallback((url: string) => {
-      setCurrentLinkUrl(url);
-      setLinkModalOpen(true);
-    }, []);
-
-    // Handle confirming link open
-    const handleLinkConfirm = useCallback(() => {
-      if (currentLinkUrl) {
-        window.electronAPI.openExternal(currentLinkUrl).catch((error) => {
-          log.warn('Failed to open external link', { url: currentLinkUrl, error });
-        });
-      }
-      setLinkModalOpen(false);
-      setCurrentLinkUrl('');
-    }, [currentLinkUrl]);
-
-    // Handle cancelling link open
-    const handleLinkCancel = useCallback(() => {
-      setLinkModalOpen(false);
-      setCurrentLinkUrl('');
+      if (!url || !window.electronAPI?.openExternal) return;
+      window.electronAPI.openExternal(url).catch((error) => {
+        log.warn('failed to open external link', { url, error });
+      });
     }, []);
 
     const theme = useMemo<SessionTheme>(
@@ -248,7 +226,6 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     };
 
     return (
-      <>
         <div
           className={['terminal-pane flex h-full w-full min-w-0', className]
             .filter(Boolean)
@@ -278,14 +255,6 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
             onDrop={handleDrop}
           />
         </div>
-        <ExternalLinkModal
-          open={linkModalOpen}
-          onOpenChange={setLinkModalOpen}
-          url={currentLinkUrl}
-          onConfirm={handleLinkConfirm}
-          onCancel={handleLinkCancel}
-        />
-      </>
     );
   }
 );
