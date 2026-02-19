@@ -2,11 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const providerStatusGetMock = vi.fn();
 const getProviderCustomConfigMock = vi.fn();
-const execFileSyncMock = vi.fn();
-
-vi.mock('child_process', () => ({
-  execFileSync: execFileSyncMock,
-}));
 
 vi.mock('../../main/services/providerStatusCache', () => ({
   providerStatusCache: {
@@ -101,6 +96,28 @@ describe('ptyManager provider command resolution', () => {
     });
 
     expect(proc).toBeNull();
-    expect(execFileSyncMock).not.toHaveBeenCalled();
+  });
+
+  it('supports Windows absolute custom CLI paths for direct spawn', async () => {
+    const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true,
+    });
+
+    try {
+      const { parseCustomCliForDirectSpawn } = await import('../../main/services/ptyManager');
+
+      expect(parseCustomCliForDirectSpawn('C:\\Tools\\codex.cmd')).toEqual([
+        'C:\\Tools\\codex.cmd',
+      ]);
+      expect(parseCustomCliForDirectSpawn('"C:\\Program Files\\Codex\\codex.cmd"')).toEqual([
+        'C:\\Program Files\\Codex\\codex.cmd',
+      ]);
+    } finally {
+      if (originalPlatformDescriptor) {
+        Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+      }
+    }
   });
 });

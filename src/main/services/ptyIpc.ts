@@ -30,6 +30,7 @@ import { eq } from 'drizzle-orm';
 import { execFile } from 'child_process';
 import { randomUUID } from 'crypto';
 import path from 'path';
+import { quoteShellArg } from '../utils/shellEscape';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
@@ -92,10 +93,6 @@ function bufferedSendPtyData(id: string, chunk: string): void {
     flushPtyData(id);
   }, PTY_DATA_FLUSH_MS);
   ptyDataTimers.set(id, t);
-}
-
-function quoteShellArg(arg: string): string {
-  return /[\s'"\\$`\n\r\t]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg;
 }
 
 function escapeForDoubleQuotes(value: string): string {
@@ -193,8 +190,14 @@ function buildRemoteProviderInvocation(args: {
   const resolvedConfig = resolveProviderCommandConfig(providerId);
   const provider = resolvedConfig?.provider ?? fallbackProvider;
 
-  const cliCommand = resolvedConfig?.cli || fallbackProvider?.cli || providerId.toLowerCase();
-  const cliCheckCommand = parseShellArgs(cliCommand)[0] || cliCommand;
+  const cliCommand = (
+    resolvedConfig?.cli ||
+    fallbackProvider?.cli ||
+    providerId.toLowerCase()
+  ).trim();
+  const parsedCliParts = parseShellArgs(cliCommand);
+  const cliCommandParts = parsedCliParts.length > 0 ? parsedCliParts : [cliCommand];
+  const cliCheckCommand = cliCommandParts[0];
 
   const cliArgs = buildProviderCliArgs({
     resume,
@@ -207,8 +210,8 @@ function buildRemoteProviderInvocation(args: {
     useKeystrokeInjection: provider?.useKeystrokeInjection,
   });
 
-  const cmd =
-    cliArgs.length > 0 ? `${cliCommand} ${cliArgs.map(quoteShellArg).join(' ')}` : cliCommand;
+  const cmdParts = [...cliCommandParts, ...cliArgs];
+  const cmd = cmdParts.map(quoteShellArg).join(' ');
 
   return { cli: cliCheckCommand, cmd, installCommand: provider?.installCommand };
 }
