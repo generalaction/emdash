@@ -26,6 +26,11 @@ vi.mock('../../main/services/ProjectSettingsService', () => ({
       baseRef: 'origin/main',
       gitBranch: 'main',
     }),
+    resolveProjectWorktreeBasePath: vi
+      .fn()
+      .mockImplementation(async (_projectId: string, projectPath: string) =>
+        path.join(projectPath, '..', 'worktrees')
+      ),
     updateProjectSettings: vi.fn().mockResolvedValue(undefined),
   },
 }));

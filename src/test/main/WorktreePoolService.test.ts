@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import { execSync } from 'child_process';
 import { WorktreePoolService } from '../../main/services/WorktreePoolService';
+import { projectSettingsService } from '../../main/services/ProjectSettingsService';
 
 vi.mock('electron', () => ({
   app: {
@@ -25,6 +26,11 @@ vi.mock('../../main/services/ProjectSettingsService', () => ({
       baseRef: 'origin/main',
       gitBranch: 'main',
     }),
+    resolveProjectWorktreeBasePath: vi
+      .fn()
+      .mockImplementation(async (_projectId: string, projectPath: string) =>
+        path.join(projectPath, '..', 'worktrees')
+      ),
     updateProjectSettings: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -95,5 +101,18 @@ describe('WorktreePoolService', () => {
     const settingsPath = path.join(claimed!.worktree.path, '.claude', 'settings.local.json');
     expect(fs.existsSync(settingsPath)).toBe(true);
     expect(fs.readFileSync(settingsPath, 'utf8')).toContain('workspace-write');
+  });
+
+  it('creates task worktrees under configured custom base paths', async () => {
+    const configuredBasePath = path.join(projectPath, '.worktrees');
+    vi.mocked(projectSettingsService.resolveProjectWorktreeBasePath).mockResolvedValue(
+      configuredBasePath
+    );
+
+    await pool.ensureReserve('project-1', projectPath, 'HEAD');
+    const claimed = await pool.claimReserve('project-1', projectPath, 'custom-base');
+
+    expect(claimed).not.toBeNull();
+    expect(claimed!.worktree.path.startsWith(`${configuredBasePath}${path.sep}`)).toBe(true);
   });
 });

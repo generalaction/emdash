@@ -22,6 +22,7 @@ import {
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
 import BaseBranchControls from './BaseBranchControls';
+import WorktreeBasePathControls from './WorktreeBasePathControls';
 import { pickDefaultBranch, type BranchOption } from './BranchSelect';
 import { ConfigEditorModal } from './ConfigEditorModal';
 import { useToast } from '../hooks/use-toast';
@@ -221,6 +222,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     normalizeBaseRef(project.gitInfo.baseRef)
   );
   const [isSavingBaseBranch, setIsSavingBaseBranch] = useState(false);
+  const [worktreeBasePath, setWorktreeBasePath] = useState<string | null>(
+    project.worktreeBasePath ?? null
+  );
+  const [isSavingWorktreeBasePath, setIsSavingWorktreeBasePath] = useState(false);
 
   // Multi-select state
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -386,6 +391,10 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   }, [project.id, project.gitInfo.baseRef]);
 
   useEffect(() => {
+    setWorktreeBasePath(project.worktreeBasePath ?? null);
+  }, [project.id, project.worktreeBasePath]);
+
+  useEffect(() => {
     if (!showDeleteDialog) {
       setDeleteStatus({});
       setAcknowledgeDirtyDelete(false);
@@ -515,6 +524,44 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     [baseBranch, project.id, project.gitInfo, onBaseBranchChangeCallback, toast]
   );
 
+  const handleWorktreeBasePathChange = useCallback(
+    async (nextValue: string | null) => {
+      const current = (worktreeBasePath || '').trim();
+      const normalizedNext = (nextValue || '').trim();
+      if (current === normalizedNext) return;
+
+      const previous = worktreeBasePath ?? null;
+      setIsSavingWorktreeBasePath(true);
+      try {
+        const res = await window.electronAPI.updateProjectSettings({
+          projectId: project.id,
+          worktreeBasePath: normalizedNext || null,
+        });
+        if (!res?.success) {
+          throw new Error(res?.error || 'Failed to update worktree location');
+        }
+
+        const saved = res.settings?.worktreeBasePath ?? null;
+        setWorktreeBasePath(saved);
+        project.worktreeBasePath = saved;
+        toast({
+          title: 'Worktree location updated',
+          description: saved ? saved : 'Using default ../worktrees location',
+        });
+      } catch (error) {
+        setWorktreeBasePath(previous);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to update worktree location',
+          description: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setIsSavingWorktreeBasePath(false);
+      }
+    },
+    [project.id, project, toast, worktreeBasePath]
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
@@ -561,6 +608,14 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   onBaseBranchChange={handleBaseBranchChange}
                   onOpenConfig={() => setShowConfigEditor(true)}
                 />
+                {!project.isRemote ? (
+                  <WorktreeBasePathControls
+                    projectPath={project.path}
+                    value={worktreeBasePath}
+                    isSaving={isSavingWorktreeBasePath}
+                    onSave={handleWorktreeBasePathChange}
+                  />
+                ) : null}
               </header>
               <Separator className="my-2" />
             </div>

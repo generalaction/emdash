@@ -7,6 +7,7 @@ type ProjectSettingsPayload = {
   gitRemote?: string;
   gitBranch?: string;
   baseRef?: string;
+  worktreeBasePath?: string | null;
 };
 
 // Global type declarations for Electron API
@@ -16,6 +17,12 @@ declare global {
       getVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
       clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
+      selectDirectory: (args?: { title?: string; defaultPath?: string }) => Promise<{
+        success: boolean;
+        path?: string;
+        canceled?: boolean;
+        error?: string;
+      }>;
       // PTY management
       ptyStart: (opts: {
         id: string;
@@ -174,7 +181,11 @@ declare global {
         settings?: ProjectSettingsPayload;
         error?: string;
       }>;
-      updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+      updateProjectSettings: (args: {
+        projectId: string;
+        baseRef?: string;
+        worktreeBasePath?: string | null;
+      }) => Promise<{
         success: boolean;
         settings?: ProjectSettingsPayload;
         error?: string;

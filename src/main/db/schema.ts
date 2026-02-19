@@ -34,6 +34,7 @@ export const projects = sqliteTable(
     gitRemote: text('git_remote'),
     gitBranch: text('git_branch'),
     baseRef: text('base_ref'),
+    worktreeBasePath: text('worktree_base_path'),
     githubRepository: text('github_repository'),
     githubConnected: integer('github_connected').notNull().default(0),
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {

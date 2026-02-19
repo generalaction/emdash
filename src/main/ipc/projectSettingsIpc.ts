@@ -4,7 +4,11 @@ import { projectSettingsService } from '../services/ProjectSettingsService';
 import { worktreeService } from '../services/WorktreeService';
 
 type ProjectSettingsArgs = { projectId: string };
-type UpdateProjectSettingsArgs = { projectId: string; baseRef: string };
+type UpdateProjectSettingsArgs = {
+  projectId: string;
+  baseRef?: string;
+  worktreeBasePath?: string | null;
+};
 
 const resolveProjectId = (input: ProjectSettingsArgs | string | undefined): string => {
   if (!input) return '';
@@ -35,20 +39,34 @@ export function registerProjectSettingsIpc() {
     async (_event, args: UpdateProjectSettingsArgs | undefined) => {
       try {
         const projectId = args?.projectId;
-        const baseRef = args?.baseRef;
         if (!projectId) {
           throw new Error('projectId is required');
         }
-        if (typeof baseRef !== 'string') {
-          throw new Error('baseRef is required');
+        const updates: { baseRef?: string; worktreeBasePath?: string | null } = {};
+
+        if (args?.baseRef !== undefined) {
+          if (typeof args.baseRef !== 'string') {
+            throw new Error('baseRef must be a string');
+          }
+          const trimmed = args.baseRef.trim();
+          if (!trimmed) {
+            throw new Error('baseRef cannot be empty');
+          }
+          updates.baseRef = trimmed;
         }
-        const trimmed = baseRef.trim();
-        if (!trimmed) {
-          throw new Error('baseRef cannot be empty');
+
+        if (args?.worktreeBasePath !== undefined) {
+          if (args.worktreeBasePath !== null && typeof args.worktreeBasePath !== 'string') {
+            throw new Error('worktreeBasePath must be a string or null');
+          }
+          updates.worktreeBasePath = args.worktreeBasePath;
         }
-        const settings = await projectSettingsService.updateProjectSettings(projectId, {
-          baseRef: trimmed,
-        });
+
+        if (Object.keys(updates).length === 0) {
+          throw new Error('At least one project setting must be provided');
+        }
+
+        const settings = await projectSettingsService.updateProjectSettings(projectId, updates);
         return { success: true, settings };
       } catch (error) {
         log.error('Failed to update project settings', error);

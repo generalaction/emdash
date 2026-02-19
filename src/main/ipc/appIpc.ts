@@ -1,4 +1,4 @@
-import { app, clipboard, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 import { exec } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -190,6 +190,32 @@ export function registerAppIpc() {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
+
+  ipcMain.handle(
+    'app:select-directory',
+    async (
+      event,
+      args?: {
+        title?: string;
+        defaultPath?: string;
+      }
+    ) => {
+      try {
+        const parentWindow = BrowserWindow.fromWebContents(event.sender);
+        const result = await dialog.showOpenDialog(parentWindow ?? undefined, {
+          title: args?.title || 'Select directory',
+          defaultPath: args?.defaultPath,
+          properties: ['openDirectory', 'createDirectory', 'promptToCreate'],
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, canceled: true };
+        }
+        return { success: true, path: result.filePaths[0] };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
 
   ipcMain.handle('app:clipboard-write-text', async (_event, text: string) => {
     try {

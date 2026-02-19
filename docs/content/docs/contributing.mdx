@@ -44,7 +44,7 @@ pnpm run build
 - `src/main/` – Electron main process, IPC handlers, services (Git, worktrees, PTY manager, DB, etc.)
 - `src/renderer/` – React UI (Vite), hooks, components
 - Local database – SQLite file created under the OS userData folder (see "Local DB" below)
-- Worktrees – Git worktrees are created outside your repo root in a sibling `worktrees/` folder
+- Worktrees – By default, Git worktrees are created outside your repo root in a sibling `worktrees/` folder (per-project overrides are supported)
 - Logs – Agent terminal output and app logs are written to the OS userData folder (not inside repos)
 
 ## Development Workflow
@@ -106,7 +106,7 @@ feat(docs): add changelog tab with GitHub releases integration
 
 ### Git and worktrees
 
-- The app creates worktrees in a sibling `../worktrees/` folder.
+- The app uses `../worktrees/` by default, but each project can override the worktree base path.
 - Do not delete worktree folders from Finder/Explorer; if you need cleanup, use:
   - `git worktree prune` (from the main repo)
   - or the in‑app workspace removal

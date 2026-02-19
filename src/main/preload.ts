@@ -271,8 +271,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openProject: () => ipcRenderer.invoke('project:open'),
   getProjectSettings: (projectId: string) =>
     ipcRenderer.invoke('projectSettings:get', { projectId }),
-  updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
-    ipcRenderer.invoke('projectSettings:update', args),
+  updateProjectSettings: (args: {
+    projectId: string;
+    baseRef?: string;
+    worktreeBasePath?: string | null;
+  }) => ipcRenderer.invoke('projectSettings:update', args),
   fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
@@ -326,6 +329,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listRemoteBranches: (args: { projectPath: string; remote?: string }) =>
     ipcRenderer.invoke('git:list-remote-branches', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
+  selectDirectory: (args?: { title?: string; defaultPath?: string }) =>
+    ipcRenderer.invoke('app:select-directory', args),
   clipboardWriteText: (text: string) => ipcRenderer.invoke('app:clipboard-write-text', text),
   // Telemetry (minimal, anonymous)
   captureTelemetry: (event: string, properties?: Record<string, any>) =>
@@ -655,6 +660,12 @@ export interface ElectronAPI {
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
   clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
+  selectDirectory: (args?: { title?: string; defaultPath?: string }) => Promise<{
+    success: boolean;
+    path?: string;
+    canceled?: boolean;
+    error?: string;
+  }>;
   listInstalledFonts: (args?: {
     refresh?: boolean;
   }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;

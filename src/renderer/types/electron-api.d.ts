@@ -7,6 +7,7 @@ type ProjectSettingsPayload = {
   gitRemote?: string;
   gitBranch?: string;
   baseRef?: string;
+  worktreeBasePath?: string | null;
 };
 
 export type LineComment = {
@@ -516,7 +517,11 @@ declare global {
         settings?: ProjectSettingsPayload;
         error?: string;
       }>;
-      updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+      updateProjectSettings: (args: {
+        projectId: string;
+        baseRef?: string;
+        worktreeBasePath?: string | null;
+      }) => Promise<{
         success: boolean;
         settings?: ProjectSettingsPayload;
         error?: string;
@@ -697,6 +702,12 @@ declare global {
         error?: string;
       }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+      selectDirectory: (args?: { title?: string; defaultPath?: string }) => Promise<{
+        success: boolean;
+        path?: string;
+        canceled?: boolean;
+        error?: string;
+      }>;
       clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
         app: OpenInAppId;
@@ -1458,7 +1469,11 @@ export interface ElectronAPI {
     settings?: ProjectSettingsPayload;
     error?: string;
   }>;
-  updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+  updateProjectSettings: (args: {
+    projectId: string;
+    baseRef?: string;
+    worktreeBasePath?: string | null;
+  }) => Promise<{
     success: boolean;
     settings?: ProjectSettingsPayload;
     error?: string;
