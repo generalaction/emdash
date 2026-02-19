@@ -5,12 +5,34 @@ export interface TaskEnvContext {
   projectPath: string;
   defaultBranch?: string;
   portSeed?: string;
+  dbTarget?: string | null;
+}
+
+interface DbTargetConfig {
+  url?: string;
+  name?: string;
+  profile?: string;
+}
+
+function parseDbTarget(dbTarget: string | null | undefined): DbTargetConfig | null {
+  if (!dbTarget) return null;
+  
+  try {
+    const parsed = JSON.parse(dbTarget);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as DbTargetConfig;
+    }
+  } catch {
+    return { url: dbTarget };
+  }
+  
+  return null;
 }
 
 export function getTaskEnvVars(ctx: TaskEnvContext): Record<string, string> {
   const taskName = slugify(ctx.taskName) || 'task';
   const portSeed = ctx.portSeed || ctx.taskPath || ctx.taskId;
-  return {
+  const env: Record<string, string> = {
     EMDASH_TASK_ID: ctx.taskId,
     EMDASH_TASK_NAME: taskName,
     EMDASH_TASK_PATH: ctx.taskPath,
@@ -18,6 +40,24 @@ export function getTaskEnvVars(ctx: TaskEnvContext): Record<string, string> {
     EMDASH_DEFAULT_BRANCH: ctx.defaultBranch || 'main',
     EMDASH_PORT: String(getBasePort(portSeed)),
   };
+
+  const dbConfig = parseDbTarget(ctx.dbTarget);
+  if (dbConfig) {
+    if (dbConfig.url) {
+      env.DATABASE_URL = dbConfig.url;
+      env.DB_URL = dbConfig.url;
+    }
+    if (dbConfig.name) {
+      env.DB_NAME = dbConfig.name;
+      env.DATABASE_NAME = dbConfig.name;
+    }
+    if (dbConfig.profile) {
+      env.DB_PROFILE = dbConfig.profile;
+      env.DATABASE_PROFILE = dbConfig.profile;
+    }
+  }
+
+  return env;
 }
 
 function slugify(value: string): string {

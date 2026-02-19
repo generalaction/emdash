@@ -308,7 +308,8 @@ const AppContent: React.FC = () => {
       linkedJiraIssue: JiraIssueSummary | null = null,
       autoApprove?: boolean,
       useWorktree: boolean = true,
-      baseRef?: string
+      baseRef?: string,
+      dbTarget?: string | null
     ) => {
       if (!projectMgmt.selectedProject) return;
       await createTask(
@@ -322,6 +323,7 @@ const AppContent: React.FC = () => {
           autoApprove,
           useWorktree,
           baseRef,
+          dbTarget: dbTarget ?? null,
         },
         {
           selectedProject: projectMgmt.selectedProject,

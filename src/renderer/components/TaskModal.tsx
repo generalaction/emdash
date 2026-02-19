@@ -37,7 +37,8 @@ interface TaskModalProps {
     linkedJiraIssue?: JiraIssueSummary | null,
     autoApprove?: boolean,
     useWorktree?: boolean,
-    baseRef?: string
+    baseRef?: string,
+    dbTarget?: string | null
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -74,6 +75,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
+  const [dbTarget, setDbTarget] = useState('');
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
@@ -156,6 +158,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     setSelectedJiraIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
+    setDbTarget('');
     userHasTypedRef.current = false;
     autoNameInitializedRef.current = false;
     customNameTrackedRef.current = false;
@@ -242,7 +245,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
         selectedJiraIssue,
         hasAutoApproveSupport ? autoApprove : false,
         useWorktree,
-        selectedBranch
+        selectedBranch,
+        dbTarget.trim() ? dbTarget.trim() : null
       );
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -317,6 +321,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
             projectPath={projectPath}
             useWorktree={useWorktree}
             onUseWorktreeChange={setUseWorktree}
+            dbTarget={dbTarget}
+            onDbTargetChange={setDbTarget}
             autoApprove={autoApprove}
             onAutoApproveChange={setAutoApprove}
             hasAutoApproveSupport={hasAutoApproveSupport}

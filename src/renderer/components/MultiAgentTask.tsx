@@ -65,11 +65,12 @@ const MultiAgentTask: React.FC<Props> = ({
           projectPath,
           defaultBranch: defaultBranch || undefined,
           portSeed: key,
+          dbTarget: task.dbTarget,
         })
       );
     }
     return envMap;
-  }, [variants, task.id, task.name, projectPath, defaultBranch]);
+  }, [variants, task.id, task.name, projectPath, defaultBranch, task.dbTarget]);
 
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
