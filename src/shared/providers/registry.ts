@@ -96,7 +96,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['cursor-agent', 'cursor'],
     versionArgs: ['--version'],
     cli: 'cursor-agent',
-    autoApproveFlag: '-p',
+    autoApproveFlag: '-f',
     initialPromptFlag: '',
     icon: 'cursor.svg',
     terminalOnly: true,
