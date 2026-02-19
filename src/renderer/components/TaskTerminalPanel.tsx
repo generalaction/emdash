@@ -452,7 +452,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }
 
   return (
-    <div className={cn('flex h-full flex-col bg-card', className)}>
+    <div className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
         <Select value={selectedValue} onValueChange={handleSelectChange}>
           <SelectTrigger className="h-7 min-w-0 flex-1 justify-between border-none bg-transparent px-2 text-left text-xs shadow-none">

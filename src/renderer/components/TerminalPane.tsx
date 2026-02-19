@@ -250,7 +250,9 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     return (
       <>
         <div
-          className={['terminal-pane flex h-full w-full', className].filter(Boolean).join(' ')}
+          className={['terminal-pane flex h-full w-full min-w-0', className]
+            .filter(Boolean)
+            .join(' ')}
           style={{
             width: '100%',
             height: '100%',
