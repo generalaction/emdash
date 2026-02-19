@@ -18,6 +18,8 @@ vi.mock('../../main/services/DatabaseService', () => ({
 
 import {
   INSIDE_PROJECT_WORKTREE_BASE_PATH,
+  TEMP_WORKTREE_BASE_PATH,
+  TEMP_WORKTREE_BASE_PATH_ALIAS,
   getDefaultWorktreeBasePath,
   resolveWorktreeBasePath,
 } from '../../main/services/ProjectSettingsService';
@@ -56,5 +58,19 @@ describe('ProjectSettingsService worktree base path helpers', () => {
     const projectPath = path.resolve('/tmp', 'my-project');
     const absoluteTarget = path.resolve('/tmp', 'shared-worktrees');
     expect(resolveWorktreeBasePath(projectPath, absoluteTarget)).toBe(absoluteTarget);
+  });
+
+  it('resolves temporary alias to platform temp worktree path', () => {
+    const projectPath = path.resolve('/tmp', 'my-project');
+    expect(resolveWorktreeBasePath(projectPath, TEMP_WORKTREE_BASE_PATH_ALIAS)).toBe(
+      path.resolve(TEMP_WORKTREE_BASE_PATH)
+    );
+  });
+
+  it('resolves legacy temporary value to platform temp worktree path', () => {
+    const projectPath = path.resolve('/tmp', 'my-project');
+    expect(resolveWorktreeBasePath(projectPath, '/tmp/emdash')).toBe(
+      path.resolve(TEMP_WORKTREE_BASE_PATH)
+    );
   });
 });

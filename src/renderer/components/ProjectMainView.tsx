@@ -33,11 +33,29 @@ import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
 import { useTaskBusy } from '../hooks/useTaskBusy';
 import type { Project, Task } from '../types/app';
+import {
+  INSIDE_PROJECT_WORKTREE_BASE_PATH,
+  TEMP_WORKTREE_BASE_PATH_ALIAS,
+} from '@shared/worktreePaths';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
   const trimmed = ref.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const describeWorktreeBasePath = (value?: string | null): string => {
+  const trimmed = value?.trim() ?? '';
+  if (!trimmed) {
+    return 'Using default ../worktrees location';
+  }
+  if (trimmed === INSIDE_PROJECT_WORKTREE_BASE_PATH) {
+    return 'Using .worktrees inside project';
+  }
+  if (trimmed === TEMP_WORKTREE_BASE_PATH_ALIAS) {
+    return 'Using temporary system directory';
+  }
+  return trimmed;
 };
 
 function TaskRow({
@@ -546,7 +564,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         project.worktreeBasePath = saved;
         toast({
           title: 'Worktree location updated',
-          description: saved ? saved : 'Using default ../worktrees location',
+          description: describeWorktreeBasePath(saved),
         });
       } catch (error) {
         setWorktreeBasePath(previous);

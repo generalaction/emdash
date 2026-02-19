@@ -1,20 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
+import {
+  INSIDE_PROJECT_WORKTREE_BASE_PATH,
+  TEMP_WORKTREE_BASE_PATH_ALIAS,
+} from '@shared/worktreePaths';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-const INSIDE_PROJECT_VALUE = '.worktrees';
-const TEMPORARY_VALUE = '/tmp/emdash';
+const TEMPORARY_VALUE = TEMP_WORKTREE_BASE_PATH_ALIAS;
+const LEGACY_TEMPORARY_VALUE = '/tmp/emdash';
 
 type WorktreeBasePathMode = 'default' | 'inside' | 'temporary' | 'custom';
 
 function getModeFromValue(value?: string | null): WorktreeBasePathMode {
   const trimmed = value?.trim() || '';
   if (!trimmed) return 'default';
-  if (trimmed === INSIDE_PROJECT_VALUE) return 'inside';
-  if (trimmed === TEMPORARY_VALUE) return 'temporary';
+  if (trimmed === INSIDE_PROJECT_WORKTREE_BASE_PATH) return 'inside';
+  if (trimmed === TEMPORARY_VALUE || trimmed === LEGACY_TEMPORARY_VALUE) return 'temporary';
   return 'custom';
 }
 
@@ -63,7 +67,7 @@ const WorktreeBasePathControls: React.FC<WorktreeBasePathControlsProps> = ({
         return;
       }
       if (typedMode === 'inside') {
-        void onSave(INSIDE_PROJECT_VALUE);
+        void onSave(INSIDE_PROJECT_WORKTREE_BASE_PATH);
         return;
       }
       if (typedMode === 'temporary') {
@@ -87,7 +91,8 @@ const WorktreeBasePathControls: React.FC<WorktreeBasePathControlsProps> = ({
   const helperText = useMemo(() => {
     if (mode === 'default') return 'Default: ../worktrees (relative to your project)';
     if (mode === 'inside') return 'Inside project: .worktrees';
-    if (mode === 'temporary') return 'Temporary: /tmp/emdash';
+    if (mode === 'temporary')
+      return 'Temporary: system temp directory (/tmp/emdash on macOS/Linux)';
     return 'Custom directory path for new worktrees';
   }, [mode]);
 
@@ -105,7 +110,7 @@ const WorktreeBasePathControls: React.FC<WorktreeBasePathControlsProps> = ({
         <SelectContent>
           <SelectItem value="default">Default (../worktrees)</SelectItem>
           <SelectItem value="inside">Inside project (.worktrees)</SelectItem>
-          <SelectItem value="temporary">Temporary (/tmp/emdash)</SelectItem>
+          <SelectItem value="temporary">Temporary (system temp)</SelectItem>
           <SelectItem value="custom">Custom path</SelectItem>
         </SelectContent>
       </Select>

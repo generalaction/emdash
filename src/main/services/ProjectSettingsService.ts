@@ -1,11 +1,28 @@
 import os from 'os';
 import path from 'path';
+import {
+  INSIDE_PROJECT_WORKTREE_BASE_PATH,
+  TEMP_WORKTREE_BASE_PATH_ALIAS,
+} from '@shared/worktreePaths';
 import type { Project } from './DatabaseService';
 import { databaseService } from './DatabaseService';
 
-export const INSIDE_PROJECT_WORKTREE_BASE_PATH = '.worktrees';
+export { INSIDE_PROJECT_WORKTREE_BASE_PATH, TEMP_WORKTREE_BASE_PATH_ALIAS };
 export const TEMP_WORKTREE_BASE_PATH =
   process.platform === 'win32' ? path.join(os.tmpdir(), 'emdash') : '/tmp/emdash';
+
+const LEGACY_TEMP_WORKTREE_VALUE = '/tmp/emdash';
+
+function isTemporaryWorktreeAlias(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed === TEMP_WORKTREE_BASE_PATH_ALIAS) return true;
+  // Backward compatibility with earlier renderer hardcoded value
+  if (trimmed === LEGACY_TEMP_WORKTREE_VALUE) return true;
+  return (
+    path.isAbsolute(trimmed) && path.resolve(trimmed) === path.resolve(TEMP_WORKTREE_BASE_PATH)
+  );
+}
 
 export function getDefaultWorktreeBasePath(projectPath: string): string {
   return path.resolve(projectPath, '..', 'worktrees');
@@ -22,6 +39,9 @@ export function resolveWorktreeBasePath(
   if (trimmed === INSIDE_PROJECT_WORKTREE_BASE_PATH) {
     return path.resolve(projectPath, INSIDE_PROJECT_WORKTREE_BASE_PATH);
   }
+  if (isTemporaryWorktreeAlias(trimmed)) {
+    return path.resolve(TEMP_WORKTREE_BASE_PATH);
+  }
   return path.isAbsolute(trimmed) ? path.resolve(trimmed) : path.resolve(projectPath, trimmed);
 }
 
@@ -35,10 +55,16 @@ function normalizeWorktreeBasePathInput(
   if (trimmed === INSIDE_PROJECT_WORKTREE_BASE_PATH) {
     return INSIDE_PROJECT_WORKTREE_BASE_PATH;
   }
+  if (isTemporaryWorktreeAlias(trimmed)) {
+    return TEMP_WORKTREE_BASE_PATH_ALIAS;
+  }
 
   const resolved = path.isAbsolute(trimmed)
     ? path.resolve(trimmed)
     : path.resolve(projectPath, trimmed);
+  if (resolved === path.resolve(TEMP_WORKTREE_BASE_PATH)) {
+    return TEMP_WORKTREE_BASE_PATH_ALIAS;
+  }
   const insideProject = path.resolve(projectPath, INSIDE_PROJECT_WORKTREE_BASE_PATH);
   if (resolved === insideProject) {
     return INSIDE_PROJECT_WORKTREE_BASE_PATH;
