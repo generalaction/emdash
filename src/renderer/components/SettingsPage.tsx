@@ -11,7 +11,7 @@ import TelemetryCard from './TelemetryCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import { UpdateCard } from './UpdateCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
-import TaskSettingsCard from './TaskSettingsCard';
+import { AutoApproveByDefaultRow, AutoGenerateTaskNamesRow } from './TaskSettingsRows';
 import IntegrationsCard from './IntegrationsCard';
 import Context7SettingsCard from './Context7SettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
@@ -21,6 +21,7 @@ import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import CliAgentsList from './CliAgentsList';
+import { useTaskSettings } from '../hooks/useTaskSettings';
 
 // Helper functions from SettingsModal
 const createDefaultCliAgents = (): CliAgentStatus[] =>
@@ -85,6 +86,7 @@ interface SectionConfig {
 const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab || 'general');
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
+  const taskSettings = useTaskSettings();
 
   useEffect(() => {
     setActiveTab(initialTab || 'general');
@@ -181,10 +183,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
           component: <TelemetryCard />,
         },
         {
-          component: <TaskSettingsCard variant="auto-generate" />,
+          component: <AutoGenerateTaskNamesRow taskSettings={taskSettings} />,
         },
         {
-          component: <TaskSettingsCard variant="auto-approve" />,
+          component: <AutoApproveByDefaultRow taskSettings={taskSettings} />,
         },
         {
           component: <NotificationSettingsCard />,
