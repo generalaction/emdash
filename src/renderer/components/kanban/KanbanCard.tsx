@@ -2,7 +2,7 @@ import React from 'react';
 import type { Task } from '../../types/app';
 import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
-import { activityStore } from '../../lib/activityStore';
+import { useTaskBusy } from '../../hooks/useTaskBusy';
 import AgentTooltip from './AgentTooltip';
 import AgentLogo from '../AgentLogo';
 import { Spinner } from '../ui/spinner';
@@ -36,8 +36,7 @@ const KanbanCard: React.FC<{
   const adminAgent: UiAgent | null = (multi?.selectedAgent as UiAgent) || null;
 
   const handleClick = () => onOpen?.(ws);
-  const [busy, setBusy] = React.useState<boolean>(false);
-  React.useEffect(() => activityStore.subscribe(ws.id, setBusy), [ws.id]);
+  const busy = useTaskBusy(ws.id);
 
   return (
     <AgentTooltip

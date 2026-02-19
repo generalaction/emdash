@@ -10,11 +10,13 @@ import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './AgentLogo';
 import TaskContextBadges from './TaskContextBadges';
 import { Badge } from './ui/badge';
+import { Spinner } from './ui/spinner';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
 import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
+import { activityStore } from '@/lib/activityStore';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { TaskScopeProvider } from './TaskScopeContext';
@@ -69,6 +71,12 @@ const ChatInterface: React.FC<Props> = ({
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
+
+  const mainConversationId = useMemo(
+    () => conversations.find((c) => c.isMain)?.id ?? null,
+    [conversations]
+  );
 
   // Update terminal ID to include conversation ID and agent - unique per conversation
   const terminalId = useMemo(() => {
@@ -191,6 +199,56 @@ const ChatInterface: React.FC<Props> = ({
 
     loadConversations();
   }, [task.id, task.agentId]); // provider is intentionally not included as a dependency
+
+  // Activity indicators per conversation tab (main PTY uses `task.id`, chat PTYs use `conversation.id`).
+  useEffect(() => {
+    let cancelled = false;
+    const unsubs: Array<() => void> = [];
+    const conversationIds = new Set(conversations.map((c) => c.id));
+
+    setBusyByConversationId((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const id of conversationIds) next[id] = prev[id] ?? false;
+      return next;
+    });
+
+    if (mainConversationId) {
+      unsubs.push(
+        activityStore.subscribe(task.id, (busy) => {
+          if (cancelled) return;
+          setBusyByConversationId((prev) => {
+            if (prev[mainConversationId] === busy) return prev;
+            return { ...prev, [mainConversationId]: busy };
+          });
+        })
+      );
+    }
+
+    for (const conv of conversations) {
+      if (conv.isMain) continue;
+      const conversationId = conv.id;
+      unsubs.push(
+        activityStore.subscribe(
+          conversationId,
+          (busy) => {
+            if (cancelled) return;
+            setBusyByConversationId((prev) => {
+              if (prev[conversationId] === busy) return prev;
+              return { ...prev, [conversationId]: busy };
+            });
+          },
+          { kinds: ['chat'] }
+        )
+      );
+    }
+
+    return () => {
+      cancelled = true;
+      try {
+        for (const off of unsubs) off?.();
+      } catch {}
+    };
+  }, [task.id, conversations, mainConversationId]);
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
@@ -377,6 +435,11 @@ const ChatInterface: React.FC<Props> = ({
           }
           setActiveConversationId(result.conversation.id);
           setAgent(newAgent as Agent);
+          try {
+            window.dispatchEvent(
+              new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+            );
+          } catch {}
         } else {
           console.error('Failed to create conversation:', result.error);
           toast({
@@ -473,6 +536,12 @@ const ChatInterface: React.FC<Props> = ({
         }
       }
     }
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+      );
+    } catch {}
 
     // Clear the state
     setChatToDelete(null);
@@ -799,6 +868,7 @@ const ChatInterface: React.FC<Props> = ({
                     const convAgent = conv.provider || agent;
                     const config = agentConfig[convAgent as Agent];
                     const agentName = config?.name || convAgent;
+                    const isBusy = busyByConversationId[conv.id] === true;
 
                     // Count how many chats use the same agent up to this point
                     const sameAgentCount = sortedConversations
@@ -835,6 +905,15 @@ const ChatInterface: React.FC<Props> = ({
                           {agentName}
                           {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
                         </span>
+                        {isBusy ? (
+                          <Spinner
+                            size="sm"
+                            className={cn(
+                              'h-3 w-3 flex-shrink-0',
+                              isActive ? 'text-foreground' : 'text-muted-foreground'
+                            )}
+                          />
+                        ) : null}
                         {conversations.length > 1 && (
                           <span
                             role="button"

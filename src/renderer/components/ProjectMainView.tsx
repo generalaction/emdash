@@ -26,11 +26,11 @@ import { pickDefaultBranch, type BranchOption } from './BranchSelect';
 import { ConfigEditorModal } from './ConfigEditorModal';
 import { useToast } from '../hooks/use-toast';
 import DeletePrNotice from './DeletePrNotice';
-import { activityStore } from '../lib/activityStore';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
+import { useTaskBusy } from '../hooks/useTaskBusy';
 import type { Project, Task } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -58,17 +58,10 @@ function TaskRow({
   isSelected?: boolean;
   onToggleSelect?: () => void;
 }) {
-  const [isRunning, setIsRunning] = useState(false);
+  const isRunning = useTaskBusy(ws.id);
   const [isDeleting, setIsDeleting] = useState(false);
   const { pr } = usePrStatus(ws.path);
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
-
-  useEffect(() => {
-    const off = activityStore.subscribe(ws.id, (busy) => setIsRunning(busy));
-    return () => {
-      off?.();
-    };
-  }, [ws.id]);
 
   const handleRowClick = () => {
     if (!isSelectMode) {
