@@ -260,7 +260,7 @@ export const PROVIDERS: ProviderDefinition[] = [
   },
   {
     id: 'rovo',
-    name: 'Rovo Dev (Atlassian)',
+    name: 'Rovo Dev',
     docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
     installCommand: 'acli rovodev auth login',
     commands: ['rovodev', 'acli'],

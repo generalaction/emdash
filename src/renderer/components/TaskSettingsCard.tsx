@@ -1,8 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { Switch } from './ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { agentMeta } from '../providers/meta';
 
-const TaskSettingsCard: React.FC = () => {
+type TaskSettingsVariant = 'both' | 'auto-generate' | 'auto-approve';
+
+interface TaskSettingsCardProps {
+  variant?: TaskSettingsVariant;
+}
+
+const TaskSettingsCard: React.FC<TaskSettingsCardProps> = ({ variant = 'both' }) => {
   const [autoGenerateName, setAutoGenerateName] = useState(true);
   const [autoApproveByDefault, setAutoApproveByDefault] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -79,45 +87,67 @@ const TaskSettingsCard: React.FC = () => {
     }
   };
 
+  const showAutoGenerate = variant === 'both' || variant === 'auto-generate';
+  const showAutoApprove = variant === 'both' || variant === 'auto-approve';
+  const supportedAutoApproveAgents = Object.values(agentMeta)
+    .filter((meta) => Boolean(meta.autoApproveFlag))
+    .map((meta) => meta.label)
+    .sort((a, b) => a.localeCompare(b));
+  const supportedAutoApproveText = supportedAutoApproveAgents.join(', ');
+
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
-      <div className="space-y-3">
-        <label className="flex items-center justify-between gap-2">
-          <span className="text-sm">Auto-generate task names</span>
+    <div className="flex flex-col gap-4">
+      {showAutoGenerate ? (
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-1 flex-col gap-0.5">
+            <p className="text-sm font-medium text-foreground">Auto-generate task names</p>
+            <p className="text-sm text-muted-foreground">
+              Automatically suggests a task name when creating a new task.
+            </p>
+          </div>
           <Switch
             checked={autoGenerateName}
             disabled={loading || saving}
             onCheckedChange={updateAutoGenerateName}
           />
-        </label>
-        <label className="flex items-center justify-between gap-2">
-          <div className="space-y-1">
-            <div className="text-sm">Enable Auto-approve by default in new tasks</div>
-            <div className="text-xs text-muted-foreground">
-              Skips permission prompts for file operations.{' '}
-              <a
-                href="https://simonwillison.net/2025/Oct/22/living-dangerously-with-claude/"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="inline-flex items-center gap-0.5 text-foreground underline"
-              >
-                Learn more
-                <ExternalLink className="h-3 w-3" />
-              </a>
-              <br />
-              <span className="text-[11px] text-muted-foreground/70">
-                Supported by: Claude Code, Cursor, Gemini, Qwen, Codex, Rovo, Mistral
-              </span>
+        </div>
+      ) : null}
+
+      {showAutoApprove ? (
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-1 flex-col gap-0.5">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium text-foreground">Auto-approve by default</p>
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
+                      aria-label="Show supported agents for auto-approve"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Supported by: {supportedAutoApproveText}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
+            <p className="text-sm text-muted-foreground">
+              Skips permission prompts for file operations in new tasks.
+            </p>
           </div>
           <Switch
             checked={autoApproveByDefault}
             disabled={loading || saving}
             onCheckedChange={updateAutoApproveByDefault}
           />
-        </label>
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      </div>
+        </div>
+      ) : null}
+
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 };
