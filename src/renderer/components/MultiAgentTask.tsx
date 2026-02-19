@@ -396,6 +396,24 @@ const MultiAgentTask: React.FC<Props> = ({
     }
   }, [task.id, activeTabIndex, variants.length, scrollToBottom]);
 
+  useEffect(() => {
+    let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const handleWindowFocus = () => {
+      timer = setTimeout(() => {
+        timer = null;
+        if (!mounted) return;
+        activeTerminalRef.current?.focus();
+      }, 0);
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      mounted = false;
+      if (timer !== null) clearTimeout(timer);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, []);
+
   // Switch active agent tab via global shortcuts (Cmd+Shift+J/K)
   useEffect(() => {
     const handleAgentSwitch = (event: Event) => {
