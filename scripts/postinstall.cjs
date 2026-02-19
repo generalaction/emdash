@@ -45,4 +45,3 @@ if (nativeModules.length === 0) {
 }
 
 runElectronRebuild(nativeModules);
-

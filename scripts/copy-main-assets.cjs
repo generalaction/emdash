@@ -27,4 +27,3 @@ for (const asset of assets) {
   }
   copyFile(asset.src, asset.dest);
 }
-

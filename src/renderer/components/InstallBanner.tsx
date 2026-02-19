@@ -79,7 +79,8 @@ export const InstallBanner: React.FC<Props> = ({
   const showDetails = mode === 'start_failed' && Boolean(details?.trim());
   const isPtyDisabledOrUnavailable =
     mode === 'start_failed' &&
-    (details?.includes('EMDASH_DISABLE_PTY=1') || details?.toLowerCase().includes('pty unavailable'));
+    (details?.includes('EMDASH_DISABLE_PTY=1') ||
+      details?.toLowerCase().includes('pty unavailable'));
 
   return (
     <div className="rounded-md border border-border bg-muted p-3 text-sm text-foreground dark:border-border dark:bg-background dark:text-foreground">
