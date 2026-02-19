@@ -125,7 +125,9 @@ const Titlebar: React.FC<TitlebarProps> = ({
   onSelectTask,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isHeaderHovered, setIsHeaderHovered] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
 
   const handleOpenFeedback = useCallback(async () => {
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -179,10 +181,37 @@ const Titlebar: React.FC<TitlebarProps> = ({
     };
   }, [handleOpenFeedback]);
 
+  // Track mouse position to show/hide center content on header hover.
+  // CSS :hover doesn't work on -webkit-app-region:drag elements in Electron.
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const headerEl = headerRef.current;
+      if (!headerEl) return;
+      const rect = headerEl.getBoundingClientRect();
+      setIsHeaderHovered(e.clientY <= rect.bottom);
+    };
+
+    const handleMouseLeave = () => {
+      setIsHeaderHovered(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, []);
+
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background">
-        <div className="pointer-events-none absolute inset-x-0 flex justify-center">
+      <header
+        ref={headerRef}
+        className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background"
+      >
+        <div
+          className={`pointer-events-none absolute inset-x-0 flex justify-center transition-opacity duration-200 has-[[data-state=open]]:opacity-100 ${isHeaderHovered ? 'opacity-100' : 'opacity-0'}`}
+        >
           <div className="w-[min(60vw,720px)]">
             <TitlebarContext
               projects={projects}
