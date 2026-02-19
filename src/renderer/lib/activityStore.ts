@@ -1,6 +1,6 @@
 import { classifyActivity } from './activityClassifier';
 import { CLEAR_BUSY_MS, BUSY_HOLD_MS } from './activityConstants';
-import { parsePtyId, makePtyId } from '@shared/ptyId';
+import { type PtyIdKind, parsePtyId, makePtyId } from '@shared/ptyId';
 import { PROVIDER_IDS } from '@shared/providers/registry';
 
 type Listener = (busy: boolean) => void;
@@ -108,7 +108,7 @@ class ActivityStore {
     this.setBusy(wsId, busy, false);
   }
 
-  subscribe(wsId: string, fn: Listener) {
+  subscribe(wsId: string, fn: Listener, opts?: { kinds?: PtyIdKind[] }) {
     this.ensureSubscribed();
     this.subscribedIds.add(wsId);
     const set = this.listeners.get(wsId) || new Set<Listener>();
@@ -116,21 +116,34 @@ class ActivityStore {
     this.listeners.set(wsId, set);
     // emit current
     fn(this.states.get(wsId) || false);
-    // Fallback: also listen directly to this task's main PTY data in case global broadcast is missing
+    // Fallback: also listen directly to PTY data in case global broadcast is missing.
+    // `kinds` can be narrowed by callers for performance:
+    // - task-level busy: { kinds: ['main'] } (default)
+    // - conversation-level busy: { kinds: ['chat'] }
     const offDirect: Array<() => void> = [];
+    const offExitDirect: Array<() => void> = [];
+    const kinds = opts?.kinds?.length ? opts.kinds : (['main'] as const);
     try {
       const api: any = (window as any).electronAPI;
       for (const prov of PROVIDER_IDS) {
-        const ptyId = makePtyId(prov, 'main', wsId);
-        const off = api?.onPtyData?.(ptyId, (chunk: string) => {
-          try {
-            const signal = classifyActivity(prov, chunk || '');
-            if (signal === 'busy') this.setBusy(wsId, true, true);
-            else if (signal === 'idle') this.setBusy(wsId, false, true);
-            else if (this.states.get(wsId)) this.armTimer(wsId);
-          } catch {}
-        });
-        if (off) offDirect.push(off);
+        for (const kind of kinds) {
+          const ptyId = makePtyId(prov, kind, wsId);
+          const off = api?.onPtyData?.(ptyId, (chunk: string) => {
+            try {
+              const signal = classifyActivity(prov, chunk || '');
+              if (signal === 'busy') this.setBusy(wsId, true, true);
+              else if (signal === 'idle') this.setBusy(wsId, false, true);
+              else if (this.states.get(wsId)) this.armTimer(wsId);
+            } catch {}
+          });
+          if (off) offDirect.push(off);
+          const offExit = api?.onPtyExit?.(ptyId, () => {
+            try {
+              this.setBusy(wsId, false, true);
+            } catch {}
+          });
+          if (offExit) offExitDirect.push(offExit);
+        }
       }
     } catch {}
 
@@ -142,6 +155,7 @@ class ActivityStore {
       }
       try {
         for (const off of offDirect) off?.();
+        for (const off of offExitDirect) off?.();
       } catch {}
       // keep subscribedIds to avoid thrash; optional cleanup could remove when no listeners
     };
