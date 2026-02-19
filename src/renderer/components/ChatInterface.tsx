@@ -4,6 +4,7 @@ import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
+import { cn } from '@/lib/utils';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './AgentLogo';
@@ -811,11 +812,14 @@ const ChatInterface: React.FC<Props> = ({
                       <button
                         key={conv.id}
                         onClick={() => handleSwitchChat(conv.id)}
-                        className={`inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground transition-colors ${
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          'inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background',
                           isActive
-                            ? 'font-semibold' // Just make active tab bold
-                            : 'hover:bg-muted/80' // Only inactive tabs have hover effect
-                        }`}
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                        )}
                         title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
                       >
                         {config?.logo && (
