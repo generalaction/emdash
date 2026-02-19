@@ -161,7 +161,7 @@ class AutoUpdateService {
     autoUpdater.autoDownload = false; // We'll manage downloads manually
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.autoRunAppAfterInstall = true;
-    
+
     // Ensure we always get the latest version info, bypassing caches
     autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
 
