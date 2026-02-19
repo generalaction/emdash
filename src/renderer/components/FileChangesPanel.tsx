@@ -361,13 +361,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       });
 
       if (result.success) {
-        const action = result.action;
-        if (action !== 'unstaged') {
-          toast({
-            title: 'File Reverted',
-            description: `${filePath} changes have been reverted.`,
-          });
-        }
         await refreshChanges();
       } else {
         toast({
