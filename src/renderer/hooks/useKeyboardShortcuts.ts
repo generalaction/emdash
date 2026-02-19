@@ -444,6 +444,17 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = normalizeShortcutKey(event.key);
 
+      // When the user is typing in an editable field (input, textarea,
+      // contenteditable), skip most shortcuts to avoid intercepting text
+      // input.  On Linux the 'cmd' modifier maps to Ctrl, so shortcuts
+      // like Ctrl+B (toggle sidebar) can fire when the OS or an input
+      // method reports an unexpected modifier state during normal typing.
+      // The command palette toggle is exempt so it remains reachable from
+      // any context.
+      const target = event.target as HTMLElement;
+      const isEditableTarget =
+        target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+
       for (const shortcut of shortcuts) {
         const shortcutKey = normalizeShortcutKey(shortcut.config.key);
         const keyMatches = key === shortcutKey;
@@ -452,6 +463,9 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
         // Check modifier requirements precisely (e.g., Cmd ≠ Ctrl on macOS)
         if (!matchesModifier(shortcut.config.modifier, event)) continue;
+
+        // Skip non-command-palette shortcuts when typing in an input
+        if (isEditableTarget && !shortcut.isCommandPalette) continue;
 
         // Handle priority and modal state
         const isModalOpen = handlers.isCommandPaletteOpen || handlers.isSettingsOpen;
