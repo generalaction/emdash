@@ -52,6 +52,7 @@ export interface UpdateSettings {
 class AutoUpdateService {
   private updateState: UpdateState;
   private checkTimer?: NodeJS.Timeout;
+  private checkInFlight?: Promise<UpdateInfo | null>;
   private settings: UpdateSettings;
   private initialized = false;
   private lastNotifiedVersion?: string;
@@ -175,6 +176,17 @@ class AutoUpdateService {
    */
   private setupEventListeners(): void {
     autoUpdater.on('checking-for-update', () => {
+      // Keep a stable UX if we already know an update is available or in progress.
+      if (
+        this.updateState.status === 'available' ||
+        this.updateState.status === 'downloading' ||
+        this.updateState.status === 'downloaded' ||
+        this.updateState.status === 'installing'
+      ) {
+        this.updateState.lastCheck = new Date();
+        return;
+      }
+
       this.updateState.status = 'checking';
       this.updateState.lastCheck = new Date();
       this.notifyWindows('checking');
@@ -195,6 +207,9 @@ class AutoUpdateService {
 
     autoUpdater.on('update-not-available', (info: UpdateInfo) => {
       this.updateState.status = 'idle';
+      this.updateState.availableVersion = undefined;
+      this.updateState.updateInfo = undefined;
+      this.updateState.downloadProgress = undefined;
       this.scheduleNextCheck();
       this.notifyWindows('not-available', info);
     });
@@ -327,6 +342,19 @@ class AutoUpdateService {
    * Check for updates
    */
   async checkForUpdates(silent = false): Promise<UpdateInfo | null> {
+    if (this.checkInFlight) {
+      return this.checkInFlight;
+    }
+
+    this.checkInFlight = this.performCheckForUpdates(silent);
+    try {
+      return await this.checkInFlight;
+    } finally {
+      this.checkInFlight = undefined;
+    }
+  }
+
+  private async performCheckForUpdates(silent = false): Promise<UpdateInfo | null> {
     try {
       // Skip in development - always
       const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
@@ -373,17 +401,34 @@ class AutoUpdateService {
    */
   async downloadUpdate(): Promise<void> {
     try {
+      // Idempotent behavior for duplicate clicks/events.
+      if (this.updateState.status === 'downloading' || this.updateState.status === 'downloaded') {
+        return;
+      }
+
       // If we're in error state but have update info, we can retry
       if (this.updateState.status === 'error' && this.updateState.availableVersion) {
         this.updateState.status = 'available';
       }
 
-      if (this.updateState.status !== 'available') {
+      const hasKnownAvailableVersion = Boolean(this.updateState.availableVersion);
+      const canDownload =
+        this.updateState.status === 'available' ||
+        (this.updateState.status === 'checking' && hasKnownAvailableVersion);
+
+      if (!canDownload) {
         throw new Error(`Cannot download: status is "${this.updateState.status}", not "available"`);
       }
 
       if (!this.updateState.availableVersion) {
         throw new Error('No version information available for download');
+      }
+
+      if (this.updateState.status === 'checking') {
+        log.warn(
+          'Download requested while status=checking; proceeding with cached available version',
+          { version: this.updateState.availableVersion }
+        );
       }
 
       this.downloadStartTime = Date.now();

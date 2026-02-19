@@ -128,7 +128,7 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
         const s = res?.data?.status;
         // If update is already downloaded or actively downloading, reflect that state
         // without triggering a new check (which would re-run checkForUpdatesAndNotify)
-        if (s === 'downloaded' || s === 'downloading') {
+        if (s === 'downloaded' || s === 'downloading' || s === 'checking') {
           realUpdater.applyBackendState(res.data);
           return;
         }
