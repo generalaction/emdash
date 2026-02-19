@@ -695,6 +695,8 @@ declare global {
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
+        fetchFailed?: boolean;
+        fetchError?: string;
       }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
@@ -1478,6 +1480,8 @@ export interface ElectronAPI {
     success: boolean;
     branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
     error?: string;
+    fetchFailed?: boolean;
+    fetchError?: string;
   }>;
   createPullRequest: (args: {
     taskPath: string;
