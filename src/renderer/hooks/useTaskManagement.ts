@@ -560,7 +560,6 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
       if (!saveResult?.success) {
         throw new Error(saveResult?.error || 'Failed to save task');
       }
-
     } catch (error) {
       const { log } = await import('../lib/logger');
       log.error('Failed to rename task:', error as any);
