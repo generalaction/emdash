@@ -536,8 +536,6 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
     let branchRenamed = false;
     try {
-      let remotePushed = false;
-
       // Only rename git branch if it's actually changing
       if (newBranch !== oldBranch) {
         const branchResult = await window.electronAPI.renameBranch({
@@ -550,7 +548,6 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           throw new Error(branchResult?.error || 'Failed to rename branch');
         }
         branchRenamed = true;
-        remotePushed = branchResult.remotePushed ?? false;
       }
 
       // Save task with new name and branch
@@ -563,12 +560,6 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
       if (!saveResult?.success) {
         throw new Error(saveResult?.error || 'Failed to save task');
       }
-
-      const remoteNote = remotePushed ? ' (remote updated)' : '';
-      toast({
-        title: 'Task renamed',
-        description: `"${oldName}" → "${newName}"${remoteNote}`,
-      });
     } catch (error) {
       const { log } = await import('../lib/logger');
       log.error('Failed to rename task:', error as any);
