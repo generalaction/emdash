@@ -9,6 +9,7 @@ const UPDATE_CHECK_INTERVALS = {
   periodic: 4 * 60 * 60 * 1000, // Every 4 hours
   manual: 0, // Immediate for manual checks
 } as const;
+const INSTALL_RESTART_GUARD_TIMEOUT_MS = 2 * 60 * 1000;
 
 // Update channels for staged rollouts
 export enum UpdateChannel {
@@ -53,11 +54,13 @@ class AutoUpdateService {
   private updateState: UpdateState;
   private checkTimer?: NodeJS.Timeout;
   private checkInFlight?: Promise<UpdateInfo | null>;
+  private checkInFlightNeedsVisibleError = false;
   private settings: UpdateSettings;
   private initialized = false;
   private lastNotifiedVersion?: string;
   private downloadStartTime?: number;
   private installRequested = false;
+  private installRestartGuardTimer?: NodeJS.Timeout;
 
   constructor() {
     const appVersion = this.getAppVersion();
@@ -357,14 +360,19 @@ class AutoUpdateService {
    */
   async checkForUpdates(silent = false): Promise<UpdateInfo | null> {
     if (this.checkInFlight) {
+      if (!silent) {
+        this.checkInFlightNeedsVisibleError = true;
+      }
       return this.checkInFlight;
     }
 
+    this.checkInFlightNeedsVisibleError = !silent;
     this.checkInFlight = this.performCheckForUpdates(silent);
     try {
       return await this.checkInFlight;
     } finally {
       this.checkInFlight = undefined;
+      this.checkInFlightNeedsVisibleError = false;
     }
   }
 
@@ -403,7 +411,7 @@ class AutoUpdateService {
       this.updateState.status = 'error';
       this.updateState.error = errorMessage;
 
-      if (!silent) {
+      if (!silent || this.checkInFlightNeedsVisibleError) {
         this.notifyWindows('error', { message: errorMessage });
       }
 
@@ -497,9 +505,39 @@ class AutoUpdateService {
     // Save current state for potential rollback
     this.saveRollbackInfo();
 
+    const clearInstallRestartGuard = () => {
+      if (this.installRestartGuardTimer) {
+        clearTimeout(this.installRestartGuardTimer);
+        this.installRestartGuardTimer = undefined;
+      }
+    };
+
+    const rollbackInstallState = (reason: string) => {
+      clearInstallRestartGuard();
+      this.installRequested = false;
+      this.updateState.status = 'downloaded';
+      this.notifyWindows('downloaded', this.updateState.updateInfo);
+      log.error(reason);
+    };
+
+    const onBeforeQuit = () => {
+      clearInstallRestartGuard();
+    };
+    app.once('before-quit', onBeforeQuit);
+
+    this.installRestartGuardTimer = setTimeout(() => {
+      app.removeListener('before-quit', onBeforeQuit);
+      rollbackInstallState('quitAndInstall timed out before app quit; allowing retry');
+    }, INSTALL_RESTART_GUARD_TIMEOUT_MS);
+
     // Small delay to ensure UI can respond
     setTimeout(() => {
-      autoUpdater.quitAndInstall(false, true);
+      try {
+        autoUpdater.quitAndInstall(false, true);
+      } catch (error) {
+        app.removeListener('before-quit', onBeforeQuit);
+        rollbackInstallState(`quitAndInstall threw: ${formatUpdaterError(error)}`);
+      }
     }, 250);
   }
 
