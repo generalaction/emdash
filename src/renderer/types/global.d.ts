@@ -228,6 +228,8 @@ declare global {
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
+        fetchFailed?: boolean;
+        fetchError?: string;
       }>;
       connectToGitHub: (
         projectPath: string
