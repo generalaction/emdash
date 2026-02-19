@@ -44,7 +44,7 @@ export function SidebarProvider({ defaultOpen = true, children }: SidebarProvide
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const storageKey = 'emdash.sidebarOpen';
 
-  const [open, setOpenState] = React.useState<boolean>(() => {
+  const [desktopOpen, setDesktopOpen] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') return defaultOpen;
     try {
       const stored = window.localStorage.getItem(storageKey);
@@ -54,29 +54,43 @@ export function SidebarProvider({ defaultOpen = true, children }: SidebarProvide
       return defaultOpen;
     }
   });
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (isMobile) {
-      setOpenState(false);
+      setMobileOpen(false);
     }
   }, [isMobile]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      window.localStorage.setItem(storageKey, open ? 'true' : 'false');
+      window.localStorage.setItem(storageKey, desktopOpen ? 'true' : 'false');
     } catch {
       // ignore persistence errors
     }
-  }, [open, storageKey]);
+  }, [desktopOpen, storageKey]);
 
-  const setOpen = React.useCallback((next: boolean) => {
-    setOpenState(next);
-  }, []);
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (isMobile) {
+        setMobileOpen(next);
+        return;
+      }
+      setDesktopOpen(next);
+    },
+    [isMobile]
+  );
 
   const toggle = React.useCallback(() => {
-    setOpenState((prev) => !prev);
-  }, []);
+    if (isMobile) {
+      setMobileOpen((prev) => !prev);
+      return;
+    }
+    setDesktopOpen((prev) => !prev);
+  }, [isMobile]);
+
+  const open = isMobile ? mobileOpen : desktopOpen;
 
   const value = React.useMemo(
     () => ({
