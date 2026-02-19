@@ -959,10 +959,13 @@ const ChatInterface: React.FC<Props> = ({
                   )}
                 </div>
                 {autoApproveEnabled && (
-                  <Badge variant="outline">
+                  <span
+                    className="inline-flex h-7 select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground"
+                    title="Auto-approve enabled"
+                  >
                     <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
                     Auto-approve
-                  </Badge>
+                  </span>
                 )}
               </div>
               {(() => {
