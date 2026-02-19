@@ -209,33 +209,40 @@ export class TerminalSessionManager {
 
     const isAgentSession = Boolean(options.providerId);
 
-    // Handle custom key behavior for agent sessions and Shift+Enter mapping.
-    if (options.mapShiftEnterToCtrlJ || isAgentSession) {
-      this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-        if (
-          isAgentSession &&
-          shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, this.terminal.hasSelection())
-        ) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          event.stopPropagation();
-          this.copySelectionToClipboard();
-          return false; // Prevent xterm from processing the copy shortcut
-        }
+    // Custom key event handler: always attached so the dialog guard
+    // runs for every terminal, plus optional copy/Shift+Enter handling.
+    this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      // Don't let the terminal consume keystrokes while a dialog/modal
+      // is open.  On Linux the terminal's hidden textarea can keep focus
+      // after a dialog appears, sending input to the PTY instead of
+      // dialog fields (see #940).
+      if (document.querySelector('[role="dialog"]')) {
+        return false;
+      }
 
-        if (options.mapShiftEnterToCtrlJ && shouldMapShiftEnterToCtrlJ(event)) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          event.stopPropagation();
+      if (
+        isAgentSession &&
+        shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, this.terminal.hasSelection())
+      ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+        this.copySelectionToClipboard();
+        return false; // Prevent xterm from processing the copy shortcut
+      }
 
-          // Send Ctrl+J (line feed) instead of Shift+Enter
-          // Pass true to skip injection handling - this is a newline insert, not a submit
-          this.handleTerminalInput(CTRL_J_ASCII, true);
-          return false; // Prevent xterm from processing the Shift+Enter
-        }
-        return true; // Let xterm handle all other keys normally
-      });
-    }
+      if (options.mapShiftEnterToCtrlJ && shouldMapShiftEnterToCtrlJ(event)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+
+        // Send Ctrl+J (line feed) instead of Shift+Enter
+        // Pass true to skip injection handling - this is a newline insert, not a submit
+        this.handleTerminalInput(CTRL_J_ASCII, true);
+        return false; // Prevent xterm from processing the Shift+Enter
+      }
+      return true; // Let xterm handle all other keys normally
+    });
 
     this.metrics = new TerminalMetrics({
       maxDataWindowBytes: MAX_DATA_WINDOW_BYTES,
@@ -360,7 +367,12 @@ export class TerminalSessionManager {
   }
 
   focus() {
-    // Simply focus the xterm terminal - let React handle DOM management
+    // Don't steal focus from open dialogs (e.g. New Task modal).
+    // On Linux/Wayland the terminal's hidden textarea can retain focus
+    // after a dialog opens, causing keystrokes to go to the PTY instead
+    // of dialog inputs.
+    if (document.activeElement?.closest('[role="dialog"]')) return;
+
     this.terminal.focus();
   }
 
