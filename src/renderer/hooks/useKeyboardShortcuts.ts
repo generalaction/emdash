@@ -467,11 +467,15 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         // Skip non-command-palette shortcuts when typing in an input
         if (isEditableTarget && !shortcut.isCommandPalette) continue;
 
-        // Handle priority and modal state
-        const isModalOpen = handlers.isCommandPaletteOpen || handlers.isSettingsOpen;
+        // Command palette is blocking; settings behaves like a page and should
+        // not force-close for global shortcuts.
+        const isCommandPaletteOpen = Boolean(handlers.isCommandPaletteOpen);
+        const hasClosableOverlay = Boolean(
+          handlers.isCommandPaletteOpen || handlers.isSettingsOpen
+        );
 
-        // Modal-priority shortcuts (like Escape) only work when modal is open
-        if (shortcut.priority === 'modal' && !isModalOpen) continue;
+        // Modal-priority shortcuts (like Escape) only work when an overlay is open
+        if (shortcut.priority === 'modal' && !hasClosableOverlay) continue;
 
         // Global shortcuts
         if (shortcut.priority === 'global') {
@@ -482,16 +486,17 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
             return;
           }
 
-          // Other shortcuts: if modal is open and they can close it
-          if (isModalOpen && shortcut.requiresClosed) {
+          // Other shortcuts: if command palette is open and they can close it
+          if (isCommandPaletteOpen && shortcut.requiresClosed) {
             event.preventDefault();
             handlers.onCloseModal?.();
             setTimeout(() => shortcut.handler(), 100);
             return;
           }
 
-          // Normal execution when no modal is open
-          if (!isModalOpen) {
+          // Normal execution when command palette is not open.
+          // This keeps settings open while allowing global view shortcuts.
+          if (!isCommandPaletteOpen) {
             event.preventDefault();
             shortcut.handler();
             return;

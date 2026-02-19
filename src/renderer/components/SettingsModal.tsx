@@ -342,10 +342,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialT
             transition={
               shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
             }
-            className="mx-4 w-full max-w-3xl overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl"
+            className="mx-4 my-4 w-full max-w-4xl overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl"
           >
-            <div className="flex h-[520px]">
-              <aside className="w-60 border-r border-border/60 bg-muted/20 p-4">
+            <div className="flex h-[min(560px,calc(100vh-2rem))] min-h-0">
+              <aside className="w-52 shrink-0 overflow-y-auto border-r border-border/60 bg-muted/20 p-4 lg:w-60">
                 <nav className="space-y-1">
                   {ORDERED_TABS.map((tab) => {
                     const { icon: Icon, label } = tabDetails[tab];

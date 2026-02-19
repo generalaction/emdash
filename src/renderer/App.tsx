@@ -496,6 +496,14 @@ const AppContent: React.FC = () => {
     handleToggleEditor,
   ]);
 
+  const handleToggleSettingsPage = useCallback(() => {
+    if (showSettingsPage) {
+      handleCloseSettingsPage();
+      return;
+    }
+    openSettingsPage();
+  }, [showSettingsPage, handleCloseSettingsPage, openSettingsPage]);
+
   return (
     <BrowserProvider>
       <div
@@ -509,7 +517,7 @@ const AppContent: React.FC = () => {
                 showCommandPalette={showCommandPalette}
                 showSettings={showSettingsPage}
                 handleToggleCommandPalette={handleToggleCommandPalette}
-                handleOpenSettings={() => openSettingsPage()}
+                handleOpenSettings={handleToggleSettingsPage}
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettingsPage}
                 handleToggleKanban={handleToggleKanban}
@@ -524,7 +532,7 @@ const AppContent: React.FC = () => {
               />
               {!showWelcomeScreen && (
                 <Titlebar
-                  onToggleSettings={() => openSettingsPage()}
+                  onToggleSettings={handleToggleSettingsPage}
                   isSettingsOpen={showSettingsPage}
                   currentPath={
                     activeTask?.metadata?.multiAgent?.enabled

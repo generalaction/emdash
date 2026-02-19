@@ -18,7 +18,7 @@ const ThemeCard: React.FC = () => {
         <div className="text-sm font-medium text-foreground">Color mode</div>
         <div className="text-sm text-muted-foreground">Choose how Emdash looks.</div>
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-2">
         {options.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
@@ -31,7 +31,7 @@ const ThemeCard: React.FC = () => {
               }
               setTheme(value);
             }}
-            className={`flex flex-col items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+            className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border px-2 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3 ${
               theme === value
                 ? 'border-primary bg-primary/10 text-foreground'
                 : 'border-border/60 bg-background text-muted-foreground hover:border-border hover:bg-muted/40'
@@ -40,7 +40,7 @@ const ThemeCard: React.FC = () => {
             aria-label={`Set theme to ${label}`}
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="truncate">{label}</span>
+            <span className="text-center leading-tight">{label}</span>
           </button>
         ))}
       </div>
