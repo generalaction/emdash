@@ -520,13 +520,7 @@ class AutoUpdateService {
       log.error(reason);
     };
 
-    const onBeforeQuit = () => {
-      clearInstallRestartGuard();
-    };
-    app.once('before-quit', onBeforeQuit);
-
     this.installRestartGuardTimer = setTimeout(() => {
-      app.removeListener('before-quit', onBeforeQuit);
       rollbackInstallState('quitAndInstall timed out before app quit; allowing retry');
     }, INSTALL_RESTART_GUARD_TIMEOUT_MS);
 
@@ -535,7 +529,6 @@ class AutoUpdateService {
       try {
         autoUpdater.quitAndInstall(false, true);
       } catch (error) {
-        app.removeListener('before-quit', onBeforeQuit);
         rollbackInstallState(`quitAndInstall threw: ${formatUpdaterError(error)}`);
       }
     }, 250);
