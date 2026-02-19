@@ -9,6 +9,7 @@ type ListWorkerRequest = {
   taskId: number;
   root: string;
   includeDirs: boolean;
+  recursive?: boolean;
   maxEntries: number;
   timeBudgetMs: number;
   batchSize: number;
@@ -54,6 +55,11 @@ async function listFiles(request: ListWorkerRequest): Promise<FsListWorkerRespon
           reason = 'maxEntries';
           break;
         }
+      }
+
+      // If not recursive and we are deeper than root, don't scan children
+      if (request.recursive === false && rel !== '.') {
+        continue;
       }
 
       let entries: string[] = [];

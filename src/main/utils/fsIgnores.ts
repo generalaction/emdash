@@ -1,6 +1,5 @@
 export const DEFAULT_IGNORES = new Set([
   '.git',
-  'node_modules',
   'dist',
   'build',
   'out',

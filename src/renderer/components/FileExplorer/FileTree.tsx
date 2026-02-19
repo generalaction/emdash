@@ -173,7 +173,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const defaultExcludePatterns = useMemo(
     () => [
-      'node_modules',
       '.git',
       'dist',
       'build',
@@ -227,7 +226,15 @@ export const FileTree: React.FC<FileTreeProps> = ({
         const lowerPart = part.toLowerCase();
         return allExcludePatterns.some((pattern) => {
           const lowerPattern = pattern.toLowerCase();
-          return lowerPart === lowerPattern || lowerPart.includes(lowerPattern);
+          
+          // Handle glob patterns (simplistic version)
+          if (lowerPattern.includes('*')) {
+            // Convert glob to regex: . -> \., * -> .*
+            const regexStr = '^' + lowerPattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$';
+            return new RegExp(regexStr).test(lowerPart) || new RegExp(regexStr).test(path.toLowerCase());
+          }
+          
+          return lowerPart === lowerPattern;
         });
       });
     },
@@ -339,7 +346,10 @@ export const FileTree: React.FC<FileTreeProps> = ({
           opts.remotePath = remotePath;
         }
 
-        const result = await window.electronAPI.fsList(rootPath, opts);
+        const result = await window.electronAPI.fsList(rootPath, {
+          ...opts,
+          recursive: false,
+        });
 
         if (result.canceled) {
           return;
@@ -398,28 +408,57 @@ export const FileTree: React.FC<FileTreeProps> = ({
     });
   }, [allFiles, buildNodesFromPath]); // Rebuild tree when files or filter function changes
 
-  // Load children for a node using the cached file list
+  // Load children for a node
   const loadChildren = useCallback(
     async (node: FileNode) => {
-      const children = buildNodesFromPath(node.path, allFiles);
+      // If already loaded, just toggle (handled by click handler, but nice to be safe)
+      if (node.isLoaded) return;
 
-      setTree((currentTree) => {
-        const updateNode = (nodes: FileNode[]): FileNode[] => {
-          return nodes.map((n) => {
-            if (n.path === node.path) {
-              return { ...n, children, isLoaded: true };
-            }
-            if (n.children && n.children.length > 0) {
-              return { ...n, children: updateNode(n.children) };
-            }
-            return n;
+      try {
+        const separator = rootPath.includes('\\') ? '\\' : '/';
+        const subRoot = `${rootPath}${separator}${node.path}`; // node.path is relative
+        
+        const result = await window.electronAPI.fsList(subRoot, {
+          includeDirs: true,
+          recursive: false,
+        });
+
+        if (result.success && result.items) {
+          // Process new items:
+          // 1. Prefix their paths so they are relative to project root
+          // 2. Add them to allFiles
+          const newItems = result.items.map((item: any) => ({
+            ...item,
+            path: `${node.path}/${item.path}`, // item.path from fsList is relative to subRoot
+          }));
+
+          setAllFiles((prev) => {
+            // Remove any existing children of this node to avoid duplicates (optional but good)
+            const filtered = prev.filter((p) => !p.path.startsWith(node.path + '/'));
+            return [...filtered, ...newItems];
           });
-        };
 
-        return updateNode(currentTree);
-      });
+          // Mark node as loaded to prevent re-fetching and allow expansion
+          setTree((currentTree) => {
+            const updateNode = (nodes: FileNode[]): FileNode[] => {
+              return nodes.map((n) => {
+                if (n.path === node.path) {
+                  return { ...n, isLoaded: true };
+                }
+                if (n.children && n.children.length > 0) {
+                  return { ...n, children: updateNode(n.children) };
+                }
+                return n;
+              });
+            };
+            return updateNode(currentTree);
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load children', error);
+      }
     },
-    [allFiles, buildNodesFromPath]
+    [rootPath]
   );
 
   // Toggle expand/collapse
