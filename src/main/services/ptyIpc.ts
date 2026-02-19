@@ -195,9 +195,8 @@ function buildRemoteProviderInvocation(args: {
     fallbackProvider?.cli ||
     providerId.toLowerCase()
   ).trim();
-  const normalizedCliCommand = cliCommand || fallbackProvider?.cli || providerId.toLowerCase();
-  const parsedCliParts = parseShellArgs(normalizedCliCommand);
-  const cliCommandParts = parsedCliParts.length > 0 ? parsedCliParts : [normalizedCliCommand];
+  const parsedCliParts = parseShellArgs(cliCommand);
+  const cliCommandParts = parsedCliParts.length > 0 ? parsedCliParts : [cliCommand];
   const cliCheckCommand = cliCommandParts[0];
 
   const cliArgs = buildProviderCliArgs({
