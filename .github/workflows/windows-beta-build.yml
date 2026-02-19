@@ -1,0 +1,73 @@
+name: Windows Beta Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Node 22 can trigger native module source builds that are flakier on Windows.
+          # Node 20 is within engines range and closer to Electron's Node baseline.
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup Python 3.11 for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python build deps (setuptools shim for distutils)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Install dependencies (strict lockfile)
+        shell: bash
+        env:
+          npm_config_python: ${{ env.python }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app (ts + vite)
+        shell: bash
+        run: pnpm run build
+
+      - name: Rebuild native modules (x64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
+          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
+
+      - name: Package Windows (NSIS + MSI) (no publish)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec electron-builder --win nsis msi --x64 --publish never --config.npmRebuild=false
+          ls -lah release || true
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: WINDOWS-BETA-BUILD
+          path: |
+            release/emdash-*.exe
+            release/emdash-*.msi
+            release/*.blockmap
+            release/latest*.yml
+          if-no-files-found: error
