@@ -7,18 +7,18 @@
   "scripts": {
     "d": "pnpm install && pnpm run dev",
     "dev": "concurrently \"pnpm run dev:main\" \"pnpm run dev:renderer\"",
-    "dev:main": "tsc -p tsconfig.main.json && mkdir -p dist/main && cp src/main/appConfig.json dist/main/appConfig.json && mkdir -p dist/main/main/services/skills && cp src/main/services/skills/bundled-catalog.json dist/main/main/services/skills/bundled-catalog.json && electron dist/main/main/entry.js --dev",
+    "dev:main": "tsc -p tsconfig.main.json && node scripts/copy-main-assets.cjs && electron dist/main/main/entry.js --dev",
     "dev:renderer": "vite",
     "build": "pnpm run build:main && pnpm run build:renderer",
-    "build:main": "tsc -p tsconfig.main.json && mkdir -p dist/main && cp src/main/appConfig.json dist/main/appConfig.json && mkdir -p dist/main/main/services/skills && cp src/main/services/skills/bundled-catalog.json dist/main/main/services/skills/bundled-catalog.json",
+    "build:main": "tsc -p tsconfig.main.json && node scripts/copy-main-assets.cjs",
     "build:renderer": "vite build",
     "package": "pnpm run build && electron-builder",
     "package:mac": "pnpm run build && electron-builder --mac",
     "package:linux": "pnpm run build && electron-builder --linux --publish never",
     "package:win": "pnpm run build && electron-builder --win --publish never",
-    "postinstall": "electron-rebuild --only=sqlite3,node-pty,keytar",
+    "postinstall": "node scripts/postinstall.cjs",
     "rebuild": "electron-rebuild -f -v 30.5.1 --only=sqlite3,node-pty,keytar",
-    "clean": "rm -rf node_modules dist",
+    "clean": "node scripts/clean.cjs",
     "reset": "pnpm run clean && pnpm install",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
@@ -200,6 +200,7 @@
       ]
     },
     "win": {
+      "icon": "src/assets/images/emdash/icon-light.png",
       "target": [
         {
           "target": "nsis",
@@ -208,12 +209,16 @@
           ]
         },
         {
-          "target": "portable",
+          "target": "msi",
           "arch": [
             "x64"
           ]
         }
       ]
+    },
+    "msi": {
+      "oneClick": false,
+      "perMachine": false
     },
     "nsis": {
       "differentialPackage": true,

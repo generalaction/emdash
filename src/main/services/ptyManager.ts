@@ -63,6 +63,46 @@ const ptys = new Map<string, PtyRecord>();
 const MIN_PTY_COLS = 2;
 const MIN_PTY_ROWS = 1;
 
+function getWindowsEssentialEnv(): Record<string, string> {
+  const home = os.homedir();
+  return {
+    PATH: process.env.PATH || process.env.Path || '',
+    PATHEXT: process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC',
+    SystemRoot: process.env.SystemRoot || 'C:\\Windows',
+    ComSpec: process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
+    TEMP: process.env.TEMP || process.env.TMP || '',
+    TMP: process.env.TMP || process.env.TEMP || '',
+    USERPROFILE: process.env.USERPROFILE || home,
+    APPDATA: process.env.APPDATA || '',
+    LOCALAPPDATA: process.env.LOCALAPPDATA || '',
+    HOMEDRIVE: process.env.HOMEDRIVE || '',
+    HOMEPATH: process.env.HOMEPATH || '',
+    USERNAME: process.env.USERNAME || os.userInfo().username,
+  };
+}
+
+function resolveWindowsPtySpawn(
+  command: string,
+  args: string[]
+): { command: string; args: string[] } {
+  if (process.platform !== 'win32') return { command, args };
+
+  const ext = path.extname(command).toLowerCase();
+  if (ext === '.cmd' || ext === '.bat') {
+    const comspec = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+    const cmdArg = /\s/.test(command) ? `"${command}"` : command;
+    return { command: comspec, args: ['/c', cmdArg, ...args] };
+  }
+  if (ext === '.ps1') {
+    return {
+      command: 'powershell.exe',
+      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', command, ...args],
+    };
+  }
+
+  return { command, args };
+}
+
 /**
  * Generate a deterministic UUID from an arbitrary string.
  * Uses SHA-256 and formats 16 bytes as a UUID v4-compatible string
@@ -146,8 +186,8 @@ function markSessionCreated(ptyId: string, uuid: string, cwd: string): void {
  */
 function discoverExistingClaudeSession(cwd: string, excludeUuids: Set<string>): string | null {
   try {
-    // Claude encodes project paths by replacing '/' with '-'
-    const encoded = cwd.replace(/\//g, '-');
+    // Claude encodes project paths by replacing path separators; on Windows also strip ':'.
+    const encoded = cwd.replace(/[:\\/]/g, '-');
     const projectDir = path.join(os.homedir(), '.claude', 'projects', encoded);
 
     if (!fs.existsSync(projectDir)) return null;
@@ -281,10 +321,19 @@ export function parseShellArgs(input: string): string[] {
       continue;
     }
 
-    if (char === '\\' && !inSingleQuote) {
-      // Backslash escapes next character (except inside single quotes)
-      escape = true;
-      continue;
+    if (char === '\\') {
+      if (process.platform === 'win32') {
+        // Preserve backslashes for Windows paths. Only treat \" inside double-quotes as an escape.
+        const next = input[i + 1];
+        if (inDoubleQuote && next === '"') {
+          escape = true;
+          continue;
+        }
+      } else if (!inSingleQuote) {
+        // POSIX-style backslash escapes next character (except inside single quotes)
+        escape = true;
+        continue;
+      }
     }
 
     if (char === "'" && !inDoubleQuote) {
@@ -558,9 +607,10 @@ export function startSshPty(options: {
     TERM_PROGRAM: 'emdash',
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
-    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    PATH: process.env.PATH || process.env.Path || '',
     ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+    ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
   };
 
   // Pass through agent authentication env vars (same allowlist as direct spawn)
@@ -706,9 +756,10 @@ export function startDirectPty(options: {
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     // Include PATH so CLI can find its dependencies
-    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    PATH: process.env.PATH || process.env.Path || '',
     ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+    ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
   };
 
   // Pass through agent authentication env vars
@@ -735,7 +786,8 @@ export function startDirectPty(options: {
     throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
   }
 
-  const proc = pty.spawn(cliPath, cliArgs, {
+  const spawnSpec = resolveWindowsPtySpawn(cliPath, cliArgs);
+  const proc = pty.spawn(spawnSpec.command, spawnSpec.args, {
     name: 'xterm-256color',
     cols,
     rows,
@@ -817,6 +869,7 @@ export async function startPty(options: {
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     SHELL: process.env.SHELL || defaultShell,
+    ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
     ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
@@ -951,7 +1004,8 @@ export async function startPty(options: {
 
   let proc: IPty;
   try {
-    proc = pty.spawn(useShell, args, {
+    const spawnSpec = resolveWindowsPtySpawn(useShell, args);
+    proc = pty.spawn(spawnSpec.command, spawnSpec.args, {
       name: 'xterm-256color',
       cols,
       rows,
