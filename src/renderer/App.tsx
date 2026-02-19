@@ -55,6 +55,8 @@ import {
 } from './constants/layout';
 
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
+const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
+type ResizeHandleId = 'left' | 'right';
 
 const RightSidebarBridge: React.FC<{
   onCollapsedChange: (collapsed: boolean) => void;
@@ -112,6 +114,38 @@ const AppContent: React.FC = () => {
     handleWelcomeGetStarted,
   } = modals;
   const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
+  const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
+    left: false,
+    right: false,
+  });
+
+  const handlePanelResizeDragging = useCallback((handleId: ResizeHandleId, dragging: boolean) => {
+    if (panelHandleDraggingRef.current[handleId] === dragging) return;
+    const wasDragging = panelHandleDraggingRef.current.left || panelHandleDraggingRef.current.right;
+    panelHandleDraggingRef.current[handleId] = dragging;
+    const isDragging = panelHandleDraggingRef.current.left || panelHandleDraggingRef.current.right;
+    if (wasDragging === isDragging) return;
+    window.dispatchEvent(
+      new CustomEvent(PANEL_RESIZE_DRAGGING_EVENT, {
+        detail: { dragging: isDragging },
+      })
+    );
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const wasDragging =
+        panelHandleDraggingRef.current.left || panelHandleDraggingRef.current.right;
+      panelHandleDraggingRef.current.left = false;
+      panelHandleDraggingRef.current.right = false;
+      if (!wasDragging) return;
+      window.dispatchEvent(
+        new CustomEvent(PANEL_RESIZE_DRAGGING_EVENT, {
+          detail: { dragging: false },
+        })
+      );
+    };
+  }, []);
 
   // Listen for native menu "Settings" click (main → renderer)
   useEffect(() => {
@@ -570,6 +604,7 @@ const AppContent: React.FC = () => {
                   </ResizablePanel>
                   <ResizableHandle
                     withHandle
+                    onDragging={(dragging) => handlePanelResizeDragging('left', dragging)}
                     className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
                   <ResizablePanel
@@ -610,6 +645,7 @@ const AppContent: React.FC = () => {
                   </ResizablePanel>
                   <ResizableHandle
                     withHandle
+                    onDragging={(dragging) => handlePanelResizeDragging('right', dragging)}
                     className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
                   <ResizablePanel

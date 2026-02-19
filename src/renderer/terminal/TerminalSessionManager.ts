@@ -18,6 +18,12 @@ import {
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
 const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
+const MIN_RENDERABLE_TERMINAL_WIDTH_PX = 24;
+const MIN_RENDERABLE_TERMINAL_HEIGHT_PX = 24;
+const PTY_RESIZE_DEBOUNCE_MS = 60;
+const MIN_TERMINAL_COLS = 2;
+const MIN_TERMINAL_ROWS = 1;
+const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
@@ -81,6 +87,11 @@ export class TerminalSessionManager {
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
   private customFontFamily = '';
   private themeFontFamily = '';
+  private pendingFitFrame: number | null = null;
+  private pendingResizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingResize: { cols: number; rows: number } | null = null;
+  private lastSentResize: { cols: number; rows: number } | null = null;
+  private isPanelResizeDragging = false;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -129,6 +140,29 @@ export class TerminalSessionManager {
     window.addEventListener('terminal-font-changed', handleFontChange);
     this.disposables.push(() =>
       window.removeEventListener('terminal-font-changed', handleFontChange)
+    );
+
+    const handlePanelResizeDragging = (e: Event) => {
+      const detail = (e as CustomEvent<{ dragging?: boolean }>).detail;
+      const dragging = Boolean(detail?.dragging);
+      if (this.isPanelResizeDragging === dragging) return;
+      this.isPanelResizeDragging = dragging;
+      if (this.pendingResizeTimer) {
+        clearTimeout(this.pendingResizeTimer);
+        this.pendingResizeTimer = null;
+      }
+      if (dragging) return;
+      this.flushQueuedResize();
+    };
+    window.addEventListener(
+      PANEL_RESIZE_DRAGGING_EVENT,
+      handlePanelResizeDragging as EventListener
+    );
+    this.disposables.push(() =>
+      window.removeEventListener(
+        PANEL_RESIZE_DRAGGING_EVENT,
+        handlePanelResizeDragging as EventListener
+      )
     );
 
     this.fitAddon = new FitAddon();
@@ -253,9 +287,8 @@ export class TerminalSessionManager {
       this.handleTerminalInput(data);
     });
     const resizeDisposable = this.terminal.onResize(({ cols, rows }) => {
-      if (!this.disposed) {
-        window.electronAPI.ptyResize({ id: this.id, cols, rows });
-      }
+      if (this.disposed) return;
+      this.queuePtyResize(cols, rows);
     });
     this.disposables.push(
       () => inputDisposable.dispose(),
@@ -285,18 +318,16 @@ export class TerminalSessionManager {
       }
     }
 
-    this.fitPreservingViewport();
-    this.sendSizeIfStarted();
+    this.scheduleFit();
 
     this.resizeObserver = new ResizeObserver(() => {
-      this.fitPreservingViewport();
+      this.scheduleFit();
     });
     this.resizeObserver.observe(container);
 
     requestAnimationFrame(() => {
       if (this.disposed) return;
-      this.fitPreservingViewport();
-      this.sendSizeIfStarted();
+      this.scheduleFit();
       // Restore viewport position after fit completes and terminal is fully rendered
       // Use a second requestAnimationFrame to ensure the terminal buffer is ready
       requestAnimationFrame(() => {
@@ -316,6 +347,8 @@ export class TerminalSessionManager {
     if (this.attachedContainer) {
       // Capture viewport position before detaching
       this.captureViewportPosition();
+      this.cancelScheduledFit();
+      this.clearQueuedResize();
       this.resizeObserver?.disconnect();
       this.resizeObserver = null;
       ensureTerminalHost().appendChild(this.container);
@@ -337,6 +370,8 @@ export class TerminalSessionManager {
     this.disposed = true;
     this.detach();
     this.stopSnapshotTimer();
+    this.cancelScheduledFit();
+    this.clearQueuedResize();
     // Only capture final snapshot if snapshots are enabled
     if (!this.options.disableSnapshots) {
       void this.captureSnapshot('dispose');
@@ -541,11 +576,86 @@ export class TerminalSessionManager {
     this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
   }
 
+  private scheduleFit() {
+    if (this.pendingFitFrame !== null) return;
+    this.pendingFitFrame = requestAnimationFrame(() => {
+      this.pendingFitFrame = null;
+      if (this.disposed) return;
+      this.fitPreservingViewport();
+    });
+  }
+
+  private cancelScheduledFit() {
+    if (this.pendingFitFrame !== null) {
+      cancelAnimationFrame(this.pendingFitFrame);
+      this.pendingFitFrame = null;
+    }
+  }
+
+  private normalizeSize(cols: number, rows: number): { cols: number; rows: number } | null {
+    if (!Number.isFinite(cols) || !Number.isFinite(rows)) return null;
+    const normalizedCols = Math.max(MIN_TERMINAL_COLS, Math.floor(cols));
+    const normalizedRows = Math.max(MIN_TERMINAL_ROWS, Math.floor(rows));
+    return { cols: normalizedCols, rows: normalizedRows };
+  }
+
+  private queuePtyResize(cols: number, rows: number, immediate = false) {
+    const size = this.normalizeSize(cols, rows);
+    if (!size) return;
+    this.pendingResize = size;
+
+    if (immediate && !this.isPanelResizeDragging) {
+      this.flushQueuedResize();
+      return;
+    }
+
+    if (this.isPanelResizeDragging) {
+      return;
+    }
+
+    if (this.pendingResizeTimer) {
+      clearTimeout(this.pendingResizeTimer);
+    }
+    this.pendingResizeTimer = setTimeout(() => {
+      this.pendingResizeTimer = null;
+      this.flushQueuedResize();
+    }, PTY_RESIZE_DEBOUNCE_MS);
+  }
+
+  private clearQueuedResize() {
+    if (this.pendingResizeTimer) {
+      clearTimeout(this.pendingResizeTimer);
+      this.pendingResizeTimer = null;
+    }
+    this.pendingResize = null;
+  }
+
+  private flushQueuedResize() {
+    if (!this.ptyStarted || this.disposed || !this.pendingResize) return;
+    const { cols, rows } = this.pendingResize;
+    this.pendingResize = null;
+
+    if (this.lastSentResize?.cols === cols && this.lastSentResize?.rows === rows) return;
+
+    try {
+      window.electronAPI.ptyResize({ id: this.id, cols, rows });
+      this.lastSentResize = { cols, rows };
+    } catch (error) {
+      log.warn('Terminal resize sync failed', { id: this.id, error });
+    }
+  }
+
   /**
    * Fit the terminal to its container while preserving the user's viewport
    * position (prevents jumps when sidebars resize and trigger fits).
    */
   private fitPreservingViewport() {
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    if (width < MIN_RENDERABLE_TERMINAL_WIDTH_PX || height < MIN_RENDERABLE_TERMINAL_HEIGHT_PX) {
+      return;
+    }
+
     try {
       const buffer = this.terminal.buffer?.active;
       const offsetFromBottom =
@@ -745,12 +855,14 @@ export class TerminalSessionManager {
 
     if (result?.ok) {
       this.ptyStarted = true;
+      this.lastSentResize = null;
       this.sendSizeIfStarted();
       this.emitReady();
       try {
         const offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
           if (payload?.id === id) {
             this.ptyStarted = true;
+            this.lastSentResize = null;
             this.sendSizeIfStarted();
           }
         });
@@ -805,6 +917,7 @@ export class TerminalSessionManager {
     const offExit = window.electronAPI.onPtyExit(id, (info) => {
       this.metrics.recordExit(info);
       this.ptyStarted = false;
+      this.clearQueuedResize();
       this.emitExit(info);
     });
 
@@ -909,14 +1022,6 @@ export class TerminalSessionManager {
 
   private sendSizeIfStarted() {
     if (!this.ptyStarted || this.disposed) return;
-    try {
-      window.electronAPI.ptyResize({
-        id: this.id,
-        cols: this.terminal.cols,
-        rows: this.terminal.rows,
-      });
-    } catch (error) {
-      log.warn('Terminal resize sync failed', { id: this.id, error });
-    }
+    this.queuePtyResize(this.terminal.cols, this.terminal.rows, true);
   }
 }

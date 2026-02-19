@@ -56,9 +56,13 @@ type PtyRecord = {
   cwd?: string; // Working directory (for respawning shell after CLI exit)
   isDirectSpawn?: boolean; // Whether this was a direct CLI spawn
   kind?: 'local' | 'ssh';
+  cols?: number;
+  rows?: number;
 };
 
 const ptys = new Map<string, PtyRecord>();
+const MIN_PTY_COLS = 2;
+const MIN_PTY_ROWS = 1;
 
 /**
  * Generate a deterministic UUID from an arbitrary string.
@@ -518,7 +522,7 @@ export function startSshPty(options: {
     env: useEnv,
   });
 
-  ptys.set(id, { id, proc, kind: 'ssh' });
+  ptys.set(id, { id, proc, kind: 'ssh', cols, rows });
   return proc;
 }
 
@@ -669,7 +673,7 @@ export function startDirectPty(options: {
   });
 
   // Store record with cwd for shell respawn after CLI exits
-  ptys.set(id, { id, proc, cwd, isDirectSpawn: true, kind: 'local' });
+  ptys.set(id, { id, proc, cwd, isDirectSpawn: true, kind: 'local', cols, rows });
 
   // When CLI exits, spawn a shell so user can continue working
   proc.onExit(() => {
@@ -914,7 +918,7 @@ export async function startPty(options: {
     }
   }
 
-  ptys.set(id, { id, proc, kind: 'local' });
+  ptys.set(id, { id, proc, kind: 'local', cols, rows });
   return proc;
 }
 
@@ -929,11 +933,16 @@ export function writePty(id: string, data: string): void {
 export function resizePty(id: string, cols: number, rows: number): void {
   const rec = ptys.get(id);
   if (!rec) {
-    // PTY not ready yet - this is normal during startup, ignore silently
     return;
   }
+  const normalizedCols = Number.isFinite(cols) ? Math.max(MIN_PTY_COLS, Math.floor(cols)) : 0;
+  const normalizedRows = Number.isFinite(rows) ? Math.max(MIN_PTY_ROWS, Math.floor(rows)) : 0;
+  if (normalizedCols <= 0 || normalizedRows <= 0) return;
+  if (rec.cols === normalizedCols && rec.rows === normalizedRows) return;
   try {
-    rec.proc.resize(cols, rows);
+    rec.proc.resize(normalizedCols, normalizedRows);
+    rec.cols = normalizedCols;
+    rec.rows = normalizedRows;
   } catch (error: any) {
     if (
       error &&
@@ -947,7 +956,12 @@ export function resizePty(id: string, cols: number, rows: number): void {
       // Expected during shutdown - PTY already exited
       return;
     }
-    log.error('ptyManager:resizeFailed', { id, cols, rows, error: String(error) });
+    log.error('ptyManager:resizeFailed', {
+      id,
+      cols: normalizedCols,
+      rows: normalizedRows,
+      error: String(error),
+    });
   }
 }
 
