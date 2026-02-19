@@ -188,7 +188,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
       const headerEl = headerRef.current;
       if (!headerEl) return;
       const rect = headerEl.getBoundingClientRect();
-      setIsHeaderHovered(e.clientY <= rect.bottom);
+      setIsHeaderHovered(e.clientY >= rect.top && e.clientY <= rect.bottom);
     };
 
     const handleMouseLeave = () => {
