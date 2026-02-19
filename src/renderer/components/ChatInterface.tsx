@@ -275,6 +275,25 @@ const ChatInterface: React.FC<Props> = ({
   }, [task.id]);
 
   useEffect(() => {
+    let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const handleWindowFocus = () => {
+      timer = setTimeout(() => {
+        timer = null;
+        if (!mounted) return;
+        const session = terminalSessionRegistry.getSession(terminalId);
+        if (session) session.focus();
+      }, 0);
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      mounted = false;
+      if (timer !== null) clearTimeout(timer);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [terminalId]);
+
+  useEffect(() => {
     const meta = agentMeta[agent];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;
 
