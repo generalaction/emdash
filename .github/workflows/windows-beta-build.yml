@@ -2,6 +2,11 @@ name: Windows Beta Build
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to build (branch, tag, or SHA)'
+        required: true
+        default: 'windows-beta'
 
 permissions:
   contents: read
@@ -12,6 +17,54 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Ensure Windows SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $kits = "${env:ProgramFiles(x86)}\Windows Kits\10\Include"
+          if (Test-Path $kits) {
+            Write-Host "Windows SDK already present at: $kits"
+            exit 0
+          }
+
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (!(Test-Path $vswhere)) {
+            throw "vswhere.exe not found at $vswhere"
+          }
+
+          $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (!$installPath) {
+            throw "Visual Studio installation not found"
+          }
+
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
+          if (!(Test-Path $installer)) {
+            throw "vs_installer.exe not found at $installer"
+          }
+
+          $components = @(
+            "Microsoft.VisualStudio.Component.Windows11SDK.22621",
+            "Microsoft.VisualStudio.Component.Windows11SDK.22000",
+            "Microsoft.VisualStudio.Component.Windows10SDK.22621",
+            "Microsoft.VisualStudio.Component.Windows10SDK.20348",
+            "Microsoft.VisualStudio.Component.Windows10SDK.19041",
+            "Microsoft.VisualStudio.Component.Windows10SDK.18362",
+            "Microsoft.VisualStudio.Component.Windows10SDK.17763"
+          )
+
+          foreach ($c in $components) {
+            Write-Host "Attempting to add SDK component: $c"
+            & $installer modify --installPath "$installPath" --add $c --quiet --norestart --nocache | Out-Host
+            if (Test-Path $kits) { break }
+          }
+
+          if (!(Test-Path $kits)) {
+            throw "Windows SDK not found after attempting install. Expected: $kits"
+          }
+          Write-Host "Windows SDK installed at: $kits"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -41,6 +94,8 @@ jobs:
         shell: bash
         env:
           npm_config_python: ${{ env.python }}
+          npm_config_msvs_version: 2022
+          GYP_MSVS_VERSION: 2022
         run: pnpm install --frozen-lockfile
 
       - name: Build app (ts + vite)
