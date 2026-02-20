@@ -188,11 +188,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const hasStagedChanges = fileChanges.some((change) => change.isStaged);
   const { pr, isLoading: isPrLoading, refresh: refreshPr } = usePrStatus(safeTaskPath);
   const [activeTab, setActiveTab] = useState<ActiveTab>('changes');
-  const {
-    status: checkRunsStatus,
-    isLoading: checkRunsLoading,
-    refresh: refreshCheckRuns,
-  } = useCheckRuns(pr ? safeTaskPath : undefined);
+  const { status: checkRunsStatus, isLoading: checkRunsLoading } = useCheckRuns(
+    pr ? safeTaskPath : undefined
+  );
   // Only poll for check runs when the Checks tab is active; the initial fetch
   // from useCheckRuns is enough for the tab badge indicators.
   const checksTabActive = activeTab === 'checks' && !!pr;
@@ -755,11 +753,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           <MergePrSection
             taskPath={safeTaskPath}
             pr={pr}
-            checkRunsStatus={checkRunsStatus}
-            refreshPr={async () => {
-              await refreshPr();
-              await refreshCheckRuns();
-            }}
+            refreshPr={refreshPr}
           />
         </div>
       ) : (
