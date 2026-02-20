@@ -218,7 +218,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         throw new Error(result.error || 'Failed to save config');
       }
 
-      const nextConfig = applyScripts(applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup), scripts);
+      const nextConfig = applyScripts(
+        applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup),
+        scripts
+      );
       setConfig(nextConfig);
       setOriginalScripts(scripts);
       setOriginalPreservePatternsInput(preservePatternsInput);

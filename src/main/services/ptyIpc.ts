@@ -815,7 +815,17 @@ export function registerPtyIpc(): void {
         // Try direct spawn first; skip if shellSetup requires a shell wrapper
         const directProc = shellSetup
           ? null
-          : startDirectPty({ id, providerId, cwd, cols, rows, autoApprove, initialPrompt, env, resume: effectiveResume });
+          : startDirectPty({
+              id,
+              providerId,
+              cwd,
+              cols,
+              rows,
+              autoApprove,
+              initialPrompt,
+              env,
+              resume: effectiveResume,
+            });
 
         // Fall back to shell-based spawn when direct spawn is unavailable or shellSetup is set
         let usedFallback = false;
@@ -827,7 +837,8 @@ export function registerPtyIpc(): void {
           if (!provider?.cli) {
             return { ok: false, error: `CLI path not found for provider: ${providerId}` };
           }
-          if (!shellSetup) log.info('pty:startDirect - falling back to shell spawn', { id, providerId });
+          if (!shellSetup)
+            log.info('pty:startDirect - falling back to shell spawn', { id, providerId });
           proc = await startPty({
             id,
             cwd,

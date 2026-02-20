@@ -949,7 +949,9 @@ export async function startPty(options: {
           const resumeShell = `'${useShell.replace(/'/g, "'\\''")}' -il`;
           args.push(cFlag, `${shellSetup}; exec ${resumeShell}`);
         } else {
-          args.push(base === 'zsh' || base === 'bash' || base === 'fish' || base === 'sh' ? '-il' : '-i');
+          args.push(
+            base === 'zsh' || base === 'bash' || base === 'fish' || base === 'sh' ? '-il' : '-i'
+          );
         }
       }
     } catch {}
