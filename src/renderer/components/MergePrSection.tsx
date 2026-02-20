@@ -10,13 +10,7 @@ import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
 
-type MergeUiStateKind =
-  | 'merged'
-  | 'ready'
-  | 'draft'
-  | 'conflicts'
-  | 'blocked'
-  | 'unknown';
+type MergeUiStateKind = 'merged' | 'ready' | 'draft' | 'conflicts' | 'blocked' | 'unknown';
 
 type MergeUiState = { kind: MergeUiStateKind; title: string; detail?: string; canMerge: boolean };
 
@@ -30,12 +24,14 @@ const MERGE_STRATEGIES: Array<{
   {
     id: 'merge',
     title: 'Create a merge commit',
-    description: 'All commits from this branch will be added to the base branch via a merge commit.',
+    description:
+      'All commits from this branch will be added to the base branch via a merge commit.',
   },
   {
     id: 'squash',
     title: 'Squash and merge',
-    description: 'All commits from this branch will be combined into one commit in the base branch.',
+    description:
+      'All commits from this branch will be combined into one commit in the base branch.',
   },
   {
     id: 'rebase',
@@ -44,10 +40,7 @@ const MERGE_STRATEGIES: Array<{
   },
 ];
 
-function computeMergeUiState(
-  pr: PrStatus,
-  adminOverride: boolean
-): MergeUiState {
+function computeMergeUiState(pr: PrStatus, adminOverride: boolean): MergeUiState {
   const prState = typeof pr.state === 'string' ? pr.state.toUpperCase() : '';
   if (prState === 'MERGED') {
     return { kind: 'merged', title: 'Merged', canMerge: false };
@@ -186,8 +179,7 @@ export function MergePrSection({
     return false;
   });
 
-  const activePr =
-    pr && typeof pr.number === 'number' && Number.isFinite(pr.number) ? pr : null;
+  const activePr = pr && typeof pr.number === 'number' && Number.isFinite(pr.number) ? pr : null;
   const mergeUiState = activePr ? computeMergeUiState(activePr, adminOverride) : null;
   const mergeState =
     activePr && typeof activePr.mergeStateStatus === 'string'
@@ -371,7 +363,10 @@ export function MergePrSection({
         )}
         {mergeUiState.kind === 'conflicts' && (
           <div>
-            <Badge variant="outline" className="w-full justify-center text-xs text-muted-foreground">
+            <Badge
+              variant="outline"
+              className="w-full justify-center text-xs text-muted-foreground"
+            >
               Resolve merge conflicts before merging
             </Badge>
           </div>

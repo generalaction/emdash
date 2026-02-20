@@ -750,11 +750,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             hasPr={!!pr}
             prUrl={pr?.url}
           />
-          <MergePrSection
-            taskPath={safeTaskPath}
-            pr={pr}
-            refreshPr={refreshPr}
-          />
+          <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
