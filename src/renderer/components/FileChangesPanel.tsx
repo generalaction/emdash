@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -15,6 +15,7 @@ import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
 import { usePrComments } from '../hooks/usePrComments';
 import { ChecksPanel } from './CheckRunsList';
 import { PrCommentsList } from './PrCommentsList';
+import MergePrSection from './MergePrSection';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -187,13 +188,25 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const hasStagedChanges = fileChanges.some((change) => change.isStaged);
   const { pr, isLoading: isPrLoading, refresh: refreshPr } = usePrStatus(safeTaskPath);
   const [activeTab, setActiveTab] = useState<ActiveTab>('changes');
-  const { status: checkRunsStatus, isLoading: checkRunsLoading } = useCheckRuns(
-    pr ? safeTaskPath : undefined
-  );
+  const {
+    status: checkRunsStatus,
+    isLoading: checkRunsLoading,
+    refresh: refreshCheckRuns,
+  } = useCheckRuns(pr ? safeTaskPath : undefined);
   // Only poll for check runs when the Checks tab is active; the initial fetch
   // from useCheckRuns is enough for the tab badge indicators.
   const checksTabActive = activeTab === 'checks' && !!pr;
   useAutoCheckRunsRefresh(checksTabActive ? safeTaskPath : undefined, checkRunsStatus);
+  const prevChecksAllComplete = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!checksTabActive || !pr || !checkRunsStatus) return;
+    const prev = prevChecksAllComplete.current;
+    const next = checkRunsStatus.allComplete;
+    prevChecksAllComplete.current = next;
+    if (prev === false && next === true) {
+      refreshPr().catch(() => {});
+    }
+  }, [checksTabActive, pr, checkRunsStatus, refreshPr]);
   const { status: prCommentsStatus, isLoading: prCommentsLoading } = usePrComments(
     pr ? safeTaskPath : undefined,
     pr?.number
@@ -738,6 +751,15 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             isLoading={prCommentsLoading}
             hasPr={!!pr}
             prUrl={pr?.url}
+          />
+          <MergePrSection
+            taskPath={safeTaskPath}
+            pr={pr}
+            checkRunsStatus={checkRunsStatus}
+            refreshPr={async () => {
+              await refreshPr();
+              await refreshCheckRuns();
+            }}
           />
         </div>
       ) : (
