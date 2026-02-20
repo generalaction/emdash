@@ -633,7 +633,6 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
         ghArgs.push(strategyFlag);
         if (admin) ghArgs.push('--admin');
-        ghArgs.push('--yes');
 
         try {
           const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
