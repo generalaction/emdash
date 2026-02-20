@@ -21,6 +21,7 @@ const notificationCtor = vi.fn();
 const notificationShow = vi.fn();
 const telemetryCaptureMock = vi.fn();
 let onDirectCliExitCallback: ((id: string, cwd: string) => void) | null = null;
+let lastSshPtyStartOpts: any = null;
 
 function createMockProc(): MockProc {
   const exitHandlers: Array<(payload: ExitPayload) => void> = [];
@@ -52,7 +53,9 @@ const startDirectPtyMock = vi.fn(({ id, cwd }: { id: string; cwd: string }) => {
   });
   return proc;
 });
-const startSshPtyMock = vi.fn(({ id }: { id: string }) => {
+const startSshPtyMock = vi.fn((opts: any) => {
+  const { id } = opts as { id: string };
+  lastSshPtyStartOpts = opts;
   const proc = createMockProc();
   ptys.set(id, proc);
   return proc;
@@ -201,6 +204,7 @@ describe('ptyIpc notification lifecycle', () => {
     appListeners.clear();
     ptys.clear();
     onDirectCliExitCallback = null;
+    lastSshPtyStartOpts = null;
     resolveProviderCommandConfigMock.mockReturnValue(null);
   });
 
@@ -238,6 +242,41 @@ describe('ptyIpc notification lifecycle', () => {
 
     expect(notificationCtor).not.toHaveBeenCalled();
     expect(notificationShow).not.toHaveBeenCalled();
+  });
+
+  it('injects remote init commands so provider lookup uses login shell PATH', async () => {
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('claude', 'main', 'task-remote');
+    await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'claude',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:remote-alias' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    expect(startSshPtyMock).toHaveBeenCalledTimes(1);
+    expect(lastSshPtyStartOpts?.target).toBe('remote-alias');
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+    expect(proc!.write).toHaveBeenCalled();
+
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).toContain("cd '/tmp/task'");
+    expect(written).toContain('sh -c');
+    expect(written).toContain('command -v');
+    expect(written).toContain('claude');
   });
 
   it('shows completion notification on normal successful process exit', async () => {
