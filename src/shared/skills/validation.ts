@@ -27,12 +27,15 @@ export function parseFrontmatter(content: string): {
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
     let value = line.slice(colonIdx + 1).trim();
-    // Strip surrounding quotes
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
+    const wasDoubleQuoted = value.startsWith('"') && value.endsWith('"');
+    const wasSingleQuoted = value.startsWith("'") && value.endsWith("'");
+    if (wasDoubleQuoted || wasSingleQuoted) {
       value = value.slice(1, -1);
+      if (wasDoubleQuoted) {
+        value = value.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      } else if (wasSingleQuoted) {
+        value = value.replace(/''/g, "'");
+      }
     }
     if (key) {
       frontmatter[key] = value;
@@ -51,15 +54,20 @@ export function parseFrontmatter(content: string): {
   };
 }
 
-/** Generate a SKILL.md template from name and description */
-export function generateSkillMd(name: string, description: string): string {
+function escapeYamlDoubleQuoted(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+export function generateSkillMd(name: string, description: string, body?: string): string {
+  const escapedName = escapeYamlDoubleQuoted(name);
+  const escapedDesc = escapeYamlDoubleQuoted(description);
+  const defaultBody = `# ${name}\n\n${description}\n`;
+  const content = body && body.trim() ? body.trim() : defaultBody;
   return `---
-name: "${name}"
-description: "${description}"
+name: "${escapedName}"
+description: "${escapedDesc}"
 ---
 
-# ${name}
-
-${description}
+${content}
 `;
 }

@@ -320,18 +320,7 @@ export class SkillsService {
 
     await fs.promises.mkdir(skillDir, { recursive: true });
 
-    let skillContent: string;
-    if (content && content.trim()) {
-      const frontmatter = `---
-name: "${name}"
-description: "${description}"
----
-
-`;
-      skillContent = frontmatter + content.trim();
-    } else {
-      skillContent = generateSkillMd(name, description);
-    }
+    const skillContent = generateSkillMd(name, description, content?.trim());
 
     await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), skillContent);
 
