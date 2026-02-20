@@ -162,6 +162,9 @@ class AutoUpdateService {
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.autoRunAppAfterInstall = true;
 
+    // Ensure we always get the latest version info, bypassing caches
+    autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
+
     // Custom logger for production
     autoUpdater.logger = {
       info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
