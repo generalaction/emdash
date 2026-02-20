@@ -31,7 +31,7 @@ The agent spawns in a terminal and starts working.
 
 By default, each task creates a git worktree—a separate copy of your codebase on its own branch. This keeps agent changes isolated from your main branch and other tasks.
 
-Worktrees are created in a sibling `worktrees/` directory outside your repo.
+By default, worktrees are created in a sibling `worktrees/` directory outside your repo. You can override this per project (inside `.worktrees/`, `/tmp/emdash`, or a custom directory).
 
 You can disable worktrees to work directly on your current branch. A warning appears since changes won't be isolated.
 

@@ -61,7 +61,11 @@ interface EmdashConfig {
 export class WorktreeService {
   private worktrees = new Map<string, WorktreeInfo>();
 
-  private async cleanupWorktreeDirectory(pathToRemove: string, projectPath: string): Promise<void> {
+  private async cleanupWorktreeDirectory(
+    pathToRemove: string,
+    projectPath: string,
+    options?: { allowAnyPath?: boolean }
+  ): Promise<void> {
     if (!fs.existsSync(pathToRemove)) {
       return;
     }
@@ -75,6 +79,7 @@ export class WorktreeService {
     }
 
     const isLikelyWorktree =
+      options?.allowAnyPath === true ||
       pathToRemove.includes('/worktrees/') ||
       pathToRemove.includes('\\worktrees\\') ||
       pathToRemove.includes('/.conductor/') ||
@@ -193,7 +198,11 @@ export class WorktreeService {
       const settings = getAppSettings();
       const prefix = settings?.repository?.branchPrefix || 'emdash';
       branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
-      worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+      const worktreeBasePath = await projectSettingsService.resolveProjectWorktreeBasePath(
+        projectId,
+        projectPath
+      );
+      worktreePath = path.join(worktreeBasePath, `${sluggedName}-${hash}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 
       log.info(`Creating worktree: ${branchName} -> ${worktreePath}`);
@@ -429,6 +438,7 @@ export class WorktreeService {
       }
 
       // Additional safety: Check if this is actually a worktree using git worktree list
+      let verifiedAsWorktree = false;
       try {
         const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
           cwd: projectPath,
@@ -469,6 +479,7 @@ export class WorktreeService {
           // Don't throw error, just return - the path might not exist or might be a task without worktree
           return;
         }
+        verifiedAsWorktree = true;
       } catch (checkError) {
         log.warn('Could not verify worktree status, proceeding with caution:', checkError);
         // If we can't verify, at least we've checked it's not the main project path above
@@ -492,7 +503,9 @@ export class WorktreeService {
       }
 
       // Ensure directory is removed even if git command failed
-      void this.cleanupWorktreeDirectory(pathToRemove, projectPath);
+      void this.cleanupWorktreeDirectory(pathToRemove, projectPath, {
+        allowAnyPath: verifiedAsWorktree || Boolean(worktree),
+      });
 
       if (branchToDelete) {
         const tryDeleteBranch = async () =>
@@ -1177,9 +1190,12 @@ export class WorktreeService {
   ): Promise<WorktreeInfo> {
     const normalizedName = taskName || branchName.replace(/\//g, '-');
     const sluggedName = this.slugify(normalizedName) || 'task';
+    const configuredBasePath = await projectSettingsService.resolveProjectWorktreeBasePath(
+      projectId,
+      projectPath
+    );
     const targetPath =
-      options?.worktreePath ||
-      path.join(projectPath, '..', `worktrees/${sluggedName}-${Date.now()}`);
+      options?.worktreePath || path.join(configuredBasePath, `${sluggedName}-${Date.now()}`);
     const worktreePath = path.resolve(targetPath);
 
     if (fs.existsSync(worktreePath)) {

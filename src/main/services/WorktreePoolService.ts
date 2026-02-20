@@ -5,6 +5,8 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { log } from '../lib/logger';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
+import { databaseService } from './DatabaseService';
+import { projectSettingsService, resolveWorktreeBasePath } from './ProjectSettingsService';
 
 const execFileAsync = promisify(execFile);
 
@@ -47,8 +49,16 @@ export class WorktreePoolService {
   }
 
   /** Get the reserve worktree path for a project */
-  private getReservePath(projectPath: string, hash: string): string {
-    return path.join(projectPath, '..', `worktrees/${this.RESERVE_PREFIX}-${hash}`);
+  private async getReservePath(
+    projectId: string,
+    projectPath: string,
+    hash: string
+  ): Promise<string> {
+    const worktreeBasePath = await projectSettingsService.resolveProjectWorktreeBasePath(
+      projectId,
+      projectPath
+    );
+    return path.join(worktreeBasePath, `${this.RESERVE_PREFIX}-${hash}`);
   }
 
   /** Get the reserve branch name */
@@ -125,7 +135,7 @@ export class WorktreePoolService {
     baseRef?: string
   ): Promise<void> {
     const hash = this.generateReserveHash();
-    const reservePath = this.getReservePath(projectPath, hash);
+    const reservePath = await this.getReservePath(projectId, projectPath, hash);
     const reserveBranch = this.getReserveBranch(hash);
 
     // Ensure worktrees directory exists
@@ -258,7 +268,11 @@ export class WorktreePoolService {
     const sluggedName = this.slugify(taskName);
     const hash = this.generateShortHash();
     const newBranch = `${prefix}/${sluggedName}-${hash}`;
-    const newPath = path.join(reserve.projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+    const worktreeBasePath = await projectSettingsService.resolveProjectWorktreeBasePath(
+      reserve.projectId,
+      reserve.projectPath
+    );
+    const newPath = path.join(worktreeBasePath, `${sluggedName}-${hash}`);
     const newId = this.stableIdFromPath(newPath);
 
     // Move the worktree (instant operation)
@@ -402,13 +416,24 @@ export class WorktreePoolService {
 
     // Find all worktree directories that might contain reserves
     const homedir = require('os').homedir();
-    const possibleWorktreeDirs = [
+    const possibleWorktreeDirs = new Set<string>([
       path.join(homedir, 'cursor', 'worktrees'),
       path.join(homedir, 'Documents', 'worktrees'),
       path.join(homedir, 'Projects', 'worktrees'),
       path.join(homedir, 'code', 'worktrees'),
       path.join(homedir, 'dev', 'worktrees'),
-    ];
+    ]);
+    try {
+      const projects = await databaseService.getProjects();
+      for (const project of projects) {
+        if (project.isRemote) continue;
+        possibleWorktreeDirs.add(
+          resolveWorktreeBasePath(project.path, project.worktreeBasePath ?? null)
+        );
+      }
+    } catch (error) {
+      log.debug('WorktreePool: Failed to read project worktree paths for orphan cleanup', error);
+    }
 
     // Collect all orphaned reserves first (fast sync scan)
     const orphanedReserves: { path: string; name: string }[] = [];

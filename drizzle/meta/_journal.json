@@ -71,6 +71,13 @@
       "when": 1738857600000,
       "tag": "0009_add_ssh_support",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1765592430361,
+      "tag": "0010_add_worktree_base_path_to_projects",
+      "breakpoints": true
     }
   ]
 }

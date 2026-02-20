@@ -2,6 +2,7 @@ import { ipcMain, app } from 'electron';
 import { log } from '../lib/logger';
 import { GitHubService } from '../services/GitHubService';
 import { worktreeService } from '../services/WorktreeService';
+import { projectSettingsService } from '../services/ProjectSettingsService';
 import { githubCLIInstaller } from '../services/GitHubCLIInstaller';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -288,7 +289,10 @@ export function registerGithubIpc() {
 
         await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
 
-        const worktreesDir = path.resolve(projectPath, '..', 'worktrees');
+        const worktreesDir = await projectSettingsService.resolveProjectWorktreeBasePath(
+          projectId,
+          projectPath
+        );
         const slug = slugify(taskName) || `pr-${prNumber}`;
         let worktreePath = path.join(worktreesDir, slug);
 

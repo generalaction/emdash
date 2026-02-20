@@ -1,5 +1,5 @@
 import type sqlite3Type from 'sqlite3';
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -25,6 +25,7 @@ export interface Project {
   id: string;
   name: string;
   path: string;
+  worktreeBasePath?: string | null;
   // Remote project fields (optional for backward compatibility)
   isRemote?: boolean;
   sshConnectionId?: string | null;
@@ -151,6 +152,8 @@ export class DatabaseService {
       project.gitInfo.remote,
       project.gitInfo.branch
     );
+    const worktreeBasePath =
+      project.worktreeBasePath === undefined ? undefined : (project.worktreeBasePath ?? null);
     const githubRepository = project.githubInfo?.repository ?? null;
     const githubConnected = project.githubInfo?.connected ? 1 : 0;
 
@@ -171,6 +174,7 @@ export class DatabaseService {
         id: project.id,
         name: project.name,
         path: project.path,
+        worktreeBasePath: worktreeBasePath ?? null,
         gitRemote,
         gitBranch,
         baseRef: baseRef ?? null,
@@ -185,6 +189,7 @@ export class DatabaseService {
         target: projectsTable.path,
         set: {
           name: project.name,
+          ...(worktreeBasePath !== undefined ? { worktreeBasePath } : {}),
           gitRemote,
           gitBranch,
           baseRef: baseRef ?? null,
@@ -252,14 +257,61 @@ export class DatabaseService {
     const source = rows[0];
     const normalized = this.computeBaseRef(trimmed, source.gitRemote, source.gitBranch);
 
-    await db
-      .update(projectsTable)
-      .set({
-        baseRef: normalized,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
-      })
-      .where(eq(projectsTable.id, projectId));
+    return this.updateProjectSettings(projectId, { baseRef: normalized });
+  }
 
+  async updateProjectSettings(
+    projectId: string,
+    updates: { baseRef?: string; worktreeBasePath?: string | null }
+  ): Promise<Project | null> {
+    if (this.disabled) return null;
+    if (!projectId) {
+      throw new Error('projectId is required');
+    }
+    const hasBaseRef = typeof updates.baseRef === 'string';
+    const hasWorktreeBasePath = updates.worktreeBasePath !== undefined;
+    if (!hasBaseRef && !hasWorktreeBasePath) {
+      throw new Error('No project settings updates provided');
+    }
+    const { db } = await getDrizzleClient();
+
+    const next: {
+      baseRef?: string | null;
+      worktreeBasePath?: string | null;
+      updatedAt: SQL;
+    } = {
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    };
+
+    if (hasBaseRef) {
+      const trimmed = (updates.baseRef || '').trim();
+      if (!trimmed) {
+        throw new Error('baseRef cannot be empty');
+      }
+
+      const rows = await db
+        .select({
+          id: projectsTable.id,
+          gitRemote: projectsTable.gitRemote,
+          gitBranch: projectsTable.gitBranch,
+        })
+        .from(projectsTable)
+        .where(eq(projectsTable.id, projectId))
+        .limit(1);
+
+      if (rows.length === 0) {
+        throw new Error(`Project not found: ${projectId}`);
+      }
+
+      const source = rows[0];
+      next.baseRef = this.computeBaseRef(trimmed, source.gitRemote, source.gitBranch);
+    }
+
+    if (hasWorktreeBasePath) {
+      next.worktreeBasePath = updates.worktreeBasePath ?? null;
+    }
+
+    await db.update(projectsTable).set(next).where(eq(projectsTable.id, projectId));
     return this.getProjectById(projectId);
   }
 
@@ -871,6 +923,7 @@ export class DatabaseService {
       id: row.id,
       name: row.name,
       path: row.path,
+      worktreeBasePath: row.worktreeBasePath ?? null,
       isRemote: row.isRemote === 1,
       sshConnectionId: row.sshConnectionId ?? null,
       remotePath: row.remotePath ?? null,

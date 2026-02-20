@@ -5,6 +5,7 @@ export interface Project {
   id: string;
   name: string;
   path: string;
+  worktreeBasePath?: string | null;
   isRemote?: boolean;
   sshConnectionId?: string | null;
   remotePath?: string | null;
