@@ -194,7 +194,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     taskName: string;
     baseRef?: string;
   }) => ipcRenderer.invoke('worktree:claimReserve', args),
-  worktreeRemoveReserve: (args: { projectId: string }) =>
+  worktreeRemoveReserve: (args: { projectId: string; projectPath?: string; isRemote?: boolean }) =>
     ipcRenderer.invoke('worktree:removeReserve', args),
 
   // Lifecycle scripts

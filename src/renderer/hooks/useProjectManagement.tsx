@@ -600,7 +600,13 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   const handleDeleteProject = async (project: Project) => {
     try {
       // Clean up reserve worktree before deleting project
-      await window.electronAPI.worktreeRemoveReserve({ projectId: project.id }).catch(() => {});
+      await window.electronAPI
+        .worktreeRemoveReserve({
+          projectId: project.id,
+          projectPath: project.path,
+          isRemote: project.isRemote,
+        })
+        .catch(() => {});
 
       const res = await window.electronAPI.deleteProject(project.id);
       if (!res?.success) throw new Error(res?.error || 'Failed to delete project');

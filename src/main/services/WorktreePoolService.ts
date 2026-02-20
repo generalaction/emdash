@@ -361,6 +361,11 @@ export class WorktreePoolService {
       await execFileAsync('git', ['worktree', 'remove', '--force', reserve.path], {
         cwd: reserve.projectPath,
       });
+    } catch {
+      // Worktree might already be gone; continue and try branch cleanup.
+    }
+
+    try {
       // Also delete the branch
       await execFileAsync('git', ['branch', '-D', reserve.branch], {
         cwd: reserve.projectPath,
@@ -371,12 +376,153 @@ export class WorktreePoolService {
   }
 
   /** Remove reserve for a project (e.g., when project is removed) */
-  async removeReserve(projectId: string): Promise<void> {
+  async removeReserve(projectId: string, projectPath?: string): Promise<void> {
     const reserve = this.reserves.get(projectId);
-    if (!reserve) return;
+    const resolvedProjectPath = projectPath || reserve?.projectPath;
 
-    this.reserves.delete(projectId);
-    await this.cleanupReserve(reserve);
+    if (reserve) {
+      this.reserves.delete(projectId);
+      await this.cleanupReserve(reserve);
+    }
+
+    if (!resolvedProjectPath) {
+      return;
+    }
+
+    await this.cleanupReserveArtifactsForProject(resolvedProjectPath);
+  }
+
+  private async cleanupReserveArtifactsForProject(projectPath: string): Promise<void> {
+    const normalizedProjectPath = path.resolve(projectPath);
+    const reserveBranches = await this.listReserveBranches(normalizedProjectPath);
+    const remainingBranches = new Set(reserveBranches);
+
+    for (const reserve of this.findReserveDirectoriesForProject(
+      normalizedProjectPath,
+      remainingBranches
+    )) {
+      try {
+        await execFileAsync('git', ['worktree', 'remove', '--force', reserve.path], {
+          cwd: normalizedProjectPath,
+        });
+      } catch {
+        // Best effort: if git cleanup fails, remove directory directly.
+        try {
+          fs.rmSync(reserve.path, { recursive: true, force: true });
+        } catch {
+          // Ignore secondary cleanup failure.
+        }
+      }
+
+      if (reserve.branch) {
+        await this.deleteBranch(normalizedProjectPath, reserve.branch);
+        remainingBranches.delete(reserve.branch);
+      }
+    }
+
+    // Clean up any remaining reserve branches even if the worktree directory is already gone.
+    for (const branch of remainingBranches) {
+      await this.deleteBranch(normalizedProjectPath, branch);
+    }
+  }
+
+  private findReserveDirectoriesForProject(
+    projectPath: string,
+    reserveBranches: Set<string>
+  ): Array<{ path: string; branch: string | null }> {
+    const worktreesDir = path.join(projectPath, '..', 'worktrees');
+    if (!fs.existsSync(worktreesDir)) {
+      return [];
+    }
+
+    const result: Array<{ path: string; branch: string | null }> = [];
+    try {
+      const entries = fs.readdirSync(worktreesDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || !entry.name.startsWith(`${this.RESERVE_PREFIX}-`)) {
+          continue;
+        }
+
+        const reservePath = path.join(worktreesDir, entry.name);
+        const ownerPath = this.getMainRepoPathFromWorktree(reservePath);
+        const branch = this.getReserveBranchFromDirectoryName(entry.name);
+        const ownsReserve = ownerPath ? path.resolve(ownerPath) === projectPath : false;
+        const branchBelongsToProject = branch ? reserveBranches.has(branch) : false;
+
+        if (!ownsReserve && !branchBelongsToProject) {
+          continue;
+        }
+
+        result.push({ path: reservePath, branch });
+      }
+    } catch {
+      // Ignore unreadable worktrees directory.
+    }
+
+    return result;
+  }
+
+  private getReserveBranchFromDirectoryName(name: string): string | null {
+    const branchMatch = name.match(/^_reserve-(.+)$/);
+    if (!branchMatch) return null;
+    return `_reserve/${branchMatch[1]}`;
+  }
+
+  private async listReserveBranches(projectPath: string): Promise<string[]> {
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['for-each-ref', '--format=%(refname:short)', `refs/heads/${this.RESERVE_PREFIX}`],
+        { cwd: projectPath }
+      );
+      return stdout
+        .trim()
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith(`${this.RESERVE_PREFIX}/`));
+    } catch {
+      return [];
+    }
+  }
+
+  private async deleteBranch(projectPath: string, branchName: string): Promise<void> {
+    try {
+      await execFileAsync('git', ['branch', '-D', branchName], { cwd: projectPath });
+    } catch {
+      // Branch may not exist or still be attached to a worktree.
+    }
+  }
+
+  private getMainRepoPathFromWorktree(worktreePath: string): string | null {
+    const gitDirPath = path.join(worktreePath, '.git');
+    if (!fs.existsSync(gitDirPath)) {
+      return null;
+    }
+
+    try {
+      const gitDirContent = fs.readFileSync(gitDirPath, 'utf8');
+      const match = gitDirContent.match(/gitdir:\s*(.+)/);
+      if (!match) {
+        return null;
+      }
+
+      const gitWorktreePath = match[1].trim();
+      const resolvedGitWorktreePath = path.isAbsolute(gitWorktreePath)
+        ? gitWorktreePath
+        : path.resolve(worktreePath, gitWorktreePath);
+      const mainRepoPath = resolvedGitWorktreePath.replace(
+        /[\\\\/]\.git[\\\\/]worktrees[\\\\/].*$/,
+        ''
+      );
+      if (mainRepoPath !== resolvedGitWorktreePath) {
+        return mainRepoPath;
+      }
+
+      // Fallback for unexpected gitdir layouts.
+      return resolvedGitWorktreePath.replace(/[\\\\/]\.git$/, '');
+    } catch {
+      return null;
+    }
   }
 
   /** Cleanup all reserves (e.g., on app shutdown) */
@@ -396,23 +542,28 @@ export class WorktreePoolService {
    * Called on app startup to handle reserves left behind from crashes or forced quits.
    * Runs in background and doesn't block app startup.
    */
-  async cleanupOrphanedReserves(): Promise<void> {
+  async cleanupOrphanedReserves(projectPaths: string[] = []): Promise<void> {
     // Small delay to not compete with critical startup tasks
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Find all worktree directories that might contain reserves
     const homedir = require('os').homedir();
+    const projectWorktreeDirs = projectPaths.map((projectPath) =>
+      path.join(projectPath, '..', 'worktrees')
+    );
     const possibleWorktreeDirs = [
+      ...projectWorktreeDirs,
       path.join(homedir, 'cursor', 'worktrees'),
       path.join(homedir, 'Documents', 'worktrees'),
       path.join(homedir, 'Projects', 'worktrees'),
       path.join(homedir, 'code', 'worktrees'),
       path.join(homedir, 'dev', 'worktrees'),
     ];
+    const uniqueWorktreeDirs = [...new Set(possibleWorktreeDirs.map((dir) => path.resolve(dir)))];
 
     // Collect all orphaned reserves first (fast sync scan)
     const orphanedReserves: { path: string; name: string }[] = [];
-    for (const worktreesDir of possibleWorktreeDirs) {
+    for (const worktreesDir of uniqueWorktreeDirs) {
       if (!fs.existsSync(worktreesDir)) continue;
       try {
         const entries = fs.readdirSync(worktreesDir, { withFileTypes: true });
@@ -443,35 +594,20 @@ export class WorktreePoolService {
   private async cleanupOrphanedReserve(reservePath: string, name: string): Promise<boolean> {
     try {
       // Try to find the parent git repo to properly remove the worktree
-      const gitDirPath = path.join(reservePath, '.git');
-      if (fs.existsSync(gitDirPath)) {
-        const gitDirContent = fs.readFileSync(gitDirPath, 'utf8');
-        const match = gitDirContent.match(/gitdir:\s*(.+)/);
-        if (match) {
-          // Extract the main repo path from the gitdir reference
-          const gitWorktreePath = match[1].trim();
-          const mainGitDir = gitWorktreePath.replace(/\/\.git\/worktrees\/.*$/, '');
+      const mainRepoPath = this.getMainRepoPathFromWorktree(reservePath);
+      if (mainRepoPath && fs.existsSync(mainRepoPath)) {
+        // Remove worktree via git
+        await execFileAsync('git', ['worktree', 'remove', '--force', reservePath], {
+          cwd: mainRepoPath,
+        });
 
-          if (fs.existsSync(mainGitDir)) {
-            // Remove worktree via git
-            await execFileAsync('git', ['worktree', 'remove', '--force', reservePath], {
-              cwd: mainGitDir,
-            });
-
-            // Try to remove the reserve branch
-            const branchMatch = name.match(/^_reserve-(.+)$/);
-            if (branchMatch) {
-              const branchName = `_reserve/${branchMatch[1]}`;
-              try {
-                await execFileAsync('git', ['branch', '-D', branchName], { cwd: mainGitDir });
-              } catch {
-                // Branch may not exist
-              }
-            }
-
-            return true;
-          }
+        // Try to remove the reserve branch
+        const branchName = this.getReserveBranchFromDirectoryName(name);
+        if (branchName) {
+          await this.deleteBranch(mainRepoPath, branchName);
         }
+
+        return true;
       }
 
       // Fallback: just remove the directory

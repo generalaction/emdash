@@ -218,11 +218,15 @@ app.whenReady().then(async () => {
   }
 
   // Best-effort: capture a coarse snapshot of project/task counts (no names/paths)
+  let localProjectPathsForReserveCleanup: string[] = [];
   try {
     const [projects, tasks] = await Promise.all([
       databaseService.getProjects(),
       databaseService.getTasks(),
     ]);
+    localProjectPathsForReserveCleanup = projects
+      .filter((project) => !project.isRemote)
+      .map((project) => project.path);
     const projectCount = projects.length;
     const taskCount = tasks.length;
     const toBucket = (n: number) =>
@@ -241,7 +245,7 @@ app.whenReady().then(async () => {
   registerAllIpc();
 
   // Clean up any orphaned reserve worktrees from previous sessions
-  worktreePoolService.cleanupOrphanedReserves().catch((error) => {
+  worktreePoolService.cleanupOrphanedReserves(localProjectPathsForReserveCleanup).catch((error) => {
     console.warn('Failed to cleanup orphaned reserves:', error);
   });
 

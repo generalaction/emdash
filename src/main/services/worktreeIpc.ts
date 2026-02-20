@@ -369,17 +369,29 @@ export function registerWorktreeIpc(): void {
   );
 
   // Remove reserve for a project (cleanup)
-  ipcMain.handle('worktree:removeReserve', async (event, args: { projectId: string }) => {
-    try {
-      const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
-      if (isRemoteProject(project)) {
+  ipcMain.handle(
+    'worktree:removeReserve',
+    async (event, args: { projectId: string; projectPath?: string; isRemote?: boolean }) => {
+      try {
+        if (args.isRemote) {
+          return { success: true };
+        }
+
+        let projectPath = args.projectPath;
+        if (!projectPath) {
+          const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
+          if (isRemoteProject(project)) {
+            return { success: true };
+          }
+          projectPath = project.path;
+        }
+
+        await worktreePoolService.removeReserve(args.projectId, projectPath);
         return { success: true };
+      } catch (error) {
+        console.error('Failed to remove reserve:', error);
+        return { success: false, error: (error as Error).message };
       }
-      await worktreePoolService.removeReserve(args.projectId);
-      return { success: true };
-    } catch (error) {
-      console.error('Failed to remove reserve:', error);
-      return { success: false, error: (error as Error).message };
     }
-  });
+  );
 }
