@@ -1,0 +1,83 @@
+Task Creation Lag: Investigation + Plan
+Date: 2026-02-20
+
+Context
+- Symptom: after clicking "Create Task", modal closes, `ProjectMainView` flashes, then `ChatInterface` appears.
+- Affected path: single-agent task creation.
+
+Relevant Commits
+
+1) 6cfce7a5 (PR #884, 2026-02-15)
+- Title: `chore: apply task changes`
+- Key behavior change:
+  - Moved single-agent `saveTask` from background fire-and-forget to foreground `await` before `setActiveTask`.
+  - File: `src/renderer/lib/taskCreationService.ts`
+  - Before: optimistic UI activation first, DB save in background.
+  - After: DB save first, UI activation second.
+- Why it was done:
+  - Prevent chat/conversation initialization from racing before task row exists in DB (FK relationship `conversations.task_id -> tasks.id`).
+  - Related fixes in same commit:
+    - `isActive` defaults/hydration for conversations.
+    - re-persist in-memory-only conversations to avoid tab loss.
+- UX impact:
+  - Causes the intermediate frame/flicker because `activeTask` is set later.
+
+2) 74af63e5 (PR #871, 2026-02-15)
+- Title: `fix(worktree): fetch latest remote refs when claiming reserve worktrees`
+- Key behavior change:
+  - During reserve claim, perform foreground fetch + optional hard reset to latest ref.
+  - File: `src/main/services/WorktreePoolService.ts`
+- Why it was done:
+  - Ensure claimed reserve starts from up-to-date code, not stale local refs.
+- UX impact:
+  - Adds potential blocking latency before task creation continues (network-dependent).
+
+KISS policy for commit #2 (requested)
+- Reserve freshness MUST be guaranteed when reserve is created/replenished.
+- Reserve claim MUST remain instant:
+  - no fetch
+  - no freshness check
+  - no foreground network operation on claim path
+- Practical shape:
+  1. Move fetch/reset logic to reserve creation + replenish flow.
+  2. Keep claim path to transform/rename only.
+  3. If background refresh fails, keep reserve strategy but surface non-blocking warning/log.
+
+Plan (KISS)
+
+Goal
+- Keep `Create Task` feeling instant (no `ProjectMainView` flash), while preserving DB/FK safety.
+
+Approach for commit #1 (6cfce7a5)
+- Do NOT keep modal open longer.
+- Restore optimistic activation in single-agent path:
+  1. Build new task object after worktree/reserve resolution.
+  2. Immediately update UI state:
+     - `setProjects`
+     - `setSelectedProject`
+     - `setActiveTask`
+     - `setActiveTaskAgent`
+  3. Save task to DB in background.
+- Add a small, explicit sync gate in `ChatInterface`:
+  - On initial conversation setup for a new task, if conversation creation fails due to missing task FK, retry a few times with short backoff (e.g. 50ms, 100ms, 200ms).
+  - If retries still fail, show existing warning toast and keep UI recoverable.
+
+Why this is clean
+- Minimal moving parts.
+- Preserves existing robust conversation fixes from #884.
+- Restores instant view transition without reverting the entire PR.
+
+Validation checklist
+- Create single-agent task:
+  - chat appears immediately (no `ProjectMainView` flash).
+  - conversation initializes without FK failure.
+- Create multiple chats and new chats:
+  - no lost tabs.
+- Restart app:
+  - task + conversations persist.
+
+Implementation status
+- First mitigation (`6cfce7a5` path): reverted for now (deferred).
+- Second mitigation (`74af63e5` path): implemented.
+  - Claim path no longer fetches/resets refs.
+  - Reserve creation now performs background `git fetch --all --prune` (15s timeout) before creating reserve.
