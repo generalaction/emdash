@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Search } from 'lucide-react';
-import linearLogo from '../../assets/images/linear.png';
+import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import { type LinearIssueSummary } from '../types/linear';
 import { Separator } from './ui/separator';
 import { Spinner } from './ui/spinner';
 import { LinearIssuePreviewTooltip } from './LinearIssuePreviewTooltip';
+import AgentLogo from './AgentLogo';
 
 interface LinearIssueSelectorProps {
   selectedIssue: LinearIssueSummary | null;
@@ -254,7 +255,11 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
                     className="inline-flex items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
+                    <AgentLogo
+                      logo={linearLogoSvg}
+                      alt="Linear"
+                      className="h-3.5 w-3.5 text-foreground"
+                    />
                     <span className="text-[11px] font-medium text-foreground">
                       {selectedIssue.identifier}
                     </span>
@@ -269,7 +274,11 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
               </div>
             ) : (
               <>
-                <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
+                <AgentLogo
+                  logo={linearLogoSvg}
+                  alt="Linear"
+                  className="h-3.5 w-3.5 text-foreground"
+                />
                 <span className="truncate text-muted-foreground">{issuePlaceholder}</span>
               </>
             )}
@@ -302,7 +311,11 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
                   <SelectItem value={issue.identifier}>
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
-                        <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5 dark:invert" />
+                        <AgentLogo
+                          logo={linearLogoSvg}
+                          alt="Linear"
+                          className="h-3.5 w-3.5 text-foreground"
+                        />
                         <span className="text-[11px] font-medium text-foreground">
                           {issue.identifier}
                         </span>

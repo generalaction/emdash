@@ -8,9 +8,10 @@ import { CommentsPopover } from './CommentsPopover';
 import { Button } from './ui/button';
 import { useTaskComments } from '../hooks/useLineComments';
 import { useTaskScope } from './TaskScopeContext';
-import linearLogo from '../../assets/images/linear.png';
+import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import githubLogo from '../../assets/images/github.png';
 import jiraLogo from '../../assets/images/jira.png';
+import AgentLogo from './AgentLogo';
 
 type Props = {
   taskId?: string;
@@ -55,7 +56,11 @@ export const TaskContextBadges: React.FC<Props> = ({
                 onClick={() => handleIssueClick(linearIssue.url || undefined)}
                 aria-label={`Linear issue ${linearIssue.identifier}: ${linearIssue.title || 'No title'}`}
               >
-                <img src={linearLogo} alt="Linear" className="h-3.5 w-3.5" />
+                <AgentLogo
+                  logo={linearLogoSvg}
+                  alt="Linear"
+                  className="h-3.5 w-3.5 text-foreground"
+                />
                 <span>{linearIssue.identifier}</span>
               </button>
             </TooltipTrigger>
@@ -63,7 +68,11 @@ export const TaskContextBadges: React.FC<Props> = ({
               <div className="text-xs">
                 <div className="mb-1.5 flex min-w-0 items-center gap-2">
                   <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
-                    <img src={linearLogo} alt="Linear" className="h-3 w-3" />
+                    <AgentLogo
+                      logo={linearLogoSvg}
+                      alt="Linear"
+                      className="h-3 w-3 text-foreground"
+                    />
                     <span className="text-[11px] font-medium">{linearIssue.identifier}</span>
                   </span>
                   {linearIssue.title && (
