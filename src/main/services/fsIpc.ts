@@ -327,9 +327,9 @@ export function registerFsIpc(): void {
 
   // Constants for search functionality
   const SEARCH_PREVIEW_CONTEXT_LENGTH = 30;
-  const DEFAULT_MAX_SEARCH_RESULTS = 100; // Increased back for better coverage
+  const DEFAULT_MAX_SEARCH_RESULTS = 10000; // Increased for comprehensive search results
   const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB max file size
-  const MAX_SEARCH_FILES = 5000; // Increased to search more files
+  const MAX_SEARCH_FILES = 20000; // Increased to search more files
   const BINARY_CHECK_BYTES = 512; // Check first 512 bytes for binary content (faster)
 
   // Extended ignore patterns for performance

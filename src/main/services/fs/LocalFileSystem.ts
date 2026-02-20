@@ -377,7 +377,7 @@ export class LocalFileSystem implements IFileSystem {
     const pattern = options.pattern || query;
     const startTime = Date.now();
     const matches: SearchMatch[] = [];
-    const maxResults = options.maxResults || 100;
+    const maxResults = options.maxResults || 10000;
     const fileExtensions = options.fileExtensions;
     const caseSensitive = options.caseSensitive ?? false;
 
