@@ -17,6 +17,7 @@ import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { getTaskEnvVars } from '@shared/task/envVars';
+import TaskCreationLoading from './TaskCreationLoading';
 
 interface Props {
   task: Task;
@@ -26,6 +27,7 @@ interface Props {
   projectRemoteConnectionId?: string | null;
   projectRemotePath?: string | null;
   defaultBranch?: string | null;
+  onMounted?: () => void;
 }
 
 type Variant = {
@@ -43,6 +45,7 @@ const MultiAgentTask: React.FC<Props> = ({
   projectRemoteConnectionId,
   projectRemotePath: _projectRemotePath,
   defaultBranch,
+  onMounted,
 }) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
@@ -73,6 +76,10 @@ const MultiAgentTask: React.FC<Props> = ({
 
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
+
+  useEffect(() => {
+    onMounted?.();
+  }, [onMounted]);
 
   // Helper to generate display label with instance number if needed
   const getVariantDisplayLabel = (variant: Variant): string => {
@@ -447,12 +454,7 @@ const MultiAgentTask: React.FC<Props> = ({
 
   // Show loading state while worktrees are being created
   if (variants.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <Spinner size="lg" />
-        <p className="text-sm text-muted-foreground">Creating task...</p>
-      </div>
-    );
+    return <TaskCreationLoading />;
   }
 
   return (

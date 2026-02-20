@@ -42,6 +42,7 @@ interface Props {
   defaultBranch?: string | null;
   className?: string;
   initialAgent?: Agent;
+  onMounted?: () => void;
 }
 
 const ChatInterface: React.FC<Props> = ({
@@ -53,6 +54,7 @@ const ChatInterface: React.FC<Props> = ({
   defaultBranch,
   className,
   initialAgent,
+  onMounted,
 }) => {
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
@@ -139,6 +141,7 @@ const ChatInterface: React.FC<Props> = ({
   useAutoScrollOnTaskSwitch(true, task.id);
 
   useEffect(() => {
+    onMounted?.();
     // eslint-disable-next-line no-console
     console.warn('[task-create-trace]', {
       event: 'chat_interface_mounted',
@@ -147,7 +150,7 @@ const ChatInterface: React.FC<Props> = ({
       taskName: task.name,
       taskPath: task.path,
     });
-  }, [task.id, task.name, task.path]);
+  }, [task.id, task.name, task.path, onMounted]);
 
   // Load conversations when task changes
   useEffect(() => {

@@ -81,6 +81,7 @@ const RightSidebarBridge: React.FC<{
 const AppContent: React.FC = () => {
   useTheme(); // Initialize theme on app startup
   const { toast } = useToast();
+  const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
 
   // Ref for selectedProject, so useModalState can read it without re-instantiation
   const selectedProjectRef = useRef<{ id: string } | null>(null);
@@ -311,27 +312,32 @@ const AppContent: React.FC = () => {
       baseRef?: string
     ) => {
       if (!projectMgmt.selectedProject) return;
-      await createTask(
-        {
-          taskName,
-          initialPrompt,
-          agentRuns,
-          linkedLinearIssue,
-          linkedGithubIssue,
-          linkedJiraIssue,
-          autoApprove,
-          useWorktree,
-          baseRef,
-        },
-        {
-          selectedProject: projectMgmt.selectedProject,
-          setProjects: projectMgmt.setProjects,
-          setSelectedProject: projectMgmt.setSelectedProject,
-          setActiveTask: taskMgmt.setActiveTask,
-          setActiveTaskAgent: taskMgmt.setActiveTaskAgent,
-          toast,
-        }
-      );
+      setIsCreatingTask(true);
+      try {
+        await createTask(
+          {
+            taskName,
+            initialPrompt,
+            agentRuns,
+            linkedLinearIssue,
+            linkedGithubIssue,
+            linkedJiraIssue,
+            autoApprove,
+            useWorktree,
+            baseRef,
+          },
+          {
+            selectedProject: projectMgmt.selectedProject,
+            setProjects: projectMgmt.setProjects,
+            setSelectedProject: projectMgmt.setSelectedProject,
+            setActiveTask: taskMgmt.setActiveTask,
+            setActiveTaskAgent: taskMgmt.setActiveTaskAgent,
+            toast,
+          }
+        );
+      } finally {
+        setIsCreatingTask(false);
+      }
     },
     [
       projectMgmt.selectedProject,
@@ -342,6 +348,16 @@ const AppContent: React.FC = () => {
       toast,
     ]
   );
+
+  useEffect(() => {
+    if (taskMgmt.activeTask) {
+      setIsCreatingTask(false);
+    }
+  }, [taskMgmt.activeTask]);
+
+  const handleTaskInterfaceMounted = useCallback(() => {
+    setIsCreatingTask(false);
+  }, []);
 
   // --- SSH Remote Project handlers ---
   const handleAddRemoteProjectClick = useCallback(() => {
@@ -626,6 +642,8 @@ const AppContent: React.FC = () => {
                         selectedProject={selectedProject}
                         activeTask={activeTask}
                         activeTaskAgent={activeTaskAgent}
+                        isCreatingTask={isCreatingTask}
+                        onTaskInterfaceMounted={handleTaskInterfaceMounted}
                         showKanban={showKanban}
                         showHomeView={projectMgmt.showHomeView}
                         showSkillsView={projectMgmt.showSkillsView}
