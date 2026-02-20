@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -15,6 +15,7 @@ import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
 import { usePrComments } from '../hooks/usePrComments';
 import { ChecksPanel } from './CheckRunsList';
 import { PrCommentsList } from './PrCommentsList';
+import MergePrSection from './MergePrSection';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -194,6 +195,16 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   // from useCheckRuns is enough for the tab badge indicators.
   const checksTabActive = activeTab === 'checks' && !!pr;
   useAutoCheckRunsRefresh(checksTabActive ? safeTaskPath : undefined, checkRunsStatus);
+  const prevChecksAllComplete = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!checksTabActive || !pr || !checkRunsStatus) return;
+    const prev = prevChecksAllComplete.current;
+    const next = checkRunsStatus.allComplete;
+    prevChecksAllComplete.current = next;
+    if (prev === false && next === true) {
+      refreshPr().catch(() => {});
+    }
+  }, [checksTabActive, pr, checkRunsStatus, refreshPr]);
   const { status: prCommentsStatus, isLoading: prCommentsLoading } = usePrComments(
     pr ? safeTaskPath : undefined,
     pr?.number
@@ -739,6 +750,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             hasPr={!!pr}
             prUrl={pr?.url}
           />
+          <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">

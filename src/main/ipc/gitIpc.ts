@@ -597,6 +597,63 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     }
   });
 
+  // Git: Merge PR via GitHub CLI
+  ipcMain.handle(
+    'git:merge-pr',
+    async (
+      _,
+      args: {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+        admin?: boolean;
+      }
+    ) => {
+      const {
+        taskPath,
+        prNumber,
+        strategy = 'merge',
+        admin = false,
+      } = (args || {}) as {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+        admin?: boolean;
+      };
+
+      try {
+        await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+
+        const strategyFlag =
+          strategy === 'squash' ? '--squash' : strategy === 'rebase' ? '--rebase' : '--merge';
+
+        const ghArgs = ['pr', 'merge'];
+        if (typeof prNumber === 'number' && Number.isFinite(prNumber)) {
+          ghArgs.push(String(prNumber));
+        }
+        ghArgs.push(strategyFlag);
+        if (admin) ghArgs.push('--admin');
+
+        try {
+          const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+          const output = [stdout, stderr].filter(Boolean).join('\n').trim();
+          return { success: true, output };
+        } catch (err) {
+          const msg = String(err as string);
+          if (/not installed|command not found/i.test(msg)) {
+            return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
+          }
+          const stderr = (err as any)?.stderr;
+          const stdout = (err as any)?.stdout;
+          const combined = [stderr, stdout, msg].filter(Boolean).join('\n').trim();
+          return { success: false, error: combined || 'Failed to merge PR' };
+        }
+      } catch (error) {
+        return { success: false, error: error as string };
+      }
+    }
+  );
+
   // Git: Get CI/CD check runs for current branch via GitHub CLI
   ipcMain.handle('git:get-check-runs', async (_, args: { taskPath: string }) => {
     const { taskPath } = args || ({} as { taskPath: string });

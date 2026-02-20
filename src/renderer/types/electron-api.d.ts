@@ -628,6 +628,17 @@ declare global {
         prUrl?: string;
         error?: string;
       }>;
+      mergePr: (args: {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+        admin?: boolean;
+      }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+        code?: string;
+      }>;
       getPrStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         pr?: {
