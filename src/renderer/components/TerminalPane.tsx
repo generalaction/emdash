@@ -226,35 +226,34 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     };
 
     return (
+      <div
+        className={['terminal-pane flex h-full w-full min-w-0', className]
+          .filter(Boolean)
+          .join(' ')}
+        style={{
+          width: '100%',
+          height: '100%',
+          minHeight: 0,
+          backgroundColor: variant === 'light' ? '#ffffff' : themeOverride?.background || '#1f2937',
+          boxSizing: 'border-box',
+        }}
+      >
         <div
-          className={['terminal-pane flex h-full w-full min-w-0', className]
-            .filter(Boolean)
-            .join(' ')}
+          ref={containerRef}
+          data-terminal-container
           style={{
             width: '100%',
             height: '100%',
             minHeight: 0,
-            backgroundColor:
-              variant === 'light' ? '#ffffff' : themeOverride?.background || '#1f2937',
-            boxSizing: 'border-box',
+            overflow: 'hidden',
+            filter: contentFilter || undefined,
           }}
-        >
-          <div
-            ref={containerRef}
-            data-terminal-container
-            style={{
-              width: '100%',
-              height: '100%',
-              minHeight: 0,
-              overflow: 'hidden',
-              filter: contentFilter || undefined,
-            }}
-            onClick={handleFocus}
-            onMouseDown={handleFocus}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={handleDrop}
-          />
-        </div>
+          onClick={handleFocus}
+          onMouseDown={handleFocus}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+        />
+      </div>
     );
   }
 );
