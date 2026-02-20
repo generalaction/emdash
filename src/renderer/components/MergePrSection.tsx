@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, XCircle } from 'lucide-react';
 import type { PrStatus } from '../lib/prStatus';
 import { useToast } from '../hooks/use-toast';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
+import { Close as PopoverClose } from '@radix-ui/react-popover';
 
 type MergeUiStateKind =
   | 'merged'
@@ -16,6 +19,30 @@ type MergeUiStateKind =
   | 'unknown';
 
 type MergeUiState = { kind: MergeUiStateKind; title: string; detail?: string; canMerge: boolean };
+
+type MergeStrategy = 'merge' | 'squash' | 'rebase';
+
+const MERGE_STRATEGIES: Array<{
+  id: MergeStrategy;
+  title: string;
+  description: string;
+}> = [
+  {
+    id: 'merge',
+    title: 'Create a merge commit',
+    description: 'All commits from this branch will be added to the base branch via a merge commit.',
+  },
+  {
+    id: 'squash',
+    title: 'Squash and merge',
+    description: 'All commits from this branch will be combined into one commit in the base branch.',
+  },
+  {
+    id: 'rebase',
+    title: 'Rebase and merge',
+    description: 'All commits from this branch will be rebased and added to the base branch.',
+  },
+];
 
 function computeMergeUiState(
   pr: PrStatus,
@@ -145,6 +172,13 @@ export function MergePrSection({
 }) {
   const { toast } = useToast();
   const [isMerging, setIsMerging] = useState(false);
+  const [strategy, setStrategy] = useState<MergeStrategy>(() => {
+    try {
+      const stored = localStorage.getItem('emdash:prMergeStrategy');
+      if (stored === 'merge' || stored === 'squash' || stored === 'rebase') return stored;
+    } catch {}
+    return 'merge';
+  });
   const [adminOverride, setAdminOverride] = useState<boolean>(() => {
     try {
       return localStorage.getItem('emdash:prMergeAdminOverride') === 'true';
@@ -183,13 +217,20 @@ export function MergePrSection({
     } catch {}
   };
 
+  const setAndPersistStrategy = (next: MergeStrategy) => {
+    setStrategy(next);
+    try {
+      localStorage.setItem('emdash:prMergeStrategy', next);
+    } catch {}
+  };
+
   const doMerge = async () => {
     setIsMerging(true);
     try {
       const res = await window.electronAPI.mergePr({
         taskPath,
         prNumber: activePr.number,
-        strategy: 'merge',
+        strategy,
         admin: adminOverride,
       });
 
@@ -219,6 +260,8 @@ export function MergePrSection({
 
   const disabled = isMerging || !mergeUiState.canMerge;
   const isMerged = mergeUiState.kind === 'merged';
+  const showDisabledTooltip = !isMerged && !isMerging && !mergeUiState.canMerge;
+  const disabledTooltipText = `Disabled because ${mergeUiState.detail || mergeUiState.title}.`;
 
   return (
     <div className="border-t border-border px-4 py-3">
@@ -228,7 +271,6 @@ export function MergePrSection({
             <span className="text-sm font-medium text-foreground">Merge Pull Request</span>
             <StatusBadge state={mergeUiState} />
           </div>
-          <div className="mt-0.5 truncate text-xs text-muted-foreground">{mergeUiState.title}</div>
         </div>
         {showBypassToggle && (
           <div className="flex items-center justify-between gap-3">
@@ -243,25 +285,97 @@ export function MergePrSection({
             />
           </div>
         )}
-        <Button
-          variant="default"
-          size="sm"
-          className="h-8 w-full justify-center px-2 text-xs"
-          disabled={disabled || isMerged}
-          onClick={doMerge}
-          title={disabled ? mergeUiState.title : 'Merge via GitHub'}
-        >
-          {isMerging ? (
-            <Spinner size="sm" />
-          ) : isMerged ? (
+        {isMerged ? (
+          <Button
+            variant="default"
+            size="sm"
+            className="h-8 w-full justify-center px-2 text-xs disabled:opacity-100"
+            disabled
+          >
             <span className="inline-flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Merged
             </span>
-          ) : (
-            'Merge pull request'
-          )}
-        </Button>
+          </Button>
+        ) : (
+          <div className="flex w-full min-w-0">
+            {showDisabledTooltip ? (
+              <TooltipProvider delayDuration={120}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="min-w-0 flex-1">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-8 w-full justify-center rounded-r-none px-2 text-xs disabled:opacity-100"
+                        disabled
+                      >
+                        Merge pull request
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{disabledTooltipText}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Button
+                variant="default"
+                size="sm"
+                className="h-8 min-w-0 flex-1 justify-center rounded-r-none px-2 text-xs disabled:opacity-100"
+                disabled={disabled}
+                onClick={doMerge}
+                title={disabled ? mergeUiState.title : 'Merge via GitHub'}
+              >
+                {isMerging ? <Spinner size="sm" /> : 'Merge pull request'}
+              </Button>
+            )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-8 w-10 shrink-0 rounded-l-none px-0 disabled:opacity-100"
+                  disabled={isMerging}
+                  title="Select merge method"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-1">
+                {MERGE_STRATEGIES.map((opt) => (
+                  <PopoverClose key={opt.id} asChild>
+                    <button
+                      type="button"
+                      className="w-full rounded px-2 py-2 text-left hover:bg-accent"
+                      onClick={() => setAndPersistStrategy(opt.id)}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 inline-flex h-4 w-4 items-center justify-center">
+                          {strategy === opt.id ? (
+                            <Check className="h-4 w-4 text-foreground" />
+                          ) : null}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-foreground">{opt.title}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {opt.description}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  </PopoverClose>
+                ))}
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+        {mergeUiState.kind === 'conflicts' && (
+          <div>
+            <Badge variant="outline" className="w-full justify-center text-xs text-muted-foreground">
+              Resolve merge conflicts before merging
+            </Badge>
+          </div>
+        )}
       </div>
     </div>
   );
