@@ -2,8 +2,9 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { ExternalLink, User, Tag, Folder } from 'lucide-react';
-import linearLogo from '../../assets/images/linear.png';
+import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import type { LinearIssueSummary } from '../types/linear';
+import AgentLogo from './AgentLogo';
 
 type Props = {
   issue: LinearIssueSummary | null;
@@ -67,7 +68,11 @@ export const LinearIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <img src={linearLogo} alt="Linear" className="h-4 w-4 dark:invert" />
+                <AgentLogo
+                  logo={linearLogoSvg}
+                  alt="Linear"
+                  className="h-4 w-4 text-muted-foreground"
+                />
                 <span className="tracking-wide">Linear Issue</span>
                 <span className="font-semibold text-muted-foreground/80">{issue.identifier}</span>
               </div>
