@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 
 // Constants - No magic numbers
 const SEARCH_DEBOUNCE_MS = 400; // Balanced for performance and responsiveness
-const DEFAULT_MAX_RESULTS = 100; // Good coverage without overwhelming UI
+const DEFAULT_MAX_RESULTS = 10000; // Increased to match typical IDE search capabilities
 const MIN_SEARCH_LENGTH = 2; // Minimum 2 characters to search
 
 // Types

@@ -422,7 +422,7 @@ export class RemoteFileSystem implements IFileSystem {
   async search(query: string, options?: SearchOptions): Promise<SearchResult> {
     const searchPattern = options?.pattern || query;
     const basePath = this.remotePath;
-    const maxResults = options?.maxResults || 100;
+    const maxResults = options?.maxResults || 10000;
     const caseFlag = options?.caseSensitive ? '' : '-i';
 
     // Build grep command with shell-safe escaping
