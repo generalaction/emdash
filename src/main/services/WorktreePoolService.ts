@@ -510,8 +510,8 @@ export class WorktreePoolService {
       const resolvedGitWorktreePath = path.isAbsolute(gitWorktreePath)
         ? gitWorktreePath
         : path.resolve(worktreePath, gitWorktreePath);
-      const mainGitDir = resolvedGitWorktreePath.replace(/[\\/]worktrees[\\/].*$/, '');
-      return mainGitDir.replace(/[\\/]\\.git$/, '');
+      const mainGitDir = resolvedGitWorktreePath.replace(/[\\\\/]worktrees[\\\\/].*$/, '');
+      return mainGitDir.replace(/[\\\\/]\\.git$/, '');
     } catch {
       return null;
     }
