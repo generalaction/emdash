@@ -235,6 +235,11 @@ class AutoUpdateService {
       const errorMessage = formatUpdaterError(err);
       log.error('Auto-updater error:', errorMessage);
 
+      if (this.updateState.status === 'installing') {
+        log.warn('Ignoring auto-updater error while install is in progress');
+        return;
+      }
+
       // Preserve update info if we have it
       const previousVersion = this.updateState.availableVersion;
       const previousInfo = this.updateState.updateInfo;
@@ -408,6 +413,12 @@ class AutoUpdateService {
     } catch (error: any) {
       const errorMessage = formatUpdaterError(error);
       log.error('Update check failed:', errorMessage, error);
+
+      // Ignore stale check failures while install flow is active.
+      if (this.updateState.status === 'installing') {
+        return null;
+      }
+
       this.updateState.status = 'error';
       this.updateState.error = errorMessage;
 
