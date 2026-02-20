@@ -227,6 +227,18 @@ const TaskModal: React.FC<TaskModalProps> = ({
       return;
     }
 
+    const normalizedTaskName = normalizeTaskName(taskName);
+    // eslint-disable-next-line no-console
+    console.warn('[task-create-trace]', {
+      event: 'create_task_clicked',
+      at: new Date().toISOString(),
+      taskName: normalizedTaskName,
+      useWorktree,
+      baseRef: selectedBranch,
+      isMultiAgent: agentRuns.reduce((sum, run) => sum + run.runs, 0) > 1,
+      agentRuns: agentRuns.map((run) => `${run.agent}:${run.runs}`),
+    });
+
     // Close modal immediately - task creation happens in background
     // The task will appear in sidebar via optimistic UI update
     onClose();
@@ -234,7 +246,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     // Fire and forget - don't await
     try {
       onCreateTask(
-        normalizeTaskName(taskName),
+        normalizedTaskName,
         hasInitialPromptSupport && initialPrompt.trim() ? initialPrompt.trim() : undefined,
         agentRuns,
         selectedLinearIssue,
