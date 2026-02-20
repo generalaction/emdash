@@ -83,6 +83,42 @@ describe('ptyManager provider command resolution', () => {
     ]);
   });
 
+  it('covers all configured provider auto-approve flags', async () => {
+    const { PROVIDERS } = await import('../../shared/providers/registry');
+    const { resolveProviderCommandConfig, buildProviderCliArgs, parseShellArgs } = await import(
+      '../../main/services/ptyManager'
+    );
+
+    const expectedAutoApproveFlags: Record<string, string> = {
+      amp: '--dangerously-allow-all',
+      claude: '--dangerously-skip-permissions',
+      codex: '--full-auto',
+      copilot: '--allow-all-tools',
+      cursor: '-f',
+      gemini: '--yolo',
+      kilocode: '--auto',
+      mistral: '--auto-approve',
+      qwen: '--yolo',
+      rovo: '--yolo',
+    };
+
+    const providerIdsWithAutoApprove = PROVIDERS.filter((provider) => provider.autoApproveFlag)
+      .map((provider) => provider.id)
+      .sort();
+    expect(providerIdsWithAutoApprove).toEqual(Object.keys(expectedAutoApproveFlags).sort());
+
+    for (const [providerId, expectedFlag] of Object.entries(expectedAutoApproveFlags)) {
+      const config = resolveProviderCommandConfig(providerId);
+      expect(config?.autoApproveFlag).toBe(expectedFlag);
+
+      const args = buildProviderCliArgs({
+        autoApprove: true,
+        autoApproveFlag: config?.autoApproveFlag,
+      });
+      expect(args).toEqual(parseShellArgs(expectedFlag));
+    }
+  });
+
   it('falls back when custom CLI needs shell parsing', async () => {
     getProviderCustomConfigMock.mockReturnValue({
       cli: 'codex --dangerously-bypass-approvals-and-sandbox',

@@ -177,6 +177,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     commands: ['copilot'],
     versionArgs: ['--version'],
     cli: 'copilot',
+    autoApproveFlag: '--allow-all-tools',
     icon: 'gh-copilot.svg',
     terminalOnly: true,
   },
