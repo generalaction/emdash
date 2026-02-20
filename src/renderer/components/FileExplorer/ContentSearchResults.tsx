@@ -36,7 +36,8 @@ export const ContentSearchResults: React.FC<ContentSearchResultsProps> = ({
   return (
     <div className="space-y-2">
       <div className="px-1 text-xs text-muted-foreground">
-        found {totalMatches} {totalMatches === 1 ? 'line' : 'lines'} in {fileCount} {fileCount === 1 ? 'file' : 'files'}
+        found {totalMatches} {totalMatches === 1 ? 'line' : 'lines'} in {fileCount}{' '}
+        {fileCount === 1 ? 'file' : 'files'}
       </div>
       {results.map((result, index) => (
         <SearchResultItem
