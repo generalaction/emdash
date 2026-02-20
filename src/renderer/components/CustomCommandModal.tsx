@@ -338,18 +338,18 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                     </div>
                     <div className="space-y-2">
                       {form.envEntries.map((entry, i) => (
-                        <div key={i} className="flex gap-2 items-center">
+                        <div key={i} className="flex items-center gap-2">
                           <Input
                             value={entry.key}
                             onChange={(e) => setEnvEntry(i, { key: e.target.value })}
                             placeholder="KEY"
-                            className="font-mono text-sm flex-1 min-w-0"
+                            className="min-w-0 flex-1 font-mono text-sm"
                           />
                           <Input
                             value={entry.value}
                             onChange={(e) => setEnvEntry(i, { value: e.target.value })}
                             placeholder="value"
-                            className="font-mono text-sm flex-1 min-w-0"
+                            className="min-w-0 flex-1 font-mono text-sm"
                           />
                           <Button
                             type="button"

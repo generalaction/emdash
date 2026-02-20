@@ -478,7 +478,11 @@ function normalizeSettings(input: AppSettings): AppSettings {
         if (c.env && typeof c.env === 'object') {
           env = {};
           for (const [k, v] of Object.entries(c.env)) {
-            if (typeof k === 'string' && typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+            if (
+              typeof k === 'string' &&
+              typeof v === 'string' &&
+              /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)
+            ) {
               env[k] = v;
             }
           }
