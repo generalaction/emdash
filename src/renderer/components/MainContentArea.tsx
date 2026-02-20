@@ -16,7 +16,7 @@ interface MainContentAreaProps {
   activeTask: Task | null;
   activeTaskAgent: Agent | null;
   isCreatingTask: boolean;
-  onTaskInterfaceMounted: () => void;
+  onTaskInterfaceReady: () => void;
   showKanban: boolean;
   showHomeView: boolean;
   showSkillsView: boolean;
@@ -54,7 +54,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   activeTask,
   activeTaskAgent,
   isCreatingTask,
-  onTaskInterfaceMounted,
+  onTaskInterfaceReady,
   showKanban,
   showHomeView,
   showSkillsView,
@@ -132,7 +132,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
               projectRemoteConnectionId={projectRemoteConnectionId}
               projectRemotePath={projectRemotePath}
               defaultBranch={projectDefaultBranch}
-              onMounted={onTaskInterfaceMounted}
+              onTaskInterfaceReady={onTaskInterfaceReady}
             />
           ) : (
             <ChatInterface
@@ -144,7 +144,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
               defaultBranch={projectDefaultBranch}
               className="min-h-0 flex-1"
               initialAgent={activeTaskAgent || undefined}
-              onMounted={onTaskInterfaceMounted}
+              onTaskInterfaceReady={onTaskInterfaceReady}
             />
           )
         ) : (

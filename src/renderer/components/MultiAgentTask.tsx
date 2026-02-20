@@ -17,7 +17,6 @@ import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { getTaskEnvVars } from '@shared/task/envVars';
-import TaskCreationLoading from './TaskCreationLoading';
 
 interface Props {
   task: Task;
@@ -27,7 +26,7 @@ interface Props {
   projectRemoteConnectionId?: string | null;
   projectRemotePath?: string | null;
   defaultBranch?: string | null;
-  onMounted?: () => void;
+  onTaskInterfaceReady?: () => void;
 }
 
 type Variant = {
@@ -45,7 +44,7 @@ const MultiAgentTask: React.FC<Props> = ({
   projectRemoteConnectionId,
   projectRemotePath: _projectRemotePath,
   defaultBranch,
-  onMounted,
+  onTaskInterfaceReady,
 }) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
@@ -77,9 +76,14 @@ const MultiAgentTask: React.FC<Props> = ({
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
 
+  const readySignaledTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
-    onMounted?.();
-  }, [onMounted]);
+    if (!onTaskInterfaceReady) return;
+    if (variants.length === 0) return;
+    if (readySignaledTaskIdRef.current === task.id) return;
+    readySignaledTaskIdRef.current = task.id;
+    onTaskInterfaceReady();
+  }, [task.id, variants.length, onTaskInterfaceReady]);
 
   // Helper to generate display label with instance number if needed
   const getVariantDisplayLabel = (variant: Variant): string => {
@@ -452,9 +456,8 @@ const MultiAgentTask: React.FC<Props> = ({
     );
   }
 
-  // Show loading state while worktrees are being created
   if (variants.length === 0) {
-    return <TaskCreationLoading />;
+    return <div className="h-full" />;
   }
 
   return (

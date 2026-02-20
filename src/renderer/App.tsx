@@ -313,29 +313,28 @@ const AppContent: React.FC = () => {
     ) => {
       if (!projectMgmt.selectedProject) return;
       setIsCreatingTask(true);
-      try {
-        await createTask(
-          {
-            taskName,
-            initialPrompt,
-            agentRuns,
-            linkedLinearIssue,
-            linkedGithubIssue,
-            linkedJiraIssue,
-            autoApprove,
-            useWorktree,
-            baseRef,
-          },
-          {
-            selectedProject: projectMgmt.selectedProject,
-            setProjects: projectMgmt.setProjects,
-            setSelectedProject: projectMgmt.setSelectedProject,
-            setActiveTask: taskMgmt.setActiveTask,
-            setActiveTaskAgent: taskMgmt.setActiveTaskAgent,
-            toast,
-          }
-        );
-      } finally {
+      const started = await createTask(
+        {
+          taskName,
+          initialPrompt,
+          agentRuns,
+          linkedLinearIssue,
+          linkedGithubIssue,
+          linkedJiraIssue,
+          autoApprove,
+          useWorktree,
+          baseRef,
+        },
+        {
+          selectedProject: projectMgmt.selectedProject,
+          setProjects: projectMgmt.setProjects,
+          setSelectedProject: projectMgmt.setSelectedProject,
+          setActiveTask: taskMgmt.setActiveTask,
+          setActiveTaskAgent: taskMgmt.setActiveTaskAgent,
+          toast,
+        }
+      );
+      if (!started) {
         setIsCreatingTask(false);
       }
     },
@@ -350,12 +349,16 @@ const AppContent: React.FC = () => {
   );
 
   useEffect(() => {
-    if (taskMgmt.activeTask) {
+    if (!isCreatingTask) return;
+    const timeout = window.setTimeout(() => {
       setIsCreatingTask(false);
-    }
-  }, [taskMgmt.activeTask]);
+    }, 30000);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isCreatingTask]);
 
-  const handleTaskInterfaceMounted = useCallback(() => {
+  const handleTaskInterfaceReady = useCallback(() => {
     setIsCreatingTask(false);
   }, []);
 
@@ -643,7 +646,7 @@ const AppContent: React.FC = () => {
                         activeTask={activeTask}
                         activeTaskAgent={activeTaskAgent}
                         isCreatingTask={isCreatingTask}
-                        onTaskInterfaceMounted={handleTaskInterfaceMounted}
+                        onTaskInterfaceReady={handleTaskInterfaceReady}
                         showKanban={showKanban}
                         showHomeView={projectMgmt.showHomeView}
                         showSkillsView={projectMgmt.showSkillsView}

@@ -42,7 +42,7 @@ interface Props {
   defaultBranch?: string | null;
   className?: string;
   initialAgent?: Agent;
-  onMounted?: () => void;
+  onTaskInterfaceReady?: () => void;
 }
 
 const ChatInterface: React.FC<Props> = ({
@@ -54,7 +54,7 @@ const ChatInterface: React.FC<Props> = ({
   defaultBranch,
   className,
   initialAgent,
-  onMounted,
+  onTaskInterfaceReady,
 }) => {
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
@@ -140,9 +140,13 @@ const ChatInterface: React.FC<Props> = ({
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
 
+  const readySignaledTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
-    onMounted?.();
-  }, [onMounted]);
+    if (!onTaskInterfaceReady) return;
+    if (readySignaledTaskIdRef.current === task.id) return;
+    readySignaledTaskIdRef.current = task.id;
+    onTaskInterfaceReady();
+  }, [task.id, onTaskInterfaceReady]);
 
   // Load conversations when task changes
   useEffect(() => {

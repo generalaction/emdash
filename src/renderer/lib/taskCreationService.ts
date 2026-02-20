@@ -50,7 +50,10 @@ async function runSetupOnCreate(
   }
 }
 
-export async function createTask(params: CreateTaskParams, callbacks: CreateTaskCallbacks) {
+export async function createTask(
+  params: CreateTaskParams,
+  callbacks: CreateTaskCallbacks
+): Promise<boolean> {
   const {
     taskName,
     initialPrompt,
@@ -112,7 +115,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
       // Multi-agent task: show UI immediately with loading state, create worktrees in background
       const groupId = `ws-${taskName}-${Date.now()}`;
 
-      // Create optimistic task with empty variants - triggers loading state in MultiAgentTask
+      // Create optimistic task with empty variants so the parent can show a unified loading state
       const optimisticMeta: TaskMetadata = {
         ...(taskMetadata || {}),
         multiAgent: {
@@ -151,7 +154,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
         setActiveTask((current) => (current?.id === groupId ? null : current));
       };
 
-      // Update UI immediately - shows MultiAgentTask with loading spinner
+      // Update UI immediately while worktrees are created in the background
       setProjects((prev) =>
         prev.map((project) =>
           project.id === selectedProject.id
@@ -333,6 +336,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
         if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
         if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
       });
+      return true;
     } else {
       let branch: string;
       let path: string;
@@ -611,6 +615,7 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           }
         }
       })();
+      return true;
     }
   } catch (error) {
     const { log } = await import('./logger');
@@ -620,5 +625,6 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
       description:
         (error as Error)?.message || 'Failed to create task. Please check the console for details.',
     });
+    return false;
   }
 }
