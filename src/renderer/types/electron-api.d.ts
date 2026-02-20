@@ -446,6 +446,8 @@ declare global {
       }>;
       worktreeRemoveReserve: (args: {
         projectId: string;
+        projectPath?: string;
+        isRemote?: boolean;
       }) => Promise<{ success: boolean; error?: string }>;
 
       // Lifecycle scripts
@@ -1390,6 +1392,8 @@ export interface ElectronAPI {
   }>;
   worktreeRemoveReserve: (args: {
     projectId: string;
+    projectPath?: string;
+    isRemote?: boolean;
   }) => Promise<{ success: boolean; error?: string }>;
 
   // Lifecycle scripts
