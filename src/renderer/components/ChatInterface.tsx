@@ -142,15 +142,7 @@ const ChatInterface: React.FC<Props> = ({
 
   useEffect(() => {
     onMounted?.();
-    // eslint-disable-next-line no-console
-    console.warn('[task-create-trace]', {
-      event: 'chat_interface_mounted',
-      at: new Date().toISOString(),
-      taskId: task.id,
-      taskName: task.name,
-      taskPath: task.path,
-    });
-  }, [task.id, task.name, task.path, onMounted]);
+  }, [onMounted]);
 
   // Load conversations when task changes
   useEffect(() => {

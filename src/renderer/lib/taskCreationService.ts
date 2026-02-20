@@ -7,15 +7,6 @@ import { type LinearIssueSummary } from '../types/linear';
 import { saveActiveIds } from '../constants/layout';
 import { getAgentForTask } from './getAgentForTask';
 
-function traceTaskCreate(event: string, data: Record<string, unknown>): void {
-  // eslint-disable-next-line no-console
-  console.warn('[task-create-trace]', {
-    event,
-    at: new Date().toISOString(),
-    ...data,
-  });
-}
-
 export interface CreateTaskParams {
   taskName: string;
   initialPrompt?: string;
@@ -79,14 +70,6 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
     setActiveTaskAgent,
     toast,
   } = callbacks;
-  const flowStartedAt = Date.now();
-  traceTaskCreate('create_task_flow_started', {
-    projectId: selectedProject.id,
-    projectPath: selectedProject.path,
-    taskName,
-    useWorktree,
-    baseRef: baseRef || null,
-  });
 
   try {
     // Build basic prompt without enrichment (enrichment happens in background later)
@@ -123,13 +106,6 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
     const totalRuns = agentRuns.reduce((sum, ar) => sum + ar.runs, 0);
     const isMultiAgent = totalRuns > 1;
     const primaryAgent = agentRuns[0]?.agent || 'claude';
-    traceTaskCreate('create_task_mode_resolved', {
-      taskName,
-      isMultiAgent,
-      totalRuns,
-      primaryAgent,
-      elapsedMs: Date.now() - flowStartedAt,
-    });
 
     let newTask: Task;
     if (isMultiAgent) {
@@ -363,12 +339,6 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
       let taskId: string;
 
       if (useWorktree) {
-        traceTaskCreate('worktree_claim_reserve_started', {
-          taskName,
-          projectId: selectedProject.id,
-          elapsedMs: Date.now() - flowStartedAt,
-        });
-        const claimStartedAt = Date.now();
         // Try to claim a pre-created reserve worktree (instant)
         const claimResult = await window.electronAPI.worktreeClaimReserve({
           projectId: selectedProject.id,
@@ -378,14 +348,6 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
         });
 
         if (claimResult.success && claimResult.worktree) {
-          traceTaskCreate('worktree_claim_reserve_completed', {
-            taskName,
-            projectId: selectedProject.id,
-            reserveClaimed: true,
-            needsBaseRefSwitch: !!claimResult.needsBaseRefSwitch,
-            claimDurationMs: Date.now() - claimStartedAt,
-            elapsedMs: Date.now() - flowStartedAt,
-          });
           const worktree = claimResult.worktree;
           branch = worktree.branch;
           path = worktree.path;
@@ -399,20 +361,6 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
             });
           }
         } else {
-          traceTaskCreate('worktree_claim_reserve_completed', {
-            taskName,
-            projectId: selectedProject.id,
-            reserveClaimed: false,
-            claimError: claimResult.error || null,
-            claimDurationMs: Date.now() - claimStartedAt,
-            elapsedMs: Date.now() - flowStartedAt,
-          });
-          traceTaskCreate('worktree_create_fallback_started', {
-            taskName,
-            projectId: selectedProject.id,
-            elapsedMs: Date.now() - flowStartedAt,
-          });
-          const fallbackStartedAt = Date.now();
           // Fallback (or forced): Create worktree
           const worktreeResult = await window.electronAPI.worktreeCreate({
             projectPath: selectedProject.path,
@@ -429,23 +377,12 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
           branch = worktree.branch;
           path = worktree.path;
           taskId = worktree.id;
-          traceTaskCreate('worktree_create_fallback_completed', {
-            taskName,
-            projectId: selectedProject.id,
-            fallbackDurationMs: Date.now() - fallbackStartedAt,
-            elapsedMs: Date.now() - flowStartedAt,
-          });
         }
       } else {
         // Direct branch mode - use current project path and branch
         branch = selectedProject.gitInfo.branch || 'main';
         path = selectedProject.path;
         taskId = `direct-${taskName}-${Date.now()}`;
-        traceTaskCreate('direct_branch_mode_selected', {
-          taskName,
-          projectId: selectedProject.id,
-          elapsedMs: Date.now() - flowStartedAt,
-        });
       }
 
       newTask = {
@@ -464,24 +401,11 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
       // Conversations and messages have FK constraints on the task row,
       // so the task must exist in DB before ChatInterface mounts and
       // tries to create/load conversations.
-      const saveStartedAt = Date.now();
-      traceTaskCreate('task_db_save_started', {
-        taskName,
-        taskId: newTask.id,
-        elapsedMs: Date.now() - flowStartedAt,
-      });
       const saveResult = await window.electronAPI.saveTask({
         ...newTask,
         agentId: primaryAgent,
         metadata: taskMetadata,
         useWorktree,
-      });
-      traceTaskCreate('task_db_save_completed', {
-        taskName,
-        taskId: newTask.id,
-        success: !!saveResult?.success,
-        saveDurationMs: Date.now() - saveStartedAt,
-        elapsedMs: Date.now() - flowStartedAt,
       });
       if (!saveResult?.success) {
         const { log } = await import('./logger');
@@ -516,11 +440,6 @@ export async function createTask(params: CreateTaskParams, callbacks: CreateTask
       );
 
       // Set the active task and its agent
-      traceTaskCreate('active_task_set', {
-        taskName,
-        taskId: newTask.id,
-        elapsedMs: Date.now() - flowStartedAt,
-      });
       setActiveTask(newTask);
       setActiveTaskAgent(getAgentForTask(newTask) ?? primaryAgent ?? 'codex');
       saveActiveIds(newTask.projectId, newTask.id);
