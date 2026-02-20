@@ -26,6 +26,16 @@ vi.mock('crypto', () => ({
   randomUUID: vi.fn().mockReturnValue('test-uuid-123'),
 }));
 
+// Prevent keytar/native module loading through SshService's module-level singleton.
+vi.mock('../SshCredentialService', () => ({
+  SshCredentialService: class MockSshCredentialService {
+    getPassword = vi.fn();
+    getPassphrase = vi.fn();
+    storePassword = vi.fn();
+    storePassphrase = vi.fn();
+  },
+}));
+
 describe('SshService', () => {
   let service: SshService;
   let mockCredentialService: {
