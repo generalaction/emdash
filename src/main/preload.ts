@@ -327,6 +327,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:list-remote-branches', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   clipboardWriteText: (text: string) => ipcRenderer.invoke('app:clipboard-write-text', text),
+  paste: () => ipcRenderer.invoke('app:paste'),
   // Telemetry (minimal, anonymous)
   captureTelemetry: (event: string, properties?: Record<string, any>) =>
     ipcRenderer.invoke('telemetry:capture', { event, properties }),
@@ -655,6 +656,7 @@ export interface ElectronAPI {
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
   clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
+  paste: () => Promise<{ success: boolean; error?: string }>;
   listInstalledFonts: (args?: {
     refresh?: boolean;
   }) => Promise<{ success: boolean; fonts?: string[]; cached?: boolean; error?: string }>;

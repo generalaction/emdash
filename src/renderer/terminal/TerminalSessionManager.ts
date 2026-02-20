@@ -13,6 +13,7 @@ import {
   CTRL_J_ASCII,
   shouldCopySelectionFromTerminal,
   shouldMapShiftEnterToCtrlJ,
+  shouldPasteToTerminal,
 } from './terminalKeybindings';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
@@ -263,6 +264,15 @@ export class TerminalSessionManager {
         event.stopPropagation();
         this.copySelectionToClipboard();
         return false; // Prevent xterm from processing the copy shortcut
+      }
+
+      // Handle Ctrl+Shift+V paste on Linux
+      if (shouldPasteToTerminal(event, IS_MAC_PLATFORM)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+        this.pasteFromClipboard();
+        return false; // Prevent xterm from processing the paste shortcut
       }
 
       if (options.mapShiftEnterToCtrlJ && shouldMapShiftEnterToCtrlJ(event)) {
@@ -554,6 +564,25 @@ export class TerminalSessionManager {
     } catch (error) {
       log.warn('Failed to copy terminal selection', { id: this.id, error });
     }
+  }
+
+  /**
+   * Paste text from clipboard into the terminal using Electron's native paste.
+   * Used for Ctrl+Shift+V on Linux.
+   */
+  private pasteFromClipboard() {
+    const paste = window.electronAPI?.paste;
+    if (typeof paste !== 'function') {
+      log.warn('Terminal paste API unavailable', { id: this.id });
+      return;
+    }
+
+    void paste().catch((error: unknown) => {
+      log.warn('Failed to paste to terminal', {
+        id: this.id,
+        error,
+      });
+    });
   }
 
   private applyTheme(theme: SessionTheme) {
