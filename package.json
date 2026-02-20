@@ -106,6 +106,7 @@
     "fix-path": "^4.0.0",
     "framer-motion": "^12.33.0",
     "human-id": "^4.1.2",
+    "ignore": "^5.3.1",
     "keytar": "^7.9.0",
     "lucide-react": "^0.564.0",
     "minimatch": "^10.1.1",

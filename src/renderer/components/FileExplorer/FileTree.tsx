@@ -18,6 +18,13 @@ export interface FileNode {
   isLoaded?: boolean;
 }
 
+export const constructSubRoot = (rootPath: string, nodePath: string): string => {
+  const separator = rootPath.includes('\\') ? '\\' : '/';
+  return rootPath.endsWith(separator) 
+    ? `${rootPath}${nodePath}` 
+    : `${rootPath}${separator}${nodePath}`;
+};
+
 interface FileTreeProps {
   rootPath: string;
   selectedFile?: string | null;
@@ -417,8 +424,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
       if (node.isLoaded) return;
 
       try {
-        const separator = rootPath.includes('\\') ? '\\' : '/';
-        const subRoot = `${rootPath}${separator}${node.path}`; // node.path is relative
+        const subRoot = constructSubRoot(rootPath, node.path); // node.path is relative
 
         const result = await window.electronAPI.fsList(subRoot, {
           includeDirs: true,
