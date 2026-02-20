@@ -52,8 +52,6 @@ jobs:
 
   vitest:
     runs-on: ubuntu-latest
-    env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
     steps:
       - name: Checkout
@@ -71,10 +69,10 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        # Skip lifecycle scripts to avoid flaky node-gyp/native module builds in CI.
+        # Tests import Electron/keytar paths, so lifecycle scripts must run.
         run: |
           for attempt in 1 2 3; do
-            pnpm install --frozen-lockfile --ignore-scripts && break
+            pnpm install --frozen-lockfile && break
             if [ "$attempt" -eq 3 ]; then
               echo "pnpm install failed after 3 attempts"
               exit 1

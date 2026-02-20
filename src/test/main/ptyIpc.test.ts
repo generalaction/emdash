@@ -462,7 +462,7 @@ describe('ptyIpc notification lifecycle', () => {
     expect(proc!.write).toHaveBeenCalled();
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('command -v');
-    expect(written).toContain("codex-remote;echo");
+    expect(written).toContain('codex-remote;echo');
     expect(written).toContain("'\\''codex-remote;echo'\\''");
     expect(written).not.toContain('command -v codex-remote;echo');
   });
