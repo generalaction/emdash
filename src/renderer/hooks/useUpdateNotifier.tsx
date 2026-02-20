@@ -4,14 +4,14 @@ import { ToastAction } from '@/components/ui/toast';
 
 type Options = {
   checkOnMount?: boolean;
-  onOpenSettings?: () => void;
+  onUpdate?: () => void;
   snoozeHours?: number;
 };
 
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified'; // JSON: { version: string, at: number }
 
 export function useUpdateNotifier(opts: Options = {}) {
-  const { checkOnMount = true, onOpenSettings, snoozeHours = 6 } = opts;
+  const { checkOnMount = true, onUpdate, snoozeHours = 6 } = opts;
   const { toast } = useToast();
 
   useEffect(() => {
@@ -48,10 +48,10 @@ export function useUpdateNotifier(opts: Options = {}) {
         try {
           toast({
             title: 'Update Available',
-            description: `Version ${v || 'new'} is ready. Open Settings to review and download when convenient.`,
+            description: `Version ${v || 'new'} is ready to download and install.`,
             action: (
-              <ToastAction altText="Open Settings" onClick={() => onOpenSettings?.()}>
-                Open Settings
+              <ToastAction altText="Update Now" onClick={() => onUpdate?.()}>
+                Update Now
               </ToastAction>
             ),
           });
@@ -73,7 +73,7 @@ export function useUpdateNotifier(opts: Options = {}) {
         off?.();
       } catch {}
     };
-  }, [checkOnMount, onOpenSettings, snoozeHours, toast]);
+  }, [checkOnMount, onUpdate, snoozeHours, toast]);
 }
 
 export default useUpdateNotifier;
