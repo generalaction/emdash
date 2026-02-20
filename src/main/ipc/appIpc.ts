@@ -201,6 +201,19 @@ export function registerAppIpc() {
     }
   });
 
+  ipcMain.handle('app:paste', async (event) => {
+    try {
+      const webContents = event.sender;
+      if (!webContents) {
+        return { success: false, error: 'No webContents available' };
+      }
+      webContents.paste();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   ipcMain.handle(
     'app:openIn',
     async (

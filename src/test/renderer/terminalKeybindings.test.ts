@@ -3,6 +3,7 @@ import {
   CTRL_J_ASCII,
   shouldCopySelectionFromTerminal,
   shouldMapShiftEnterToCtrlJ,
+  shouldPasteToTerminal,
   type KeyEventLike,
 } from '../../renderer/terminal/terminalKeybindings';
 
@@ -90,6 +91,51 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
         makeEvent({ key: 'c', altKey: true, ctrlKey: true }),
         false,
         withSelection
+      )
+    ).toBe(false);
+  });
+
+  it('detects Ctrl+Shift+V paste on Linux only', () => {
+    const isMac = true;
+    const isNotMac = false;
+
+    // Ctrl+Shift+V on Linux should trigger paste
+    expect(
+      shouldPasteToTerminal(makeEvent({ key: 'v', ctrlKey: true, shiftKey: true }), isNotMac)
+    ).toBe(true);
+
+    // Ctrl+Shift+V on macOS should NOT trigger paste (macOS uses Cmd+V)
+    expect(
+      shouldPasteToTerminal(makeEvent({ key: 'v', ctrlKey: true, shiftKey: true }), isMac)
+    ).toBe(false);
+
+    // Ctrl+V alone should NOT trigger (that's SIGINT in terminals)
+    expect(shouldPasteToTerminal(makeEvent({ key: 'v', ctrlKey: true }), isNotMac)).toBe(false);
+
+    // Additional modifiers should NOT trigger
+    expect(
+      shouldPasteToTerminal(
+        makeEvent({ key: 'v', ctrlKey: true, shiftKey: true, altKey: true }),
+        isNotMac
+      )
+    ).toBe(false);
+    expect(
+      shouldPasteToTerminal(
+        makeEvent({ key: 'v', ctrlKey: true, shiftKey: true, metaKey: true }),
+        isNotMac
+      )
+    ).toBe(false);
+
+    // Wrong key should NOT trigger
+    expect(
+      shouldPasteToTerminal(makeEvent({ key: 'c', ctrlKey: true, shiftKey: true }), isNotMac)
+    ).toBe(false);
+
+    // keyup should NOT trigger
+    expect(
+      shouldPasteToTerminal(
+        makeEvent({ type: 'keyup', key: 'v', ctrlKey: true, shiftKey: true }),
+        isNotMac
       )
     ).toBe(false);
   });

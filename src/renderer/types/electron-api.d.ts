@@ -698,6 +698,7 @@ declare global {
       }>;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
+      paste: () => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
         app: OpenInAppId;
         path: string;
