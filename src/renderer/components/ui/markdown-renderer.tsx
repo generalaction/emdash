@@ -74,16 +74,26 @@ function useFullComponents(isDark: boolean) {
       pre: ({ children }: any) => (
         <pre className="mb-3 overflow-x-auto rounded-md border border-border">{children}</pre>
       ),
-      a: ({ href, children }: any) => (
-        <a
-          href={href}
-          className="text-primary underline decoration-primary/50 hover:decoration-primary"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {children}
-        </a>
-      ),
+      a: ({ href, children }: any) => {
+        const isHttp = typeof href === 'string' && /^https?:\/\//i.test(href);
+        const handleClick = (e: React.MouseEvent) => {
+          if (isHttp && typeof window !== 'undefined' && window.electronAPI?.openExternal) {
+            e.preventDefault();
+            window.electronAPI.openExternal(href).catch(() => {});
+          }
+        };
+        return (
+          <a
+            href={href}
+            className="text-primary underline decoration-primary/50 hover:decoration-primary"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleClick}
+          >
+            {children}
+          </a>
+        );
+      },
       blockquote: ({ children }: any) => (
         <blockquote className="mb-3 border-l-4 border-border bg-muted/30 py-1 pl-4 text-sm italic text-muted-foreground">
           {children}
@@ -154,11 +164,26 @@ function useCompactComponents() {
       strong: ({ children }: any) => (
         <strong className="font-semibold text-foreground">{children}</strong>
       ),
-      a: ({ href, children }: any) => (
-        <a href={href} className="text-primary underline" target="_blank" rel="noopener noreferrer">
-          {children}
-        </a>
-      ),
+      a: ({ href, children }: any) => {
+        const isHttp = typeof href === 'string' && /^https?:\/\//i.test(href);
+        const handleClick = (e: React.MouseEvent) => {
+          if (isHttp && typeof window !== 'undefined' && window.electronAPI?.openExternal) {
+            e.preventDefault();
+            window.electronAPI.openExternal(href).catch(() => {});
+          }
+        };
+        return (
+          <a
+            href={href}
+            className="text-primary underline"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleClick}
+          >
+            {children}
+          </a>
+        );
+      },
     }),
     []
   );
