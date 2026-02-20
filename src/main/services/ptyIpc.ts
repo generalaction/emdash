@@ -95,37 +95,29 @@ function bufferedSendPtyData(id: string, chunk: string): void {
   ptyDataTimers.set(id, t);
 }
 
-function escapeForDoubleQuotes(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-function buildRemoteInitCommand(args: {
+function buildRemoteInitKeystrokes(args: {
   cwd?: string;
   provider?: { cli: string; cmd: string; installCommand?: string };
 }): string {
-  const parts: string[] = [];
+  const lines: string[] = [];
   if (args.cwd) {
-    // Avoid `cd --` for maximum shell portability.
-    parts.push(
-      `cd ${quoteShellArg(args.cwd)} || echo "emdash: could not cd to ${escapeForDoubleQuotes(args.cwd)}"`
-    );
+    // Keep this line shell-agnostic (works in zsh/bash/fish); avoid POSIX `||` which fish doesn't support.
+    // If `cd` fails, the shell will print its own error message.
+    lines.push(`cd ${quoteShellArg(args.cwd)}`);
   }
   if (args.provider) {
     const cli = args.provider.cli;
     const install = args.provider.installCommand ? ` Install: ${args.provider.installCommand}` : '';
     const msg = `emdash: ${cli} not found on remote.${install}`;
-    parts.push(
-      `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then ${args.provider.cmd}; else echo "${escapeForDoubleQuotes(
-        msg
-      )}"; fi`
-    );
+    // Run the check inside a POSIX shell so it works even if the user's login shell isn't POSIX
+    // (e.g. fish). PATH/env vars come from the interactive login shell started by `ssh`.
+    const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then exec ${args.provider.cmd}; else printf '%s\\n' ${quoteShellArg(
+      msg
+    )}; fi`;
+    lines.push(`sh -c ${quoteShellArg(shScript)}`);
   }
 
-  // Launch an interactive session in the user's configured shell.
-  // $SHELL is always set by sshd from the remote user's passwd entry.
-  parts.push(`exec "\${SHELL:-/bin/bash}" -i`);
-
-  return parts.join('; ');
+  return lines.length ? `${lines.join('\n')}\n` : '';
 }
 
 async function resolveSshInvocation(
@@ -340,12 +332,10 @@ export function registerPtyIpc(): void {
           }
 
           const ssh = await resolveSshInvocation(remote.connectionId);
-          const remoteInitCommand = buildRemoteInitCommand({ cwd });
           const proc = startSshPty({
             id,
             target: ssh.target,
             sshArgs: ssh.args,
-            remoteInitCommand,
             cols,
             rows,
             env,
@@ -364,6 +354,11 @@ export function registerPtyIpc(): void {
               removePtyRecord(id);
             });
             listeners.add(id);
+          }
+
+          const remoteInit = buildRemoteInitKeystrokes({ cwd });
+          if (remoteInit) {
+            proc.write(remoteInit);
           }
 
           try {
@@ -740,16 +735,11 @@ export function registerPtyIpc(): void {
             initialPrompt,
             resume,
           });
-          const remoteInitCommand = buildRemoteInitCommand({
-            cwd,
-            provider: remoteProvider,
-          });
 
           const proc = startSshPty({
             id,
             target: ssh.target,
             sshArgs: ssh.args,
-            remoteInitCommand,
             cols,
             rows,
             env,
@@ -769,6 +759,11 @@ export function registerPtyIpc(): void {
               removePtyRecord(id);
             });
             listeners.add(id);
+          }
+
+          const remoteInit = buildRemoteInitKeystrokes({ cwd, provider: remoteProvider });
+          if (remoteInit) {
+            proc.write(remoteInit);
           }
 
           maybeMarkProviderStart(id);
