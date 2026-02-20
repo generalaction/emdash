@@ -410,15 +410,20 @@ describe('ptyIpc notification lifecycle', () => {
       })
     );
     expect(startSshPtyMock).toHaveBeenCalledTimes(1);
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
 
-    const remoteInitCommand = String(
-      (startSshPtyMock.mock.calls[0][0] as any)?.remoteInitCommand || ''
-    );
-    expect(remoteInitCommand).toContain("command -v 'codex-remote'");
-    expect(remoteInitCommand).toContain("'codex-remote' 'resume' '--last' '--model' 'gpt-5'");
-    expect(remoteInitCommand).toContain(
-      "'--dangerously-bypass-approvals-and-sandbox' 'hello world'"
-    );
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+    expect(proc!.write).toHaveBeenCalled();
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).toContain('command -v');
+    expect(written).toContain('codex-remote');
+    expect(written).toContain('resume');
+    expect(written).toContain('--last');
+    expect(written).toContain('--model');
+    expect(written).toContain('gpt-5');
+    expect(written).toContain('--dangerously-bypass-approvals-and-sandbox');
+    expect(written).toContain('hello world');
   });
 
   it('quotes remote custom CLI tokens to prevent shell metachar expansion', async () => {
@@ -450,10 +455,15 @@ describe('ptyIpc notification lifecycle', () => {
     );
 
     expect(result?.ok).toBe(true);
-    const remoteInitCommand = String(
-      (startSshPtyMock.mock.calls[0][0] as any)?.remoteInitCommand || ''
-    );
-    expect(remoteInitCommand).toContain("command -v 'codex-remote;echo'");
-    expect(remoteInitCommand).toContain("then 'codex-remote;echo'");
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+    expect(proc!.write).toHaveBeenCalled();
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).toContain('command -v');
+    expect(written).toContain("codex-remote;echo");
+    expect(written).toContain("'\\''codex-remote;echo'\\''");
+    expect(written).not.toContain('command -v codex-remote;echo');
   });
 });
