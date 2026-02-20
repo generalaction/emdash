@@ -20,8 +20,8 @@ export interface FileNode {
 
 export const constructSubRoot = (rootPath: string, nodePath: string): string => {
   const separator = rootPath.includes('\\') ? '\\' : '/';
-  return rootPath.endsWith(separator) 
-    ? `${rootPath}${nodePath}` 
+  return rootPath.endsWith(separator)
+    ? `${rootPath}${nodePath}`
     : `${rootPath}${separator}${nodePath}`;
 };
 
