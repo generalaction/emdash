@@ -341,24 +341,34 @@ export async function createTask(
       let branch: string;
       let path: string;
       let taskId: string;
+      let taskPersistedInClaim = false;
 
       if (useWorktree) {
-        // Try to claim a pre-created reserve worktree (instant)
-        const claimResult = await window.electronAPI.worktreeClaimReserve({
+        // Try to claim a pre-created reserve worktree and persist task in one IPC call.
+        const claimAndSaveResult = await window.electronAPI.worktreeClaimReserveAndSaveTask({
           projectId: selectedProject.id,
           projectPath: selectedProject.path,
           taskName,
           baseRef,
+          task: {
+            projectId: selectedProject.id,
+            name: taskName,
+            status: 'idle',
+            agentId: primaryAgent,
+            metadata: taskMetadata,
+            useWorktree,
+          },
         });
 
-        if (claimResult.success && claimResult.worktree) {
-          const worktree = claimResult.worktree;
+        if (claimAndSaveResult.success && claimAndSaveResult.worktree) {
+          const worktree = claimAndSaveResult.worktree;
           branch = worktree.branch;
           path = worktree.path;
           taskId = worktree.id;
+          taskPersistedInClaim = true;
 
           // Warn if base ref switch failed
-          if (claimResult.needsBaseRefSwitch) {
+          if (claimAndSaveResult.needsBaseRefSwitch) {
             toast({
               title: 'Warning',
               description: `Could not switch to ${baseRef}. Task created on default branch.`,
@@ -405,21 +415,23 @@ export async function createTask(
       // Conversations and messages have FK constraints on the task row,
       // so the task must exist in DB before ChatInterface mounts and
       // tries to create/load conversations.
-      const saveResult = await window.electronAPI.saveTask({
-        ...newTask,
-        agentId: primaryAgent,
-        metadata: taskMetadata,
-        useWorktree,
-      });
-      if (!saveResult?.success) {
-        const { log } = await import('./logger');
-        log.error('Failed to save task:', saveResult?.error);
-        toast({
-          title: 'Warning',
-          description:
-            'Task created but may not persist after restart. Try again if it disappears.',
-          variant: 'destructive',
+      if (!taskPersistedInClaim) {
+        const saveResult = await window.electronAPI.saveTask({
+          ...newTask,
+          agentId: primaryAgent,
+          metadata: taskMetadata,
+          useWorktree,
         });
+        if (!saveResult?.success) {
+          const { log } = await import('./logger');
+          log.error('Failed to save task:', saveResult?.error);
+          toast({
+            title: 'Warning',
+            description:
+              'Task created but may not persist after restart. Try again if it disappears.',
+            variant: 'destructive',
+          });
+        }
       }
 
       // Update UI state now that DB row exists

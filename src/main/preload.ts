@@ -194,6 +194,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     taskName: string;
     baseRef?: string;
   }) => ipcRenderer.invoke('worktree:claimReserve', args),
+  worktreeClaimReserveAndSaveTask: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    task: {
+      projectId: string;
+      name: string;
+      status: 'active' | 'idle' | 'running';
+      agentId?: string | null;
+      metadata?: any;
+      useWorktree?: boolean;
+    };
+  }) => ipcRenderer.invoke('worktree:claimReserveAndSaveTask', args),
   worktreeRemoveReserve: (args: { projectId: string; projectPath?: string; isRemote?: boolean }) =>
     ipcRenderer.invoke('worktree:removeReserve', args),
 
@@ -750,6 +764,49 @@ export interface ElectronAPI {
     worktreeId: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
   worktreeGetAll: () => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
+  // Worktree pool (reserve) management for instant task creation
+  worktreeEnsureReserve: (args: {
+    projectId: string;
+    projectPath: string;
+    baseRef?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  worktreeHasReserve: (args: {
+    projectId: string;
+  }) => Promise<{ success: boolean; hasReserve?: boolean; error?: string }>;
+  worktreeClaimReserve: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+  }) => Promise<{
+    success: boolean;
+    worktree?: any;
+    needsBaseRefSwitch?: boolean;
+    error?: string;
+  }>;
+  worktreeClaimReserveAndSaveTask: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    task: {
+      projectId: string;
+      name: string;
+      status: 'active' | 'idle' | 'running';
+      agentId?: string | null;
+      metadata?: any;
+      useWorktree?: boolean;
+    };
+  }) => Promise<{
+    success: boolean;
+    worktree?: any;
+    task?: any;
+    needsBaseRefSwitch?: boolean;
+    error?: string;
+  }>;
+  worktreeRemoveReserve: (args: {
+    projectId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
 
   // Lifecycle scripts
   lifecycleGetScript: (args: {
