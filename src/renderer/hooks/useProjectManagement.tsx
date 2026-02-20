@@ -56,33 +56,47 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
 
-  const activateProjectView = useCallback((project: Project) => {
-    void (async () => {
-      const { captureTelemetry } = await import('../lib/telemetryClient');
-      captureTelemetry('project_view_opened');
-    })();
-    setSelectedProject(project);
-    setShowHomeView(false);
-    setShowSkillsView(false);
-    setActiveTask(null);
-    setShowEditorMode(false);
-    setShowKanban(false);
-    saveActiveIds(project.id, null);
-
-    // Start creating a reserve worktree in the background for instant task creation
-    if (project.gitInfo?.isGitRepo) {
-      const baseRef = project.gitInfo?.baseRef || 'HEAD';
+  const prewarmReserveForBaseRef = useCallback(
+    (projectId: string, projectPath: string, isGitRepo: boolean | undefined, baseRef?: string) => {
+      if (!isGitRepo) return;
+      const requestedBaseRef = (baseRef || '').trim() || 'HEAD';
       window.electronAPI
         .worktreeEnsureReserve({
-          projectId: project.id,
-          projectPath: project.path,
-          baseRef,
+          projectId,
+          projectPath,
+          baseRef: requestedBaseRef,
         })
         .catch(() => {
           // Silently ignore - reserves are optional optimization
         });
-    }
-  }, []);
+    },
+    []
+  );
+
+  const activateProjectView = useCallback(
+    (project: Project) => {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('project_view_opened');
+      })();
+      setSelectedProject(project);
+      setShowHomeView(false);
+      setShowSkillsView(false);
+      setActiveTask(null);
+      setShowEditorMode(false);
+      setShowKanban(false);
+      saveActiveIds(project.id, null);
+
+      // Start creating a reserve worktree in the background for instant task creation.
+      prewarmReserveForBaseRef(
+        project.id,
+        project.path,
+        project.gitInfo?.isGitRepo,
+        project.gitInfo?.baseRef || 'HEAD'
+      );
+    },
+    [prewarmReserveForBaseRef]
+  );
 
   const handleGoHome = () => {
     setSelectedProject(null);
@@ -678,6 +692,23 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       cancelled = true;
     };
   }, [selectedProject]);
+
+  // Keep reserves warm for the currently selected base ref.
+  useEffect(() => {
+    if (!selectedProject) return;
+    prewarmReserveForBaseRef(
+      selectedProject.id,
+      selectedProject.path,
+      selectedProject.gitInfo?.isGitRepo,
+      projectDefaultBranch
+    );
+  }, [
+    selectedProject?.id,
+    selectedProject?.path,
+    selectedProject?.gitInfo?.isGitRepo,
+    projectDefaultBranch,
+    prewarmReserveForBaseRef,
+  ]);
 
   return {
     projects,
