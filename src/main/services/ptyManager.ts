@@ -776,6 +776,7 @@ export async function startPty(options: {
   autoApprove?: boolean;
   initialPrompt?: string;
   skipResume?: boolean;
+  shellSetup?: string;
 }): Promise<IPty> {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
@@ -790,6 +791,7 @@ export async function startPty(options: {
     autoApprove,
     initialPrompt,
     skipResume,
+    shellSetup,
   } = options;
 
   const defaultShell = getDefaultShell();
@@ -928,7 +930,9 @@ export async function startPty(options: {
 
         // After the provider exits, exec back into the user's shell (login+interactive)
         const resumeShell = `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
-        const chainCommand = `${commandString}; exec ${resumeShell}`;
+        const chainCommand = shellSetup
+          ? `${shellSetup} && ${commandString}; exec ${resumeShell}`
+          : `${commandString}; exec ${resumeShell}`;
 
         // Always use the default shell for the -c command to avoid re-detecting provider CLI
         useShell = defaultShell;
@@ -940,11 +944,13 @@ export async function startPty(options: {
         else args.push('-c', chainCommand); // Fallback for other shells
       } else {
         // For normal shells, use login + interactive to load user configs
-        if (base === 'zsh') args.push('-il');
-        else if (base === 'bash') args.push('-il');
-        else if (base === 'fish') args.push('-il');
-        else if (base === 'sh') args.push('-il');
-        else args.push('-i'); // Fallback for other shells
+        if (shellSetup) {
+          const cFlag = base === 'fish' ? '-ic' : base === 'sh' ? '-lc' : '-lic';
+          const resumeShell = `'${useShell.replace(/'/g, "'\\''")}' -il`;
+          args.push(cFlag, `${shellSetup}; exec ${resumeShell}`);
+        } else {
+          args.push(base === 'zsh' || base === 'bash' || base === 'fish' || base === 'sh' ? '-il' : '-i');
+        }
       }
     } catch {}
   }

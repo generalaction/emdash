@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
@@ -14,6 +15,7 @@ type LifecycleScripts = {
 type ConfigShape = Record<string, unknown> & {
   preservePatterns?: string[];
   scripts?: Partial<LifecycleScripts>;
+  shellSetup?: string;
 };
 
 interface ConfigEditorModalProps {
@@ -88,6 +90,13 @@ function applyPreservePatterns(config: ConfigShape, patterns: string[]): ConfigS
   };
 }
 
+function applyShellSetup(config: ConfigShape, shellSetup: string): ConfigShape {
+  const { shellSetup: _shellSetup, ...rest } = config;
+  const trimmed = shellSetup.trim();
+  if (!trimmed) return rest;
+  return { ...rest, shellSetup: trimmed };
+}
+
 export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isOpen,
   onClose,
@@ -98,6 +107,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [originalScripts, setOriginalScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
   const [preservePatternsInput, setPreservePatternsInput] = useState('');
   const [originalPreservePatternsInput, setOriginalPreservePatternsInput] = useState('');
+  const [shellSetup, setShellSetup] = useState('');
+  const [originalShellSetup, setOriginalShellSetup] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,21 +125,25 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
 
   const normalizedConfigContent = useMemo(() => {
     const withPatterns = applyPreservePatterns(config, preservePatterns);
-    const withScripts = applyScripts(withPatterns, scripts);
+    const withShellSetup = applyShellSetup(withPatterns, shellSetup);
+    const withScripts = applyScripts(withShellSetup, scripts);
     return `${JSON.stringify(withScripts, null, 2)}\n`;
-  }, [config, preservePatterns, scripts]);
+  }, [config, preservePatterns, shellSetup, scripts]);
 
   const scriptsDirty = useMemo(
     () =>
       scripts.setup !== originalScripts.setup ||
       scripts.run !== originalScripts.run ||
       scripts.teardown !== originalScripts.teardown ||
-      preservePatternsInput !== originalPreservePatternsInput,
+      preservePatternsInput !== originalPreservePatternsInput ||
+      shellSetup !== originalShellSetup,
     [
+      originalShellSetup,
       originalPreservePatternsInput,
       originalScripts.run,
       originalScripts.setup,
       originalScripts.teardown,
+      shellSetup,
       preservePatternsInput,
       scripts.run,
       scripts.setup,
@@ -151,17 +166,22 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       const parsed = ensureConfigObject(JSON.parse(result.content));
       const nextScripts = scriptsFromConfig(parsed);
       const nextPreservePatterns = preservePatternsFromConfig(parsed);
+      const nextShellSetup = typeof parsed.shellSetup === 'string' ? parsed.shellSetup : '';
       setConfig(parsed);
       setScripts(nextScripts);
       setOriginalScripts(nextScripts);
       setPreservePatternsInput(nextPreservePatterns.join('\n'));
       setOriginalPreservePatternsInput(nextPreservePatterns.join('\n'));
+      setShellSetup(nextShellSetup);
+      setOriginalShellSetup(nextShellSetup);
     } catch (err) {
       setConfig({});
       setScripts({ ...EMPTY_SCRIPTS });
       setOriginalScripts({ ...EMPTY_SCRIPTS });
       setPreservePatternsInput('');
       setOriginalPreservePatternsInput('');
+      setShellSetup('');
+      setOriginalShellSetup('');
       setError(err instanceof Error ? err.message : 'Failed to load config');
       setLoadFailed(true);
     } finally {
@@ -198,10 +218,11 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         throw new Error(result.error || 'Failed to save config');
       }
 
-      const nextConfig = applyScripts(applyPreservePatterns(config, preservePatterns), scripts);
+      const nextConfig = applyScripts(applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup), scripts);
       setConfig(nextConfig);
       setOriginalScripts(scripts);
       setOriginalPreservePatternsInput(preservePatternsInput);
+      setOriginalShellSetup(shellSetup);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save config');
@@ -212,6 +233,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     config,
     normalizedConfigContent,
     onClose,
+    shellSetup,
     preservePatternsInput,
     preservePatterns,
     projectPath,
@@ -257,6 +279,24 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 />
                 <p className="text-xs text-muted-foreground">
                   Files copied to new tasks. One glob pattern per line.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="config-shell-setup">Shell setup</Label>
+                <Input
+                  id="config-shell-setup"
+                  value={shellSetup}
+                  onChange={(event) => {
+                    setShellSetup(event.target.value);
+                    setError(null);
+                  }}
+                  placeholder="No shell setup configured"
+                  className="font-mono text-xs"
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Runs in every terminal before the shell starts.
                 </p>
               </div>
 

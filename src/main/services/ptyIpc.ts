@@ -24,6 +24,7 @@ import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/provide
 import { parsePtyId, isChatPty } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 import { databaseService } from './DatabaseService';
+import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -237,6 +238,19 @@ function execFileAsync(cmd: string, args: string[]): Promise<{ stdout: string; s
       }
     });
   });
+}
+
+async function resolveShellSetup(cwd: string): Promise<string | undefined> {
+  // Committed .emdash.json lives in the worktree itself
+  const fromCwd = lifecycleScriptsService.getShellSetup(cwd);
+  if (fromCwd) return fromCwd;
+  // Uncommitted .emdash.json only exists in the project root — look it up via DB
+  try {
+    const task = await databaseService.getTaskByPath(cwd);
+    const project = task ? await databaseService.getProjectById(task.projectId) : null;
+    if (project?.path) return lifecycleScriptsService.getShellSetup(project.path) ?? undefined;
+  } catch {}
+  return undefined;
 }
 
 export function registerPtyIpc(): void {
@@ -455,6 +469,8 @@ export function registerPtyIpc(): void {
           shouldSkipResume = shouldSkipResume || false;
         }
 
+        const shellSetup = cwd ? await resolveShellSetup(cwd) : undefined;
+
         const proc =
           existing ??
           (await startPty({
@@ -467,6 +483,7 @@ export function registerPtyIpc(): void {
             autoApprove,
             initialPrompt,
             skipResume: shouldSkipResume,
+            shellSetup,
           }));
         const wc = event.sender;
         owners.set(id, wc);
@@ -793,27 +810,24 @@ export function registerPtyIpc(): void {
           }
         }
 
-        let proc = startDirectPty({
-          id,
-          providerId,
-          cwd,
-          cols,
-          rows,
-          autoApprove,
-          initialPrompt,
-          env,
-          resume: effectiveResume,
-        });
+        const shellSetup = await resolveShellSetup(cwd);
 
-        // Fallback to shell-based spawn if direct spawn fails (CLI not in cache)
-        // Track fallback so we know to clean up owners on exit (no shell respawn for fallback)
+        // Try direct spawn first; skip if shellSetup requires a shell wrapper
+        const directProc = shellSetup
+          ? null
+          : startDirectPty({ id, providerId, cwd, cols, rows, autoApprove, initialPrompt, env, resume: effectiveResume });
+
+        // Fall back to shell-based spawn when direct spawn is unavailable or shellSetup is set
         let usedFallback = false;
-        if (!proc) {
+        let proc: import('node-pty').IPty;
+        if (directProc) {
+          proc = directProc;
+        } else {
           const provider = getProvider(providerId as ProviderId);
           if (!provider?.cli) {
             return { ok: false, error: `CLI path not found for provider: ${providerId}` };
           }
-          log.info('pty:startDirect - falling back to shell spawn', { id, providerId });
+          if (!shellSetup) log.info('pty:startDirect - falling back to shell spawn', { id, providerId });
           proc = await startPty({
             id,
             cwd,
@@ -824,6 +838,7 @@ export function registerPtyIpc(): void {
             initialPrompt,
             env,
             skipResume: !resume,
+            shellSetup,
           });
           usedFallback = true;
         }
