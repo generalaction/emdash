@@ -139,4 +139,22 @@ describe('WorktreePoolService', () => {
 
     await otherPool.cleanup();
   });
+
+  it('resolves owner repo path correctly when repo path contains a worktrees segment', async () => {
+    const nestedProjectPath = path.join(tempDir, 'worktrees', 'nested-project');
+    initRepo(nestedProjectPath);
+
+    const nestedPool = new WorktreePoolService();
+    (nestedPool as any).replenishReserve = () => {};
+    await nestedPool.ensureReserve('project-nested', nestedProjectPath, 'HEAD');
+
+    const reserve = nestedPool.getReserve('project-nested');
+    expect(reserve).toBeDefined();
+
+    const ownerPath = (nestedPool as any).getMainRepoPathFromWorktree(reserve!.path);
+    expect(ownerPath).toBeDefined();
+    expect(fs.realpathSync(ownerPath)).toBe(fs.realpathSync(nestedProjectPath));
+
+    await nestedPool.cleanup();
+  });
 });
