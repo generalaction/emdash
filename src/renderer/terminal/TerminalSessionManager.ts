@@ -202,8 +202,8 @@ export class TerminalSessionManager {
         // ANSI mode request: CSI Ps $ p  →  respond CSI Ps ; 0 $ y
         const ansiDisp = parser.registerCsiHandler(
           { intermediates: '$', final: 'p' },
-          (params: { params: number[] }) => {
-            const mode = params.params[0] ?? 0;
+          (params: (number | number[])[]) => {
+            const mode = (params[0] as number) ?? 0;
             window.electronAPI.ptyInput({ id: ptyId, data: `\x1b[${mode};0$y` });
             return true;
           }
@@ -211,8 +211,8 @@ export class TerminalSessionManager {
         // DEC private mode request: CSI ? Ps $ p  →  respond CSI ? Ps ; 0 $ y
         const decDisp = parser.registerCsiHandler(
           { prefix: '?', intermediates: '$', final: 'p' },
-          (params: { params: number[] }) => {
-            const mode = params.params[0] ?? 0;
+          (params: (number | number[])[]) => {
+            const mode = (params[0] as number) ?? 0;
             window.electronAPI.ptyInput({ id: ptyId, data: `\x1b[?${mode};0$y` });
             return true;
           }
