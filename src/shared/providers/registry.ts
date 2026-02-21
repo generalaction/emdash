@@ -224,7 +224,7 @@ export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'kimi',
     name: 'Kimi',
-    docUrl: 'https://www.kimi.com/coding/docs/en/kimi-cli.html',
+    docUrl: 'https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html',
     installCommand: 'uv tool install kimi-cli',
     commands: ['kimi'],
     versionArgs: ['--version'],
@@ -302,7 +302,7 @@ export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'codebuff',
     name: 'Codebuff',
-    docUrl: 'https://www.codebuff.com/docs/help/getting-started',
+    docUrl: 'https://www.codebuff.com/docs/help/quick-start',
     installCommand: 'npm install -g codebuff',
     commands: ['codebuff'],
     versionArgs: ['--version'],
