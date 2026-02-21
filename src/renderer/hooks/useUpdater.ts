@@ -9,6 +9,7 @@ export type UpdateState =
   | { status: 'not-available' }
   | { status: 'downloading'; progress?: DownloadProgress }
   | { status: 'downloaded' }
+  | { status: 'installing' }
   | { status: 'error'; message: string };
 
 export const UPDATE_API_UNAVAILABLE_ERROR = 'Update API unavailable' as const;
@@ -45,6 +46,9 @@ export function useUpdater() {
           break;
         case 'downloaded':
           setState({ status: 'downloaded' });
+          break;
+        case 'installing':
+          setState({ status: 'installing' });
           break;
         case 'error':
           setState({ status: 'error', message: evt.payload?.message || 'Update error' });
@@ -91,9 +95,13 @@ export function useUpdater() {
   }, []);
 
   const install = useCallback(async () => {
+    setState({ status: 'installing' });
     const res: any = await window.electronAPI?.quitAndInstallUpdate?.();
     if (!res) {
       return updaterUnavailableResult(setState);
+    }
+    if (!res.success) {
+      setState({ status: 'error', message: res.error || 'Failed to install update' });
     }
     return res;
   }, []);
@@ -117,6 +125,7 @@ export function useUpdater() {
       setState({ status: 'downloading', progress: data.downloadProgress });
     else if (s === 'available') setState({ status: 'available', info: data.updateInfo });
     else if (s === 'checking') setState({ status: 'checking' });
+    else if (s === 'installing') setState({ status: 'installing' });
   }, []);
 
   const progressLabel = useMemo(() => {

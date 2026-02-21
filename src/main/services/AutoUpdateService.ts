@@ -9,6 +9,7 @@ const UPDATE_CHECK_INTERVALS = {
   periodic: 4 * 60 * 60 * 1000, // Every 4 hours
   manual: 0, // Immediate for manual checks
 } as const;
+const INSTALL_RESTART_GUARD_TIMEOUT_MS = 2 * 60 * 1000;
 
 // Update channels for staged rollouts
 export enum UpdateChannel {
@@ -52,10 +53,14 @@ export interface UpdateSettings {
 class AutoUpdateService {
   private updateState: UpdateState;
   private checkTimer?: NodeJS.Timeout;
+  private checkInFlight?: Promise<UpdateInfo | null>;
+  private checkInFlightNeedsVisibleError = false;
   private settings: UpdateSettings;
   private initialized = false;
   private lastNotifiedVersion?: string;
   private downloadStartTime?: number;
+  private installRequested = false;
+  private installRestartGuardTimer?: NodeJS.Timeout;
 
   constructor() {
     const appVersion = this.getAppVersion();
@@ -178,6 +183,17 @@ class AutoUpdateService {
    */
   private setupEventListeners(): void {
     autoUpdater.on('checking-for-update', () => {
+      // Keep a stable UX if we already know an update is available or in progress.
+      if (
+        this.updateState.status === 'available' ||
+        this.updateState.status === 'downloading' ||
+        this.updateState.status === 'downloaded' ||
+        this.updateState.status === 'installing'
+      ) {
+        this.updateState.lastCheck = new Date();
+        return;
+      }
+
       this.updateState.status = 'checking';
       this.updateState.lastCheck = new Date();
       this.notifyWindows('checking');
@@ -197,7 +213,23 @@ class AutoUpdateService {
     });
 
     autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+      // A stale "not available" result from a concurrent check must not overwrite
+      // a known available/in-progress update state.
+      if (
+        this.updateState.status === 'available' ||
+        this.updateState.status === 'downloading' ||
+        this.updateState.status === 'downloaded' ||
+        this.updateState.status === 'installing'
+      ) {
+        this.updateState.lastCheck = new Date();
+        this.scheduleNextCheck();
+        return;
+      }
+
       this.updateState.status = 'idle';
+      this.updateState.availableVersion = undefined;
+      this.updateState.updateInfo = undefined;
+      this.updateState.downloadProgress = undefined;
       this.scheduleNextCheck();
       this.notifyWindows('not-available', info);
     });
@@ -205,6 +237,11 @@ class AutoUpdateService {
     autoUpdater.on('error', (err: Error) => {
       const errorMessage = formatUpdaterError(err);
       log.error('Auto-updater error:', errorMessage);
+
+      if (this.updateState.status === 'installing') {
+        log.warn('Ignoring auto-updater error while install is in progress');
+        return;
+      }
 
       // Preserve update info if we have it
       const previousVersion = this.updateState.availableVersion;
@@ -330,7 +367,29 @@ class AutoUpdateService {
    * Check for updates
    */
   async checkForUpdates(silent = false): Promise<UpdateInfo | null> {
+    if (this.checkInFlight) {
+      if (!silent) {
+        this.checkInFlightNeedsVisibleError = true;
+      }
+      return this.checkInFlight;
+    }
+
+    this.checkInFlightNeedsVisibleError = !silent;
+    this.checkInFlight = this.performCheckForUpdates(silent);
     try {
+      return await this.checkInFlight;
+    } finally {
+      this.checkInFlight = undefined;
+      this.checkInFlightNeedsVisibleError = false;
+    }
+  }
+
+  private async performCheckForUpdates(silent = false): Promise<UpdateInfo | null> {
+    try {
+      if (this.updateState.status === 'installing') {
+        return null;
+      }
+
       // Skip in development - always
       const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
       if (isDev) {
@@ -357,10 +416,16 @@ class AutoUpdateService {
     } catch (error: any) {
       const errorMessage = formatUpdaterError(error);
       log.error('Update check failed:', errorMessage, error);
+
+      // Ignore stale check failures while install flow is active.
+      if (this.updateState.status === 'installing') {
+        return null;
+      }
+
       this.updateState.status = 'error';
       this.updateState.error = errorMessage;
 
-      if (!silent) {
+      if (!silent || this.checkInFlightNeedsVisibleError) {
         this.notifyWindows('error', { message: errorMessage });
       }
 
@@ -376,17 +441,34 @@ class AutoUpdateService {
    */
   async downloadUpdate(): Promise<void> {
     try {
+      // Idempotent behavior for duplicate clicks/events.
+      if (this.updateState.status === 'downloading' || this.updateState.status === 'downloaded') {
+        return;
+      }
+
       // If we're in error state but have update info, we can retry
       if (this.updateState.status === 'error' && this.updateState.availableVersion) {
         this.updateState.status = 'available';
       }
 
-      if (this.updateState.status !== 'available') {
+      const hasKnownAvailableVersion = Boolean(this.updateState.availableVersion);
+      const canDownload =
+        this.updateState.status === 'available' ||
+        (this.updateState.status === 'checking' && hasKnownAvailableVersion);
+
+      if (!canDownload) {
         throw new Error(`Cannot download: status is "${this.updateState.status}", not "available"`);
       }
 
       if (!this.updateState.availableVersion) {
         throw new Error('No version information available for download');
+      }
+
+      if (this.updateState.status === 'checking') {
+        log.warn(
+          'Download requested while status=checking; proceeding with cached available version',
+          { version: this.updateState.availableVersion }
+        );
       }
 
       this.downloadStartTime = Date.now();
@@ -419,12 +501,50 @@ class AutoUpdateService {
    * Install the downloaded update and restart
    */
   quitAndInstall(): void {
+    if (this.installRequested) {
+      log.info('quitAndInstall ignored: install already requested');
+      return;
+    }
+
+    if (this.updateState.status !== 'downloaded') {
+      throw new Error(
+        `Cannot install update: status is "${this.updateState.status}", expected "downloaded"`
+      );
+    }
+
+    this.installRequested = true;
+    this.updateState.status = 'installing';
+    this.notifyWindows('installing');
+
     // Save current state for potential rollback
     this.saveRollbackInfo();
 
+    const clearInstallRestartGuard = () => {
+      if (this.installRestartGuardTimer) {
+        clearTimeout(this.installRestartGuardTimer);
+        this.installRestartGuardTimer = undefined;
+      }
+    };
+
+    const rollbackInstallState = (reason: string) => {
+      clearInstallRestartGuard();
+      this.installRequested = false;
+      this.updateState.status = 'downloaded';
+      this.notifyWindows('downloaded', this.updateState.updateInfo);
+      log.error(reason);
+    };
+
+    this.installRestartGuardTimer = setTimeout(() => {
+      rollbackInstallState('quitAndInstall timed out before app quit; allowing retry');
+    }, INSTALL_RESTART_GUARD_TIMEOUT_MS);
+
     // Small delay to ensure UI can respond
     setTimeout(() => {
-      autoUpdater.quitAndInstall(false, true);
+      try {
+        autoUpdater.quitAndInstall(false, true);
+      } catch (error) {
+        rollbackInstallState(`quitAndInstall threw: ${formatUpdaterError(error)}`);
+      }
     }, 250);
   }
 

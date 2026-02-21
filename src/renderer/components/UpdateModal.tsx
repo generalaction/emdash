@@ -91,6 +91,8 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
   const updater = isDev ? devSim : realUpdater;
 
   const [appVersion, setAppVersion] = useState('');
+  const [autoDownloadEnabledInBackend, setAutoDownloadEnabledInBackend] = useState(false);
+  const [updateSettingsLoaded, setUpdateSettingsLoaded] = useState(isDev);
   const autoDownloadTriggered = useRef(false);
 
   useEffect(() => {
@@ -114,9 +116,27 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
   useLayoutEffect(() => {
     if (isOpen && !isDev) {
       autoDownloadTriggered.current = false;
+      setUpdateSettingsLoaded(false);
       realUpdater.startChecking();
     }
   }, [isOpen, realUpdater.startChecking]);
+
+  useEffect(() => {
+    if (!isOpen || isDev) return;
+
+    window.electronAPI
+      .getUpdateSettings?.()
+      .then((res) => {
+        setAutoDownloadEnabledInBackend(Boolean(res?.data?.autoDownload));
+      })
+      .catch(() => {
+        // Fall back to modal-managed download behavior.
+        setAutoDownloadEnabledInBackend(false);
+      })
+      .finally(() => {
+        setUpdateSettingsLoaded(true);
+      });
+  }, [isOpen]);
 
   // After open: sync with backend state before deciding to check or not
   useEffect(() => {
@@ -128,7 +148,7 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
         const s = res?.data?.status;
         // If update is already downloaded or actively downloading, reflect that state
         // without triggering a new check (which would re-run checkForUpdatesAndNotify)
-        if (s === 'downloaded' || s === 'downloading') {
+        if (s === 'downloaded' || s === 'downloading' || s === 'checking' || s === 'installing') {
           realUpdater.applyBackendState(res.data);
           return;
         }
@@ -149,13 +169,21 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
     if (
       isOpen &&
       !isDev &&
+      updateSettingsLoaded &&
+      !autoDownloadEnabledInBackend &&
       realUpdater.state.status === 'available' &&
       !autoDownloadTriggered.current
     ) {
       autoDownloadTriggered.current = true;
       handleDownload();
     }
-  }, [isOpen, realUpdater.state.status, handleDownload]);
+  }, [
+    isOpen,
+    updateSettingsLoaded,
+    autoDownloadEnabledInBackend,
+    realUpdater.state.status,
+    handleDownload,
+  ]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -239,6 +267,15 @@ export function UpdateModal({ isOpen, onClose }: UpdateModalProps): JSX.Element 
                   Restart Now
                 </Button>
               </div>
+            </>
+          )}
+
+          {updater.state.status === 'installing' && (
+            <>
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-center text-sm text-muted-foreground">
+                Installing update. Emdash will close automatically when ready.
+              </p>
             </>
           )}
 
