@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import { homedir } from 'os';
+import { quoteShellArg } from '../utils/shellEscape';
 
 const execAsync = promisify(exec);
 const githubService = new GitHubService();
@@ -458,7 +459,9 @@ export function registerGithubIpc() {
         if (!cloneResult.success) {
           // Cleanup: delete GitHub repo on clone failure
           try {
-            await execAsync(`gh repo delete ${owner}/${name} --yes`, {
+            // Security: Use quoteShellArg to prevent command injection
+            const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
+            await execAsync(`gh repo delete ${repoRef} --yes`, {
               timeout: 10000,
             });
           } catch (cleanupError) {
