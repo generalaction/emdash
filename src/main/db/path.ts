@@ -1,5 +1,5 @@
 import { existsSync, renameSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { app } from 'electron';
 
 const CURRENT_DB_FILENAME = 'emdash.db';
@@ -10,6 +10,11 @@ export interface ResolveDatabasePathOptions {
 }
 
 export function resolveDatabasePath(options: ResolveDatabasePathOptions = {}): string {
+  const explicitDbFile = process.env.EMDASH_DB_FILE?.trim();
+  if (explicitDbFile) {
+    return resolve(explicitDbFile);
+  }
+
   const userDataPath = options.userDataPath ?? app.getPath('userData');
 
   const currentPath = join(userDataPath, CURRENT_DB_FILENAME);
