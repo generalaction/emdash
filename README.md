@@ -17,8 +17,14 @@
 
 <br />
 
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/public/media/downloadformacos.png" alt="Download app for macOS" height="40">
+  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadforwindows.png" alt="Download for Windows" height="40">
+  </a>
+  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadformacos.png" alt="Download for macOS" height="40">
+  </a>
+  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
 </div>
@@ -42,20 +48,23 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 # Installation
 
 ### macOS
-- Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg  
+- Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg
 - Intel x64: https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
 
 [![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
 > macOS users can also: `brew install --cask emdash`
 
+### Windows
+- Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64-installer.exe
+- Portable (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe
+
 ### Linux
-- AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage  
+- AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
-</details>
 
 ### Release Overview
 
-**[Latest Releases (macOS • Linux)](https://github.com/generalaction/emdash/releases/latest)**
+**[Latest Releases (macOS • Windows • Linux)](https://github.com/generalaction/emdash/releases/latest)**
 
 # Providers
 
@@ -129,8 +138,9 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > **App data is local‑first**. We store app state in a local **SQLite** database:
 >
 > ```
-> macOS:  ~/Library/Application Support/emdash/emdash.db
-> Linux:  ~/.config/emdash/emdash.db
+> macOS:   ~/Library/Application Support/emdash/emdash.db
+> Windows: %APPDATA%\emdash\emdash.db
+> Linux:   ~/.config/emdash/emdash.db
 > ```
 >
 > **Privacy Note:** While Emdash itself stores data locally, **when you use any coding agent (Claude Code, Codex, Qwen, etc.), your code and prompts are sent to that provider's cloud API servers** for processing. Each provider has their own data handling and retention policies.
