@@ -55,34 +55,49 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   >([]);
   const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+  const [hasResolvedBranchOptions, setHasResolvedBranchOptions] = useState(false);
 
-  const activateProjectView = useCallback((project: Project) => {
-    void (async () => {
-      const { captureTelemetry } = await import('../lib/telemetryClient');
-      captureTelemetry('project_view_opened');
-    })();
-    setSelectedProject(project);
-    setShowHomeView(false);
-    setShowSkillsView(false);
-    setActiveTask(null);
-    setShowEditorMode(false);
-    setShowKanban(false);
-    saveActiveIds(project.id, null);
-
-    // Start creating a reserve worktree in the background for instant task creation
-    if (project.gitInfo?.isGitRepo) {
-      const baseRef = project.gitInfo?.baseRef || 'HEAD';
+  const prewarmReserveForBaseRef = useCallback(
+    (projectId: string, projectPath: string, isGitRepo: boolean | undefined, baseRef?: string) => {
+      if (!isGitRepo) return;
+      const requestedBaseRef = (baseRef || '').trim() || 'HEAD';
       window.electronAPI
         .worktreeEnsureReserve({
-          projectId: project.id,
-          projectPath: project.path,
-          baseRef,
+          projectId,
+          projectPath,
+          baseRef: requestedBaseRef,
         })
         .catch(() => {
           // Silently ignore - reserves are optional optimization
         });
-    }
-  }, []);
+    },
+    []
+  );
+
+  const activateProjectView = useCallback(
+    (project: Project) => {
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('project_view_opened');
+      })();
+      setSelectedProject(project);
+      setShowHomeView(false);
+      setShowSkillsView(false);
+      setActiveTask(null);
+      setShowEditorMode(false);
+      setShowKanban(false);
+      saveActiveIds(project.id, null);
+
+      // Start creating a reserve worktree in the background for instant task creation.
+      prewarmReserveForBaseRef(
+        project.id,
+        project.path,
+        project.gitInfo?.isGitRepo,
+        project.gitInfo?.baseRef || 'HEAD'
+      );
+    },
+    [prewarmReserveForBaseRef]
+  );
 
   const handleGoHome = () => {
     setSelectedProject(null);
@@ -638,6 +653,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     if (!selectedProject) {
       setProjectBranchOptions([]);
       setProjectDefaultBranch('main');
+      setHasResolvedBranchOptions(false);
       return;
     }
 
@@ -646,6 +662,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     const initialBranch = currentRef || 'main';
     setProjectBranchOptions([{ value: initialBranch, label: initialBranch }]);
     setProjectDefaultBranch(initialBranch);
+    setHasResolvedBranchOptions(false);
 
     let cancelled = false;
     const loadBranches = async () => {
@@ -669,6 +686,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       } finally {
         if (!cancelled) {
           setIsLoadingBranches(false);
+          setHasResolvedBranchOptions(true);
         }
       }
     };
@@ -678,6 +696,35 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       cancelled = true;
     };
   }, [selectedProject]);
+
+  // Keep reserves warm for the currently selected base ref.
+  useEffect(() => {
+    if (!selectedProject) return;
+    if (!hasResolvedBranchOptions) return;
+    if (isLoadingBranches) return;
+    const preferredBaseRef = (projectDefaultBranch || '').trim();
+    const hasPreferredRef = projectBranchOptions.some(
+      (option) => option.value === preferredBaseRef
+    );
+    const fallbackBaseRef = (selectedProject.gitInfo?.baseRef || '').trim() || 'HEAD';
+    const baseRefForPrewarm = hasPreferredRef ? preferredBaseRef : fallbackBaseRef;
+    prewarmReserveForBaseRef(
+      selectedProject.id,
+      selectedProject.path,
+      selectedProject.gitInfo?.isGitRepo,
+      baseRefForPrewarm
+    );
+  }, [
+    selectedProject?.id,
+    selectedProject?.path,
+    selectedProject?.gitInfo?.isGitRepo,
+    selectedProject?.gitInfo?.baseRef,
+    hasResolvedBranchOptions,
+    isLoadingBranches,
+    projectDefaultBranch,
+    projectBranchOptions,
+    prewarmReserveForBaseRef,
+  ]);
 
   return {
     projects,

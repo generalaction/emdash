@@ -444,6 +444,26 @@ declare global {
         needsBaseRefSwitch?: boolean;
         error?: string;
       }>;
+      worktreeClaimReserveAndSaveTask: (args: {
+        projectId: string;
+        projectPath: string;
+        taskName: string;
+        baseRef?: string;
+        task: {
+          projectId: string;
+          name: string;
+          status: 'active' | 'idle' | 'running';
+          agentId?: string | null;
+          metadata?: any;
+          useWorktree?: boolean;
+        };
+      }) => Promise<{
+        success: boolean;
+        worktree?: any;
+        task?: any;
+        needsBaseRefSwitch?: boolean;
+        error?: string;
+      }>;
       worktreeRemoveReserve: (args: {
         projectId: string;
         projectPath?: string;
@@ -1400,6 +1420,26 @@ export interface ElectronAPI {
   }) => Promise<{
     success: boolean;
     worktree?: any;
+    needsBaseRefSwitch?: boolean;
+    error?: string;
+  }>;
+  worktreeClaimReserveAndSaveTask: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    task: {
+      projectId: string;
+      name: string;
+      status: 'active' | 'idle' | 'running';
+      agentId?: string | null;
+      metadata?: any;
+      useWorktree?: boolean;
+    };
+  }) => Promise<{
+    success: boolean;
+    worktree?: any;
+    task?: any;
     needsBaseRefSwitch?: boolean;
     error?: string;
   }>;

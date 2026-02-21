@@ -26,6 +26,7 @@ interface Props {
   projectRemoteConnectionId?: string | null;
   projectRemotePath?: string | null;
   defaultBranch?: string | null;
+  onTaskInterfaceReady?: () => void;
 }
 
 type Variant = {
@@ -43,6 +44,7 @@ const MultiAgentTask: React.FC<Props> = ({
   projectRemoteConnectionId,
   projectRemotePath: _projectRemotePath,
   defaultBranch,
+  onTaskInterfaceReady,
 }) => {
   const { effectiveTheme } = useTheme();
   const [prompt, setPrompt] = useState('');
@@ -73,6 +75,15 @@ const MultiAgentTask: React.FC<Props> = ({
 
   // Auto-scroll to bottom when this task becomes active
   const { scrollToBottom } = useAutoScrollOnTaskSwitch(true, task.id);
+
+  const readySignaledTaskIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!onTaskInterfaceReady) return;
+    if (variants.length === 0) return;
+    if (readySignaledTaskIdRef.current === task.id) return;
+    readySignaledTaskIdRef.current = task.id;
+    onTaskInterfaceReady();
+  }, [task.id, variants.length, onTaskInterfaceReady]);
 
   // Helper to generate display label with instance number if needed
   const getVariantDisplayLabel = (variant: Variant): string => {
@@ -445,14 +456,8 @@ const MultiAgentTask: React.FC<Props> = ({
     );
   }
 
-  // Show loading state while worktrees are being created
   if (variants.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <Spinner size="lg" />
-        <p className="text-sm text-muted-foreground">Creating task...</p>
-      </div>
-    );
+    return <div className="h-full" />;
   }
 
   return (

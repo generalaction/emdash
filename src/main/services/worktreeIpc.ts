@@ -368,6 +368,72 @@ export function registerWorktreeIpc(): void {
     }
   );
 
+  // Claim a reserve and persist the task in one IPC round-trip.
+  ipcMain.handle(
+    'worktree:claimReserveAndSaveTask',
+    async (
+      event,
+      args: {
+        projectId: string;
+        projectPath: string;
+        taskName: string;
+        baseRef?: string;
+        task: {
+          projectId: string;
+          name: string;
+          status: 'active' | 'idle' | 'running';
+          agentId?: string | null;
+          metadata?: any;
+          useWorktree?: boolean;
+        };
+      }
+    ) => {
+      try {
+        const project = await resolveProjectByIdOrPath({
+          projectId: args.projectId,
+          projectPath: args.projectPath,
+        });
+        if (isRemoteProject(project)) {
+          return { success: false, error: 'Remote worktree pooling is not supported yet' };
+        }
+
+        const claim = await worktreePoolService.claimReserve(
+          args.projectId,
+          args.projectPath,
+          args.taskName,
+          args.baseRef
+        );
+        if (!claim) {
+          return { success: false, error: 'No reserve available' };
+        }
+
+        const persistedTask = {
+          id: claim.worktree.id,
+          projectId: args.projectId,
+          name: args.taskName,
+          branch: claim.worktree.branch,
+          path: claim.worktree.path,
+          status: args.task.status,
+          agentId: args.task.agentId ?? null,
+          metadata: args.task.metadata ?? null,
+          useWorktree: args.task.useWorktree !== false,
+        };
+
+        await databaseService.saveTask(persistedTask);
+
+        return {
+          success: true,
+          worktree: claim.worktree,
+          task: persistedTask,
+          needsBaseRefSwitch: claim.needsBaseRefSwitch,
+        };
+      } catch (error) {
+        console.error('Failed to claim reserve and save task:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
   // Remove reserve for a project (cleanup)
   ipcMain.handle(
     'worktree:removeReserve',
@@ -381,7 +447,8 @@ export function registerWorktreeIpc(): void {
         if (!projectPath) {
           const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
           if (!project) {
-            return { success: false, error: 'Project not found' };
+            await worktreePoolService.removeReserve(args.projectId);
+            return { success: true };
           }
           if (isRemoteProject(project)) {
             return { success: true };

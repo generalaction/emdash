@@ -81,6 +81,7 @@ const RightSidebarBridge: React.FC<{
 const AppContent: React.FC = () => {
   useTheme(); // Initialize theme on app startup
   const { toast } = useToast();
+  const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
 
   // Ref for selectedProject, so useModalState can read it without re-instantiation
   const selectedProjectRef = useRef<{ id: string } | null>(null);
@@ -311,7 +312,8 @@ const AppContent: React.FC = () => {
       baseRef?: string
     ) => {
       if (!projectMgmt.selectedProject) return;
-      await createTask(
+      setIsCreatingTask(true);
+      const started = await createTask(
         {
           taskName,
           initialPrompt,
@@ -330,8 +332,12 @@ const AppContent: React.FC = () => {
           setActiveTask: taskMgmt.setActiveTask,
           setActiveTaskAgent: taskMgmt.setActiveTaskAgent,
           toast,
+          onTaskCreationFailed: () => setIsCreatingTask(false),
         }
       );
+      if (!started) {
+        setIsCreatingTask(false);
+      }
     },
     [
       projectMgmt.selectedProject,
@@ -342,6 +348,20 @@ const AppContent: React.FC = () => {
       toast,
     ]
   );
+
+  useEffect(() => {
+    if (!isCreatingTask) return;
+    const timeout = window.setTimeout(() => {
+      setIsCreatingTask(false);
+    }, 30000);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isCreatingTask]);
+
+  const handleTaskInterfaceReady = useCallback(() => {
+    setIsCreatingTask(false);
+  }, []);
 
   // --- SSH Remote Project handlers ---
   const handleAddRemoteProjectClick = useCallback(() => {
@@ -626,6 +646,8 @@ const AppContent: React.FC = () => {
                         selectedProject={selectedProject}
                         activeTask={activeTask}
                         activeTaskAgent={activeTaskAgent}
+                        isCreatingTask={isCreatingTask}
+                        onTaskInterfaceReady={handleTaskInterfaceReady}
                         showKanban={showKanban}
                         showHomeView={projectMgmt.showHomeView}
                         showSkillsView={projectMgmt.showSkillsView}

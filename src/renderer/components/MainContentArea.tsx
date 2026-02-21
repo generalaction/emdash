@@ -6,6 +6,7 @@ import ProjectMainView from './ProjectMainView';
 import HomeView from './HomeView';
 import SkillsView from './skills/SkillsView';
 import SettingsPage from './SettingsPage';
+import TaskCreationLoading from './TaskCreationLoading';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { SettingsPageTab } from '../hooks/useModalState';
@@ -14,6 +15,8 @@ interface MainContentAreaProps {
   selectedProject: Project | null;
   activeTask: Task | null;
   activeTaskAgent: Agent | null;
+  isCreatingTask: boolean;
+  onTaskInterfaceReady: () => void;
   showKanban: boolean;
   showHomeView: boolean;
   showSkillsView: boolean;
@@ -50,6 +53,8 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   selectedProject,
   activeTask,
   activeTaskAgent,
+  isCreatingTask,
+  onTaskInterfaceReady,
   showKanban,
   showHomeView,
   showSkillsView,
@@ -116,7 +121,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
 
   if (selectedProject) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {activeTask ? (
           (activeTask.metadata as any)?.multiAgent?.enabled ? (
             <MultiAgentTask
@@ -127,6 +132,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
               projectRemoteConnectionId={projectRemoteConnectionId}
               projectRemotePath={projectRemotePath}
               defaultBranch={projectDefaultBranch}
+              onTaskInterfaceReady={onTaskInterfaceReady}
             />
           ) : (
             <ChatInterface
@@ -138,6 +144,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
               defaultBranch={projectDefaultBranch}
               className="min-h-0 flex-1"
               initialAgent={activeTaskAgent || undefined}
+              onTaskInterfaceReady={onTaskInterfaceReady}
             />
           )
         ) : (
@@ -153,6 +160,12 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
             isLoadingBranches={isLoadingBranches}
             onBaseBranchChange={setProjectDefaultBranch}
           />
+        )}
+
+        {isCreatingTask && (
+          <div className="absolute inset-0 z-10 bg-background">
+            <TaskCreationLoading />
+          </div>
         )}
       </div>
     );
