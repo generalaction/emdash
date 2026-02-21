@@ -301,7 +301,7 @@ export class SkillsService {
     this.catalogCache = null;
   }
 
-  async createSkill(name: string, description: string): Promise<CatalogSkill> {
+  async createSkill(name: string, description: string, content?: string): Promise<CatalogSkill> {
     if (!isValidSkillName(name)) {
       throw new Error(
         'Invalid skill name. Use lowercase letters, numbers, and hyphens (1-64 chars).'
@@ -319,8 +319,10 @@ export class SkillsService {
     }
 
     await fs.promises.mkdir(skillDir, { recursive: true });
-    const content = generateSkillMd(name, description);
-    await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), content);
+
+    const skillContent = generateSkillMd(name, description, content?.trim());
+
+    await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), skillContent);
 
     // Sync to agents
     await this.syncToAgents(name);
@@ -328,7 +330,7 @@ export class SkillsService {
     // Invalidate cache
     this.catalogCache = null;
 
-    const { frontmatter } = parseFrontmatter(content);
+    const { frontmatter } = parseFrontmatter(skillContent);
     return {
       id: name,
       displayName: name,
@@ -337,7 +339,7 @@ export class SkillsService {
       frontmatter,
       installed: true,
       localPath: skillDir,
-      skillMdContent: content,
+      skillMdContent: skillContent,
     };
   }
 

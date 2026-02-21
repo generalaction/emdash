@@ -1284,7 +1284,7 @@ declare global {
         data?: import('@shared/skills/types').DetectedAgent[];
         error?: string;
       }>;
-      skillsCreate: (args: { name: string; description: string }) => Promise<{
+      skillsCreate: (args: { name: string; description: string; content?: string }) => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').CatalogSkill;
         error?: string;

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { RefreshCw, Search, Plus, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ const SkillsView: React.FC = () => {
   // New Skill form state
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newContent, setNewContent] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -62,6 +64,7 @@ const SkillsView: React.FC = () => {
       const result = await window.electronAPI.skillsCreate({
         name: trimmedName,
         description: newDescription.trim(),
+        content: newContent.trim(),
       });
       if (result.success) {
         import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -70,13 +73,8 @@ const SkillsView: React.FC = () => {
         setShowCreateModal(false);
         setNewName('');
         setNewDescription('');
+        setNewContent('');
         await loadCatalog();
-
-        // Open terminal in the new skill directory
-        if (result.data?.localPath) {
-          const ptyId = `skill-${trimmedName}-${Date.now()}`;
-          window.electronAPI.ptyStart({ id: ptyId, cwd: result.data.localPath });
-        }
       } else {
         setCreateError(result.error || 'Failed to create skill');
       }
@@ -219,9 +217,17 @@ const SkillsView: React.FC = () => {
 
       <Dialog
         open={showCreateModal}
-        onOpenChange={(open) => !open && !isCreating && setShowCreateModal(false)}
+        onOpenChange={(open) => {
+          if (!open && !isCreating) {
+            setShowCreateModal(false);
+            setNewName('');
+            setNewDescription('');
+            setNewContent('');
+            setCreateError(null);
+          }
+        }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Skill</DialogTitle>
             <DialogDescription className="text-xs">
@@ -262,6 +268,24 @@ const SkillsView: React.FC = () => {
                 }}
                 className="text-sm"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="skill-content" className="text-xs">
+                Instructions
+              </Label>
+              <Textarea
+                id="skill-content"
+                placeholder="Write the skill instructions here. The YAML frontmatter (name and description) will be added automatically."
+                value={newContent}
+                onChange={(e) => {
+                  setNewContent(e.target.value);
+                  setCreateError(null);
+                }}
+                className="min-h-[200px] font-mono text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Define what this skill does and how agents should use it
+              </p>
             </div>
             {createError && <p className="text-xs text-destructive">{createError}</p>}
             <DialogFooter>

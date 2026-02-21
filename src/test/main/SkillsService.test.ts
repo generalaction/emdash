@@ -93,10 +93,22 @@ Body`;
       expect(content).toContain('description: "A test skill"');
       expect(content).toContain('# my-skill');
 
-      // Verify roundtrip
       const parsed = parseFrontmatter(content);
       expect(parsed.frontmatter.name).toBe('my-skill');
       expect(parsed.frontmatter.description).toBe('A test skill');
+    });
+
+    it('escapes double quotes in description and roundtrips correctly', () => {
+      const content = generateSkillMd('my-skill', 'Handles "quoted" text');
+      const parsed = parseFrontmatter(content);
+      expect(parsed.frontmatter.description).toBe('Handles "quoted" text');
+    });
+
+    it('accepts optional body and uses it instead of default', () => {
+      const body = 'Custom instructions here.';
+      const content = generateSkillMd('my-skill', 'A test', body);
+      const parsed = parseFrontmatter(content);
+      expect(parsed.body.trim()).toBe(body);
     });
   });
 });

@@ -63,13 +63,16 @@ export function registerSkillsIpc(): void {
     }
   });
 
-  ipcMain.handle('skills:create', async (_, args: { name: string; description: string }) => {
-    try {
-      const skill = await skillsService.createSkill(args.name, args.description);
-      return { success: true, data: skill };
-    } catch (error) {
-      log.error('Failed to create skill:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+  ipcMain.handle(
+    'skills:create',
+    async (_, args: { name: string; description: string; content?: string }) => {
+      try {
+        const skill = await skillsService.createSkill(args.name, args.description, args.content);
+        return { success: true, data: skill };
+      } catch (error) {
+        log.error('Failed to create skill:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
     }
-  });
+  );
 }
