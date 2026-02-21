@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { X, RotateCcw, Info } from 'lucide-react';
+import { X, RotateCcw, Info, Plus, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -15,20 +15,26 @@ interface CustomCommandModalProps {
   providerId: string;
 }
 
+type EnvEntry = { key: string; value: string };
+
 type FormState = {
   cli: string;
   resumeFlag: string;
   defaultArgs: string;
+  extraArgs: string;
   autoApproveFlag: string;
   initialPromptFlag: string;
+  envEntries: EnvEntry[];
 };
 
 const getDefaultFromProvider = (provider: ProviderDefinition | undefined): FormState => ({
   cli: provider?.cli ?? '',
   resumeFlag: provider?.resumeFlag ?? '',
   defaultArgs: provider?.defaultArgs?.join(' ') ?? '',
+  extraArgs: '',
   autoApproveFlag: provider?.autoApproveFlag ?? '',
   initialPromptFlag: provider?.initialPromptFlag ?? '',
+  envEntries: [],
 });
 
 const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose, providerId }) => {
@@ -68,12 +74,19 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
       try {
         const result = await window.electronAPI.getProviderCustomConfig?.(providerId);
         if (result?.success && result.config) {
+          const env = result.config.env;
+          const envEntries: EnvEntry[] =
+            env && typeof env === 'object'
+              ? Object.entries(env).map(([key, value]) => ({ key, value: String(value) }))
+              : [];
           setForm({
             cli: result.config.cli ?? defaults.cli,
             resumeFlag: result.config.resumeFlag ?? defaults.resumeFlag,
             defaultArgs: result.config.defaultArgs ?? defaults.defaultArgs,
+            extraArgs: result.config.extraArgs ?? '',
             autoApproveFlag: result.config.autoApproveFlag ?? defaults.autoApproveFlag,
             initialPromptFlag: result.config.initialPromptFlag ?? defaults.initialPromptFlag,
+            envEntries,
           });
           setHasCustomConfig(true);
         } else {
@@ -96,6 +109,25 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     setForm((prev) => ({ ...prev, [field]: value }));
   }, []);
 
+  const setEnvEntry = useCallback((index: number, update: Partial<EnvEntry>) => {
+    setForm((prev) => {
+      const next = [...prev.envEntries];
+      next[index] = { ...next[index], ...update };
+      return { ...prev, envEntries: next };
+    });
+  }, []);
+
+  const addEnvEntry = useCallback(() => {
+    setForm((prev) => ({ ...prev, envEntries: [...prev.envEntries, { key: '', value: '' }] }));
+  }, []);
+
+  const removeEnvEntry = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      envEntries: prev.envEntries.filter((_, i) => i !== index),
+    }));
+  }, []);
+
   const handleResetToDefaults = useCallback(() => {
     setForm(defaults);
   }, [defaults]);
@@ -103,26 +135,35 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      // Check if all values match defaults
+      const envRecord: Record<string, string> = {};
+      for (const { key, value } of form.envEntries) {
+        const k = key.trim();
+        if (k && /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+          envRecord[k] = value;
+        }
+      }
+
       const isDefault =
         form.cli === defaults.cli &&
         form.resumeFlag === defaults.resumeFlag &&
         form.defaultArgs === defaults.defaultArgs &&
+        form.extraArgs === '' &&
         form.autoApproveFlag === defaults.autoApproveFlag &&
-        form.initialPromptFlag === defaults.initialPromptFlag;
+        form.initialPromptFlag === defaults.initialPromptFlag &&
+        form.envEntries.every((e) => !e.key.trim());
 
       if (isDefault) {
-        // Remove custom config if it matches defaults
         await window.electronAPI.updateProviderCustomConfig?.(providerId, undefined);
         setHasCustomConfig(false);
       } else {
-        // Save custom config
         const config: ProviderCustomConfig = {
           cli: form.cli,
           resumeFlag: form.resumeFlag,
           defaultArgs: form.defaultArgs,
+          extraArgs: form.extraArgs.trim() || undefined,
           autoApproveFlag: form.autoApproveFlag,
           initialPromptFlag: form.initialPromptFlag,
+          env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
         };
         await window.electronAPI.updateProviderCustomConfig?.(providerId, config);
         setHasCustomConfig(true);
@@ -135,12 +176,12 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     }
   }, [form, defaults, providerId, onClose]);
 
-  // Generate preview command
   const previewCommand = useMemo(() => {
     const parts: string[] = [];
     if (form.cli) parts.push(form.cli);
     if (form.resumeFlag) parts.push(form.resumeFlag);
     if (form.defaultArgs) parts.push(form.defaultArgs);
+    if (form.extraArgs) parts.push(form.extraArgs);
     if (form.autoApproveFlag) parts.push(form.autoApproveFlag);
     if (form.initialPromptFlag) parts.push(form.initialPromptFlag);
     parts.push('{prompt}');
@@ -148,17 +189,16 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   }, [form]);
 
   const hasChanges = useMemo(() => {
-    if (hasCustomConfig) {
-      // If we have a custom config, check if current form differs from it
-      return true; // Allow save to remove custom config
-    }
-    // Check if form differs from defaults
+    if (hasCustomConfig) return true;
+    const hasEnv = form.envEntries.some((e) => e.key.trim() !== '');
     return (
       form.cli !== defaults.cli ||
       form.resumeFlag !== defaults.resumeFlag ||
       form.defaultArgs !== defaults.defaultArgs ||
+      form.extraArgs !== '' ||
       form.autoApproveFlag !== defaults.autoApproveFlag ||
-      form.initialPromptFlag !== defaults.initialPromptFlag
+      form.initialPromptFlag !== defaults.initialPromptFlag ||
+      hasEnv
     );
   }, [form, defaults, hasCustomConfig]);
 
@@ -271,6 +311,69 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                       placeholder={defaults.defaultArgs || '(none)'}
                       className="font-mono text-sm"
                     />
+                  </div>
+
+                  {/* Additional parameters */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="extraArgs" className="text-sm font-medium">
+                        Additional parameters
+                      </Label>
+                      <FieldTooltip content="Extra flags appended to the command (e.g. --enable-all-github-mcp-tools)" />
+                    </div>
+                    <Input
+                      id="extraArgs"
+                      value={form.extraArgs}
+                      onChange={(e) => handleChange('extraArgs', e.target.value)}
+                      placeholder="e.g. --enable-all-github-mcp-tools"
+                      className="font-mono text-sm"
+                    />
+                  </div>
+
+                  {/* Environment variables */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm font-medium">Environment variables</Label>
+                      <FieldTooltip content="Environment variables set when running the agent" />
+                    </div>
+                    <div className="space-y-2">
+                      {form.envEntries.map((entry, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <Input
+                            value={entry.key}
+                            onChange={(e) => setEnvEntry(i, { key: e.target.value })}
+                            placeholder="KEY"
+                            className="min-w-0 flex-1 font-mono text-sm"
+                          />
+                          <Input
+                            value={entry.value}
+                            onChange={(e) => setEnvEntry(i, { value: e.target.value })}
+                            placeholder="value"
+                            className="min-w-0 flex-1 font-mono text-sm"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeEnvEntry(i)}
+                            className="h-8 w-8 flex-shrink-0"
+                            aria-label="Remove"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addEnvEntry}
+                        className="gap-1.5"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add variable
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Auto-approve Flag */}
