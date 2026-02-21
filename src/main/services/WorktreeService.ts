@@ -960,38 +960,42 @@ export class WorktreeService {
   }
 
   /**
-   * Get list of gitignored files that match preserve patterns.
+   * Get ignored and non-ignored untracked files that match preserve patterns.
    */
-  private async getIgnoredFiles(dir: string, patterns: string[]): Promise<string[]> {
+  private async getPreserveCandidateFiles(dir: string, patterns: string[]): Promise<string[]> {
     const pathspecs = this.buildIgnoredPathspecs(patterns);
     if (pathspecs.length === 0) {
       return [];
     }
 
     try {
-      const { stdout } = await execFileAsync(
-        'git',
-        ['ls-files', '--others', '--ignored', '--exclude-standard', '--', ...pathspecs],
-        {
+      const [ignoredResult, untrackedResult] = await Promise.all([
+        execFileAsync(
+          'git',
+          ['ls-files', '--others', '--ignored', '--exclude-standard', '--', ...pathspecs],
+          {
+            cwd: dir,
+            maxBuffer: 10 * 1024 * 1024,
+          }
+        ),
+        execFileAsync('git', ['ls-files', '--others', '--exclude-standard', '--', ...pathspecs], {
           cwd: dir,
           maxBuffer: 10 * 1024 * 1024,
-        }
-      );
+        }),
+      ]);
 
-      if (!stdout || !stdout.trim()) {
-        return [];
-      }
+      const ignoredFiles = (ignoredResult.stdout || '')
+        .trim()
+        .split('\n')
+        .filter((line) => line.length > 0);
+      const untrackedFiles = (untrackedResult.stdout || '')
+        .trim()
+        .split('\n')
+        .filter((line) => line.length > 0);
 
-      return Array.from(
-        new Set(
-          stdout
-            .trim()
-            .split('\n')
-            .filter((line) => line.length > 0)
-        )
-      );
+      return Array.from(new Set([...ignoredFiles, ...untrackedFiles]));
     } catch (error) {
-      log.debug('Failed to list ignored files:', error);
+      log.debug('Failed to list preserve candidate files:', error);
       return [];
     }
   }
@@ -1071,7 +1075,7 @@ export class WorktreeService {
   }
 
   /**
-   * Preserve gitignored files (like .env) from source to destination worktree.
+   * Preserve local files (typically ignored or untracked) from source to destination worktree.
    * Only copies files that match the preserve patterns and don't exist in destination.
    */
   async preserveFilesToWorktree(
@@ -1086,17 +1090,17 @@ export class WorktreeService {
       return result;
     }
 
-    // Get gitignored files matching preserve patterns from source directory
-    const ignoredFiles = await this.getIgnoredFiles(sourceDir, patterns);
+    // Get local files matching preserve patterns from source directory
+    const sourceFiles = await this.getPreserveCandidateFiles(sourceDir, patterns);
 
-    if (ignoredFiles.length === 0) {
-      log.debug('No ignored files found in source directory');
+    if (sourceFiles.length === 0) {
+      log.debug('No preserve candidate files found in source directory');
       return result;
     }
 
     // Filter files that match patterns and aren't excluded
     const filesToCopy: string[] = [];
-    for (const file of ignoredFiles) {
+    for (const file of sourceFiles) {
       if (this.isExcludedPath(file, excludePatterns)) {
         continue;
       }

@@ -207,6 +207,18 @@ describe('WorktreeService', () => {
       expect(fs.existsSync(path.join(destDir, 'local.config.json'))).toBe(true);
     });
 
+    it('should copy untracked files that match preserve patterns', async () => {
+      fs.writeFileSync(path.join(sourceDir, 'AGENTS.md'), '# local agent notes\n');
+
+      const result = await service.preserveFilesToWorktree(sourceDir, destDir, ['AGENTS.md'], []);
+
+      expect(result.copied).toContain('AGENTS.md');
+      expect(fs.existsSync(path.join(destDir, 'AGENTS.md'))).toBe(true);
+      expect(fs.readFileSync(path.join(destDir, 'AGENTS.md'), 'utf8')).toBe(
+        '# local agent notes\n'
+      );
+    });
+
     it('should copy nested files for basename-only custom patterns', async () => {
       const nestedDir = path.join(sourceDir, 'secrets');
       fs.mkdirSync(nestedDir, { recursive: true });
