@@ -1013,8 +1013,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           } catch (fetchErr) {
             log.warn('Failed to fetch remote before listing branches', fetchErr);
             fetchFailed = true;
-            fetchError =
-              fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+            fetchError = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
           }
         } catch {
           log.debug(`Remote '${remote}' not found, will use local branches`);

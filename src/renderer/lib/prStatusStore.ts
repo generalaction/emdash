@@ -28,9 +28,7 @@ function setStoredPr(taskPath: string, pr: PrStatus | null) {
   } catch {}
 }
 
-async function fetchPrStatus(
-  taskPath: string
-): Promise<{ pr: PrStatus | null; success: boolean }> {
+async function fetchPrStatus(taskPath: string): Promise<{ pr: PrStatus | null; success: boolean }> {
   try {
     const res = await window.electronAPI.getPrStatus({ taskPath });
     if (res?.success) {

@@ -652,7 +652,8 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         if (res.fetchFailed) {
           toast({
             title: 'Could not pull from repository',
-            description: res.fetchError ?? 'Remote fetch failed. Check your connection and try again.',
+            description:
+              res.fetchError ?? 'Remote fetch failed. Check your connection and try again.',
             variant: 'destructive',
           });
         }
