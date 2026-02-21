@@ -196,7 +196,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
 
   const selectBody = (
     <Select
-      value={selectedIssue ? `#${selectedIssue.number}` : undefined}
+      value={selectedIssue ? `#${selectedIssue.number}` : '__clear__'}
       onValueChange={handleIssueSelect}
       disabled={disabled || isLoadingIssues || !!issueListError || !issuesLoaded}
     >

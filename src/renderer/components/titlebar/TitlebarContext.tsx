@@ -23,7 +23,8 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
 
   const tasks = selectedProject?.tasks ?? [];
   const projectValue = selectedProject.id;
-  const taskValue = activeTask?.id;
+  const noTaskValue = '__no_task_selected__';
+  const taskValue = activeTask?.id ?? noTaskValue;
   const projectLabel = selectedProject.name;
   const taskLabel = activeTask?.name ?? '';
   const selectContentClassName = 'w-[min(280px,90vw)]';
@@ -36,6 +37,7 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
   };
 
   const handleTaskChange = (value: string) => {
+    if (value === noTaskValue) return;
     const nextTask = tasks.find((task) => task.id === value);
     if (nextTask) {
       onSelectTask(nextTask);
@@ -83,6 +85,11 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
             <SelectValue placeholder="" />
           </SelectTrigger>
           <SelectContent side="bottom" align="start" className={selectContentClassName}>
+            {!activeTask && (
+              <SelectItem value={noTaskValue} disabled>
+                No active task
+              </SelectItem>
+            )}
             {tasks.length > 0 ? (
               tasks.map((task) => (
                 <SelectItem

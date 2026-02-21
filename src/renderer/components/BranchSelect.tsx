@@ -103,6 +103,7 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
 
   const defaultPlaceholder = isLoading ? 'Loading...' : 'Select branch';
   const triggerPlaceholder = placeholder ?? defaultPlaceholder;
+  const selectedValue = value ?? '';
 
   const triggerClassName =
     variant === 'ghost'
@@ -111,7 +112,7 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
 
   return (
     <Select
-      value={options.length === 0 ? undefined : value}
+      value={selectedValue}
       onValueChange={onValueChange}
       disabled={disabled || isLoading || options.length === 0}
       open={open}

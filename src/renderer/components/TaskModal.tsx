@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from './ui/dialog';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
@@ -264,6 +271,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
       >
         <DialogHeader>
           <DialogTitle>New Task</DialogTitle>
+          <DialogDescription className="text-xs">
+            Create a task and open the agent workspace.
+          </DialogDescription>
           <div className="space-y-1 pt-1">
             <p className="text-sm font-medium text-foreground">{projectName}</p>
             <div className="flex items-center gap-1.5">

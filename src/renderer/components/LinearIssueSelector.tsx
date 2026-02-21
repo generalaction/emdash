@@ -237,7 +237,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${className}`} style={{ maxWidth: '100%' }}>
       <Select
-        value={selectedIssue?.identifier || undefined}
+        value={selectedIssue?.identifier || '__clear__'}
         onValueChange={handleIssueSelect}
         disabled={isDisabled}
         open={dropdownOpen}
