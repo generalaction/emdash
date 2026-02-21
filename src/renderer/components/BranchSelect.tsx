@@ -44,6 +44,7 @@ interface BranchSelectProps {
 
 const ROW_HEIGHT = 32;
 const MAX_LIST_HEIGHT = 256;
+const EMPTY_BRANCH_VALUE = '__branch_select_empty__';
 
 const BranchSelect: React.FC<BranchSelectProps> = ({
   value,
@@ -103,7 +104,8 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
 
   const defaultPlaceholder = isLoading ? 'Loading...' : 'Select branch';
   const triggerPlaceholder = placeholder ?? defaultPlaceholder;
-  const selectedValue = value ?? '';
+  const hasKnownSelection = Boolean(value && options.some((option) => option.value === value));
+  const selectedValue = hasKnownSelection ? (value as string) : EMPTY_BRANCH_VALUE;
 
   const triggerClassName =
     variant === 'ghost'
@@ -125,6 +127,9 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
         className="[&>[data-radix-select-scroll-down-button]]:hidden [&>[data-radix-select-scroll-up-button]]:hidden"
         style={{ minWidth: variant === 'ghost' ? '200px' : 'var(--radix-select-trigger-width)' }}
       >
+        <SelectItem value={EMPTY_BRANCH_VALUE} disabled className="sr-only">
+          {triggerPlaceholder}
+        </SelectItem>
         <div className="px-2 pb-2 pt-2" onPointerDown={(event) => event.stopPropagation()}>
           <Input
             ref={searchInputRef}
