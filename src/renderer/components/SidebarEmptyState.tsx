@@ -23,14 +23,14 @@ const SidebarEmptyState: React.FC<Props> = ({
   return (
     <div className="min-w-0 overflow-hidden">
       <Card className="bg-muted/20">
-        <CardHeader className="py-3 sm:py-4">
-          <CardTitle className="text-base leading-tight">{title}</CardTitle>
+        <CardHeader className="p-4">
+          <CardTitle className="text-lg font-semibold leading-tight">{title}</CardTitle>
           {description ? (
-            <CardDescription className="text-xs leading-relaxed">{description}</CardDescription>
+            <CardDescription className="text-sm leading-relaxed">{description}</CardDescription>
           ) : null}
         </CardHeader>
         {(actionLabel && onAction) || (secondaryActionLabel && onSecondaryAction) ? (
-          <CardContent className="space-y-2 pt-0">
+          <CardContent className="space-y-2 p-4 pt-0">
             {actionLabel && onAction && (
               <Button
                 type="button"

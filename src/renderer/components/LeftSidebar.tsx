@@ -214,21 +214,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             )}
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent>
-          {projects.length === 0 && (
-            <SidebarEmptyState
-              title="No projects yet"
-              description="Open a project to start creating worktrees and running coding agents."
-              actionLabel={onOpenProject ? 'Open Project' : undefined}
-              onAction={onOpenProject}
-              secondaryActionLabel={onNewProject ? 'New Project' : undefined}
-              onSecondaryAction={onNewProject}
-            />
-          )}
-
+        <SidebarContent className="flex flex-col">
           <SidebarGroup>
             <SidebarGroupLabel className="flex items-center justify-between pr-0">
-              <span className="cursor-default select-none text-xs font-normal normal-case tracking-normal text-foreground/30">
+              <span className="cursor-default select-none text-xs font-medium normal-case tracking-normal text-foreground/30">
                 Projects
               </span>
               {onOpenProject && (
@@ -453,6 +442,18 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          {projects.length === 0 && (
+            <div className="mt-auto">
+              <SidebarEmptyState
+                title="Put your agents to work"
+                description="Create a task and run one or more agents on it in parallel."
+                actionLabel={onOpenProject ? 'Open Folder' : undefined}
+                onAction={onOpenProject}
+                secondaryActionLabel={onNewProject ? 'New Project' : undefined}
+                onSecondaryAction={onNewProject}
+              />
+            </div>
+          )}
         </SidebarContent>
       </Sidebar>
     </div>
