@@ -193,7 +193,8 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
               2 * 1024 * 1024
             );
             if (readRes?.success && readRes.content) {
-              modifiedContent = readRes.content;
+              // Strip one trailing newline to prevent phantom newline in diff view
+              modifiedContent = readRes.content.replace(/\n$/, '');
             }
           } catch {
             // Fallback to diff-based content
