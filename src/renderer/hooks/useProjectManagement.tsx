@@ -55,6 +55,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   >([]);
   const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+  const [hasResolvedBranchOptions, setHasResolvedBranchOptions] = useState(false);
 
   const prewarmReserveForBaseRef = useCallback(
     (projectId: string, projectPath: string, isGitRepo: boolean | undefined, baseRef?: string) => {
@@ -652,6 +653,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     if (!selectedProject) {
       setProjectBranchOptions([]);
       setProjectDefaultBranch('main');
+      setHasResolvedBranchOptions(false);
       return;
     }
 
@@ -660,6 +662,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     const initialBranch = currentRef || 'main';
     setProjectBranchOptions([{ value: initialBranch, label: initialBranch }]);
     setProjectDefaultBranch(initialBranch);
+    setHasResolvedBranchOptions(false);
 
     let cancelled = false;
     const loadBranches = async () => {
@@ -683,6 +686,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       } finally {
         if (!cancelled) {
           setIsLoadingBranches(false);
+          setHasResolvedBranchOptions(true);
         }
       }
     };
@@ -696,17 +700,29 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   // Keep reserves warm for the currently selected base ref.
   useEffect(() => {
     if (!selectedProject) return;
+    if (!hasResolvedBranchOptions) return;
+    if (isLoadingBranches) return;
+    const preferredBaseRef = (projectDefaultBranch || '').trim();
+    const hasPreferredRef = projectBranchOptions.some(
+      (option) => option.value === preferredBaseRef
+    );
+    const fallbackBaseRef = (selectedProject.gitInfo?.baseRef || '').trim() || 'HEAD';
+    const baseRefForPrewarm = hasPreferredRef ? preferredBaseRef : fallbackBaseRef;
     prewarmReserveForBaseRef(
       selectedProject.id,
       selectedProject.path,
       selectedProject.gitInfo?.isGitRepo,
-      projectDefaultBranch
+      baseRefForPrewarm
     );
   }, [
     selectedProject?.id,
     selectedProject?.path,
     selectedProject?.gitInfo?.isGitRepo,
+    selectedProject?.gitInfo?.baseRef,
+    hasResolvedBranchOptions,
+    isLoadingBranches,
     projectDefaultBranch,
+    projectBranchOptions,
     prewarmReserveForBaseRef,
   ]);
 

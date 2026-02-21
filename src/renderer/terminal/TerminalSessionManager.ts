@@ -918,6 +918,11 @@ export class TerminalSessionManager {
       this.emitReady();
       try {
         let offStarted: (() => void) | undefined;
+        const removeOffStartedFromDisposables = () => {
+          if (!offStarted) return;
+          const idx = this.disposables.indexOf(offStarted);
+          if (idx >= 0) this.disposables.splice(idx, 1);
+        };
         offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
           if (payload?.id === id) {
             this.ptyStarted = true;
@@ -926,6 +931,7 @@ export class TerminalSessionManager {
             try {
               offStarted?.();
             } catch {}
+            removeOffStartedFromDisposables();
             offStarted = undefined;
           }
         });
