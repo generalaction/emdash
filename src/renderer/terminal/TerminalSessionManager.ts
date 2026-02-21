@@ -93,6 +93,7 @@ export class TerminalSessionManager {
   private pendingResize: { cols: number; rows: number } | null = null;
   private lastSentResize: { cols: number; rows: number } | null = null;
   private isPanelResizeDragging = false;
+  private hadFocusBeforeDetach = false;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -335,6 +336,9 @@ export class TerminalSessionManager {
     });
     this.resizeObserver.observe(container);
 
+    const shouldRestoreFocus = this.hadFocusBeforeDetach;
+    this.hadFocusBeforeDetach = false;
+
     requestAnimationFrame(() => {
       if (this.disposed) return;
       this.scheduleFit();
@@ -343,6 +347,9 @@ export class TerminalSessionManager {
       requestAnimationFrame(() => {
         if (!this.disposed) {
           this.restoreViewportPosition();
+          if (shouldRestoreFocus) {
+            this.terminal.focus();
+          }
         }
       });
     });
@@ -356,6 +363,9 @@ export class TerminalSessionManager {
   detach() {
     if (this.attachedContainer) {
       // Capture viewport position before detaching
+      const textarea = this.container.querySelector('.xterm-helper-textarea');
+      this.hadFocusBeforeDetach = textarea != null && textarea === document.activeElement;
+
       this.captureViewportPosition();
       this.cancelScheduledFit();
       this.clearQueuedResize();
