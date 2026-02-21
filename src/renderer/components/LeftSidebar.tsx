@@ -217,7 +217,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         <SidebarContent className="flex flex-col">
           <SidebarGroup>
             <SidebarGroupLabel className="flex items-center justify-between pr-0">
-              <span className="cursor-default select-none text-xs font-medium normal-case tracking-normal text-foreground/30">
+              <span className="cursor-default select-none text-sm font-medium normal-case tracking-normal text-foreground/30">
                 Projects
               </span>
               {onOpenProject && (
@@ -289,7 +289,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       }
                     }
                   }}
-                  className="m-0 min-w-0 list-none space-y-1 p-0"
+                  className="m-0 flex min-w-0 list-none flex-col gap-1 p-0"
                   itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
                   getKey={(p) => (p as Project).id}
                 >
@@ -315,7 +315,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           className="group/collapsible"
                         >
                           <div
-                            className={`group/project relative flex w-full min-w-0 items-center gap-1 rounded-md py-1.5 pl-1 pr-1 text-xs font-medium hover:bg-accent ${
+                            className={`group/project relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-1 pr-1 text-sm font-medium hover:bg-accent ${
                               isProjectActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''
                             }`}
                             title={projectIsRemote ? 'Remote Project' : undefined}
@@ -380,7 +380,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                           <CollapsibleContent asChild>
                             <div className="mt-1 min-w-0">
-                              <div className="min-w-0 space-y-1">
+                              <div className="flex min-w-0 flex-col gap-1">
                                 {typedProject.tasks
                                   ?.slice()
                                   .sort((a, b) => {
