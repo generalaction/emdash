@@ -11,7 +11,6 @@ export const DEFAULT_EXCLUDE_PATTERNS = [
   '**/CVS',
   '**/.DS_Store',
   '**/Thumbs.db',
-  '**/node_modules',
   '**/.next',
   '**/dist',
   '**/build',

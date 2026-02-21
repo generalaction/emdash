@@ -224,6 +224,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       timeBudgetMs?: number;
       connectionId?: string;
       remotePath?: string;
+      recursive?: boolean;
     }
   ) => ipcRenderer.invoke('fs:list', { root, ...(opts || {}) }),
   fsRead: (

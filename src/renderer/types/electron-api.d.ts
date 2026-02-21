@@ -773,6 +773,7 @@ declare global {
           timeBudgetMs?: number;
           connectionId?: string;
           remotePath?: string;
+          recursive?: boolean;
         }
       ) => Promise<{
         success: boolean;

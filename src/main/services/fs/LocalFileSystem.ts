@@ -20,6 +20,7 @@ import {
   FileSystemError,
   FileSystemErrorCodes,
 } from './types';
+import { GitIgnoreParser } from '../../utils/gitIgnore';
 
 // Binary file extensions to skip during search
 const BINARY_EXTENSIONS = new Set([
@@ -388,6 +389,15 @@ export class LocalFileSystem implements IFileSystem {
       ? new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
       : new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
 
+    let gitIgnore: GitIgnoreParser | undefined;
+    try {
+      const gitIgnorePath = join(this.projectPath, '.gitignore');
+      const content = await fs.readFile(gitIgnorePath, 'utf-8');
+      gitIgnore = new GitIgnoreParser(content);
+    } catch {
+      // Ignore error reading .gitignore
+    }
+
     const searchDir = async (dirPath: string) => {
       let items;
       try {
@@ -405,6 +415,11 @@ export class LocalFileSystem implements IFileSystem {
         const itemPath = join(dirPath, item.name);
 
         if (item.isDirectory()) {
+          const relPath = this.relPath(itemPath);
+          if (gitIgnore && gitIgnore.ignores(relPath)) {
+            continue;
+          }
+
           if (!this.shouldIgnore(item.name) && !item.name.startsWith('.')) {
             await searchDir(itemPath);
           }
