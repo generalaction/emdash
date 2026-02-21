@@ -62,7 +62,7 @@ const ChatInterface: React.FC<Props> = ({
   >({});
   const [agent, setAgent] = useState<Agent>(initialAgent || 'claude');
   const currentAgentStatus = agentStatuses[agent];
-  const [cliStartFailed, setCliStartFailed] = useState(false);
+  const [cliStartError, setCliStartError] = useState<string | null>(null);
 
   // Multi-chat state
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -333,7 +333,7 @@ const ChatInterface: React.FC<Props> = ({
   }, [agent, terminalId]);
 
   useEffect(() => {
-    setCliStartFailed(false);
+    setCliStartError(null);
   }, [task.id]);
 
   const runInstallCommand = useCallback(
@@ -996,16 +996,20 @@ const ChatInterface: React.FC<Props> = ({
                       installCommand={getInstallCommandForProvider(agent as any)}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                      mode="missing"
                     />
                   );
                 }
-                if (cliStartFailed) {
+                if (cliStartError) {
                   return (
                     <InstallBanner
                       agent={agent as any}
                       terminalId={terminalId}
+                      installCommand={null}
                       onRunInstall={runInstallCommand}
                       onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                      mode="start_failed"
+                      details={cliStartError}
                     />
                   );
                 }
@@ -1053,11 +1057,11 @@ const ChatInterface: React.FC<Props> = ({
                       window.localStorage.setItem(`agent:locked:${task.id}`, agent);
                     } catch {}
                   }}
-                  onStartError={() => {
-                    setCliStartFailed(true);
+                  onStartError={(message) => {
+                    setCliStartError(message);
                   }}
                   onStartSuccess={() => {
-                    setCliStartFailed(false);
+                    setCliStartError(null);
                     // Mark initial injection as sent so it won't re-run on restart
                     if (initialInjection && !task.metadata?.initialInjectionSent) {
                       void window.electronAPI.saveTask({

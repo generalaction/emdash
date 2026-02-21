@@ -251,12 +251,143 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest
+            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           # Upload Linux packages and metadata
           FILES=(release/emdash-*.AppImage release/emdash-*.deb)
           if [ -f release/latest-linux.yml ]; then FILES+=(release/latest-linux.yml); fi
           gh release upload "$TAG" "${FILES[@]}" --clobber
+
+  release-win:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    environment: release
+    steps:
+      - name: Init flags
+        id: init
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRY=${{ inputs.dry_run || '' }}
+          if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
+          # For branch pushes, always do a dry run to avoid creating "releases" for branch names.
+          if [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ]; then
+            DRY=true
+          fi
+          DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
+          case "$DRY" in
+            true|1|yes) DRY=true ;;
+            *) DRY=false ;;
+          esac
+          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Node 22 can trigger native module source builds that are flakier on Windows.
+          # Node 20 is within engines range and closer to Electron's Node baseline.
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup Python 3.11 for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python build deps (setuptools shim for distutils)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Install dependencies (strict lockfile)
+        shell: bash
+        env:
+          npm_config_python: ${{ env.python }}
+          npm_config_msvs_version: 2022
+          GYP_MSVS_VERSION: 2022
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app (ts + vite)
+        shell: bash
+        run: pnpm run build
+
+      - name: Inject PostHog config
+        shell: bash
+        env:
+          PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.POSTHOG_HOST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PH_KEY:-}" ] || [ -z "${PH_HOST:-}" ]; then
+            echo "PostHog secrets not set; skipping telemetry injection (app will have telemetry disabled)."
+            exit 0
+          fi
+          node - <<'NODE'
+          const fs = require('node:fs');
+          fs.mkdirSync('dist/main', { recursive: true });
+          fs.writeFileSync(
+            'dist/main/appConfig.json',
+            JSON.stringify({ posthogHost: process.env.PH_HOST, posthogKey: process.env.PH_KEY }, null, 2)
+          );
+          console.log('Wrote dist/main/appConfig.json');
+          NODE
+
+      - name: Rebuild native modules (x64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
+          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
+
+      - name: Build Windows packages (NSIS + MSI) (no publish)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec electron-builder --win nsis msi --x64 --publish never --config.npmRebuild=false
+          ls -lah release || true
+
+      - name: Publish GitHub Release and upload Windows artifacts
+        if: ${{ steps.init.outputs.dry_run != 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          # Create if missing, or publish if draft
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --draft=false --prerelease=false
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
+          fi
+          FILES=(release/emdash-*.exe release/emdash-*.msi)
+          if ls release/*.blockmap >/dev/null 2>&1; then FILES+=(release/*.blockmap); fi
+          if [ -f release/latest.yml ]; then FILES+=(release/latest.yml); fi
+          if [ -f release/latest-win.yml ]; then FILES+=(release/latest-win.yml); fi
+          gh release upload "$TAG" "${FILES[@]}" --clobber
+
+      - name: Upload Windows artifacts (dry-run)
+        if: ${{ steps.init.outputs.dry_run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: WINDOWS-ARTIFACTS
+          path: |
+            release/emdash-*.exe
+            release/emdash-*.msi
+            release/*.blockmap
+            release/latest*.yml
+          if-no-files-found: error
 
   release-mac:
     # Run for tagged pushes (normal release) and for manual runs (dry run or ad-hoc release)
@@ -572,7 +703,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest
+            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           # Upload stapled DMGs, ZIPs (for auto-update), and update files
           FILES=(release/emdash-*.dmg release/emdash-*.zip)

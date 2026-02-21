@@ -10,6 +10,8 @@ type Props = {
   installCommand?: string | null;
   terminalId?: string;
   onRunInstall?: (command: string) => void;
+  mode?: 'missing' | 'start_failed';
+  details?: string | null;
 };
 
 export const InstallBanner: React.FC<Props> = ({
@@ -18,12 +20,15 @@ export const InstallBanner: React.FC<Props> = ({
   installCommand,
   terminalId,
   onRunInstall,
+  mode = 'missing',
+  details,
 }) => {
   const meta = agentMeta[agent];
   const helpUrl = getDocUrlForProvider(agent) ?? null;
   const baseLabel = meta?.label || 'this agent';
 
-  const command = installCommand || getInstallCommandForProvider(agent);
+  const command =
+    installCommand === undefined ? getInstallCommandForProvider(agent) : installCommand;
   const canRunInstall = Boolean(command && (onRunInstall || terminalId));
   const [copied, setCopied] = useState(false);
   const copyResetRef = useRef<number | null>(null);
@@ -70,6 +75,13 @@ export const InstallBanner: React.FC<Props> = ({
     };
   }, []);
 
+  const showInstall = mode === 'missing';
+  const showDetails = mode === 'start_failed' && Boolean(details?.trim());
+  const isPtyDisabledOrUnavailable =
+    mode === 'start_failed' &&
+    (details?.includes('EMDASH_DISABLE_PTY=1') ||
+      details?.toLowerCase().includes('pty unavailable'));
+
   return (
     <div className="rounded-md border border-border bg-muted p-3 text-sm text-foreground dark:border-border dark:bg-background dark:text-foreground">
       <div className="space-y-2">
@@ -87,12 +99,26 @@ export const InstallBanner: React.FC<Props> = ({
             ) : (
               baseLabel
             )}{' '}
-            isn’t installed.
+            {mode === 'start_failed' ? 'couldn’t start.' : 'isn’t installed.'}
           </span>{' '}
-          <span className="font-normal text-foreground">Run this in the terminal to use it:</span>
+          {showInstall ? (
+            <span className="font-normal text-foreground">Run this in the terminal to use it:</span>
+          ) : null}
         </div>
 
-        {command ? (
+        {showDetails ? (
+          <div className="text-foreground">
+            <span className="font-medium">Error:</span> {details}
+            {isPtyDisabledOrUnavailable ? (
+              <div className="mt-1 text-muted-foreground">
+                Embedded terminals are disabled/unavailable. Unset `EMDASH_DISABLE_PTY` (or set it
+                to `0`) and ensure the PTY native module is installed.
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {showInstall && command ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <code className="inline-flex h-7 items-center rounded bg-muted px-2 font-mono text-xs leading-none">
               {command}
@@ -124,9 +150,9 @@ export const InstallBanner: React.FC<Props> = ({
               </Button>
             ) : null}
           </div>
-        ) : (
+        ) : showInstall ? (
           <div className="text-foreground">Install the CLI to use it.</div>
-        )}
+        ) : null}
       </div>
     </div>
   );

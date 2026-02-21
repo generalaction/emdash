@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import { join } from 'path';
 import { isDev } from '../utils/dev';
 import { registerExternalLinkHandlers } from '../utils/externalLinks';
@@ -30,7 +30,7 @@ export function createMainWindow(): BrowserWindow {
       // Preload is emitted to dist/main/main/preload.js
       preload: join(__dirname, '..', 'preload.js'),
     },
-    titleBarStyle: 'hiddenInset',
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
     show: false,
   });
 
@@ -38,7 +38,7 @@ export function createMainWindow(): BrowserWindow {
     mainWindow.loadURL('http://localhost:3000');
   } else {
     // Serve renderer over an HTTP origin in production so embeds work.
-    const rendererRoot = join(__dirname, '..', '..', '..', 'renderer');
+    const rendererRoot = join(app.getAppPath(), 'dist', 'renderer');
     void ensureRendererServer(rendererRoot)
       .then((url: string) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
