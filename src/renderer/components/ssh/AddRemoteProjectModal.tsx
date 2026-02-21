@@ -533,8 +533,31 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         });
         setConnectionId(connId);
 
-        // Start with home directory or root
-        void browseRemotePath('/home/' + formData.username);
+        // Browse directly with connId since connectionId state hasn't updated yet
+        const homePath = '/home/' + formData.username;
+        setIsBrowsing(true);
+        setBrowseError(null);
+        try {
+          const result = await window.electronAPI.sshListFiles(connId, homePath);
+          const entries: FileEntry[] =
+            result && typeof result === 'object' && 'files' in result
+              ? (result.files as FileEntry[]) || []
+              : Array.isArray(result)
+                ? (result as FileEntry[])
+                : [];
+          const sorted = entries.sort((a: FileEntry, b: FileEntry) => {
+            if (a.type === 'directory' && b.type !== 'directory') return -1;
+            if (a.type !== 'directory' && b.type === 'directory') return 1;
+            return a.name.localeCompare(b.name);
+          });
+          setFileEntries(sorted);
+          updateField('remotePath', homePath);
+        } catch (browseErr) {
+          const msg = browseErr instanceof Error ? browseErr.message : 'Failed to browse directory';
+          setBrowseError(msg);
+        } finally {
+          setIsBrowsing(false);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to connect';
         setTestStatus('idle');
@@ -554,9 +577,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   }, [
     currentStep,
     formData,
+    connectionId,
     validateStep,
     testConnection,
-    browseRemotePath,
+    updateField,
     useExistingConnection,
   ]);
 
