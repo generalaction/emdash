@@ -426,12 +426,6 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         const { captureTelemetry } = await import('../lib/telemetryClient');
         captureTelemetry('task_deleted');
 
-        if (!options?.silent) {
-          toast({
-            title: 'Task deleted',
-            description: task.name,
-          });
-        }
         return true;
       } catch (error) {
         const { log } = await import('../lib/logger');
