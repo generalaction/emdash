@@ -166,23 +166,6 @@ export async function revertFile(
   taskPath: string,
   filePath: string
 ): Promise<{ action: 'unstaged' | 'reverted' }> {
-  // Check if file is staged
-  try {
-    const { stdout: stagedStatus } = await execFileAsync(
-      'git',
-      ['diff', '--cached', '--name-only', '--', filePath],
-      {
-        cwd: taskPath,
-      }
-    );
-
-    if (stagedStatus.trim()) {
-      // File is staged, unstage it (but keep working directory changes)
-      await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: taskPath });
-      return { action: 'unstaged' };
-    }
-  } catch {}
-
   // Check if file is tracked in git (exists in HEAD)
   let fileExistsInHead = false;
   try {
