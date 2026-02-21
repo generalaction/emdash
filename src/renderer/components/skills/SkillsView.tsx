@@ -227,7 +227,7 @@ const SkillsView: React.FC = () => {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Skill</DialogTitle>
             <DialogDescription className="text-xs">
@@ -281,7 +281,7 @@ const SkillsView: React.FC = () => {
                   setNewContent(e.target.value);
                   setCreateError(null);
                 }}
-                className="text-sm font-mono min-h-[200px]"
+                className="min-h-[200px] font-mono text-sm"
               />
               <p className="text-[10px] text-muted-foreground">
                 Define what this skill does and how agents should use it
