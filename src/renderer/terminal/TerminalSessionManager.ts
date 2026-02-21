@@ -917,11 +917,16 @@ export class TerminalSessionManager {
       this.sendSizeIfStarted();
       this.emitReady();
       try {
-        const offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
+        let offStarted: (() => void) | undefined;
+        offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
           if (payload?.id === id) {
             this.ptyStarted = true;
             this.lastSentResize = null;
             this.sendSizeIfStarted();
+            try {
+              offStarted?.();
+            } catch {}
+            offStarted = undefined;
           }
         });
         if (offStarted) this.disposables.push(offStarted);
