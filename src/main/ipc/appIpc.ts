@@ -184,6 +184,23 @@ export function registerAppIpc() {
   ipcMain.handle('app:openExternal', async (_event, url: string) => {
     try {
       if (!url || typeof url !== 'string') throw new Error('Invalid URL');
+
+      // Security: Validate URL protocol to prevent local file access and dangerous protocols
+      const ALLOWED_PROTOCOLS = ['http:', 'https:'];
+      let parsedUrl: URL;
+
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        throw new Error('Invalid URL format');
+      }
+
+      if (!ALLOWED_PROTOCOLS.includes(parsedUrl.protocol)) {
+        throw new Error(
+          `Protocol "${parsedUrl.protocol}" is not allowed. Only http and https URLs are permitted.`
+        );
+      }
+
       await shell.openExternal(url);
       return { success: true };
     } catch (error) {
