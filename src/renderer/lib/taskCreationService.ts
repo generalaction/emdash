@@ -26,6 +26,7 @@ export interface CreateTaskCallbacks {
   setActiveTask: React.Dispatch<React.SetStateAction<Task | null>>;
   setActiveTaskAgent: React.Dispatch<React.SetStateAction<Agent | null>>;
   toast: (opts: any) => void;
+  onTaskCreationFailed?: () => void;
 }
 
 async function runSetupOnCreate(
@@ -152,6 +153,7 @@ export async function createTask(
           prev ? { ...prev, tasks: prev.tasks?.filter((t) => t.id !== groupId) } : null
         );
         setActiveTask((current) => (current?.id === groupId ? null : current));
+        callbacks.onTaskCreationFailed?.();
       };
 
       // Update UI immediately while worktrees are created in the background

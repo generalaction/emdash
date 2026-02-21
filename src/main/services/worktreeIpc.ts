@@ -447,7 +447,8 @@ export function registerWorktreeIpc(): void {
         if (!projectPath) {
           const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
           if (!project) {
-            return { success: false, error: 'Project not found' };
+            await worktreePoolService.removeReserve(args.projectId);
+            return { success: true };
           }
           if (isRemoteProject(project)) {
             return { success: true };

@@ -332,6 +332,7 @@ const AppContent: React.FC = () => {
           setActiveTask: taskMgmt.setActiveTask,
           setActiveTaskAgent: taskMgmt.setActiveTaskAgent,
           toast,
+          onTaskCreationFailed: () => setIsCreatingTask(false),
         }
       );
       if (!started) {
