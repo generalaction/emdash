@@ -409,6 +409,12 @@ export class TerminalSessionManager {
     this.errorListeners.clear();
     this.exitListeners.clear();
     this.terminal.dispose();
+    // Remove the container from the DOM to prevent orphaned nodes from accumulating
+    // in the terminal host, retaining xterm buffer memory across task switches.
+    try {
+      this.container.remove();
+    } catch {}
+
   }
 
   focus() {

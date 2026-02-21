@@ -48,8 +48,8 @@ interface ThemeContextType {
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(getStoredTheme());
-  const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(getSystemTheme());
+  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme());
+  const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => getSystemTheme());
 
   const effectiveTheme: EffectiveTheme =
     theme === 'system' ? systemTheme : (theme as EffectiveTheme);

@@ -671,13 +671,6 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [agent]);
 
-  // When switching agents, ensure other streams are stopped
-  useEffect(() => {
-    (async () => {
-      try {
-      } catch {}
-    })();
-  }, [agent, task.id]);
 
   // Switch active chat/agent via global shortcuts (Cmd+Shift+J/K)
   useEffect(() => {
