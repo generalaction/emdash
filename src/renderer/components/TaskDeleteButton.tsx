@@ -105,9 +105,9 @@ export const TaskDeleteButton: React.FC<Props> = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 {isDeleting ? (
-                  <Spinner className="h-3.5 w-3.5" size="sm" />
+                  <Spinner className="h-4 w-4" size="sm" />
                 ) : (
-                  <Trash className="h-3.5 w-3.5" />
+                  <Trash className="h-4 w-4" />
                 )}
               </Button>
             </AlertDialogTrigger>

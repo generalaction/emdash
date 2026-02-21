@@ -40,6 +40,7 @@ export function ReorderList<T>({
           key={(getKey ? getKey(item, index) : (index as any)) as React.Key}
           value={item as any}
           className={itemClassName}
+          transition={{ layout: { duration: 0 } }}
         >
           {children(item, index)}
         </Reorder.Item>
