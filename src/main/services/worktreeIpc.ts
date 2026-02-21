@@ -380,6 +380,9 @@ export function registerWorktreeIpc(): void {
         let projectPath = args.projectPath;
         if (!projectPath) {
           const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
+          if (!project) {
+            return { success: false, error: 'Project not found' };
+          }
           if (isRemoteProject(project)) {
             return { success: true };
           }
