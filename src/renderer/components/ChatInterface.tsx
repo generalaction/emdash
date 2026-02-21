@@ -713,8 +713,13 @@ const ChatInterface: React.FC<Props> = ({
   const autoApproveEnabled =
     Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[agent]?.autoApproveFlag);
 
+  const isMainConversation = activeConversationId === mainConversationId;
+
   const initialInjection = useMemo(() => {
     if (!isTerminal) return null;
+    // Only inject into the main conversation — secondary chats should not
+    // receive the task's initial prompt or linked issue context.
+    if (!isMainConversation) return null;
     const md = task.metadata || null;
     const p = (md?.initialPrompt || '').trim();
     if (p) return p;
@@ -829,7 +834,7 @@ const ChatInterface: React.FC<Props> = ({
     }
 
     return null;
-  }, [isTerminal, task.metadata, commentsContext]);
+  }, [isTerminal, isMainConversation, task.metadata, commentsContext]);
 
   // Only use keystroke injection for agents WITHOUT CLI flag support,
   // or agents that explicitly opt into it (useKeystrokeInjection: true).
