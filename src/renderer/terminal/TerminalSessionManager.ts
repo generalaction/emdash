@@ -414,7 +414,6 @@ export class TerminalSessionManager {
     try {
       this.container.remove();
     } catch {}
-
   }
 
   focus() {

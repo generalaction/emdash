@@ -671,7 +671,6 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [agent]);
 
-
   // Switch active chat/agent via global shortcuts (Cmd+Shift+J/K)
   useEffect(() => {
     const handleAgentSwitch = (event: Event) => {
