@@ -8,7 +8,7 @@ try {
   // dotenv is optional - no error if .env doesn't exist
 }
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import { initializeShellEnvironment } from './utils/shellEnv';
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
@@ -105,7 +105,7 @@ import { createMainWindow } from './app/window';
 import { registerAppLifecycle } from './app/lifecycle';
 import { setupApplicationMenu } from './app/menu';
 import { registerAllIpc } from './ipc';
-import { databaseService } from './services/DatabaseService';
+import { databaseService, DatabaseSchemaMismatchError } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
@@ -114,6 +114,7 @@ import { taskLifecycleService } from './services/TaskLifecycleService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
+import { rmSync } from 'node:fs';
 
 // Set app name for macOS dock and menu bar
 app.setName('Emdash');
@@ -161,6 +162,13 @@ if (process.platform === 'darwin' && !app.isPackaged) {
 
 // App bootstrap
 app.whenReady().then(async () => {
+  const resetLocalDatabase = async (dbPath: string) => {
+    await databaseService.close().catch(() => {});
+    for (const filePath of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+      rmSync(filePath, { force: true });
+    }
+  };
+
   // Initialize database
   let dbInitOk = false;
   let dbInitErrorType: string | undefined;
@@ -175,8 +183,47 @@ app.whenReady().then(async () => {
     dbInitErrorType = code || name || 'unknown';
     console.error('Failed to initialize database:', error);
 
+    if (err instanceof DatabaseSchemaMismatchError) {
+      const missing = err.missingInvariants.map((item) => `• ${item}`).join('\n');
+      const result = await dialog.showMessageBox({
+        type: 'error',
+        title: 'Local Data Reset Required',
+        message: 'Emdash cannot start because your local database schema is incompatible.',
+        detail: [
+          'Required schema entries are missing:',
+          missing || '• unknown invariant',
+          '',
+          `Database path: ${err.dbPath}`,
+          '',
+          'Choose "Reset Local Data and Relaunch" to delete local Emdash data and start fresh.',
+          'This only removes local app data (projects, tasks, conversations). Repository files are not deleted.',
+        ].join('\n'),
+        buttons: ['Reset Local Data and Relaunch', 'Quit'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      });
+
+      if (result.response === 0) {
+        try {
+          await resetLocalDatabase(err.dbPath);
+          app.relaunch();
+          app.exit(0);
+          return;
+        } catch (resetError) {
+          console.error('Failed to reset local database:', resetError);
+          dialog.showErrorBox(
+            'Database Reset Failed',
+            `Unable to delete local database at:\n${err.dbPath}\n\n${resetError instanceof Error ? resetError.message : String(resetError)}`
+          );
+        }
+      }
+
+      app.quit();
+      return;
+    }
+
     if (err instanceof Error && err.message.includes('migrations folder')) {
-      const { dialog } = require('electron');
       dialog.showErrorBox(
         'Database Initialization Failed',
         'Unable to initialize the application database.\n\n' +
