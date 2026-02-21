@@ -657,6 +657,7 @@ const AppContent: React.FC = () => {
                         handleSelectTask={taskMgmt.handleSelectTask}
                         handleDeleteTask={taskMgmt.handleDeleteTask}
                         handleArchiveTask={taskMgmt.handleArchiveTask}
+                        handleRestoreTask={taskMgmt.handleRestoreTask}
                         handleDeleteProject={projectMgmt.handleDeleteProject}
                         handleOpenProject={projectMgmt.handleOpenProject}
                         handleNewProjectClick={projectMgmt.handleNewProjectClick}

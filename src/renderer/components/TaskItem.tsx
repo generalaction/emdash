@@ -178,7 +178,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
     const compact = formatCompactDate(task.updatedAt);
     if (compact) {
-      return <span className="text-xs text-muted-foreground">{compact}</span>;
+      return <span className="text-sm text-muted-foreground">{compact}</span>;
     }
     return null;
   })();
@@ -204,13 +204,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               onKeyDown={handleKeyDown}
               onBlur={handleConfirmEdit}
               maxLength={MAX_TASK_NAME_LENGTH}
-              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-sm font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
               onClick={stopPropagation}
             />
           ) : (
             <>
               {isPinned && <Pin className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
-              <span className="block truncate text-xs font-medium text-foreground">
+              <span className="block truncate text-sm font-medium text-foreground">
                 {task.name}
               </span>
             </>
@@ -227,7 +227,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         </div>
         {/* Line 2: agent name */}
         {agentInfo.displayLabel && (
-          <span className="truncate text-xs text-muted-foreground">{agentInfo.displayLabel}</span>
+          <span className="truncate text-sm text-muted-foreground">{agentInfo.displayLabel}</span>
         )}
       </div>
       <div className="flex min-w-7 flex-shrink-0 items-center justify-end">{rightContent}</div>

@@ -6,9 +6,15 @@ interface AgentNameInfo {
   primaryName: string;
   additionalCount: number;
   displayLabel: string;
+  providerIds: string[];
 }
 
-const FALLBACK: AgentNameInfo = { primaryName: '', additionalCount: 0, displayLabel: '' };
+const FALLBACK: AgentNameInfo = {
+  primaryName: '',
+  additionalCount: 0,
+  displayLabel: '',
+  providerIds: [],
+};
 
 export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): AgentNameInfo {
   const [info, setInfo] = useState<AgentNameInfo>(FALLBACK);
@@ -32,7 +38,12 @@ export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): Age
         if (providerIds.length === 0 && fallbackAgentId) {
           const provider = getProvider(fallbackAgentId as ProviderId);
           const name = provider?.name ?? fallbackAgentId;
-          setInfo({ primaryName: name, additionalCount: 0, displayLabel: name });
+          setInfo({
+            primaryName: name,
+            additionalCount: 0,
+            displayLabel: name,
+            providerIds: [fallbackAgentId],
+          });
           return;
         }
 
@@ -43,16 +54,22 @@ export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): Age
 
         const primaryProvider = getProvider(providerIds[0] as ProviderId);
         const primaryName = primaryProvider?.name ?? providerIds[0];
-        const additionalCount = providerIds.length - 1;
+        const totalChats = conversations.filter((c: { provider?: string }) => c.provider).length;
+        const additionalCount = Math.max(0, totalChats - 1);
         const displayLabel =
           additionalCount > 0 ? `${primaryName} +${additionalCount}` : primaryName;
 
-        setInfo({ primaryName, additionalCount, displayLabel });
+        setInfo({ primaryName, additionalCount, displayLabel, providerIds });
       } catch {
         if (!cancelled && fallbackAgentId) {
           const provider = getProvider(fallbackAgentId as ProviderId);
           const name = provider?.name ?? fallbackAgentId;
-          setInfo({ primaryName: name, additionalCount: 0, displayLabel: name });
+          setInfo({
+            primaryName: name,
+            additionalCount: 0,
+            displayLabel: name,
+            providerIds: [fallbackAgentId],
+          });
         }
       }
     }
