@@ -25,7 +25,7 @@ interface Task {
   name: string;
   branch: string;
   path: string;
-  status: 'active' | 'idle' | 'running';
+  status: 'active' | 'idle' | 'running' | 'creating';
   agentId?: string;
   useWorktree?: boolean;
 }
@@ -117,7 +117,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const taskContent = (
     <div className="flex min-w-0 items-center justify-between">
       <div className="flex min-w-0 flex-1 items-center gap-2 py-1">
-        {isRunning || task.status === 'running' ? (
+        {isRunning || task.status === 'running' || task.status === 'creating' ? (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         ) : (
           <GitBranch className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
@@ -138,6 +138,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           <>
             {isPinned && <Pin className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
             <span className="block truncate text-xs font-medium text-foreground">{task.name}</span>
+            {task.status === 'creating' && (
+              <span className='text-xs text-muted-foreground animate-pulse ml-1'>
+                Creating...
+              </span>
+            )}
           </>
         )}
         {showDirectBadge && task.useWorktree === false && (

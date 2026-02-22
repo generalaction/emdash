@@ -23,7 +23,7 @@ interface Task {
   name: string;
   branch: string;
   path: string;
-  status: 'active' | 'idle' | 'running';
+  status: 'active' | 'idle' | 'running' | 'creating';
 }
 
 interface Props {

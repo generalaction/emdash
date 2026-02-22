@@ -111,6 +111,7 @@ export async function createTask(
     const isMultiAgent = totalRuns > 1;
     const primaryAgent = agentRuns[0]?.agent || 'claude';
 
+    let optimisticTaskId: string | undefined;
     let newTask: Task;
     if (isMultiAgent) {
       // Multi-agent task: show UI immediately with loading state, create worktrees in background
@@ -345,6 +346,34 @@ export async function createTask(
       let taskId: string;
       let taskPersistedInClaim = false;
 
+      optimisticTaskId = `temp-${taskName}-${Date.now()}`;
+      const optimisticTask: Task = {
+        id: optimisticTaskId,
+        projectId: selectedProject.id,
+        name: taskName,
+        branch: selectedProject.gitInfo.branch || 'main',
+        path: selectedProject.path,
+        status: 'creating',
+        agentId: primaryAgent,
+        metadata: taskMetadata,
+        useWorktree,
+      };
+
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === selectedProject.id
+            ? { ...project, tasks: [optimisticTask, ...(project.tasks || [])] }
+            : project
+        )
+      );
+
+      setSelectedProject((prev) =>
+        prev ? { ...prev, tasks: [optimisticTask, ...(prev.tasks || [])] } : null
+      );
+      setActiveTask(optimisticTask);
+      setActiveTaskAgent(primaryAgent);
+      saveActiveIds(optimisticTask.projectId, optimisticTask.id);
+
       if (useWorktree) {
         // Try to claim a pre-created reserve worktree and persist task in one IPC call.
         const claimAndSaveResult = await window.electronAPI.worktreeClaimReserveAndSaveTask({
@@ -436,13 +465,13 @@ export async function createTask(
         }
       }
 
-      // Update UI state now that DB row exists
+      // Replace optimistic task with real task
       setProjects((prev) =>
         prev.map((project) =>
           project.id === selectedProject.id
             ? {
                 ...project,
-                tasks: [newTask, ...(project.tasks || [])],
+                tasks: project.tasks?.map((t) => (t.id === optimisticTaskId ? newTask : t)) || [],
               }
             : project
         )
@@ -452,7 +481,7 @@ export async function createTask(
         prev
           ? {
               ...prev,
-              tasks: [newTask, ...(prev.tasks || [])],
+              tasks: prev.tasks?.map((t) => (t.id === optimisticTaskId ? newTask : t)) || [],
             }
           : null
       );
@@ -634,6 +663,7 @@ export async function createTask(
   } catch (error) {
     const { log } = await import('./logger');
     log.error('Failed to create task:', error as any);
+
     callbacks.toast({
       title: 'Error',
       description:
