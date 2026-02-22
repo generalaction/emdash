@@ -50,7 +50,10 @@ export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
   };
 
   const latestClose = useRef<() => void>(() => {});
-  latestClose.current = () => { cancelClose(); setOpen(false); };
+  latestClose.current = () => {
+    cancelClose();
+    setOpen(false);
+  };
 
   const stableForceClose = useRef<() => void>(() => latestClose.current());
 
@@ -85,19 +88,20 @@ export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
         activeTooltipForceClose = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!issue) return children;
 
   return (
     <TooltipProvider delayDuration={150}>
-      <Tooltip open={open} onOpenChange={(next) => { if (next) setOpen(true); /* closing handled by scheduleClose */ }}>
-        <TooltipTrigger
-          asChild
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={scheduleClose}
-        >
+      <Tooltip
+        open={open}
+        onOpenChange={(next) => {
+          if (next) setOpen(true); /* closing handled by scheduleClose */
+        }}
+      >
+        <TooltipTrigger asChild onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
           {children}
         </TooltipTrigger>
         <TooltipContent
