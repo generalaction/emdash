@@ -86,6 +86,20 @@ export interface MigrationSummary {
   recovered: boolean;
 }
 
+export class DatabaseSchemaMismatchError extends Error {
+  readonly code = 'DB_SCHEMA_MISMATCH';
+  readonly dbPath: string;
+  readonly missingInvariants: string[];
+
+  constructor(dbPath: string, missingInvariants: string[]) {
+    const suffix = missingInvariants.length > 0 ? ` (${missingInvariants.join(', ')})` : '';
+    super(`Database schema mismatch${suffix}`);
+    this.name = 'DatabaseSchemaMismatchError';
+    this.dbPath = dbPath;
+    this.missingInvariants = missingInvariants;
+  }
+}
+
 export class DatabaseService {
   private static migrationsApplied = false;
   private db: sqlite3Type.Database | null = null;
@@ -127,11 +141,19 @@ export class DatabaseService {
         }
 
         this.ensureMigrations()
-          .then(() => resolve())
-          .catch(async (migrationError) => {
-            // Track critical migration error
-            await errorTracking.captureDatabaseError(migrationError, 'initialize_migrations');
-            reject(migrationError);
+          .then(async () => {
+            await this.validateSchemaContract();
+            resolve();
+          })
+          .catch(async (initError) => {
+            const operation =
+              initError instanceof DatabaseSchemaMismatchError
+                ? 'initialize_schema_contract'
+                : 'initialize_migrations';
+            await errorTracking.captureDatabaseError(initError, operation, {
+              db_path: this.dbPath,
+            });
+            reject(initError);
           });
       });
     });
@@ -1092,6 +1114,26 @@ export class DatabaseService {
     } finally {
       // Restore FK enforcement for normal operation (and ensure it's re-enabled on failure).
       await this.execSql('PRAGMA foreign_keys=ON;');
+    }
+  }
+
+  private async validateSchemaContract(): Promise<void> {
+    if (this.disabled) return;
+
+    const missingInvariants: string[] = [];
+
+    if (!(await this.tableHasColumn('projects', 'base_ref'))) {
+      missingInvariants.push('projects.base_ref');
+    }
+    if (!(await this.tableExists('tasks'))) {
+      missingInvariants.push('tasks table');
+    }
+    if (!(await this.tableHasColumn('conversations', 'task_id'))) {
+      missingInvariants.push('conversations.task_id');
+    }
+
+    if (missingInvariants.length > 0) {
+      throw new DatabaseSchemaMismatchError(this.dbPath, missingInvariants);
     }
   }
 
