@@ -544,11 +544,15 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         branchRenamed = true;
       }
 
-      // Save task with new name and branch
+      // Save task with new name and branch, clearing nameGenerated flag
+      const updatedMetadata = task.metadata?.nameGenerated
+        ? { ...task.metadata, nameGenerated: false }
+        : task.metadata;
       const saveResult = await window.electronAPI.saveTask({
         ...task,
         name: newName,
         branch: newBranch,
+        metadata: updatedMetadata,
       });
 
       if (!saveResult?.success) {

@@ -14,6 +14,7 @@ import { Spinner } from './ui/spinner';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
+import type { Project } from '../types/app';
 import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { activityStore } from '@/lib/activityStore';
@@ -23,6 +24,8 @@ import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
 import { DeleteChatModal } from './DeleteChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
+import { generateTaskName } from '../lib/branchNameGenerator';
+import { ensureUniqueTaskName, normalizeTaskName } from '../lib/taskNames';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { makePtyId } from '@shared/ptyId';
@@ -35,6 +38,7 @@ declare const window: Window & {
 
 interface Props {
   task: Task;
+  project?: Project;
   projectName: string;
   projectPath?: string | null;
   projectRemoteConnectionId?: string | null;
@@ -43,10 +47,12 @@ interface Props {
   className?: string;
   initialAgent?: Agent;
   onTaskInterfaceReady?: () => void;
+  onRenameTask?: (project: Project, task: Task, newName: string) => Promise<void>;
 }
 
 const ChatInterface: React.FC<Props> = ({
   task,
+  project,
   projectName: _projectName,
   projectPath,
   projectRemoteConnectionId,
@@ -55,6 +61,7 @@ const ChatInterface: React.FC<Props> = ({
   className,
   initialAgent,
   onTaskInterfaceReady,
+  onRenameTask,
 }) => {
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
@@ -139,6 +146,29 @@ const ChatInterface: React.FC<Props> = ({
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
+
+  // Handle first terminal message for auto-rename.
+  // Uses a ref so the TerminalInputBuffer (created once in the session constructor)
+  // always calls the latest version of this callback.
+  const handleFirstMessageRef = useRef<((message: string) => void) | null>(null);
+  handleFirstMessageRef.current = (message: string) => {
+    if (!project || !onRenameTask) return;
+    if (!task.metadata?.nameGenerated) return;
+    if (task.metadata?.multiAgent?.enabled) return;
+
+    const newName = generateTaskName(message);
+    if (!newName) return;
+
+    const existingNames = (project.tasks || []).map((t) => t.name);
+    const unique = ensureUniqueTaskName(newName, existingNames);
+    if (unique === normalizeTaskName(task.name)) return;
+
+    void onRenameTask(project, task, unique);
+  };
+  const handleFirstMessage = useCallback(
+    (message: string) => handleFirstMessageRef.current?.(message),
+    []
+  );
 
   const readySignaledTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1128,6 +1158,7 @@ const ChatInterface: React.FC<Props> = ({
                       ? (initialInjection ?? undefined)
                       : undefined
                   }
+                  onFirstMessage={task.metadata?.nameGenerated ? handleFirstMessage : undefined}
                   className="h-full w-full"
                 />
               )}

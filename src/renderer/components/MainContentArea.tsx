@@ -47,6 +47,7 @@ interface MainContentAreaProps {
   setShowKanban: (show: boolean) => void;
   projectRemoteConnectionId?: string | null;
   projectRemotePath?: string | null;
+  onRenameTask?: (project: Project, task: Task, newName: string) => Promise<void>;
 }
 
 const MainContentArea: React.FC<MainContentAreaProps> = ({
@@ -77,6 +78,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   setShowKanban,
   projectRemoteConnectionId,
   projectRemotePath,
+  onRenameTask,
 }) => {
   if (showSettingsPage) {
     return (
@@ -137,6 +139,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
           ) : (
             <ChatInterface
               task={activeTask}
+              project={selectedProject}
               projectName={selectedProject.name}
               projectPath={selectedProject.path}
               projectRemoteConnectionId={projectRemoteConnectionId}
@@ -145,6 +148,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
               className="min-h-0 flex-1"
               initialAgent={activeTaskAgent || undefined}
               onTaskInterfaceReady={onTaskInterfaceReady}
+              onRenameTask={onRenameTask}
             />
           )
         ) : (
