@@ -7,6 +7,7 @@ import { getAppSettings } from '../settings';
 import { getAppById, OPEN_IN_APPS, type OpenInAppId, type PlatformKey } from '@shared/openInApps';
 import { databaseService } from '../services/DatabaseService';
 import { buildExternalToolEnv } from '../utils/childProcessEnv';
+import { quoteShellArg } from '../utils/shellEscape';
 
 const UNKNOWN_VERSION = 'unknown';
 
@@ -271,19 +272,24 @@ export function registerAppIpc() {
             }
 
             // Construct remote SSH URL or command based on the app
+            // Security: Escape all user-controlled values to prevent command injection
+            const safeHost = encodeURIComponent(connection.host);
+            const safeTarget = encodeURIComponent(target);
+
             if (appId === 'vscode') {
               // VS Code Remote SSH URL format: vscode://vscode-remote/ssh-remote+hostname/path
-              const remoteUrl = `vscode://vscode-remote/ssh-remote+${connection.host}${target}`;
+              const remoteUrl = `vscode://vscode-remote/ssh-remote+${safeHost}${target}`;
               await shell.openExternal(remoteUrl);
               return { success: true };
             } else if (appId === 'cursor') {
               // Cursor uses its own URL scheme for remote SSH
-              const remoteUrl = `cursor://vscode-remote/ssh-remote+${connection.host}${target}`;
+              const remoteUrl = `cursor://vscode-remote/ssh-remote+${safeHost}${target}`;
               await shell.openExternal(remoteUrl);
               return { success: true };
             } else if (appId === 'terminal' && platform === 'darwin') {
               // macOS Terminal.app - execute SSH command
-              const sshCommand = `ssh ${connection.username}@${connection.host} -p ${connection.port} -t "cd ${target} && exec \\$SHELL"`;
+              // Security: Use quoteShellArg to prevent command injection
+              const sshCommand = `ssh ${quoteShellArg(connection.username)}@${quoteShellArg(connection.host)} -p ${quoteShellArg(String(connection.port))} -t "cd ${quoteShellArg(target)} && exec \\$SHELL"`;
               // Properly escape for AppleScript
               const escapedCommand = sshCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
               const terminalCommand = `osascript -e 'tell application "Terminal" to do script "${escapedCommand}"' -e 'tell application "Terminal" to activate'`;
@@ -297,7 +303,8 @@ export function registerAppIpc() {
               return { success: true };
             } else if (appId === 'iterm2' && platform === 'darwin') {
               // iTerm2 - execute SSH command
-              const sshCommand = `ssh ${connection.username}@${connection.host} -p ${connection.port} -t "cd ${target} && exec \\$SHELL"`;
+              // Security: Use quoteShellArg to prevent command injection
+              const sshCommand = `ssh ${quoteShellArg(connection.username)}@${quoteShellArg(connection.host)} -p ${quoteShellArg(String(connection.port))} -t "cd ${quoteShellArg(target)} && exec \\$SHELL"`;
               const escapedCommand = sshCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
               const terminalCommand = `osascript -e 'tell application "iTerm" to create window with default profile command "${escapedCommand}"'`;
 
@@ -310,14 +317,16 @@ export function registerAppIpc() {
               return { success: true };
             } else if (appId === 'warp' && platform === 'darwin') {
               // Warp - use URL scheme with SSH command
-              const sshCommand = `ssh ${connection.username}@${connection.host} -p ${connection.port} -t "cd ${target} && exec \\$SHELL"`;
+              // Security: Use quoteShellArg to prevent command injection
+              const sshCommand = `ssh ${quoteShellArg(connection.username)}@${quoteShellArg(connection.host)} -p ${quoteShellArg(String(connection.port))} -t "cd ${quoteShellArg(target)} && exec \\$SHELL"`;
               await shell.openExternal(
                 `warp://action/new_window?cmd=${encodeURIComponent(sshCommand)}`
               );
               return { success: true };
             } else if (appId === 'ghostty') {
               // Ghostty - execute SSH command directly
-              const sshCommand = `ssh ${connection.username}@${connection.host} -p ${connection.port} -t "cd ${target} && exec \\$SHELL"`;
+              // Security: Use quoteShellArg to prevent command injection
+              const sshCommand = `ssh ${quoteShellArg(connection.username)}@${quoteShellArg(connection.host)} -p ${quoteShellArg(String(connection.port))} -t "cd ${quoteShellArg(target)} && exec \\$SHELL"`;
               const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
               const terminalCommand = `ghostty -e ${quoted(sshCommand)}`;
 
