@@ -145,10 +145,15 @@ export class DatabaseService {
             await this.validateSchemaContract();
             resolve();
           })
-          .catch(async (migrationError) => {
-            // Track critical migration error
-            await errorTracking.captureDatabaseError(migrationError, 'initialize_migrations');
-            reject(migrationError);
+          .catch(async (initError) => {
+            const operation =
+              initError instanceof DatabaseSchemaMismatchError
+                ? 'initialize_schema_contract'
+                : 'initialize_migrations';
+            await errorTracking.captureDatabaseError(initError, operation, {
+              db_path: this.dbPath,
+            });
+            reject(initError);
           });
       });
     });

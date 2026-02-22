@@ -54,6 +54,8 @@ class MockSqliteDatabase {
   }
 }
 
+const captureDatabaseErrorMock = vi.fn();
+
 vi.mock('sqlite3', () => ({
   Database: MockSqliteDatabase,
 }));
@@ -65,7 +67,7 @@ vi.mock('../../main/db/path', () => ({
 
 vi.mock('../../main/errorTracking', () => ({
   errorTracking: {
-    captureDatabaseError: vi.fn(),
+    captureDatabaseError: (...args: unknown[]) => captureDatabaseErrorMock(...args),
   },
 }));
 
@@ -79,6 +81,7 @@ describe('DatabaseService.initialize schema contract handling', () => {
   let service: DatabaseService;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     delete process.env.EMDASH_DISABLE_NATIVE_DB;
     schemaState.tables = new Set(['projects', 'tasks', 'conversations']);
     schemaState.columnsByTable = {
@@ -98,6 +101,11 @@ describe('DatabaseService.initialize schema contract handling', () => {
 
   it('rejects initialize with typed schema mismatch when projects.base_ref is missing', async () => {
     await expect(service.initialize()).rejects.toBeInstanceOf(DatabaseSchemaMismatchError);
+    expect(captureDatabaseErrorMock).toHaveBeenCalledWith(
+      expect.any(DatabaseSchemaMismatchError),
+      'initialize_schema_contract',
+      { db_path: '/tmp/emdash-init-test.db' }
+    );
 
     await service.close();
   });
@@ -113,6 +121,24 @@ describe('DatabaseService.initialize schema contract handling', () => {
     ];
 
     await expect(service.initialize()).resolves.toBeUndefined();
+    expect(captureDatabaseErrorMock).not.toHaveBeenCalled();
+
+    await service.close();
+  });
+
+  it('tracks migration failures separately from schema contract failures', async () => {
+    const migrationError = new Error('migration boom');
+    vi.spyOn(
+      service as unknown as {
+        ensureMigrations: () => Promise<void>;
+      },
+      'ensureMigrations'
+    ).mockRejectedValueOnce(migrationError);
+
+    await expect(service.initialize()).rejects.toThrow('migration boom');
+    expect(captureDatabaseErrorMock).toHaveBeenCalledWith(migrationError, 'initialize_migrations', {
+      db_path: '/tmp/emdash-init-test.db',
+    });
 
     await service.close();
   });
