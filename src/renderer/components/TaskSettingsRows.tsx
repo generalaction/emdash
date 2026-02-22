@@ -26,7 +26,7 @@ export const AutoGenerateTaskNamesRow: React.FC<RowProps> = ({ taskSettings }) =
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">Auto-generate task names</p>
           <p className="text-sm text-muted-foreground">
-            Automatically suggests a task name when creating a new task.
+            Infers task names from your prompt or linked issue context during task creation.
           </p>
         </div>
         <Switch
