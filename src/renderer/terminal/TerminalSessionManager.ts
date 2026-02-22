@@ -286,6 +286,25 @@ export class TerminalSessionManager {
         this.handleTerminalInput(CTRL_J_ASCII, true);
         return false; // Prevent xterm from processing the Shift+Enter
       }
+
+      // Map Cmd+Left/Right to Ctrl+A/E on macOS (line navigation)
+      if (IS_MAC_PLATFORM && event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          this.handleTerminalInput('\x01', true);
+          return false;
+        }
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          this.handleTerminalInput('\x05', true);
+          return false;
+        }
+      }
+
       return true; // Let xterm handle all other keys normally
     });
 
