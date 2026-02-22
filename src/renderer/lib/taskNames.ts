@@ -53,6 +53,13 @@ const NOUNS = [
 
 export const MAX_TASK_NAME_LENGTH = 64;
 
+export interface TaskNameInferenceContext {
+  initialPrompt?: string | null;
+  linearIssue?: { identifier?: string | null; title?: string | null } | null;
+  githubIssue?: { number?: number | null; title?: string | null } | null;
+  jiraIssue?: { key?: string | null; summary?: string | null } | null;
+}
+
 export const normalizeTaskName = (input: string): string =>
   input
     .trim()
