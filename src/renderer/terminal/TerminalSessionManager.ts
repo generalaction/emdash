@@ -4,11 +4,13 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ensureTerminalHost } from './terminalHost';
+import { TerminalInputBuffer } from './TerminalInputBuffer';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { classifyActivity } from '../lib/activityClassifier';
 import {
   CTRL_J_ASCII,
   shouldCopySelectionFromTerminal,
@@ -56,6 +58,7 @@ export interface TerminalSessionOptions {
   mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
+  onFirstMessage?: (message: string) => void;
 }
 
 type CleanupFn = () => void;
@@ -93,6 +96,7 @@ export class TerminalSessionManager {
   private pendingResize: { cols: number; rows: number } | null = null;
   private lastSentResize: { cols: number; rows: number } | null = null;
   private isPanelResizeDragging = false;
+  private inputBuffer: TerminalInputBuffer | null = null;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -102,6 +106,13 @@ export class TerminalSessionManager {
   constructor(private readonly options: TerminalSessionOptions) {
     this.initStartTime = performance.now();
     this.id = options.taskId;
+
+    if (options.onFirstMessage) {
+      this.inputBuffer = new TerminalInputBuffer((message) => {
+        options.onFirstMessage!(message);
+        this.inputBuffer = null;
+      });
+    }
 
     this.container = document.createElement('div');
     this.container.className = 'terminal-session-root';
@@ -378,6 +389,8 @@ export class TerminalSessionManager {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.inputBuffer?.dispose();
+    this.inputBuffer = null;
     this.detach();
     this.stopSnapshotTimer();
     this.cancelScheduledFit();
@@ -467,6 +480,7 @@ export class TerminalSessionManager {
   private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
     this.emitActivity();
     if (this.disposed) return;
+    this.inputBuffer?.feed(data);
 
     // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out) only if PTY hasn't started yet.
     // This prevents raw escape sequences from appearing in the terminal before the CLI is ready,
@@ -981,6 +995,14 @@ export class TerminalSessionManager {
         try {
           this.terminal.refresh(0, this.terminal.rows - 1);
         } catch {}
+      }
+
+      // Confirm user message submission when agent starts processing
+      if (this.inputBuffer) {
+        const signal = classifyActivity(this.options.providerId ?? null, chunk);
+        if (signal === 'busy') {
+          this.inputBuffer.confirmSubmit();
+        }
       }
 
       if (isAtBottom) {

@@ -34,6 +34,7 @@ type Props = {
   onStartError?: (message: string) => void;
   onStartSuccess?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
+  onFirstMessage?: (message: string) => void;
 };
 
 const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
@@ -60,6 +61,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       onStartError,
       onStartSuccess,
       onExit,
+      onFirstMessage,
     },
     ref
   ) => {
@@ -112,6 +114,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         mapShiftEnterToCtrlJ,
         disableSnapshots,
         onLinkClick: handleLinkClick,
+        onFirstMessage,
       });
       sessionRef.current = session;
 
