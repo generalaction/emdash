@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { ExternalLink, Users, Tag } from 'lucide-react';
@@ -34,19 +34,80 @@ const StatusPill = ({ state }: { state?: string | null }) => {
   );
 };
 
+// Module-level singleton: only one tooltip may be open at a time.
+// Stores the force-close function of the currently open tooltip instance.
+let activeTooltipForceClose: (() => void) | null = null;
+
 export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, side = 'top' }) => {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => {
+    if (closeTimer.current !== null) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+
+  const latestClose = useRef<() => void>(() => {});
+  latestClose.current = () => { cancelClose(); setOpen(false); };
+
+  const stableForceClose = useRef<() => void>(() => latestClose.current());
+
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 300);
+  };
+
+  const handleMouseEnter = () => {
+    cancelClose();
+    setOpen(true);
+  };
+
+  // Whenever this tooltip becomes visible (via ANY path — mouse enter, Radix's
+  // internal onOpenChange, etc.) register it in the global singleton and
+  // immediately force-close whichever other instance was previously open.
+  useEffect(() => {
+    const myForceClose = stableForceClose.current;
+    if (open) {
+      if (activeTooltipForceClose && activeTooltipForceClose !== myForceClose) {
+        activeTooltipForceClose(); // close the other tooltip immediately
+      }
+      activeTooltipForceClose = myForceClose;
+    } else {
+      if (activeTooltipForceClose === myForceClose) {
+        activeTooltipForceClose = null;
+      }
+    }
+    // Cleanup on unmount.
+    return () => {
+      if (activeTooltipForceClose === myForceClose) {
+        activeTooltipForceClose = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   if (!issue) return children;
 
   return (
     <TooltipProvider delayDuration={150}>
-      <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <Tooltip open={open} onOpenChange={(next) => { if (next) setOpen(true); /* closing handled by scheduleClose */ }}>
+        <TooltipTrigger
+          asChild
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={scheduleClose}
+        >
+          {children}
+        </TooltipTrigger>
         <TooltipContent
           side={side}
           align="start"
           className="border-0 bg-transparent p-0 shadow-none"
           style={{ zIndex: 10000 }}
           onPointerDownOutside={(e) => e.preventDefault()}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
         >
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.98 }}
