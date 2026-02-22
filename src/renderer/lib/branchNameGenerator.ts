@@ -35,7 +35,7 @@ export function generateTaskName(description: string): string {
       addRandomSuffix: false,
       separator: '-',
       maxLength: MAX_TASK_NAME_LENGTH,
-      maxKeywords: 4,
+      maxKeywords: 3,
     });
     return branchName.slice(0, MAX_TASK_NAME_LENGTH).replace(/-+$/, '');
   } catch {
