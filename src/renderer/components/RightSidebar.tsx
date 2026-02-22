@@ -17,7 +17,7 @@ export interface RightSidebarTask {
   name: string;
   branch: string;
   path: string;
-  status: 'active' | 'idle' | 'running';
+  status: 'active' | 'idle' | 'running' | 'creating';
   agentId?: string;
   metadata?: any;
 }
